@@ -27,7 +27,7 @@ train_device: "cpu"
 eval_device: "cpu"
 cost_params_per_method_and_dataset:
     randomdummy:
-        default: [0.1, 0.01, 0.001, 0.0001, 0.00001]
+        default: [0.9, 0.5, 0.1, 0.01, 0.001]
         # diabetes: [0.01, 0.00001, 0.00000001, 0.00000000001]
         # miniboone: [0.01, 0.001, 0.0001, 0.000001]
         # physionet: [0.01, 0.001, 0.0001, 0.00001, 0.000001]
