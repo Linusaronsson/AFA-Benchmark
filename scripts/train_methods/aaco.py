@@ -4,13 +4,18 @@ import hydra
 import logging
 
 from pathlib import Path
-from typing import Any, cast
 from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
 
 from afabench.afa_oracle import create_aaco_method
 from afabench.common.config_classes import AACOTrainConfig
-from afabench.common.utils import load_dataset_artifact, set_seed
+
+from afabench.common.utils import (
+    load_dataset_artifact,
+    set_seed,
+    save_artifact,
+    get_artifact_path,
+)
 
 log = logging.getLogger(__name__)
 
@@ -26,18 +31,18 @@ def main(cfg: AACOTrainConfig):
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
+    # Optional wandb logging
     run = wandb.init(
-        config=cast(
-            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-        ),
+        config=OmegaConf.to_container(cfg, resolve=True),
         job_type="training",
         tags=["aaco"],
-        dir="extra/wandb",
+        dir="wandb",
     )
 
     log.info(f"W&B run initialized: {run.name} ({run.id})")
     log.info(f"W&B run URL: {run.url}")
 
+    # Load dataset from filesystem
     train_dataset, _, _, dataset_metadata = load_dataset_artifact(
         cfg.dataset_artifact_name
     )
@@ -47,15 +52,18 @@ def main(cfg: AACOTrainConfig):
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
-    log.info(f"Dataset: {dataset_type}")
+    log.info(f"Dataset: {dataset_type}, Split: {split}")
     log.info(f"Features: {n_features}, Classes: {n_classes}")
     log.info(f"Training samples: {len(train_dataset)}")
 
+    # Get cost parameter
     cost = (
         cfg.cost_param
         if cfg.cost_param is not None
         else cfg.aco.acquisition_cost
     )
+
+    # Create and train AACO method
     aaco_method = create_aaco_method(
         k_neighbors=cfg.aco.k_neighbors,
         acquisition_cost=cost,
@@ -69,41 +77,43 @@ def main(cfg: AACOTrainConfig):
     X_train = train_dataset.features.to(device)
     y_train = train_dataset.labels.to(device)
     aaco_method.aaco_oracle.fit(X_train, y_train)
-
     log.info("AACO method fitted and ready for evaluation")
 
+    # Save to temporary directory then move to artifacts
     with TemporaryDirectory() as temp_dir:
         temp_path = Path(temp_dir)
         aaco_method.save(temp_path)
-        split_idx = cfg.dataset_artifact_name.split("_split_")[-1].split(":")[
-            0
-        ]
-        dataset_lower = dataset_type.lower()
 
-        artifact_name = f"train_aaco-{dataset_lower}_split_{
-            split_idx
-        }-costparam_{cost}-seed_{cfg.seed}"
-
-        trained_method_artifact = wandb.Artifact(
-            name=artifact_name,
-            type="trained_method",
-            metadata={
-                "method_type": "aaco",
-                "dataset_type": dataset_type,
-                "dataset_artifact_name": cfg.dataset_artifact_name,
-                "budget": None,
-                "seed": cfg.seed,
-                "cost_param": cost,
-            },
-        )
-        trained_method_artifact.add_dir(str(temp_path))
-        run.log_artifact(
-            trained_method_artifact, aliases=cfg.output_artifact_aliases
+        # Build artifact name and path
+        artifact_identifier = f"{dataset_type.lower()}_split_{
+            split
+        }_costparam_{cost}_seed_{cfg.seed}"
+        artifact_dir = get_artifact_path(
+            "trained_method", f"aaco/{artifact_identifier}", Path("extra")
         )
 
-    wandb.finish()
-    log.info("AACO method saved as artifact")
-    run.finish()
+        # Prepare metadata
+        metadata = {
+            "method_type": "aaco",
+            "dataset_type": dataset_type,
+            "dataset_artifact_name": cfg.dataset_artifact_name,
+            "budget": None,
+            "seed": cfg.seed,
+            "cost_param": cost,
+            "split_idx": split,
+        }
+
+        # Save artifact to filesystem
+        save_artifact(
+            artifact_dir=artifact_dir,
+            files={f.name: f for f in temp_path.iterdir() if f.is_file()},
+            metadata=metadata,
+        )
+
+        log.info(f"AACO method saved to: {artifact_dir}")
+
+    if run:
+        run.finish()
 
 
 if __name__ == "__main__":
