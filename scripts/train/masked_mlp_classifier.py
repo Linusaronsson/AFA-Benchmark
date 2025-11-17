@@ -6,7 +6,6 @@ import lightning as pl
 
 from pathlib import Path
 from omegaconf import OmegaConf
-from tempfile import NamedTemporaryFile
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 
@@ -20,7 +19,7 @@ from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
 
 from afabench.common.utils import (
     get_class_probabilities,
-    load_dataset_artifact,
+    load_dataset,
     set_seed,
 )
 
@@ -40,31 +39,27 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     run = wandb.init(
         group="train_masked_mlp_classifier",
         job_type="train_classifier",
-        # pyright: ignore[reportArgumentType]
         config=OmegaConf.to_container(cfg, resolve=True),
         dir="extra/wandb",
     )
 
-    # Log W&B run URL
     log.info(f"W&B run initialized: {run.name} ({run.id})")
     log.info(f"W&B run URL: {run.url}")
 
-    # Load dataset artifact
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
+    # Load dataset
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset(
         cfg.dataset_artifact_name
     )
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
 
-    # Get the number of features and classes from the dataset
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
 
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(
-        f"Class probabilities in training set: {train_class_probabilities}"
-    )
+    log.debug(f"Class probabilities: {train_class_probabilities}")
+
     lit_model = LitMaskedMLPClassifier(
         n_features=n_features,
         n_classes=n_classes,
@@ -76,7 +71,6 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         lr=cfg.lr,
     )
 
-    # ModelCheckpoint callback
     checkpoint_callback = ModelCheckpoint(
         monitor="val_loss_many_observations",
         save_top_k=1,
@@ -88,7 +82,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         max_epochs=cfg.epochs,
         logger=logger,
         accelerator=cfg.device,
-        devices=1,  # Use only 1 GPU
+        devices=1,
         callbacks=[checkpoint_callback],
         enable_checkpointing=True,
     )
@@ -98,8 +92,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        # Convert lightning model to a classifier that implements the AFAClassifier interface
-        # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        # Load best checkpoint
         best_checkpoint = trainer.checkpoint_callback.best_model_path
         best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
             best_checkpoint,
@@ -115,8 +108,8 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         wrapped_classifier = WrappedMaskedMLPClassifier(
             module=best_model, device=torch.device(cfg.device)
         )
+
         if cfg.evaluate_final_performance:
-            # Evaluate an AFA method that randomly selects features and uses this classifier
             afa_method = RandomClassificationAFAMethod(
                 afa_classifier=wrapped_classifier, device=torch.device("cpu")
             )
@@ -129,29 +122,34 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
             )
             fig = plot_metrics(metrics)
             run.log({"metrics_plot": fig})
-        # Save model in a temporary file
-        with NamedTemporaryFile(delete=False) as tmp_file:
-            save_path = Path(tmp_file.name)
-            wrapped_classifier.save(save_path)
-        # Save classifier as wandb artifact
-        trained_classifier_artifact = wandb.Artifact(
-            name=f"masked_mlp_classifier-{
-                cfg.dataset_artifact_name.split(':')[0]
-            }",
-            type="trained_classifier",
-            metadata={
-                "dataset_type": dataset_metadata["dataset_type"],
-                "seed": cfg.seed,
-                "classifier_class_name": wrapped_classifier.__class__.__name__,
-                "classifier_type": "MaskedMLPClassifier",
-            },
+
+        # Save to local filesystem
+        dataset_name = cfg.dataset_artifact_name.split("/")[0]
+        dataset_split = cfg.dataset_artifact_name.split("_")[-1]
+        classifier_name = (
+            f"masked_mlp_classifier-{dataset_name}_split_{dataset_split}"
         )
-        trained_classifier_artifact.add_file(
-            str(save_path), name="classifier.pt"
-        )
-        run.log_artifact(
-            trained_classifier_artifact, aliases=cfg.output_artifact_aliases
-        )
+        classifier_dir = Path("extra/classifiers") / classifier_name
+        classifier_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save classifier
+        wrapped_classifier.save(classifier_dir / "classifier.pt")
+
+        # Save metadata
+        import json
+
+        metadata = {
+            "classifier_class_name": wrapped_classifier.__class__.__name__,
+            "dataset_artifact_name": cfg.dataset_artifact_name,
+            "dataset_type": dataset_metadata["dataset_type"],
+            "seed": cfg.seed,
+            "num_cells": list(cfg.num_cells),
+            "dropout": cfg.dropout,
+        }
+        with open(classifier_dir / "metadata.json", "w") as f:
+            json.dump(metadata, f, indent=2)
+
+        log.info(f"Classifier saved to: {classifier_dir}")
         run.finish()
 
 
