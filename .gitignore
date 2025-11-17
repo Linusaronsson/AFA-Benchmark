@@ -203,10 +203,12 @@ outputs
 /extra/outputs
 
 # Temporary folder for storing intermediate files
+tmp/
 /extra/tmp
 
 /lightning_logs
 
+multirun/
 /extra/multirun
 debug/soft_budget/.Rhistory
 debug/soft_budget/*.csv
@@ -223,3 +225,7 @@ AFA-Benchmark.Rproj
 
 # extra dir
 extra/*
+!extra/data/
+extra/data/*
+!extra/data/misc/
+!extra/data/misc/*

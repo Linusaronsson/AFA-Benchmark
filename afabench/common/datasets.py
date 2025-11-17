@@ -499,130 +499,6 @@ class CubeOnlyInformativeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return dataset
 
 
-# @final
-# class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-#     """
-#     Dataset with:
-#     - 2 one-hot context features (only one is active)
-#     - 10 cube features (with 3 informative bits depending on class)
-#     - Informative bits are flipped (1 -> 0, 0 -> 1) if context == 1
-#
-#     The position of the 3 bits is fixed for each class (based on class index).
-#     """
-#
-#     n_classes = 8
-#     n_features = 12
-#
-#     def __init__(
-#         self,
-#         n_samples: int = 10000,
-#         seed: int = 123,
-#         context_feature_std: float = 0.1,
-#         informative_feature_std: float = 0.1,
-#         non_informative_feature_mean: float = 0.5,
-#         non_informative_feature_std: float = 0.3,
-#     ):
-#         self.n_samples = n_samples
-#         self.seed = seed
-#         self.informative_feature_std = informative_feature_std
-#         self.non_informative_feature_mean = non_informative_feature_mean
-#         self.non_informative_feature_std = non_informative_feature_std
-#         self.rng = torch.Generator().manual_seed(seed)
-#
-#         self.features: Tensor
-#         self.labels: Tensor
-#
-#     @override
-#     def generate_data(self):
-#         # Sample context (0 or 1)
-#         context = torch.randint(0, 2, (self.n_samples,), generator=self.rng)
-#         context_onehot = F.one_hot(context, num_classes=2).float()  # (n_samples, 2)
-#
-#         # Sample class labels (0–7)
-#         y_int = torch.randint(0, self.n_classes, (self.n_samples,), generator=self.rng)
-#
-#         # Compute 3-bit binary representation of labels
-#         binary_codes = torch.stack(
-#             [
-#                 torch.tensor([int(b) for b in format(i, "03b")])
-#                 for i in range(self.n_classes)
-#             ],
-#             dim=0,
-#         ).flip(dims=[1])  # shape (8, 3)
-#
-#         # Initialize all cube features with noise
-#         cube = torch.normal(
-#             mean=self.non_informative_feature_mean,
-#             std=self.non_informative_feature_std,
-#             size=(self.n_samples, 10),
-#             generator=self.rng,
-#         )
-#
-#         for i in range(self.n_samples):
-#             label = int(y_int[i].item())
-#             ctx = int(context[i].item())
-#             bits = binary_codes[label].clone().float()
-#
-#             # Flip bits if context == 1
-#             if ctx == 1:
-#                 bits = 1.0 - bits
-#
-#             # Insert the bits into positions (label, label+1, label+2) % 10
-#             indices = [(label + j) % 10 for j in range(3)]
-#             noise = torch.normal(
-#                 mean=0.0,
-#                 std=self.informative_feature_std,
-#                 size=(3,),
-#                 generator=self.rng,
-#             )
-#             cube[i, indices] = bits + noise
-#
-#         # Combine features
-#         self.features = torch.cat(
-#             [context_onehot, cube], dim=1
-#         )  # shape (n_samples, 12)
-#         self.labels = F.one_hot(y_int, num_classes=self.n_classes).float()
-#
-#     @override
-#     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-#         return self.features[idx], self.labels[idx]
-#
-#     @override
-#     def __len__(self) -> int:
-#         return self.features.size(0)
-#
-#     @override
-#     def get_all_data(self) -> tuple[Tensor, Tensor]:
-#         return self.features, self.labels
-#
-#     @override
-#     def save(self, path: Path) -> None:
-#         torch.save(
-#             {
-#                 "features": self.features,
-#                 "labels": self.labels,
-#                 "config": {
-#                     "n_samples": self.n_samples,
-#                     "seed": self.seed,
-#                     # "n_contexts": self.n_contexts,
-#                     "informative_feature_std": self.informative_feature_std,
-#                     "non_informative_feature_mean": self.non_informative_feature_mean,
-#                     "non_informative_feature_std": self.non_informative_feature_std,
-#                 },
-#             },
-#             path,
-#         )
-#
-#     @classmethod
-#     @override
-#     def load(cls, path: Path):
-#         data = torch.load(path)
-#         dataset = cls(**data["config"])
-#         dataset.features = data["features"]
-#         dataset.labels = data["labels"]
-#         return dataset
-
-
 @final
 class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
@@ -1018,7 +894,7 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         train: bool = True,
         transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
-        root: str = "extra/data/MNIST",
+        root: str = "extra/data",
         seed: None = None,  # does nothing, added to not panic during data generation
     ):
         super().__init__()
@@ -1098,7 +974,7 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         train: bool = True,
         transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
-        root: str = "extra/data/FashionMNIST",
+        root: str = "extra/data",
         seed: None = None,  # does nothing, added to not panic during data generation
     ):
         super().__init__()
@@ -1179,11 +1055,11 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        data_path: str = "datasets/diabetes.csv",
+        root: str = "extra/data/misc/diabetes.csv",
         seed: int = 123,
     ):
         super().__init__()
-        self.data_path = data_path
+        self.root = root
         self.seed = seed
         self.feature_names = None  # set when generating data
         self.feature_costs = None
@@ -1195,13 +1071,13 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         torch.manual_seed(self.seed)
 
         # Check if file exists
-        if not os.path.exists(self.data_path):
+        if not os.path.exists(self.root):
             raise FileNotFoundError(
-                f"Diabetes dataset not found at {self.data_path}"
+                f"Diabetes dataset not found at {self.root}"
             )
 
         # Load the dataset
-        df = pd.read_csv(self.data_path)
+        df = pd.read_csv(self.root)
 
         # Extract features and labels
         # The last column is the target variable (Outcome)
@@ -1245,7 +1121,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "feature_names": self.feature_names,
                 "feature_costs": self.feature_costs,
                 "config": {
-                    "data_path": self.data_path,
+                    "root": self.root,
                     "seed": self.seed,
                 },
             },
@@ -1290,11 +1166,11 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        data_path: str = "datasets/miniboone.csv",
+        root: str = "extra/data/misc/miniboone.csv",
         seed: int = 123,
     ):
         super().__init__()
-        self.data_path = data_path
+        self.root = root
         self.seed = seed
         self.feature_names = None  # set when generating data
 
@@ -1303,12 +1179,12 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         """Load and preprocess the MiniBooNE dataset."""
         torch.manual_seed(self.seed)
 
-        if not os.path.exists(self.data_path):
+        if not os.path.exists(self.root):
             raise FileNotFoundError(
-                f"MiniBooNE dataset not found at {self.data_path}"
+                f"MiniBooNE dataset not found at {self.root}"
             )
 
-        df = pd.read_csv(self.data_path)
+        df = pd.read_csv(self.root)
 
         # Assuming the last column is the binary target variable
         features_df = df.iloc[:, :-1]
@@ -1345,7 +1221,7 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "labels": self.labels,
                 "feature_names": self.feature_names,
                 "config": {
-                    "data_path": self.data_path,
+                    "root": self.root,
                     "seed": self.seed,
                 },
             },
@@ -1377,11 +1253,11 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        data_path: str = "datasets/physionet_data.csv",
+        root: str = "extra/data/misc/physionet.csv",
         seed: int = 123,
     ):
         super().__init__()
-        self.data_path = data_path
+        self.root = root
         self.seed = seed
         self.feature_names = None  # set when generating data
 
@@ -1390,12 +1266,12 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         """Load and preprocess the Physionet dataset."""
         torch.manual_seed(self.seed)
 
-        if not os.path.exists(self.data_path):
+        if not os.path.exists(self.root):
             raise FileNotFoundError(
-                f"Physionet dataset not found at {self.data_path}"
+                f"Physionet dataset not found at {self.root}"
             )
 
-        df = pd.read_csv(self.data_path)
+        df = pd.read_csv(self.root)
 
         features_df = df.iloc[:, :-1]
         labels_df = df.iloc[:, -1]
@@ -1447,7 +1323,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "labels": self.labels,
                 "feature_names": self.feature_names,
                 "config": {
-                    "data_path": self.data_path,
+                    "root": self.root,
                     "seed": self.seed,
                 },
             },
@@ -1472,11 +1348,14 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        data_path: str = "extra/data/bank_marketing/bank-marketing.csv",
+        root: str = "extra/data/misc/bank_marketing.csv",
         seed: int = 123,
+        # For catching API consistency
+        *args,
+        **kwargs,
     ):
         super().__init__()
-        self.data_path = data_path
+        self.root = root
         self.seed = seed
         self.feature_names = None
 
@@ -1484,10 +1363,10 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def generate_data(self) -> None:
         torch.manual_seed(self.seed)
 
-        if not os.path.exists(self.data_path):
+        if not os.path.exists(self.root):
             self._download_dataset()
 
-        df = pd.read_csv(self.data_path, sep=";")
+        df = pd.read_csv(self.root, sep=";")
 
         # Process data
         target_col = "y" if "y" in df.columns else "deposit"
@@ -1514,22 +1393,22 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.feature_names = features_df.columns.tolist()
 
         # Clean up raw CSV
-        os.remove(self.data_path)
+        os.remove(self.root)
 
     def _download_dataset(self):
-        os.makedirs(os.path.dirname(self.data_path), exist_ok=True)
+        os.makedirs(os.path.dirname(self.root), exist_ok=True)
         url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank.zip"
-        zip_path = os.path.join(os.path.dirname(self.data_path), "bank.zip")
+        zip_path = os.path.join(os.path.dirname(self.root), "bank.zip")
 
         urllib.request.urlretrieve(url, zip_path)
         with zipfile.ZipFile(zip_path, "r") as zip_ref:
             csv_file = next(
                 f for f in zip_ref.namelist() if f.endswith("bank-full.csv")
             )
-            zip_ref.extract(csv_file, os.path.dirname(self.data_path))
+            zip_ref.extract(csv_file, os.path.dirname(self.root))
             os.rename(
-                os.path.join(os.path.dirname(self.data_path), csv_file),
-                self.data_path,
+                os.path.join(os.path.dirname(self.root), csv_file),
+                self.root,
             )
         os.remove(zip_path)
 
@@ -1552,7 +1431,7 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "feature_names": self.feature_names,
-                "config": {"data_path": self.data_path, "seed": self.seed},
+                "config": {"root": self.root, "seed": self.seed},
             },
             path,
         )
@@ -1582,12 +1461,14 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        # Not used, kept for API consistency
-        data_path: str = "extra/data/ckd/chronic_kidney_disease.csv",
+        root: str = "extra/data/ckd/chronic_kidney_disease.csv",
         seed: int = 123,
+        # Not used, kept for API consistency
+        *args,
+        **kwargs,
     ):
         super().__init__()
-        self.data_path = data_path
+        self.root = root
         self.seed = seed
         self.feature_names = None
 
@@ -1667,7 +1548,7 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "feature_names": self.feature_names,
-                "config": {"data_path": self.data_path, "seed": self.seed},
+                "config": {"root": self.root, "seed": self.seed},
             },
             path,
         )
@@ -1699,12 +1580,14 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        # Not used, kept for API consistency
-        data_path: str = "extra/data/actg175/actg175.csv",
+        root: str = "extra/data/actg175/actg175.csv",
         seed: int = 123,
+        # Not used, kept for API consistency
+        *args,
+        **kwargs,
     ):
         super().__init__()
-        self.data_path = data_path
+        self.root = root
         self.seed = seed
         self.feature_names = None
 
@@ -1797,7 +1680,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "feature_names": self.feature_names,
-                "config": {"data_path": self.data_path, "seed": self.seed},
+                "config": {"root": self.root, "seed": self.seed},
             },
             path,
         )
@@ -1826,7 +1709,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        data_root: str = "data",
+        data_root: str = "extra/data/",
         variant_dir: str = "imagenette2-320",
         load_subdirs: tuple[str, ...] = ("train", "val"),
         seed: int = 123,
@@ -1909,24 +1792,6 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             dtype=torch.long,
         )
         self.indices = torch.arange(len(self.samples), dtype=torch.long)
-
-        # self.class_to_idx = sub_datasets[0].class_to_idx
-        # self.classes = sub_datasets[0].classes
-
-        # xs: list[Tensor] = []
-        # ys: list[int] = []
-        # for ds in sub_datasets:
-        #     for path, y in ds.samples:
-        #         with Image.open(path) as im:
-        #             im = im.convert("RGB")
-        #             x = tfm(im)
-        #         xs.append(x)
-        #         ys.append(y)
-
-        # self.features = torch.stack(xs, dim=0).contiguous()  # [N,3,224,224]
-        # y = torch.tensor(ys, dtype=torch.long)
-        # self.labels = torch.nn.functional.one_hot(y, num_classes=10).float()
-        # self.indices = torch.arange(len(self.features), dtype=torch.long)
 
     def __getitem__(self, idx: int):  # type: ignore[override]
         assert (

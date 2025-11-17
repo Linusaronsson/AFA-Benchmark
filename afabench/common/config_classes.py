@@ -23,6 +23,9 @@ class DatasetType(str, Enum):
     physionet = "physionet"
     miniboone = "miniboone"
     FashionMNIST = "FashionMNIST"
+    bank_marketing = "bank_marketing"
+    ckd = "ckd"
+    actg = "actg"
 
 
 @dataclass
@@ -33,16 +36,12 @@ class DatasetConfig:
 
 @dataclass
 class DatasetGenerationConfig:
-    # where to store the generated dataset (apart from wandb artifacts)
     data_dir: str
-    split_idx: int  # which split to use
-    seeds: list[
-        int
-    ]  # which seeds to use, only the seed at index `split - 1` will be used
+    split_idx: list[int]
+    seeds: list[int]
     split_ratio: SplitRatioConfig
-    output_artifact_aliases: list[str]
-    epsilon: float  # small float added to standard deviation to avoid division by zero
-
+    # Small float added to standard deviation to avoid division by zero
+    epsilon: float
     dataset: DatasetConfig
 
 

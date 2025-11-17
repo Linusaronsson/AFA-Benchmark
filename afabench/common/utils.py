@@ -118,7 +118,7 @@ def load_artifact_metadata(artifact_dir: Path) -> dict[str, Any]:
 def get_artifact_path(
     artifact_type: str,
     artifact_name: str,
-    base_dir: Path = Path("extra"),
+    base_dir: Path = Path("extra/data"),
 ) -> Path:
     """
     Construct path to artifact based on type and name.
@@ -130,7 +130,7 @@ def get_artifact_path(
         pretrained_model: extra/shim2018/pretrained/cube_split_1_seed_42/
     """
     if artifact_type == "dataset":
-        return base_dir / "data" / artifact_name
+        return base_dir / artifact_name
 
     elif artifact_type == "trained_classifier":
         # Format: classifier_type/dataset_variant or just name
@@ -257,11 +257,19 @@ def load_dataset_artifact(
     # Parse old wandb-style names
     if "/" in artifact_name:
         parts = artifact_name.split("/")
-        name = parts[-1].split(":")[0]  # Remove version tag
+        name = parts[-1]
     else:
         name = artifact_name
 
+    # Always strip version tag (e.g., :latest, :v1)
+    name = name.split(":")[0]
+
     return load_dataset(name, base_dir)
+
+
+def strip_version_tag(artifact_name: str) -> str:
+    """Strip version tag from artifact name (e.g., :latest, :v1)."""
+    return artifact_name.split(":")[0]
 
 
 def load_trained_method(
@@ -278,8 +286,7 @@ def load_trained_method(
         device = torch.device("cpu")
 
     # Parse old wandb format
-    if isinstance(artifact_name, str) and ":" in artifact_name:
-        artifact_name = artifact_name.split(":")[0]
+    artifact_name = strip_version_tag(artifact_name)
     if artifact_name.startswith("train_"):
         artifact_name = artifact_name[6:]
 
@@ -318,8 +325,7 @@ def load_trained_classifier(
     if device is None:
         device = torch.device("cpu")
 
-    if ":" in artifact_name:
-        artifact_name = artifact_name.split(":")[0]
+    artifact_name = strip_version_tag(artifact_name)
 
     classifier_path = get_artifact_path(
         "trained_classifier", artifact_name, base_dir
@@ -372,9 +378,7 @@ def load_pretrained_model(
     if device is None:
         device = torch.device("cpu")
 
-    # Parse old wandb names
-    if ":" in artifact_name:
-        artifact_name = artifact_name.split(":")[0]
+    artifact_name = strip_version_tag(artifact_name)
 
     pretrained_path = get_artifact_path(
         "pretrained_model", artifact_name, base_dir

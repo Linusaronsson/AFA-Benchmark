@@ -4,32 +4,16 @@ hydra:
 
 defaults:
   - _self_
-  - dataset: imagenette
+  - dataset: cube
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-data_dir: "data"
-split_idx: 1
-seeds:
-  - 42
-  - 123
-  - 456
-  - 789
-  - 101112
-  - 131415
-  - 161718
-  - 192021
-  - 222324
-  - 252627
-# split_ratio:
-#   train: 0.7
-#   val: 0.15
-#   test: 0.15
+data_dir: "extra/data"
+split_idx: [1,2,3,4,5]
+seeds: [42]
 split_ratio:
-  train: 0.9
-  val: 0.1
-  test: 0.0
-output_artifact_aliases: []
+  train: 0.7
+  val: 0.15
+  test: 0.15
 epsilon: 1e-8
-

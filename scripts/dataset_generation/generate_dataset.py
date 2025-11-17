@@ -25,7 +25,7 @@ def generate_and_save_split(
     split_idx: int,
     split_ratio: SplitRatioConfig,
     seed: int,
-    base_dir: Path = Path("extra"),
+    base_dir: Path = Path("extra/data"),
     epsilon: float = 1e-8,
     **dataset_kwargs,
 ):
@@ -91,7 +91,7 @@ def generate_and_save_split(
     }
 
     # Save to filesystem using new artifact system
-    artifact_name = f"{dataset_type}_split_{split_idx}"
+    artifact_name = f"{dataset_type}/{dataset_type}_split_{split_idx}"
     artifact_dir = get_artifact_path("dataset", artifact_name, base_dir)
 
     save_artifact(
@@ -124,24 +124,23 @@ def generate_and_save_split(
 )
 def main(cfg: DatasetGenerationConfig) -> None:
     # Optional: still init wandb for logging metrics
-    run = wandb.run or wandb.init(job_type="data_generation", dir="wandb")
+    # run = wandb.run or wandb.init(job_type="data_generation", dir="wandb")
 
-    print(cfg.dataset.type)
-    dataset_class = get_afa_dataset_class(cfg.dataset.type)
+    for seed in cfg.seeds:
+        for split_idx in cfg.split_idx:
+            dataset_class = get_afa_dataset_class(cfg.dataset.type)
+            generate_and_save_split(
+                dataset_class=dataset_class,
+                dataset_type=cfg.dataset.type,
+                split_idx=split_idx,
+                split_ratio=cfg.split_ratio,
+                seed=seed,
+                base_dir=Path(cfg.data_dir),
+                **cfg.dataset.kwargs,
+            )
 
-    generate_and_save_split(
-        dataset_class=dataset_class,
-        dataset_type=cfg.dataset.type,
-        split_idx=cfg.split_idx,
-        split_ratio=cfg.split_ratio,
-        seed=cfg.seeds[cfg.split_idx - 1],
-        base_dir=Path("extra"),
-        epsilon=cfg.epsilon,
-        **cfg.dataset.kwargs,
-    )
-
-    if run:
-        run.finish()
+    # if run:
+    #     run.finish()
 
 
 if __name__ == "__main__":
