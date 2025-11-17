@@ -9,7 +9,7 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-data_dir: "extra/data"
+data_dir: "extra"
 split_idx: [1,2,3,4,5]
 seeds: [42]
 split_ratio:

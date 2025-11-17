@@ -25,7 +25,7 @@ def generate_and_save_split(
     split_idx: int,
     split_ratio: SplitRatioConfig,
     seed: int,
-    base_dir: Path = Path("extra/data"),
+    base_dir: Path = Path("extra"),
     epsilon: float = 1e-8,
     **dataset_kwargs,
 ):
