@@ -40,19 +40,22 @@ def main(cfg: SoftEvalConfig) -> None:
     torch.set_float32_matmul_precision("medium")
 
     # Optional wandb logging
-    run = wandb.init(
-        job_type="evaluation",
-        config=OmegaConf.to_container(cfg, resolve=True),
-        dir="extra/wandb",
-    )
+    # run = wandb.init(
+    #     job_type="evaluation",
+    #     config=OmegaConf.to_container(cfg, resolve=True),
+    #     dir="extra/wandb",
+    # )
 
-    log.info(f"W&B run initialized: {run.name} ({run.id})")
-    log.info(f"W&B run URL: {run.url}")
+    # log.info(f"W&B run initialized: {run.name} ({run.id})")
+    # log.info(f"W&B run URL: {run.url}")
 
     # Load trained method from filesystem
-    _train_dataset_, val_dataset, test_dataset, afa_method, method_metadata = (
+    _, val_dataset, test_dataset, afa_method, method_metadata = (
         load_trained_method(
-            cfg.trained_method_artifact_name, device=torch.device(cfg.device)
+            f"{cfg.trained_method_artifact_name}_{cfg.experiment_id}"
+            if cfg.experiment_id
+            else cfg.trained_method_artifact_name,
+            device=torch.device(cfg.device),
         )
     )
 
@@ -71,16 +74,6 @@ def main(cfg: SoftEvalConfig) -> None:
     # Load external classifier if specified
     external_afa_predict_fn = None
     if cfg.trained_classifier_artifact_name:
-        # TODO, FIX CLASSIFIERS, NEED TO RERUN AND SAVE METADATA OR RUN THE AD-HOC SOLUTION FOR NOW.
-        # if cfg.validate_artifacts:
-        #     classifier, classifier_metadata = load_trained_classifier(
-        #         cfg.trained_classifier_artifact_name,
-        #         device=torch.device(cfg.device),
-        #     )
-        #     validate_method_classifier_compatibility(
-        #         method_metadata, classifier_metadata
-        #     )
-        # else:
         classifier, _ = load_trained_classifier(
             cfg.trained_classifier_artifact_name,
             device=torch.device(cfg.device),
@@ -141,7 +134,7 @@ def main(cfg: SoftEvalConfig) -> None:
     df_eval["dataset"] = method_metadata["dataset_type"]
 
     # Log to wandb for debugging purposes
-    run.log({"soft_eval_df": wandb.Table(dataframe=df_eval)})
+    # run.log({"soft_eval_df": wandb.Table(dataframe=df_eval)})
 
     # Save results to filesystem
     method_base = cfg.trained_method_artifact_name.split(":")[0]
@@ -188,8 +181,8 @@ def main(cfg: SoftEvalConfig) -> None:
 
     log.info(f"Evaluation results saved to: {csv_path}")
 
-    if run:
-        run.finish()
+    # if run:
+    #     run.finish()
 
 
 if __name__ == "__main__":

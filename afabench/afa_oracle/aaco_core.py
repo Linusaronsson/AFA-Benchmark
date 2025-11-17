@@ -1,14 +1,9 @@
 import torch
-import wandb
 import logging
 import torch.nn.functional as F
 
-
-from pathlib import Path
-from afabench.afa_oracle.classifiers import classifier_mlp
-from afabench.common.utils import get_class_probabilities
+from afabench.common.utils import get_class_probabilities, load_classifier
 from afabench.afa_oracle.mask_generator import random_mask_generator
-from afabench.common.classifiers import WrappedMaskedMLPClassifier
 
 log = logging.getLogger(__name__)
 
@@ -46,29 +41,6 @@ def get_knn(
         )[1]
         return idx_topk[idx_topk != instance_idx][:num_neighbors]
     return torch.topk(dist_squared, num_neighbors, dim=0, largest=False)[1]
-
-
-def load_classifier(dataset_name, split, device=None):
-    if dataset_name == "afacontext":
-        dataset_name = "AFAContext"
-    elif dataset_name == "mnist":
-        dataset_name = "MNIST"
-    elif dataset_name == "fashionmnist":
-        dataset_name = "FashionMNIST"
-
-    log.info(f"Checking for existing MLP classifier for {dataset_name}...")
-    artifact_name = (
-        f"masked_mlp_classifier-{dataset_name}_split_{split}:latest"
-    )
-    log.info(f"Found existing MLP classifier artifact: {artifact_name}")
-    artifact = wandb.use_artifact(artifact_name)
-    artifact_dir = artifact.download()
-
-    classifier_path = Path(artifact_dir) / "classifier.pt"
-    wrapped_mlp = WrappedMaskedMLPClassifier.load(classifier_path, device)
-
-    log.info(f"Successfully loaded MLP classifier from {artifact_name}")
-    return classifier_mlp(wrapped_mlp, hide_val=10.0)
 
 
 def load_mask_generator(dataset_name, input_dim):
@@ -119,6 +91,9 @@ class AACOOracle:
         self.hide_val = hide_val
         self.dataset_name = dataset_name
         self.split = split
+        self.classifier_artifact_name = (
+            f"masked_mlp_classifier-{dataset_name}_split_{split}/"
+        )
         self.classifier = None
         self.mask_generator = None
         self.X_train = None
@@ -137,8 +112,9 @@ class AACOOracle:
 
         # Load exact classifier - pass device parameter
         input_dim = X_train.shape[1]
+
         self.classifier = load_classifier(
-            self.dataset_name, self.split, device=self.device
+            self.classifier_artifact_name, device=self.device
         )
 
         # Load exact mask generator

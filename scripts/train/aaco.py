@@ -7,14 +7,14 @@ from pathlib import Path
 from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
 
+from afabench import SAVE_PATH
 from afabench.afa_oracle import create_aaco_method
 from afabench.common.config_classes import AACOTrainConfig
 
 from afabench.common.utils import (
-    load_dataset_artifact,
+    load_dataset,
     set_seed,
     save_artifact,
-    get_artifact_path,
 )
 
 log = logging.getLogger(__name__)
@@ -32,18 +32,18 @@ def main(cfg: AACOTrainConfig):
     device = torch.device(cfg.device)
 
     # Optional wandb logging
-    run = wandb.init(
-        config=OmegaConf.to_container(cfg, resolve=True),
-        job_type="training",
-        tags=["aaco"],
-        dir="wandb",
-    )
+    # run = wandb.init(
+    #     config=OmegaConf.to_container(cfg, resolve=True),
+    #     job_type="training",
+    #     tags=["aaco"],
+    #     dir="extra/wandb",
+    # )
 
-    log.info(f"W&B run initialized: {run.name} ({run.id})")
-    log.info(f"W&B run URL: {run.url}")
+    # log.info(f"W&B run initialized: {run.name} ({run.id})")
+    # log.info(f"W&B run URL: {run.url}")
 
     # Load dataset from filesystem
-    train_dataset, _, _, dataset_metadata = load_dataset_artifact(
+    train_dataset, _, _, dataset_metadata = load_dataset(
         cfg.dataset_artifact_name
     )
 
@@ -84,13 +84,15 @@ def main(cfg: AACOTrainConfig):
         temp_path = Path(temp_dir)
         aaco_method.save(temp_path)
 
-        # Build artifact name and path
+        # Build artifact identifier with optional experiment_id suffix
         artifact_identifier = f"{dataset_type.lower()}_split_{
             split
         }_costparam_{cost}_seed_{cfg.seed}"
-        artifact_dir = get_artifact_path(
-            "trained_method", f"aaco/{artifact_identifier}", Path("extra")
-        )
+        if hasattr(cfg, "experiment_id") and cfg.experiment_id:
+            artifact_identifier = f"{artifact_identifier}_{cfg.experiment_id}"
+
+        # Direct path, no get_artifact_path wrapper
+        artifact_dir = SAVE_PATH / artifact_identifier
 
         # Prepare metadata
         metadata = {
@@ -112,8 +114,8 @@ def main(cfg: AACOTrainConfig):
 
         log.info(f"AACO method saved to: {artifact_dir}")
 
-    if run:
-        run.finish()
+    # if run:
+    #     run.finish()
 
 
 if __name__ == "__main__":

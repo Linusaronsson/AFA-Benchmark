@@ -124,7 +124,7 @@ def generate_and_save_split(
 )
 def main(cfg: DatasetGenerationConfig) -> None:
     # Optional: still init wandb for logging metrics
-    # run = wandb.run or wandb.init(job_type="data_generation", dir="wandb")
+    # run = wandb.run or wandb.init(job_type="data_generation", dir="extra/wandb")
 
     for seed in cfg.seeds:
         for split_idx in cfg.split_idx:

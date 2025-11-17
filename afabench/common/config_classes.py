@@ -735,11 +735,11 @@ class AACOConfig:
 class AACOTrainConfig:
     aco: AACOConfig
     dataset_artifact_name: str
-    output_artifact_aliases: list[str]
     seed: int = 42
     device: str = "cpu"
     cost_param: float | None = None
     hard_budget: float | None = None
+    experiment_id: str | None = None
 
 
 # --- TRAINING CLASSIFIERS ---
@@ -830,7 +830,6 @@ class SoftEvalConfig:
     trained_classifier_artifact_name: str  # has to be given
     seed: int | None
     device: str
-    output_artifact_aliases: list[str]
     eval_only_n_samples: (
         int | None
     )  # if specified, only evaluate on this many samples
@@ -839,8 +838,7 @@ class SoftEvalConfig:
     budget: int | None = (
         None  # if specified, override the budget from training
     )
-    # whether to validate that the method and classifier artifacts are trained on the exact same dataset
-    validate_artifacts: bool = True
+    experiment_id: str | None = None
 
 
 cs.store(name="soft-eval", node=SoftEvalConfig)
