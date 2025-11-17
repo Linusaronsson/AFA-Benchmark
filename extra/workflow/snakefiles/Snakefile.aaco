@@ -75,13 +75,12 @@ rule train_soft_budget_aaco:
         dataset_artifact_name=lambda wildcards: f"{wildcards.dataset}/{wildcards.dataset}_split_{wildcards.dataset_split}",
     shell:
         """
-        WANDB_HTTP_TIMEOUT=60 uv run scripts/train/aaco.py \
+        uv run scripts/train/aaco.py \
             {params.dataset_specific_args} \
             dataset_artifact_name={params.dataset_artifact_name} \
             seed={wildcards.seed} \
             cost_param={wildcards.cost_param} \
             +experiment_id={EXPERIMENT_ID} \
-            output_artifact_aliases=["{EXPERIMENT_ID}"] \
             device={TRAIN_DEVICE}
         """
 
@@ -90,43 +89,27 @@ rule eval_soft_budget_aaco:
     input:
         f"{BASE_DIR}/aaco/train/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}.done",
     output:
-        touch(
+        done=touch(
             f"{BASE_DIR}/aaco/eval/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}.done"
         ),
+        csv=f"{BASE_DIR}/aaco/eval/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}/soft_eval_data.csv",
     params:
-        classifier_arg=lambda wildcards: f"trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{CLASSIFIER_ARTIFACT_ALIASES[wildcards.dataset]}",
+        classifier_arg=lambda wildcards: f"trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}",
         batch_size=lambda wildcards: get_batch_size(wildcards.dataset),
-        trained_method_artifact_name=lambda wildcards: f"train_aaco-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID}",
+        trained_method_artifact_name=lambda wildcards: f"train_aaco_{wildcards.dataset}_split_{wildcards.dataset_split}_costparam_{wildcards.cost_param}_seed_{wildcards.seed}",
     shell:
         """
-        WANDB_HTTP_TIMEOUT=60 uv run scripts/eval/eval_soft_afa_method.py \
+        uv run scripts/eval/eval_soft_afa_method.py \
             trained_method_artifact_name={params.trained_method_artifact_name} \
             cost_param={wildcards.cost_param} \
             {params.classifier_arg} \
             +experiment_id={EXPERIMENT_ID} \
-            output_artifact_aliases=["{EXPERIMENT_ID}"] \
             seed=null \
             device={EVAL_DEVICE} \
             eval_only_n_samples=null \
             dataset_split={DATASET_SPLIT_MODE} \
             validate_artifacts={VALIDATE_ARTIFACTS} \
             batch_size={params.batch_size}
-        """
-
-# Download evaluation results
-rule download_soft_budget_eval_result:
-    input:
-        f"{BASE_DIR}/aaco/eval/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}.done",
-    output:
-        f"{BASE_DIR}/aaco/eval/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}/soft_eval_data.csv",
-    params:
-        experiment_id=EXPERIMENT_ID,
-        base_dir=BASE_DIR,
-    shell:
-        """
-        WANDB_HTTP_TIMEOUT=60 uv run wandb artifact get \
-            train_aaco-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}-{CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{EXPERIMENT_ID} \
-            --root {params.base_dir}/aaco/eval/{wildcards.dataset}_split_{wildcards.dataset_split}_costparam_{wildcards.cost_param}_seed_{wildcards.seed}_{params.experiment_id}
         """
 
 # Add dataset split column to results

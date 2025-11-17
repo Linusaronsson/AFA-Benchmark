@@ -182,12 +182,16 @@ class AACOOracle:
         x_masked = torch.mul(x_rep, mask_rep) - (1 - mask_rep) * self.hide_val
         x_with_mask = torch.cat([x_masked, mask_rep], -1)
 
-        y_pred = (
-            self.classifier.predict_logits(x_with_mask)
-            if hasattr(self.classifier, "predict_logits")
-            else self.classifier(
-                x_with_mask, torch.tensor([0], device=self.device)
-            )
+        # Split x_with_mask back into features and mask
+        n_features = x_with_mask.shape[-1] // 2
+        x_masked_split = x_with_mask[..., :n_features]
+        mask_split = x_with_mask[..., n_features:]
+
+        y_pred = self.classifier(
+            masked_features=x_masked_split,
+            feature_mask=mask_split,
+            features=None,
+            label=None,
         )
 
         # Compute loss - ensure tensors are on same device

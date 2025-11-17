@@ -137,50 +137,6 @@ def get_artifact_path(
         raise ValueError(f"Unknown artifact type: {artifact_type}")
 
 
-def parse_artifact_name(artifact_name: str) -> tuple[str, str, str]:
-    """
-    Parse artifact name into components.
-
-    Returns: (method, dataset_variant, params_str)
-    """
-    name = artifact_name
-    for prefix in ["train_", "pretrain_", "eval_"]:
-        if name.startswith(prefix):
-            name = name[len(prefix) :]
-            break
-
-    parts = name.split("-")
-    if len(parts) < 2:
-        return name, "", ""
-
-    method = parts[0]
-    dataset_variant = parts[1]
-    params = "_".join(parts[2:]) if len(parts) > 2 else ""
-
-    return method, dataset_variant, params
-
-
-def build_artifact_name(
-    method: str,
-    dataset: str,
-    split: int | str,
-    seed: int,
-    budget: int | None = None,
-    cost_param: float | None = None,
-    prefix: str = "train",
-) -> str:
-    """Build standardized artifact name."""
-    parts = [f"{prefix}_{method}", f"{dataset}_split_{split}"]
-
-    if budget is not None:
-        parts.append(f"budget_{budget}")
-    if cost_param is not None:
-        parts.append(f"costparam_{cost_param}")
-
-    parts.append(f"seed_{seed}")
-    return "-".join(parts)
-
-
 def load_dataset(
     dataset_path: str | Path,
     base_dir: Path = Path("extra"),
@@ -253,9 +209,28 @@ def load_classifier(
     return classifier
 
 
-def strip_version_tag(artifact_name: str) -> str:
-    """Strip version tag from artifact name (e.g., :latest, :v1)."""
-    return artifact_name.split(":")[0]
+def load_trained_classifier(
+    artifact_name: str,
+    device: torch.device | None = None,
+    base_dir: Path = Path("extra"),
+) -> tuple[AFAClassifier, dict[str, Any]]:
+    """Load trained classifier from filesystem."""
+    if device is None:
+        device = torch.device("cpu")
+
+    classifier_path = get_artifact_path("classifier", artifact_name, base_dir)
+
+    assert classifier_path.exists(), f"Classifier not found: {classifier_path}"
+
+    metadata = load_artifact_metadata(classifier_path)
+    classifier_class_name = metadata["classifier_class_name"]
+
+    classifier_class = get_afa_classifier_class(classifier_class_name)
+    classifier = classifier_class.load(
+        classifier_path / "classifier.pt", device=device
+    )
+
+    return classifier, metadata
 
 
 def load_trained_method(
@@ -302,30 +277,6 @@ def load_trained_method(
     return train_dataset, val_dataset, test_dataset, method, metadata
 
 
-def load_trained_classifier(
-    artifact_name: str,
-    device: torch.device | None = None,
-    base_dir: Path = Path("extra"),
-) -> tuple[AFAClassifier, dict[str, Any]]:
-    """Load trained classifier from filesystem."""
-    if device is None:
-        device = torch.device("cpu")
-
-    classifier_path = get_artifact_path("classifier", artifact_name, base_dir)
-
-    assert classifier_path.exists(), f"Classifier not found: {classifier_path}"
-
-    metadata = load_artifact_metadata(classifier_path)
-    classifier_class_name = metadata["classifier_class_name"]
-
-    classifier_class = get_afa_classifier_class(classifier_class_name)
-    classifier = classifier_class.load(
-        classifier_path / "classifier.pt", device=device
-    )
-
-    return classifier, metadata
-
-
 def load_pretrained_model(
     artifact_name: str,
     model_class: type,
@@ -337,39 +288,33 @@ def load_pretrained_model(
     """Load pretrained model and dataset."""
     if device is None:
         device = torch.device("cpu")
-
-    artifact_name = strip_version_tag(artifact_name)
-
-    # Extract method name and use glob search similar to above
-    method_name = artifact_name.split("-")[0]
+    # Extract method and stage
+    stage = "pretrain"  # default
     if artifact_name.startswith("pretrain_"):
-        method_name = artifact_name[9:].split("-")[0]
+        artifact_name = artifact_name[9:]
+        stage = "pretrain"
 
-    search_dir = base_dir / method_name / "pretrain"
+    # Parse method name (first part before _)
+    method_name = artifact_name.split("_")[0]
 
-    if not search_dir.exists():
-        raise FileNotFoundError(f"Pretrain directory not found: {search_dir}")
+    # Build search path: extra/result/{method}/{stage}/
+    search_dir = base_dir / method_name / stage
+    assert search_dir.exists(), f"Method directory not found: {search_dir}"
 
-    # Search for matching pretrained model
-    identifier = artifact_name.replace("-", "_")
-    matches = list(search_dir.glob(f"*{identifier}*"))
+    # Method search path: extra/result/{method}/{stage}/{artifact_name}
+    artifact_name = artifact_name.split(f"{method_name}_", 1)[-1]
+    method_path = search_dir / artifact_name
 
-    if not matches:
-        raise FileNotFoundError(f"No pretrained model found in: {search_dir}")
+    metadata_path = method_path / "metadata.json"
+    assert metadata_path.exists(), f"No metadata.json found in {method_path}"
 
-    pretrained_path = matches[0]
-
-    # Rest unchanged...
-    metadata = load_artifact_metadata(pretrained_path)
+    metadata = load_artifact_metadata(method_path)
     pretrain_config = metadata.get("pretrain_config", {})
-    model = model_class.load(pretrained_path / "model.pt", map_location=device)
+    model = model_class.load(method_path / "model.pt", map_location=device)
 
-    dataset_name = metadata["dataset_artifact_name"]
-    if "/" in dataset_name:
-        dataset_name = dataset_name.split("/")[-1].split(":")[0]
-
+    # Load dataset
     train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset(
-        dataset_name, Path("extra/data")
+        metadata["dataset_artifact_name"]
     )
 
     return (

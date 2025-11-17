@@ -14,10 +14,8 @@ from afabench.eval.soft_budget import eval_soft_budget_afa_method
 from afabench.common.utils import (
     load_trained_method,
     load_trained_classifier,
-    validate_method_classifier_compatibility,
     set_seed,
     save_artifact,
-    get_artifact_path,
 )
 
 from afabench.common.afa_uncoverings import (
@@ -50,11 +48,14 @@ def main(cfg: SoftEvalConfig) -> None:
     # log.info(f"W&B run URL: {run.url}")
 
     # Load trained method from filesystem
+    method_artifact_name = (
+        f"{cfg.trained_method_artifact_name}_{cfg.experiment_id}"
+        if cfg.experiment_id
+        else cfg.trained_method_artifact_name
+    )
     _, val_dataset, test_dataset, afa_method, method_metadata = (
         load_trained_method(
-            f"{cfg.trained_method_artifact_name}_{cfg.experiment_id}"
-            if cfg.experiment_id
-            else cfg.trained_method_artifact_name,
+            method_artifact_name,
             device=torch.device(cfg.device),
         )
     )
@@ -95,21 +96,20 @@ def main(cfg: SoftEvalConfig) -> None:
         f"Starting evaluation with soft budget, batch size {cfg.batch_size}"
     )
     modality = getattr(afa_method, "modality", "tabular")
-    # is_image = modality == "image"
-    image_mask_width = getattr(afa_method, "mask_width", None)
     image_patch_size = getattr(afa_method, "patch_size", 1)
-    n_patches = getattr(afa_method, "n_patches", 1)
     uncover_fn = None
+
     if modality == "image":
         x, _ = dataset[0]
         assert x.ndim == 3
-        C, H, W = x.shape
+        C, H, _ = x.shape
         uncover_fn = get_image_patch_uncover_fn(
             image_side_length=H, n_channels=C, patch_size=image_patch_size
         )
     else:
         uncover_fn = one_based_index_uncover_fn
 
+    # Uncomment the evaluation
     df_eval = eval_soft_budget_afa_method(
         afa_select_fn=afa_method.select,
         dataset=dataset,
@@ -133,39 +133,23 @@ def main(cfg: SoftEvalConfig) -> None:
     df_eval["cost_parameter"] = cost_param
     df_eval["dataset"] = method_metadata["dataset_type"]
 
-    # Log to wandb for debugging purposes
-    # run.log({"soft_eval_df": wandb.Table(dataframe=df_eval)})
+    # Remove "train_" prefix from method_artifact_name
+    eval_artifact_name = method_artifact_name.replace("train_", "")
 
-    # Save results to filesystem
-    method_base = cfg.trained_method_artifact_name.split(":")[0]
-    if method_base.startswith("train_"):
-        method_base = method_base[6:]  # Remove "train_" prefix
+    # Parse method name (first part before underscore)
+    method_name = eval_artifact_name.split("_")[0]
 
-    classifier_name = (
-        cfg.trained_classifier_artifact_name.split(":")[0]
-        if cfg.trained_classifier_artifact_name
-        else "builtin"
-    )
-    if "/" in classifier_name:
-        classifier_name = classifier_name.split("/")[-1]
-
-    # Construct eval artifact path
-    eval_identifier = (
-        f"{method_base}_costparam_{cfg.cost_param}_{classifier_name}"
-    )
-    artifact_dir = get_artifact_path(
-        "trained_method",  # Store under method directory
-        f"{method_metadata['method_type']}/{eval_identifier}",
-        Path("extra"),
-    )
-
-    # Create eval subdirectory
-    eval_dir = artifact_dir / "eval"
+    # Create eval directory: extra/result/{method_name}/eval/{artifact_name}/
+    base_dir = Path("extra/result")
+    # remove "methodname_" prefix from eval_artifact_name
+    eval_artifact_name = eval_artifact_name.split("_", 1)[-1]
+    eval_dir = base_dir / method_name / "eval" / eval_artifact_name
     eval_dir.mkdir(parents=True, exist_ok=True)
 
-    # Save CSV
+    # Save CSV directly
     csv_path = eval_dir / "soft_eval_data.csv"
     df_eval.to_csv(csv_path, index=False)
+    log.info(f"Saved evaluation data to CSV at: {csv_path}")
 
     # Save metadata
     eval_metadata = {
@@ -174,12 +158,14 @@ def main(cfg: SoftEvalConfig) -> None:
         "seed": method_metadata["seed"],
         "cost_param": cfg.cost_param,
         "eval_type": "soft_budget",
+        "dataset_split": cfg.dataset_split,
+        "classifier_artifact_name": cfg.trained_classifier_artifact_name,
     }
 
     with open(eval_dir / "metadata.json", "w") as f:
         json.dump(eval_metadata, f, indent=2)
 
-    log.info(f"Evaluation results saved to: {csv_path}")
+    log.info(f"Evaluation results saved to: {eval_dir}")
 
     # if run:
     #     run.finish()
