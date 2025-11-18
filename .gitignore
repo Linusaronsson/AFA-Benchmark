@@ -220,3 +220,4 @@ workflow/snakefiles/dummy
 .Rproj.user
 AFA-Benchmark.Rproj
 .Rhistory
+multirun
