@@ -9,9 +9,9 @@ from typing import Any, cast
 from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
 
-
+from afabench import SAVE_PATH
+from afabench.common.utils import load_dataset, set_seed, save_artifact
 from afabench.common.afa_methods import RandomDummyAFAMethod
-from afabench.common.utils import load_dataset_artifact, set_seed
 
 from afabench.common.config_classes import (
     RandomDummyTrainConfig,
@@ -44,8 +44,24 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     log.info(f"W&B run URL: {run.url}")
 
     # Load dataset artifact
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
+    train_dataset, _, _, dataset_metadata = load_dataset(
         cfg.dataset_artifact_name
+    )
+
+    dataset_type = dataset_metadata["dataset_type"]
+    split = dataset_metadata["split_idx"]
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
+
+    log.info(f"Dataset: {dataset_type}, Split: {split}")
+    log.info(f"Features: {n_features}, Classes: {n_classes}")
+    log.info(f"Training samples: {len(train_dataset)}")
+
+    # Get cost parameter
+    cost = (
+        cfg.cost_param
+        if cfg.cost_param is not None
+        else cfg.aco.acquisition_cost
     )
 
     # Get number of classes from the dataset
@@ -56,37 +72,41 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         n_classes=n_classes,
         prob_select_0=cfg.cost_param,
     )
+
     # Save the method to a temporary directory and load it again to ensure it is saved correctly
-    with TemporaryDirectory(delete=False) as tmp_path_str:
-        tmp_path = Path(tmp_path_str)
-        afa_method.save(tmp_path)
+    with TemporaryDirectory() as tmp_dir:
+        temp_path = Path(tmp_dir)
+        afa_method.save(temp_path)
 
-        # Save the model as a WandB artifact
-        # Save the name of the afa method class as metadata
-        budget_str = (
-            f"budget_{cfg.hard_budget}"
-            if cfg.hard_budget is not None
-            else f"costparam_{cfg.cost_param}"
-        )
-        artifact_name = f"train_randomdummy-{
-            cfg.dataset_artifact_name.split(':')[0]
-        }-{budget_str}-seed_{cfg.seed}"
-        afa_method_artifact = wandb.Artifact(
-            name=artifact_name,
-            type="trained_method",
-            metadata={
-                "method_type": "randomdummy",
-                "dataset_artifact_name": cfg.dataset_artifact_name,
-                "dataset_type": dataset_metadata["dataset_type"],
-                "budget": cfg.hard_budget,
-                "seed": cfg.seed,
-            },
+        # Build artifact identifier with optional experiment_id suffix
+        artifact_identifier = f"{dataset_type.lower()}_split_{
+            split
+        }_costparam_{cost}_seed_{cfg.seed}"
+        if hasattr(cfg, "experiment_id") and cfg.experiment_id:
+            artifact_identifier = f"{artifact_identifier}_{cfg.experiment_id}"
+
+        # Direct path, no get_artifact_path wrapper
+        artifact_dir = SAVE_PATH / artifact_identifier
+
+        # Prepare metadata
+        metadata = {
+            "method_type": "RandomDummy",
+            "dataset_type": dataset_type,
+            "dataset_artifact_name": cfg.dataset_artifact_name,
+            "budget": None,
+            "seed": cfg.seed,
+            "cost_param": cost,
+            "split_idx": split,
+        }
+
+        # Save artifact to filesystem
+        save_artifact(
+            artifact_dir=artifact_dir,
+            files={f.name: f for f in temp_path.iterdir() if f.is_file()},
+            metadata=metadata,
         )
 
-        afa_method_artifact.add_dir(str(tmp_path))
-        run.log_artifact(
-            afa_method_artifact, aliases=cfg.output_artifact_aliases
-        )
+        log.info(f"RandomDummy method saved to {artifact_dir}")
 
     run.finish()
 

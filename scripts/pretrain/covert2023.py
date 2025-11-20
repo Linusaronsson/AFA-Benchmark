@@ -6,18 +6,20 @@ import logging
 
 from torch import nn
 from pathlib import Path
-from datetime import datetime
 from omegaconf import OmegaConf
 from tempfile import TemporaryDirectory
 
+from afabench import SAVE_PATH
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.common.config_classes import Covert2023PretrainingConfig
+from afabench.afa_discriminative.afa_methods import Covert2023AFAMethod
 from afabench.afa_discriminative.models import MaskingPretrainer, fc_Net
 
 from afabench.common.utils import (
     get_class_probabilities,
-    load_dataset_artifact,
+    load_dataset,
+    save_artifact,
     set_seed,
 )
 
@@ -31,7 +33,6 @@ log = logging.getLogger(__name__)
 )
 def main(cfg: Covert2023PretrainingConfig):
     log.debug(cfg)
-    print(OmegaConf.to_yaml(cfg))
     run = wandb.init(
         group="pretrain_covert2023",
         job_type="pretraining",
@@ -43,9 +44,20 @@ def main(cfg: Covert2023PretrainingConfig):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    train_dataset, val_dataset, _, _ = load_dataset_artifact(
+    # Load dataset from filesystem
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset(
         cfg.dataset_artifact_name
     )
+
+    dataset_type = dataset_metadata["dataset_type"]
+    split = dataset_metadata["split_idx"]
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
+
+    log.info(f"Dataset: {dataset_type}, Split: {split}")
+    log.info(f"Features: {n_features}, Classes: {n_classes}")
+    log.info(f"Training samples: {len(train_dataset)}")
+
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
@@ -81,33 +93,53 @@ def main(cfg: Covert2023PretrainingConfig):
         max_mask=cfg.max_masking_probability,
     )
 
-    pretrained_model_artifact = wandb.Artifact(
-        name=f"pretrain_covert2023-{cfg.dataset_artifact_name.split(':')[0]}",
-        type="pretrained_model",
-    )
-    with TemporaryDirectory(delete=False) as tmp_path_str:
-        tmp_path = Path(tmp_path_str)
-        torch.save(
-            {
-                "predictor_state_dict": pretrain.model.state_dict(),
-                "architecture": {
-                    "d_in": d_in,
-                    "d_out": d_out,
-                    "predictor_hidden_layers": cfg.hidden_units,
-                    "dropout": cfg.dropout,
-                },
-            },
-            tmp_path / "model.pt",
+    with TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+
+        # Create dummy selector (untrained)
+        selector = fc_Net(
+            input_dim=d_in * 2,
+            output_dim=d_in,
+            hidden_layer_num=len(cfg.hidden_units),
+            hidden_unit=cfg.hidden_units,
+            activations=cfg.activations,
+            drop_out_rate=cfg.dropout,
+            flag_drop_out=cfg.flag_drop_out,
+            flag_only_output_layer=cfg.flag_only_output_layer,
         )
 
-    pretrained_model_artifact.add_file(str(tmp_path / "model.pt"))
-    run.log_artifact(
-        pretrained_model_artifact,
-        aliases=[
-            *cfg.output_artifact_aliases,
-            datetime.now().strftime("%b%d"),
-        ],
-    )
+        # Build Covert2023AFAMethod
+        pretrained_method = Covert2023AFAMethod(
+            selector=selector,
+            predictor=predictor,
+            device=device,
+            modality="tabular",
+        )
+
+        # Save in correct format
+        pretrained_method.save(tmp_path)
+
+        artifact_identifier = (
+            f"{dataset_type.lower()}_split_{split}_seed_{cfg.seed}"
+        )
+        artifact_dir = SAVE_PATH / artifact_identifier
+
+        metadata = {
+            "model_type": "Covert2023AFAMethod",
+            "dataset_type": dataset_type,
+            "dataset_artifact_name": cfg.dataset_artifact_name,
+            "seed": cfg.seed,
+            "pretrain_config": OmegaConf.to_container(cfg),
+        }
+
+        save_artifact(
+            artifact_dir=artifact_dir,
+            files={"model.pt": tmp_path / "model.pt"},
+            metadata=metadata,
+        )
+
+    log.info(f"Covert2023 pretrained model saved to: {artifact_dir}")
+
     run.finish()
 
     gc.collect()

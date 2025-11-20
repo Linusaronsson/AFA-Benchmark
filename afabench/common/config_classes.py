@@ -341,6 +341,7 @@ class Covert2023PretrainingConfig:
     activations: str = "ReLU"
     flag_drop_out: bool = True
     flag_only_output_layer: bool = False
+    experiment_id: str | None = None
 
 
 cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
@@ -567,6 +568,7 @@ class RandomDummyTrainConfig:
     seed: int
     output_artifact_aliases: list[str]
     cost_param: float
+    experiment_id: str | None = None
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)

@@ -104,6 +104,12 @@ def save_artifact(
                 source_path, artifact_dir / dest_name, dirs_exist_ok=True
             )
 
+    # Assert files saved
+    saved_filenames = [f.name for f in artifact_dir.iterdir()]
+    expected_filenames = list(files.keys()) + ["metadata.json"]
+    missing = set(expected_filenames) - set(saved_filenames)
+    assert not missing, f"Missing files in artifact: {missing}"
+
 
 def load_artifact_metadata(artifact_dir: Path) -> dict[str, Any]:
     """Load metadata.json from artifact directory."""
@@ -282,9 +288,7 @@ def load_pretrained_model(
     model_class: type,
     device: torch.device | None = None,
     base_dir: Path = Path("extra/result"),  # Changed from "extra"
-) -> tuple[
-    AFADataset, AFADataset, AFADataset, dict[str, Any], Any, dict[str, Any]
-]:
+) -> tuple[AFAMethod, dict[str, Any], dict[str, Any]]:
     """Load pretrained model and dataset."""
     if device is None:
         device = torch.device("cpu")
@@ -310,21 +314,9 @@ def load_pretrained_model(
 
     metadata = load_artifact_metadata(method_path)
     pretrain_config = metadata.get("pretrain_config", {})
-    model = model_class.load(method_path / "model.pt", map_location=device)
+    model = model_class.load(method_path / "model.pt")
 
-    # Load dataset
-    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset(
-        metadata["dataset_artifact_name"]
-    )
-
-    return (
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        dataset_metadata,
-        model,
-        pretrain_config,
-    )
+    return model, metadata, pretrain_config
 
 
 def validate_method_classifier_compatibility(

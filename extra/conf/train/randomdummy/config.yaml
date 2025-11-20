@@ -9,9 +9,8 @@ defaults:
     - override hydra/hydra_logging: colorlog
     - override hydra/launcher: custom_slurm
 
-dataset_artifact_name: cube_split_1:tmp
+dataset_artifact_name: cube/cube_split_1
 seed: 42
 hard_budget: 5
-output_artifact_aliases: ["tmp"]
 cost_param: 0.25
 device: cpu

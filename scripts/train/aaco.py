@@ -31,16 +31,15 @@ def main(cfg: AACOTrainConfig):
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
-    # Optional wandb logging
-    # run = wandb.init(
-    #     config=OmegaConf.to_container(cfg, resolve=True),
-    #     job_type="training",
-    #     tags=["aaco"],
-    #     dir="extra/wandb",
-    # )
+    run = wandb.init(
+        config=OmegaConf.to_container(cfg, resolve=True),
+        job_type="training",
+        tags=["aaco"],
+        dir="extra/wandb",
+    )
 
-    # log.info(f"W&B run initialized: {run.name} ({run.id})")
-    # log.info(f"W&B run URL: {run.url}")
+    log.info(f"W&B run initialized: {run.name} ({run.id})")
+    log.info(f"W&B run URL: {run.url}")
 
     # Load dataset from filesystem
     train_dataset, _, _, dataset_metadata = load_dataset(
@@ -96,7 +95,7 @@ def main(cfg: AACOTrainConfig):
 
         # Prepare metadata
         metadata = {
-            "method_type": "aaco",
+            "method_type": aaco_method.__class__.__name__,
             "dataset_type": dataset_type,
             "dataset_artifact_name": cfg.dataset_artifact_name,
             "budget": None,
@@ -114,8 +113,8 @@ def main(cfg: AACOTrainConfig):
 
         log.info(f"AACO method saved to: {artifact_dir}")
 
-    # if run:
-    #     run.finish()
+    if run:
+        run.finish()
 
 
 if __name__ == "__main__":

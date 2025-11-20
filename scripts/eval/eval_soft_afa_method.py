@@ -37,15 +37,14 @@ def main(cfg: SoftEvalConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
-    # Optional wandb logging
-    # run = wandb.init(
-    #     job_type="evaluation",
-    #     config=OmegaConf.to_container(cfg, resolve=True),
-    #     dir="extra/wandb",
-    # )
+    run = wandb.init(
+        job_type="evaluation",
+        config=OmegaConf.to_container(cfg, resolve=True),
+        dir="extra/wandb",
+    )
 
-    # log.info(f"W&B run initialized: {run.name} ({run.id})")
-    # log.info(f"W&B run URL: {run.url}")
+    log.info(f"W&B run initialized: {run.name} ({run.id})")
+    log.info(f"W&B run URL: {run.url}")
 
     # Load trained method from filesystem
     method_artifact_name = (
@@ -167,8 +166,8 @@ def main(cfg: SoftEvalConfig) -> None:
 
     log.info(f"Evaluation results saved to: {eval_dir}")
 
-    # if run:
-    #     run.finish()
+    if run:
+        run.finish()
 
 
 if __name__ == "__main__":
