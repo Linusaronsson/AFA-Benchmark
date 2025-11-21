@@ -285,38 +285,57 @@ def load_trained_method(
 
 def load_pretrained_model(
     artifact_name: str,
-    model_class: type,
     device: torch.device | None = None,
-    base_dir: Path = Path("extra/result"),  # Changed from "extra"
-) -> tuple[AFAMethod, dict[str, Any], dict[str, Any]]:
-    """Load pretrained model and dataset."""
+    base_dir: Path = Path("extra/result"),
+):
+    """
+    Load pretrained model checkpoint and associated dataset.
+    """
     if device is None:
         device = torch.device("cpu")
-    # Extract method and stage
-    stage = "pretrain"  # default
+
+    # Strip prefix e.g. "pretrain_covert2023_cube_split_1_seed_42"
     if artifact_name.startswith("pretrain_"):
-        artifact_name = artifact_name[9:]
+        artifact_name = artifact_name[len("pretrain_") :]
+        stage = "pretrain"
+    else:
         stage = "pretrain"
 
-    # Parse method name (first part before _)
     method_name = artifact_name.split("_")[0]
 
-    # Build search path: extra/result/{method}/{stage}/
+    # extra/result/<method_name>/pretrain/<artifact_subfolder>
     search_dir = base_dir / method_name / stage
-    assert search_dir.exists(), f"Method directory not found: {search_dir}"
+    if not search_dir.exists():
+        raise FileNotFoundError(f"Pretraining folder not found: {search_dir}")
 
-    # Method search path: extra/result/{method}/{stage}/{artifact_name}
-    artifact_name = artifact_name.split(f"{method_name}_", 1)[-1]
-    method_path = search_dir / artifact_name
+    artifact_sub = artifact_name.split(f"{method_name}_", 1)[-1]
+    method_path = search_dir / artifact_sub
 
     metadata_path = method_path / "metadata.json"
-    assert metadata_path.exists(), f"No metadata.json found in {method_path}"
+    if not metadata_path.exists():
+        raise FileNotFoundError(f"No metadata.json found in {method_path}")
 
     metadata = load_artifact_metadata(method_path)
-    pretrain_config = metadata.get("pretrain_config", {})
-    model = model_class.load(method_path / "model.pt")
+    pretrain_cfg = metadata.get("pretrain_config", {})
 
-    return model, metadata, pretrain_config
+    model_pt_path = method_path / "model.pt"
+    if not model_pt_path.exists():
+        raise FileNotFoundError(f"Missing model.pt at {model_pt_path}")
+
+    # Load dataset
+    train_dataset, val_dataset, test_dataset, dataset_metadata = load_dataset(
+        metadata["dataset_artifact_name"]
+    )
+
+    return (
+        model_pt_path,
+        metadata,
+        pretrain_cfg,
+        train_dataset,
+        val_dataset,
+        test_dataset,
+        dataset_metadata,
+    )
 
 
 def validate_method_classifier_compatibility(

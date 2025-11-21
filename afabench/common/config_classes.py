@@ -82,7 +82,6 @@ class Shim2018PretrainConfig:
     max_masking_probability: float
     encoder: Shim2018EncoderConfig
     classifier: Shim2018ClassifierConfig
-    output_artifact_aliases: list[str]
 
 
 cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
@@ -371,8 +370,6 @@ cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
 @dataclass
 class Covert2023TrainingConfig:
     pretrained_model_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=list)
-
     batch_size: int = 128
     lr: float = 1e-3
     hard_budget: int = 20
@@ -380,6 +377,7 @@ class Covert2023TrainingConfig:
     patience: int = 5
     device: str = "cuda"
     seed: int = 42
+    experiment_id: str | None = None
 
     hidden_units: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3

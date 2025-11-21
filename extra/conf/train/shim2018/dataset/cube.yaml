@@ -1,4 +1,4 @@
-pretrained_model_artifact_name: "pretrain_shim2018-cube_split_1:KDD"
+pretrained_model_artifact_name: "pretrain_shim2018_cube_split_1"
 n_agents: 128 # shim2018 paper
 hard_budget: 5 # recommended: 3, 5, 10
 cost_param: null

@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING, Any, cast
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 
+from afabench import SAVE_PATH
 from afabench.afa_rl.afa_env import AFAEnv
-from afabench.common.custom_types import AFADataset
 from afabench.afa_rl.afa_methods import RLAFAMethod
 from afabench.afa_rl.datasets import get_afa_dataset_fn
 from afabench.afa_rl.shim2018.agents import Shim2018Agent
@@ -28,7 +28,6 @@ from afabench.common.config_classes import (
 )
 
 from afabench.afa_rl.shim2018.models import (
-    LitShim2018EmbedderClassifier,
     Shim2018AFAClassifier,
     Shim2018AFAPredictFn,
 )
@@ -39,85 +38,12 @@ from afabench.afa_rl.utils import (
 from afabench.common.utils import (
     dict_with_prefix,
     get_class_probabilities,
-    load_dataset_artifact,
+    load_pretrained_model,
     set_seed,
 )
 
 if TYPE_CHECKING:
     from afabench.afa_rl.agents import Agent
-if TYPE_CHECKING:
-    from afabench.afa_rl.agents import Agent
-
-
-def load_pretrained_model_artifacts(
-    artifact_name: str,
-) -> tuple[
-    AFADataset,  # train dataset
-    AFADataset,  # val dataset
-    AFADataset,  # test dataset
-    dict[str, Any],  # dataset metadata
-    LitShim2018EmbedderClassifier,
-    Shim2018PretrainConfig,
-]:
-    """Load a pretrained model and the dataset it was trained on, from a WandB artifact."""
-    pretrained_model_artifact = wandb.use_artifact(
-        artifact_name, type="pretrained_model"
-    )
-    pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
-    # The dataset dir should contain a file called model.pt
-    artifact_filenames = [
-        f.name for f in pretrained_model_artifact_dir.iterdir()
-    ]
-    assert {"model.pt"}.issubset(
-        artifact_filenames
-    ), f"Dataset artifact must contain a model.pt file. Instead found: {
-        artifact_filenames
-    }"
-
-    # Access config of the run that produced this pretrained model
-    pretraining_run = pretrained_model_artifact.logged_by()
-    assert pretraining_run is not None, (
-        "Pretrained model artifact must be logged by a run."
-    )
-    pretrained_model_config_dict = pretraining_run.config
-    pretrained_model_config: Shim2018PretrainConfig = from_dict(
-        data_class=Shim2018PretrainConfig, data=pretrained_model_config_dict
-    )
-
-    # Load the dataset that the pretrained model was trained on
-    train_dataset, val_dataset, test_dataset, dataset_metadata = (
-        load_dataset_artifact(pretrained_model_config.dataset_artifact_name)
-    )
-
-    # Get the number of features and classes from the dataset
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(
-        f"Class probabilities in training set: {train_class_probabilities}"
-    )
-
-    pretrained_model = get_shim2018_model_from_config(
-        pretrained_model_config,
-        n_features,
-        n_classes,
-        train_class_probabilities,
-    )
-    pretrained_model_checkpoint = torch.load(
-        pretrained_model_artifact_dir / "model.pt",
-        weights_only=True,
-        map_location=torch.device("cpu"),
-    )
-    pretrained_model.load_state_dict(pretrained_model_checkpoint["state_dict"])
-
-    return (
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        dataset_metadata,
-        pretrained_model,
-        pretrained_model_config,
-    )
 
 
 log = logging.getLogger(__name__)
@@ -181,22 +107,44 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         }"
     )
     (
+        pretrained_ckpt_path,
+        metadata,
+        pretrain_cfg,
         train_dataset,
         val_dataset,
-        _,
+        test_dataset,
         dataset_metadata,
-        pretrained_model,
-        pretrained_model_config,
-    ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
-    log.info("Successfully loaded pretrained model and datasets")
+    ) = load_pretrained_model(
+        f"{cfg.pretrained_model_artifact_name}_seed_{cfg.seed}",
+        device=device,
+    )
+
+    # Convert pretrain config dict to dataclass
+    pretrained_model_config = from_dict(
+        data_class=Shim2018PretrainConfig, data=pretrain_cfg
+    )
+
+    # Get dimensions
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(
         f"Class probabilities in training set: {train_class_probabilities}"
     )
     class_weights = 1 / train_class_probabilities
     class_weights = (class_weights / class_weights.sum()).to(device)
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
+
+    # Instantiate and load pretrained model
+    pretrained_model = get_shim2018_model_from_config(
+        pretrained_model_config,
+        n_features,
+        n_classes,
+        train_class_probabilities,
+    )
+    checkpoint = torch.load(pretrained_ckpt_path, map_location=device)
+    pretrained_model.load_state_dict(checkpoint["state_dict"])
+
+    log.info("Successfully loaded pretrained model and datasets")
 
     log.info("Setting up pretrained model")
     pretrained_model.eval()
@@ -384,7 +332,6 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         log.info("Training interrupted by user")
     finally:
         log.info("Training completed, starting cleanup and model saving")
-        # Convert the embedder+agent to an AFAMethod and save it as a temporary file
         log.info("Converting model to CPU and creating AFA method")
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
@@ -395,48 +342,56 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
             cfg.cost_param,
         )
         log.info("AFA method created")
-        # Save the method to a temporary directory and load it again to ensure it is saved correctly
-        log.info("Saving method to temporary directory")
-        with TemporaryDirectory(delete=False) as tmp_path_str:
-            tmp_path = Path(tmp_path_str)
-            afa_method.save(tmp_path)
-            del afa_method
 
-            # Save the model as a WandB artifact
-            log.info("Creating WandB artifact for trained method")
+        # Save locally
+        log.info("Saving method to local filesystem")
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            afa_method.save(tmp_path)
+
             if cfg.cost_param is not None:
                 budget_str = f"costparam_{cfg.cost_param}"
             else:
                 budget_str = f"budget_{cfg.hard_budget}"
-            afa_method_artifact = wandb.Artifact(
-                name=f"train_shim2018-{
-                    pretrained_model_config.dataset_artifact_name.split(':')[0]
-                }-{budget_str}-seed_{cfg.seed}",
-                type="trained_method",
-                metadata={
-                    "method_type": "shim2018",
-                    "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
-                    "dataset_type": dataset_metadata["dataset_type"],
-                    "budget": cfg.hard_budget,
-                    "seed": cfg.seed,
-                },
+
+            split = dataset_metadata["split_idx"]
+            dataset_type = dataset_metadata["dataset_type"]
+
+            artifact_identifier = f"{dataset_type.lower()}_split_{split}_{
+                budget_str
+            }_seed_{cfg.seed}"
+            artifact_dir = SAVE_PATH / artifact_identifier
+
+            metadata_out = {
+                "method_type": "RLAFAMethod",
+                "dataset_type": dataset_type,
+                "dataset_artifact_name": metadata["dataset_artifact_name"],
+                "budget": cfg.hard_budget
+                if cfg.hard_budget is not None
+                else None,
+                "cost_param": cfg.cost_param
+                if cfg.cost_param is not None
+                else None,
+                "seed": cfg.seed,
+                "split_idx": split,
+            }
+
+            save_artifact(
+                artifact_dir=artifact_dir,
+                files={f.name: f for f in tmp_path.iterdir() if f.is_file()},
+                metadata=metadata_out,
             )
 
-            afa_method_artifact.add_dir(str(tmp_path))
-            log.info("Logging artifact to WandB")
-            run.log_artifact(
-                afa_method_artifact, aliases=cfg.output_artifact_aliases
-            )
-            log.info("Artifact logged successfully")
+            log.info(f"Shim2018 method saved to: {artifact_dir}")
 
         log.info("Finishing WandB run")
         run.finish()
 
         log.info("Running garbage collection and clearing CUDA cache")
-        gc.collect()  # Force Python GC
+        gc.collect()
         if torch.cuda.is_available():
-            torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-            torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         log.info("Script completed successfully")
 
 

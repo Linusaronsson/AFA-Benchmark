@@ -13,7 +13,6 @@ from afabench import SAVE_PATH
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.common.config_classes import Covert2023PretrainingConfig
-from afabench.afa_discriminative.afa_methods import Covert2023AFAMethod
 from afabench.afa_discriminative.models import MaskingPretrainer, fc_Net
 
 from afabench.common.utils import (
@@ -44,25 +43,19 @@ def main(cfg: Covert2023PretrainingConfig):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    # Load dataset from filesystem
     train_dataset, val_dataset, _, dataset_metadata = load_dataset(
         cfg.dataset_artifact_name
     )
 
     dataset_type = dataset_metadata["dataset_type"]
     split = dataset_metadata["split_idx"]
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
-
-    log.info(f"Dataset: {dataset_type}, Split: {split}")
-    log.info(f"Features: {n_features}, Classes: {n_classes}")
-    log.info(f"Training samples: {len(train_dataset)}")
 
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
     )
     class_weights = class_weights.to(device)
+
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
@@ -79,9 +72,9 @@ def main(cfg: Covert2023PretrainingConfig):
     )
 
     mask_layer = MaskLayer(append=True)
-    pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
+    pretrainer = MaskingPretrainer(predictor, mask_layer).to(device)
 
-    pretrain.fit(
+    pretrainer.fit(
         train_loader,
         val_loader,
         lr=cfg.lr,
@@ -96,28 +89,11 @@ def main(cfg: Covert2023PretrainingConfig):
     with TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
 
-        # Create dummy selector (untrained)
-        selector = fc_Net(
-            input_dim=d_in * 2,
-            output_dim=d_in,
-            hidden_layer_num=len(cfg.hidden_units),
-            hidden_unit=cfg.hidden_units,
-            activations=cfg.activations,
-            drop_out_rate=cfg.dropout,
-            flag_drop_out=cfg.flag_drop_out,
-            flag_only_output_layer=cfg.flag_only_output_layer,
+        # save only pretrainer.predictor weights
+        torch.save(
+            {"predictor_state_dict": predictor.state_dict()},
+            tmp_path / "model.pt",
         )
-
-        # Build Covert2023AFAMethod
-        pretrained_method = Covert2023AFAMethod(
-            selector=selector,
-            predictor=predictor,
-            device=device,
-            modality="tabular",
-        )
-
-        # Save in correct format
-        pretrained_method.save(tmp_path)
 
         artifact_identifier = (
             f"{dataset_type.lower()}_split_{split}_seed_{cfg.seed}"
@@ -125,7 +101,7 @@ def main(cfg: Covert2023PretrainingConfig):
         artifact_dir = SAVE_PATH / artifact_identifier
 
         metadata = {
-            "model_type": "Covert2023AFAMethod",
+            "model_type": "Covert2023Predictor",
             "dataset_type": dataset_type,
             "dataset_artifact_name": cfg.dataset_artifact_name,
             "seed": cfg.seed,

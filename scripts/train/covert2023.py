@@ -19,14 +19,11 @@ from afabench.afa_discriminative.models import fc_Net
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.afa_discriminative.datasets import prepare_datasets
 
-from afabench.common.config_classes import (
-    Covert2023TrainingConfig,
-)
+from afabench.common.config_classes import Covert2023TrainingConfig
 
 from afabench.common.utils import (
     get_class_probabilities,
     load_pretrained_model,
-    load_dataset,
     save_artifact,
     set_seed,
 )
@@ -41,48 +38,48 @@ log = logging.getLogger(__name__)
 )
 def main(cfg: Covert2023TrainingConfig):
     log.debug(cfg)
+
     run = wandb.init(
         config=cast(
             "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
         ),
         job_type="training",
-        tags=["GDFS", "covert2023"],
+        tags=["covert2023", "GDFS"],
         dir="extra/wandb",
     )
 
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    # Load pretrained Covert2023 method
-    pretrained_method, metadata, pretrain_config = load_pretrained_model(
+    # Load raw pretrained model checkpoint + dataset
+    (
+        pretrained_ckpt_path,
+        metadata,
+        _,
+        train_dataset,
+        val_dataset,
+        _,
+        dataset_metadata,
+    ) = load_pretrained_model(
         f"{cfg.pretrained_model_artifact_name}_seed_{cfg.seed}",
-        Covert2023AFAMethod,
-        device,
-    )
-
-    # Load dataset used in pretraining
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset(
-        metadata["dataset_artifact_name"]
+        device=device,
     )
 
     dataset_type = dataset_metadata["dataset_type"]
     split = dataset_metadata["split_idx"]
 
-    log.info(f"Dataset: {dataset_type}, Split: {split}")
-    log.info(f"Training samples: {len(train_dataset)}")
-
     # Prepare loaders
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    class_weights = len(train_class_probabilities) / (
-        len(train_class_probabilities) * train_class_probabilities
-    )
-    class_weights = class_weights.to(device)
+    class_weights = (
+        len(train_class_probabilities)
+        / (len(train_class_probabilities) * train_class_probabilities)
+    ).to(device)
 
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
 
-    # Build predictor + load pretrained weights
+    # Predictor network
     predictor = fc_Net(
         input_dim=d_in * 2,
         output_dim=d_out,
@@ -92,10 +89,13 @@ def main(cfg: Covert2023TrainingConfig):
         drop_out_rate=cfg.dropout,
         flag_drop_out=cfg.flag_drop_out,
         flag_only_output_layer=cfg.flag_only_output_layer,
-    )
-    predictor.load_state_dict(pretrained_method.predictor.state_dict())
+    ).to(device)
 
-    # Build fresh selector for supervised GDFS
+    # Load pretrained predictor weights
+    ckpt = torch.load(pretrained_ckpt_path, map_location=device)
+    predictor.load_state_dict(ckpt["predictor_state_dict"])
+
+    # Fresh selector
     selector = fc_Net(
         input_dim=d_in * 2,
         output_dim=d_in,
@@ -105,9 +105,9 @@ def main(cfg: Covert2023TrainingConfig):
         drop_out_rate=cfg.dropout,
         flag_drop_out=cfg.flag_drop_out,
         flag_only_output_layer=cfg.flag_only_output_layer,
-    )
+    ).to(device)
 
-    # Train GDFS
+    # GDFS
     mask_layer = MaskLayer(append=True)
     gdfs = GreedyDynamicSelection(selector, predictor, mask_layer).to(device)
 
@@ -123,7 +123,7 @@ def main(cfg: Covert2023TrainingConfig):
         feature_costs=train_dataset.get_feature_acquisition_costs().to(device),
     )
 
-    # Wrap into a final AFA method
+    # Build final method
     afa_method = Covert2023AFAMethod(
         selector=gdfs.selector.cpu(),
         predictor=gdfs.predictor.cpu(),
@@ -131,18 +131,17 @@ def main(cfg: Covert2023TrainingConfig):
         modality="tabular",
     )
 
-    # Save to temporary directory then promote to artifact
-    with TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        afa_method.save(temp_path)
+    # Save locally
+    with TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
+        afa_method.save(tmp_path)
 
         artifact_identifier = f"{dataset_type.lower()}_split_{split}_budget_{
             cfg.hard_budget
         }_seed_{cfg.seed}"
         artifact_dir = SAVE_PATH / artifact_identifier
 
-        # Metadata follows the AACO pattern
-        metadata = {
+        metadata_out = {
             "method_type": afa_method.__class__.__name__,
             "dataset_type": dataset_type,
             "dataset_artifact_name": metadata["dataset_artifact_name"],
@@ -153,8 +152,8 @@ def main(cfg: Covert2023TrainingConfig):
 
         save_artifact(
             artifact_dir=artifact_dir,
-            files={f.name: f for f in temp_path.iterdir() if f.is_file()},
-            metadata=metadata,
+            files={f.name: f for f in tmp_path.iterdir() if f.is_file()},
+            metadata=metadata_out,
         )
 
         log.info(f"Covert2023 method saved to: {artifact_dir}")

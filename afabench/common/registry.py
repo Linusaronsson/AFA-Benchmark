@@ -26,11 +26,12 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:  # noqa: PLR0911
 
     Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports.
     """
-    if name in {"shim2018", "zannone2019", "kachuee2019"}:
+    # if name in {"shim2018", "zannone2019", "kachuee2019"}:
+    if name == "RLAFAMethod":
         from afabench.afa_rl.afa_methods import RLAFAMethod  # noqa: PLC0415
 
         return RLAFAMethod
-    if name == "covert2023":
+    if name == "Covert2023AFAMethod":
         from afabench.afa_discriminative.afa_methods import (  # noqa: PLC0415
             Covert2023AFAMethod,
         )

@@ -1,6 +1,6 @@
-dataset_artifact_name: "cube_split_1:tmp"
+dataset_artifact_name: "cube/cube_split_1"
 batch_size: 128 # shim2018 paper
-epochs: 10000
+epochs: 10
 limit_train_batches: null
 limit_val_batches: null
 
