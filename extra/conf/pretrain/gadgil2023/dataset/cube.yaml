@@ -1,4 +1,4 @@
-dataset_artifact_name: "cube_split_1:latest"
+dataset_artifact_name: "cube/cube_split_1"
 batch_size: 128
 lr: 0.001
 nepochs: 200

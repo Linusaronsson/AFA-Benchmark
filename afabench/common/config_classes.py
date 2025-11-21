@@ -174,7 +174,6 @@ class Kachuee2019PretrainConfig:
     min_masking_probability: float
     max_masking_probability: float
     pq_module: Kachuee2019PQModuleConfig
-    output_artifact_aliases: list[str]
 
 
 cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)

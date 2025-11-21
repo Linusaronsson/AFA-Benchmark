@@ -12,6 +12,7 @@ from omegaconf import OmegaConf
 from torchmetrics import Accuracy
 from tempfile import TemporaryDirectory
 
+from afabench import SAVE_PATH
 from afabench.afa_discriminative.models import fc_Net
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.afa_discriminative.datasets import prepare_datasets
@@ -24,9 +25,11 @@ from afabench.common.config_classes import (
     Gadgil2023PretrainingConfig,
     Gadgil2023TrainingConfig,
 )
+
 from afabench.common.utils import (
     get_class_probabilities,
-    load_dataset_artifact,
+    load_pretrained_model,
+    save_artifact,
     set_seed,
 )
 
@@ -52,35 +55,30 @@ def main(cfg: Gadgil2023TrainingConfig):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    pretrained_model_artifact = wandb.use_artifact(
-        cfg.pretrained_model_artifact_name, type="pretrained_model"
+    # Load raw pretrained model checkpoint + dataset
+    (
+        pretrained_ckpt_path,
+        metadata,
+        _,
+        train_dataset,
+        val_dataset,
+        _,
+        dataset_metadata,
+    ) = load_pretrained_model(
+        f"{cfg.pretrained_model_artifact_name}_seed_{cfg.seed}",
+        device=device,
     )
-    pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
-    artifact_filenames = [
-        f.name for f in pretrained_model_artifact_dir.iterdir()
-    ]
-    assert {"model.pt"}.issubset(
-        artifact_filenames
-    ), f"Dataset artifact must contain a model.pt file. Instead found: {
-        artifact_filenames
-    }"
-    pretraining_run = pretrained_model_artifact.logged_by()
-    assert pretraining_run is not None, (
-        "Pretrained model artifact must be logged by a run."
-    )
-    pretrained_model_config_dict = pretraining_run.config
-    pretrained_model_config: Gadgil2023PretrainingConfig = from_dict(
-        data_class=Gadgil2023PretrainingConfig,
-        data=pretrained_model_config_dict,
-    )
-    train_dataset, val_dataset, test_dataset, dataset_metadata = (
-        load_dataset_artifact(pretrained_model_config.dataset_artifact_name)
-    )
+
+    dataset_type = dataset_metadata["dataset_type"]
+    split = dataset_metadata["split_idx"]
+
+    # Prepare loaders
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    class_weights = len(train_class_probabilities) / (
-        len(train_class_probabilities) * train_class_probabilities
-    )
-    class_weights = class_weights.to(device)
+    class_weights = (
+        len(train_class_probabilities)
+        / (len(train_class_probabilities) * train_class_probabilities)
+    ).to(device)
+
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
@@ -96,12 +94,9 @@ def main(cfg: Gadgil2023TrainingConfig):
         flag_only_output_layer=cfg.flag_only_output_layer,
     )
 
-    checkpoint = torch.load(
-        str(pretrained_model_artifact_dir / "model.pt"),
-        map_location=device,
-        weights_only=False,
-    )
-    predictor.load_state_dict(checkpoint["predictor_state_dict"])
+    # Load pretrained predictor weights
+    ckpt = torch.load(pretrained_ckpt_path, map_location=device)
+    predictor.load_state_dict(ckpt["predictor_state_dict"])
 
     value_network = fc_Net(
         input_dim=d_in * 2,
@@ -142,35 +137,39 @@ def main(cfg: Gadgil2023TrainingConfig):
         greedy_cmi_estimator.predictor.cpu(),
     )
 
-    with TemporaryDirectory(delete=False) as tmp_path_str:
-        tmp_path = Path(tmp_path_str)
+    # Save locally
+    with TemporaryDirectory() as tmp_dir:
+        tmp_path = Path(tmp_dir)
         afa_method.save(tmp_path)
-        del afa_method
-        afa_method = Gadgil2023AFAMethod.load(tmp_path, device=device)
-        afa_method_artifact = wandb.Artifact(
-            name=f"train_gadgil2023-{
-                pretrained_model_config.dataset_artifact_name.split(':')[0]
-            }-budget_{cfg.hard_budget}-seed_{cfg.seed}",
-            type="trained_method",
-            metadata={
-                "method_type": "gadgil2023",
-                "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
-                "dataset_type": dataset_metadata["dataset_type"],
-                "budget": cfg.hard_budget,
-                "seed": cfg.seed,
-            },
+
+        artifact_identifier = f"{dataset_type.lower()}_split_{split}_budget_{
+            cfg.hard_budget
+        }_seed_{cfg.seed}"
+        artifact_dir = SAVE_PATH / artifact_identifier
+
+        metadata_out = {
+            "method_type": afa_method.__class__.__name__,
+            "dataset_type": dataset_type,
+            "dataset_artifact_name": metadata["dataset_artifact_name"],
+            "budget": cfg.hard_budget,
+            "seed": cfg.seed,
+            "split_idx": split,
+        }
+
+        save_artifact(
+            artifact_dir=artifact_dir,
+            files={f.name: f for f in tmp_path.iterdir() if f.is_file()},
+            metadata=metadata_out,
         )
-        afa_method_artifact.add_file(str(tmp_path / "model.pt"))
-        run.log_artifact(
-            afa_method_artifact, aliases=cfg.output_artifact_aliases
-        )
+
+        log.info(f"Gadgil2023 method saved to: {artifact_dir}")
 
     run.finish()
 
-    gc.collect()  # Force Python GC
+    gc.collect()
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-        torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
 
 
 if __name__ == "__main__":

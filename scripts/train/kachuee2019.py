@@ -13,9 +13,9 @@ from tempfile import TemporaryDirectory
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 
+from afabench import SAVE_PATH
 from afabench.afa_rl.agents import Agent
 from afabench.afa_rl.afa_env import AFAEnv
-from afabench.common.custom_types import AFADataset
 from afabench.afa_rl.afa_methods import RLAFAMethod
 from afabench.afa_rl.datasets import get_afa_dataset_fn
 from afabench.afa_rl.kachuee2019.agents import Kachuee2019Agent
@@ -25,7 +25,6 @@ from afabench.afa_rl.kachuee2019.utils import get_kachuee2019_model_from_config
 from afabench.afa_rl.kachuee2019.models import (
     Kachuee2019AFAClassifier,
     Kachuee2019AFAPredictFn,
-    LitKachuee2019PQModule,
 )
 from afabench.afa_rl.utils import (
     get_eval_metrics,
@@ -37,81 +36,10 @@ from afabench.common.config_classes import (
 from afabench.common.utils import (
     dict_with_prefix,
     get_class_probabilities,
-    load_dataset_artifact,
+    load_pretrained_model,
+    save_artifact,
     set_seed,
 )
-
-
-def load_pretrained_model_artifacts(
-    artifact_name: str,
-) -> tuple[
-    AFADataset,  # train dataset
-    AFADataset,  # val dataset
-    AFADataset,  # test dataset
-    dict[str, Any],  # dataset metadata
-    LitKachuee2019PQModule,
-    Kachuee2019PretrainConfig,
-]:
-    """Load a pretrained model and the dataset it was trained on, from a WandB artifact."""
-    pretrained_model_artifact = wandb.use_artifact(
-        artifact_name, type="pretrained_model"
-    )
-    pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
-    # The dataset dir should contain a file called model.pt
-    artifact_filenames = [
-        f.name for f in pretrained_model_artifact_dir.iterdir()
-    ]
-    assert {"model.pt"}.issubset(
-        artifact_filenames
-    ), f"Dataset artifact must contain a model.pt file. Instead found: {
-        artifact_filenames
-    }"
-
-    # Access config of the run that produced this pretrained model
-    pretraining_run = pretrained_model_artifact.logged_by()
-    assert pretraining_run is not None, (
-        "Pretrained model artifact must be logged by a run."
-    )
-    pretrained_model_config_dict = pretraining_run.config
-    pretrained_model_config: Kachuee2019PretrainConfig = from_dict(
-        data_class=Kachuee2019PretrainConfig, data=pretrained_model_config_dict
-    )
-
-    # Load the dataset that the pretrained model was trained on
-    train_dataset, val_dataset, test_dataset, dataset_metadata = (
-        load_dataset_artifact(pretrained_model_config.dataset_artifact_name)
-    )
-
-    # Get the number of features and classes from the dataset
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(
-        f"Class probabilities in training set: {train_class_probabilities}"
-    )
-
-    pretrained_model = get_kachuee2019_model_from_config(
-        pretrained_model_config,
-        n_features,
-        n_classes,
-        train_class_probabilities,
-    )
-    pretrained_model_checkpoint = torch.load(
-        pretrained_model_artifact_dir / "model.pt",
-        weights_only=True,
-        map_location=torch.device("cpu"),
-    )
-    pretrained_model.load_state_dict(pretrained_model_checkpoint["state_dict"])
-
-    return (
-        train_dataset,
-        val_dataset,
-        test_dataset,
-        dataset_metadata,
-        pretrained_model,
-        pretrained_model_config,
-    )
-
 
 log = logging.getLogger(__name__)
 
@@ -156,24 +84,48 @@ def main(cfg: Kachuee2019TrainConfig):  # noqa: PLR0915
     )
 
     # Load pretrained model and dataset from artifacts
+    log.info(
+        f"Loading pretrained model from artifact: {
+            cfg.pretrained_model_artifact_name
+        }"
+    )
     (
+        pretrained_ckpt_path,
+        metadata,
+        pretrain_cfg,
         train_dataset,
         val_dataset,
-        _,
+        test_dataset,
         dataset_metadata,
-        pretrained_model,
-        pretrained_model_config,
-    ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
-    pq_module = pretrained_model.pq_module.to(device)
+    ) = load_pretrained_model(
+        f"{cfg.pretrained_model_artifact_name}_seed_{cfg.seed}",
+        device=device,
+    )
+    # Convert pretrain config dict to dataclass
+    pretrained_model_config = from_dict(
+        data_class=Kachuee2019PretrainConfig, data=pretrain_cfg
+    )
 
+    # Get dimensions
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(
         f"Class probabilities in training set: {train_class_probabilities}"
     )
     class_weights = 1 / train_class_probabilities
     class_weights = (class_weights / class_weights.sum()).to(device)
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
+
+    # Instantiate and load pretrained model
+    pretrained_model = get_kachuee2019_model_from_config(
+        pretrained_model_config,
+        n_features,
+        n_classes,
+        train_class_probabilities,
+    )
+    checkpoint = torch.load(pretrained_ckpt_path, map_location=device)
+    pretrained_model.load_state_dict(checkpoint["state_dict"])
+    pq_module = pretrained_model.pq_module.to(device)
 
     reward_fn = get_kachuee2019_reward_fn(
         pq_module=pq_module,
@@ -301,50 +253,65 @@ def main(cfg: Kachuee2019TrainConfig):  # noqa: PLR0915
                 )
 
     except KeyboardInterrupt:
-        pass
+        log.info("Training interrupted by user")
     finally:
         afa_method = RLAFAMethod(
             agent.get_policy().to("cpu"),
             Kachuee2019AFAClassifier(pq_module, device=torch.device("cpu")),
             acquisition_cost=cfg.cost_param,
         )
-        # Save the method to a temporary directory and load it again to ensure it is saved correctly
-        with TemporaryDirectory(delete=False) as tmp_path_str:
-            tmp_path = Path(tmp_path_str)
-            afa_method.save(tmp_path)
-            del afa_method
+        log.info("AFA method created")
 
-            # Save the model as a WandB artifact
-            log.info("Creating WandB artifact for trained method")
+        # Save locally
+        log.info("Saving method to local filesystem")
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            afa_method.save(tmp_path)
+
             if cfg.cost_param is not None:
                 budget_str = f"costparam_{cfg.cost_param}"
             else:
                 budget_str = f"budget_{cfg.hard_budget}"
-            afa_method_artifact = wandb.Artifact(
-                name=f"train_kachuee2019-{
-                    pretrained_model_config.dataset_artifact_name.split(':')[0]
-                }-{budget_str}-seed_{cfg.seed}",
-                type="trained_method",
-                metadata={
-                    "method_type": "kachuee2019",
-                    "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
-                    "dataset_type": dataset_metadata["dataset_type"],
-                    "budget": cfg.hard_budget,
-                    "seed": cfg.seed,
-                },
+
+            split = dataset_metadata["split_idx"]
+            dataset_type = dataset_metadata["dataset_type"]
+
+            artifact_identifier = f"{dataset_type.lower()}_split_{split}_{
+                budget_str
+            }_seed_{cfg.seed}"
+            artifact_dir = SAVE_PATH / artifact_identifier
+
+            metadata_out = {
+                "method_type": "RLAFAMethod",
+                "dataset_type": dataset_type,
+                "dataset_artifact_name": metadata["dataset_artifact_name"],
+                "budget": cfg.hard_budget
+                if cfg.hard_budget is not None
+                else None,
+                "cost_param": cfg.cost_param
+                if cfg.cost_param is not None
+                else None,
+                "seed": cfg.seed,
+                "split_idx": split,
+            }
+
+            save_artifact(
+                artifact_dir=artifact_dir,
+                files={f.name: f for f in tmp_path.iterdir() if f.is_file()},
+                metadata=metadata_out,
             )
 
-            afa_method_artifact.add_dir(str(tmp_path))
-            run.log_artifact(
-                afa_method_artifact, aliases=cfg.output_artifact_aliases
-            )
+            log.info(f"Kachuee2019 method saved to: {artifact_dir}")
 
+        log.info("Finishing WandB run")
         run.finish()
 
-        gc.collect()  # Force Python GC
+        log.info("Running garbage collection and clearing CUDA cache")
+        gc.collect()
         if torch.cuda.is_available():
-            torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-            torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        log.info("Script completed successfully")
 
 
 if __name__ == "__main__":

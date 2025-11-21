@@ -1,4 +1,4 @@
-pretrained_model_artifact_name: "pretrain_gadgil2023-cube_split_1:latest"
+pretrained_model_artifact_name: "pretrain_gadgil2023_cube_split_1"
 
 batch_size: 128
 lr: 0.001

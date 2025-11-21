@@ -11,5 +11,3 @@ defaults:
 
 seed: 42
 device: "cuda"
-
-output_artifact_aliases: ["test"]

@@ -1,4 +1,4 @@
-dataset_artifact_name: "cube_split_1:tmp"
+dataset_artifact_name: "cube/cube_split_1"
 batch_size: 128 # shim2018 paper
 epochs: 1000
 limit_train_batches: null
@@ -10,4 +10,3 @@ max_masking_probability: 0.9
 pq_module:
   n_hiddens: [64,32,16] # kachuee2019 implementation for Diabetes
   p_dropout: 0.5 # kachuee2019 implementation
-

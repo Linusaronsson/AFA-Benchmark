@@ -6,11 +6,11 @@ import logging
 
 from torch import nn
 from pathlib import Path
-from datetime import datetime
 from omegaconf import OmegaConf
 from torchmetrics import Accuracy
 from tempfile import TemporaryDirectory
 
+from afabench import SAVE_PATH
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.afa_discriminative.models import MaskingPretrainer, fc_Net
@@ -18,7 +18,8 @@ from afabench.afa_discriminative.models import MaskingPretrainer, fc_Net
 from afabench.common.config_classes import Gadgil2023PretrainingConfig
 from afabench.common.utils import (
     get_class_probabilities,
-    load_dataset_artifact,
+    load_dataset,
+    save_artifact,
     set_seed,
 )
 
@@ -32,7 +33,6 @@ log = logging.getLogger(__name__)
 )
 def main(cfg: Gadgil2023PretrainingConfig):
     log.debug(cfg)
-    print(OmegaConf.to_yaml(cfg))
     run = wandb.init(
         group="pretrain_gadgil2023",
         job_type="pretraining",
@@ -43,9 +43,13 @@ def main(cfg: Gadgil2023PretrainingConfig):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
 
-    train_dataset, val_dataset, _, _ = load_dataset_artifact(
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset(
         cfg.dataset_artifact_name
     )
+
+    dataset_type = dataset_metadata["dataset_type"]
+    split = dataset_metadata["split_idx"]
+
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
@@ -85,34 +89,36 @@ def main(cfg: Gadgil2023PretrainingConfig):
         tag="eval_accuracy",
     )
 
-    pretrained_model_artifact = wandb.Artifact(
-        name=f"pretrain_gadgil2023-{cfg.dataset_artifact_name.split(':')[0]}",
-        type="pretrained_model",
-    )
-    with TemporaryDirectory(delete=False) as tmp_path_str:
-        tmp_path = Path(tmp_path_str)
+    with TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+
+        # save only pretrainer.predictor weights
         torch.save(
-            {
-                "predictor_state_dict": pretrain.model.state_dict(),
-                "architecture": {
-                    "d_in": d_in,
-                    "d_out": d_out,
-                    "predictor_hidden_layers": cfg.hidden_units,
-                    "dropout": cfg.dropout,
-                },
-            },
+            {"predictor_state_dict": predictor.state_dict()},
             tmp_path / "model.pt",
         )
 
-    pretrained_model_artifact.add_file(str(tmp_path / "model.pt"))
+        artifact_identifier = (
+            f"{dataset_type.lower()}_split_{split}_seed_{cfg.seed}"
+        )
+        artifact_dir = SAVE_PATH / artifact_identifier
 
-    run.log_artifact(
-        pretrained_model_artifact,
-        aliases=[
-            *cfg.output_artifact_aliases,
-            datetime.now().strftime("%b%d"),
-        ],
-    )
+        metadata = {
+            "model_type": "Covert2023Predictor",
+            "dataset_type": dataset_type,
+            "dataset_artifact_name": cfg.dataset_artifact_name,
+            "seed": cfg.seed,
+            "pretrain_config": OmegaConf.to_container(cfg),
+        }
+
+        save_artifact(
+            artifact_dir=artifact_dir,
+            files={"model.pt": tmp_path / "model.pt"},
+            metadata=metadata,
+        )
+
+    log.info(f"Gadgil2023 pretrained model saved to: {artifact_dir}")
+
     run.finish()
 
     gc.collect()
