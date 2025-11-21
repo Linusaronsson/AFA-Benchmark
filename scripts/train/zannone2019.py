@@ -8,6 +8,7 @@ import matplotlib
 from tqdm import tqdm
 from pathlib import Path
 from typing import Any, cast
+from dacite import from_dict
 from omegaconf import OmegaConf
 from torch.nn import functional as F
 from matplotlib import pyplot as plt
@@ -15,6 +16,7 @@ from tempfile import TemporaryDirectory
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 
+from afabench import SAVE_PATH
 from afabench.afa_rl.agents import Agent
 from afabench.afa_rl.afa_env import AFAEnv
 from afabench.afa_rl.utils import get_eval_metrics
@@ -22,9 +24,12 @@ from afabench.common.custom_types import AFADataset
 from afabench.afa_rl.afa_methods import RLAFAMethod
 from afabench.afa_rl.datasets import get_afa_dataset_fn
 from afabench.afa_rl.zannone2019.agents import Zannone2019Agent
-from afabench.common.config_classes import Zannone2019TrainConfig
+from afabench.common.config_classes import (
+    Zannone2019PretrainConfig,
+    Zannone2019TrainConfig,
+)
 from afabench.afa_rl.zannone2019.reward import get_zannone2019_reward_fn
-from afabench.afa_rl.zannone2019.utils import load_pretrained_model_artifacts
+from afabench.afa_rl.zannone2019.utils import get_zannone2019_model_from_config
 
 from afabench.afa_rl.zannone2019.models import (
     Zannone2019AFAClassifier,
@@ -34,6 +39,8 @@ from afabench.afa_rl.zannone2019.models import (
 from afabench.common.utils import (
     dict_with_prefix,
     get_class_probabilities,
+    load_pretrained_model,
+    save_artifact,
     set_seed,
 )
 
@@ -134,36 +141,6 @@ def visualize_pretrained_model(
 
     plt.show()
 
-    # Visualize MNIST digits
-    # fig_real, _axs_real = visualize_digits(
-    #     train_dataset.features, train_dataset.labels, shuffle=False
-    # )
-    # fig_real.suptitle("Real digits")
-    # if cfg.n_generated_samples >= 9:
-    #     fig_fake, _axs_fake = visualize_digits(
-    #         generated_features, generated_labels, shuffle=False
-    #     )
-    #     fig_fake.suptitle("Generated digits")
-    # fig_label_recon, _axs_label_recon = visualize_digits(
-    #     label_reconstructed_features, train_dataset.labels, shuffle=False
-    # )
-    # fig_label_recon.suptitle("Reconstructed digits using label")
-    # fig_recon, _axs_recon = visualize_digits(
-    #     reconstructed_features, train_dataset.labels, shuffle=False
-    # )
-    # fig_recon.suptitle("Reconstructed digits without using label")
-    #
-    # plt.show()
-    #
-    # Plot distribution of latent variables
-    # plt.figure(figsize=(12, 4))
-    # for i in range(min(z.shape[1], 10)):
-    #     plt.subplot(2, 5, i + 1)
-    #     plt.hist(z[:, i], bins=30)
-    #     plt.title(f"Latent dim {i}")
-    # plt.tight_layout()
-    # plt.show()
-
 
 log = logging.getLogger(__name__)
 
@@ -207,15 +184,52 @@ def main(cfg: Zannone2019TrainConfig) -> None:
         "Only one of hard_budget or cost_param can be specified, not both."
     )
 
-    # Load pretrained model and dataset from artifacts
+    # Load pretrained model and dataset
+    log.info(
+        f"Loading pretrained model from artifact: {
+            cfg.pretrained_model_artifact_name
+        }"
+    )
     (
+        pretrained_ckpt_path,
+        metadata,
+        pretrain_cfg,
         train_dataset,
         val_dataset,
-        _,
+        test_dataset,
         dataset_metadata,
-        pretrained_model,
+    ) = load_pretrained_model(
+        f"{cfg.pretrained_model_artifact_name}_seed_{cfg.seed}",
+        device=device,
+    )
+
+    # Convert pretrain config dict to dataclass
+    pretrained_model_config = from_dict(
+        data_class=Zannone2019PretrainConfig, data=pretrain_cfg
+    )
+
+    # Get dimensions
+    n_features = train_dataset.features.shape[-1]
+    n_classes = train_dataset.labels.shape[-1]
+    train_class_probabilities = get_class_probabilities(train_dataset.labels)
+    log.debug(
+        f"Class probabilities in training set: {train_class_probabilities}"
+    )
+    class_weights = 1 / train_class_probabilities
+    class_weights = (class_weights / class_weights.sum()).to(device)
+
+    # Instantiate and load pretrained model
+    pretrained_model = get_zannone2019_model_from_config(
         pretrained_model_config,
-    ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
+        n_features,
+        n_classes,
+        train_class_probabilities,
+    )
+    checkpoint = torch.load(pretrained_ckpt_path, map_location=device)
+    pretrained_model.load_state_dict(checkpoint["state_dict"])
+
+    log.info("Successfully loaded pretrained model and datasets")
+
     pretrained_model = pretrained_model.to(device)
     pretrained_model.eval()
     pretrained_model.requires_grad_(
@@ -231,14 +245,6 @@ def main(cfg: Zannone2019TrainConfig) -> None:
             latent_size=pretrained_model_config.partial_vae.latent_size,
             device=device,
         )
-    train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    log.debug(
-        f"Class probabilities in training set: {train_class_probabilities}"
-    )
-    class_weights = 1 / train_class_probabilities
-    class_weights = (class_weights / class_weights.sum()).to(device)
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
 
     reward_fn = get_zannone2019_reward_fn(
         pretrained_model=pretrained_model,
@@ -400,7 +406,8 @@ def main(cfg: Zannone2019TrainConfig) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        # Convert the embedder+agent to an AFAMethod and save it as a temporary file
+        log.info("Training completed, starting cleanup and model saving")
+        log.info("Converting model to CPU and creating AFA method")
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent.get_exploitative_policy().to("cpu"),
@@ -410,43 +417,58 @@ def main(cfg: Zannone2019TrainConfig) -> None:
             ),
             acquisition_cost=cfg.cost_param,
         )
-        # Save the method to a temporary directory and load it again to ensure it is saved correctly
-        with TemporaryDirectory(delete=False) as tmp_path_str:
-            tmp_path = Path(tmp_path_str)
-            afa_method.save(tmp_path)
-            del afa_method
+        log.info("AFA method created")
 
-            # Save the model as a WandB artifact
-            log.info("Creating WandB artifact for trained method")
+        # Save locally
+        log.info("Saving method to local filesystem")
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            afa_method.save(tmp_path)
+
             if cfg.cost_param is not None:
                 budget_str = f"costparam_{cfg.cost_param}"
             else:
                 budget_str = f"budget_{cfg.hard_budget}"
-            afa_method_artifact = wandb.Artifact(
-                name=f"train_zannone2019-{
-                    pretrained_model_config.dataset_artifact_name.split(':')[0]
-                }-{budget_str}-seed_{cfg.seed}",
-                type="trained_method",
-                metadata={
-                    "method_type": "zannone2019",
-                    "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
-                    "dataset_type": dataset_metadata["dataset_type"],
-                    "budget": cfg.hard_budget,
-                    "seed": cfg.seed,
-                },
+
+            split = dataset_metadata["split_idx"]
+            dataset_type = dataset_metadata["dataset_type"]
+
+            artifact_identifier = f"{dataset_type.lower()}_split_{split}_{
+                budget_str
+            }_seed_{cfg.seed}"
+            artifact_dir = SAVE_PATH / artifact_identifier
+
+            metadata_out = {
+                "method_type": "RLAFAMethod",
+                "dataset_type": dataset_type,
+                "dataset_artifact_name": metadata["dataset_artifact_name"],
+                "budget": cfg.hard_budget
+                if cfg.hard_budget is not None
+                else None,
+                "cost_param": cfg.cost_param
+                if cfg.cost_param is not None
+                else None,
+                "seed": cfg.seed,
+                "split_idx": split,
+            }
+
+            save_artifact(
+                artifact_dir=artifact_dir,
+                files={f.name: f for f in tmp_path.iterdir() if f.is_file()},
+                metadata=metadata_out,
             )
 
-            afa_method_artifact.add_dir(str(tmp_path))
-            run.log_artifact(
-                afa_method_artifact, aliases=cfg.output_artifact_aliases
-            )
+            log.info(f"Zannone2019 method saved to: {artifact_dir}")
 
+        log.info("Finishing WandB run")
         run.finish()
 
-        gc.collect()  # Force Python GC
+        log.info("Running garbage collection and clearing CUDA cache")
+        gc.collect()
         if torch.cuda.is_available():
-            torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-            torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
+        log.info("Script completed successfully")
 
 
 if __name__ == "__main__":

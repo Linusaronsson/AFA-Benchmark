@@ -13,5 +13,4 @@ agent:
     gamma: 1.0
 device: "cuda"
 seed: 42
-output_artifact_aliases: ["tmp"]
 visualize: false

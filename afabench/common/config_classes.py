@@ -143,7 +143,6 @@ class Zannone2019PretrainConfig:
     end_kl_scaling_factor: float
     n_annealing_epochs: int
     classifier_loss_scaling_factor: float
-    output_artifact_aliases: list[str]
 
 
 cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)

@@ -118,7 +118,7 @@ def main(cfg: Kachuee2019PretrainConfig) -> None:
             artifact_dir = SAVE_PATH / artifact_identifier
 
             metadata = {
-                "model_type": "Shim2018EmbedderClassifier",
+                "model_type": "Kachuee2019",
                 "dataset_type": dataset_type,
                 "dataset_artifact_name": cfg.dataset_artifact_name,
                 "seed": cfg.seed,
@@ -132,7 +132,7 @@ def main(cfg: Kachuee2019PretrainConfig) -> None:
                 metadata=metadata,
             )
 
-            log.info(f"Shim2018 pretrained model saved to: {artifact_dir}")
+            log.info(f"Kachuee2019 pretrained model saved to: {artifact_dir}")
 
         run.finish()
 

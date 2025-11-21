@@ -1,4 +1,6 @@
 import gc
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import wandb
 import hydra
 import torch
@@ -9,14 +11,16 @@ from omegaconf import OmegaConf
 from lightning.pytorch.loggers import WandbLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 
+from afabench import SAVE_PATH
 from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.common.config_classes import Zannone2019PretrainConfig
 from afabench.afa_rl.zannone2019.utils import get_zannone2019_model_from_config
 
 from afabench.common.utils import (
     get_class_probabilities,
-    load_dataset_artifact,
+    load_dataset,
     set_seed,
+    save_artifact,
 )
 
 log = logging.getLogger(__name__)
@@ -45,17 +49,24 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
     log.info(f"W&B run initialized: {run.name} ({run.id})")
     log.info(f"W&B run URL: {run.url}")
 
-    # Load dataset artifact
-    train_dataset, val_dataset, _, _ = load_dataset_artifact(
+    # Load dataset from filesystem
+    train_dataset, val_dataset, _, dataset_metadata = load_dataset(
         cfg.dataset_artifact_name
     )
+
     datamodule = DataModuleFromDatasets(
         train_dataset, val_dataset, batch_size=cfg.batch_size
     )
 
     # Get the number of features and classes from the dataset
+    dataset_type = dataset_metadata["dataset_type"]
+    split = dataset_metadata["split_idx"]
     n_features = train_dataset.features.shape[-1]
     n_classes = train_dataset.labels.shape[-1]
+
+    log.info(f"Dataset: {dataset_type}, Split: {split}")
+    log.info(f"Features: {n_features}, Classes: {n_classes}")
+    log.info(f"Training samples: {len(train_dataset)}")
 
     train_class_probabilities = get_class_probabilities(train_dataset.labels)
     log.debug(
@@ -90,26 +101,46 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
     except KeyboardInterrupt:
         pass
     finally:
-        # Save best model as wandb artifact
-        best_checkpoint = trainer.checkpoint_callback.best_model_path  # pyright: ignore
-        pretrained_model_artifact = wandb.Artifact(
-            name=f"pretrain_zannone2019-{
-                cfg.dataset_artifact_name.split(':')[0]
-            }",
-            type="pretrained_model",
+        best_checkpoint_path = Path(
+            trainer.checkpoint_callback.best_model_path
         )
-        pretrained_model_artifact.add_file(
-            local_path=best_checkpoint, name="model.pt"
-        )
-        run.log_artifact(
-            pretrained_model_artifact, aliases=cfg.output_artifact_aliases
-        )
+        log.info(f"Best checkpoint: {best_checkpoint_path}")
+
+        # Save as a local artifact in extra/result/shim2018/pretrain/...
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+
+            ckpt = torch.load(best_checkpoint_path, map_location="cpu")
+            torch.save(ckpt, tmp_path / "model.pt")
+
+            artifact_identifier = (
+                f"{dataset_type.lower()}_split_{split}_seed_{cfg.seed}"
+            )
+            artifact_dir = SAVE_PATH / artifact_identifier
+
+            metadata = {
+                "model_type": "Zannone2019",
+                "dataset_type": dataset_type,
+                "dataset_artifact_name": cfg.dataset_artifact_name,
+                "seed": cfg.seed,
+                "split_idx": split,
+                "pretrain_config": OmegaConf.to_container(cfg, resolve=True),
+            }
+
+            save_artifact(
+                artifact_dir=artifact_dir,
+                files={"model.pt": tmp_path / "model.pt"},
+                metadata=metadata,
+            )
+
+            log.info(f"Zannone2019 pretrained model saved to: {artifact_dir}")
+
         run.finish()
 
-        gc.collect()  # Force Python GC
+        gc.collect()
         if torch.cuda.is_available():
-            torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-            torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
 
 
 if __name__ == "__main__":
