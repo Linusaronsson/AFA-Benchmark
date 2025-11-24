@@ -11,5 +11,3 @@ defaults:
 
 device: "cuda"
 seed: 42
-output_artifact_aliases: ["tmp"]
-

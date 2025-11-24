@@ -473,7 +473,9 @@ class Covert2023AFAMethod(AFAMethod):
 
     @classmethod
     def load(cls, path, device="cpu"):
-        checkpoint = torch.load(path / "model.pt", map_location=device)
+        checkpoint = torch.load(
+            os.path.join(path, "model.pt"), map_location=device
+        )
         arch = checkpoint["architecture"]
         # tabular
         if "predictor_hidden_layers" in arch:

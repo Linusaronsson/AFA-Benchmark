@@ -2,7 +2,7 @@
 # reward_method set in higher config
 mcdrop_samples: 100 # kachuee2019 implementation
 
-pretrained_model_artifact_name: "pretrain_kachuee2019-cube_split_1:oct9a"
+pretrained_model_artifact_name: "pretrain_kachuee2019_cube_split_1"
 n_agents: 128 # same as shim2018
 hard_budget: 5 # recommended: 3, 5, 10
 cost_param: null

@@ -23,6 +23,9 @@ class DatasetType(str, Enum):
     physionet = "physionet"
     miniboone = "miniboone"
     FashionMNIST = "FashionMNIST"
+    bank_marketing = "bank_marketing"
+    ckd = "ckd"
+    actg = "actg"
 
 
 @dataclass
@@ -33,16 +36,12 @@ class DatasetConfig:
 
 @dataclass
 class DatasetGenerationConfig:
-    # where to store the generated dataset (apart from wandb artifacts)
     data_dir: str
-    split_idx: int  # which split to use
-    seeds: list[
-        int
-    ]  # which seeds to use, only the seed at index `split - 1` will be used
+    split_idx: list[int]
+    seeds: list[int]
     split_ratio: SplitRatioConfig
-    output_artifact_aliases: list[str]
-    epsilon: float  # small float added to standard deviation to avoid division by zero
-
+    # Small float added to standard deviation to avoid division by zero
+    epsilon: float
     dataset: DatasetConfig
 
 
@@ -83,7 +82,6 @@ class Shim2018PretrainConfig:
     max_masking_probability: float
     encoder: Shim2018EncoderConfig
     classifier: Shim2018ClassifierConfig
-    output_artifact_aliases: list[str]
 
 
 cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
@@ -145,7 +143,6 @@ class Zannone2019PretrainConfig:
     end_kl_scaling_factor: float
     n_annealing_epochs: int
     classifier_loss_scaling_factor: float
-    output_artifact_aliases: list[str]
 
 
 cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)
@@ -176,7 +173,6 @@ class Kachuee2019PretrainConfig:
     min_masking_probability: float
     max_masking_probability: float
     pq_module: Kachuee2019PQModuleConfig
-    output_artifact_aliases: list[str]
 
 
 cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)
@@ -342,6 +338,7 @@ class Covert2023PretrainingConfig:
     activations: str = "ReLU"
     flag_drop_out: bool = True
     flag_only_output_layer: bool = False
+    experiment_id: str | None = None
 
 
 cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
@@ -371,8 +368,6 @@ cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
 @dataclass
 class Covert2023TrainingConfig:
     pretrained_model_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=list)
-
     batch_size: int = 128
     lr: float = 1e-3
     hard_budget: int = 20
@@ -380,6 +375,7 @@ class Covert2023TrainingConfig:
     patience: int = 5
     device: str = "cuda"
     seed: int = 42
+    experiment_id: str | None = None
 
     hidden_units: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3
@@ -568,6 +564,7 @@ class RandomDummyTrainConfig:
     seed: int
     output_artifact_aliases: list[str]
     cost_param: float
+    experiment_id: str | None = None
 
 
 cs.store(name="train_randomdummy", node=RandomDummyTrainConfig)
@@ -736,11 +733,11 @@ class AACOConfig:
 class AACOTrainConfig:
     aco: AACOConfig
     dataset_artifact_name: str
-    output_artifact_aliases: list[str]
     seed: int = 42
     device: str = "cpu"
     cost_param: float | None = None
     hard_budget: float | None = None
+    experiment_id: str | None = None
 
 
 # --- TRAINING CLASSIFIERS ---
@@ -832,7 +829,6 @@ class SoftEvalConfig:
     trained_classifier_artifact_name: str  # has to be given
     seed: int | None
     device: str
-    output_artifact_aliases: list[str]
     eval_only_n_samples: (
         int | None
     )  # if specified, only evaluate on this many samples
@@ -841,8 +837,7 @@ class SoftEvalConfig:
     budget: int | None = (
         None  # if specified, override the budget from training
     )
-    # whether to validate that the method and classifier artifacts are trained on the exact same dataset
-    validate_artifacts: bool = True
+    experiment_id: str | None = None
 
 
 cs.store(name="soft-eval", node=SoftEvalConfig)

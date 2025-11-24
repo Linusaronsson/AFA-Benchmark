@@ -1,5 +1,8 @@
 configfile: "extra/workflow/conf/aaco_soft_budget.yaml"
 
+# Configurable base directory for results - users can change this
+BASE_DIR = config.get("base_dir", "extra/result")
+
 # Define global variables from config values
 EXPERIMENT_ID = config["experiment_id"]
 DATASET_ARTIFACT_ALIASES = config["dataset_artifact_aliases"]
@@ -15,7 +18,7 @@ EVAL_DEVICE = config["eval_device"]
 COST_PARAMS_PER_METHOD = config["cost_params_per_method"]
 SMOKE_TEST = config["smoke_test"]
 
-METHODS = ["aaco"]  # Only AACO in this file
+METHODS = ["aaco"]
 DATASETS = list(DATASET_ARTIFACT_ALIASES.keys())
 
 def get_cost_params(dataset: str):
@@ -40,7 +43,7 @@ rule soft_budget:
 rule soft_budget_train_all:
     input:
         [
-            f"extra/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/aaco/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}.done"
+            f"{BASE_DIR}/aaco/train/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}.done"
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
             for cost_param in get_cost_params(dataset)
@@ -50,7 +53,7 @@ rule soft_budget_train_all:
 rule soft_budget_eval_all:
     input:
         [
-            f"extra/{EXPERIMENT_ID}/indicators/soft_budget/eval/aaco/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}.done"
+            f"{BASE_DIR}/aaco/eval/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}.done"
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
             for cost_param in get_cost_params(dataset)
@@ -61,7 +64,7 @@ rule soft_budget_eval_all:
 rule train_soft_budget_aaco:
     output:
         touch(
-            f"extra/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/aaco/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}.done"
+            f"{BASE_DIR}/aaco/train/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}.done"
         ),
     params:
         dataset_specific_args=lambda wildcards: (
@@ -69,37 +72,38 @@ rule train_soft_budget_aaco:
             if SMOKE_TEST
             else f"dataset@_global_={wildcards.dataset}"
         ),
-        dataset_artifact_name=lambda wildcards: f"{wildcards.dataset}_split_{wildcards.dataset_split}:{DATASET_ARTIFACT_ALIASES[wildcards.dataset]}",
+        dataset_artifact_name=lambda wildcards: f"{wildcards.dataset}/{wildcards.dataset}_split_{wildcards.dataset_split}",
     shell:
         """
-        WANDB_HTTP_TIMEOUT=60 uv run scripts/train_methods/train_aaco.py \
+        uv run scripts/train/aaco.py \
             {params.dataset_specific_args} \
             dataset_artifact_name={params.dataset_artifact_name} \
             seed={wildcards.seed} \
             cost_param={wildcards.cost_param} \
-            output_artifact_aliases=["{EXPERIMENT_ID}"] \
+            +experiment_id={EXPERIMENT_ID} \
             device={TRAIN_DEVICE}
         """
 
 # Evaluation rule for AACO
 rule eval_soft_budget_aaco:
     input:
-        f"extra/{EXPERIMENT_ID}/indicators/soft_budget/trained_method/aaco/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}.done",
+        f"{BASE_DIR}/aaco/train/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}.done",
     output:
-        touch(
-            f"extra/{EXPERIMENT_ID}/indicators/soft_budget/eval/aaco/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}.done"
+        done=touch(
+            f"{BASE_DIR}/aaco/eval/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}.done"
         ),
+        csv=f"{BASE_DIR}/aaco/eval/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}/soft_eval_data.csv",
     params:
-        classifier_arg=lambda wildcards: f"trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{CLASSIFIER_ARTIFACT_ALIASES[wildcards.dataset]}",
+        classifier_arg=lambda wildcards: f"trained_classifier_artifact_name={CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}",
         batch_size=lambda wildcards: get_batch_size(wildcards.dataset),
-        trained_method_artifact_name=lambda wildcards: f"train_aaco-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}:{EXPERIMENT_ID}",
+        trained_method_artifact_name=lambda wildcards: f"train_aaco_{wildcards.dataset}_split_{wildcards.dataset_split}_costparam_{wildcards.cost_param}_seed_{wildcards.seed}",
     shell:
         """
-        WANDB_HTTP_TIMEOUT=60 uv run scripts/evaluation/eval_soft_afa_method.py \
+        uv run scripts/eval/eval_soft_afa_method.py \
             trained_method_artifact_name={params.trained_method_artifact_name} \
             cost_param={wildcards.cost_param} \
             {params.classifier_arg} \
-            output_artifact_aliases=["{EXPERIMENT_ID}"] \
+            +experiment_id={EXPERIMENT_ID} \
             seed=null \
             device={EVAL_DEVICE} \
             eval_only_n_samples=null \
@@ -108,27 +112,12 @@ rule eval_soft_budget_aaco:
             batch_size={params.batch_size}
         """
 
-# Download evaluation results
-rule download_soft_budget_eval_result:
-    input:
-        f"extra/{EXPERIMENT_ID}/indicators/soft_budget/eval/aaco/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}.done",
-    output:
-        f"extra/{EXPERIMENT_ID}/results/soft_budget/eval/aaco/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data.csv",
-    params:
-        experiment_id=EXPERIMENT_ID,
-    shell:
-        """
-        WANDB_HTTP_TIMEOUT=60 uv run wandb artifact get \
-            train_aaco-{wildcards.dataset}_split_{wildcards.dataset_split}-costparam_{wildcards.cost_param}-seed_{wildcards.seed}-{CLASSIFIER}-{wildcards.dataset}_split_{wildcards.dataset_split}:{EXPERIMENT_ID} \
-            --root extra/{params.experiment_id}/results/soft_budget/eval/aaco/{wildcards.dataset}/split{wildcards.dataset_split}/costparam{wildcards.cost_param}/seed{wildcards.seed}
-        """
-
 # Add dataset split column to results
 rule add_dataset_split_col_to_soft_budget_eval_result:
     input:
-        f"extra/{EXPERIMENT_ID}/results/soft_budget/eval/aaco/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data.csv",
+        f"{BASE_DIR}/aaco/eval/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}/soft_eval_data.csv",
     output:
-        f"extra/{EXPERIMENT_ID}/results/soft_budget/eval/aaco/{{dataset}}/split{{dataset_split}}/costparam{{cost_param}}/seed{{seed}}/soft_eval_data_with_split.csv",
+        f"{BASE_DIR}/aaco/eval/{{dataset}}_split_{{dataset_split}}_costparam_{{cost_param}}_seed_{{seed}}_{EXPERIMENT_ID}/soft_eval_data_with_split.csv",
     conda:
         "../envs/R.yaml"
     shell:
@@ -140,7 +129,7 @@ rule add_dataset_split_col_to_soft_budget_eval_result:
 rule combine_soft_budget_eval_results:
     input:
         [
-            f"extra/{EXPERIMENT_ID}/results/soft_budget/eval/aaco/{dataset}/split{dataset_split}/costparam{cost_param}/seed{seed}/soft_eval_data_with_split.csv"
+            f"{BASE_DIR}/aaco/eval/{dataset}_split_{dataset_split}_costparam_{cost_param}_seed_{seed}_{EXPERIMENT_ID}/soft_eval_data_with_split.csv"
             for dataset in DATASETS
             for dataset_split in DATASET_SPLITS
             for cost_param in get_cost_params(dataset)

@@ -1,3 +1,3 @@
 type: "physionet"
 kwargs:
-  data_path: "${data_dir}/physionet.csv"
+  root: "extra/data/misc/physionet.csv"

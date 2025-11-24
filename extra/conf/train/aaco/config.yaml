@@ -1,4 +1,3 @@
-# conf/train/aaco/config.yaml
 hydra:
   searchpath:
     - file://extra/conf/global
@@ -17,10 +16,8 @@ aco:
   evaluate_final_performance: true
   eval_only_n_samples: null
 
-dataset_artifact_name: "cube_split_1:latest"
-output_artifact_aliases: ["aaco_method"]
-
 seed: 42
 device: "cpu"
 cost_param: null
 hard_budget: null
+dataset_artifact_name: "cube_split_1"

@@ -14,4 +14,3 @@ output_artifact_aliases: []
 
 device: "cuda"
 seed: 42
-

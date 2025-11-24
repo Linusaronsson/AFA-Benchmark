@@ -26,47 +26,47 @@ def get_afa_method_class(name: str) -> type[AFAMethod]:  # noqa: PLR0911
 
     Note that several method types can have the same AFAMethod class, like the RL methods. A dictionary is not used since it could lead to circular imports.
     """
-    if name in {"shim2018", "zannone2019", "kachuee2019"}:
+    if name == "RLAFAMethod":
         from afabench.afa_rl.afa_methods import RLAFAMethod  # noqa: PLC0415
 
         return RLAFAMethod
-    if name == "covert2023":
+    if name == "Covert2023AFAMethod":
         from afabench.afa_discriminative.afa_methods import (  # noqa: PLC0415
             Covert2023AFAMethod,
         )
 
         return Covert2023AFAMethod
-    if name == "gadgil2023":
+    if name == "Gadgil2023AFAMethod":
         from afabench.afa_discriminative.afa_methods import (  # noqa: PLC0415
             Gadgil2023AFAMethod,
         )
 
         return Gadgil2023AFAMethod
-    if name == "ma2018":
+    if name == "Ma2018AFAMethod":
         from afabench.afa_generative.afa_methods import Ma2018AFAMethod  # noqa: PLC0415
 
         return Ma2018AFAMethod
 
-    if name == "aaco":
+    if name == "AACOAFAMethod":
         from afabench.afa_oracle.afa_methods import AACOAFAMethod  # noqa: PLC0415
 
         return AACOAFAMethod
 
-    if name in {"cae", "permutation"}:
+    if name == "StaticBaseMethod":
         from afabench.static.static_methods import StaticBaseMethod  # noqa: PLC0415
 
         return StaticBaseMethod
-    if name == "sequentialdummy":
+    if name == "SequentialDummyAFAMethod":
         from afabench.common.afa_methods import (  # noqa: PLC0415
             SequentialDummyAFAMethod,
         )
 
         return SequentialDummyAFAMethod
-    if name == "randomdummy":
+    if name == "RandomDummyAFAMethod":
         from afabench.common.afa_methods import RandomDummyAFAMethod  # noqa: PLC0415
 
         return RandomDummyAFAMethod
-    if name == "optimalcube":
+    if name == "OptimalCubeAFAMethod":
         from afabench.common.afa_methods import OptimalCubeAFAMethod  # noqa: PLC0415
 
         return OptimalCubeAFAMethod

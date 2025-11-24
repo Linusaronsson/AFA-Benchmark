@@ -116,9 +116,16 @@ class AACOAFAMethod(AFAMethod):
             )
             x_with_mask = torch.cat([x_masked, obs_mask.float()])
 
+            # Split concatenated features and mask
+            n_features = x_with_mask.shape[0] // 2
+            x_masked_split = x_with_mask[:n_features]
+            mask_split = x_with_mask[n_features:]
+
             pred = self.aaco_oracle.classifier(
-                x_with_mask.unsqueeze(0),
-                torch.tensor([0], device=self._device),
+                masked_features=x_masked_split.unsqueeze(0),
+                feature_mask=mask_split.unsqueeze(0),
+                features=None,
+                label=None,
             )
             pred = pred.squeeze()
 

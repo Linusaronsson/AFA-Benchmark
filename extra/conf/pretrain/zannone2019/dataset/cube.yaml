@@ -1,4 +1,4 @@
-dataset_artifact_name: "cube_split_1:tmp"
+dataset_artifact_name: "cube/cube_split_1"
 batch_size: 100 # EDDI
 epochs: 2000
 limit_train_batches: null

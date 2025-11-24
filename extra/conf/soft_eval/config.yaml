@@ -8,13 +8,12 @@ defaults:
     - override hydra/hydra_logging: colorlog
     - override hydra/launcher: custom_slurm
 
-trained_method_artifact_name: "dummy-cube_split_1-param1-seed_42:tmp"
+trained_method_artifact_name: ??? # Need to specify for evaluation
 cost_param: null
-trained_classifier_artifact_name: "masked_mlp_classifier-cube_split_1:tmp"
-output_artifact_aliases: ["tmp"]
+trained_classifier_artifact_name: ??? # Need to specify for evaluation
 seed: null
 device: "cuda"
 eval_only_n_samples: null
 dataset_split: "validation"
-validate_artifacts: true
-batch_size: ??? # set this in the command line
+batch_size: ???
+experiment_id: ""
