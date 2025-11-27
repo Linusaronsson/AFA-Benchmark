@@ -264,6 +264,7 @@ AFA_INITIALIZER_TYPES = {
     "manual",
     "mutual_information",
     "least_informative",
+    "aaco_default",
 }
 
 
@@ -308,5 +309,15 @@ def get_afa_initializer(name: str, **kwargs) -> AFAInitializer:
         from afabench.common.afa_initializers import LeastInformativeStrategy
 
         return LeastInformativeStrategy(seed=seed)
+
+    if name == "aaco_default":
+        from afabench.common.afa_initializers.strategies import (
+            AACODefaultInitializer,
+        )
+
+        return AACODefaultInitializer(
+            dataset_name=kwargs["dataset_artifact_path"],
+            seed=kwargs.get("seed"),
+        )
 
     raise ValueError(f"Unknown initializer: {name}")

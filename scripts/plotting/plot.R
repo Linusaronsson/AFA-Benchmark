@@ -7,7 +7,7 @@ library(yardstick)
 
 read_csv_safe <- function(path) {
   read_csv(path, col_types = list(
-    method = col_factor(),
+    afa_method = col_factor(),
     classifier = col_factor(),
     dataset = col_factor(),
     selections_performed = col_integer(),
@@ -19,7 +19,7 @@ read_csv_safe <- function(path) {
     train_hard_budget = col_integer(),
     eval_hard_budget = col_integer(),
     train_soft_budget_param = col_number(),
-    eval_soft_budget_param = col_number(),
+    eval_soft_budget_param = col_number()
   ))
 }
 
@@ -62,7 +62,7 @@ args <- commandArgs(trailingOnly = TRUE)
 if (length(args) == 1) {
   print("Proceeding with plotting using dummy data...")
   df <- generate_dummy_data(n=10000)
-} if (length(args) == 2) {
+} else if (length(args) == 2) {
   df <- read_csv_safe(args[1])
 } else {
   stop("Usage: Rscript plot.R eval_results.csv output_folder")

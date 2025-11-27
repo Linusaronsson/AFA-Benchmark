@@ -27,56 +27,57 @@ class AACOAFAMethod(AFAMethod):
         if torch.cuda.is_available()
         else torch.device("cpu")
     )
+    _hard_budget: int | None = None  # NEW: None = soft budget
 
     def __post_init__(self):
         # Move oracle to device
         self.aaco_oracle = self.aaco_oracle.to(self._device)
+
+    def set_hard_budget(self, budget: int | None) -> None:
+        """Set hard budget. None = soft budget mode."""
+        self._hard_budget = budget
 
     @override
     def select(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features,
-        labels,
     ) -> AFASelection:
-        """Select next feature using AACO implementation with logging"""
-        # Store original device for return tensor
+        """Select next feature using AACO with hard/soft budget support."""
         original_device = masked_features.device
-
-        # Move inputs to working device
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        # AACO works on single instances, process batch one by one
         batch_size = masked_features.shape[0]
         selections = []
 
         for i in range(batch_size):
             x_obs = masked_features[i]
             obs_mask = feature_mask[i]
+            n_acquired = obs_mask.sum().item()
 
-            # Get next feature from AACO oracle
-            # next_feature = self.aaco_oracle.select_next_feature(
-            #     x_obs, obs_mask, instance_idx=i
-            # )
-            # assert next_feature is not None, (
-            #     "AACO oracle must return a valid feature index"
-            # )
-            # selections.append(next_feature)
+            # Hard budget mode: check limits
+            if self._hard_budget is not None:
+                if n_acquired >= self._hard_budget:
+                    selections.append(0)  # Stop - at budget
+                    continue
+                # Force acquisition (don't allow early stop)
+                force_acquisition = True
+            else:
+                force_acquisition = False
 
-            # Get next feature from AACO oracle
             next_feature = self.aaco_oracle.select_next_feature(
-                x_obs, obs_mask, instance_idx=i
+                x_obs,
+                obs_mask,
+                instance_idx=i,
+                force_acquisition=force_acquisition,
             )
-            # Handle stop action when ACO returns None (u(x_o, o) = ∅)
+
             if next_feature is None:
-                # Return stop action
                 selections.append(0)
             else:
                 selections.append(next_feature + 1)
 
-        # Return selection tensor on original device
         selection_tensor = torch.tensor(
             selections, dtype=torch.long, device=original_device
         )
@@ -87,8 +88,8 @@ class AACOAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features,
-        labels,
+        features=None,
+        labels=None,
     ) -> Label:
         """Make prediction using classifier approach with proper device handling"""
         original_device = masked_features.device
@@ -169,12 +170,13 @@ class AACOAFAMethod(AFAMethod):
 
     @override
     def save(self, path: Path) -> None:
-        """Save method state"""
+        """Save method state including hard budget."""
         oracle_state = {
             "k_neighbors": self.aaco_oracle.k_neighbors,
             "acquisition_cost": self.aaco_oracle.acquisition_cost,
             "hide_val": self.aaco_oracle.hide_val,
             "dataset_name": self.dataset_name,
+            "hard_budget": self._hard_budget,  # NEW
             "X_train": self.aaco_oracle.X_train.cpu()
             if self.aaco_oracle.X_train is not None
             else None,
@@ -182,27 +184,24 @@ class AACOAFAMethod(AFAMethod):
             if self.aaco_oracle.y_train is not None
             else None,
         }
-
         torch.save(oracle_state, path / f"aaco_oracle_{self.dataset_name}.pt")
         logger.info(f"Saved AACO method to {path}")
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device = None) -> Self:
-        """Load method from saved state"""
+        """Load method from saved state."""
         if device is None:
             device = torch.device(
                 "cuda" if torch.cuda.is_available() else "cpu"
             )
 
-        # Find saved oracle file
         oracle_files = list(path.glob("aaco_oracle_*.pt"))
         if not oracle_files:
             raise FileNotFoundError(f"No AACO oracle files found in {path}")
 
         oracle_state = torch.load(oracle_files[0], map_location=device)
 
-        # Recreate oracle and method
         aaco_oracle = AACOOracle(
             k_neighbors=oracle_state["k_neighbors"],
             acquisition_cost=oracle_state["acquisition_cost"],
@@ -211,7 +210,6 @@ class AACOAFAMethod(AFAMethod):
             device=device,
         )
 
-        # Restore fitted state
         if (
             oracle_state["X_train"] is not None
             and oracle_state["y_train"] is not None
@@ -225,6 +223,7 @@ class AACOAFAMethod(AFAMethod):
             aaco_oracle=aaco_oracle,
             dataset_name=oracle_state["dataset_name"],
             _device=device,
+            _hard_budget=oracle_state.get("hard_budget"),  # NEW
         )
 
         logger.info(f"Loaded AACO method from {path}")

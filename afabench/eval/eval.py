@@ -7,9 +7,9 @@ from torch.utils.data.dataset import Dataset
 from torch.utils.data.sampler import SubsetRandomSampler
 from tqdm import tqdm
 
+from afabench.common.afa_initializers.base import AFAInitializer
 from afabench.common.custom_types import (
     AFADataset,
-    AFAInitializeFn,
     AFAPredictFn,
     AFASelectFn,
     AFASelection,
@@ -47,42 +47,40 @@ def single_afa_step(
         afa_unmask_fn (AFAUnmaskFn): How to select new features from AFA selections.
         external_afa_predict_fn (AFAPredictFn|None): An external classifier.
         builtin_afa_predict_fn (AFAPredictFn|None): A builtin classifier, if such exists.
-        selection_mask (SelectionMask|None): Mask indicating which selections have already been performed. Forwarded to the AFASelectFn.
+        selection_mask (SelectionMask|None): Mask indicating which selections have already been performed.
 
     Returns:
-        tuple[AFASelection, MaskedFeatures, FeatureMask, Label|None, Label|None]: Selection made, updated masked features, feature mask and predicted labels after the AFA step.
+        tuple: (selection, new_masked_features, new_feature_mask, external_pred, builtin_pred)
     """
     # Make AFA selections
     active_afa_selection = afa_select_fn(
         masked_features=masked_features,
         feature_mask=feature_mask,
-        selection_mask=selection_mask,
+        # selection_mask=selection_mask,
     )
 
     # Translate into which unmasked features using the unmasker
-    new_feature_mask, new_masked_features = afa_unmask_fn(
-        feature_mask=feature_mask,
+    new_masked_features, new_feature_mask = afa_unmask_fn(
         masked_features=masked_features,
-        afa_selection=active_afa_selection,
+        feature_mask=feature_mask,
         features=features,
+        afa_selection=active_afa_selection,
     )
 
     # Allow classifiers to make predictions using new masked features
+    external_prediction = None
     if external_afa_predict_fn is not None:
         external_prediction = external_afa_predict_fn(
             masked_features=new_masked_features,
             feature_mask=new_feature_mask,
         )
-    else:
-        external_prediction = None
 
+    builtin_prediction = None
     if builtin_afa_predict_fn is not None:
         builtin_prediction = builtin_afa_predict_fn(
             masked_features=new_masked_features,
             feature_mask=new_feature_mask,
         )
-    else:
-        builtin_prediction = None
 
     return (
         active_afa_selection,
@@ -108,31 +106,21 @@ def process_batch(
     """
     Evaluate a single batch.
 
-    Assumes that predictions are for classes, and only stores the most likely class prediction.
-
     Args:
-        afa_select_fn (AFASelectFn): How to make AFA selections. Should return 0 to stop.
-        afa_unmask_fn (AFAUnmaskFn): How to select new features from AFA selections.
-        n_selection_choices (int): Number of possible AFA selections (excluding 0). Should reflect the AFAUnmaskFn behavior.
-        features (Features): Features for the batch.
-        initial_feature_mask (FeatureMask): Initial feature mask for the batch.
-        initial_masked_features (MaskedFeatures): Initial masked features for the batch.
-        true_label (torch.Tensor): True labels for the batch.
-        external_afa_predict_fn (AFAPredictFn): An external classifier.
-        builtin_afa_predict_fn (AFAPredictFn): A builtin classifier, if such exists.
-        selection_budget (int|None): How many AFA selections to allow per sample. If None, allow unlimited selections. Defaults to None.
+        afa_select_fn: How to make AFA selections. Should return 0 to stop.
+        afa_unmask_fn: How to unmask features from AFA selections.
+        n_selection_choices: Number of possible AFA selections (excluding 0).
+        features: Full features for the batch.
+        initial_feature_mask: Initial feature mask for the batch.
+        initial_masked_features: Initial masked features for the batch.
+        true_label: True labels for the batch.
+        external_afa_predict_fn: An external classifier.
+        builtin_afa_predict_fn: A builtin classifier, if such exists.
+        selection_budget: Max AFA selections per sample. None = unlimited.
 
     Returns:
-        pd.DataFrame: DataFrame containing columns:
-            - "feature_indices" (list[int])
-            - "prev_selections_performed" (list[int])
-            - "selection_performed" (int)
-            - "next_feature_indices" (list[int])
-            - "builtin_predicted_class" (int|None)
-            - "external_predicted_class" (int|None)
-            - "true_class" (int)
+        pd.DataFrame with columns for each step taken.
     """
-    # TODO: remove cloning if necessary for speed up
     features = features.clone()
     feature_mask = initial_feature_mask.clone()
     masked_features = initial_masked_features.clone()
@@ -142,12 +130,8 @@ def process_batch(
         dtype=torch.bool,
     )
 
-    # In order to include "prev_selections_performed" in the dataframe, we keep track of which selections have been made per sample, which is not necessarily the same as the features observed
     selections_performed = [[] for _ in range(features.shape[0])]
-
-    # Process a subset of the batch, which gets smaller and smaller until it's empty
     active_indices = torch.arange(features.shape[0], device=features.device)
-
     df_batch_rows = []
 
     while len(active_indices) > 0:
@@ -172,21 +156,8 @@ def process_batch(
             builtin_afa_predict_fn=builtin_afa_predict_fn,
             selection_mask=active_selection_mask,
         )
-        print(
-            f"selection was {active_afa_selection.squeeze(-1).cpu().tolist()}"
-        )
-        print(f"new active masked features: {active_new_masked_features}")
-        # Key assumption: predictions are logits/probabilities for classes
-        if active_builtin_prediction is not None:
-            assert active_external_prediction.shape[-1] > 1, (
-                "Expected external prediction to have class dimension"
-            )
-        if builtin_afa_predict_fn is not None:
-            assert active_builtin_prediction.shape[-1] > 1, (
-                "Expected builtin prediction to have class dimension"
-            )
 
-        # Append selections
+        # Track selections
         for global_active_idx, afa_selection in zip(
             active_indices, active_afa_selection, strict=True
         ):
@@ -194,7 +165,7 @@ def process_batch(
                 afa_selection.item()
             )
 
-        # Append one row per active sample
+        # Record rows
         for active_idx, true_idx in enumerate(active_indices):
             df_batch_rows.append(
                 {
@@ -228,18 +199,17 @@ def process_batch(
                 }
             )
 
-        # Check which active samples have finished, due to one of the following reasons:
-        # - selection == 0 (method chose to stop)
-        # - selection budget reached
-        # - all features unmasked
+        # Check finish conditions
         just_finished_mask = (
             active_afa_selection.squeeze(-1) == 0
         ) | active_new_feature_mask.flatten(start_dim=1).all(dim=1)
-        # Check if selection budget is reached
+
+        # Check budget
         for active_idx, selection_list in enumerate(selections_performed):
             if len(selection_list) >= (selection_budget or float("inf")):
                 just_finished_mask[active_idx] = True
-        # Update feature mask, masked features and selection mask
+
+        # Update state
         masked_features[active_indices] = active_new_masked_features
         feature_mask[active_indices] = active_new_feature_mask
         sel = active_afa_selection.squeeze(-1)
@@ -247,7 +217,7 @@ def process_batch(
         if valid.any():
             selection_mask[active_indices[valid], sel[valid] - 1] = True
 
-        # Filter out finished samples
+        # Filter finished
         active_indices = active_indices[~just_finished_mask]
 
     return pd.DataFrame(df_batch_rows)
@@ -257,44 +227,38 @@ def eval_afa_method(
     afa_select_fn: AFASelectFn,
     afa_unmask_fn: AFAUnmaskFn,
     n_selection_choices: int,
-    afa_initialize_fn: AFAInitializeFn,
-    dataset: AFADataset,  # we also check at runtime that this is a pytorch Dataset
+    afa_initializer: AFAInitializer,
+    dataset: AFADataset,
     external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     only_n_samples: int | None = None,
     device: torch.device | None = None,
     selection_budget: int | None = None,
     batch_size: int = 1,
+    n_initial_features: int = 0,
 ) -> pd.DataFrame:
     """
     Evaluate an AFA method with support for early stopping and batched processing.
 
     Args:
-        afa_select_fn (AFASelectFn): How to choose AFA actions. Should return 0 to stop.
-        afa_unmask_fn (AFAUnmaskFn): How to select new features from AFA actions.
-        n_selection_choices (int): Number of possible AFA selections (excluding 0).
-        afa_initialize_fn (AFAInitializeFn): How to create the initial feature mask.
-        dataset (AFADataset & Dataset): The dataset to evaluate on. Additionally assumed to be a torch dataset.
-        external_afa_predict_fn (AFAPredictFn): An external classifier.
-        builtin_afa_predict_fn (AFAPredictFn): A builtin classifier, if such exists.
-        only_n_samples (int|None, optional): If specified, only evaluate on this many samples from the dataset. Defaults to None.
-        device (torch.device|None): Device to place data on. Defaults to "cpu".
-        selection_budget (int|None): How many AFA selections to allow per sample. If None, allow unlimited selections. Defaults to None.
-        batch_size (int): Batch size for processing samples. Defaults to 1.
+        afa_select_fn: How to choose AFA actions. Should return 0 to stop.
+        afa_unmask_fn: How to unmask features from AFA actions.
+        n_selection_choices: Number of possible AFA selections (excluding 0).
+        afa_initializer: How to create initial feature mask.
+        dataset: The dataset to evaluate on.
+        external_afa_predict_fn: An external classifier.
+        builtin_afa_predict_fn: A builtin classifier, if such exists.
+        only_n_samples: If specified, only evaluate on this many samples.
+        device: Device to place data on. Defaults to "cpu".
+        selection_budget: Max selections per sample. None = unlimited.
+        batch_size: Batch size for processing.
+        n_initial_features: How many features to reveal at initialization.
 
     Returns:
-        pd.DataFrame: DataFrame containing columns:
-            - "feature_indices" (list[int])
-            - "prev_selections_performed" (list[int])
-            - "selection_performed" (int)
-            - "next_feature_indices" (list[int])
-            - "builtin_predicted_class" (int|None)
-            - "external_predicted_class" (int|None)
-            - "true_class" (int)
+        pd.DataFrame with evaluation results.
     """
     assert isinstance(dataset, Dataset)
-    if device is None:
-        device = torch.device("cpu")
+    device = device or torch.device("cpu")
 
     if only_n_samples is not None:
         dataloader = DataLoader(
@@ -305,39 +269,33 @@ def eval_afa_method(
             ),
         )
     else:
-        dataloader = DataLoader(
-            dataset,
-            batch_size=batch_size,
-        )
+        dataloader = DataLoader(dataset, batch_size=batch_size)
 
     df_batches: list[pd.DataFrame] = []
-    for _batch_features, _batch_label in tqdm(dataloader):
-        batch_features = _batch_features.to(device)
-        batch_label = _batch_label.to(device)
 
-        # Initialize masks for the batch
-        batch_initial_feature_mask, batch_initial_masked_features = (
-            afa_initialize_fn(batch_features)
-        )
-        batch_initial_selection_mask = torch.zeros(
-            (batch_features.shape[0], n_selection_choices),
-            device=device,
-            dtype=torch.bool,
+    for batch_features, batch_label in tqdm(dataloader):
+        batch_features = batch_features.to(device)
+        batch_label = batch_label.to(device)
+
+        # Initialize using the initializer
+        batch_masked_features, batch_feature_mask = afa_initializer.initialize(
+            features=batch_features,
+            n_features_select=n_initial_features,
         )
 
         df_batches.append(
             process_batch(
                 afa_select_fn=afa_select_fn,
                 afa_unmask_fn=afa_unmask_fn,
+                n_selection_choices=n_selection_choices,
                 features=batch_features,
-                initial_feature_mask=batch_initial_feature_mask,
-                initial_masked_features=batch_initial_masked_features,
-                initial_selection_mask=batch_initial_selection_mask,
+                initial_feature_mask=batch_feature_mask,
+                initial_masked_features=batch_masked_features,
                 true_label=batch_label,
                 external_afa_predict_fn=external_afa_predict_fn,
                 builtin_afa_predict_fn=builtin_afa_predict_fn,
                 selection_budget=selection_budget,
             )
         )
-    # Concatenate all batch DataFrames
+
     return pd.concat(df_batches, ignore_index=True)

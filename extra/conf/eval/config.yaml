@@ -8,12 +8,17 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-
-trained_method_artifact_name: ""
-trained_classifier_artifact_name: ""
+method_artifact_path: ???
+unmasker_type: ???
+initializer_type: ???
+dataset_artifact_path: ???
+save_path: ???
+dataset_split: "test"
+classifier_artifact_path: null
 seed: 42
-device: "cuda"
+device: "cpu"
+n_selection_choices: 10
 eval_only_n_samples: null
 batch_size: 1
-dataset_split: "testing"
-experiment_id: ""
+hard_budget: null
+use_wandb: false

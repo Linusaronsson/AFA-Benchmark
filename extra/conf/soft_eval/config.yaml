@@ -1,19 +1,23 @@
 hydra:
-    searchpath:
-        - file://extra/conf/global
+  searchpath:
+    - file://extra/conf/global
 
 defaults:
-    - _self_
-    - override hydra/job_logging: colorlog
-    - override hydra/hydra_logging: colorlog
-    - override hydra/launcher: custom_slurm
+  - _self_
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
 
-trained_method_artifact_name: ??? # Need to specify for evaluation
-cost_param: null
-trained_classifier_artifact_name: ??? # Need to specify for evaluation
-seed: null
+method_artifact_path: ???
+unmasker_type: ???
+initializer_type: ???
+dataset_artifact_path: ???
+dataset_split: "testing"
+classifier_artifact_path: null
+seed: 42
 device: "cuda"
+n_selection_choices: 10
 eval_only_n_samples: null
-dataset_split: "validation"
-batch_size: ???
-experiment_id: ""
+batch_size: 1
+hard_budget: null
+use_wandb: false

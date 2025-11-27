@@ -5,6 +5,7 @@ import shutil
 from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Any
 
 import numpy as np
@@ -64,6 +65,25 @@ def eval_mode(*models: nn.Module) -> Generator[None, None, None]:
             m.train(mode)
 
 
+def save_method_artifact(
+    method: AFAMethod,
+    save_path: Path,
+    metadata: dict[str, Any],
+) -> None:
+    """Save an AFA method with metadata."""
+    if isinstance(save_path, str):
+        save_path = Path(save_path)
+
+    with TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        method.save(temp_path)
+        save_artifact(
+            artifact_dir=save_path,
+            files={f.name: f for f in temp_path.iterdir() if f.is_file()},
+            metadata=metadata,
+        )
+
+
 def save_artifact(
     artifact_dir: Path,
     files: dict[str, Path],
@@ -108,24 +128,27 @@ def load_pretrained_model(
 def load_method_artifact(
     path: Path,
     device: torch.device | None = None,
-) -> AFAMethod:
+) -> tuple[AFAMethod, dict[str, Any]]:
     """Load trained AFA method from artifact path."""
     device = device or torch.device("cpu")
     metadata = load_artifact_metadata(path)
     method_class = get_afa_method_class(metadata["method_type"])
-    return method_class.load(path, device=device)
+    return method_class.load(path, device=device), metadata
 
 
 def load_dataset_artifact(
     path: Path,
     split: str,
-) -> AFADataset:
+) -> tuple[AFADataset, dict[str, Any]]:
     """Load single dataset split (train/val/test) from artifact path."""
+    if isinstance(path, str):
+        path = Path(path)
+
     if split not in {"train", "val", "test"}:
         raise ValueError(f"Invalid split: {split}")
     metadata = load_artifact_metadata(path)
     dataset_class = get_afa_dataset_class(metadata["dataset_type"])
-    return dataset_class.load(path / f"{split}.pt")
+    return dataset_class.load(path / f"{split}.pt"), metadata
 
 
 def load_dataset_splits(

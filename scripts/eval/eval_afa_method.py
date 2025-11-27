@@ -1,16 +1,29 @@
-import json
 import logging
 from pathlib import Path
 from typing import Any, cast
 
 import hydra
+import pandas as pd
 import torch
-import wandb
 from omegaconf import OmegaConf
 
+import wandb
+from afabench.afa_oracle.afa_methods import AACOAFAMethod
+from afabench.common.afa_initializers.base import AFAInitializer
 from afabench.common.config_classes import EvalConfig
-from afabench.common.custom_types import AFAClassifier, AFADataset, AFAMethod
+from afabench.common.custom_types import (
+    AFAClassifier,
+    AFADataset,
+    AFAMethod,
+    AFAUnmaskFn,
+)
 from afabench.common.utils import (
+    load_classifier_artifact,
+    load_dataset_artifact,
+    load_initializer,
+    load_method_artifact,
+    load_unmasker,
+    save_artifact,
     set_seed,
 )
 from afabench.eval.eval import eval_afa_method
@@ -20,31 +33,34 @@ log = logging.getLogger(__name__)
 
 def load(
     method_artifact_path: Path,
-    unmasker_artifact_path: Path,
-    initializer_artifact_path: Path,
+    unmasker_type: str,
+    initializer_type: str,
     dataset_artifact_path: Path,
     dataset_split: str,
     classifier_artifact_path: Path | None = None,
     device: torch.device | None = None,
 ) -> tuple[
-    AFAMethod, AFAUnmasker, AFAInitializer, AFADataset, AFAClassifier | None
+    AFAMethod,
+    AFAUnmaskFn,
+    AFAInitializer,
+    AFADataset,
+    AFAClassifier | None,
+    dict[str, Any],
 ]:
     # Load method
-    method: AFAMethod = load_method_artifact(method_artifact_path)
+    method, method_metadata = load_method_artifact(method_artifact_path)
     log.info(f"Loaded AFA method from {method_artifact_path}")
 
     # Load unmasker
-    unmasker: AFAUnmasker = load_unmasker_artifact(unmasker_artifact_path)
-    log.info(f"Loaded unmasker from {unmasker_artifact_path}")
+    unmasker: AFAUnmaskFn = load_unmasker(unmasker_type)
+    log.info(f"Loaded {unmasker_type} unmasker")
 
     # Load initializer
-    initializer: AFAInitializer = load_initializer_artifact(
-        initializer_artifact_path
-    )
-    log.info(f"Loaded initializer from {initializer_artifact_path}")
+    initializer: AFAInitializer = load_initializer(initializer_type)
+    log.info(f"Loaded {initializer_type} initializer")
 
     # Load dataset
-    dataset: AFADataset = load_dataset_artifact(
+    dataset, metadata = load_dataset_artifact(
         dataset_artifact_path, dataset_split
     )
     log.info(f"Loaded dataset from {dataset_artifact_path}")
@@ -68,12 +84,13 @@ def load(
         initializer,
         dataset,
         classifier,
+        method_metadata,
     )
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/soft_eval",
+    config_path="../../extra/conf/eval",
     config_name="config",
 )
 def main(cfg: EvalConfig) -> None:
@@ -102,10 +119,11 @@ def main(cfg: EvalConfig) -> None:
         initializer,
         dataset,
         external_classifier,
+        method_metadata,
     ) = load(
         method_artifact_path=Path(cfg.method_artifact_path),
-        unmasker_artifact_path=Path(cfg.unmasker_artifact_path),
-        initializer_artifact_path=Path(cfg.initializer_artifact_path),
+        unmasker_type=cfg.unmasker_type,
+        initializer_type=cfg.initializer_type,
         dataset_artifact_path=Path(cfg.dataset_artifact_path),
         dataset_split=cfg.dataset_split,
         classifier_artifact_path=(
@@ -121,22 +139,34 @@ def main(cfg: EvalConfig) -> None:
     else:
         hard_budget_str = "no hard budget"
     log.info(
-        f"Starting evaluation with batch size {cfg.batch_size} and {hard_budget_str}."
+        f"Starting evaluation with batch size {cfg.batch_size} and {
+            hard_budget_str
+        }."
     )
 
-    # Do the evaluation
+    if isinstance(afa_method, AACOAFAMethod):
+        afa_method.aaco_oracle.set_classifier(
+            external_classifier
+            if external_classifier is not None
+            else afa_method.aaco_oracle.classifier
+        )
+
     df_eval = eval_afa_method(
         afa_select_fn=afa_method.select,
+        afa_unmask_fn=unmasker,
+        n_selection_choices=cfg.n_selection_choices,
+        afa_initializer=initializer,
         dataset=dataset,
-        external_afa_predict_fn=external_afa_predict_fn,
-        afa_uncover_fn=uncover_fn,
+        external_afa_predict_fn=external_classifier
+        if external_classifier is not None
+        else None,
         builtin_afa_predict_fn=afa_method.predict
         if afa_method.has_builtin_classifier
         else None,
         only_n_samples=cfg.eval_only_n_samples,
         device=torch.device(cfg.device),
+        selection_budget=cfg.hard_budget,
         batch_size=cfg.batch_size,
-        patch_size=image_patch_size,
     )
     # TODO: pivot long for two classifier types
     # Add columns to conform to expected format (snake_case)
@@ -149,21 +179,30 @@ def main(cfg: EvalConfig) -> None:
     df_eval["cost_parameter"] = cost_param
     df_eval["dataset"] = method_metadata["dataset_type"]
 
-    # Remove "train_" prefix from method_artifact_name
-    eval_artifact_name = method_artifact_name.replace("train_", "")
-
-    # Parse method name (first part before underscore)
-    method_name = eval_artifact_name.split("_")[0]
-
-    # Create eval directory: extra/result/{method_name}/eval/{artifact_name}/
-    base_dir = Path("extra/result")
-    # remove "methodname_" prefix from eval_artifact_name
-    eval_artifact_name = eval_artifact_name.split("_", 1)[-1]
-    eval_dir = base_dir / method_name / "eval" / eval_artifact_name
-    eval_dir.mkdir(parents=True, exist_ok=True)
+    df_eval = pd.DataFrame(
+        {
+            "afa_method": df_eval["method"],
+            "classifier": "external",  # or None if builtin
+            "dataset": df_eval["dataset"],
+            "selections_performed": df_eval["prev_selections_performed"].apply(
+                len
+            )
+            + 1,
+            "features_observed": df_eval["next_feature_indices"].apply(len),
+            "predicted_class": df_eval["external_predicted_label"],
+            "true_class": df_eval["true_class"],
+            "train_seed": df_eval["training_seed"],
+            "eval_seed": cfg.seed,
+            "train_hard_budget": method_metadata.get("hard_budget"),
+            "eval_hard_budget": cfg.hard_budget,
+            "train_soft_budget_param": df_eval["cost_parameter"],
+            "eval_soft_budget_param": None,
+        }
+    )
 
     # Save CSV directly
-    csv_path = eval_dir / "soft_eval_data.csv"
+    csv_path = Path(cfg.save_path) / "eval_data.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
     df_eval.to_csv(csv_path, index=False)
     log.info(f"Saved evaluation data to CSV at: {csv_path}")
 
@@ -172,16 +211,18 @@ def main(cfg: EvalConfig) -> None:
         "dataset_type": method_metadata["dataset_type"],
         "method_type": method_metadata["method_type"],
         "seed": method_metadata["seed"],
-        "cost_param": cfg.cost_param,
+        "cost_param": cost_param,
         "eval_type": "soft_budget",
         "dataset_split": cfg.dataset_split,
-        "classifier_artifact_name": cfg.trained_classifier_artifact_name,
+        "classifier_artifact_name": cfg.classifier_artifact_path,
     }
-
-    with open(eval_dir / "metadata.json", "w") as f:
-        json.dump(eval_metadata, f, indent=2)
-
-    log.info(f"Evaluation results saved to: {eval_dir}")
+    # Save just metadata (CSV already in place)
+    save_artifact(
+        artifact_dir=Path(cfg.save_path),
+        files={},  # No files to copy - CSV already there
+        metadata=eval_metadata,
+    )
+    log.info(f"Evaluation results saved to: {cfg.save_path}")
 
     if run:
         run.finish()

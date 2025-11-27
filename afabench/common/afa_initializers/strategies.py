@@ -175,3 +175,46 @@ class ZeroInitializer(AFAInitializer):
         train_labels: Label | None = None,
     ) -> list[int]:
         return []
+
+
+class AACODefaultInitializer(AFAInitializer):
+    """
+    AACO paper's deterministic initial feature selection.
+
+    Uses dataset-specific initial features as per the original paper:
+    - cube: feature 6
+    - mnist/fashionmnist: feature 100
+    - others: middle feature
+    """
+
+    DATASET_INITIAL_FEATURES = {
+        "cube": 6,
+        "cubesimple": 3,
+        "grid": 1,
+        "gas10": 6,
+        "mnist": 100,
+        "fashionmnist": 100,
+        "afacontext": 0,  # context feature first
+    }
+
+    def __init__(self, dataset_name: str, seed: int | None = None):
+        super().__init__(seed)
+        self.dataset_name = dataset_name.lower()
+
+    def select_features(
+        self,
+        n_features_total: int,
+        n_features_select: int,
+        train_features: Features | None = None,
+        train_labels: Label | None = None,
+    ) -> list[int]:
+        # AACO always starts with exactly 1 feature
+        assert n_features_select == 1, (
+            "AACO default initializer selects exactly 1 feature"
+        )
+
+        initial = self.DATASET_INITIAL_FEATURES.get(
+            self.dataset_name,
+            n_features_total // 2,  # fallback: middle feature
+        )
+        return [initial]

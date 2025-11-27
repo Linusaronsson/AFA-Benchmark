@@ -151,8 +151,8 @@ class WrappedMaskedMLPClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        features: Features | None = None,
+        label: Label | None = None,
     ) -> Label:
         original_device = masked_features.device
 

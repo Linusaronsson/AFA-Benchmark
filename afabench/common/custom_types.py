@@ -13,6 +13,7 @@ type FeatureMask = Bool[Tensor, "*batch *feature_shape"]
 type SelectionMask = Bool[Tensor, "*batch *selection_shape"]
 # We allow arbitrary labels
 type Label = Float[Tensor, "*batch *label_shape"]
+type Logits = Float[Tensor, "*batch *n_classes"]
 
 # Outputs of AFA methods, representing which feature to collect next, or to stop acquiring features (0)
 type AFASelection = Integer[Tensor, "*batch 1"]

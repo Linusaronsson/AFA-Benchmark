@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from hydra.core.config_store import ConfigStore
@@ -38,7 +39,8 @@ class DatasetConfig:
 
 @dataclass
 class DatasetGenerationConfig:
-    save_path: str  # where to save the instances. Each instance will be saved in a separate subfolder.
+    # where to save the instances. Each instance will be saved in a separate subfolder.
+    save_path: str
     instance_indices: list[int]  # we will save multiple instances at once
     seeds: list[int]  # one seed per dataset instance
     split_ratio: SplitRatioConfig  # how to split train/val/test
@@ -731,12 +733,15 @@ class AACOConfig:
 @dataclass
 class AACOTrainConfig:
     aco: AACOConfig
-    dataset_artifact_name: str
+    dataset_artifact_name: Path
+    save_path: Path
     seed: int = 42
     device: str = "cpu"
     cost_param: float | None = None
-    hard_budget: float | None = None
+    hard_budget: int | None = None  # None = soft budget mode
     experiment_id: str | None = None
+    initializer_type: str = "aaco_default"
+    unmasker_type: str = "one_based_index"
 
 
 # --- TRAINING CLASSIFIERS ---
@@ -802,17 +807,21 @@ class EvalConfig:
     # Which method to evaluate
     method_artifact_path: str
     # Which unmasker to use
-    unmasker_artifact_path: str
+    unmasker_type: str
     # Which initializer to use
-    initializer_artifact_path: str
+    initializer_type: str
     # Which dataset instance to use
     dataset_artifact_path: str
+    # Save path
+    save_path: str
     # Which split of the instance to use. Should be one of "train", "val" or "test"
     dataset_split: str
     # Also save results for predictions using an external classifier
     classifier_artifact_path: str | None
     seed: int | None
     device: str
+    # How many selection choices to evaluate per sample
+    n_selection_choices: int
     # Make it possible to only evaluate a subset of the dataset, for debugging purposes
     eval_only_n_samples: int | None
     batch_size: int
