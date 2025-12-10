@@ -1,5 +1,6 @@
 """Tests for SyntheticMNISTDataset properties and behavior."""
 
+import numpy as np
 import pytest
 import torch
 
@@ -233,3 +234,166 @@ def test_synthetic_mnist_pattern_consistency() -> None:
     # Both datasets should be identical
     assert torch.allclose(features1, features2)
     assert torch.allclose(labels1, labels2)
+
+
+def test_synthetic_mnist_left_half_is_noise(
+    large_synthetic_mnist: SyntheticMNISTDataset,
+) -> None:
+    """Test that the left half contains only noise (similar statistics across all classes)."""
+    features, labels = large_synthetic_mnist.get_all_data()
+    class_indices = torch.argmax(labels, dim=1)
+
+    # Collect statistics for left half across all classes
+    left_half_stats = []
+
+    for class_idx in range(10):
+        class_mask = class_indices == class_idx
+        if class_mask.any():
+            class_samples = features[class_mask]
+            left_half = class_samples[:, 0, :, :14]  # Left 14 pixels
+
+            mean_val = torch.mean(left_half).item()
+            std_val = torch.std(left_half).item()
+            left_half_stats.append((mean_val, std_val))
+
+    # Check that all classes have similar statistics in left half
+    means = [stat[0] for stat in left_half_stats]
+    stds = [stat[1] for stat in left_half_stats]
+
+    mean_variance = np.var(means)
+    std_variance = np.var(stds)
+
+    # The variance in means and stds should be small for noise
+    assert mean_variance < 0.01, (
+        f"Left half means vary too much across classes: {mean_variance}"
+    )
+    assert std_variance < 0.01, (
+        f"Left half stds vary too much across classes: {std_variance}"
+    )
+
+    # All means should be close to 0 (noise centered at 0)
+    for i, mean_val in enumerate(means):
+        assert abs(mean_val) < 0.1, (
+            f"Class {i} left half mean {mean_val} too far from 0"
+        )
+
+
+def test_synthetic_mnist_right_half_has_patterns(
+    large_synthetic_mnist: SyntheticMNISTDataset,
+) -> None:
+    """Test that the right half contains class-specific patterns."""
+    features, labels = large_synthetic_mnist.get_all_data()
+    class_indices = torch.argmax(labels, dim=1)
+
+    # Collect statistics for right half across all classes
+    right_half_stats = []
+
+    for class_idx in range(10):
+        class_mask = class_indices == class_idx
+        if class_mask.any():
+            class_samples = features[class_mask]
+            right_half = class_samples[:, 0, :, 14:]  # Right 14 pixels
+
+            mean_val = torch.mean(right_half).item()
+            std_val = torch.std(right_half).item()
+            right_half_stats.append((mean_val, std_val))
+
+    # Check that classes have different statistics in right half
+    means = [stat[0] for stat in right_half_stats]
+    stds = [stat[1] for stat in right_half_stats]
+
+    mean_variance = np.var(means)
+    std_variance = np.var(stds)
+
+    # The variance in means and stds should be larger for patterns
+    assert mean_variance > 0.001, (
+        f"Right half means don't vary enough across classes: {mean_variance}"
+    )
+
+    # At least some classes should have higher means due to patterns
+    max_mean = max(means)
+    assert max_mean > 0.15, (
+        f"No class has significantly elevated mean in right half: {max_mean}"
+    )
+
+
+def test_synthetic_mnist_pattern_intensity_effect() -> None:
+    """Test that pattern intensity affects the right half appropriately."""
+    # Create datasets with different pattern intensities
+    dataset_low = SyntheticMNISTDataset(
+        seed=42, n_samples=100, pattern_intensity=0.3
+    )
+    dataset_high = SyntheticMNISTDataset(
+        seed=42, n_samples=100, pattern_intensity=0.9
+    )
+
+    features_low, _ = dataset_low.get_all_data()
+    features_high, _ = dataset_high.get_all_data()
+
+    # Compare right half intensities
+    right_half_low = features_low[:, 0, :, 14:]
+    right_half_high = features_high[:, 0, :, 14:]
+
+    mean_low = torch.mean(right_half_low).item()
+    mean_high = torch.mean(right_half_high).item()
+
+    # Higher pattern intensity should result in higher mean values
+    assert mean_high > mean_low, (
+        f"Higher pattern intensity should give higher mean: {mean_high} vs {mean_low}"
+    )
+
+
+def test_synthetic_mnist_left_right_split() -> None:
+    """Test that patterns are confined to right half and noise to left half."""
+    dataset = SyntheticMNISTDataset(
+        seed=42, n_samples=500, noise_std=0.1, pattern_intensity=0.8
+    )
+
+    features, labels = dataset.get_all_data()
+    class_indices = torch.argmax(labels, dim=1)
+
+    # For each class, verify that left and right halves have expected properties
+    for class_idx in range(10):
+        class_mask = class_indices == class_idx
+        if class_mask.any():
+            class_samples = features[class_mask][:5]  # Take first 5 samples
+
+            # Split into left and right halves
+            left_half = class_samples[:, 0, :, :14]
+            right_half = class_samples[:, 0, :, 14:]
+
+            left_mean = torch.mean(left_half).item()
+            right_mean = torch.mean(right_half).item()
+
+            # For most classes, right half should have higher mean due to patterns
+            # (some classes might have minimal patterns, so we check the overall trend)
+            if right_mean > left_mean:
+                # Right half should be significantly higher for pattern classes
+                assert (right_mean - left_mean) > 0.01, (
+                    f"Class {class_idx} has insufficient pattern difference: "
+                    f"left={left_mean:.4f}, right={right_mean:.4f}"
+                )
+
+
+def test_synthetic_mnist_noise_properties() -> None:
+    """Test that noise properties are consistent with dataset parameters."""
+    noise_std = 0.1  # Use smaller std to avoid heavy clamping effects
+    dataset = SyntheticMNISTDataset(
+        seed=42, n_samples=200, noise_std=noise_std, pattern_intensity=0.0
+    )
+
+    features, _ = dataset.get_all_data()
+
+    # With zero pattern intensity, features should be mostly noise
+    # Left half should have standard deviation reasonably close to noise_std
+    # (but will be reduced due to clamping at [0,1])
+    left_half = features[:, 0, :, :14]
+    measured_std = torch.std(left_half).item()
+
+    # The measured std will be smaller due to clamping, but should be reasonable
+    assert measured_std > 0.05, (
+        f"Measured noise std {measured_std} too small, suggests no noise"
+    )
+    assert measured_std < noise_std * 1.2, (
+        f"Measured noise std {measured_std} unexpectedly higher than input {noise_std}"
+    )

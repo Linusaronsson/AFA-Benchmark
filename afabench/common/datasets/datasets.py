@@ -1419,6 +1419,8 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     Synthetic MNIST-like dataset with the same shape as MNIST (28x28 = 784 features, 10 classes).
 
     Generates synthetic image-like data with patterns that can be learned.
+    The left half (14 pixels) contains only noise, while the right half contains
+    class-specific patterns for label identification.
 
     Implements the AFADataset protocol.
     """
@@ -1488,74 +1490,108 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         diag_indices = torch.arange(28)
         anti_diag_indices = 27 - diag_indices
 
-        # Add class-specific patterns to make the data learnable
+        # Add class-specific patterns to make the data learnable (right half only)
         for i in range(self.n_samples):
             label = int(y_int[i].item())
 
             # Create simple geometric patterns for each class
             img = self.features[i, 0]  # Get the single channel (28, 28)
 
-            if label == 0:  # Circle-like pattern
+            # Ensure left half (0:14) remains pure noise - regenerate it
+            img[:, 0:14] = torch.normal(
+                mean=0.0,
+                std=self.noise_std,
+                size=(28, 14),
+                generator=self.rng,
+            )
+
+            if label == 0:  # Circle-like pattern (right half only)
+                center_y, center_x = 14.0, 21.0  # Center in right half
                 dist = torch.sqrt(
-                    (y_coords - 14.0) ** 2 + (x_coords - 14.0) ** 2
+                    (y_coords - center_y) ** 2 + (x_coords - center_x) ** 2
                 )
-                circle_mask = (dist >= 8) & (dist <= 12)
+                circle_mask = (dist >= 4) & (
+                    dist <= 6
+                )  # Smaller circle for half space
+                # Only apply to right half
+                circle_mask = circle_mask & (x_coords >= 14)
                 img[circle_mask] += self.pattern_intensity
 
-            elif label == 1:  # Vertical line
-                img[:, 12:16] += self.pattern_intensity
+            elif label == 1:  # Vertical line (right half)
+                img[:, 19:23] += self.pattern_intensity  # Moved to right half
 
-            elif label == 2:  # Horizontal line
-                img[12:16, :] += self.pattern_intensity
+            elif label == 2:  # Horizontal line (right half only)
+                img[12:16, 14:] += self.pattern_intensity  # Only right half
 
-            elif label == 3:  # Diagonal line
-                img[diag_indices, diag_indices] += self.pattern_intensity
+            elif label == 3:  # Diagonal line (right half)
+                # Create diagonal in right half only
+                for j in range(14):
+                    if j < 28 and (j + 14) < 28:
+                        img[j, j + 14] += self.pattern_intensity
 
-            elif label == 4:  # Square
-                img[8:20, 8:20] += self.pattern_intensity * 0.3
-                img[8:10, 8:20] += self.pattern_intensity * 0.7
-                img[18:20, 8:20] += self.pattern_intensity * 0.7
-                img[8:20, 8:10] += self.pattern_intensity * 0.7
-                img[8:20, 18:20] += self.pattern_intensity * 0.7
+            elif label == 4:  # Square (right half)
+                img[8:20, 16:26] += (
+                    self.pattern_intensity * 0.3
+                )  # Moved to right half
+                img[8:10, 16:26] += self.pattern_intensity * 0.7
+                img[18:20, 16:26] += self.pattern_intensity * 0.7
+                img[8:20, 16:18] += self.pattern_intensity * 0.7
+                img[8:20, 24:26] += self.pattern_intensity * 0.7
 
-            elif label == 5:  # Cross pattern
-                img[:, 12:16] += self.pattern_intensity * 0.5
-                img[12:16, :] += self.pattern_intensity * 0.5
+            elif label == 5:  # Cross pattern (right half)
+                img[:, 19:23] += (
+                    self.pattern_intensity * 0.5
+                )  # Vertical line in right half
+                img[12:16, 14:] += (
+                    self.pattern_intensity * 0.5
+                )  # Horizontal line in right half
 
-            elif label == 6:  # Triangle-like
+            elif label == 6:  # Triangle-like (right half)
                 for y in range(6, 22):
                     width = (y - 6) // 2
-                    start_x = max(0, 14 - width)
-                    end_x = min(28, 14 + width + 1)
+                    start_x = max(14, 21 - width)  # Centered in right half
+                    end_x = min(28, 21 + width + 1)
                     img[y, start_x:end_x] += self.pattern_intensity * 0.6
 
-            elif label == 7:  # L-shape
-                img[6:22, 6:10] += self.pattern_intensity
-                img[18:22, 6:18] += self.pattern_intensity
+            elif label == 7:  # L-shape (right half)
+                img[6:22, 16:20] += (
+                    self.pattern_intensity
+                )  # Vertical part in right half
+                img[18:22, 16:26] += (
+                    self.pattern_intensity
+                )  # Horizontal part in right half
 
-            elif label == 8:  # X pattern
-                img[diag_indices, diag_indices] += self.pattern_intensity * 0.5
-                img[diag_indices, anti_diag_indices] += (
-                    self.pattern_intensity * 0.5
-                )
+            elif label == 8:  # X pattern (right half)
+                # Main diagonal in right half
+                for j in range(14):
+                    if j < 28 and (j + 14) < 28:
+                        img[j, j + 14] += self.pattern_intensity * 0.5
+                # Anti-diagonal in right half
+                for j in range(14):
+                    if j < 28 and (27 - j) >= 14:
+                        img[j, 27 - j] += self.pattern_intensity * 0.5
 
-            elif label == 9:  # Dot pattern
-                img[6:8, 6:8] += self.pattern_intensity
-                img[6:8, 10:12] += self.pattern_intensity
-                img[6:8, 14:16] += self.pattern_intensity
-                img[6:8, 18:20] += self.pattern_intensity
-                img[10:12, 6:8] += self.pattern_intensity
-                img[10:12, 10:12] += self.pattern_intensity
-                img[10:12, 14:16] += self.pattern_intensity
-                img[10:12, 18:20] += self.pattern_intensity
-                img[14:16, 6:8] += self.pattern_intensity
-                img[14:16, 10:12] += self.pattern_intensity
-                img[14:16, 14:16] += self.pattern_intensity
-                img[14:16, 18:20] += self.pattern_intensity
-                img[18:20, 6:8] += self.pattern_intensity
-                img[18:20, 10:12] += self.pattern_intensity
-                img[18:20, 14:16] += self.pattern_intensity
-                img[18:20, 18:20] += self.pattern_intensity
+            elif label == 9:  # Dot pattern (right half only)
+                img[6:8, 16:18] += (
+                    self.pattern_intensity
+                )  # Top row, right half
+                img[6:8, 20:22] += self.pattern_intensity
+                img[6:8, 24:26] += self.pattern_intensity
+                img[10:12, 16:18] += (
+                    self.pattern_intensity
+                )  # Second row, right half
+                img[10:12, 20:22] += self.pattern_intensity
+                img[10:12, 24:26] += self.pattern_intensity
+                img[14:16, 16:18] += (
+                    self.pattern_intensity
+                )  # Third row, right half
+                img[14:16, 20:22] += self.pattern_intensity
+                img[14:16, 24:26] += self.pattern_intensity
+                img[18:20, 16:18] += (
+                    self.pattern_intensity
+                )  # Fourth row, right half
+                img[18:20, 20:22] += self.pattern_intensity
+                img[18:20, 24:26] += self.pattern_intensity
 
             # Update the channel
             self.features[i, 0] = img

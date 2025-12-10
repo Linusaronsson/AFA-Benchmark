@@ -237,3 +237,4 @@ extra/trained_methods
 extra/eval_results*
 checkpoints
 extra/pretrained_models/
+extra/visualizations/synthetic_mnist
