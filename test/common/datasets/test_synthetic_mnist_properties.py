@@ -65,7 +65,7 @@ def test_synthetic_mnist_data_format_conversion(
     small_synthetic_mnist: SyntheticMNISTDataset,
 ) -> None:
     """Test that features can be converted between image and flattened format."""
-    features, labels = small_synthetic_mnist.get_all_data()
+    features, _ = small_synthetic_mnist.get_all_data()
 
     # Test flattening to 784 dimensions
     flattened = features.view(-1, 784)
@@ -110,7 +110,7 @@ def test_synthetic_mnist_class_distribution(
     large_synthetic_mnist: SyntheticMNISTDataset,
 ) -> None:
     """Test that all classes are represented in the dataset."""
-    features, labels = large_synthetic_mnist.get_all_data()
+    _, labels = large_synthetic_mnist.get_all_data()
 
     # Convert one-hot to class indices
     class_indices = torch.argmax(labels, dim=1)
@@ -208,7 +208,7 @@ def test_synthetic_mnist_feature_intensity_ranges(
     small_synthetic_mnist: SyntheticMNISTDataset,
 ) -> None:
     """Test that generated features have reasonable intensity distributions."""
-    features, labels = small_synthetic_mnist.get_all_data()
+    features, _ = small_synthetic_mnist.get_all_data()
 
     # Features should use the full [0, 1] range (not just background noise)
     assert torch.min(features) >= 0.0
@@ -300,10 +300,8 @@ def test_synthetic_mnist_right_half_has_patterns(
 
     # Check that classes have different statistics in right half
     means = [stat[0] for stat in right_half_stats]
-    stds = [stat[1] for stat in right_half_stats]
 
     mean_variance = np.var(means)
-    std_variance = np.var(stds)
 
     # The variance in means and stds should be larger for patterns
     assert mean_variance > 0.001, (

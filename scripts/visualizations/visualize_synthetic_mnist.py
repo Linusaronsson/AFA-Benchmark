@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Visualization script for the modified SyntheticMNISTDataset.
+
 This script loads a pre-generated dataset bundle and visualizes the images to verify that:
 1. The left half contains only noise
 2. The right half contains class-specific patterns.
@@ -9,6 +10,7 @@ This script loads a pre-generated dataset bundle and visualizes the images to ve
 import argparse
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
 import torch
@@ -18,8 +20,13 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from afabench.common.bundle import load_bundle
 
+if TYPE_CHECKING:
+    from afabench.common.custom_types import AFADataset
 
-def visualize_dataset_from_bundle(bundle_path: Path, n_samples_per_class=5):
+
+def visualize_dataset_from_bundle(
+    bundle_path: Path, n_samples_per_class: int = 5
+) -> None:
     """
     Visualize samples from a pre-generated SyntheticMNISTDataset bundle.
 
@@ -29,7 +36,8 @@ def visualize_dataset_from_bundle(bundle_path: Path, n_samples_per_class=5):
     """
     # Load the dataset bundle
     print(f"Loading dataset from {bundle_path}")
-    dataset, metadata = load_bundle(bundle_path)
+    dataset, _ = load_bundle(bundle_path)
+    dataset = cast("AFADataset", cast("object", dataset))
     print(f"Loaded dataset with {len(dataset)} samples")
 
     # Get all data
@@ -63,7 +71,7 @@ def visualize_dataset_from_bundle(bundle_path: Path, n_samples_per_class=5):
 
                 # Plot the image
                 ax = axes[class_idx, sample_idx]
-                im = ax.imshow(img, cmap="gray", vmin=0, vmax=1)
+                ax.imshow(img, cmap="gray", vmin=0, vmax=1)
 
                 # Add vertical line to show the division between left (noise) and right (pattern)
                 ax.axvline(
@@ -88,13 +96,15 @@ def visualize_dataset_from_bundle(bundle_path: Path, n_samples_per_class=5):
     plt.show()
 
 
-def analyze_noise_vs_pattern_from_bundle(bundle_path: Path):
+def analyze_noise_vs_pattern_from_bundle(bundle_path: Path) -> None:
     """
-    Analyze the statistical difference between left half (noise) and right half (pattern)
-    from a pre-generated dataset bundle.
+    Analyze the statistical difference between left half (noise) and right half (pattern).
+
+    From a pre-generated dataset bundle.
     """
     # Load the dataset bundle
     dataset, metadata = load_bundle(bundle_path)
+    dataset = cast("AFADataset", cast("object", dataset))
     features, labels = dataset.get_all_data()
     class_indices = torch.argmax(labels, dim=1)
 
@@ -138,14 +148,15 @@ def analyze_noise_vs_pattern_from_bundle(bundle_path: Path):
 
 
 def save_sample_images_from_bundle(
-    bundle_path: Path, save_dir="extra/visualizations/synthetic_mnist"
-):
+    bundle_path: Path, save_dir: str = "extra/visualizations/synthetic_mnist"
+) -> None:
     """Save sample images to disk for further inspection."""
     save_path = Path(save_dir)
     save_path.mkdir(exist_ok=True)
 
     # Load the dataset bundle
-    dataset, metadata = load_bundle(bundle_path)
+    dataset, _ = load_bundle(bundle_path)
+    dataset = cast("AFADataset", cast("object", dataset))
     features, labels = dataset.get_all_data()
     class_indices = torch.argmax(labels, dim=1)
 
@@ -179,7 +190,7 @@ def save_sample_images_from_bundle(
     print(f"Sample images saved to {save_path}/")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Visualize SyntheticMNISTDataset from a bundle file"
     )
@@ -211,7 +222,7 @@ def main():
         print(f"Error: Bundle path {args.bundle_path} does not exist")
         sys.exit(1)
 
-    if not args.bundle_path.suffix == ".bundle":
+    if args.bundle_path.suffix != ".bundle":
         print("Error: Path must end with .bundle extension")
         sys.exit(1)
 
@@ -235,7 +246,7 @@ def main():
 
         print("Visualization complete!")
 
-    except Exception as e:
+    except (FileNotFoundError, KeyError, ValueError) as e:
         print(f"Error: {e}")
         sys.exit(1)
 

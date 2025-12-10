@@ -4,6 +4,7 @@
 import argparse
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
 import torch
@@ -13,15 +14,19 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from afabench.common.bundle import load_bundle
 
+if TYPE_CHECKING:
+    from afabench.common.custom_types import AFADataset
+
 
 def quick_view(
     bundle_path: Path,
     output_file: str = "extra/visualizations/synthetic_mnist/quick_view.png",
-):
+) -> None:
     """Show a quick sample of images from each class."""
     # Load the dataset bundle
     print(f"Loading dataset from {bundle_path}")
-    dataset, metadata = load_bundle(bundle_path)
+    dataset, _ = load_bundle(bundle_path)
+    dataset = cast("AFADataset", cast("object", dataset))
     print(f"Loaded dataset with {len(dataset)} samples")
 
     # Get data
@@ -79,7 +84,7 @@ def quick_view(
     )
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Quick visualization of SyntheticMNISTDataset from a bundle file"
     )
@@ -101,13 +106,13 @@ def main():
         print(f"Error: Bundle path {args.bundle_path} does not exist")
         sys.exit(1)
 
-    if not args.bundle_path.suffix == ".bundle":
+    if args.bundle_path.suffix != ".bundle":
         print("Error: Path must end with .bundle extension")
         sys.exit(1)
 
     try:
         quick_view(args.bundle_path, args.output)
-    except Exception as e:
+    except (FileNotFoundError, KeyError, ValueError) as e:
         print(f"Error: {e}")
         sys.exit(1)
 

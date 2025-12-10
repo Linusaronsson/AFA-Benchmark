@@ -1446,7 +1446,7 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def create_subset(self, indices: Sequence[int]) -> Self:
         return default_create_subset(self, indices)
 
-    def __init__(  # noqa: C901, PLR0915
+    def __init__(  # noqa: C901, PLR0915, PLR0912
         self,
         seed: int = 123,
         n_samples: int = 10000,  # Memory-friendly default (60k samples ≈ 200MB RAM)
@@ -1485,10 +1485,6 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             torch.arange(28, dtype=torch.float32),
             indexing="ij",
         )
-
-        # Pre-compute diagonal indices
-        diag_indices = torch.arange(28)
-        anti_diag_indices = 27 - diag_indices
 
         # Add class-specific patterns to make the data learnable (right half only)
         for i in range(self.n_samples):
