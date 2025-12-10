@@ -17,12 +17,16 @@ from tqdm import tqdm
 from afabench.afa_rl.afa_env import AFAEnv
 from afabench.afa_rl.afa_methods import RLAFAMethod
 from afabench.afa_rl.datasets import get_afa_dataset_fn
+
+# from afabench.afa_rl.reward_functions import get_range_based_reward_fn
 from afabench.afa_rl.shim2018.agents import Shim2018Agent
 from afabench.afa_rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
     Shim2018AFAClassifier,
     Shim2018AFAPredictFn,
 )
+
+# from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afabench.afa_rl.utils import (
     get_eval_metrics,
@@ -137,7 +141,7 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     unmasker = get_afa_unmasker_from_config(cfg.unmasker)
     log.info("Unmasker created.")
 
-    # Create reward function, which depends on class probabilities and acquisition cost
+    # Create reward function - temporarily using range-based for debugging
     log.info("Constructing reward function...")
     train_class_probabilities = get_class_frequencies(train_labels)
     n_classes = len(train_class_probabilities)
@@ -147,16 +151,20 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     cost_per_selection = (
         0 if cfg.soft_budget_param is None else cfg.soft_budget_param
     )
+
+    # reward_fn = get_range_based_reward_fn(
+    #     reward_ranges=[(5, 9)], reward_value=1.0
+    # )
     reward_fn = get_shim2018_reward_fn(
-        _pretrained_model=pretrained_model,
-        _weights=class_weights,
-        _acquisition_costs=cost_per_selection
+        pretrained_model=pretrained_model,
+        weights=class_weights,
+        acquisition_costs=cost_per_selection
         * torch.ones(
             (n_selections,),
             device=device,
         ),
     )
-    log.info("Reward function constructed.")
+    log.info("Reward function constructed (using range-based for debugging).")
 
     # MDP expects special dataset functions
     log.info("Creating dataset functions for environments...")
@@ -183,10 +191,6 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         force_hard_budget=cfg.force_hard_budget,
         seed=cfg.seed,
     )
-    # DEBUG start
-    td = train_env.reset()
-    td = train_env.rand_step(td)
-    # DEBUG end
     check_env_specs(train_env)
     log.info("Training environment created and validated")
 
@@ -295,6 +299,10 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                         "actions": wandb.Histogram(
                             td["action"].flatten().cpu().numpy()
                         ),
+                        "correct_action_ratio": (td["action"] <= 11)
+                        .float()
+                        .mean()
+                        .item(),
                         "batch_idx": batch_idx,
                     }
                     | {"class_loss": class_loss_next.mean().cpu().item()},

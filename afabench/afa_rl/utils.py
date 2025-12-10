@@ -497,7 +497,7 @@ def get_eval_metrics(
         total_samples += pred_labels.numel()
     eval_metrics["accuracy"] = n_correct_samples / total_samples
     batch_size = eval_tds[0].batch_size
-    eval_metrics["reward_sum"] /= len(eval_tds) * batch_size.numel()
+    eval_metrics["reward_sum"] /= len(eval_tds) * batch_size[0]
     eval_metrics["actions"] = wandb.Histogram(
         eval_metrics["actions"], num_bins=20
     )

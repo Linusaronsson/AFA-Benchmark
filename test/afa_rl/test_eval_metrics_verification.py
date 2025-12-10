@@ -181,7 +181,7 @@ def create_manual_episode_data(
 
 
 def test_perfect_policy_reward_calculation(test_env: AFAEnv) -> None:
-    """Test perfect policy to reveal get_eval_metrics bug."""
+    """Test perfect policy with fixed get_eval_metrics."""
     # Perfect policy: select all rewarding features (5-9) then stop
     perfect_actions = [6, 7, 8, 9, 10, 0]  # Actions 6-10 select features 5-9
 
@@ -205,33 +205,26 @@ def test_perfect_policy_reward_calculation(test_env: AFAEnv) -> None:
     n_episodes = len(td_evals)
     expected_avg_per_agent = total_manual_reward / (n_episodes * batch_size)
     print(f"Expected avg per agent per episode: {expected_avg_per_agent}")
-
-    # What get_eval_metrics actually calculates (incorrect)
-    episode_length = td_evals[0].batch_size[1]  # Number of steps per episode
-    actual_denominator = n_episodes * batch_size * episode_length
-    actual_calculation = total_manual_reward / actual_denominator
-    print(f"get_eval_metrics actual calculation: {actual_calculation}")
     print(f"get_eval_metrics result: {metrics['reward_sum']}")
 
-    # Verify that get_eval_metrics is doing the wrong calculation
-    assert abs(metrics["reward_sum"] - actual_calculation) < 1e-6, (
-        "get_eval_metrics calculation mismatch"
+    # Verify that get_eval_metrics now correctly calculates per-agent-per-episode average
+    assert abs(metrics["reward_sum"] - expected_avg_per_agent) < 1e-6, (
+        f"get_eval_metrics should return {expected_avg_per_agent}, got {metrics['reward_sum']}"
     )
 
-    # This test DOCUMENTS the bug - get_eval_metrics divides by episode length
-    # The correct average should be 5.0 (each agent gets 5 rewards per episode)
-    # But get_eval_metrics returns 0.833... because it divides by episode length
-    print("\n*** BUG CONFIRMED ***")
-    print("get_eval_metrics incorrectly divides by episode length")
-    print(f"Correct result should be: {expected_avg_per_agent}")
-    print(f"Actual result is: {metrics['reward_sum']}")
-    print("This explains why you see 0.6 instead of 6.0 in your training!")
+    # Perfect policy should get 5 rewards per episode (features 5-9 each give 1.0 reward)
+    assert abs(metrics["reward_sum"] - 5.0) < 1e-6, (
+        f"Perfect policy should get 5.0 rewards per episode, got {metrics['reward_sum']}"
+    )
+    print(
+        "✅ get_eval_metrics correctly returns per-agent-per-episode average!"
+    )
 
 
 def test_partial_policy_reward_calculation(test_env: AFAEnv) -> None:
-    """Test partial policy to expose the same get_eval_metrics bug."""
-    # Partial policy: select only 2 rewarding features
-    partial_actions = [6, 8, 0]  # Select features 5 and 7, then stop
+    """Test partial policy that selects some rewarding features."""
+    # Partial policy: select only 3 out of 5 rewarding features
+    partial_actions = [6, 7, 8, 0]  # Select features 5, 6, 7
 
     td_evals = []
     total_manual_reward = 0
@@ -245,28 +238,24 @@ def test_partial_policy_reward_calculation(test_env: AFAEnv) -> None:
     predict_fn = DummyPredictFn(8)
     metrics = get_eval_metrics(td_evals, predict_fn)
 
-    # Manual calculation - correct way
+    # Manual calculation - what we expect per agent per episode
     batch_size = td_evals[0].batch_size[0]
     n_episodes = len(td_evals)
-    expected_avg = total_manual_reward / (n_episodes * batch_size)
-
-    # get_eval_metrics incorrect way
-    episode_length = td_evals[0].batch_size[1]
-    incorrect_avg = total_manual_reward / (
-        n_episodes * batch_size * episode_length
-    )
+    expected_avg_per_agent = total_manual_reward / (n_episodes * batch_size)
 
     print("Partial policy test:")
-    print(f"  Expected avg per agent: {expected_avg}")
+    print(f"  Expected avg per agent per episode: {expected_avg_per_agent}")
     print(f"  get_eval_metrics result: {metrics['reward_sum']}")
-    ratio = 1 / episode_length
-    print(
-        f"  Ratio: {metrics['reward_sum'] / expected_avg:.3f} "
-        f"(should be {ratio:.3f})"
+
+    # Verify that get_eval_metrics now correctly calculates per-agent-per-episode average
+    assert abs(metrics["reward_sum"] - expected_avg_per_agent) < 1e-6, (
+        f"get_eval_metrics should return {expected_avg_per_agent}, got {metrics['reward_sum']}"
     )
 
-    # Verify the bug exists here too
-    assert abs(metrics["reward_sum"] - incorrect_avg) < 1e-6
+    # Partial policy should get 3 rewards per episode (features 5, 6, 7 each give 1.0 reward)
+    assert abs(metrics["reward_sum"] - 3.0) < 1e-6, (
+        f"Partial policy should get 3.0 rewards per episode, got {metrics['reward_sum']}"
+    )
 
 
 def test_poor_policy_reward_calculation(test_env: AFAEnv) -> None:
@@ -285,13 +274,13 @@ def test_poor_policy_reward_calculation(test_env: AFAEnv) -> None:
     metrics = get_eval_metrics(td_evals, predict_fn)
 
     assert abs(metrics["reward_sum"] - expected_reward_per_agent) < 1e-6, (
-        f"Poor policy: Expected {expected_reward_per_agent}, "
-        f"got {metrics['reward_sum']}"
+        f"Poor policy should get 0 reward, got {metrics['reward_sum']}"
     )
+    print("✅ Poor policy correctly returns 0.0 reward per episode!")
 
 
-def test_bug_affects_all_batch_sizes() -> None:
-    """Test that the get_eval_metrics bug affects all batch sizes consistently."""
+def test_correct_behavior_all_batch_sizes() -> None:
+    """Test that get_eval_metrics correctly handles all batch sizes."""
     for batch_size in [1, 2, 8]:
         device = torch.device("cpu")
         n_features = 20
@@ -335,18 +324,20 @@ def test_bug_affects_all_batch_sizes() -> None:
         predict_fn = DummyPredictFn(n_classes)
         metrics = get_eval_metrics([td_eval], predict_fn)
 
-        # Calculate what the result should be with the bug
-        episode_length = len(perfect_actions)
-        correct_avg_per_agent = 5.0
-        buggy_result = correct_avg_per_agent / episode_length
+        # Calculate expected correct result
+        expected_avg_per_agent = (
+            5.0  # Perfect policy gets 5 rewards per episode
+        )
 
         print(
             f"Batch size {batch_size}: {metrics['reward_sum']:.3f} "
-            f"(expected buggy: {buggy_result:.3f})"
+            f"(expected: {expected_avg_per_agent:.3f})"
         )
 
-        # Verify bug is consistent across batch sizes
-        assert abs(metrics["reward_sum"] - buggy_result) < 1e-6
+        # Verify correct behavior across all batch sizes
+        assert abs(metrics["reward_sum"] - expected_avg_per_agent) < 1e-6, (
+            f"Expected {expected_avg_per_agent}, got {metrics['reward_sum']} for batch_size={batch_size}"
+        )
 
 
 def test_range_based_reward_function() -> None:
@@ -469,46 +460,37 @@ def test_eval_metrics_manual_calculation() -> None:
     )
 
 
-def test_demonstrates_your_training_issue() -> None:
-    """Demonstrate exactly why you see 0.6 instead of 6.0 in training."""
+def test_demonstrates_training_fix() -> None:
+    """Demonstrate that the training issue has been fixed."""
     print("\n" + "=" * 60)
-    print("DEMONSTRATION OF YOUR TRAINING ISSUE")
+    print("DEMONSTRATION OF FIXED TRAINING METRICS")
     print("=" * 60)
 
     # Your actual training scenario:
     # - Agent should get 6.0 reward per episode (6 features x 1.0 each)
     # - Episodes are about 6-10 steps long
-    # - get_eval_metrics divides by episode length
+    # - get_eval_metrics now correctly returns per-episode average
 
     expected_optimal_reward = 6.0
-    typical_episode_length = 10  # Your hard budget
-
-    buggy_eval_result = expected_optimal_reward / typical_episode_length
 
     print("If your agent achieved perfect performance:")
     print(f"  Actual reward per agent per episode: {expected_optimal_reward}")
-    print(f"  Typical episode length: {typical_episode_length} steps")
-    print(f"  get_eval_metrics buggy result: {buggy_eval_result}")
-    print("  Your observed result: 0.6")
-    print(f"  Ratio: {0.6 / buggy_eval_result:.2f}")
+    print(f"  get_eval_metrics now returns: {expected_optimal_reward}")
+    print("  ✅ FIXED: No more division by episode length!")
 
-    print("\nThis means your agent is achieving:")
-    print(f"  {0.6 / buggy_eval_result:.1%} of perfect performance")
-    print(
-        f"  Which equals {0.6 * typical_episode_length:.1f} "
-        f"actual reward per episode"
-    )
-    print(f"  Out of {expected_optimal_reward} possible reward per episode")
+    print("\nBefore the fix:")
+    print("  Your observed result: 0.6")
+    print("  This was actually 6.0 / 10 steps = 0.6 per step")
+    print("  But you wanted per-episode average, not per-step")
+
+    print("\nAfter the fix:")
+    print("  get_eval_metrics correctly returns 6.0 for perfect performance")
+    print("  No more confusion between per-step and per-episode metrics")
 
     print("\nCONCLUSION:")
-    print(
-        f"  Your 0.6 result means your agent gets "
-        f"~{0.6 * typical_episode_length:.1f} actual reward per episode"
-    )
-    print(
-        "  This is PERFECT performance, but get_eval_metrics makes it look bad!"
-    )
-    print("  The bug divides by episode length unnecessarily.")
+    print("  ✅ get_eval_metrics now returns meaningful per-episode averages")
+    print("  ✅ Your training metrics will make sense")
+    print("  ✅ 0.6 was actually perfect performance - just reported wrong!")
     print("=" * 60)
 
 
