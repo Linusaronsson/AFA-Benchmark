@@ -249,23 +249,22 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
 
         """
         # Both the embedder and classifier for this method take 1D features as input, and a single batch dimension. Flatten them separately
-        flat_masked_features = masked_features.flatten(
-            start_dim=-self.n_feature_dims
-        ).flatten(end_dim=-self.n_feature_dims - 1)
-        flat_feature_mask = feature_mask.flatten(
-            start_dim=-self.n_feature_dims
-        ).flatten(end_dim=-self.n_feature_dims - 1)
+        # First, store the original shape for later unflattening
+        batch_shape = masked_features.shape[: -self.n_feature_dims]
+        feature_shape = masked_features.shape[-self.n_feature_dims :]
+
+        # Flatten batch dimensions and feature dimensions separately
+        flat_masked_features = masked_features.reshape(
+            -1, feature_shape.numel()
+        )
+        flat_feature_mask = feature_mask.reshape(-1, feature_shape.numel())
 
         embedding = self.embedder(flat_masked_features, flat_feature_mask)
         logits = self.classifier(embedding)
 
         # Unflatten batch size
-        embedding = embedding.unflatten(
-            0, masked_features.shape[: -self.n_feature_dims]
-        )
-        logits = logits.unflatten(
-            0, masked_features.shape[: -self.n_feature_dims]
-        )
+        embedding = embedding.reshape(*batch_shape, -1)
+        logits = logits.reshape(*batch_shape, -1)
         return embedding, logits
 
     @override
