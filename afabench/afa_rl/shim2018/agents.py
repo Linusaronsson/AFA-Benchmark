@@ -55,19 +55,80 @@ class Shim2018ActionValueModule(nn.Module):
         feature_mask: FeatureMask,
         action_mask: Tensor,
     ) -> Tensor:
-        # We do not want to update the embedder weights using the Q-values, this is done separately in the training loop
-        # FIX:
+        # Flatten feature dimensions
         flat_masked_features = masked_features.flatten(
             start_dim=-self.n_feature_dims
         )
         flat_feature_mask = feature_mask.flatten(
             start_dim=-self.n_feature_dims
         )
+        # Flatten batch dimensions
+        flat_masked_features = flat_masked_features.flatten(end_dim=-2)
+        flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
+        # We do not want to update the embedder weights using the Q-values, this is done separately in the training loop
         with torch.no_grad():
             embedding = self.embedder(flat_masked_features, flat_feature_mask)
         qvalues = self.net(embedding)
+        # Unflatten batch dimensions
+        qvalues = qvalues.unflatten(
+            0, masked_features.shape[: -self.n_feature_dims]
+        )
 
-        # qvalues = self.net(torch.cat([masked_features, feature_mask], dim=-1))
+        # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
+        qvalues[~action_mask] = float("-inf")
+        return qvalues
+
+
+@final
+class Shim2018DummyActionValueModule(nn.Module):
+    def __init__(
+        self,
+        in_size: int,
+        action_size: int,
+        num_cells: tuple[int, ...],
+        dropout: float,
+        n_feature_dims: int,
+    ):
+        super().__init__()
+        self.in_size = in_size
+        self.action_size = action_size
+        self.num_cells = num_cells
+        self.dropout = dropout
+        self.n_feature_dims = n_feature_dims
+
+        self.net = MLP(
+            in_features=self.in_size,
+            out_features=self.action_size,
+            num_cells=self.num_cells,
+            dropout=self.dropout,
+            activation_class=nn.ReLU,
+        )
+
+    @override
+    def forward(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        action_mask: Tensor,
+    ) -> Tensor:
+        # Flatten feature dimensions
+        flat_masked_features = masked_features.flatten(
+            start_dim=-self.n_feature_dims
+        )
+        flat_feature_mask = feature_mask.flatten(
+            start_dim=-self.n_feature_dims
+        )
+        # Flatten batch dimensions
+        flat_masked_features = flat_masked_features.flatten(end_dim=-2)
+        flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
+        qvalues = self.net(
+            torch.cat([flat_masked_features, flat_feature_mask], dim=-1)
+        )
+        # Unflatten batch dimensions
+        qvalues = qvalues.unflatten(
+            0, masked_features.shape[: -self.n_feature_dims]
+        )
+
         # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
         qvalues[~action_mask] = float("-inf")
         return qvalues
@@ -96,10 +157,8 @@ class Shim2018Agent(Agent):
         self.module_device = module_device
         self.n_feature_dims = n_feature_dims
 
-        self.action_value_module = Shim2018ActionValueModule(
-            embedder=self.embedder,
-            embedding_size=self.embedding_size,  # FIX:
-            # embedding_size=12,
+        self.action_value_module = Shim2018DummyActionValueModule(
+            in_size=40,
             action_size=self.action_spec.n,  # pyright: ignore[reportAttributeAccessIssue]
             num_cells=tuple(self.cfg.action_value_num_cells),
             dropout=self.cfg.action_value_dropout,
@@ -190,9 +249,11 @@ class Shim2018Agent(Agent):
 
     @override
     def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
-        assert td.batch_size == torch.Size((self.batch_size,)), (
-            "Batch size mismatch"
-        )
+        # assert td.batch_size == torch.Size((self.batch_size,)), (
+        #     "Batch size mismatch"
+        # )
+
+        # td = tds.flatten(start_dim=0, end_dim=1)
 
         # Initialize total loss dictionary
         total_loss_dict = {"loss": 0.0}

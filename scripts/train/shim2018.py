@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
+import wandb
 from omegaconf.omegaconf import OmegaConf
 from rl_helpers import dict_with_prefix
 from torch import optim
@@ -147,9 +148,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         0 if cfg.soft_budget_param is None else cfg.soft_budget_param
     )
     reward_fn = get_shim2018_reward_fn(
-        pretrained_model=pretrained_model,
-        weights=class_weights,
-        acquisition_costs=cost_per_selection
+        _pretrained_model=pretrained_model,
+        _weights=class_weights,
+        _acquisition_costs=cost_per_selection
         * torch.ones(
             (n_selections,),
             device=device,
@@ -233,13 +234,12 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     # Training loop
     log.info(f"Starting training loop for {cfg.n_batches} batches")
     try:
-        for batch_idx, tds in tqdm(
+        for batch_idx, td in tqdm(
             enumerate(collector), total=cfg.n_batches, desc="Training agent..."
         ):
             collector.update_policy_weights_()
 
             # Collapse agent and batch dimensions
-            td = tds.flatten(start_dim=0, end_dim=1)
             loss_info = agent.process_batch(td)
 
             # Train classifier and embedder jointly if we have reached the correct batch
@@ -291,6 +291,10 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                         .mean()
                         .cpu()
                         .item(),
+                        # Action histogram, comment if too expensive
+                        "actions": wandb.Histogram(
+                            td["action"].flatten().cpu().numpy()
+                        ),
                         "batch_idx": batch_idx,
                     }
                     | {"class_loss": class_loss_next.mean().cpu().item()},
@@ -317,9 +321,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                     ]
                     # Reset the action spec of the agent to the train env action spec
                     agent.egreedy_tdmodule._spec = train_env.action_spec  # noqa: SLF001
-                metrics_eval = get_eval_metrics(
-                    td_evals, Shim2018AFAPredictFn(pretrained_model)
-                )
+                    metrics_eval = get_eval_metrics(
+                        td_evals, Shim2018AFAPredictFn(pretrained_model)
+                    )
                 log_fn(
                     dict_with_prefix(
                         "eval/",

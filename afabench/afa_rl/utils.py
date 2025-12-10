@@ -470,6 +470,10 @@ def get_eval_metrics(
     eval_tds: list[TensorDictBase], afa_predict_fn: AFAPredictFn
 ) -> dict[str, Any]:
     """Return a dictionary of metrics from a list of tensordicts collected from a torchrl environment."""
+    # Assumption: td has batch size (n_agents, episode_len)
+    assert eval_tds[0].batch_dims == 2, (
+        "Expected eval_tds to have batch dims (n_agents, episode_len)"
+    )
     eval_metrics = {}
     eval_metrics["reward_sum"] = 0.0
     eval_metrics["actions"] = []
@@ -477,26 +481,26 @@ def get_eval_metrics(
     total_samples = 0
     for td in eval_tds:
         eval_metrics["reward_sum"] += td["next", "reward"].sum()
-        eval_metrics["actions"].extend(td["action"].tolist())
+        eval_metrics["actions"].extend(td["action"].flatten().tolist())
         # Check whether prediction is correct
-        td_end = td[-1:]
+        td_end = td[:, -1]
         probs = afa_predict_fn(
             masked_features=td_end["next", "masked_features"],
             feature_mask=td_end["next", "feature_mask"],
             label=None,
             feature_shape=None,
         )
-        # Handle multiple batch dimensions by flattening and counting all samples
         pred_labels = probs.argmax(dim=-1)
         true_labels = td_end["label"].argmax(dim=-1)
         correct_predictions = (pred_labels == true_labels).sum().item()
         n_correct_samples += correct_predictions
         total_samples += pred_labels.numel()
-    eval_metrics["reward_sum"] /= len(eval_tds)
+    eval_metrics["accuracy"] = n_correct_samples / total_samples
+    batch_size = eval_tds[0].batch_size
+    eval_metrics["reward_sum"] /= len(eval_tds) * batch_size.numel()
     eval_metrics["actions"] = wandb.Histogram(
         eval_metrics["actions"], num_bins=20
     )
-    eval_metrics["accuracy"] = n_correct_samples / total_samples
     return eval_metrics
 
 

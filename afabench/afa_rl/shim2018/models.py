@@ -169,6 +169,13 @@ class Shim2018Embedder(Embedder):
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Embedding:
+        # We currently assume a single batch dimension and single feature dimension
+        assert masked_features.shape == feature_mask.shape, (
+            "masked_features and feature_mask must have the same shape"
+        )
+        assert masked_features.dim() == 2, (
+            "masked_features and feature_mask must have 2 dimensions (batch_size, n_features)"
+        )
         feature_set, lengths = get_feature_set(
             masked_features, feature_mask
         )  # (batch_size, n_features, state_size)

@@ -51,7 +51,15 @@ train_shim2018_cube_without_noise_hard *extra_args='':
         device=cpu \
         seed=42 \
         use_wandb=true \
-        +experiment@_global_=cube
+        +experiment@_global_=cube \
+        activate_joint_training_after_fraction=1.0 \
+        n_batches=2000 \
+        agent.eps_init=0.5 \
+        agent.eps_end=0.0 \
+        agent.eps_annealing_fraction=0.8 \
+        agent.lr=1e-4 \
+        eval_n_times=20 \
+        batch_size=8192
 
 train_shim2018_cube_without_noise_soft *extra_args='':
     uv run scripts/train/shim2018.py {{extra_args}} \

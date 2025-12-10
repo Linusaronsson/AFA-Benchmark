@@ -367,9 +367,9 @@ class TestShim2018Environment:
         acquisition_costs = 0.1 * torch.ones(n_selections, device=device)
 
         reward_fn = get_shim2018_reward_fn(
-            pretrained_model=lit_model,
-            weights=class_weights,
-            acquisition_costs=acquisition_costs,
+            lit_model,
+            class_weights,
+            acquisition_costs,
         )
 
         # Create environment
@@ -466,9 +466,9 @@ class TestShim2018Environment:
         acquisition_costs = 0.1 * torch.ones(n_selections, device=device)
 
         reward_fn = get_shim2018_reward_fn(
-            pretrained_model=lit_model,
-            weights=class_weights,
-            acquisition_costs=acquisition_costs,
+            lit_model,
+            class_weights,
+            acquisition_costs,
         )
 
         env = AFAEnv(
@@ -558,9 +558,9 @@ class TestShim2018Integration:
         acquisition_costs = 0.1 * torch.ones(n_selections, device=device)
 
         reward_fn = get_shim2018_reward_fn(
-            pretrained_model=lit_model,
-            weights=class_weights,
-            acquisition_costs=acquisition_costs,
+            lit_model,
+            class_weights,
+            acquisition_costs,
         )
 
         env = AFAEnv(
