@@ -1,4 +1,4 @@
-epochs: 1500
+epochs: 40
 min_masking_probability: 0.75
 max_masking_probability: 0.99
 classifier:

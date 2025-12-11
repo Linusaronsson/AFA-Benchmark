@@ -1,33 +1,37 @@
 import gc
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from typing import TYPE_CHECKING, cast
 
 import hydra
 import lightning as pl
 import torch
-import wandb
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf
 
-from afabench import SAVE_PATH
 from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.afa_rl.zannone2019.utils import get_zannone2019_model_from_config
+from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import Zannone2019PretrainConfig
+from afabench.common.torch_bundle import TorchModelBundle
 from afabench.common.utils import (
     get_class_frequencies,
-    load_dataset,
-    save_artifact,
+    initialize_wandb_run,
     set_seed,
 )
+
+if TYPE_CHECKING:
+    from torch.utils.data.dataset import Dataset
+
+    from afabench.common.custom_types import AFADataset, Features, Label
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/pretrain/zannone2019",
+    config_path="../../extra/conf/scripts/pretrain/zannone2019",
     config_name="config",
 )
 def main(cfg: Zannone2019PretrainConfig) -> None:
@@ -36,60 +40,58 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
     torch.cuda.empty_cache()
     torch.set_float32_matmul_precision("medium")
 
-    run = wandb.init(
-        group="pretrain_zannone2019",
-        job_type="pretraining",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
-        tags=["zannone2019"],
-        dir="extra/wandb",
+    if cfg.use_wandb:
+        run = initialize_wandb_run(
+            cfg=cfg, job_type="pretraining", tags=["zannone2019"]
+        )
+    else:
+        run = None
+
+    log.info("Loading datasets...")
+    train_dataset, train_dataset_manifest = load_bundle(
+        Path(cfg.train_dataset_bundle_path),
     )
-
-    # Log W&B run URL
-    log.info(f"W&B run initialized: {run.name} ({run.id})")
-    log.info(f"W&B run URL: {run.url}")
-
-    # Load dataset from filesystem
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset(
-        cfg.dataset_artifact_name
+    train_dataset = cast("AFADataset", cast("object", train_dataset))
+    train_features, train_labels = train_dataset.get_all_data()
+    val_dataset, val_dataset_metadata = load_bundle(
+        Path(cfg.val_dataset_bundle_path),
     )
-
+    val_dataset = cast("AFADataset", cast("object", val_dataset))
     datamodule = DataModuleFromDatasets(
-        train_dataset, val_dataset, batch_size=cfg.batch_size
+        train_dataset=cast(
+            "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
+        ),
+        val_dataset=cast(
+            "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
+        ),
+        batch_size=cfg.batch_size,
     )
+    log.info("Loaded datasets.")
 
-    # Get the number of features and classes from the dataset
-    dataset_type = dataset_metadata["dataset_type"]
-    split = dataset_metadata["split_idx"]
-    n_features = train_dataset.features.shape[-1]
-    n_classes = train_dataset.labels.shape[-1]
-
-    log.info(f"Dataset: {dataset_type}, Split: {split}")
-    log.info(f"Features: {n_features}, Classes: {n_classes}")
-    log.info(f"Training samples: {len(train_dataset)}")
-
-    train_class_probabilities = get_class_frequencies(train_dataset.labels)
-    log.debug(
-        f"Class probabilities in training set: {train_class_probabilities}"
-    )
+    log.info("Creating model...")
+    train_class_probabilities = get_class_frequencies(train_labels)
+    assert len(train_dataset.label_shape) == 1, "Only 1D label supported"
     lit_model = get_zannone2019_model_from_config(
-        cfg, n_features, n_classes, train_class_probabilities
+        cfg,
+        feature_shape=train_dataset.feature_shape,
+        n_classes=train_dataset.label_shape.numel(),
+        class_probabilities=train_class_probabilities,
     )
     lit_model = lit_model.to(cfg.device)
+    log.info("Created model.")
 
-    # ModelCheckpoint callback
+    log.info("Starting training...")
     checkpoint_callback = ModelCheckpoint(
-        # val_loss_few_observations could also work but is probably not as robust
         monitor="val_loss_many_observations",
         save_top_k=1,
         mode="min",
     )
-
-    logger = WandbLogger(save_dir="extra/wandb")
+    logger = WandbLogger(save_dir="extra/wandb") if cfg.use_wandb else False
     trainer = pl.Trainer(
         max_epochs=cfg.epochs,
         logger=logger,
         accelerator=cfg.device,
-        devices=1,  # Use only 1 GPU
+        devices=1,
         callbacks=[checkpoint_callback],
         limit_train_batches=cfg.limit_train_batches,
         limit_val_batches=cfg.limit_val_batches,
@@ -100,41 +102,38 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        log.info("Finished training.")
+
+        log.info("Saving best model...")
         best_checkpoint_path = Path(
-            trainer.checkpoint_callback.best_model_path
+            trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
         )
-        log.info(f"Best checkpoint: {best_checkpoint_path}")
 
-        # Save as a local artifact in extra/result/shim2018/pretrain/...
-        with TemporaryDirectory() as tmp_dir:
-            tmp_path = Path(tmp_dir)
+        # Load the best model checkpoint
+        best_lit_model = type(lit_model).load_from_checkpoint(
+            best_checkpoint_path,
+            # Add any required arguments for loading here if needed
+            map_location="cpu",
+        )
 
-            ckpt = torch.load(best_checkpoint_path, map_location="cpu")
-            torch.save(ckpt, tmp_path / "model.pt")
+        # Create general model bundle wrapper
+        model_bundle = TorchModelBundle(best_lit_model)
 
-            artifact_identifier = (
-                f"{dataset_type.lower()}_split_{split}_seed_{cfg.seed}"
-            )
-            artifact_dir = SAVE_PATH / artifact_identifier
+        # Save using bundle format
+        bundle_path = Path(cfg.save_path)
+        if bundle_path.suffix != ".bundle":
+            bundle_path = bundle_path.with_suffix(".bundle")
+        metadata = {
+            "dataset_class_name": train_dataset_manifest["class_name"],
+            "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
+            "seed": cfg.seed,
+            "config": OmegaConf.to_container(cfg, resolve=True),
+        }
+        save_bundle(model_bundle, bundle_path, metadata)
+        log.info(f"Saved best model to {bundle_path}")
 
-            metadata = {
-                "model_type": "Zannone2019",
-                "dataset_type": dataset_type,
-                "dataset_artifact_name": cfg.dataset_artifact_name,
-                "seed": cfg.seed,
-                "split_idx": split,
-                "pretrain_config": OmegaConf.to_container(cfg, resolve=True),
-            }
-
-            save_artifact(
-                artifact_dir=artifact_dir,
-                files={"model.pt": tmp_path / "model.pt"},
-                metadata=metadata,
-            )
-
-            log.info(f"Zannone2019 pretrained model saved to: {artifact_dir}")
-
-        run.finish()
+        if run is not None:
+            run.finish()
 
         gc.collect()
         if torch.cuda.is_available():

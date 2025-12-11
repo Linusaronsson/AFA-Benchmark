@@ -144,3 +144,23 @@ train_shim2018_synthetic_mnist_without_noise_hard *extra_args='':
         agent.eps_annealing_fraction=0.8 \
         agent.lr=1e-3 \
         eval_n_times=20
+
+pretrain_zannone2019_cube_without_noise *extra_args='':
+    uv run scripts/pretrain/zannone2019.py {{extra_args}} \
+                    train_dataset_bundle_path=extra/data/datasets/cube_without_noise/0/train.bundle/ \
+                    val_dataset_bundle_path=extra/data/datasets/cube_without_noise/0/val.bundle/ \
+                    save_path=tmp/zannone2019_pretrained_cube_without_noise.bundle \
+                    device=cpu \
+                    seed=42 \
+                    use_wandb=true \
+                    +experiment@_global_=cube
+
+pretrain_zannone2019_synthetic_mnist_without_noise *extra_args='':
+    uv run scripts/pretrain/zannone2019.py {{extra_args}} \
+                    train_dataset_bundle_path=extra/data/datasets/synthetic_mnist_without_noise/0/train.bundle/ \
+                    val_dataset_bundle_path=extra/data/datasets/synthetic_mnist_without_noise/0/val.bundle/ \
+                    save_path=tmp/zannone2019_pretrained_synthetic_mnist_without_noise.bundle \
+                    device=cpu \
+                    seed=42 \
+                    use_wandb=true \
+                    +experiment@_global_=synthetic_mnist

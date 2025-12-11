@@ -1,3 +1,4 @@
+import torch
 from jaxtyping import Float
 from torch import Tensor
 from torchrl.modules import MLP
@@ -14,10 +15,11 @@ from afabench.common.config_classes import Zannone2019PretrainConfig
 
 def get_zannone2019_model_from_config(
     cfg: Zannone2019PretrainConfig,
-    n_features: int,
+    feature_shape: torch.Size,
     n_classes: int,
-    class_probabilities: Float[Tensor, "n_classes"],
+    class_probabilities: Float[Tensor, "n_classes"],  # noqa: F821
 ):
+    n_features = feature_shape.numel()
     # PointNet or PointNetPlus
     if cfg.pointnet.type == "pointnet":
         pointnet_type = PointNetType.POINTNET
@@ -86,7 +88,8 @@ def get_zannone2019_model_from_config(
         class_probabilities=class_probabilities,
         start_kl_scaling_factor=cfg.start_kl_scaling_factor,
         end_kl_scaling_factor=cfg.end_kl_scaling_factor,
-        n_annealing_epochs=cfg.n_annealing_epochs,
+        n_annealing_epochs=int(cfg.epochs * cfg.n_annealing_epoch_fraction),
         classifier_loss_scaling_factor=cfg.classifier_loss_scaling_factor,
+        feature_shape=feature_shape,
     )
     return model
