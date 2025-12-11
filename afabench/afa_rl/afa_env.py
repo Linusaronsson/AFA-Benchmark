@@ -64,9 +64,11 @@ class AFAEnv(EnvBase):
         self.n_selections = n_selections
         self.n_classes = n_classes
         if hard_budget is None:
+            # If hard budget is not set, always allow agent to stop
             self.hard_budget = self.n_selections
             self.allow_stop_action = True
         else:
+            # If hard budget is set, stop action is only allowed if force_hard_budget is false
             self.hard_budget = hard_budget
             self.allow_stop_action = not force_hard_budget
         self.force_hard_budget = force_hard_budget

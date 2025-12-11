@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
-import wandb
 from omegaconf.omegaconf import OmegaConf
 from rl_helpers import dict_with_prefix
 from torch import optim
@@ -31,6 +30,7 @@ from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afabench.afa_rl.utils import (
     get_eval_metrics,
     module_norm,
+    right_side_ratio_from_mask,
 )
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import (
@@ -243,6 +243,9 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
         ):
             collector.update_policy_weights_()
 
+            if batch_idx == 200:
+                pass
+
             # Collapse agent and batch dimensions
             loss_info = agent.process_batch(td)
 
@@ -261,8 +264,11 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                 _, logits_next = pretrained_model(
                     td["next", "masked_features"], td["next", "feature_mask"]
                 )
+                # F.cross_entropy does not support multiple batch dimensions
                 class_loss_next = F.cross_entropy(
-                    logits_next, td["next", "label"], weight=class_weights
+                    logits_next.flatten(end_dim=-2),
+                    td["next", "label"].flatten(end_dim=-2),
+                    weight=class_weights,
                 )
                 class_loss_next.mean().backward()
 
@@ -287,22 +293,36 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                         .cpu()
                         .item(),
                         # Average number of features selected when we stop
-                        "avg stop time": td["feature_mask"][
-                            td["next", "done"].squeeze(-1)
-                        ]
-                        .sum(-1)
+                        "fraction observed at stop time": td[
+                            "next", "feature_mask"
+                        ][td["next", "done"].squeeze(-1)]
                         .float()
                         .mean()
                         .cpu()
                         .item(),
                         # Action histogram, comment if too expensive
-                        "actions": wandb.Histogram(
-                            td["action"].flatten().cpu().numpy()
-                        ),
-                        "correct_action_ratio": (td["action"] <= 11)
+                        # "actions": wandb.Histogram(
+                        #     td["action"].flatten().cpu().numpy()
+                        # ),
+                        # "cube_correct_action_ratio": (td["action"] <= 11)
+                        # .float()
+                        # .mean()
+                        # .item(),
+                        "synthetic_mnist_correct_action_ratio": (
+                            right_side_ratio_from_mask(
+                                td["next", "feature_mask"][
+                                    td["next", "done"].squeeze(-1)
+                                ]
+                            ).mean()
+                        )
                         .float()
                         .mean()
                         .item(),
+                        # "action_value_distribution": wandb.Histogram(
+                        #     td["action_value"][td["action_value"] > -100]
+                        #     .flatten()
+                        #     .cpu()
+                        # ),
                         "batch_idx": batch_idx,
                     }
                     | {"class_loss": class_loss_next.mean().cpu().item()},

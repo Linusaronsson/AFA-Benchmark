@@ -54,6 +54,9 @@ def get_shim2018_reward_fn(
             _, logits = pretrained_model(
                 new_masked_features[done_mask], new_feature_mask[done_mask]
             )
+            assert logits.ndim == 2, (
+                f"Expected logits to have 1 batch dimension and 1 label dimension, got {logits.ndim}"
+            )
             # Reward=1 if correct prediction, 0 if wrong
             # correct = logits.argmax(dim=-1) == label[done_mask].argmax(dim=-1)
             # reward[done_mask] += correct.to(torch.float32)

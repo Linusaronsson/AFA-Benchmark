@@ -1,0 +1,5 @@
+class_name: "ImagePatchUnmasker"
+kwargs:
+  image_side_length: 28 # MNIST size
+  n_channels: 1
+  patch_size: 2 # 14x14 new image

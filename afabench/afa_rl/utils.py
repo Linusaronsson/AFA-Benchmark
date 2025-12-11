@@ -178,6 +178,51 @@ def get_2d_identity(
     return torch.stack(result)
 
 
+def right_side_ratio_from_mask(mask: Tensor) -> Tensor:
+    """
+    Compute the ratio of true elements located on the right half of the image.
+
+    Args:
+        mask: Tensor of shape (batch, channels, height, width) or (batch, height, width).
+              Can be boolean or numeric (0/1). Values are interpreted as boolean truth.
+
+    Returns:
+        Tensor of shape (batch,) with values in [0, 1], containing for each batch
+        element the fraction of true mask elements that lie on the right half of
+        the image (columns with index >= width // 2). If a sample has zero true
+        elements, the returned ratio for that sample is 0.0.
+    """
+    if mask.ndim == 3:
+        # (batch, height, width) -> treat as single-channel
+        mask = mask.unsqueeze(1)
+    if mask.ndim != 4:
+        msg = f"Expected mask with 3 or 4 dims (B,H,W or B,C,H,W), got {mask.ndim} dims"
+        raise ValueError(msg)
+
+    # Ensure boolean
+    mask_bool = mask.bool()
+    batch, channels, height, width = mask_bool.shape
+
+    # Column index where right half starts
+    right_start = width // 2
+
+    # Total true elements per sample (across channels and spatial dims)
+    total_true = mask_bool.view(batch, -1).sum(dim=1).to(dtype=torch.float32)
+
+    # True elements in the right half per sample
+    right_true = (
+        mask_bool[..., right_start:].sum(dim=(1, 2, 3)).to(dtype=torch.float32)
+    )
+
+    # Avoid division by zero: if total_true == 0, ratio should be 0.0
+    ratio = torch.zeros_like(total_true, device=mask.device)
+    nonzero = total_true > 0
+    if nonzero.any():
+        ratio[nonzero] = right_true[nonzero] / total_true[nonzero]
+
+    return ratio
+
+
 # def get_1D_identity(
 #     feature_mask: FeatureMask,
 # ) -> Integer[Tensor, "*batch n_features n_features"]:

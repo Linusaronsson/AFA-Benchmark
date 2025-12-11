@@ -45,7 +45,7 @@ agent:
   double_dqn: true # shim2018 paper
 
   gamma: 1.0
-  lmbda: 0.95
+  lmbda: 0.75
 n_batches: ???
 batch_size: 512 # shim2018 paper
 eval_n_times: 10

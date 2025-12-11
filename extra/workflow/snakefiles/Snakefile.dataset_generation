@@ -1,5 +1,6 @@
 DATASETS = [
     "afa_context",
+    "afa_context_without_noise",
     # "fashion_mnist",
     # "mnist",
     "synthetic_mnist",

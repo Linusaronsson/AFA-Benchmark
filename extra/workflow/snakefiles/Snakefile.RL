@@ -18,8 +18,8 @@ PARAMS_PER_METHOD_AND_DATASET = {
         "cube": [
             (5, "null"),
             (10, "null"),
-            ("null", 0.4),
-            ("null", 0.6),
+            ("null", 0.01),
+            ("null", 0.1), # converges to 1-2 selections
         ],
         "afa_context": [
             (10, "null"),
