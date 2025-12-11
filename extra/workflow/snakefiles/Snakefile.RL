@@ -15,7 +15,7 @@ UNMASKER_PER_DATASET = {
 EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
 DEVICE = "cpu"
 USE_WANDB = True
-SMOKE_TEST = True
+SMOKE_TEST = False
 
 # Main parameters that we investigate
 # - hard budget
@@ -66,7 +66,7 @@ METHODS = PARAMS_PER_METHOD_AND_DATASET.keys()
 
 rule all:
     input:
-        "extra/plot_results/RL",
+        "extra/results/plot_results/RL",
 
 rule pretrain_model:
     input:
@@ -74,7 +74,7 @@ rule pretrain_model:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
     output:
         directory(
-            "extra/pretrained_models/{method}/"
+            "extra/results/pretrained_models/{method}/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "pretrain_seed-{pretrain_seed}.bundle"
@@ -99,13 +99,13 @@ rule train_method:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
         "extra/data/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
 
-        "extra/pretrained_models/{method}/"
+        "extra/results/pretrained_models/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}.bundle"
     output:
         directory(
-            "extra/trained_methods/{method}/"
+            "extra/results/trained_methods/{method}/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "pretrain_seed-{pretrain_seed}/"
@@ -153,7 +153,7 @@ rule eval_method:
     input:
         f"extra/data/datasets/{{dataset}}/{{dataset_instance_idx}}/{EVAL_DATASET_SPLIT}.bundle",
 
-        "extra/trained_methods/{method}/"
+        "extra/results/trained_methods/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -162,7 +162,7 @@ rule eval_method:
                     "train_soft_budget_param-{train_soft_budget_param}.bundle",
         # "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
     output:
-        "extra/eval_results/{method}/"
+        "extra/results/eval_results/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -194,7 +194,7 @@ rule eval_method:
 # Add eval_soft_budget_param column. Not used by dummy methods, but kept for consistency.
 rule add_eval_metadata_to_eval_data:
     input:
-        "extra/eval_results/{method}/"
+        "extra/results/eval_results/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -205,7 +205,7 @@ rule add_eval_metadata_to_eval_data:
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
     output:
-        "extra/eval_results2/{method}/"
+        "extra/results/eval_results2/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -227,7 +227,7 @@ rule add_eval_metadata_to_eval_data:
 # Convert the `prev_selections_performed` (list[int]) and `selection_performed` columns into `selections_performed` (int)
 rule count_selections:
     input:
-        "extra/eval_results2/{method}/"
+        "extra/results/eval_results2/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -238,7 +238,7 @@ rule count_selections:
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
     output:
-        "extra/eval_results3/{method}/"
+        "extra/results/eval_results3/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -263,7 +263,7 @@ rule count_selections:
 # Add some metadata columns from training
 rule add_train_metadata_to_eval_data:
     input:
-        "extra/eval_results3/{method}/"
+        "extra/results/eval_results3/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -274,7 +274,7 @@ rule add_train_metadata_to_eval_data:
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
     output:
-        "extra/eval_results4/{method}/"
+        "extra/results/eval_results4/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -303,7 +303,7 @@ rule add_train_metadata_to_eval_data:
 # Rename this to soft_budget_param
 rule validate_hard_budget_and_soft_budget_param:
     input:
-        "extra/eval_results4/{method}/"
+        "extra/results/eval_results4/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -314,7 +314,7 @@ rule validate_hard_budget_and_soft_budget_param:
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
     output:
-        "extra/eval_results5/{method}/"
+        "extra/results/eval_results5/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -358,7 +358,7 @@ rule validate_hard_budget_and_soft_budget_param:
 # Instead of two separate classifier columns, the plotting script expects tidy data
 rule pivot_long_classifier:
     input:
-        "extra/eval_results5/{method}/"
+        "extra/results/eval_results5/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -369,7 +369,7 @@ rule pivot_long_classifier:
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
     output:
-        "extra/eval_results6/{method}/"
+        "extra/results/eval_results6/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -399,7 +399,7 @@ rule merge_eval:
     input:
         [
             (
-                f"extra/eval_results6/{method}/"
+                f"extra/results/eval_results6/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -421,7 +421,7 @@ rule merge_eval:
             ][dataset]
         ],
     output:
-        "extra/merged_eval_results/RL.csv",
+        "extra/results/merged_eval_results/RL.csv",
     shell:
         """
             csvstack {input} > {output}
@@ -430,9 +430,9 @@ rule merge_eval:
 
 rule plot:
     input:
-        "extra/merged_eval_results/RL.csv",
+        "extra/results/merged_eval_results/RL.csv",
     output:
-        directory("extra/plot_results/RL"),
+        directory("extra/results/plot_results/RL"),
     shell:
         """
             Rscript scripts/plotting/plot_eval.R {input} {output}
