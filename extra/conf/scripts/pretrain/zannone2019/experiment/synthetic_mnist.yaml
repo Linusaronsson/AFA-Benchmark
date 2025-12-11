@@ -1,0 +1,5 @@
+epochs: 1500
+min_masking_probability: 0.75
+max_masking_probability: 0.99
+classifier:
+  num_cells: [128, 128] # zannone2019 paper does not say what this should be, so we use the same num_cells as the "common" classifier

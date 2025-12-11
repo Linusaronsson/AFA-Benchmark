@@ -180,25 +180,29 @@ class Zannone2019ClassifierConfig:
 
 @dataclass
 class Zannone2019PretrainConfig:
-    dataset_artifact_name: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    save_path: str
+    device: str
+    seed: int | None
+
     batch_size: int  # batch size for dataloader
     epochs: int
     limit_train_batches: int | None
     limit_val_batches: int | None
-
-    device: str
-    seed: int
     lr: float
     min_masking_probability: float
     max_masking_probability: float
+    start_kl_scaling_factor: float
+    end_kl_scaling_factor: float
+    n_annealing_epoch_fraction: float  # fraction of `epochs`
+    classifier_loss_scaling_factor: float
     pointnet: Zannone2019PointNetConfig
     encoder: Zannone2019EncoderConfig
     partial_vae: Zannone2019PartialVAEConfig
     classifier: Zannone2019ClassifierConfig
-    start_kl_scaling_factor: float
-    end_kl_scaling_factor: float
-    n_annealing_epochs: int
-    classifier_loss_scaling_factor: float
+
+    use_wandb: bool = False
 
 
 cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)
