@@ -1526,20 +1526,20 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                         img[j, j + 14] += self.pattern_intensity
 
             elif label == 4:  # Square (right half)
-                img[8:20, 16:26] += (
-                    self.pattern_intensity * 0.3
+                img[8:20, 16:26] = (
+                    self.pattern_intensity
                 )  # Moved to right half
-                img[8:10, 16:26] += self.pattern_intensity * 0.7
-                img[18:20, 16:26] += self.pattern_intensity * 0.7
-                img[8:20, 16:18] += self.pattern_intensity * 0.7
-                img[8:20, 24:26] += self.pattern_intensity * 0.7
+                img[8:10, 16:26] = self.pattern_intensity
+                img[18:20, 16:26] = self.pattern_intensity
+                img[8:20, 16:18] = self.pattern_intensity
+                img[8:20, 24:26] = self.pattern_intensity
 
             elif label == 5:  # Cross pattern (right half)
-                img[:, 19:23] += (
-                    self.pattern_intensity * 0.5
+                img[:, 19:23] = (
+                    self.pattern_intensity
                 )  # Vertical line in right half
-                img[12:16, 14:] += (
-                    self.pattern_intensity * 0.5
+                img[12:16, 14:] = (
+                    self.pattern_intensity
                 )  # Horizontal line in right half
 
             elif label == 6:  # Triangle-like (right half)
@@ -1547,13 +1547,13 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     width = (y - 6) // 2
                     start_x = max(14, 21 - width)  # Centered in right half
                     end_x = min(28, 21 + width + 1)
-                    img[y, start_x:end_x] += self.pattern_intensity * 0.6
+                    img[y, start_x:end_x] += self.pattern_intensity
 
             elif label == 7:  # L-shape (right half)
-                img[6:22, 16:20] += (
+                img[6:22, 16:20] = (
                     self.pattern_intensity
                 )  # Vertical part in right half
-                img[18:22, 16:26] += (
+                img[18:22, 16:26] = (
                     self.pattern_intensity
                 )  # Horizontal part in right half
 
@@ -1561,11 +1561,11 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 # Main diagonal in right half
                 for j in range(14):
                     if j < 28 and (j + 14) < 28:
-                        img[j, j + 14] += self.pattern_intensity * 0.5
+                        img[j, j + 14] += self.pattern_intensity
                 # Anti-diagonal in right half
                 for j in range(14):
                     if j < 28 and (27 - j) >= 14:
-                        img[j, 27 - j] += self.pattern_intensity * 0.5
+                        img[j, 27 - j] += self.pattern_intensity
 
             elif label == 9:  # Dot pattern (right half only)
                 img[6:8, 16:18] += (
