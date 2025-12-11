@@ -1,4 +1,1 @@
 epochs: 150
-
-lr: 1e-3
-min_masking_probability: 0.0
