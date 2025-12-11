@@ -8,8 +8,9 @@ def get_wandb_export_prefix() -> str:
     # group id for this Snakefile invocation so all child processes inherit it.
     group = os.environ.get("WANDB_GROUP")
     if not group:
-        # Use a short timestamp + pid to make the group human-readable and unique.
-        group = f"snakefile-{int(time.time())}-{os.getpid()}"
+        # Use a readable timestamp (YYYYMMDD-HHMMSS) + pid for uniqueness.
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        group = f"snakefile-{timestamp}-{os.getpid()}"
     # Prefix used in shell commands to export the group so spawned processes inherit it.
     return f"WANDB_GROUP={group}"
 

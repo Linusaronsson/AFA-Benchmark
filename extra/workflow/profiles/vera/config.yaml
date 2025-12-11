@@ -1,9 +1,9 @@
 latency-wait: 30 # seconds
 
 default-resources:
-  runtime: 120 # minutes
   slurm_partition: vera
   slurm_account: C3SE2025-1-14
+  runtime: 120 # minutes
   cpus_per_task: 1
   mem_mb: 4000
 
