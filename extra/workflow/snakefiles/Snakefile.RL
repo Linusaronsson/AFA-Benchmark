@@ -1,37 +1,75 @@
+import os
+import time
+from datetime import datetime
+
+def get_wandb_export_prefix() -> str:
+    # WANDB grouping: allow the user to provide WANDB_GROUP in the environment
+    # (e.g. when invoking snakemake). If not provided, synthesize a stable-ish
+    # group id for this Snakefile invocation so all child processes inherit it.
+    group = os.environ.get("WANDB_GROUP")
+    if not group:
+        # Use a short timestamp + pid to make the group human-readable and unique.
+        group = f"snakefile-{int(time.time())}-{os.getpid()}"
+    # Prefix used in shell commands to export the group so spawned processes inherit it.
+    return f"WANDB_GROUP={group}"
+
 DATASET_INSTANCE_INDICES = [0, 1]
 INITIALIZER = "cold"  # assume same initializer for now
 UNMASKER_PER_DATASET = {
-    "cube": "direct",
-    "afa_context": "direct",
-    "synthetic_mnist": "28x28_to_4x4",
+    # "cube": "direct",
+    # "afa_context": "direct",
+    # "synthetic_mnist": "28x28_to_7x7",
+    "cube_without_noise": "direct",
+    "afa_context_without_noise": "direct",
+    "synthetic_mnist_without_noise": "28x28_to_7x7",
 }
 EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
 DEVICE = "cpu"
-USE_WANDB = False
+USE_WANDB = True
 SMOKE_TEST = True
+
+WANDB_EXPORT_PREFIX = get_wandb_export_prefix() if USE_WANDB else ""
 
 # Main parameters that we investigate
 # - hard budget
 # - soft budget parameter during training
 PARAMS_PER_METHOD_AND_DATASET = {
     "shim2018": {
-        "cube": [
+        # "cube": [
+        #     (5, "null"),
+        #     (10, "null"),
+        #     ("null", 0.01),
+        #     ("null", 0.1), # converges to 1-2 selections
+        # ],
+        # "afa_context": [
+        #     (10, "null"),
+        #     (15, "null"),
+        #     ("null", 0.5),
+        #     ("null", 0.7),
+        # ],
+        # "synthetic_mnist": [
+        #     (4, "null"),
+        #     (10, "null"),
+        #     ("null", 0.2),
+        #     ("null", 0.3),
+        # ],
+        "cube_without_noise": [
             (5, "null"),
             (10, "null"),
             ("null", 0.01),
-            ("null", 0.1), # converges to 1-2 selections
+            ("null", 0.001),
         ],
-        "afa_context": [
+        "afa_context_without_noise": [
+            (5, "null"),
             (10, "null"),
-            (15, "null"),
-            ("null", 0.5),
-            ("null", 0.7),
+            ("null", 0.01),
+            ("null", 0.001),
         ],
-        "synthetic_mnist": [
-            (4, "null"),
+        "synthetic_mnist_without_noise": [
+            (5, "null"),
             (10, "null"),
-            ("null", 0.2),
-            ("null", 0.3),
+            ("null", 0.01),
+            ("null", 0.001),
         ],
     },
 }
@@ -57,16 +95,16 @@ rule pretrain_model:
     params:
         smoke_test_args="" if not SMOKE_TEST else "limit_train_batches=1 limit_val_batches=1 epochs=1 ",
     shell:
-        """
-        python scripts/pretrain/{wildcards.method}.py \
-            train_dataset_bundle_path={input[0]} \
-            val_dataset_bundle_path={input[1]} \
-            save_path={output} \
+        f"""
+        {WANDB_EXPORT_PREFIX} python scripts/pretrain/{{wildcards.method}}.py \
+            train_dataset_bundle_path={{input[0]}} \
+            val_dataset_bundle_path={{input[1]}} \
+            save_path={{output}} \
             device={DEVICE} \
-            seed={wildcards.pretrain_seed} \
+            seed={{wildcards.pretrain_seed}} \
             use_wandb={USE_WANDB} \
-            +experiment@_global_={wildcards.dataset} \
-            {params.smoke_test_args}
+            +experiment@_global_={{wildcards.dataset}} \
+            {{params.smoke_test_args}}
         """
 
 rule train_method:
@@ -92,21 +130,21 @@ rule train_method:
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
         smoke_test_args="" if not SMOKE_TEST else "n_batches=2",
     shell:
-        """
-        python scripts/train/{wildcards.method}.py \
-            train_dataset_bundle_path={input[0]} \
-            val_dataset_bundle_path={input[1]} \
-            pretrained_model_bundle_path={input[2]} \
-            save_path={output} \
+        f"""
+        {WANDB_EXPORT_PREFIX} python scripts/train/{{wildcards.method}}.py \
+            train_dataset_bundle_path={{input[0]}} \
+            val_dataset_bundle_path={{input[1]}} \
+            pretrained_model_bundle_path={{input[2]}} \
+            save_path={{output}} \
             components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={params.unmasker} \
-            hard_budget={wildcards.train_hard_budget} \
-            soft_budget_param={wildcards.train_soft_budget_param} \
+            components/unmaskers@unmasker={{params.unmasker}} \
+            hard_budget={{wildcards.train_hard_budget}} \
+            soft_budget_param={{wildcards.train_soft_budget_param}} \
             device={DEVICE} \
-            seed={wildcards.train_seed} \
+            seed={{wildcards.train_seed}} \
             use_wandb={USE_WANDB} \
-            +experiment@_global_={wildcards.dataset} \
-            {params.smoke_test_args}
+            +experiment@_global_={{wildcards.dataset}} \
+            {{params.smoke_test_args}}
         """
 
 
@@ -151,19 +189,19 @@ rule eval_method:
         unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
         smoke_test_args="" if not SMOKE_TEST else "eval_only_n_samples=10 batch_size=2",
     shell:
-        """
-        python scripts/eval/eval_afa_method.py \
-            method_bundle_path={input[1]} \
+        f"""
+        {WANDB_EXPORT_PREFIX} python scripts/eval/eval_afa_method.py \
+            method_bundle_path={{input[1]}} \
             components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={params.unmasker} \
-            dataset_bundle_path={input[0]} \
-            save_path={output} \
+            components/unmaskers@unmasker={{params.unmasker}} \
+            dataset_bundle_path={{input[0]}} \
+            save_path={{output}} \
             classifier_bundle_path=null \
-            seed={wildcards.eval_seed} \
+            seed={{wildcards.eval_seed}} \
             device={DEVICE} \
-            hard_budget={wildcards.eval_hard_budget} \
+            hard_budget={{wildcards.eval_hard_budget}} \
             use_wandb={USE_WANDB} \
-            {params.smoke_test_args}
+            {{params.smoke_test_args}}
         """
 
 # Add eval_soft_budget_param column. Not used by dummy methods, but kept for consistency.

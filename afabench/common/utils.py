@@ -57,15 +57,30 @@ def initialize_wandb_run(
     job_type: str,
     tags: list[str],
 ) -> Run:
-    run = wandb.init(
-        config=cast(
-            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-        ),
-        job_type=job_type,
-        tags=tags,
-        dir="extra/wandb",
+    # Convert config to a plain dict for W&B
+    config_dict = cast(
+        "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
     )
-    # Log W&B run URL
+
+    # Allow grouping of runs via environment variable `WANDB_GROUP`
+    # or via a `wandb_group` key in the config dict. Environment
+    # variable takes precedence.
+    group = os.environ.get("WANDB_GROUP") or config_dict.get("wandb_group")
+
+    init_kwargs: dict[str, Any] = {
+        "config": config_dict,
+        "job_type": job_type,
+        "tags": tags,
+        "dir": "extra/wandb",
+    }
+    if group:
+        init_kwargs["group"] = group
+
+    run = wandb.init(**init_kwargs)
+
+    # Log W&B run info
     logger.info(f"W&B run initialized: {run.name} ({run.id})")
+    if group:
+        logger.info(f"W&B run group: {group}")
     logger.info(f"W&B run URL: {run.url}")
     return run
