@@ -1,0 +1,3 @@
+epochs: 3000
+
+min_masking_probability: 0.0

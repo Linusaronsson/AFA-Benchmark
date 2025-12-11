@@ -1,32 +1,34 @@
 latency-wait: 30 # seconds
 
 default-resources:
-    runtime: 120 # minutes
-    slurm_partition: vera
-    slurm_account: C3SE2025-1-14
+  runtime: 120 # minutes
+  slurm_partition: vera
+  slurm_account: C3SE2025-1-14
+  cpus_per_task: 1
+  mem_mb: 4000
 
-set-resources:
-    train_soft_budget_method:
-        runtime: 6000 # 100 hours
-        cpus_per_task: 1
-        mem_mb: 4000
+# set-resources:
+#     train_soft_budget_method:
+#         runtime: 6000 # 100 hours
+#         cpus_per_task: 1
+#         mem_mb: 4000
 
-    eval_soft_budget_method:
-        runtime: 6000 # 100 hours
-        cpus_per_task: 1
-        mem_mb: 4000
+#     eval_soft_budget_method:
+#         runtime: 6000 # 100 hours
+#         cpus_per_task: 1
+#         mem_mb: 4000
 
-    download_soft_budget_eval_result:
-        runtime: 60
-        cpus_per_task: 1
-        mem_mb: 4000
+#     download_soft_budget_eval_result:
+#         runtime: 60
+#         cpus_per_task: 1
+#         mem_mb: 4000
 
-    combine_soft_budget_eval_result:
-        runtime: 60
-        cpus_per_task: 1
-        mem_mb: 4000
+#     combine_soft_budget_eval_result:
+#         runtime: 60
+#         cpus_per_task: 1
+#         mem_mb: 4000
 
-    soft_budget_plot:
-        runtime: 60
-        cpus_per_task: 1
-        mem_mb: 4000
+#     soft_budget_plot:
+#         runtime: 60
+#         cpus_per_task: 1
+#         mem_mb: 4000

@@ -1,0 +1,6 @@
+epochs: 300
+
+min_masking_probability: 0.75
+max_masking_probability: 0.99
+classifier:
+  num_cells: [128, 128] # shim2018 paper uses [32, 32] for the cube dataset, but that's not complex enough for MNIST.

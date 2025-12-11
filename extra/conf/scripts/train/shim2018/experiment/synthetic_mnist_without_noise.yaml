@@ -1,0 +1,5 @@
+n_agents: 2 # fewer agents than for cube in order to fit on GPU
+agent:
+  replay_buffer_batch_size: 16 # 1/4 of batch size, like in shim2018 paper
+n_batches: 30000
+batch_size: 64 # MNIST too large to use standard batch_size 512

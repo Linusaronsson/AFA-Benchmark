@@ -18,6 +18,9 @@ dataset_name_mapping <- c(
   "cube" = "Cube",
   "afa_context" = "AFAContext",
   "synthetic_mnist" = "Synthetic MNIST",
+  "cube_without_noise" = "Cube (noiseless)",
+  "afa_context_without_noise" = "AFAContext (noiseless)",
+  "synthetic_mnist_without_noise" = "Synthetic MNIST (noiseless)",
   "MNIST" = "MNIST"
 )
 
@@ -25,6 +28,9 @@ dataset_metric_mapping <- c(
   "cube" = "accuracy",
   "afa_context" = "f_meas",
   "synthetic_mnist" = "accuracy",
+  "cube_without_noise" = "accuracy",
+  "afa_context_without_noise" = "f_meas",
+  "synthetic_mnist_without_noise" = "accuracy",
   "MNIST" = "f_meas"
 )
 

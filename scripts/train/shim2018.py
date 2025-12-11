@@ -30,7 +30,6 @@ from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afabench.afa_rl.utils import (
     get_eval_metrics,
     module_norm,
-    right_side_ratio_from_mask,
 )
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import (
@@ -308,16 +307,16 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
                         # .float()
                         # .mean()
                         # .item(),
-                        "synthetic_mnist_correct_action_ratio": (
-                            right_side_ratio_from_mask(
-                                td["next", "feature_mask"][
-                                    td["next", "done"].squeeze(-1)
-                                ]
-                            ).mean()
-                        )
-                        .float()
-                        .mean()
-                        .item(),
+                        # "synthetic_mnist_correct_action_ratio": (
+                        #     right_side_ratio_from_mask(
+                        #         td["next", "feature_mask"][
+                        #             td["next", "done"].squeeze(-1)
+                        #         ]
+                        #     ).mean()
+                        # )
+                        # .float()
+                        # .mean()
+                        # .item(),
                         # "action_value_distribution": wandb.Histogram(
                         #     td["action_value"][td["action_value"] > -100]
                         #     .flatten()
