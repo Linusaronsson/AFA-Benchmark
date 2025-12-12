@@ -5,9 +5,15 @@ from datetime import datetime
 DATASET_INSTANCE_INDICES = [0, 1]
 INITIALIZER = "cold"  # assume same initializer for now
 UNMASKER_PER_DATASET = {
-    # "cube": "direct",
-    # "afa_context": "direct",
-    # "synthetic_mnist": "28x28_to_7x7",
+    "cube": "direct",
+    "afa_context": "direct",
+    "synthetic_mnist": "28x28_to_7x7",
+    "diabetes": "direct",
+    "fashion_mnist": "28x28_to_7x7",
+    "mnist": "28x28_to_7x7",
+    "miniboone": "direct",
+    "physionet": "direct",
+    # Noiseless datasets
     "cube_without_noise": "direct",
     "afa_context_without_noise": "direct",
     "synthetic_mnist_without_noise": "28x28_to_7x7",
@@ -15,7 +21,7 @@ UNMASKER_PER_DATASET = {
 EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
 DEVICE = "cpu"
 USE_WANDB = True
-SMOKE_TEST = True
+SMOKE_TEST = False
 
 # Main parameters that we investigate
 # - hard budget

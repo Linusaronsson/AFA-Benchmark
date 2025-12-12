@@ -239,3 +239,4 @@ checkpoints
 extra/pretrained_models/
 extra/visualizations/synthetic_mnist
 extra/results*
+extra/data/misc

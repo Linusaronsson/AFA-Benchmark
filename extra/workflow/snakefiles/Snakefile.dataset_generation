@@ -1,19 +1,19 @@
 DATASETS = [
     "afa_context",
     "afa_context_without_noise",
-    # "fashion_mnist",
-    # "mnist",
+    # "fashion_mnist", # unexpected keyword argument 'load_subdirs'
+    # "mnist", # unexpected keyword argument 'load_subdirs'
     "synthetic_mnist",
     "synthetic_mnist_without_noise",
-    # "actg",
-    # "bank_marketing",
-    # "ckd",
+    "actg",
+    "bank_marketing",
+    "ckd",
     "cube",
     "cube_without_noise",
-    # "diabetes",
-    # "imagenette", # currently not working
-    # "miniboone",
-    # "physionet",
+    "diabetes",
+    "imagenette",
+    "miniboone",
+    "physionet",
 ]
 NUM_INSTANCES = 5
 INSTANCE_INDICES = range(NUM_INSTANCES)
@@ -37,8 +37,8 @@ rule dataset_generation:
             "generate_image_dataset.py"
             if wildcards.dataset
             in [
-                "MNIST",
-                "FashionMNIST",
+                "mnist",
+                "fashion_mnist",
                 "imagenette",
             ]
             else "generate_dataset.py"
