@@ -910,7 +910,9 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         df_data = pd.read_csv(self.path, sep=";")
         target_col = "y" if "y" in df_data.columns else "deposit"
         features_df = df_data.drop(columns=[target_col])
-        target_series = df_data[target_col].replace({"yes": 1, "no": 0})
+        target_series = (
+            df_data[target_col].replace({"yes": 1, "no": 0}).astype("int64")
+        )
 
         for col in features_df.columns:
             if features_df[col].dtype == "object":
@@ -931,8 +933,10 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def _fetch_and_save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         bank_data = fetch_ucirepo(id=222)
+        assert bank_data is not None
+        assert bank_data.data is not None
         df_data = pd.concat(
-            [bank_data.data.features, bank_data.data.targets],  # pyright: ignore[reportOptionalMemberAccess]
+            [bank_data.data.features, bank_data.data.targets],
             axis=1,
         )
         df_data.to_csv(self.path, sep=";", index=False)
@@ -1029,8 +1033,10 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def _fetch_and_save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         ckd_data = fetch_ucirepo(id=336)
-        features_df = ckd_data.data.features.copy()  # pyright: ignore[reportOptionalMemberAccess]
-        target_df = ckd_data.data.targets.copy()  # pyright: ignore[reportOptionalMemberAccess]
+        assert ckd_data is not None
+        assert ckd_data.data is not None
+        features_df = ckd_data.data.features.copy()
+        target_df = ckd_data.data.targets.copy()
         target_series = (
             target_df.iloc[:, 0].astype(str).str.strip().str.lower()
         )
@@ -1131,8 +1137,10 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def _fetch_and_save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
         actg_data = fetch_ucirepo(id=890)
-        features_df = actg_data.data.features.copy()  # pyright: ignore[reportOptionalMemberAccess]
-        target_df = actg_data.data.targets.copy()  # pyright: ignore[reportOptionalMemberAccess]
+        assert actg_data is not None
+        assert actg_data.data is not None
+        features_df = actg_data.data.features.copy()
+        target_df = actg_data.data.targets.copy()
         target_series = target_df.iloc[:, 0].astype(int)
         df_data = features_df.copy()
         df_data["target"] = target_series.to_numpy()
@@ -1449,7 +1457,8 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def __init__(  # noqa: C901, PLR0915, PLR0912
         self,
         seed: int = 123,
-        n_samples: int = 10000,  # Memory-friendly default (60k samples ≈ 200MB RAM)
+        # Memory-friendly default (60k samples ≈ 200MB RAM)
+        n_samples: int = 10000,
         noise_std: float = 0.1,
         pattern_intensity: float = 0.8,
     ):
