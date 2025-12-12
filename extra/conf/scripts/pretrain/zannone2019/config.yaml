@@ -52,3 +52,4 @@ classifier:
   activation_class: "ReLU"
   dropout: 0.0
 use_wandb: false
+smoke_test: false

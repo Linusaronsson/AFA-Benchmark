@@ -164,6 +164,10 @@ def main(cfg: Zannone2019TrainConfig) -> None:
         dir="extra/wandb",
     )
 
+    if cfg.smoke_test:
+        log.info("Smoke test detected.")
+        cfg.n_batches = 2
+
     # Log W&B run URL
     log.info(f"W&B run initialized: {run.name} ({run.id})")
     log.info(f"W&B run URL: {run.url}")

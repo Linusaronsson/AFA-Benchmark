@@ -2,50 +2,57 @@ import os
 import time
 from datetime import datetime
 
-DATASET_INSTANCE_INDICES = [0, 1]
-INITIALIZER = "cold"  # assume same initializer for now
-UNMASKER_PER_DATASET = {
-    "cube_without_noise": "direct",
-    "afa_context_without_noise": "direct",
-    "synthetic_mnist_without_noise": "28x28_to_7x7",
-}
+NO_PRETRAIN_STR = "NO_PRETRAIN"
+
+DATASET_INSTANCE_INDICES = config.get("dataset_instance_indices", (0, 1))
+INITIALIZER = config.get("initializer", "cold")
 EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")  # whether to use "val" or "test" during evaluation
 DEVICE = config.get("device", "cpu")
 USE_WANDB = config.get("use_wandb", False)
 SMOKE_TEST = config.get("smoke_test", False)
 
-# Main parameters that we investigate
-# - hard budget
-# - soft budget parameter during training
-PARAMS_PER_METHOD_AND_DATASET = {
-    "zannone2019": {
-        "cube_without_noise": [
-            (5, "null"),
-            (10, "null"),
-            ("null", 0.01),
-            ("null", 0.001),
-        ],
-        "afa_context_without_noise": [
-            (5, "null"),
-            (10, "null"),
-            ("null", 0.01),
-            ("null", 0.001),
-        ],
-        "synthetic_mnist_without_noise": [
-            (5, "null"),
-            (10, "null"),
-            ("null", 0.01),
-            ("null", 0.001),
-        ],
-    },
+METHOD_OPTIONS = config.get("method_options", []) # mapping method->options
+METHODS = config.get("methods", []) # a list, allowing is to run experiments on a subset of methods if desired
+METHODS_WITH_PRETRAINING_STAGE = [
+    method
+    for method, options in METHOD_OPTIONS.items()
+    if options["has_pretraining_stage"] and method in METHODS
+]
+METHODS_WITHOUT_PRETRAINING_STAGE = [
+    method
+    for method, options in METHOD_OPTIONS.items()
+    if not options["has_pretraining_stage"] and method in METHODS
+]
+DATASETS = config.get("datasets", []) # a list, allowing us to run experiments on a subset of datasets if desired
+UNMASKERS_RAW = config.get("unmaskers", {}) # mapping dataset->unmasker
+# Fill in missing datasets with the default value
+UNMASKERS = UNMASKERS_RAW | {dataset: UNMASKERS_RAW["default"] for dataset in DATASETS}
+HARD_BUDGETS_RAW = config.get("hard_budgets", {}) # mapping dataset->list of hard budgets
+# Fill in missing datasets with the default value
+HARD_BUDGETS = HARD_BUDGETS_RAW | {dataset: HARD_BUDGETS_RAW["default"] for dataset in DATASETS}
+SOFT_BUDGET_PARAMS_RAW = config.get("soft_budget_params", {}) # mapping method->dataset->list of soft budget params
+# Fill in missing datasets with the default value
+SOFT_BUDGET_PARAMS = {
+    method: (
+        method_soft_budget_params
+        | {dataset: method_soft_budget_params["default"] for dataset in DATASETS}
+    )
+    for method, method_soft_budget_params in SOFT_BUDGET_PARAMS_RAW.items()
 }
-DATASETS = UNMASKER_PER_DATASET.keys()
-METHODS = PARAMS_PER_METHOD_AND_DATASET.keys()
 
+# RL and dummy methods are either trained with a hard budget or a soft budget, but not both.
+# Note how we use "null" instead of None, since it will be passed to hydra
+HARD_BUDGET_AND_SOFT_BUDGET_PARAMS = {
+    method: {
+        dataset: [(hard_budget, "null") for hard_budget in HARD_BUDGETS[dataset]] + [("null", soft_budget_param) for soft_budget_param in SOFT_BUDGET_PARAMS[method][dataset]]
+        for dataset in DATASETS
+    }
+    for method in METHODS
+}
 
 rule all:
     input:
-        "extra/results/plot_results/RL",
+        "extra/results/plot_results/RL_and_dummy",
 
 rule pretrain_model_all:
     input:
@@ -56,7 +63,7 @@ rule pretrain_model_all:
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}.bundle"
             )
-            for method in METHODS
+            for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
         ]
@@ -73,15 +80,25 @@ rule train_method_all:
                             f"train_hard_budget-{hard_budget}+"
                             f"train_soft_budget_param-{soft_budget_param}.bundle"
             )
-            for method in METHODS
+            for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (
-                hard_budget,
-                soft_budget_param,
-            ) in PARAMS_PER_METHOD_AND_DATASET[
-                method
-            ][dataset]
+            for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
+        ] +
+        [
+            (
+                f"extra/results/trained_methods/{method}/"
+                    f"dataset-{dataset}+"
+                    f"instance_idx-{dataset_instance_idx}/"
+                        f"{NO_PRETRAIN_STR}/"
+                            f"train_seed-{dataset_instance_idx}+"
+                            f"train_hard_budget-{hard_budget}+"
+                            f"train_soft_budget_param-{soft_budget_param}.bundle"
+            )
+            for method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
         ]
 
 rule pretrain_model:
@@ -95,8 +112,6 @@ rule pretrain_model:
                 "instance_idx-{dataset_instance_idx}/"
                     "pretrain_seed-{pretrain_seed}.bundle"
         ),
-    params:
-        smoke_test_args="" if not SMOKE_TEST else "limit_train_batches=1 limit_val_batches=1 epochs=1 ",
     shell:
         """
         python scripts/pretrain/{wildcards.method}.py \
@@ -106,11 +121,11 @@ rule pretrain_model:
             device={DEVICE} \
             seed={wildcards.pretrain_seed} \
             use_wandb={USE_WANDB} \
+            smoke_test={SMOKE_TEST} \
             +experiment@_global_={wildcards.dataset} \
-            {params.smoke_test_args}
         """
 
-rule train_method:
+rule train_method_with_pretrained_model:
     input:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
         "extra/data/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
@@ -130,8 +145,7 @@ rule train_method:
                         "train_soft_budget_param-{train_soft_budget_param}.bundle"
         ),
     params:
-        unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
-        smoke_test_args="" if not SMOKE_TEST else "n_batches=2",
+        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
     shell:
         """
         python scripts/train/{wildcards.method}.py \
@@ -146,10 +160,42 @@ rule train_method:
             device={DEVICE} \
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
+            smoke_test={SMOKE_TEST} \
             +experiment@_global_={wildcards.dataset} \
-            {params.smoke_test_args}
         """
 
+rule train_method_without_pretrained_model:
+    input:
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
+        "extra/data/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
+    output:
+        directory(
+            "extra/results/trained_methods/{method}/"
+                "dataset-{dataset}+"
+                "instance_idx-{dataset_instance_idx}/"
+                    f"{NO_PRETRAIN_STR}/"
+                        "train_seed-{train_seed}+"
+                        "train_hard_budget-{train_hard_budget}+"
+                        "train_soft_budget_param-{train_soft_budget_param}.bundle"
+        ),
+    params:
+        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+    shell:
+        """
+        python scripts/train/{wildcards.method}.py \
+            train_dataset_bundle_path={input[0]} \
+            val_dataset_bundle_path={input[1]} \
+            save_path={output} \
+            components/initializers@initializer={INITIALIZER} \
+            components/unmaskers@unmasker={params.unmasker} \
+            hard_budget={wildcards.train_hard_budget} \
+            soft_budget_param={wildcards.train_soft_budget_param} \
+            device={DEVICE} \
+            seed={wildcards.train_seed} \
+            use_wandb={USE_WANDB} \
+            smoke_test={SMOKE_TEST} \
+            +experiment@_global_={wildcards.dataset} \
+        """
 
 # rule train_classifier:
 #     input:
@@ -172,7 +218,7 @@ rule eval_method:
         "extra/results/trained_methods/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}.bundle",
@@ -181,7 +227,7 @@ rule eval_method:
         "extra/results/eval_results/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -189,8 +235,7 @@ rule eval_method:
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
     params:
-        unmasker=lambda wildcards: UNMASKER_PER_DATASET[wildcards.dataset],
-        smoke_test_args="" if not SMOKE_TEST else "eval_only_n_samples=10 batch_size=2",
+        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
     shell:
         """
         python scripts/eval/eval_afa_method.py \
@@ -204,7 +249,6 @@ rule eval_method:
             device={DEVICE} \
             hard_budget={wildcards.eval_hard_budget} \
             use_wandb={USE_WANDB} \
-            {params.smoke_test_args}
         """
 
 # Add eval_soft_budget_param column. Not used by dummy methods, but kept for consistency.
@@ -213,7 +257,7 @@ rule add_eval_metadata_to_eval_data:
         "extra/results/eval_results/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -224,7 +268,7 @@ rule add_eval_metadata_to_eval_data:
         "extra/results/eval_results2/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -246,7 +290,7 @@ rule count_selections:
         "extra/results/eval_results2/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -257,7 +301,7 @@ rule count_selections:
         "extra/results/eval_results3/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -282,7 +326,7 @@ rule add_train_metadata_to_eval_data:
         "extra/results/eval_results3/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -293,7 +337,7 @@ rule add_train_metadata_to_eval_data:
         "extra/results/eval_results4/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -322,7 +366,7 @@ rule validate_hard_budget_and_soft_budget_param:
         "extra/results/eval_results4/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -333,7 +377,7 @@ rule validate_hard_budget_and_soft_budget_param:
         "extra/results/eval_results5/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -377,7 +421,7 @@ rule pivot_long_classifier:
         "extra/results/eval_results5/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -388,7 +432,7 @@ rule pivot_long_classifier:
         "extra/results/eval_results6/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
+                "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -418,6 +462,27 @@ rule merge_eval:
                 f"extra/results/eval_results6/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
+                        f"{NO_PRETRAIN_STR}/"
+                            f"train_seed-{dataset_instance_idx}+"
+                            f"train_hard_budget-{hard_budget}+"
+                            f"train_soft_budget_param-{soft_budget_param}/"
+                                f"eval_seed-{dataset_instance_idx}+"
+                                f"eval_hard_budget-{hard_budget}/"
+                                    f"eval_data.csv"
+            )
+            for method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for (
+                hard_budget,
+                soft_budget_param,
+            ) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
+        ] +
+        [
+            (
+                f"extra/results/eval_results6/{method}/"
+                    f"dataset-{dataset}+"
+                    f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
                             f"train_seed-{dataset_instance_idx}+"
                             f"train_hard_budget-{hard_budget}+"
@@ -426,18 +491,16 @@ rule merge_eval:
                                 f"eval_hard_budget-{hard_budget}/"
                                     f"eval_data.csv"
             )
-            for method in METHODS
+            for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for (
                 hard_budget,
                 soft_budget_param,
-            ) in PARAMS_PER_METHOD_AND_DATASET[
-                method
-            ][dataset]
-        ],
+            ) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
+        ]
     output:
-        "extra/results/merged_eval_results/RL.csv",
+        "extra/results/merged_eval_results/RL_and_dummy.csv",
     shell:
         """
             csvstack {input} > {output}
@@ -446,9 +509,9 @@ rule merge_eval:
 
 rule plot:
     input:
-        "extra/results/merged_eval_results/RL.csv",
+        "extra/results/merged_eval_results/RL_and_dummy.csv",
     output:
-        directory("extra/results/plot_results/RL"),
+        directory("extra/results/plot_results/RL_and_dummy"),
     shell:
         """
             Rscript scripts/plotting/plot_eval.R {input} {output}

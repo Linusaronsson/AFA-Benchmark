@@ -1,16 +1,17 @@
 hydra:
-    searchpath:
-        - file://extra/conf/global
+  searchpath:
+    - file://extra/conf/global
 
 defaults:
-    - _self_
-    - dataset@_global_: cube
-    - override hydra/job_logging: colorlog
-    - override hydra/hydra_logging: colorlog
-    - override hydra/launcher: filip_slurm
+  - _self_
+  - dataset@_global_: cube
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: filip_slurm
 
 agent:
-    gamma: 1.0
+  gamma: 1.0
 device: "cuda"
 seed: 42
 visualize: false
+smoke_test: false

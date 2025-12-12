@@ -85,7 +85,7 @@ def should_evaluate_at_batch(
     config_path="../../extra/conf/scripts/train/shim2018",
     config_name="config",
 )
-def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
+def main(cfg: Shim2018TrainConfig) -> None:  # noqa: C901, PLR0912, PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -100,6 +100,10 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: PLR0915
     else:
         run = None
         log_fn = lambda _d: None  # noqa: E731
+
+    if cfg.smoke_test:
+        log.info("Smoke test detected.")
+        cfg.n_batches = 2
 
     log.info("Loading datasets...")
     train_dataset, train_dataset_manifest = load_bundle(

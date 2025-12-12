@@ -122,6 +122,11 @@ def main(cfg: EvalConfig) -> None:
     else:
         run = None
 
+    if cfg.smoke_test:
+        log.info("Smoke test detected.")
+        cfg.eval_only_n_samples = 10
+        cfg.batch_size = 2
+
     # Load everything
     (
         afa_method,

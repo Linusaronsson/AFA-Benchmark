@@ -23,3 +23,4 @@ eval_only_n_samples: null
 batch_size: 1
 hard_budget: null
 use_wandb: false
+smoke_test: false

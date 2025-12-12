@@ -1,0 +1,16 @@
+# Which datasets we run the pipeline on
+datasets:
+  - afa_context
+  - afa_context_without_noise
+  # - bank_marketing
+  # - ckd
+  - cube
+  - cube_without_noise
+  - diabetes
+  # - fashion_mnist
+  - imagenette
+  - miniboone
+  # - mnist
+  - physionet
+  # - synthetic_mnist
+  - synthetic_mnist_without_noise

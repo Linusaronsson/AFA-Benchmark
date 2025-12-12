@@ -1,4 +1,5 @@
-hard_budgets_per_dataset:
+hard_budgets:
+  default: [5, 10, 15]
   # actg: []
   afa_context: [3, 5, 10]
   afa_context_without_noise: [3, 5, 10]

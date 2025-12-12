@@ -42,8 +42,12 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     else:
         run = None
 
+    if cfg.smoke_test:
+        log.info("Smoke test detected.")
+        # Because this method does not train, smoke test is no different
+
     train_dataset, dataset_manifest = load_bundle(
-        Path(cfg.dataset_bundle_path),
+        Path(cfg.train_dataset_bundle_path),
     )
     train_dataset = cast("AFADataset", cast("object", train_dataset))
 
@@ -84,7 +88,7 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         path=Path(cfg.save_path),
         metadata={
             "dataset_class_name": dataset_manifest["class_name"],
-            "dataset_bundle_path": cfg.dataset_bundle_path,
+            "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
             # "split_idx": dataset_metadata["split_idx"],
             "seed": cfg.seed,
             "soft_budget_param": cfg.soft_budget_param,

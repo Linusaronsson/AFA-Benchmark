@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
     config_path="../../extra/conf/scripts/pretrain/shim2018",
     config_name="config",
 )
-def main(cfg: Shim2018PretrainConfig) -> None:
+def main(cfg: Shim2018PretrainConfig) -> None:  # noqa: PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.cuda.empty_cache()
@@ -46,6 +46,13 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         )
     else:
         run = None
+
+    # If smoke test, override some options
+    if cfg.smoke_test:
+        log.info("Smoke test detected.")
+        cfg.epochs = 1
+        cfg.limit_train_batches = 2
+        cfg.limit_val_batches = 2
 
     log.info("Loading datasets...")
     train_dataset, train_dataset_manifest = load_bundle(

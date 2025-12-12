@@ -1,0 +1,5 @@
+# Which methods we run the pipeline on
+methods:
+  - shim2018
+  - random_dummy
+  - sequential_dummy

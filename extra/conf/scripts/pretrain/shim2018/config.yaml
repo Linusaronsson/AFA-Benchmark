@@ -33,3 +33,4 @@ encoder:
 classifier:
   num_cells: [32, 32] # shim2018 paper (cube dataset)
 use_wandb: false
+smoke_test: false

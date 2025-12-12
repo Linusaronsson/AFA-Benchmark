@@ -11,7 +11,8 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-dataset_bundle_path: ???
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
 save_path: ???
 # initializer set as component
 # unmasker set as component
@@ -21,3 +22,4 @@ soft_budget_param: null
 device: cpu
 seed: 42
 use_wandb: false
+smoke_test: false

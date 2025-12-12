@@ -138,6 +138,7 @@ class Shim2018PretrainConfig:
     classifier: Shim2018ClassifierConfig
 
     use_wandb: bool = False
+    smoke_test: bool = False
 
 
 cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
@@ -203,6 +204,7 @@ class Zannone2019PretrainConfig:
     classifier: Zannone2019ClassifierConfig
 
     use_wandb: bool = False
+    smoke_test: bool = False
 
 
 cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)
@@ -233,6 +235,8 @@ class Kachuee2019PretrainConfig:
     min_masking_probability: float
     max_masking_probability: float
     pq_module: Kachuee2019PQModuleConfig
+
+    smoke_test: bool = False
 
 
 cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)
@@ -305,6 +309,7 @@ class Shim2018TrainConfig:
     activate_joint_training_after_fraction: float
 
     use_wandb: bool = False
+    smoke_test: bool = False
 
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
@@ -623,7 +628,8 @@ cs.store(name="train_permutation", node=PermutationTrainingConfig)
 
 @dataclass
 class RandomDummyTrainConfig:
-    dataset_bundle_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -633,6 +639,7 @@ class RandomDummyTrainConfig:
     device: str
     seed: int | None
     use_wandb: bool = False
+    smoke_test: bool = False
 
 
 cs.store(name="train_random_dummy", node=RandomDummyTrainConfig)
@@ -642,7 +649,8 @@ cs.store(name="train_random_dummy", node=RandomDummyTrainConfig)
 
 @dataclass
 class SequentialDummyTrainConfig:
-    dataset_bundle_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -652,6 +660,7 @@ class SequentialDummyTrainConfig:
     device: str
     seed: int | None
     use_wandb: bool = False
+    smoke_test: bool = False
 
 
 cs.store(name="train_sequential_dummy", node=SequentialDummyTrainConfig)
@@ -726,6 +735,7 @@ class Zannone2019TrainConfig:
     evaluate_final_performance: bool
     eval_only_n_samples: int | None
     visualize: bool
+    smoke_test: bool = False
 
 
 cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)
@@ -899,6 +909,7 @@ class EvalConfig:
     hard_budget: int | None = None
     # Whether to log to wandb
     use_wandb: bool = False
+    smoke_test: bool = False
 
 
 cs.store(name="eval", node=EvalConfig)
