@@ -238,4 +238,4 @@ extra/eval_results*
 checkpoints
 extra/pretrained_models/
 extra/visualizations/synthetic_mnist
-extra/results
+extra/results*

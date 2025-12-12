@@ -47,6 +47,43 @@ rule all:
     input:
         "extra/results/plot_results/RL",
 
+rule pretrain_model_all:
+    input:
+        [
+            (
+                f"extra/results/pretrained_models/{method}/"
+                    f"dataset-{dataset}+"
+                    f"instance_idx-{dataset_instance_idx}/"
+                        f"pretrain_seed-{dataset_instance_idx}.bundle"
+            )
+            for method in METHODS
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+        ]
+
+rule train_method_all:
+    input:
+        [
+            (
+                f"extra/results/trained_methods/{method}/"
+                    f"dataset-{dataset}+"
+                    f"instance_idx-{dataset_instance_idx}/"
+                        f"pretrain_seed-{dataset_instance_idx}/"
+                            f"train_seed-{dataset_instance_idx}+"
+                            f"train_hard_budget-{hard_budget}+"
+                            f"train_soft_budget_param-{soft_budget_param}.bundle"
+            )
+            for method in METHODS
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for (
+                hard_budget,
+                soft_budget_param,
+            ) in PARAMS_PER_METHOD_AND_DATASET[
+                method
+            ][dataset]
+        ]
+
 rule pretrain_model:
     input:
         "extra/data/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
