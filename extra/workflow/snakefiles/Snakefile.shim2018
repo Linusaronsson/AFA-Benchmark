@@ -18,10 +18,10 @@ UNMASKER_PER_DATASET = {
     "afa_context_without_noise": "direct",
     "synthetic_mnist_without_noise": "28x28_to_7x7",
 }
-EVAL_DATASET_SPLIT = "val"  # whether to use "val" or "test" during evaluation
-DEVICE = "cpu"
-USE_WANDB = True
-SMOKE_TEST = False
+EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")  # whether to use "val" or "test" during evaluation
+DEVICE = config.get("device", "cpu")
+USE_WANDB = config.get("use_wandb", False)
+SMOKE_TEST = config.get("smoke_test", False)
 
 # Main parameters that we investigate
 # - hard budget
