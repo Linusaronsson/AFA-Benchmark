@@ -17,7 +17,8 @@ device: cuda
 seed: null
 
 batch_size: 128 # shim2018 paper
-epochs: ???
+epochs: 9001 # upper bound, we use early stopping to stop earlier
+patience: 50
 limit_train_batches: null
 limit_val_batches: null
 lr: 1e-3

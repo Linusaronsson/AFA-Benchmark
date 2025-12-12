@@ -7,7 +7,6 @@ from typing import Any, cast
 import hydra
 import matplotlib
 import torch
-import wandb
 from dacite import from_dict
 from matplotlib import pyplot as plt
 from omegaconf import OmegaConf
@@ -16,6 +15,7 @@ from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
 from tqdm import tqdm
 
+import wandb
 from afabench import SAVE_PATH
 from afabench.afa_rl.afa_env import AFAEnv
 from afabench.afa_rl.afa_methods import RLAFAMethod

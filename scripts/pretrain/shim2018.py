@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, cast
 import hydra
 import lightning as pl
 import torch
-from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf
 
@@ -27,6 +27,43 @@ if TYPE_CHECKING:
     from afabench.common.custom_types import AFADataset, Features, Label
 
 log = logging.getLogger(__name__)
+
+
+# class SmoothedEarlyStopping(EarlyStopping):
+#     def __init__(
+#         self, monitor="val_loss", patience=5, smoothing_factor=0.9, **kwargs
+#     ):
+#         super().__init__(monitor=monitor, patience=patience, **kwargs)
+#         self.smoothing_factor = smoothing_factor
+#         self.smoothed_metric = None
+
+#     def on_validation_end(self, trainer, pl_module):
+#         logs = trainer.callback_metrics
+#         current = logs.get(self.monitor)
+
+#         if current is not None:
+#             # Apply exponential smoothing
+#             if self.smoothed_metric is None:
+#                 self.smoothed_metric = current
+#             else:
+#                 self.smoothed_metric = (
+#                     self.smoothing_factor * self.smoothed_metric
+#                     + (1 - self.smoothing_factor) * current
+#                 )
+
+#             # Log the smoothed metric to WandB
+#             if trainer.logger and hasattr(trainer.logger, "experiment"):
+#                 trainer.logger.experiment.log(
+#                     {
+#                         f"smoothed_{self.monitor}": self.smoothed_metric,
+#                         "epoch": trainer.current_epoch,
+#                     }
+#                 )
+
+#             # Replace the monitored metric with the smoothed version for early stopping
+#             logs[self.monitor] = self.smoothed_metric
+
+#         super().on_validation_end(trainer, pl_module)
 
 
 @hydra.main(
@@ -93,13 +130,18 @@ def main(cfg: Shim2018PretrainConfig) -> None:  # noqa: PLR0915
         save_top_k=1,
         mode="min",
     )
+    early_stopping_callback = EarlyStopping(
+        monitor="val_loss_many_observations",
+        patience=cfg.patience,
+        mode="min",
+    )
     logger = WandbLogger(save_dir="extra/wandb") if cfg.use_wandb else False
     trainer = pl.Trainer(
         max_epochs=cfg.epochs,
         logger=logger,
         accelerator=cfg.device,
         devices=1,
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback, early_stopping_callback],
         limit_train_batches=cfg.limit_train_batches,
         limit_val_batches=cfg.limit_val_batches,
     )

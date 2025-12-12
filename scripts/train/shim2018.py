@@ -85,7 +85,7 @@ def should_evaluate_at_batch(
     config_path="../../extra/conf/scripts/train/shim2018",
     config_name="config",
 )
-def main(cfg: Shim2018TrainConfig) -> None:  # noqa: C901, PLR0912, PLR0915
+def main(cfg: Shim2018TrainConfig) -> None:  # noqa: C901, PLR0912, PLR0914, PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -106,12 +106,12 @@ def main(cfg: Shim2018TrainConfig) -> None:  # noqa: C901, PLR0912, PLR0915
         cfg.n_batches = 2
 
     log.info("Loading datasets...")
-    train_dataset, train_dataset_manifest = load_bundle(
+    train_dataset, _train_dataset_manifest = load_bundle(
         Path(cfg.train_dataset_bundle_path),
     )
     train_dataset = cast("AFADataset", cast("object", train_dataset))
     train_features, train_labels = train_dataset.get_all_data()
-    val_dataset, val_dataset_manifest = load_bundle(
+    val_dataset, _val_dataset_manifest = load_bundle(
         Path(cfg.val_dataset_bundle_path),
     )
     val_dataset = cast("AFADataset", cast("object", val_dataset))

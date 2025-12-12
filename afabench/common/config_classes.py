@@ -129,6 +129,7 @@ class Shim2018PretrainConfig:
 
     batch_size: int  # batch size for dataloader
     epochs: int
+    patience: int
     limit_train_batches: int | None
     limit_val_batches: int | None
     lr: float
