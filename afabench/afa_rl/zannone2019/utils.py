@@ -88,7 +88,7 @@ def get_zannone2019_model_from_config(
         class_probabilities=class_probabilities,
         start_kl_scaling_factor=cfg.start_kl_scaling_factor,
         end_kl_scaling_factor=cfg.end_kl_scaling_factor,
-        n_annealing_epochs=int(cfg.epochs * cfg.n_annealing_epoch_fraction),
+        n_annealing_epochs=int(cfg.supervised_learning.max_epochs * cfg.n_annealing_epoch_fraction),
         classifier_loss_scaling_factor=cfg.classifier_loss_scaling_factor,
         feature_shape=feature_shape,
     )

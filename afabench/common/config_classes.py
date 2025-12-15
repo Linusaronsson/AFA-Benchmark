@@ -99,6 +99,20 @@ class InitializerConfig:
     kwargs: dict[str, Any]
 
 
+# --- Common components
+
+
+# Common things that we need when doing supervised learning
+@dataclass
+class SupervisedLearningConfig:
+    batch_size: int  # batch size for dataloader
+    max_epochs: int
+    patience: int  # early stopping patience
+    limit_train_batches: int | None
+    limit_val_batches: int | None
+    val_check_interval: int  # how often to validate
+
+
 # --- PRETRAINING MODELS ---
 
 # shim2018
@@ -125,20 +139,15 @@ class Shim2018PretrainConfig:
     val_dataset_bundle_path: str
     save_path: str
     device: str
-    seed: int | None
 
-    batch_size: int  # batch size for dataloader
-    epochs: int
-    patience: int  # early stopping patience
-    limit_train_batches: int | None
-    limit_val_batches: int | None
-    val_check_interval: int  # how often to validate
-    lr: float
+    supervised_learning: SupervisedLearningConfig
+
     min_masking_probability: float
     max_masking_probability: float
+    lr: float
     encoder: Shim2018EncoderConfig
     classifier: Shim2018ClassifierConfig
-
+    seed: int | None = None
     use_wandb: bool = False
     smoke_test: bool = False
 
@@ -187,17 +196,12 @@ class Zannone2019PretrainConfig:
     val_dataset_bundle_path: str
     save_path: str
     device: str
-    seed: int | None
 
-    batch_size: int  # batch size for dataloader
-    epochs: int
-    patience: int
-    limit_train_batches: int | None
-    limit_val_batches: int | None
-    val_check_interval: int
-    lr: float
+    supervised_learning: SupervisedLearningConfig
+
     min_masking_probability: float
     max_masking_probability: float
+    lr: float
     start_kl_scaling_factor: float
     end_kl_scaling_factor: float
     n_annealing_epoch_fraction: float  # fraction of `epochs`
@@ -206,7 +210,7 @@ class Zannone2019PretrainConfig:
     encoder: Zannone2019EncoderConfig
     partial_vae: Zannone2019PartialVAEConfig
     classifier: Zannone2019ClassifierConfig
-
+    seed: int | None = None
     use_wandb: bool = False
     smoke_test: bool = False
 
@@ -227,20 +231,11 @@ class Kachuee2019PQModuleConfig:
 
 @dataclass
 class Kachuee2019PretrainConfig:
-    dataset_artifact_name: str
-    batch_size: int  # batch size for dataloader
-    epochs: int
-    limit_train_batches: int | None
-    limit_val_batches: int | None
-
-    device: str
-    seed: int
-    lr: float
+    supervised_learning: SupervisedLearningConfig
     min_masking_probability: float
     max_masking_probability: float
     pq_module: Kachuee2019PQModuleConfig
-
-    smoke_test: bool = False
+    smoke_test: bool
 
 
 cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)

@@ -47,7 +47,7 @@ exclude = [
   "scripts/pretrain/covert2023_image.py",
   "scripts/pretrain/gadgil2023_image.py",
   "scripts/pretrain/gadgil2023.py",
-  "scripts/pretrain/kachuee2019.py",
+  # "scripts/pretrain/kachuee2019.py",
   # "scripts/pretrain/zannone2019.py",
   "scripts/train/aaco.py",
   "scripts/train/cae.py",

@@ -1,0 +1,127 @@
+import logging
+from collections.abc import Callable
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, cast
+
+import lightning as pl
+import torch
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from lightning.pytorch.loggers import WandbLogger
+
+from afabench.afa_rl.datasets import DataModuleFromDatasets
+from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.torch_bundle import TorchModelBundle
+
+if TYPE_CHECKING:
+    from torch.utils.data.dataset import Dataset
+
+    from afabench.common.custom_types import Features, Label
+
+
+from afabench.common.config_classes import (
+    SupervisedLearningConfig,
+)
+from afabench.common.custom_types import AFADataset
+
+log = logging.getLogger(__name__)
+
+
+def supervised_learning(
+    train_dataset_bundle_path: Path,
+    val_dataset_bundle_path: Path,
+    save_path: Path,
+    cfg: SupervisedLearningConfig,
+    get_model: Callable[[AFADataset], pl.LightningModule],
+    metric_to_monitor: str,  # what we want to optimize
+    monitor_mode: str,  # whether we want to minimize ("min") or maximize ("max") metric_to_monitor
+    *,
+    use_wandb: bool = False,
+    device: str | None = None,
+    metadata_to_save_in_bundle: dict[str, Any] | None = None,
+) -> None:
+    """Do supervised learning for a pytorch lightning model."""
+    if device is None:
+        device = "cpu"
+    if metadata_to_save_in_bundle is None:
+        metadata_to_save_in_bundle = {}
+    log.info("Loading datasets...")
+    train_dataset, train_dataset_manifest = load_bundle(
+        Path(train_dataset_bundle_path),
+    )
+    train_dataset = cast("AFADataset", cast("object", train_dataset))
+    _train_features, _train_labels = train_dataset.get_all_data()
+    val_dataset, _val_dataset_metadata = load_bundle(
+        Path(val_dataset_bundle_path),
+    )
+    val_dataset = cast("AFADataset", cast("object", val_dataset))
+    datamodule = DataModuleFromDatasets(
+        train_dataset=cast(
+            "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
+        ),
+        val_dataset=cast(
+            "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
+        ),
+        batch_size=cfg.batch_size,
+    )
+    log.info("Loaded datasets.")
+
+    log.info("Creating model...")
+    lit_model = get_model(train_dataset)
+    lit_model = lit_model.to(device)
+    log.info("Created model.")
+
+    log.info("Starting training...")
+    checkpoint_callback = ModelCheckpoint(
+        monitor=metric_to_monitor,
+        save_top_k=1,
+        mode=monitor_mode,
+    )
+    early_stopping_callback = EarlyStopping(
+        monitor=metric_to_monitor,
+        patience=cfg.patience,
+        mode=monitor_mode,
+    )
+    logger = WandbLogger(save_dir="extra/wandb") if use_wandb else False
+    trainer = pl.Trainer(
+        max_epochs=cfg.max_epochs,
+        logger=logger,
+        accelerator=device,
+        devices=1,
+        callbacks=[checkpoint_callback, early_stopping_callback],
+        # Run validation every `cfg.val_check_interval` training batches if set.
+        # If None, Lightning will validate at the end of each epoch.
+        val_check_interval=cfg.val_check_interval,
+        check_val_every_n_epoch=None,
+        limit_train_batches=cfg.limit_train_batches,
+        limit_val_batches=cfg.limit_val_batches,
+    )
+
+    try:
+        trainer.fit(lit_model, datamodule)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        log.info("Finished training.")
+
+        log.info("Saving best model...")
+        assert trainer.checkpoint_callback is not None
+        # Reset to best model found during training
+        lit_model.load_state_dict(
+            torch.load(
+                trainer.checkpoint_callback.best_model_path,  # pyright: ignore[reportAttributeAccessIssue]
+                map_location="cpu",
+            )["state_dict"]
+        )
+
+        # Create general model bundle wrapper
+        model_bundle = TorchModelBundle(lit_model)
+
+        # Save using bundle format
+        bundle_path = Path(save_path)
+        if bundle_path.suffix != ".bundle":
+            bundle_path = bundle_path.with_suffix(".bundle")
+        metadata = {
+            "dataset_class_name": train_dataset_manifest["class_name"],
+        } | metadata_to_save_in_bundle
+        save_bundle(model_bundle, bundle_path, metadata)
+        log.info(f"Saved best model to {bundle_path}")

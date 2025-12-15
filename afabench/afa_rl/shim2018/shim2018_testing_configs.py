@@ -33,6 +33,7 @@ from afabench.common.config_classes import (
     Shim2018EncoderConfig,
     Shim2018PretrainConfig,
     Shim2018TrainConfig,
+    SupervisedLearningConfig,
     UnmaskerConfig,
 )
 
@@ -98,10 +99,14 @@ def get_basic_pretrain_config() -> Shim2018PretrainConfig:
         save_path="dummy_model.bundle",
         device="cpu",
         seed=42,
-        batch_size=4,
-        epochs=1,  # Just 1 epoch for testing
-        limit_train_batches=2,
-        limit_val_batches=1,
+        supervised_learning=SupervisedLearningConfig(
+            batch_size=4,
+            max_epochs=1,  # Just 1 epoch for testing
+            limit_train_batches=2,
+            limit_val_batches=1,
+            patience=10,
+            val_check_interval=10,
+        ),
         lr=1e-3,
         min_masking_probability=0.1,
         max_masking_probability=0.5,

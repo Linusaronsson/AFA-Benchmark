@@ -1,30 +1,29 @@
-import gc
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
 
 import hydra
 import lightning as pl
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
-from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf
+from torchrl.modules import MLP
 
-from afabench.afa_rl.datasets import DataModuleFromDatasets
-from afabench.afa_rl.zannone2019.utils import get_zannone2019_model_from_config
-from afabench.common.bundle import load_bundle, save_bundle
+from afabench.afa_rl.utils import (
+    str_to_activation_class_mapping,
+)
+from afabench.afa_rl.zannone2019.models import (
+    PartialVAE,
+    PointNet,
+    PointNetType,
+    Zannone2019PretrainingModel,
+)
 from afabench.common.config_classes import Zannone2019PretrainConfig
-from afabench.common.torch_bundle import TorchModelBundle
+from afabench.common.custom_types import AFADataset
+from afabench.common.supervised_learning import supervised_learning
 from afabench.common.utils import (
     get_class_frequencies,
     initialize_wandb_run,
     set_seed,
 )
-
-if TYPE_CHECKING:
-    from torch.utils.data.dataset import Dataset
-
-    from afabench.common.custom_types import AFADataset, Features, Label
 
 log = logging.getLogger(__name__)
 
@@ -34,127 +33,124 @@ log = logging.getLogger(__name__)
     config_path="../../extra/conf/scripts/pretrain/zannone2019",
     config_name="config",
 )
-def main(cfg: Zannone2019PretrainConfig) -> None:  # noqa: PLR0915
+def main(cfg: Zannone2019PretrainConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.cuda.empty_cache()
     torch.set_float32_matmul_precision("medium")
 
     if cfg.use_wandb:
-        run = initialize_wandb_run(
+        _run = initialize_wandb_run(
             cfg=cfg, job_type="pretraining", tags=["zannone2019"]
         )
-    else:
-        run = None
 
     # If smoke test, override some options
     if cfg.smoke_test:
         log.info("Smoke test detected.")
-        cfg.epochs = 1
-        cfg.limit_train_batches = 2
-        cfg.limit_val_batches = 2
+        cfg.supervised_learning.max_epochs = 1
+        cfg.supervised_learning.limit_train_batches = 2
+        cfg.supervised_learning.limit_val_batches = 2
 
-    log.info("Loading datasets...")
-    train_dataset, train_dataset_manifest = load_bundle(
-        Path(cfg.train_dataset_bundle_path),
-    )
-    train_dataset = cast("AFADataset", cast("object", train_dataset))
-    _train_features, train_labels = train_dataset.get_all_data()
-    val_dataset, _val_dataset_metadata = load_bundle(
-        Path(cfg.val_dataset_bundle_path),
-    )
-    val_dataset = cast("AFADataset", cast("object", val_dataset))
-    datamodule = DataModuleFromDatasets(
-        train_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
-        ),
-        val_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
-        ),
-        batch_size=cfg.batch_size,
-    )
-    log.info("Loaded datasets.")
+    def get_zannone2019_model(
+        dataset: AFADataset,
+    ) -> pl.LightningModule:
+        n_features = dataset.feature_shape.numel()
+        n_classes = dataset.label_shape.numel()
+        _features, labels = dataset.get_all_data()
+        class_probabilities = get_class_frequencies(labels)
+        # PointNet or PointNetPlus
+        if cfg.pointnet.type == "pointnet":
+            pointnet_type = PointNetType.POINTNET
+            feature_map_encoder_input_size = cfg.pointnet.identity_size + 1
+        elif cfg.pointnet.type == "pointnetplus":
+            pointnet_type = PointNetType.POINTNETPLUS
+            feature_map_encoder_input_size = cfg.pointnet.identity_size
+        else:
+            msg = f"PointNet type {
+                cfg.pointnet.type
+            } not supported. Use 'pointnet' or 'pointnetplus'."
+            raise ValueError(msg)
 
-    log.info("Creating model...")
-    train_class_probabilities = get_class_frequencies(train_labels)
-    assert len(train_dataset.label_shape) == 1, "Only 1D label supported"
-    lit_model = get_zannone2019_model_from_config(
-        cfg,
-        feature_shape=train_dataset.feature_shape,
-        n_classes=train_dataset.label_shape.numel(),
-        class_probabilities=train_class_probabilities,
-    )
-    lit_model = lit_model.to(cfg.device)
-    log.info("Created model.")
-
-    log.info("Starting training...")
-    checkpoint_callback = ModelCheckpoint(
-        monitor="val_loss_many_observations",
-        save_top_k=1,
-        mode="min",
-    )
-    early_stopping_callback = EarlyStopping(
-        monitor="val_loss_many_observations",
-        patience=cfg.patience,
-        mode="min",
-    )
-    logger = WandbLogger(save_dir="extra/wandb") if cfg.use_wandb else False
-    trainer = pl.Trainer(
-        max_epochs=cfg.epochs,
-        logger=logger,
-        accelerator=cfg.device,
-        devices=1,
-        callbacks=[checkpoint_callback, early_stopping_callback],
-        # Run validation every `cfg.val_check_interval` training batches if set.
-        # If None, Lightning will validate at the end of each epoch.
-        val_check_interval=cfg.val_check_interval,
-        check_val_every_n_epoch=None,
-        limit_train_batches=cfg.limit_train_batches,
-        limit_val_batches=cfg.limit_val_batches,
-    )
-
-    try:
-        trainer.fit(lit_model, datamodule)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        log.info("Finished training.")
-
-        log.info("Saving best model...")
-        best_checkpoint_path = Path(
-            trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
+        pointnet = PointNet(
+            identity_size=cfg.pointnet.identity_size,
+            n_features=n_features + n_classes,
+            max_embedding_norm=cfg.pointnet.max_embedding_norm,
+            feature_map_encoder=MLP(
+                in_features=feature_map_encoder_input_size,
+                out_features=cfg.pointnet.output_size,
+                num_cells=cfg.pointnet.feature_map_encoder_num_cells,
+                dropout=cfg.pointnet.feature_map_encoder_dropout,
+                activation_class=str_to_activation_class_mapping[
+                    cfg.pointnet.feature_map_encoder_activation_class
+                ],
+            ),
+            pointnet_type=pointnet_type,
         )
-
-        # Load the best model checkpoint
-        best_lit_model = type(lit_model).load_from_checkpoint(
-            best_checkpoint_path,
-            # Add any required arguments for loading here if needed
-            map_location="cpu",
+        encoder = MLP(
+            in_features=cfg.pointnet.output_size,
+            out_features=2 * cfg.partial_vae.latent_size,
+            num_cells=cfg.encoder.num_cells,
+            dropout=cfg.encoder.dropout,
+            activation_class=str_to_activation_class_mapping[
+                cfg.encoder.activation_class
+            ],
         )
+        partial_vae = PartialVAE(
+            pointnet=pointnet,
+            encoder=encoder,
+            decoder=MLP(
+                in_features=cfg.partial_vae.latent_size,
+                out_features=n_features,
+                num_cells=cfg.partial_vae.decoder_num_cells,
+                dropout=cfg.partial_vae.decoder_dropout,
+                activation_class=str_to_activation_class_mapping[
+                    cfg.partial_vae.decoder_activation_class
+                ],
+            ),
+        )
+        model = Zannone2019PretrainingModel(
+            partial_vae=partial_vae,
+            # Classifier acts on latent space
+            classifier=MLP(
+                in_features=cfg.partial_vae.latent_size,
+                out_features=n_classes,
+                num_cells=cfg.classifier.num_cells,
+                dropout=cfg.classifier.dropout,
+                activation_class=str_to_activation_class_mapping[
+                    cfg.classifier.activation_class
+                ],
+            ),
+            lr=cfg.lr,
+            min_masking_probability=cfg.min_masking_probability,
+            max_masking_probability=cfg.max_masking_probability,
+            class_probabilities=class_probabilities,
+            start_kl_scaling_factor=cfg.start_kl_scaling_factor,
+            end_kl_scaling_factor=cfg.end_kl_scaling_factor,
+            n_annealing_epochs=int(
+                cfg.supervised_learning.max_epochs
+                * cfg.n_annealing_epoch_fraction
+            ),
+            classifier_loss_scaling_factor=cfg.classifier_loss_scaling_factor,
+            feature_shape=dataset.feature_shape,
+        )
+        return model
 
-        # Create general model bundle wrapper
-        model_bundle = TorchModelBundle(best_lit_model)
-
-        # Save using bundle format
-        bundle_path = Path(cfg.save_path)
-        if bundle_path.suffix != ".bundle":
-            bundle_path = bundle_path.with_suffix(".bundle")
-        metadata = {
-            "dataset_class_name": train_dataset_manifest["class_name"],
+    supervised_learning(
+        train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+        val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+        save_path=Path(cfg.save_path),
+        cfg=cfg.supervised_learning,
+        get_model=get_zannone2019_model,
+        metric_to_monitor="val_loss_many_observations",
+        monitor_mode="min",
+        use_wandb=cfg.use_wandb,
+        device=cfg.device,
+        metadata_to_save_in_bundle={
             "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
             "seed": cfg.seed,
             "config": OmegaConf.to_container(cfg, resolve=True),
-        }
-        save_bundle(model_bundle, bundle_path, metadata)
-        log.info(f"Saved best model to {bundle_path}")
-
-        if run is not None:
-            run.finish()
-
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
+        },
+    )
 
 
 if __name__ == "__main__":

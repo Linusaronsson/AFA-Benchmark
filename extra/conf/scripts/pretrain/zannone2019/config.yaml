@@ -14,14 +14,15 @@ train_dataset_bundle_path: ???
 val_dataset_bundle_path: ???
 save_path: ???
 device: cuda
-seed: null
 
-batch_size: 100 # EDDI paper
-epochs: 9001 # upper bound, we use early stopping to stop earlier
-patience: 10
-limit_train_batches: null
-limit_val_batches: null
-val_check_interval: 100 # validate every n batches
+supervised_learning:
+  batch_size: 100 # EDDI paper
+  max_epochs: 9001 # upper bound, we use early stopping to stop earlier
+  patience: 10
+  limit_train_batches: null
+  limit_val_batches: null
+  val_check_interval: 100 # validate every n batches
+
 lr: 1e-3
 min_masking_probability: 0.0
 max_masking_probability: 0.9
@@ -53,5 +54,6 @@ classifier:
   num_cells: [32, 32] # zannone2019 paper does not say what this should be, so we use the same num_cells as the "common" classifier
   activation_class: "ReLU"
   dropout: 0.0
+seed: null
 use_wandb: false
 smoke_test: false
