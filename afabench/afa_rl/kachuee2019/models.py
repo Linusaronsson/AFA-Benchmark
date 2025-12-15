@@ -21,7 +21,7 @@ from afabench.common.custom_types import (
 
 @final
 class Kachuee2019PQModule(nn.Module):
-    """The architecture proposed in the paper "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams", slightly simplified from the implementation found at https://github.com/mkachuee/Opportunistic/blob/master/Demo_OL_DQN.ipynb."""
+    """The architecture proposed in the paper "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams", slightly cleaned up from the implementation found at https://github.com/mkachuee/Opportunistic/blob/master/Demo_OL_DQN.ipynb."""
 
     def __init__(
         self, n_features: int, n_classes: int, cfg: Kachuee2019PQModuleConfig
@@ -93,7 +93,7 @@ class Kachuee2019PQModule(nn.Module):
         self, masked_features: MaskedFeatures, mcdrop_samples: int = 1
     ):
         """
-        Calculate the confidence histogrram for each class given a sample.
+        Calculate the confidence histogram for each class given a sample.
         masked_features: input sample of shape (batch_size, n_features)
         mcdrop_samples: mc dropout samples to use.
         """
@@ -131,6 +131,7 @@ class LitKachuee2019PQModule(pl.LightningModule):
         self,
         pq_module: Kachuee2019PQModule,
         class_probabilities: Float[torch.Tensor, "n_classes"],
+        n_feature_dims: int,
         min_masking_probability: float = 0.0,
         max_masking_probability: float = 1.0,
         lr: float = 1e-3,
@@ -138,6 +139,7 @@ class LitKachuee2019PQModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=["pq_module"])
         self.pq_module = pq_module
+        self.n_feature_dims = n_feature_dims
         self.class_weight = 1 / class_probabilities
         self.min_masking_probability = min_masking_probability
         self.max_masking_probability = max_masking_probability
