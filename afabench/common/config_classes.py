@@ -129,9 +129,10 @@ class Shim2018PretrainConfig:
 
     batch_size: int  # batch size for dataloader
     epochs: int
-    patience: int
+    patience: int  # early stopping patience
     limit_train_batches: int | None
     limit_val_batches: int | None
+    val_check_interval: int  # how often to validate
     lr: float
     min_masking_probability: float
     max_masking_probability: float
@@ -190,8 +191,10 @@ class Zannone2019PretrainConfig:
 
     batch_size: int  # batch size for dataloader
     epochs: int
+    patience: int
     limit_train_batches: int | None
     limit_val_batches: int | None
+    val_check_interval: int
     lr: float
     min_masking_probability: float
     max_masking_probability: float

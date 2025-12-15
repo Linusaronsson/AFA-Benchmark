@@ -22,6 +22,10 @@
     "afabench/afa_rl/kachuee2019/models.py",
     "afabench/afa_rl/kachuee2019/reward.py",
     "afabench/afa_rl/kachuee2019/utils.py",
+    "afabench/afa_rl/zannone2019/agents.py",
+    "afabench/afa_rl/zannone2019/models.py",
+    "afabench/afa_rl/zannone2019/reward.py",
+    "afabench/afa_rl/zannone2019/utils.py",
     "afabench/common/classifiers.py",
     "afabench/common/models.py",
     "afabench/static/models.py",
@@ -49,6 +53,7 @@
     "scripts/train/masked_vit_classifier.py",
     "scripts/train/optimalcube.py",
     "scripts/train/permutation.py",
+    "scripts/train/zannone2019.py",
     "test/common/test_artifact_system.py"
   ],
   "strict": [],

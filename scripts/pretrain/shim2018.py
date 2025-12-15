@@ -96,8 +96,8 @@ def main(cfg: Shim2018PretrainConfig) -> None:  # noqa: PLR0915
         Path(cfg.train_dataset_bundle_path),
     )
     train_dataset = cast("AFADataset", cast("object", train_dataset))
-    train_features, train_labels = train_dataset.get_all_data()
-    val_dataset, val_dataset_metadata = load_bundle(
+    _train_features, train_labels = train_dataset.get_all_data()
+    val_dataset, _val_dataset_metadata = load_bundle(
         Path(cfg.val_dataset_bundle_path),
     )
     val_dataset = cast("AFADataset", cast("object", val_dataset))
@@ -142,6 +142,10 @@ def main(cfg: Shim2018PretrainConfig) -> None:  # noqa: PLR0915
         accelerator=cfg.device,
         devices=1,
         callbacks=[checkpoint_callback, early_stopping_callback],
+        # Run validation every `cfg.val_check_interval` training batches if set.
+        # If None, Lightning will validate at the end of each epoch.
+        val_check_interval=cfg.val_check_interval,
+        check_val_every_n_epoch=None,
         limit_train_batches=cfg.limit_train_batches,
         limit_val_batches=cfg.limit_val_batches,
     )

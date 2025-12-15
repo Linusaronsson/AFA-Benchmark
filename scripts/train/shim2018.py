@@ -85,7 +85,7 @@ def should_evaluate_at_batch(
     config_path="../../extra/conf/scripts/train/shim2018",
     config_name="config",
 )
-def main(cfg: Shim2018TrainConfig) -> None:  # noqa: C901, PLR0912, PLR0914, PLR0915
+def main(cfg: Shim2018TrainConfig) -> None:  # noqa: C901, PLR0912, PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")

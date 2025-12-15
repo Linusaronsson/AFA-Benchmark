@@ -7,10 +7,9 @@ from typing import Any, cast
 
 import numpy as np
 import torch
+import wandb
 from omegaconf import OmegaConf
 from torch import nn
-
-import wandb
 from wandb.sdk.wandb_run import Run
 
 logger = logging.getLogger(__name__)
