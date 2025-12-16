@@ -1,0 +1,4 @@
+defaults:
+  - override /components/masking_probabilities@_global_: complex
+pq_module:
+  n_hiddens: [512,512,128,64] # kachuee2019 for MNIST

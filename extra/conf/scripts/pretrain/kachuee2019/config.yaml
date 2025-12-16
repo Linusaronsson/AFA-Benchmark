@@ -2,31 +2,28 @@ hydra:
   searchpath:
     - file://extra/conf
     - file://extra/conf/global
-    - file://extra/conf/scripts/pretrain/shim2018
 
 defaults:
-  - _self_
+  - /components/masked_pretraining@_global_: default
+  - /components/masking_probabilities@_global_: simple
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
+  - _self_
 
 train_dataset_bundle_path: ???
 val_dataset_bundle_path: ???
 save_path: ???
 device: cuda
-seed: null
 
-batch_size: 128 # shim2018 paper
-epochs: 9001 # upper bound, we use early stopping to stop earlier
-patience: 10
-limit_train_batches: null
-limit_val_batches: null
-val_check_interval: 100 # validate every n batches
+supervised_learning:
+  batch_size: 128 # shim2018 paper, since kachuee2019 does not specify it
+
 lr: 1e-3
-min_masking_probability: 0.0
-max_masking_probability: 0.9
 pq_module:
   n_hiddens: [64,32,16] # kachuee2019 implementation for Diabetes
   p_dropout: 0.5 # kachuee2019 implementation
+
+seed: null
 use_wandb: false
 smoke_test: false

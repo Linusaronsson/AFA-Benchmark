@@ -2,13 +2,14 @@ hydra:
   searchpath:
     - file://extra/conf
     - file://extra/conf/global
-    - file://extra/conf/scripts/pretrain/shim2018
 
 defaults:
-  - _self_
+  - /components/masked_pretraining@_global_: default
+  - /components/masking_probabilities@_global_: simple
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
+  - _self_
 
 train_dataset_bundle_path: ???
 val_dataset_bundle_path: ???
@@ -17,14 +18,7 @@ device: cuda
 
 supervised_learning:
   batch_size: 128 # shim2018 paper
-  max_epochs: 9001 # upper bound, we use early stopping to stop earlier
-  patience: 10
-  limit_train_batches: null
-  limit_val_batches: null
-  val_check_interval: 100 # validate every n batches
 
-min_masking_probability: 0.0
-max_masking_probability: 0.9
 lr: 1e-3
 encoder:
   output_size: 16 # shim2018 paper
@@ -35,6 +29,7 @@ encoder:
   dropout: 0.0
 classifier:
   num_cells: [32, 32] # shim2018 paper (cube dataset)
+
 seed: null
 use_wandb: false
 smoke_test: false

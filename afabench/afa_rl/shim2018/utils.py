@@ -35,7 +35,6 @@ def get_shim2018_model_from_config(
         embedder=embedder,
         classifier=classifier,
         class_probabilities=class_probabilities,
-        n_feature_dims=len(feature_shape),
         min_masking_probability=cfg.min_masking_probability,
         max_masking_probability=cfg.max_masking_probability,
         lr=cfg.lr,

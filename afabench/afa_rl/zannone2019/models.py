@@ -17,6 +17,7 @@ from afabench.common.custom_types import (
     Label,
     MaskedFeatures,
 )
+from afabench.common.utils import flatten_afa_input
 
 
 class PointNetType(Enum):
@@ -229,7 +230,6 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         n_annealing_epochs: int,
         # how much more to weigh the classifier's loss compared to the PVAE's loss
         classifier_loss_scaling_factor: float,
-        feature_shape: torch.Size,  # expected feature shape. We need to know this in order to flatten the features before concatenating with the label
     ):
         super().__init__()
         self.partial_vae: PartialVAE = partial_vae
@@ -242,7 +242,6 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.end_kl_scaling_factor: float = end_kl_scaling_factor
         self.n_annealing_epochs = n_annealing_epochs
         self.classifier_loss_scaling_factor = classifier_loss_scaling_factor
-        self.feature_shape = feature_shape
 
     def current_kl_weight(self) -> float:
         """Compute the current KL weight using linear annealing."""
@@ -261,31 +260,25 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        # We can flatten the features since the PVAE uses a PointNet which learns a custom embedding
-        flat_features = features.flatten(start_dim=-len(self.feature_shape))
-        batch_size = flat_features.shape[:-1]
-        assert len(batch_size) == 1, "Only 1D batch size supported"
-
-        # Since we concatenate flattened features with labels, the labels have to be 1D
-        assert label.shape[:-1] == batch_size, (
-            f"Expected label to have shape (*batch_size, n_classes) where batch_size is {batch_size}, but got {label.shape}"
+        assert features.ndim == 2, (
+            f"Expected a single batch dimension and single feature dimension, got {features.ndim}"
         )
-        assert len(label.shape) == len(batch_size) + 1, (
-            f"Expected label to have shape (*batch_size, n_classes) where batch_size is {batch_size}, but got {label.shape}"
+        assert label.ndim == 2, (
+            f"Expected a single batch dimension and single label dimension, got {label.ndim}"
         )
 
         # According to the paper, labels are appended to the features. "Augmented" = features + labels
         augmented_features = torch.cat(
-            [flat_features, label], dim=-1
-        )  # (*batch_size, n_features+n_classes)
+            [features, label], dim=-1
+        )  # (batch_size, n_features+n_classes)
 
-        return augmented_features, flat_features, label
+        return augmented_features, features, label
 
     @override
     def training_step(
         self, batch: tuple[Tensor, Tensor], batch_idx: int
     ) -> Tensor:
-        augmented_features, flat_features, label = self.shared_step(
+        augmented_features, features, label = self.shared_step(
             batch=batch, batch_idx=batch_idx
         )
 
@@ -303,19 +296,19 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
         # IMPORTANT NOTE: the PVAE is trained to reconstruct the *normal* features, not the augmented ones! We can do this
         # since we train a classifier anyways.
-        _encoding, mu, logvar, z, estimated_flat_features = (
+        _encoding, mu, logvar, z, estimated_features = (
             self.partial_vae.forward(
                 augmented_masked_features, augmented_feature_mask
             )
         )
 
         self.log(
-            "flat_feature_norm",
-            (flat_features**2).sum(dim=-1).mean(0).sqrt(),
+            "feature_norm",
+            (features**2).sum(dim=-1).mean(0).sqrt(),
         )
         self.log(
-            "estimated_flat_feature_norm",
-            (estimated_flat_features**2).sum(dim=-1).mean(0).sqrt(),
+            "estimated_feature_norm",
+            (estimated_features**2).sum(dim=-1).mean(0).sqrt(),
         )
 
         (
@@ -323,7 +316,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             partial_vae_feature_recon_loss,
             partial_vae_kl_div_loss,
         ) = self.partial_vae_loss_function(
-            estimated_flat_features, flat_features, mu, logvar
+            estimated_features, features, mu, logvar
         )
         self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
         self.log(
@@ -357,11 +350,15 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self,
         augmented_masked_features: MaskedFeatures,
         augmented_feature_mask: FeatureMask,
-        flat_features: Features,
+        features: Features,
         label: Label,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+        assert augmented_masked_features.ndim == 2
+        assert augmented_feature_mask.ndim == 2
+        assert label.ndim == 2
+
         # Pass masked features through VAE, returning estimated normal features but also latent variables which will be passed through classifier
-        _encoder, mu, logvar, z, estimated_flat_features = self.partial_vae(
+        _encoder, mu, logvar, _z, estimated_features = self.partial_vae(
             augmented_masked_features, augmented_feature_mask
         )
         (
@@ -369,7 +366,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             partial_vae_feature_recon_loss,
             partial_vae_kl_div_loss,
         ) = self.partial_vae_loss_function(
-            estimated_flat_features, flat_features, mu, logvar
+            estimated_features, features, mu, logvar
         )
 
         # Pass the encoding through the classifier
@@ -392,46 +389,11 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             acc,
         )
 
-    # def verbose_log(self):
-    #     # Log the total L2 norm of all parameters in the autoencoder
-    #     norm_vae = torch.norm(
-    #         torch.stack(
-    #             [
-    #                 torch.norm(p.detach())
-    #                 for p in self.partial_vae.parameters()
-    #                 if p.requires_grad
-    #             ]
-    #         )
-    #     )
-    #     self.log("norm_vae", norm_vae, sync_dist=True)
-    #
-    #     # Log the total L2 norm of all parameters in the classifier
-    #     norm_classifier = torch.norm(
-    #         torch.stack(
-    #             [
-    #                 torch.norm(p.detach())
-    #                 for p in self.classifier.parameters()
-    #                 if p.requires_grad
-    #             ]
-    #         )
-    #     )
-    #     self.log("norm_classifier", norm_classifier, sync_dist=True)
-    #
-    #     # If self.image_shape is defined, plot 4 images, their reconstructions and the predicted labels
-    #     if batch_idx == 0:
-    #         self.log_val_features(
-    #             features=masked_features,
-    #             estimated_features=estimated_features,
-    #             z=z,
-    #             y_cls=y_cls,
-    #             y_pred=y_pred,
-    #         )
-
     @override
     def validation_step(
         self, batch: tuple[Tensor, Tensor], batch_idx: int
     ) -> None:
-        augmented_features, flat_features, label = self.shared_step(
+        augmented_features, features, label = self.shared_step(
             batch=batch, batch_idx=batch_idx
         )
 
@@ -458,7 +420,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         ) = self._get_loss_and_acc(
             augmented_masked_features_many_observations,
             augmented_feature_mask_many_observations,
-            flat_features,
+            features,
             label,
         )
         self.log("val_loss_vae_many_observations", loss_vae_many_observations)
@@ -501,7 +463,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         ) = self._get_loss_and_acc(
             augmented_masked_features_few_observations,
             augmented_feature_mask_few_observations,
-            flat_features,
+            features,
             label,
         )
         self.log("val_loss_vae_few_observations", loss_vae_few_observations)
@@ -526,40 +488,22 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         # if self.verbose:
         #     self.verbose_log()
 
-    # @rank_zero_only
-    # def log_val_features(self, features, z, estimated_features, y_cls, y_pred):
-    #     # Plot the first 4 samples
-    #     fig, axs = plt.subplots(3, 4, figsize=(20, 10))
-    #     for i in range(4):
-    #         axs[0, i].plot(features[i].cpu().numpy())
-    #         axs[1, i].plot(z[i].cpu().numpy())
-    #         axs[2, i].plot(estimated_features[i].cpu().numpy())
-    #         # Labels as titles
-    #         axs[0, i].set_title(f"True: {y_cls[i].item()}")
-    #         axs[1, i].set_title("Latent space")
-    #         axs[2, i].set_title(f"Pred: {y_pred[i].item()}")
-    #
-    #     wandb.log({"val_recon": wandb.Image(fig)})
-    #     plt.close(fig)
-
     def partial_vae_loss_function(
         self,
-        estimated_flat_features: Tensor,
-        flat_features: Tensor,
+        estimated_features: Tensor,
+        features: Tensor,
         mu: Tensor,
         logvar: Tensor,
     ) -> tuple[Tensor, Tensor, Tensor]:
-        assert estimated_flat_features.ndim == 2, (
-            f"Expected estimated_flat_features to have 2 dimensions, but got {estimated_flat_features.ndim}"
+        assert estimated_features.ndim == 2, (
+            f"Expected estimated_features to have 2 dimensions, but got {estimated_features.ndim}"
         )
-        assert flat_features.ndim == 2, (
-            f"Expected flat_features to have 2 dimensions, but got {flat_features.ndim}"
+        assert features.ndim == 2, (
+            f"Expected features to have 2 dimensions, but got {features.ndim}"
         )
 
         feature_recon_loss = (
-            ((estimated_flat_features - flat_features) ** 2)
-            .sum(dim=1)
-            .mean(dim=0)
+            ((estimated_features - features) ** 2).sum(dim=1).mean(dim=0)
         )
         kl_div_loss = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(
             dim=1
@@ -619,6 +563,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         label: Label | None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Reconstruct a sample by providing all features. Optionally provide the label as well."""
+        assert features.ndim == 2
+
         return self.masked_reconstruction(
             masked_features=features,
             feature_mask=torch.ones(
@@ -636,18 +582,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         label: Label | None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Reconstruct a sample by providing masked features. Optionally provide the label as well."""
-        flat_masked_features = masked_features.flatten(
-            start_dim=-len(self.feature_shape)
-        )
-        assert flat_masked_features.ndim == 2, (
-            f"Expected masked_features to have 2 dimensions after flattening, but got {flat_masked_features.ndim}"
-        )
-        flat_feature_mask = feature_mask.flatten(
-            start_dim=-len(self.feature_shape)
-        )
-        assert flat_feature_mask.ndim == 2, (
-            f"Expected feature_mask to have 2 dimensions after flattening, but got {flat_feature_mask.ndim}"
-        )
+        assert masked_features.ndim == 2
+        assert feature_mask.ndim == 2
 
         if label is None:
             label = torch.zeros(
@@ -658,6 +594,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             )
             label_mask = torch.full_like(label, False)
         else:
+            assert label.ndim == 2
             label_mask = torch.full_like(label, True)
 
         augmented_masked_features = torch.cat(
@@ -686,9 +623,16 @@ class Zannone2019AFAPredictFn(AFAPredictFn):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
+        # The model assumes flat features
+        assert feature_shape is not None
+
+        masked_features, feature_mask, label = flatten_afa_input(
+            masked_features, feature_mask, label, feature_shape
+        )
+
         batch_size = masked_features.shape[0]
 
         augmented_masked_features = torch.cat(
@@ -711,7 +655,7 @@ class Zannone2019AFAPredictFn(AFAPredictFn):
             ],
             dim=-1,
         )
-        _encoding, mu, _logvar, z = self.model.partial_vae.encode(
+        _encoding, mu, _logvar, _z = self.model.partial_vae.encode(
             augmented_masked_features, augmented_feature_mask
         )
         logits = self.model.classifier(mu)
@@ -738,13 +682,20 @@ class Zannone2019AFAClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
+        # The model assumes flat features
+        assert feature_shape is not None
+
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
+
+        masked_features, feature_mask, label = flatten_afa_input(
+            masked_features, feature_mask, label, feature_shape
+        )
 
         batch_size = masked_features.shape[0]
 
@@ -769,7 +720,7 @@ class Zannone2019AFAClassifier(AFAClassifier):
             dim=-1,
         )
 
-        _encoding, mu, _logvar, z = self.model.partial_vae.encode(
+        _encoding, mu, _logvar, _z = self.model.partial_vae.encode(
             augmented_masked_features, augmented_feature_mask
         )
         logits = self.model.classifier(mu)

@@ -70,7 +70,6 @@ def main(cfg: Shim2018PretrainConfig) -> None:
             embedder=embedder,
             classifier=classifier,
             class_probabilities=class_probabilities,
-            n_feature_dims=len(dataset.feature_shape),
             min_masking_probability=cfg.min_masking_probability,
             max_masking_probability=cfg.max_masking_probability,
             lr=cfg.lr,

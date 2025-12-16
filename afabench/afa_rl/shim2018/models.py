@@ -91,6 +91,13 @@ class ReadProcessEncoder(nn.Module):
             output: a tensor of shape (batch_size, output_size)
 
         """
+        assert input_set.ndim == 3, (
+            f"Expected input_set to have shape (batch_size, set_size, element_size), instead got {input_set.shape}"
+        )
+        assert lengths.ndim == 1, (
+            f"Expected lengths to have shape (batch_size,), instead got {lengths.shape}"
+        )
+
         # We want to support empty sets as well, but these have to be handled separately, look at the end of the function
         original_batch_size = input_set.shape[0]
         nonempty_set_mask = lengths > 0
@@ -217,7 +224,6 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         embedder: Shim2018Embedder,
         classifier: Shim2018MLPClassifier,
         class_probabilities: Float[Tensor, "n_classes"],  # noqa: F821
-        n_feature_dims: int,  # how many of the last dimensions of the input are part of the feature shape and not batch shape
         min_masking_probability: float = 0.0,
         max_masking_probability: float = 1.0,
         lr: float = 1e-3,
@@ -225,7 +231,6 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters(ignore=["embedder", "classifier"])
         self.lr = lr
-        self.n_feature_dims = n_feature_dims
         self.embedder = embedder
         self.classifier = classifier
         self.class_weight = 1 / class_probabilities
@@ -248,29 +253,26 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
             logits: the output of the classifier
 
         """
-        # Both the embedder and classifier for this method take 1D features as input, and a single batch dimension. Flatten them separately
-        # First, store the original shape for later unflattening
-        batch_shape = masked_features.shape[: -self.n_feature_dims]
-        feature_shape = masked_features.shape[-self.n_feature_dims :]
-
-        # Flatten batch dimensions and feature dimensions separately
-        flat_masked_features = masked_features.reshape(
-            -1, feature_shape.numel()
+        assert masked_features.ndim == 2, (
+            f"Expected a single batch dimension and single feature dimension, got {masked_features.ndim}"
         )
-        flat_feature_mask = feature_mask.reshape(-1, feature_shape.numel())
 
-        embedding = self.embedder(flat_masked_features, flat_feature_mask)
+        embedding = self.embedder(masked_features, feature_mask)
         logits = self.classifier(embedding)
 
-        # Unflatten batch size
-        embedding = embedding.reshape(*batch_shape, -1)
-        logits = logits.reshape(*batch_shape, -1)
         return embedding, logits
 
     @override
     def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):  # noqa: ANN201
         features: Features = batch[0]
         label: Label = batch[1]
+
+        assert features.ndim == 2, (
+            f"Expected a single batch dimension and single feature dimension, got {features.ndim}"
+        )
+        assert label.ndim == 2, (
+            f"Expected a single batch dimension and single feature dimension, got {label.ndim}"
+        )
 
         masking_probability = self.min_masking_probability + torch.rand(
             1
@@ -309,6 +311,13 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         self, batch: tuple[Tensor, Tensor], batch_idx: int
     ) -> None:
         feature_values, y = batch
+
+        assert feature_values.ndim == 2, (
+            f"Expected a single batch dimension and single feature dimension, got {feature_values.ndim}"
+        )
+        assert y.ndim == 2, (
+            f"Expected a single batch dimension and single feature dimension, got {y.ndim}"
+        )
 
         # Mask features with minimum probability -> see many features (observations)
         feature_mask_many_observations = (

@@ -1,0 +1,4 @@
+defaults:
+  - override /components/masking_probabilities@_global_: complex
+classifier:
+  num_cells: [128, 128] # shim2018 paper uses [32, 32] for the cube dataset, but that's not complex enough for MNIST.

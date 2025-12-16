@@ -10,6 +10,7 @@ from lightning.pytorch.loggers import WandbLogger
 
 from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.datasets.utils import flatten_features_collate
 from afabench.common.torch_bundle import TorchModelBundle
 
 if TYPE_CHECKING:
@@ -39,7 +40,11 @@ def supervised_learning(
     device: str | None = None,
     metadata_to_save_in_bundle: dict[str, Any] | None = None,
 ) -> None:
-    """Do supervised learning for a pytorch lightning model."""
+    """
+    Do supervised learning for a pytorch lightning model.
+
+    Currently assumes that the model expects 1D (flattened) features.
+    """
     if device is None:
         device = "cpu"
     if metadata_to_save_in_bundle is None:
@@ -62,6 +67,9 @@ def supervised_learning(
             "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
         ),
         batch_size=cfg.batch_size,
+        collate_fn=flatten_features_collate(
+            n_feature_dims=len(train_dataset.feature_shape)
+        ),
     )
     log.info("Loaded datasets.")
 
@@ -78,8 +86,10 @@ def supervised_learning(
     )
     early_stopping_callback = EarlyStopping(
         monitor=metric_to_monitor,
-        patience=cfg.patience,
+        min_delta=cfg.early_stopping_min_delta,
+        patience=cfg.early_stopping_patience,
         mode=monitor_mode,
+        verbose=True,
     )
     logger = WandbLogger(save_dir="extra/wandb") if use_wandb else False
     trainer = pl.Trainer(

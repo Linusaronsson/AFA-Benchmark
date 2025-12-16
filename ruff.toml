@@ -28,7 +28,7 @@ exclude = [
   # "afabench/afa_rl/shim2018/utils.py",
   # "afabench/afa_rl/utils.py",
   "afabench/afa_rl/zannone2019/agents.py",
-  "afabench/afa_rl/zannone2019/models.py",
+  # "afabench/afa_rl/zannone2019/models.py",
   "afabench/afa_rl/zannone2019/reward.py",
   "afabench/afa_rl/zannone2019/utils.py",
   "afabench/common/classifiers.py",

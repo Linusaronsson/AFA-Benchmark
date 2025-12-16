@@ -1,4 +1,0 @@
-min_masking_probability: 0.75
-max_masking_probability: 0.99
-pq_module:
-  n_hiddens: [512,512,128,64] # kachuee2019 for MNIST

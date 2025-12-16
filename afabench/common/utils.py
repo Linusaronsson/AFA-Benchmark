@@ -12,6 +12,8 @@ from omegaconf import OmegaConf
 from torch import nn
 from wandb.sdk.wandb_run import Run
 
+from afabench.common.custom_types import FeatureMask, Label, MaskedFeatures
+
 logger = logging.getLogger(__name__)
 
 
@@ -84,3 +86,26 @@ def initialize_wandb_run(
         logger.info(f"W&B run group: {group}")
     logger.info(f"W&B run URL: {run.url}")
     return run
+
+
+def flatten_afa_input(
+    masked_features: MaskedFeatures,
+    feature_mask: FeatureMask,
+    label: Label | None,
+    feature_shape: torch.Size,
+) -> tuple[MaskedFeatures, FeatureMask, Label | None]:
+    """
+    Flatten feature dimensions and batch dimensions.
+
+    Since MaskedFeatures, FeatureMask and Label can have an arbitrary number of batch dimensions and MaskedFeatures/FeatureMask can have an arbitrary number of feature dimensions, this function is useful for models that assume a single batch dimension and single feature dimension.
+    """
+    n_feature_dims = len(feature_shape)
+    # Flatten feature dimensions
+    flat_masked_features = masked_features.flatten(start_dim=-n_feature_dims)
+    flat_feature_mask = feature_mask.flatten(start_dim=-n_feature_dims)
+    # Now everything except the last dimension should be batch dimensions, flatten them as well
+    flat_masked_features = flat_masked_features.flatten(end_dim=-2)
+    flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
+    flat_label = label if label is None else label.flatten(end_dim=-2)
+
+    return flat_masked_features, flat_feature_mask, flat_label

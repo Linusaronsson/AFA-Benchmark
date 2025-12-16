@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import final, override
 
 import lightning as pl
@@ -77,6 +78,7 @@ class DataModuleFromDatasets(pl.LightningDataModule):
         num_workers: int = 0,
         *,
         persistent_workers: bool = False,
+        collate_fn: Callable | None = None,  # pyright: ignore[reportMissingTypeArgument]
     ):
         # TODO: does not work with num_workers > 1
         super().__init__()
@@ -85,6 +87,7 @@ class DataModuleFromDatasets(pl.LightningDataModule):
         self.batch_size = batch_size
         self.num_workers = num_workers
         self.persistent_workers = persistent_workers
+        self.collate_fn = collate_fn
 
     @override
     def prepare_data(self) -> None:
@@ -102,6 +105,7 @@ class DataModuleFromDatasets(pl.LightningDataModule):
             shuffle=True,
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
+            collate_fn=self.collate_fn,
         )
 
     @override
@@ -111,6 +115,7 @@ class DataModuleFromDatasets(pl.LightningDataModule):
             batch_size=self.batch_size,
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
+            collate_fn=self.collate_fn,
         )
 
     # def __getitem__(self, index: int):

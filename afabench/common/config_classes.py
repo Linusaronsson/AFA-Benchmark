@@ -107,7 +107,8 @@ class InitializerConfig:
 class SupervisedLearningConfig:
     batch_size: int  # batch size for dataloader
     max_epochs: int
-    patience: int  # early stopping patience
+    early_stopping_patience: int  # early stopping patience
+    early_stopping_min_delta: float
     limit_train_batches: int | None
     limit_val_batches: int | None
     val_check_interval: int  # how often to validate
@@ -231,11 +232,20 @@ class Kachuee2019PQModuleConfig:
 
 @dataclass
 class Kachuee2019PretrainConfig:
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    save_path: str
+    device: str
+
     supervised_learning: SupervisedLearningConfig
+
     min_masking_probability: float
     max_masking_probability: float
+    lr: float
     pq_module: Kachuee2019PQModuleConfig
-    smoke_test: bool
+    seed: int | None = None
+    use_wandb: bool = False
+    smoke_test: bool = False
 
 
 cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)

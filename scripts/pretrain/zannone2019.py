@@ -131,7 +131,6 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
                 * cfg.n_annealing_epoch_fraction
             ),
             classifier_loss_scaling_factor=cfg.classifier_loss_scaling_factor,
-            feature_shape=dataset.feature_shape,
         )
         return model
 
