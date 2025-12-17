@@ -4,12 +4,12 @@ from typing import Any
 
 import torch
 import wandb
+from afabench.afa_rl.custom_types import FeatureSet
 from jaxtyping import Float, Integer
 from tensordict import TensorDictBase
 from torch import Tensor, nn
 from torch.nn import functional as F
 
-from afabench.afa_rl.custom_types import FeatureSet
 from afabench.common.custom_types import (
     AFADataset,
     AFAPredictFn,

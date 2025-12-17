@@ -1,14 +1,14 @@
 from typing import TYPE_CHECKING, Any, final, override
 
 import torch
-from tensordict import TensorDict, TensorDictBase
-from torchrl.data import Binary, Categorical, Composite, Unbounded
-from torchrl.envs import EnvBase
-
 from afabench.afa_rl.custom_types import (
     AFADatasetFn,
     AFARewardFn,
 )
+from tensordict import TensorDict, TensorDictBase
+from torchrl.data import Binary, Categorical, Composite, Unbounded
+from torchrl.envs import EnvBase
+
 from afabench.common.custom_types import AFAInitializeFn, AFAUnmaskFn
 
 if TYPE_CHECKING:

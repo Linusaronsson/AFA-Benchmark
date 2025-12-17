@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING, Any, cast, override
 
 import lightning as pl
 import torch
+from afabench.afa_rl.dataset_utils import DataModuleFromDatasets
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from lightning.pytorch.loggers import WandbLogger
 
-from afabench.afa_rl.datasets import DataModuleFromDatasets
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.datasets.utils import flatten_features_collate
 from afabench.common.torch_bundle import TorchModelBundle

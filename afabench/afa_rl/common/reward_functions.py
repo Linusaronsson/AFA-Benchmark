@@ -1,8 +1,8 @@
 import torch
+from afabench.afa_rl.custom_types import AFAReward, AFARewardFn
 from jaxtyping import Bool
 from torch import Tensor
 
-from afabench.afa_rl.custom_types import AFAReward, AFARewardFn
 from afabench.common.custom_types import (
     AFASelection,
     FeatureMask,

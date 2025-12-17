@@ -1,6 +1,8 @@
 from typing import Any, final, override
 
 import torch
+from afabench.afa_rl.agent_interface import Agent
+from afabench.afa_rl.utils import module_norm
 from tensordict import TensorDictBase
 from tensordict.nn import (
     TensorDictModule,
@@ -14,9 +16,7 @@ from torchrl.data import (
 from torchrl.modules import MLP, EGreedyModule, QValueModule
 from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 
-from afabench.afa_rl.agents import Agent
 from afabench.afa_rl.shim2018.models import Shim2018Embedder
-from afabench.afa_rl.utils import module_norm
 from afabench.common.config_classes import Shim2018AgentConfig
 from afabench.common.custom_types import FeatureMask, MaskedFeatures
 

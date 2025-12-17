@@ -255,6 +255,29 @@ cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)
 
 # --- TRAINING METHODS ---
 
+
+@dataclass
+class AFARLTrainingLoopConfig:
+    frames_per_batch: int  # how many frames each batch will contain, *including* frames from all parallel agents
+    n_batches: int  # for how many batches to train
+    eval_max_steps: int  # how many steps the agent can take in eval env before episode is terminated,
+    n_eval_episodes: int  # how many rollouts to average over during evaluation
+    device: str | None = None
+    env_seed: int | None = None
+    eval_n_times: int = (
+        10  # how many times to evaluate the agent during the run
+    )
+
+
+@dataclass
+class AFAMDPConfig:
+    hard_budget: int | None = (
+        None  # how many selections are allowed before episode ends. If None, end when all selections are performed.
+    )
+    force_hard_budget: bool = True  # If False, the agent can choose to terminate the episode without reaching the hard budget. Only relevant when hard_budget is set.
+    n_agents: int = 1  # how many agents to train in parallel
+
+
 # shim2018
 
 
@@ -298,29 +321,15 @@ class Shim2018TrainConfig:
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
-    hard_budget: int | None
-    force_hard_budget: bool
     soft_budget_param: float | None
-    device: str
     seed: int | None
-
-    # RL specific settings
-    n_agents: int
     agent: Shim2018AgentConfig
-    n_batches: int  # how many batches to train the agent
-    batch_size: int  # batch size for collector
-    # eval_every_n_batches: int | None  # how often to evaluate the agent
-    eval_n_times: int | None  # how many times to evaluate agent
-    eval_max_steps: (
-        int  # maximum allowed number of steps in an evaluation episode
-    )
-    n_eval_episodes: int  # how many episodes to average over in evaluation
     pretrained_model_lr: float
-    # activate_joint_training_after_n_batches: int
     activate_joint_training_after_fraction: float
-
+    afa_rl_training_loop: AFARLTrainingLoopConfig
     use_wandb: bool = False
     smoke_test: bool = False
+    device: str | None = None
 
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
