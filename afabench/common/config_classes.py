@@ -107,6 +107,7 @@ class InitializerConfig:
 class SupervisedLearningConfig:
     batch_size: int  # batch size for dataloader
     max_epochs: int
+    checkpoint_earliest_batch: int  # at which batch we start to keep track of the best performance. Useful for models such as PVAE for which the loss actually increases at the beginning.
     early_stopping_min_batches: int  # minimum number of batches to process before we allow quitting. Useful because many methods fail to learn at the beginning
     early_stopping_patience: int  # early stopping patience
     early_stopping_min_delta: float
