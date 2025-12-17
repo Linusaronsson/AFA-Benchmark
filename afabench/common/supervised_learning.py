@@ -113,15 +113,28 @@ def supervised_learning(
     finally:
         log.info("Finished training.")
 
-        log.info("Saving best model...")
         assert trainer.checkpoint_callback is not None
-        # Reset to best model found during training
-        lit_model.load_state_dict(
-            torch.load(
-                trainer.checkpoint_callback.best_model_path,  # pyright: ignore[reportAttributeAccessIssue]
-                map_location="cpu",
-            )["state_dict"]
+        best_model_path: str | None = (
+            trainer.checkpoint_callback.best_model_path  # pyright: ignore[reportAttributeAccessIssue]
         )
+        if (
+            best_model_path is not None
+            and len(best_model_path) != 0
+            and Path(best_model_path).exists()
+        ):
+            log.info("Resetting state to best model...")
+            # Reset to best model found during training
+            lit_model.load_state_dict(
+                torch.load(
+                    trainer.checkpoint_callback.best_model_path,  # pyright: ignore[reportAttributeAccessIssue]
+                    map_location="cpu",
+                )["state_dict"]
+            )
+        else:
+            log.warning("No best model found. Keeping current model...")
+        log.info("Finished setting model state.")
+
+        log.info("Saving model...")
 
         # Create general model bundle wrapper
         model_bundle = TorchModelBundle(lit_model)
