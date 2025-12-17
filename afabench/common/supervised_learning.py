@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, override
 
 import lightning as pl
 import torch
@@ -25,6 +25,32 @@ from afabench.common.config_classes import (
 from afabench.common.custom_types import AFADataset
 
 log = logging.getLogger(__name__)
+
+
+class EarlyStoppingWithMinBatches(EarlyStopping):
+    """Add min epoch functionality to EarlyStopping."""
+
+    def __init__(self, min_batches: int = 0, *args, **kwargs):  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+        self.min_batches: int = min_batches
+        self._batches_seen: int = 0
+
+    @override
+    def on_train_batch_end(
+        self,
+        trainer,  # noqa: ANN001
+        pl_module,  # noqa: ANN001
+        outputs,  # noqa: ANN001
+        batch,  # noqa: ANN001
+        batch_idx,  # noqa: ANN001
+    ) -> None:
+        self._batches_seen += 1
+
+    @override
+    def on_validation_end(self, trainer, pl_module) -> None:  # noqa: ANN001
+        if self._batches_seen >= self.min_batches:
+            super().on_validation_end(trainer, pl_module)
+        # else: do nothing, don't check for early stopping yet
 
 
 def supervised_learning(
@@ -84,7 +110,8 @@ def supervised_learning(
         save_top_k=1,
         mode=monitor_mode,
     )
-    early_stopping_callback = EarlyStopping(
+    early_stopping_callback = EarlyStoppingWithMinBatches(
+        min_batches=cfg.early_stopping_min_batches,
         monitor=metric_to_monitor,
         min_delta=cfg.early_stopping_min_delta,
         patience=cfg.early_stopping_patience,

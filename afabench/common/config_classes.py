@@ -107,6 +107,7 @@ class InitializerConfig:
 class SupervisedLearningConfig:
     batch_size: int  # batch size for dataloader
     max_epochs: int
+    early_stopping_min_batches: int  # minimum number of batches to process before we allow quitting. Useful because many methods fail to learn at the beginning
     early_stopping_patience: int  # early stopping patience
     early_stopping_min_delta: float
     limit_train_batches: int | None
