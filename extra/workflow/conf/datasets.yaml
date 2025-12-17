@@ -2,15 +2,15 @@
 datasets:
   - afa_context
   - afa_context_without_noise
-  - bank_marketing
-  - ckd
+  # - bank_marketing # needs normalization
+  # - ckd # needs normalization
   - cube
   - cube_without_noise
-  - diabetes
+  # - diabetes # maybe needs normalization?
   # - fashion_mnist # data generation needs to be fixed
   # - imagenette # data generation needs to be fixed
-  - miniboone
+  # - miniboone # needs normalization
   # - mnist # data generation needs to be fixed
-  - physionet
+  # - physionet # needs normalization
   - synthetic_mnist
   - synthetic_mnist_without_noise
