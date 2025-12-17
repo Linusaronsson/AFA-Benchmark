@@ -1,5 +1,7 @@
 # Which methods we run the pipeline on
 methods:
   - shim2018
+  - zannone2019
+  - kachuee2019
   - random_dummy
   - sequential_dummy

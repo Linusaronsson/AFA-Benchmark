@@ -1,6 +1,10 @@
 method_options:
   shim2018:
     has_pretraining_stage: true
+  zannone2019:
+    has_pretraining_stage: true
+  kachuee2019:
+    has_pretraining_stage: true
   random_dummy:
     has_pretraining_stage: false
   sequential_dummy:
