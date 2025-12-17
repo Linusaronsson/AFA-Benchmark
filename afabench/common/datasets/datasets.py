@@ -622,6 +622,10 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         features_df = df_dataset.iloc[:, :-1]
         labels_df = df_dataset.iloc[:, -1]
 
+        # Fill missing values then normalize
+        features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
+
         # Convert to tensors
         self.features = torch.tensor(features_df.values, dtype=torch.float32)
         assert self.features.shape[1] == self.feature_shape[0]
@@ -733,6 +737,10 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         features_df = df_dataset.iloc[:, :-1]
         labels_df = df_dataset.iloc[:, -1]
 
+        # Fill missing then normalize
+        features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
+
         self.features = torch.tensor(features_df.values, dtype=torch.float32)
         assert self.features.shape[1] == self.feature_shape[0]
 
@@ -826,11 +834,11 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         features_df = df_dataset.iloc[:, :-1]
         labels_df = df_dataset.iloc[:, -1]
 
-        # Handle missing values by filling with column means
+        # Handle missing values by filling with column means and normalize
         features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
 
         # Convert to tensors
-        # self.features = torch.tensor(scaled_features, dtype=torch.float32)
         self.features = torch.tensor(features_df.values, dtype=torch.float32)
 
         # Check for NaNs after tensor conversion
