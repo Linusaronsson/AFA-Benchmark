@@ -11,8 +11,12 @@ DEVICE = config.get("device", "cpu")
 USE_WANDB = config.get("use_wandb", False)
 SMOKE_TEST = config.get("smoke_test", False)
 
-METHOD_OPTIONS = config.get("method_options", []) # mapping method->options
+METHOD_OPTIONS = config.get("method_options", None) # mapping method->options
+if METHOD_OPTIONS is None:
+    raise ValueError("Expected method_options to be provided.")
 METHODS = config.get("methods", []) # a list, allowing is to run experiments on a subset of methods if desired
+if METHODS is None:
+    raise ValueError("Expected methods to be provided.")
 METHODS_WITH_PRETRAINING_STAGE = [
     method
     for method, options in METHOD_OPTIONS.items()
@@ -23,14 +27,22 @@ METHODS_WITHOUT_PRETRAINING_STAGE = [
     for method, options in METHOD_OPTIONS.items()
     if not options["has_pretraining_stage"] and method in METHODS
 ]
-DATASETS = config.get("datasets", []) # a list, allowing us to run experiments on a subset of datasets if desired
-UNMASKERS_RAW = config.get("unmaskers", {}) # mapping dataset->unmasker
+DATASETS = config.get("datasets", None) # a list, allowing us to run experiments on a subset of datasets if desired
+if DATASETS is None:
+    raise ValueError("Expected datasets to be provided.")
+UNMASKERS_RAW = config.get("unmaskers", None) # mapping dataset->unmasker
+if UNMASKERS_RAW is None:
+    raise ValueError("Expected unmaskers to be provided.")
 # Fill in missing datasets with the default value
 UNMASKERS = UNMASKERS_RAW | {dataset: UNMASKERS_RAW["default"] for dataset in DATASETS}
-HARD_BUDGETS_RAW = config.get("hard_budgets", {}) # mapping dataset->list of hard budgets
+HARD_BUDGETS_RAW = config.get("hard_budgets", None) # mapping dataset->list of hard budgets
+if HARD_BUDGETS_RAW is None:
+    raise ValueError("Expected hard_budgets to be provided.")
 # Fill in missing datasets with the default value
 HARD_BUDGETS = HARD_BUDGETS_RAW | {dataset: HARD_BUDGETS_RAW["default"] for dataset in DATASETS}
-SOFT_BUDGET_PARAMS_RAW = config.get("soft_budget_params", {}) # mapping method->dataset->list of soft budget params
+SOFT_BUDGET_PARAMS_RAW = config.get("soft_budget_params", None) # mapping method->dataset->list of soft budget params
+if SOFT_BUDGET_PARAMS_RAW is None:
+    raise ValueError("Expected soft_budget_params to be provided.")
 # Fill in missing datasets with the default value
 SOFT_BUDGET_PARAMS = {
     method: (
