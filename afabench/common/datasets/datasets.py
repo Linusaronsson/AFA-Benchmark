@@ -2,7 +2,7 @@ import tarfile
 import urllib.request
 from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import ClassVar, Self, final, override
+from typing import ClassVar, Self, cast, final, override
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -17,6 +17,18 @@ from ucimlrepo import fetch_ucirepo
 
 from afabench.common.custom_types import AFADataset
 from afabench.common.datasets.utils import default_create_subset
+
+
+def _z_normalize(features_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Apply feature-wise Z-normalization using population statistics.
+
+    Zero standard deviations are replaced with 1.0 to avoid division by zero.
+    """
+    means: pd.Series = cast("pd.Series", features_df.mean())
+    stds: pd.Series = cast("pd.Series", features_df.std(ddof=0))
+    stds = stds.replace(0, 1.0)
+    return (features_df - means) / stds
 
 
 @final
@@ -921,6 +933,7 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     features_df[col].astype(str)
                 )
         features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
 
         self.features = torch.tensor(features_df.values, dtype=torch.float32)
         self.labels = torch.nn.functional.one_hot(
@@ -1021,6 +1034,7 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         for col in features_df.columns:
             features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
         features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
 
         self.features = torch.tensor(features_df.values, dtype=torch.float32)
         self.labels = torch.nn.functional.one_hot(
@@ -1125,6 +1139,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         for col in features_df.columns:
             features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
         features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
 
         self.features = torch.tensor(features_df.values, dtype=torch.float32)
         self.labels = torch.nn.functional.one_hot(
