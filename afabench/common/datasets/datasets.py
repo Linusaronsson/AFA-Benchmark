@@ -930,6 +930,7 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         df_data = pd.read_csv(self.path, sep=";")
         target_col = "y" if "y" in df_data.columns else "deposit"
         features_df = df_data.drop(columns=[target_col])
+        pd.set_option("future.no_silent_downcasting", True)
         target_series = (
             df_data[target_col].replace({"yes": 1, "no": 0}).astype("int64")
         )
