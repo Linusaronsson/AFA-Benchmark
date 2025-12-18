@@ -93,7 +93,7 @@ def get_image_feature_set(
     [value, row, col] for observed pixels in each batch. Unobserved pixels are
     included with value=0, row=col=0 and are padded to the end of the output.
     """
-    batch_size, flat_dim = masked_image.shape
+    batch_size, _flat_dim = masked_image.shape
     h, w = image_shape
 
     # Reshape into (B, H, W)
@@ -140,7 +140,7 @@ def get_2d_identity(
     image_shape: tuple[int, int],
 ) -> Integer[Tensor, "*batch n_features 2"]:
     """Return the coordinates for each observed feature (as given by the feature mask) but with (0, 0) for unobserved features."""
-    batch_size, flat_dim = feature_mask.shape
+    batch_size, _flat_dim = feature_mask.shape
     h, w = image_shape
 
     # Reshape into (B, H, W)
@@ -201,7 +201,7 @@ def right_side_ratio_from_mask(mask: Tensor) -> Tensor:
 
     # Ensure boolean
     mask_bool = mask.bool()
-    batch, channels, height, width = mask_bool.shape
+    batch, _channels, _height, width = mask_bool.shape
 
     # Column index where right half starts
     right_start = width // 2

@@ -150,7 +150,7 @@ def test_get_afa_dataset_fn_with_2d_images() -> None:
     )
     dataset_fn = get_afa_dataset_fn(all_features, all_labels)
 
-    features, labels = dataset_fn(
+    features, _labels = dataset_fn(
         batch_size=torch.Size((1,)),
         move_on=False,
     )
