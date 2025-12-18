@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import hydra
@@ -24,30 +25,10 @@ from afabench.common.utils import (
 log = logging.getLogger(__name__)
 
 
-@hydra.main(
-    version_base=None,
-    config_path="../../extra/conf/scripts/pretrain/shim2018",
-    config_name="config",
-)
-def main(cfg: Shim2018PretrainConfig) -> None:
-    log.debug(cfg)
-    set_seed(cfg.seed)
-    torch.cuda.empty_cache()
-    torch.set_float32_matmul_precision("medium")
-
-    if cfg.use_wandb:
-        _run = initialize_wandb_run(
-            cfg=cfg, job_type="pretraining", tags=["shim2018"]
-        )
-
-    # If smoke test, override some options
-    if cfg.smoke_test:
-        log.info("Smoke test detected.")
-        cfg.supervised_learning.max_epochs = 1
-        cfg.supervised_learning.limit_train_batches = 2
-        cfg.supervised_learning.limit_val_batches = 2
-
-    def get_shim2018_model(dataset: AFADataset) -> pl.LightningModule:
+def get_shim2018_model_fn(
+    cfg: Shim2018PretrainConfig,
+) -> Callable[[AFADataset], pl.LightningModule]:
+    def f(dataset: AFADataset) -> pl.LightningModule:
         _features, labels = dataset.get_all_data()
         class_probabilities = get_class_frequencies(labels)
         n_features = dataset.feature_shape.numel()
@@ -76,12 +57,38 @@ def main(cfg: Shim2018PretrainConfig) -> None:
         )
         return lit_model
 
+    return f
+
+
+@hydra.main(
+    version_base=None,
+    config_path="../../extra/conf/scripts/pretrain/shim2018",
+    config_name="config",
+)
+def main(cfg: Shim2018PretrainConfig) -> None:
+    log.debug(cfg)
+    set_seed(cfg.seed)
+    torch.cuda.empty_cache()
+    torch.set_float32_matmul_precision("medium")
+
+    if cfg.use_wandb:
+        _run = initialize_wandb_run(
+            cfg=cfg, job_type="pretraining", tags=["shim2018"]
+        )
+
+    # If smoke test, override some options
+    if cfg.smoke_test:
+        log.info("Smoke test detected.")
+        cfg.supervised_learning.max_epochs = 1
+        cfg.supervised_learning.limit_train_batches = 2
+        cfg.supervised_learning.limit_val_batches = 2
+
     supervised_learning(
         train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
         val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
         save_path=Path(cfg.save_path),
         cfg=cfg.supervised_learning,
-        get_model=get_shim2018_model,
+        model_fn=get_shim2018_model_fn(cfg=cfg),
         metric_to_monitor="val_loss_many_observations",
         monitor_mode="min",
         use_wandb=cfg.use_wandb,

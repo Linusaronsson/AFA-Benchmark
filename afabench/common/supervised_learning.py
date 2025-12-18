@@ -82,7 +82,7 @@ def supervised_learning(
     val_dataset_bundle_path: Path,
     save_path: Path,
     cfg: SupervisedLearningConfig,
-    get_model: Callable[[AFADataset], pl.LightningModule],
+    model_fn: Callable[[AFADataset], pl.LightningModule],
     metric_to_monitor: str,  # what we want to optimize
     monitor_mode: str,  # whether we want to minimize ("min") or maximize ("max") metric_to_monitor
     *,
@@ -124,7 +124,7 @@ def supervised_learning(
     log.info("Loaded datasets.")
 
     log.info("Creating model...")
-    lit_model = get_model(train_dataset)
+    lit_model = model_fn(train_dataset)
     lit_model = lit_model.to(device)
     log.info("Created model.")
 

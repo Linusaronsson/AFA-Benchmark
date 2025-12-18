@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import hydra
@@ -20,6 +21,30 @@ from afabench.common.utils import (
 )
 
 log = logging.getLogger(__name__)
+
+
+def get_kachuee2019_model_fn(
+    cfg: Kachuee2019PretrainConfig,
+) -> Callable[[AFADataset], pl.LightningModule]:
+    def f(dataset: AFADataset) -> pl.LightningModule:
+        n_features = dataset.feature_shape.numel()
+        n_classes = dataset.label_shape.numel()
+        _features, labels = dataset.get_all_data()
+        class_probabilities = get_class_frequencies(labels)
+        pq_module = Kachuee2019PQModule(
+            n_features=n_features, n_classes=n_classes, cfg=cfg.pq_module
+        )
+        lit_model = LitKachuee2019PQModule(
+            pq_module=pq_module,
+            class_probabilities=class_probabilities,
+            n_feature_dims=len(dataset.feature_shape),
+            min_masking_probability=cfg.min_masking_probability,
+            max_masking_probability=cfg.max_masking_probability,
+            lr=cfg.lr,
+        )
+        return lit_model
+
+    return f
 
 
 @hydra.main(
@@ -44,30 +69,12 @@ def main(cfg: Kachuee2019PretrainConfig) -> None:
         cfg.supervised_learning.limit_train_batches = 2
         cfg.supervised_learning.limit_val_batches = 2
 
-    def get_kachuee2019_model(dataset: AFADataset) -> pl.LightningModule:
-        n_features = dataset.feature_shape.numel()
-        n_classes = dataset.label_shape.numel()
-        _features, labels = dataset.get_all_data()
-        class_probabilities = get_class_frequencies(labels)
-        pq_module = Kachuee2019PQModule(
-            n_features=n_features, n_classes=n_classes, cfg=cfg.pq_module
-        )
-        lit_model = LitKachuee2019PQModule(
-            pq_module=pq_module,
-            class_probabilities=class_probabilities,
-            n_feature_dims=len(dataset.feature_shape),
-            min_masking_probability=cfg.min_masking_probability,
-            max_masking_probability=cfg.max_masking_probability,
-            lr=cfg.lr,
-        )
-        return lit_model
-
     supervised_learning(
         train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
         val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
         save_path=Path(cfg.save_path),
         cfg=cfg.supervised_learning,
-        get_model=get_kachuee2019_model,
+        model_fn=get_kachuee2019_model_fn(cfg=cfg),
         metric_to_monitor="val_loss_many_observations",
         monitor_mode="min",
         use_wandb=cfg.use_wandb,
