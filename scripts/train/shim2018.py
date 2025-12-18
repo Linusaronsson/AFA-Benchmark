@@ -2,7 +2,7 @@ import gc
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
@@ -14,7 +14,6 @@ from torchrl.data import TensorSpec
 
 from afabench.afa_rl.common.afa_env import AFAEnv
 from afabench.afa_rl.common.afa_methods import RLAFAMethod
-from afabench.afa_rl.common.custom_types import AFARewardFn
 from afabench.afa_rl.common.training import (
     afa_rl_training_loop,
     afa_rl_training_prep,
@@ -39,11 +38,13 @@ from afabench.common.config_classes import (
 from afabench.common.custom_types import (
     AFADataset,
 )
-from afabench.common.torch_bundle import TorchModelBundle
 from afabench.common.utils import (
     initialize_wandb_run,
     set_seed,
 )
+
+if TYPE_CHECKING:
+    from afabench.common.torch_bundle import TorchModelBundle
 
 log = logging.getLogger(__name__)
 
@@ -156,27 +157,6 @@ def get_shim2018_agent(
     return agent
 
 
-def _get_shim2018_reward_fn(
-    pretrained_model: LitShim2018EmbedderClassifier,
-    soft_budget_param: float | None,
-    n_selections: int,
-    class_weights: torch.Tensor,
-    n_feature_dims: int,
-) -> AFARewardFn:
-    cost_per_selection = 0 if soft_budget_param is None else soft_budget_param
-    reward_fn = get_shim2018_reward_fn(
-        pretrained_model=pretrained_model,
-        weights=class_weights,
-        acquisition_costs=cost_per_selection
-        * torch.ones(
-            (n_selections,),
-            device=class_weights.device,
-        ),
-        n_feature_dims=n_feature_dims,
-    )
-    return reward_fn
-
-
 def get_pre_eval_callback(
     agent: Shim2018Agent, eval_env: AFAEnv
 ) -> Callable[[], None]:
@@ -246,13 +226,20 @@ def main(cfg: Shim2018TrainConfig) -> None:
     train_env, eval_env = create_afa_envs(
         train_dataset=train_dataset,
         val_dataset=val_dataset,
-        reward_fn=_get_shim2018_reward_fn(
+        reward_fn=get_shim2018_reward_fn(
             pretrained_model=pretrained_model,
-            soft_budget_param=cfg.soft_budget_param,
-            n_selections=unmasker.get_n_selections(
-                feature_shape=train_dataset.feature_shape
+            weights=class_weights,
+            acquisition_costs=(
+                0 if cfg.soft_budget_param is None else cfg.soft_budget_param
+            )
+            * torch.ones(
+                (
+                    unmasker.get_n_selections(
+                        feature_shape=train_dataset.feature_shape
+                    ),
+                ),
+                device=class_weights.device,
             ),
-            class_weights=class_weights,
             n_feature_dims=len(train_dataset.feature_shape),
         ),
         n_agents=cfg.mdp.n_agents,
