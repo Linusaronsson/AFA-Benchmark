@@ -1,0 +1,2 @@
+force_hard_budget: true
+n_agents: 128 # shim2018 paper

@@ -1,0 +1,5 @@
+frames_per_batch: 512 # shim2018 paper (128 x 4)
+n_batches: 10000
+eval_n_times: 10
+eval_max_steps: 9001
+n_eval_episodes: 10

@@ -8,6 +8,8 @@ defaults:
   - _self_
   - components/initializers@initializer: ???
   - components/unmaskers@unmasker: ???
+  - components/mdps@mdp: default
+  - components/rl_training_loops@rl_training_loop: default
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
@@ -18,13 +20,11 @@ pretrained_model_bundle_path: ???
 save_path: ???
 # initializer set as component
 # unmasker set as component
-hard_budget: ???
+mdp:
+  hard_budget: ???
+# rl_training_loop set as component
 soft_budget_param: ???
-device: "cuda"
-force_hard_budget: true
-seed: null
 
-n_agents: 128 # shim2018 paper
 agent:
   eps_init: 1.0 # shim2018 paper
   eps_end: 0.1 # shim2018 paper
@@ -46,13 +46,10 @@ agent:
 
   gamma: 1.0
   lmbda: 0.75
-n_batches: ???
-batch_size: 512 # shim2018 paper
-eval_n_times: 10
-eval_max_steps: 9001
-n_eval_episodes: 10
 pretrained_model_lr: 1e-3
 activate_joint_training_after_fraction: 0.0
 
+seed: null
 use_wandb: false
 smoke_test: false
+device: null

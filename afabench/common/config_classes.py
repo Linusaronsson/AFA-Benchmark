@@ -321,13 +321,13 @@ class Shim2018TrainConfig:
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
+    mdp: AFAMDPConfig
+    rl_training_loop: AFARLTrainingLoopConfig
     soft_budget_param: float | None
-    seed: int | None
     agent: Shim2018AgentConfig
     pretrained_model_lr: float
     activate_joint_training_after_fraction: float
-    mdp: AFAMDPConfig
-    rl_training_loop: AFARLTrainingLoopConfig
+    seed: int | None = None
     use_wandb: bool = False
     smoke_test: bool = False
     device: str | None = None
