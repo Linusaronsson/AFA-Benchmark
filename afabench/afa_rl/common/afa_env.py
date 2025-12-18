@@ -76,7 +76,9 @@ class AFAEnv(EnvBase):
         self.unmask_fn = unmask_fn
         self.seed = seed
 
-        self.rng: torch.Generator = torch.manual_seed(self.seed)
+        self.rng = torch.Generator()
+        if self.seed is not None:
+            self.rng.manual_seed(self.seed)
 
         self._make_spec()
 

@@ -22,6 +22,7 @@ def get_shim2018_reward_fn(
     pretrained_model: LitShim2018EmbedderClassifier,
     weights: Tensor,
     acquisition_costs: torch.Tensor,
+    n_feature_dims: int,
 ) -> AFARewardFn:
     """
     Return the reward function for shim2018.
@@ -52,7 +53,10 @@ def get_shim2018_reward_fn(
 
         if done_mask.any():
             _, logits = pretrained_model(
-                new_masked_features[done_mask], new_feature_mask[done_mask]
+                new_masked_features[done_mask].flatten(
+                    start_dim=-n_feature_dims
+                ),
+                new_feature_mask[done_mask].flatten(start_dim=-n_feature_dims),
             )
             assert logits.ndim == 2, (
                 f"Expected logits to have 1 batch dimension and 1 label dimension, got {logits.ndim}"

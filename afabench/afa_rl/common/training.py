@@ -36,7 +36,7 @@ from afabench.common.custom_types import (
 )
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import get_class_frequencies, set_seed
+from afabench.common.utils import get_class_frequencies
 
 log = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ def afa_rl_training_loop(
             | dict_with_prefix(
                 "agent_process_batch_info.", agent_process_batch_info
             )
-            | dict_with_prefix("post_process_info", post_process_info),
+            | dict_with_prefix("post_process_info.", post_process_info),
         )
 
         if evaluate_this_batch:
@@ -178,12 +178,7 @@ def afa_rl_training_prep(
     val_dataset_bundle_path: Path,
     initializer_cfg: InitializerConfig,
     unmasker_cfg: UnmaskerConfig,
-    *,
-    seed: int | None = None,
 ) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor]:
-    set_seed(seed)
-    torch.set_float32_matmul_precision("medium")
-
     log.info("Loading datasets...")
     train_dataset, _train_dataset_manifest = load_bundle(
         train_dataset_bundle_path,

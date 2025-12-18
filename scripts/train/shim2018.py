@@ -41,6 +41,7 @@ from afabench.common.custom_types import (
 )
 from afabench.common.utils import (
     initialize_wandb_run,
+    set_seed,
 )
 
 log = logging.getLogger(__name__)
@@ -55,6 +56,8 @@ def get_post_process_batch_callback(
 ) -> Callable[[TensorDict, int], dict[str, Any]]:
     def f(td: TensorDict, batch_idx: int) -> dict[str, Any]:
         # Train classifier and embedder jointly if we have reached the correct batch
+        assert td.batch_dims == 2, "Expected two batch dimensions"
+
         if batch_idx >= activate_joint_training_after_batch:
             if batch_idx == activate_joint_training_after_batch:
                 log.info(
@@ -72,15 +75,13 @@ def get_post_process_batch_callback(
             flat_feature_mask = td["next", "feature_mask"].flatten(
                 start_dim=-n_feature_dims
             )
-            assert flat_masked_features.shape == td["next", "label"].shape, (
+            assert flat_masked_features.ndim == td["next", "label"].ndim, (
                 "Label should be 1D"
             )
 
             # Flatten batch dims
-            flat_masked_features = td["next", "masked_features"].flatten(
-                end_dim=-2
-            )
-            flat_feature_mask = td["next", "feature_mask"].flatten(end_dim=-2)
+            flat_masked_features = flat_masked_features.flatten(end_dim=-2)
+            flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
             flat_label = td["next", "label"].flatten(end_dim=-2)
 
             _, logits_next = pretrained_model(
@@ -114,7 +115,7 @@ def get_shim2018_pretrained_model(
     )
     pretrained_model = cast(
         "LitShim2018EmbedderClassifier",
-        cast("object", pretrained_model.model),  # pyright: ignore[reportAttributeAccessIssue]
+        cast("object", pretrained_model),
     )
     pretrained_model.eval()
     pretrained_model = pretrained_model.to(device)
@@ -156,6 +157,7 @@ def _get_shim2018_reward_fn(
     soft_budget_param: float | None,
     n_selections: int,
     class_weights: torch.Tensor,
+    n_feature_dims: int,
 ) -> AFARewardFn:
     cost_per_selection = 0 if soft_budget_param is None else soft_budget_param
     reward_fn = get_shim2018_reward_fn(
@@ -166,6 +168,7 @@ def _get_shim2018_reward_fn(
             (n_selections,),
             device=class_weights.device,
         ),
+        n_feature_dims=n_feature_dims,
     )
     return reward_fn
 
@@ -197,6 +200,9 @@ def get_post_eval_callback(
 )
 def main(cfg: Shim2018TrainConfig) -> None:
     log.debug(cfg)
+    set_seed(cfg.seed)
+    torch.set_float32_matmul_precision("medium")
+
     if cfg.device is None:
         device = torch.device("cpu")
     else:
@@ -223,7 +229,6 @@ def main(cfg: Shim2018TrainConfig) -> None:
             val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
             initializer_cfg=cfg.initializer,
             unmasker_cfg=cfg.unmasker,
-            seed=cfg.seed,
         )
     )
     class_weights = class_weights.to(device)
@@ -244,6 +249,7 @@ def main(cfg: Shim2018TrainConfig) -> None:
                 feature_shape=train_dataset.feature_shape
             ),
             class_weights=class_weights,
+            n_feature_dims=len(train_dataset.feature_shape),
         ),
         n_agents=cfg.mdp.n_agents,
         n_selections=unmasker.get_n_selections(
