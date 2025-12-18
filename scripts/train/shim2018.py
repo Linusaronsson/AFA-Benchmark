@@ -39,6 +39,7 @@ from afabench.common.config_classes import (
 from afabench.common.custom_types import (
     AFADataset,
 )
+from afabench.common.torch_bundle import TorchModelBundle
 from afabench.common.utils import (
     initialize_wandb_run,
     set_seed,
@@ -113,9 +114,12 @@ def get_shim2018_pretrained_model(
         Path(pretrained_model_bundle_path),
         device=device,
     )
-    pretrained_model = cast(
-        "LitShim2018EmbedderClassifier",
+    torch_model_bundle = cast(
+        "TorchModelBundle",
         cast("object", pretrained_model),
+    )
+    pretrained_model = cast(
+        "LitShim2018EmbedderClassifier", torch_model_bundle.model
     )
     pretrained_model.eval()
     pretrained_model = pretrained_model.to(device)
