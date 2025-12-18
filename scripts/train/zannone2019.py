@@ -161,6 +161,7 @@ def main(cfg: Zannone2019TrainConfig) -> None:
             post_process_batch_callback=None,
             afa_predict_fn=Zannone2019AFAPredictFn(pretrained_model),
             device=device,
+            feature_shape=train_dataset.feature_shape,
             log_fn=log_fn,
             pre_eval_callback=None,
             post_eval_callback=None,

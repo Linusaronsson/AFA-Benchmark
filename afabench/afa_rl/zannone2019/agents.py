@@ -116,14 +116,14 @@ class Zannone2019CommonModule(nn.Module):
         n_classes = self.pointnet.n_features - n_normal_features
         augmented_masked_features = torch.cat(
             [
-                masked_features,
+                flat_masked_features,
                 torch.zeros((flat_batch_size, n_classes), device=device),
             ],
             dim=-1,
         )
         augmented_feature_mask = torch.cat(
             [
-                feature_mask,
+                flat_feature_mask,
                 torch.zeros((flat_batch_size, n_classes), device=device),
             ],
             dim=-1,
@@ -155,7 +155,9 @@ class Zannone2019Agent(Agent):
     ):
         self.cfg = cfg
         self.pointnet = pointnet
+        self.pointnet.requires_grad_(False)
         self.encoder = encoder
+        self.encoder.requires_grad_(False)
         self.action_spec = action_spec
         self.latent_size = latent_size
         self.action_mask_key = action_mask_key
@@ -256,7 +258,6 @@ class Zannone2019Agent(Agent):
     def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
         # Initialize total loss dictionary
         total_loss_dict = dict.fromkeys(self.loss_keys + ["loss"], 0.0)
-        td_errors = []
 
         # Perform multiple epochs of training
         for _ in range(self.cfg.num_epochs):
@@ -274,8 +275,6 @@ class Zannone2019Agent(Agent):
             )
             self.optimizer.step()
 
-            td_errors.append(td_copy["td_error"])
-
             # Accumulate losses
             for k in self.loss_keys:
                 total_loss_dict[k] += loss_td[k].item()
@@ -285,7 +284,6 @@ class Zannone2019Agent(Agent):
         process_dict = {
             k: v / self.cfg.num_epochs for k, v in total_loss_dict.items()
         }
-        process_dict["td_error"] = torch.mean(torch.stack(td_errors)).item()
 
         return process_dict
 

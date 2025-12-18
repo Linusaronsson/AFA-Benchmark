@@ -512,7 +512,9 @@ def module_norm(module: nn.Module) -> float:
 
 
 def get_eval_metrics(
-    eval_tds: list[TensorDictBase], afa_predict_fn: AFAPredictFn
+    eval_tds: list[TensorDictBase],
+    afa_predict_fn: AFAPredictFn,
+    feature_shape: torch.Size | None = None,
 ) -> dict[str, Any]:
     """Return a dictionary of metrics from a list of tensordicts collected from a torchrl environment."""
     # Assumption: td has batch size (n_agents, episode_len)
@@ -533,7 +535,7 @@ def get_eval_metrics(
             masked_features=td_end["next", "masked_features"],
             feature_mask=td_end["next", "feature_mask"],
             label=None,
-            feature_shape=None,
+            feature_shape=feature_shape,
         )
         pred_labels = probs.argmax(dim=-1)
         true_labels = td_end["label"].argmax(dim=-1)

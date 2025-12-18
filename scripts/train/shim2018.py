@@ -251,6 +251,7 @@ def main(cfg: Shim2018TrainConfig) -> None:
             ),
             afa_predict_fn=Shim2018AFAPredictFn(pretrained_model),
             device=device,
+            feature_shape=train_dataset.feature_shape,
             log_fn=log_fn,
             pre_eval_callback=get_pre_eval_callback(
                 agent=agent, eval_env=eval_env

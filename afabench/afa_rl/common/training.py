@@ -74,6 +74,7 @@ def afa_rl_training_loop(
     afa_predict_fn: AFAPredictFn,
     device: torch.device,
     *,
+    feature_shape: torch.Size | None = None,
     log_fn: Callable[[dict[str, Any]], None] | None = None,
     post_process_batch_callback: Callable[[TensorDict, int], dict[str, Any]]
     | None = None,
@@ -157,7 +158,9 @@ def afa_rl_training_loop(
             agent_rollout_info = agent.get_rollout_info(td_evals)
 
             # With a predictor we can perform classification at every step of the episode.
-            metrics_eval = get_eval_metrics(td_evals, afa_predict_fn)
+            metrics_eval = get_eval_metrics(
+                td_evals, afa_predict_fn, feature_shape=feature_shape
+            )
 
             dict_to_log = dict_to_log | dict_with_prefix(
                 "eval/",
