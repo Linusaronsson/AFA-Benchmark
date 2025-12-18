@@ -88,6 +88,7 @@ def get_zannone2019_model_fn(
                     cfg.partial_vae.decoder_activation_class
                 ],
             ),
+            latent_size=cfg.partial_vae.latent_size,
         )
         model = Zannone2019PretrainingModel(
             partial_vae=partial_vae,

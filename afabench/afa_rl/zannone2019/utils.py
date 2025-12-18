@@ -3,7 +3,7 @@ from jaxtyping import Float
 from torch import Tensor
 from torchrl.modules import MLP
 
-from afabench.afa_rl.utils import str_to_activation_class_mapping
+from afabench.afa_rl.common.utils import str_to_activation_class_mapping
 from afabench.afa_rl.zannone2019.models import (
     PartialVAE,
     PointNet,
@@ -18,7 +18,7 @@ def get_zannone2019_model_from_config(
     feature_shape: torch.Size,
     n_classes: int,
     class_probabilities: Float[Tensor, "n_classes"],  # noqa: F821
-):
+) -> Zannone2019PretrainingModel:
     n_features = feature_shape.numel()
     # PointNet or PointNetPlus
     if cfg.pointnet.type == "pointnet":
@@ -69,6 +69,7 @@ def get_zannone2019_model_from_config(
                 cfg.partial_vae.decoder_activation_class
             ],
         ),
+        latent_size=cfg.partial_vae.latent_size,
     )
     model = Zannone2019PretrainingModel(
         partial_vae=partial_vae,
@@ -88,8 +89,9 @@ def get_zannone2019_model_from_config(
         class_probabilities=class_probabilities,
         start_kl_scaling_factor=cfg.start_kl_scaling_factor,
         end_kl_scaling_factor=cfg.end_kl_scaling_factor,
-        n_annealing_epochs=int(cfg.supervised_learning.max_epochs * cfg.n_annealing_epoch_fraction),
+        n_annealing_epochs=int(
+            cfg.supervised_learning.max_epochs * cfg.n_annealing_epoch_fraction
+        ),
         classifier_loss_scaling_factor=cfg.classifier_loss_scaling_factor,
-        feature_shape=feature_shape,
     )
     return model

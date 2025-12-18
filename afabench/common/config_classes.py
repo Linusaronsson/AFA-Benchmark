@@ -731,32 +731,26 @@ class Zannone2019AgentConfig:
 
 @dataclass
 class Zannone2019TrainConfig:
-    pretrained_model_artifact_name: str
-    n_agents: int
-    hard_budget: int | None
-    cost_param: float | None
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    pretrained_model_bundle_path: str
+    save_path: str
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+    mdp: AFAMDPConfig
+    rl_training_loop: AFARLTrainingLoopConfig
+    soft_budget_param: float | None
     agent: Zannone2019AgentConfig
-    n_batches: int  # how many batches to train the agent
-    batch_size: int  # batch size for collector
-    eval_every_n_batches: int | None  # how often to evaluate the agent
-    eval_max_steps: (
-        int  # maximum allowed number of steps in an evaluation episode
-    )
-    n_eval_episodes: int  # how many episodes to average over in evaluation
     n_generated_samples: (
         int  # how many artificial samples to generate using pretrained model
     )
     generation_batch_size: (
         int  # which batch size to use for artificial data generation
     )
-
-    device: str
-    seed: int
-    output_artifact_aliases: list[str]
-    evaluate_final_performance: bool
-    eval_only_n_samples: int | None
-    visualize: bool
+    seed: int | None = None
+    use_wandb: bool = False
     smoke_test: bool = False
+    device: str | None = None
 
 
 cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)

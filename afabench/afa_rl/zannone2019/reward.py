@@ -1,8 +1,9 @@
 import torch
 from jaxtyping import Bool
 from torch import Tensor
+from torch.nn import functional as F
 
-from afabench.afa_rl.custom_types import (
+from afabench.afa_rl.common.custom_types import (
     AFAReward,
     AFARewardFn,
 )
@@ -13,6 +14,7 @@ from afabench.common.custom_types import (
     Features,
     Label,
     MaskedFeatures,
+    SelectionMask,
 )
 
 
@@ -20,40 +22,54 @@ def get_zannone2019_reward_fn(
     pretrained_model: Zannone2019PretrainingModel,
     weights: Tensor,
     acquisition_costs: torch.Tensor,
+    n_feature_dims: int,
 ) -> AFARewardFn:
-    """The reward function for zannone2019."""
+    """Return the reward function for zannone2019."""
 
     def f(
         _masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
+        _feature_mask: FeatureMask,
+        selection_mask: SelectionMask,
         new_masked_features: MaskedFeatures,
         new_feature_mask: FeatureMask,
+        new_selection_mask: SelectionMask,
         _afa_selection: AFASelection,
         _features: Features,
         label: Label,
-        done: Bool[Tensor, "*batch 1"],
+        _done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
-        # Acquisition cost per feature
-        newly_acquired = (new_feature_mask & ~feature_mask).to(torch.float32)
-        reward = -(newly_acquired * acquisition_costs).sum(dim=-1)
-        reward = reward.squeeze(-1)
+        # Acquisition cost per selection
+        newly_performed_selections = (new_selection_mask & ~selection_mask).to(
+            torch.float32
+        )
+        reward = -(newly_performed_selections * acquisition_costs).sum(dim=-1)
+
+        # PVAE expects 1D features
+        flat_new_masked_features = new_masked_features.flatten(
+            start_dim=-n_feature_dims
+        )
+        flat_new_feature_mask = new_feature_mask.flatten(
+            start_dim=-n_feature_dims
+        )
 
         # We don't get to observe the label
         new_augmented_masked_features = torch.cat(
-            [new_masked_features, torch.zeros_like(label)], dim=-1
+            [flat_new_masked_features, torch.zeros_like(label)], dim=-1
         )
         new_augmented_feature_mask = torch.cat(
-            [new_feature_mask, torch.full_like(label, False)], dim=-1
+            [flat_new_feature_mask, torch.full_like(label, False)], dim=-1
         )
-        _encoding, mu, _logvar, z = pretrained_model.partial_vae.encode(
+        _encoding, mu, _logvar, _z = pretrained_model.partial_vae.encode(
             new_augmented_masked_features, new_augmented_feature_mask
         )
         logits = pretrained_model.classifier(mu)
-        predictions = logits.argmax(dim=-1, keepdim=True)
-        integer_label = label.argmax(dim=-1, keepdim=True)
-        reward = reward + (predictions == integer_label).to(
-            torch.float32
-        ).squeeze(-1)
+        ce_loss = F.cross_entropy(
+            logits,
+            label.float(),
+            weight=weights,
+            reduction="none",
+        )
+        reward += -ce_loss
 
         return reward
 

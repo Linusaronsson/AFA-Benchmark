@@ -162,14 +162,16 @@ class PartialVAE(nn.Module):
         pointnet: PointNet,
         encoder: nn.Module,
         decoder: nn.Module,
+        latent_size: int,
     ):
         """
         Initialize.
 
         Args:
             pointnet: maps unordered sets of features to a single vector
-            encoder: a network that maps the output from the pointnet to input for mu_net and logvar_net
+            encoder: a network that maps the output from the pointnet to the latent space
             decoder: the network to use for the decoder.
+            latent_size: what the latent size is
         """
         super().__init__()
 
@@ -178,6 +180,7 @@ class PartialVAE(nn.Module):
         self.decoder = (
             decoder  # Maps from latent space to the original feature space
         )
+        self.latent_size = latent_size
 
     def encode(
         self,

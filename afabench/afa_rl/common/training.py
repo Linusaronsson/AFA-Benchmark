@@ -71,11 +71,12 @@ def afa_rl_training_loop(
     train_env: AFAEnv,
     eval_env: AFAEnv,
     agent: Agent,
-    post_process_batch_callback: Callable[[TensorDict, int], dict[str, Any]],
     afa_predict_fn: AFAPredictFn,
     device: torch.device,
     *,
     log_fn: Callable[[dict[str, Any]], None] | None = None,
+    post_process_batch_callback: Callable[[TensorDict, int], dict[str, Any]]
+    | None = None,
     pre_eval_callback: Callable[[], None] | None = None,
     post_eval_callback: Callable[[], None] | None = None,
 ) -> None:
@@ -116,7 +117,10 @@ def afa_rl_training_loop(
         agent_process_batch_info = agent.process_batch(td)
 
         # Some methods do stuff like joint training, do that here
-        post_process_info = post_process_batch_callback(td, batch_idx)
+        if post_process_batch_callback is not None:
+            post_process_info = post_process_batch_callback(td, batch_idx)
+        else:
+            post_process_info = {}
 
         dict_to_log = dict_with_prefix(
             "train/",
@@ -179,7 +183,6 @@ def afa_rl_training_prep(
     initializer_cfg: InitializerConfig,
     unmasker_cfg: UnmaskerConfig,
 ) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor]:
-    log.info("Loading datasets...")
     train_dataset, _train_dataset_manifest = load_bundle(
         train_dataset_bundle_path,
     )
@@ -188,17 +191,10 @@ def afa_rl_training_prep(
         val_dataset_bundle_path,
     )
     val_dataset = cast("AFADataset", cast("object", val_dataset))
-    log.info("Datasets loaded.")
 
-    # Create initializer
-    log.info("Creating initializer...")
     initializer = get_afa_initializer_from_config(initializer_cfg)
-    log.info("Initializer created.")
 
-    # Create unmasker
-    log.info("Creating unmasker...")
     unmasker = get_afa_unmasker_from_config(unmasker_cfg)
-    log.info("Unmasker created.")
 
     # Also calculate class weights
     _train_features, train_labels = train_dataset.get_all_data()

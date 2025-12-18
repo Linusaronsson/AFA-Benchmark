@@ -5,6 +5,7 @@ from tensordict import TensorDict, TensorDictBase
 from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
+import wandb
 from afabench.afa_rl.common.custom_types import (
     AFADatasetFn,
     AFARewardFn,
@@ -307,50 +308,9 @@ class AFAEnv(EnvBase):
         }
 
     def get_rollout_info(
-        self, _rollout_tds: list[TensorDictBase]
+        self, rollout_tds: list[TensorDictBase]
     ) -> dict[str, Any]:
         """Return a wandb-loggable dictionary from a lits of tensordicts collected during evaluation rollouts. Should only contain method-agnostic info."""
-        # TODO:
-        return {}
-
-
-# def get_common_reward_fn(
-#     afa_predict_fn: AFAPredictFn, loss_fn: Callable[[Logits, Label], AFAReward]
-# ) -> AFARewardFn:
-#     """Return reward for a standard AFA-RL reward function where the only reward the agent receives is the negative classification loss at the end."""
-#
-#     def f(
-#         masked_features: MaskedFeatures,
-#         feature_mask: FeatureMask,
-#         new_masked_features: MaskedFeatures,
-#         new_feature_mask: FeatureMask,
-#         afa_selection: AFASelection,
-#         features: Features,
-#         label: Label,
-#         done: Bool[Tensor, "*batch 1"],
-#     ) -> AFAReward:
-#         reward = torch.zeros_like(afa_selection, dtype=torch.float32)
-#
-#         done_mask = done.squeeze(-1)
-#
-#         if done_mask.any():
-#             # If AFA stops, reward is negative loss
-#             probs = afa_predict_fn(
-#                 new_masked_features[done_mask], new_feature_mask[done_mask]
-#             )
-#             # reward[done_mask] = -loss_fn(
-#             #     logits,
-#             #     label[done_mask],
-#             # )
-#
-#             reward[done_mask] = (
-#                 probs.argmax(-1) == label[done_mask].argmax(-1)
-#             ).float()
-#
-# Debugging code: Give reward for the last 4 features, punish the rest
-#         # reward[done_mask] += new_feature_mask[done_mask, -5:].sum(dim=-1).float()
-#         # reward[done_mask] -= new_feature_mask[done_mask, :-5].sum(dim=-1).float()
-#
-#         return reward
-#
-#     return f
+        # Every rollout td has shape (n_agents, episode_len)
+        flat_td = torch.cat(rollout_tds, dim=-1).flatten()  # pyright: ignore[reportArgumentType, reportCallIssue]
+        return {"action": wandb.Histogram(flat_td["action"])}

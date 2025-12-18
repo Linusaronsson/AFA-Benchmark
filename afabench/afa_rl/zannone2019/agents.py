@@ -10,20 +10,16 @@ from tensordict.nn import (
 from torch import Tensor, nn, optim
 from torch.distributions import Categorical
 from torchrl.data import (
-    LazyTensorStorage,
-    SamplerWithoutReplacement,
-    TensorDictReplayBuffer,
     TensorSpec,
 )
 from torchrl.modules import (
     MLP,
     ProbabilisticActor,
 )
-from torchrl.objectives import ClipPPOLoss
-from torchrl.objectives.value import GAE
+from torchrl.objectives import ClipPPOLoss, ValueEstimators
 
-from afabench.afa_rl.agents import Agent
-from afabench.afa_rl.utils import module_norm
+from afabench.afa_rl.common.agent_interface import Agent
+from afabench.afa_rl.common.utils import module_norm
 from afabench.afa_rl.zannone2019.models import PointNet
 from afabench.common.config_classes import Zannone2019AgentConfig
 from afabench.common.custom_types import FeatureMask, MaskedFeatures
@@ -47,7 +43,7 @@ class Zannone2019ValueModule(nn.Module):
         )
 
     @override
-    def forward(self, mu: Tensor):
+    def forward(self, mu: Tensor) -> torch.Tensor:
         return self.net(mu)
 
 
@@ -78,7 +74,7 @@ class Zannone2019PolicyModule(nn.Module):
         self,
         mu: Tensor,
         action_mask: Bool[Tensor, "batch n_actions"],
-    ):
+    ) -> torch.Tensor:
         action_logits = self.net(mu)
         # By setting the logits of invalid actions to -inf, we prevent them from being selected.
         action_logits[~action_mask] = float("-inf")
@@ -87,32 +83,48 @@ class Zannone2019PolicyModule(nn.Module):
 
 @final
 class Zannone2019CommonModule(nn.Module):
-    def __init__(self, pointnet: PointNet, encoder: nn.Module):
+    def __init__(
+        self, pointnet: PointNet, encoder: nn.Module, n_feature_dims: int
+    ):
         super().__init__()
         self.pointnet = pointnet
         self.encoder = encoder
+        self.n_feature_dims = n_feature_dims
 
     @override
     def forward(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ):
+    ) -> torch.Tensor:
+        # pointnet is trained on and expects 1D features
+        # First flatten feature dims
+        flat_masked_features = masked_features.flatten(
+            start_dim=-self.n_feature_dims
+        )
+        flat_feature_mask = feature_mask.flatten(
+            start_dim=-self.n_feature_dims
+        )
+        batch_dims = flat_masked_features.shape[:-1]
+        # Then flatten batch dimension
+        flat_masked_features = flat_masked_features.flatten(end_dim=-2)
+        flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
+
         # The pointnet is trained to accept labels appended to the features
         # Since we don't know the label, simple append a vector of zeros
-        device = masked_features.device
-        batch_size = masked_features.shape[0]
-        n_normal_features = masked_features.shape[1]
+        device = flat_masked_features.device
+        flat_batch_size = flat_masked_features.shape[0]
+        n_normal_features = flat_masked_features.shape[1]
         n_classes = self.pointnet.n_features - n_normal_features
         augmented_masked_features = torch.cat(
             [
                 masked_features,
-                torch.zeros((batch_size, n_classes), device=device),
+                torch.zeros((flat_batch_size, n_classes), device=device),
             ],
             dim=-1,
         )
         augmented_feature_mask = torch.cat(
             [
                 feature_mask,
-                torch.zeros((batch_size, n_classes), device=device),
+                torch.zeros((flat_batch_size, n_classes), device=device),
             ],
             dim=-1,
         )
@@ -121,19 +133,10 @@ class Zannone2019CommonModule(nn.Module):
         )
         encoding = self.encoder(pointnet_output)
         mu = encoding[:, : encoding.shape[1] // 2]
+
+        # Unflatten batch dimensions
+        mu = mu.unflatten(0, batch_dims)
         return mu
-
-
-@final
-class Zannone2019DummyCommonModule(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-    @override
-    def forward(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ):
-        return torch.cat([masked_features, feature_mask], dim=-1)
 
 
 @final
@@ -146,9 +149,9 @@ class Zannone2019Agent(Agent):
         action_spec: TensorSpec,
         latent_size: int,
         action_mask_key: str,
-        batch_size: int,
+        frames_per_batch: int,
         module_device: torch.device,
-        replay_buffer_device: torch.device,
+        n_feature_dims: int,
     ):
         self.cfg = cfg
         self.pointnet = pointnet
@@ -156,15 +159,15 @@ class Zannone2019Agent(Agent):
         self.action_spec = action_spec
         self.latent_size = latent_size
         self.action_mask_key = action_mask_key
-        self.batch_size = batch_size
+        self.frames_per_batch = frames_per_batch
         self.module_device = module_device
-        self.replay_buffer_device = replay_buffer_device
+        self.n_feature_dims = n_feature_dims
 
         self.common_module = Zannone2019CommonModule(
             pointnet=self.pointnet,
             encoder=self.encoder,
+            n_feature_dims=self.n_feature_dims,
         ).to(self.module_device)
-        # self.common_module = Zannone2019DummyCommonModule().to(self.module_device)
         self.common_tdmodule = TensorDictModule(
             module=self.common_module,
             in_keys=["masked_features", "feature_mask"],
@@ -172,7 +175,7 @@ class Zannone2019Agent(Agent):
         )
         self.policy_head = Zannone2019PolicyModule(
             latent_size=self.latent_size,
-            n_actions=self.action_spec.n,  # pyright: ignore
+            n_actions=self.action_spec.n,  # pyright: ignore[reportAttributeAccessIssue]
             num_cells=tuple(self.cfg.policy_num_cells),
             dropout=self.cfg.policy_dropout,
         ).to(self.module_device)
@@ -212,13 +215,6 @@ class Zannone2019Agent(Agent):
             ]
         )
 
-        self.advantage_module = GAE(
-            gamma=self.cfg.gamma,
-            lmbda=self.cfg.lmbda,
-            value_network=self.state_value_tdmodule,
-            average_gae=self.cfg.replay_buffer_batch_size
-            > 1,  # we cannot average or calculate std with a single sample
-        )
         self.loss_tdmodule = ClipPPOLoss(
             actor_network=self.probabilistic_policy_tdmodule,
             critic_network=self.state_value_tdmodule,
@@ -228,19 +224,16 @@ class Zannone2019Agent(Agent):
             critic_coef=self.cfg.critic_coef,
             loss_critic_type=self.cfg.loss_critic_type,
         ).to(self.module_device)
+        self.loss_tdmodule.make_value_estimator(
+            ValueEstimators.TDLambda,
+            gamma=self.cfg.gamma,
+            lmbda=self.cfg.lmbda,
+        )
         self.loss_keys = ["loss_objective", "loss_critic"] + (
             ["loss_entropy"] if self.cfg.entropy_bonus else []
         )
         self.optimizer = optim.Adam(
             self.loss_tdmodule.parameters(), lr=self.cfg.lr
-        )
-        self.replay_buffer = TensorDictReplayBuffer(
-            storage=LazyTensorStorage(
-                max_size=self.batch_size,
-                device=torch.device(self.replay_buffer_device),
-            ),
-            sampler=SamplerWithoutReplacement(),
-            batch_size=self.cfg.replay_buffer_batch_size,
         )
 
     @override
@@ -261,50 +254,38 @@ class Zannone2019Agent(Agent):
 
     @override
     def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
-        assert td.batch_size == torch.Size((self.batch_size,)), (
-            "Batch size mismatch"
-        )
-
         # Initialize total loss dictionary
         total_loss_dict = dict.fromkeys(self.loss_keys + ["loss"], 0.0)
+        td_errors = []
 
         # Perform multiple epochs of training
         for _ in range(self.cfg.num_epochs):
-            # Compute advantages each epoch
-            self.advantage_module(td)
+            td_copy = td.clone()
+            self.optimizer.zero_grad()
+            loss_td: TensorDictBase = self.loss_tdmodule(td_copy)
+            loss_tensor: Tensor = sum(
+                (loss_td[k] for k in self.loss_keys),
+                torch.tensor(0.0, device=td.device),
+            )
+            loss_tensor.backward()
+            nn.utils.clip_grad_norm_(
+                self.loss_tdmodule.parameters(),
+                max_norm=self.cfg.max_grad_norm,
+            )
+            self.optimizer.step()
 
-            # Reset replay buffer each epoch
-            self.replay_buffer.extend(td)
+            td_errors.append(td_copy["td_error"])
 
-            for _ in range(
-                self.batch_size // self.cfg.replay_buffer_batch_size
-            ):
-                sampled_td = self.replay_buffer.sample()
-                sampled_td = sampled_td.to(self.module_device)
-
-                self.optimizer.zero_grad()
-                loss_td: TensorDictBase = self.loss_tdmodule(sampled_td)
-                loss_tensor: Tensor = sum(
-                    (loss_td[k] for k in self.loss_keys),
-                    torch.tensor(0.0, device=td.device),
-                )
-                loss_tensor.backward()
-                nn.utils.clip_grad_norm_(
-                    self.loss_tdmodule.parameters(),
-                    max_norm=self.cfg.max_grad_norm,
-                )
-                self.optimizer.step()
-
-                # Accumulate losses
-                for k in self.loss_keys:
-                    total_loss_dict[k] += loss_td[k].item()
-                    total_loss_dict["loss"] += loss_td[k].item()
+            # Accumulate losses
+            for k in self.loss_keys:
+                total_loss_dict[k] += loss_td[k].item()
+                total_loss_dict["loss"] += loss_td[k].item()
 
         # Compute average loss
-        num_updates = self.cfg.num_epochs * (
-            self.batch_size // self.cfg.replay_buffer_batch_size
-        )
-        process_dict = {k: v / num_updates for k, v in total_loss_dict.items()}
+        process_dict = {
+            k: v / self.cfg.num_epochs for k, v in total_loss_dict.items()
+        }
+        process_dict["td_error"] = torch.mean(torch.stack(td_errors)).item()
 
         return process_dict
 
@@ -321,110 +302,20 @@ class Zannone2019Agent(Agent):
         self.value_head = self.value_head.to(self.module_device)
 
     @override
-    def get_replay_buffer_device(self) -> torch.device:
-        return self.replay_buffer_device
+    def get_replay_buffer_device(self) -> None:
+        return None
 
     @override
     def set_replay_buffer_device(self, device: torch.device) -> None:
-        raise ValueError(
-            "set_replay_buffer_device not yet supported for Zannone2019Agent"
-        )
+        msg = "set_replay_buffer_device not yet supported for Zannone2019Agent"
+        raise ValueError(msg)
 
     @override
-    def get_cheap_info(self) -> dict[str, Any]:
-        return {"replay_buffer_count": len(self.replay_buffer)}
-
-    @override
-    def get_expensive_info(self) -> dict[str, Any]:
+    def get_rollout_info(
+        self, rollout_tds: list[TensorDictBase]
+    ) -> dict[str, Any]:
         return {
             "common_module_norm": module_norm(self.common_module),
             "value_head_norm": module_norm(self.value_head),
             "policy_head_norm": module_norm(self.policy_head),
         }
-
-    # @override
-    # def save(self, path: Path) -> None:
-    #     path.mkdir(exist_ok=True)
-    #
-    #     # Store pointnet and encoder as a raw models, weights will be updated either way
-    #     torch.save(self.pointnet.to("cpu"), path / "pointnet.pt")
-    #     torch.save(self.encoder.to("cpu"), path / "encoder.pt")
-    #
-    #     # Common module weights
-    #     torch.save(
-    #         self.common_module.state_dict(),
-    #         path / "common_module.pth",
-    #     )
-    #
-    #     # Policy head weights
-    #     torch.save(
-    #         self.policy_head.state_dict(),
-    #         path / "policy_head.pth",
-    #     )
-    #
-    #     # Value head weights
-    #     torch.save(
-    #         self.value_head.state_dict(),
-    #         path / "value_head.pth",
-    #     )
-    #
-    #     # Save agent config
-    #     OmegaConf.save(OmegaConf.structured(self.cfg), path / "config.yaml")
-    #
-    #     # Save the misc args that were passed to the constructor
-    #     OmegaConf.save(
-    #         OmegaConf.create(
-    #             {
-    #                 "latent_size": self.latent_size,
-    #                 "action_mask_key": self.action_mask_key,
-    #                 "batch_size": self.batch_size,
-    #             }
-    #         ),
-    #         path / "args.yaml",
-    #     )
-    #     torch.save(self.action_spec, path / "action_spec.pt")
-
-    # @override
-    # @classmethod
-    # def load(
-    #     cls: type[Self],
-    #     path: Path,
-    #     module_device: torch.device,
-    #     replay_buffer_device: torch.device,
-    # ) -> Self:
-    #     # Load agent config
-    #     cfg_dict = OmegaConf.merge(
-    #         OmegaConf.structured(Zannone2019AgentConfig),
-    #         OmegaConf.load(path / "config.yaml"),
-    #     )
-    #     cfg = cast(Zannone2019AgentConfig, OmegaConf.to_object(cfg_dict))
-    #
-    #     # Load pointnet and encoder
-    #     pointnet: PointNet = torch.load(path / "pointnet.pt")
-    #     encoder: nn.Module = torch.load(path / "encoder.pt")
-    #
-    #     # Load args that were originally passed to the constructor
-    #     args = OmegaConf.load(path / "args.yaml")
-    #     action_spec = torch.load(path / "action_spec.pt")
-    #
-    #     # Construct instance of agent
-    #     agent = cls(
-    #         cfg=cfg,
-    #         pointnet=pointnet,
-    #         encoder=encoder,
-    #         action_spec=action_spec,
-    #         latent_size=args.latent_size,
-    #         action_mask_key=args.action_mask_key,
-    #         batch_size=args.batch_size,
-    #         module_device=module_device,
-    #         replay_buffer_device=replay_buffer_device,
-    #     )
-    #
-    #     # Load common module weights
-    #     agent.common_module.load_state_dict(torch.load(path / "common_module.pth"))
-    #     # Load policy head weights
-    #     agent.policy_head.load_state_dict(torch.load(path / "policy_head.pth"))
-    #     # Load value head weights
-    #     agent.value_head.load_state_dict(torch.load(path / "value_head.pth"))
-    #
-    #     return agent
