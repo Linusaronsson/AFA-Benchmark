@@ -2,7 +2,7 @@ DATASETS = [
     "afa_context",
     "afa_context_without_noise",
     # "fashion_mnist", # unexpected keyword argument 'load_subdirs'
-    "mnist", # unexpected keyword argument 'load_subdirs'
+    # "mnist", # unexpected keyword argument 'load_subdirs'
     "synthetic_mnist",
     "synthetic_mnist_without_noise",
     "actg",
