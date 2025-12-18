@@ -1,21 +1,24 @@
 import gc
 import logging
+from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import hydra
 import torch
-from afabench.afa_rl.afa_methods import RLAFAMethod
 from omegaconf.omegaconf import OmegaConf
 from tensordict import TensorDict
 from torch import optim
 from torch.nn import functional as F
 from torchrl.data import TensorSpec
 
+from afabench.afa_rl.common.afa_env import AFAEnv
+from afabench.afa_rl.common.afa_methods import RLAFAMethod
 from afabench.afa_rl.common.custom_types import AFARewardFn
 from afabench.afa_rl.common.training import (
     afa_rl_training_loop,
     afa_rl_training_prep,
+    create_afa_envs,
 )
 
 # from afabench.afa_rl.reward_functions import get_range_based_reward_fn
@@ -23,6 +26,7 @@ from afabench.afa_rl.shim2018.agents import Shim2018Agent
 from afabench.afa_rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
     Shim2018AFAClassifier,
+    Shim2018AFAPredictFn,
 )
 
 # from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
@@ -32,58 +36,77 @@ from afabench.common.config_classes import (
     Shim2018AgentConfig,
     Shim2018TrainConfig,
 )
+from afabench.common.custom_types import (
+    AFADataset,
+)
 from afabench.common.utils import (
-    get_class_frequencies,
     initialize_wandb_run,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from afabench.afa_rl.agent_interface import Agent
-
-    from afabench.common.custom_types import AFADataset
-
 
 log = logging.getLogger(__name__)
 
 
-def post_process_batch_callback(td: TensorDict, batch_idx: int) -> None:
-    # Train classifier and embedder jointly if we have reached the correct batch
-    if batch_idx >= activate_joint_training_after_batch:
-        if batch_idx == activate_joint_training_after_batch:
-            log.info("Activating joint training of classifier and embedder")
-        pretrained_model.train()
-        pretrained_model_optim.zero_grad()
+def get_post_process_batch_callback(
+    pretrained_model: LitShim2018EmbedderClassifier,
+    pretrained_model_optim: optim.Adam,
+    activate_joint_training_after_batch: int,
+    class_weights: torch.Tensor,
+    feature_shape: torch.Size,
+) -> Callable[[TensorDict, int], dict[str, Any]]:
+    def f(td: TensorDict, batch_idx: int) -> dict[str, Any]:
+        # Train classifier and embedder jointly if we have reached the correct batch
+        if batch_idx >= activate_joint_training_after_batch:
+            if batch_idx == activate_joint_training_after_batch:
+                log.info(
+                    "Activating joint training of classifier and embedder"
+                )
+            pretrained_model.train()
+            pretrained_model_optim.zero_grad()
 
-        _, logits_next = pretrained_model(
-            td["next", "masked_features"], td["next", "feature_mask"]
-        )
-        # F.cross_entropy does not support multiple batch dimensions
-        class_loss_next = F.cross_entropy(
-            logits_next.flatten(end_dim=-2),
-            td["next", "label"].flatten(end_dim=-2),
-            weight=class_weights,
-        )
-        class_loss_next.mean().backward()
+            n_feature_dims = len(feature_shape)
 
-        pretrained_model_optim.step()
-        pretrained_model.eval()
-    else:
-        class_loss_next = torch.zeros((1,), device=device, dtype=torch.float32)
+            # Flatten feature dims
+            flat_masked_features = td["next", "masked_features"].flatten(
+                start_dim=-n_feature_dims
+            )
+            flat_feature_mask = td["next", "feature_mask"].flatten(
+                start_dim=-n_feature_dims
+            )
+            assert flat_masked_features.shape == td["next", "label"].shape, (
+                "Label should be 1D"
+            )
+
+            # Flatten batch dims
+            flat_masked_features = td["next", "masked_features"].flatten(
+                end_dim=-2
+            )
+            flat_feature_mask = td["next", "feature_mask"].flatten(end_dim=-2)
+            flat_label = td["next", "label"].flatten(end_dim=-2)
+
+            _, logits_next = pretrained_model(
+                flat_masked_features, flat_feature_mask
+            )
+            class_loss_next = F.cross_entropy(
+                logits_next,
+                flat_label,
+                weight=class_weights,
+            )
+            class_loss_next.mean().backward()
+
+            pretrained_model_optim.step()
+            pretrained_model.eval()
+
+            return {"avg_class_loss": class_loss_next.mean().cpu().item()}
+        return {}
+
+    return f
 
 
-def get_shim2018_pretrained_model_and_agent(
+def get_shim2018_pretrained_model(
     pretrained_model_bundle_path: Path,
     pretrained_model_lr: float,
-    train_dataset: AFADataset,
-    agent_cfg: Shim2018AgentConfig,
     device: torch.device,
-    action_spec: TensorSpec,
-    frames_per_batch: int,
-    n_batches: int,
-) -> tuple[Shim2018Agent, LitShim2018EmbedderClassifier, optim.Adam]:
-    """Construct everything particular to the shim2018 method, except for the reward function (compared to other RL methods)."""
+) -> tuple[LitShim2018EmbedderClassifier, optim.Adam]:
     log.info("Loading pretrained model...")
     pretrained_model, _ = load_bundle(
         Path(pretrained_model_bundle_path),
@@ -99,9 +122,20 @@ def get_shim2018_pretrained_model_and_agent(
         pretrained_model.parameters(), lr=pretrained_model_lr
     )
     log.info("Pretrained model loaded.")
+    return pretrained_model, pretrained_model_optim
 
-    log.info("Creating Shim2018 agent")
-    agent: Agent = Shim2018Agent(
+
+def get_shim2018_agent(
+    pretrained_model: LitShim2018EmbedderClassifier,
+    train_dataset: AFADataset,
+    agent_cfg: Shim2018AgentConfig,
+    device: torch.device,
+    action_spec: TensorSpec,
+    frames_per_batch: int,
+    n_batches: int,
+) -> Shim2018Agent:
+    log.info("Creating agent...")
+    agent = Shim2018Agent(
         cfg=agent_cfg,
         embedder=pretrained_model.embedder,
         embedding_size=pretrained_model.embedder.encoder.output_size,
@@ -114,17 +148,15 @@ def get_shim2018_pretrained_model_and_agent(
     )
     log.info("Agent created successfully")
 
-    return agent, pretrained_model, pretrained_model_optim
+    return agent
 
 
-def get_shim2018_reward_fn() -> AFARewardFn:
-    # Create reward function - temporarily using range-based for debugging
-    _, train_labels = train_dataset.get_all_data()
-    train_class_probabilities = get_class_frequencies(train_labels)
-    # n_classes = len(train_class_probabilities)
-    class_weights = 1 / train_class_probabilities
-    class_weights = (class_weights / class_weights.sum()).to(device)
-    n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
+def _get_shim2018_reward_fn(
+    pretrained_model: LitShim2018EmbedderClassifier,
+    soft_budget_param: float | None,
+    n_selections: int,
+    class_weights: torch.Tensor,
+) -> AFARewardFn:
     cost_per_selection = 0 if soft_budget_param is None else soft_budget_param
     reward_fn = get_shim2018_reward_fn(
         pretrained_model=pretrained_model,
@@ -132,10 +164,30 @@ def get_shim2018_reward_fn() -> AFARewardFn:
         acquisition_costs=cost_per_selection
         * torch.ones(
             (n_selections,),
-            device=device,
+            device=class_weights.device,
         ),
     )
     return reward_fn
+
+
+def get_pre_eval_callback(
+    agent: Shim2018Agent, eval_env: AFAEnv
+) -> Callable[[], None]:
+    def f() -> None:
+        # HACK: Set the action spec of the agent to the eval env action spec
+        agent.egreedy_tdmodule._spec = eval_env.action_spec  # noqa: SLF001
+
+    return f
+
+
+def get_post_eval_callback(
+    agent: Shim2018Agent, train_env: AFAEnv
+) -> Callable[[], None]:
+    def f() -> None:
+        # Reset the action spec of the agent to the train env action spec
+        agent.egreedy_tdmodule._spec = train_env.action_spec  # noqa: SLF001
+
+    return f
 
 
 @hydra.main(
@@ -162,51 +214,84 @@ def main(cfg: Shim2018TrainConfig) -> None:
 
     if cfg.smoke_test:
         log.info("Smoke test detected.")
-        cfg.afa_rl_training_loop.n_batches = 2
+        cfg.rl_training_loop.n_batches = 2
 
-    train_dataset, val_dataset, initializer, unmasker = afa_rl_training_prep(
-        train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-        val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-        initializer_cfg=cfg.initializer,
-        unmasker_cfg=cfg.unmasker,
-    )
-
-    log.info("Constructing reward function...")
-    reward_fn = get_shim2018_reward_fn()
-    log.info("Reward function constructed.")
-
-    # Create env
-
-    agent, pretrained_model, pretrained_model_optim = (
-        get_shim2018_pretrained_model_and_agent(
-            pretrained_model_bundle_path=cfg.pretrained_model_bundle_path,
-            pretrained_model_lr=cfg.pretrained_model_lr,
-            train_dataset=train_dataset,
-            agent_cfg=cfg.agent,
-            device=device,
-            action_spec=train_env.action_spec,
-            frames_per_batch=cfg.afa_rl_training_loop.frames_per_batch,
-            n_batches=cfg.afa_rl_training_loop.n_batches,
+    # Prep: things we need to get before creating an environment
+    train_dataset, val_dataset, initializer, unmasker, class_weights = (
+        afa_rl_training_prep(
+            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            initializer_cfg=cfg.initializer,
+            unmasker_cfg=cfg.unmasker,
+            seed=cfg.seed,
         )
     )
+    class_weights = class_weights.to(device)
 
-    activate_joint_training_after_batch = int(
-        cfg.afa_rl_training_loop.n_batches
-        * cfg.activate_joint_training_after_fraction
+    pretrained_model, pretrained_model_optim = get_shim2018_pretrained_model(
+        pretrained_model_bundle_path=Path(cfg.pretrained_model_bundle_path),
+        pretrained_model_lr=cfg.pretrained_model_lr,
+        device=device,
+    )
+
+    train_env, eval_env = create_afa_envs(
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        reward_fn=_get_shim2018_reward_fn(
+            pretrained_model=pretrained_model,
+            soft_budget_param=cfg.soft_budget_param,
+            n_selections=unmasker.get_n_selections(
+                feature_shape=train_dataset.feature_shape
+            ),
+            class_weights=class_weights,
+        ),
+        n_agents=cfg.mdp.n_agents,
+        n_selections=unmasker.get_n_selections(
+            feature_shape=train_dataset.feature_shape
+        ),
+        hard_budget=cfg.mdp.hard_budget,
+        initialize_fn=initializer.initialize,
+        unmask_fn=unmasker.unmask,
+        force_hard_budget=cfg.mdp.force_hard_budget,
+        device=device,
+        seed=cfg.seed,
+    )
+
+    agent = get_shim2018_agent(
+        pretrained_model=pretrained_model,
+        train_dataset=train_dataset,
+        agent_cfg=cfg.agent,
+        device=device,
+        action_spec=train_env.action_spec,
+        frames_per_batch=cfg.rl_training_loop.frames_per_batch,
+        n_batches=cfg.rl_training_loop.n_batches,
     )
 
     try:
         afa_rl_training_loop(
-            cfg=cfg.afa_rl_training_loop,
+            cfg=cfg.rl_training_loop,
             train_env=train_env,
             eval_env=eval_env,
             agent=agent,
-            post_process_batch_callback=post_process_batch_callback,
-            train_log_fn=train_log_fn,
-            afa_predict_fn=afa_predict_fn,
+            post_process_batch_callback=get_post_process_batch_callback(
+                pretrained_model=pretrained_model,
+                pretrained_model_optim=pretrained_model_optim,
+                activate_joint_training_after_batch=int(
+                    cfg.rl_training_loop.n_batches
+                    * cfg.activate_joint_training_after_fraction
+                ),
+                class_weights=class_weights,
+                feature_shape=train_dataset.feature_shape,
+            ),
+            afa_predict_fn=Shim2018AFAPredictFn(pretrained_model),
+            device=device,
             log_fn=log_fn,
-            pre_eval_callback=pre_eval_callback,
-            post_eval_callback=post_eval_callback,
+            pre_eval_callback=get_pre_eval_callback(
+                agent=agent, eval_env=eval_env
+            ),
+            post_eval_callback=get_post_eval_callback(
+                agent=agent, train_env=train_env
+            ),
         )
     except KeyboardInterrupt:
         log.info("Training interrupted by user")

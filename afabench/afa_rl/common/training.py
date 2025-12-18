@@ -1,17 +1,18 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Protocol, cast
+from typing import Any, cast
 
 import torch
 from rl_helpers import dict_with_prefix
 from tensordict import TensorDict
 from torchrl.collectors import SyncDataCollector
-from torchrl.envs import ExplorationType, check_env_specs, set_exploration_type
+from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 
 from afabench.afa_rl.common.afa_env import AFAEnv
 from afabench.afa_rl.common.agent_interface import Agent
+from afabench.afa_rl.common.custom_types import AFARewardFn
 from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
 from afabench.afa_rl.common.utils import (
     get_eval_metrics,
@@ -27,13 +28,15 @@ from afabench.common.config_classes import (
 )
 from afabench.common.custom_types import (
     AFADataset,
+    AFAInitializeFn,
     AFAInitializer,
     AFAPredictFn,
     AFAUnmasker,
+    AFAUnmaskFn,
 )
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import set_seed
+from afabench.common.utils import get_class_frequencies, set_seed
 
 log = logging.getLogger(__name__)
 
@@ -59,8 +62,8 @@ def should_evaluate_at_batch(
     return eval_interval > 0 and batch_idx % eval_interval == 0
 
 
-class PretrainedModel(Protocol):
-    pass
+# class PretrainedModel(Protocol):
+#     pass
 
 
 def afa_rl_training_loop(
@@ -68,29 +71,21 @@ def afa_rl_training_loop(
     train_env: AFAEnv,
     eval_env: AFAEnv,
     agent: Agent,
-    post_process_batch_callback: Callable[
-        [TensorDict, int], None
-    ],  # called with the the train tensordict and the current batch idx. If your method has special logic like joint training, do that here.
-    train_log_fn: Callable[
-        [TensorDict, dict[str, Any]], None
-    ],  # called with the env tensordict and process_batch dict
-    afa_predict_fn: AFAPredictFn,  # what to make class predictions with to evaluate method's performance
+    post_process_batch_callback: Callable[[TensorDict, int], dict[str, Any]],
+    afa_predict_fn: AFAPredictFn,
     device: torch.device,
     *,
-    log_fn: Callable[[dict[str, Any]], None]
-    | None = None,  # some function that we use for logging, typically wandb.log
-    pre_eval_callback: Callable[[AFAEnv, AFAEnv], None]
-    | None = None,  # called with (train_env, eval_env) before evaluation
-    post_eval_callback: Callable[[AFAEnv, AFAEnv, list[TensorDict]], None]
-    | None = None,  # called with (train_env, eval_env, td_evals) after evaluation
+    log_fn: Callable[[dict[str, Any]], None] | None = None,
+    pre_eval_callback: Callable[[], None] | None = None,
+    post_eval_callback: Callable[[], None] | None = None,
 ) -> None:
     """Train an RL agent training in an AFA MDP."""
     if log_fn is None:
         log_fn = lambda _dict: None  # noqa: E731
     if pre_eval_callback is None:
-        pre_eval_callback = lambda _train_env, _eval_env: None  # noqa: E731
+        pre_eval_callback = lambda: None  # noqa: E731
     if post_eval_callback is None:
-        post_eval_callback = lambda _train_env, _eval_env, _td_evals: None  # noqa: E731
+        post_eval_callback = lambda: None  # noqa: E731
 
     log.info("Creating data collector")
     collector = SyncDataCollector(
@@ -107,24 +102,36 @@ def afa_rl_training_loop(
     for batch_idx, td in tqdm(
         enumerate(collector), total=cfg.n_batches, desc="Training agent..."
     ):
+        evaluate_this_batch = should_evaluate_at_batch(
+            batch_idx, cfg.n_batches, cfg.eval_n_times
+        )
+
         # In case we have multiple different devices
         collector.update_policy_weights_()
 
+        # Environment specific logging
+        train_env_batch_info = train_env.get_batch_info(td)
+
         # Learning happens here
-        process_batch_td = agent.process_batch(td)
+        agent_process_batch_info = agent.process_batch(td)
 
         # Some methods do stuff like joint training, do that here
-        post_process_batch_callback(td, batch_idx)
+        post_process_info = post_process_batch_callback(td, batch_idx)
 
-        train_log_fn(td, process_batch_td)
+        dict_to_log = dict_with_prefix(
+            "train/",
+            dict_with_prefix("train_env_batch_info.", train_env_batch_info)
+            | dict_with_prefix(
+                "agent_process_batch_info.", agent_process_batch_info
+            )
+            | dict_with_prefix("post_process_info", post_process_info),
+        )
 
-        if should_evaluate_at_batch(
-            batch_idx, cfg.n_batches, cfg.eval_n_times
-        ):
+        if evaluate_this_batch:
             log.info(f"Running evaluation at batch {batch_idx}")
 
-            # Some methods (like shim2018) need a reference to the evaluation environment
-            pre_eval_callback(train_env, eval_env)
+            # Some methods (like shim2018) need to change their action spec to point to the eval environment
+            pre_eval_callback()
 
             with (
                 torch.no_grad(),
@@ -139,17 +146,31 @@ def afa_rl_training_loop(
                     )
                 ]
 
+            # Environment specific logging of rollouts
+            eval_env_rollout_info = eval_env.get_rollout_info(td_evals)
+
+            # Agent specific logging of rollouts
+            agent_rollout_info = agent.get_rollout_info(td_evals)
+
+            # With a predictor we can perform classification at every step of the episode.
             metrics_eval = get_eval_metrics(td_evals, afa_predict_fn)
 
-            log_fn(
+            dict_to_log = dict_to_log | dict_with_prefix(
+                "eval/",
                 dict_with_prefix(
-                    "eval/", dict_with_prefix("metrics.", metrics_eval)
+                    "eval_env_rollout_info.", eval_env_rollout_info
                 )
+                | dict_with_prefix("agent_rollout_info.", agent_rollout_info)
+                | dict_with_prefix("metrics.", metrics_eval),
             )
 
-            post_eval_callback(train_env, eval_env, td_evals)
+            # Some methods might need resetting here
+            post_eval_callback()
 
             log.info(f"Evaluation completed at batch {batch_idx}")
+
+        # Log everything
+        log_fn(dict_to_log)
 
 
 def afa_rl_training_prep(
@@ -159,7 +180,7 @@ def afa_rl_training_prep(
     unmasker_cfg: UnmaskerConfig,
     *,
     seed: int | None = None,
-) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker]:
+) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor]:
     set_seed(seed)
     torch.set_float32_matmul_precision("medium")
 
@@ -184,56 +205,67 @@ def afa_rl_training_prep(
     unmasker = get_afa_unmasker_from_config(unmasker_cfg)
     log.info("Unmasker created.")
 
-    # MDP expects special dataset functions
-    log.info("Creating dataset functions for environments...")
+    # Also calculate class weights
+    _train_features, train_labels = train_dataset.get_all_data()
+    train_class_probabilities = get_class_frequencies(train_labels)
+    class_weights = 1 / train_class_probabilities
+    class_weights = class_weights / class_weights.sum()
+
+    return train_dataset, val_dataset, initializer, unmasker, class_weights
+
+
+def create_afa_envs(
+    train_dataset: AFADataset,
+    val_dataset: AFADataset,
+    reward_fn: AFARewardFn,
+    n_agents: int,
+    n_selections: int,
+    hard_budget: int | None,
+    initialize_fn: AFAInitializeFn,
+    unmask_fn: AFAUnmaskFn,
+    force_hard_budget: bool,
+    device: torch.device,
+    seed: int | None,
+) -> tuple[AFAEnv, AFAEnv]:
     train_features, train_labels = train_dataset.get_all_data()
-    n_classes = train_labels.shape[-1]
+    val_features, val_labels = val_dataset.get_all_data()
+
     train_dataset_fn = get_afa_dataset_fn(
         train_features, train_labels, device=device
     )
-    val_features, val_labels = val_dataset.get_all_data()
     val_dataset_fn = get_afa_dataset_fn(
         val_features, val_labels, device=device
     )
-    log.info("Dataset functions created.")
-
-    log.info("Creating training environment")
+    assert len(train_dataset.label_shape) == 1, (
+        "Expected 1D label shape (n_classes). Instead got {train_dataset.label_shape}"
+    )
+    n_classes = train_dataset.label_shape[-1]
     train_env = AFAEnv(
         dataset_fn=train_dataset_fn,
         reward_fn=reward_fn,
         device=device,
-        batch_size=torch.Size((cfg.n_agents,)),
+        batch_size=torch.Size((n_agents,)),
         feature_shape=train_dataset.feature_shape,
-        n_selections=unmasker.get_n_selections(
-            feature_shape=train_dataset.feature_shape
-        ),
+        n_selections=n_selections,
         n_classes=n_classes,
-        hard_budget=cfg.hard_budget,
-        initialize_fn=initializer.initialize,
-        unmask_fn=unmasker.unmask,
-        force_hard_budget=cfg.force_hard_budget,
-        seed=cfg.env_seed,
+        hard_budget=hard_budget,
+        initialize_fn=initialize_fn,
+        unmask_fn=unmask_fn,
+        force_hard_budget=force_hard_budget,
+        seed=seed,
     )
-    check_env_specs(train_env)
-    log.info("Training environment created and validated")
-
-    log.info("Creating evaluation environment")
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
         reward_fn=reward_fn,
         device=device,
-        batch_size=torch.Size((cfg.n_agents,)),
+        batch_size=torch.Size((n_agents,)),
         feature_shape=val_dataset.feature_shape,
-        n_selections=unmasker.get_n_selections(
-            feature_shape=val_dataset.feature_shape
-        ),
+        n_selections=n_selections,
         n_classes=n_classes,
-        hard_budget=cfg.hard_budget,
-        initialize_fn=initializer.initialize,
-        unmask_fn=unmasker.unmask,
-        force_hard_budget=cfg.force_hard_budget,
-        seed=cfg.env_seed,
+        hard_budget=hard_budget,
+        initialize_fn=initialize_fn,
+        unmask_fn=unmask_fn,
+        force_hard_budget=force_hard_budget,
+        seed=seed,
     )
-    log.info("Evaluation environment created")
-
-    return train_dataset, val_dataset, initializer, unmasker
+    return train_env, eval_env

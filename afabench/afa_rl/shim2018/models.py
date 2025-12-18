@@ -8,15 +8,15 @@ from jaxtyping import Float
 from torch import Tensor, nn
 from torchrl.modules import MLP
 
+from afabench.afa_rl.common.utils import (
+    get_feature_set,
+    mask_data,
+    shuffle_feature_set,
+)
 from afabench.afa_rl.shim2018.custom_types import (
     Embedder,
     Embedding,
     EmbeddingClassifier,
-)
-from afabench.afa_rl.utils import (
-    get_feature_set,
-    mask_data,
-    shuffle_feature_set,
 )
 from afabench.common.custom_types import (
     AFAClassifier,

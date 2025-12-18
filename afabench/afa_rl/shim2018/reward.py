@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from jaxtyping import Bool
 from torch import Tensor
 
-from afabench.afa_rl.custom_types import (
+from afabench.afa_rl.common.custom_types import (
     AFAReward,
     AFARewardFn,
 )

@@ -326,7 +326,8 @@ class Shim2018TrainConfig:
     agent: Shim2018AgentConfig
     pretrained_model_lr: float
     activate_joint_training_after_fraction: float
-    afa_rl_training_loop: AFARLTrainingLoopConfig
+    mdp: AFAMDPConfig
+    rl_training_loop: AFARLTrainingLoopConfig
     use_wandb: bool = False
     smoke_test: bool = False
     device: str | None = None

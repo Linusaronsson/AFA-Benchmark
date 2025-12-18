@@ -1,14 +1,14 @@
 from typing import TYPE_CHECKING, Any, final, override
 
 import torch
-from afabench.afa_rl.custom_types import (
-    AFADatasetFn,
-    AFARewardFn,
-)
 from tensordict import TensorDict, TensorDictBase
 from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
+from afabench.afa_rl.common.custom_types import (
+    AFADatasetFn,
+    AFARewardFn,
+)
 from afabench.common.custom_types import AFAInitializeFn, AFAUnmaskFn
 
 if TYPE_CHECKING:
@@ -288,6 +288,28 @@ class AFAEnv(EnvBase):
     def _set_seed(self, seed: int | None) -> None:
         rng = torch.manual_seed(seed)
         self.rng = rng
+
+    def get_batch_info(self, td: TensorDictBase) -> dict[str, Any]:
+        """Return a wandb-loggable dictionary from a tensordict collected during training. Should only contain method-agnostic info."""
+        # TODO:
+        return {
+            "avg_reward": td["next", "reward"].mean().item(),
+            # Average number of features selected when we stop
+            "fraction observed at stop time": td["next", "feature_mask"][
+                td["next", "done"].squeeze(-1)
+            ]
+            .float()
+            .mean()
+            .cpu()
+            .item(),
+        }
+
+    def get_rollout_info(
+        self, _rollout_tds: list[TensorDictBase]
+    ) -> dict[str, Any]:
+        """Return a wandb-loggable dictionary from a lits of tensordicts collected during evaluation rollouts. Should only contain method-agnostic info."""
+        # TODO:
+        return {}
 
 
 # def get_common_reward_fn(
