@@ -80,61 +80,6 @@ class Shim2018ActionValueModule(nn.Module):
 
 
 @final
-class Shim2018DummyActionValueModule(nn.Module):
-    def __init__(
-        self,
-        in_size: int,
-        action_size: int,
-        num_cells: tuple[int, ...],
-        dropout: float,
-        n_feature_dims: int,
-    ):
-        super().__init__()
-        self.in_size = in_size
-        self.action_size = action_size
-        self.num_cells = num_cells
-        self.dropout = dropout
-        self.n_feature_dims = n_feature_dims
-
-        self.net = MLP(
-            in_features=self.in_size,
-            out_features=self.action_size,
-            num_cells=self.num_cells,
-            dropout=self.dropout,
-            activation_class=nn.ReLU,
-        )
-
-    @override
-    def forward(
-        self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        action_mask: Tensor,
-    ) -> Tensor:
-        # Flatten feature dimensions
-        flat_masked_features = masked_features.flatten(
-            start_dim=-self.n_feature_dims
-        )
-        flat_feature_mask = feature_mask.flatten(
-            start_dim=-self.n_feature_dims
-        )
-        # Flatten batch dimensions
-        flat_masked_features = flat_masked_features.flatten(end_dim=-2)
-        flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
-        qvalues = self.net(
-            torch.cat([flat_masked_features, flat_feature_mask], dim=-1)
-        )
-        # Unflatten batch dimensions
-        qvalues = qvalues.unflatten(
-            0, masked_features.shape[: -self.n_feature_dims]
-        )
-
-        # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
-        qvalues[~action_mask] = float("-inf")
-        return qvalues
-
-
-@final
 class Shim2018Agent(Agent):
     def __init__(
         self,

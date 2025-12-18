@@ -61,9 +61,6 @@ def get_shim2018_reward_fn(
             assert logits.ndim == 2, (
                 f"Expected logits to have 1 batch dimension and 1 label dimension, got {logits.ndim}"
             )
-            # Reward=1 if correct prediction, 0 if wrong
-            # correct = logits.argmax(dim=-1) == label[done_mask].argmax(dim=-1)
-            # reward[done_mask] += correct.to(torch.float32)
             ce_loss = F.cross_entropy(
                 logits,
                 label[done_mask].float(),
@@ -71,9 +68,6 @@ def get_shim2018_reward_fn(
                 reduction="none",
             )
             reward[done_mask] += -ce_loss
-            # print(f"Previous selection mask: {selection_mask[done_mask][0]}")
-            # print(f"Made selection: {_afa_selection[done_mask][0]}")
-            # print(f"ce loss: {ce_loss[0]}")
 
         return reward.unsqueeze(-1)
 

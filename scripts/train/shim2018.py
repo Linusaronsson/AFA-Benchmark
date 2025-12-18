@@ -10,7 +10,6 @@ from omegaconf.omegaconf import OmegaConf
 from tensordict import TensorDict
 from torch import optim
 from torch.nn import functional as F
-from torchrl.data import TensorSpec
 
 from afabench.afa_rl.common.afa_env import AFAEnv
 from afabench.afa_rl.common.afa_methods import RLAFAMethod
@@ -32,11 +31,7 @@ from afabench.afa_rl.shim2018.models import (
 from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import (
-    Shim2018AgentConfig,
     Shim2018TrainConfig,
-)
-from afabench.common.custom_types import (
-    AFADataset,
 )
 from afabench.common.utils import (
     initialize_wandb_run,
@@ -110,7 +105,6 @@ def get_shim2018_pretrained_model(
     pretrained_model_lr: float,
     device: torch.device,
 ) -> tuple[LitShim2018EmbedderClassifier, optim.Adam]:
-    log.info("Loading pretrained model...")
     pretrained_model, _ = load_bundle(
         Path(pretrained_model_bundle_path),
         device=device,
@@ -127,34 +121,7 @@ def get_shim2018_pretrained_model(
     pretrained_model_optim = optim.Adam(
         pretrained_model.parameters(), lr=pretrained_model_lr
     )
-    log.info("Pretrained model loaded.")
     return pretrained_model, pretrained_model_optim
-
-
-def get_shim2018_agent(
-    pretrained_model: LitShim2018EmbedderClassifier,
-    train_dataset: AFADataset,
-    agent_cfg: Shim2018AgentConfig,
-    device: torch.device,
-    action_spec: TensorSpec,
-    frames_per_batch: int,
-    n_batches: int,
-) -> Shim2018Agent:
-    log.info("Creating agent...")
-    agent = Shim2018Agent(
-        cfg=agent_cfg,
-        embedder=pretrained_model.embedder,
-        embedding_size=pretrained_model.embedder.encoder.output_size,
-        action_spec=action_spec,
-        action_mask_key="allowed_action_mask",
-        batch_size=frames_per_batch,
-        module_device=device,
-        n_feature_dims=len(train_dataset.feature_shape),
-        n_batches=n_batches,
-    )
-    log.info("Agent created successfully")
-
-    return agent
 
 
 def get_pre_eval_callback(
@@ -254,13 +221,15 @@ def main(cfg: Shim2018TrainConfig) -> None:
         seed=cfg.seed,
     )
 
-    agent = get_shim2018_agent(
-        pretrained_model=pretrained_model,
-        train_dataset=train_dataset,
-        agent_cfg=cfg.agent,
-        device=device,
+    agent = Shim2018Agent(
+        cfg=cfg.agent,
+        embedder=pretrained_model.embedder,
+        embedding_size=pretrained_model.embedder.encoder.output_size,
         action_spec=train_env.action_spec,
-        frames_per_batch=cfg.rl_training_loop.frames_per_batch,
+        action_mask_key="allowed_action_mask",
+        batch_size=cfg.rl_training_loop.frames_per_batch,
+        module_device=device,
+        n_feature_dims=len(train_dataset.feature_shape),
         n_batches=cfg.rl_training_loop.n_batches,
     )
 
@@ -294,7 +263,6 @@ def main(cfg: Shim2018TrainConfig) -> None:
         log.info("Training interrupted by user")
     finally:
         log.info("Training completed, starting cleanup and model saving")
-        log.info("Converting model to CPU and creating AFA method...")
         pretrained_model = pretrained_model.to(torch.device("cpu"))
         afa_method = RLAFAMethod(
             agent.get_exploitative_policy().to("cpu"),
@@ -302,20 +270,16 @@ def main(cfg: Shim2018TrainConfig) -> None:
                 pretrained_model, device=torch.device("cpu")
             ),
         )
-        log.info("AFA method created.")
 
-        log.info("Saving method to local filesystem...")
         save_bundle(
             obj=afa_method,
             path=Path(cfg.save_path),
             metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
         )
-        log.info("Saved trained method successfully.")
 
         if run is not None:
             run.finish()
 
-        log.info("Running garbage collection and clearing CUDA cache")
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
