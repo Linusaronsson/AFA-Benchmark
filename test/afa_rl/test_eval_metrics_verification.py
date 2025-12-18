@@ -5,10 +5,10 @@ import torch
 from tensordict import TensorDict
 from torchrl.data import TensorSpec
 
-from afabench.afa_rl.afa_env import AFAEnv
-from afabench.afa_rl.datasets import get_afa_dataset_fn
-from afabench.afa_rl.reward_functions import get_range_based_reward_fn
-from afabench.afa_rl.utils import get_eval_metrics
+from afabench.afa_rl.common.afa_env import AFAEnv
+from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
+from afabench.afa_rl.common.reward_functions import get_range_based_reward_fn
+from afabench.afa_rl.common.utils import get_eval_metrics
 from afabench.common.initializers.dynamic_random_initializer import (
     DynamicRandomInitializer,
 )

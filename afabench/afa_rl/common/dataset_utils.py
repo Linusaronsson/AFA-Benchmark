@@ -3,10 +3,10 @@ from typing import final, override
 
 import lightning as pl
 import torch
-from afabench.afa_rl.custom_types import AFADatasetFn
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 
+from afabench.afa_rl.common.custom_types import AFADatasetFn
 from afabench.common.custom_types import (
     Features,
     Label,

@@ -1,8 +1,8 @@
 import torch
 
-from afabench.afa_rl.afa_env import AFAEnv
-from afabench.afa_rl.datasets import get_afa_dataset_fn
-from afabench.afa_rl.reward_functions import get_fixed_reward_reward_fn
+from afabench.afa_rl.common.afa_env import AFAEnv
+from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
+from afabench.afa_rl.common.reward_functions import get_fixed_reward_reward_fn
 from afabench.common.initializers.fixed_random_initializer import (
     FixedRandomInitializer,
 )

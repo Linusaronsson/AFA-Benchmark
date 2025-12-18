@@ -3,7 +3,7 @@ from typing import Self, final, override
 
 import torch
 
-from afabench.afa_rl.utils import afacontext_optimal_selection
+from afabench.afa_rl.common.utils import afacontext_optimal_selection
 from afabench.common.custom_types import (
     AFAClassifier,
     AFAMethod,

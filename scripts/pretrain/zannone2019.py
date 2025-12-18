@@ -7,7 +7,7 @@ import torch
 from omegaconf import OmegaConf
 from torchrl.modules import MLP
 
-from afabench.afa_rl.utils import (
+from afabench.afa_rl.common.utils import (
     str_to_activation_class_mapping,
 )
 from afabench.afa_rl.zannone2019.models import (

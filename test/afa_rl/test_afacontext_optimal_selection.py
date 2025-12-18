@@ -3,7 +3,7 @@
 import pytest
 import torch
 
-from afabench.afa_rl.utils import afacontext_optimal_selection
+from afabench.afa_rl.common.utils import afacontext_optimal_selection
 from afabench.common.datasets.datasets import AFAContextDataset
 
 

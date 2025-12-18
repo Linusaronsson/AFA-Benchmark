@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from jaxtyping import Float
 from torch import Tensor, nn
 
-from afabench.afa_rl.utils import mask_data
+from afabench.afa_rl.common.utils import mask_data
 from afabench.common.custom_types import (
     AFAClassifier,
     AFAPredictFn,
