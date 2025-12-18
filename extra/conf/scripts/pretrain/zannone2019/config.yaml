@@ -17,8 +17,7 @@ val_dataset_bundle_path: ???
 save_path: ???
 device: cuda
 
-supervised_learning:
-  batch_size: 100 # EDDI paper
+# Although EDDI paper has batch_size 100, we use the default of 128 for consistency, should not matter too much
 
 lr: 1e-3
 start_kl_scaling_factor: 0.1

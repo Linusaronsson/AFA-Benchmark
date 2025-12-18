@@ -17,9 +17,6 @@ val_dataset_bundle_path: ???
 save_path: ???
 device: cuda
 
-supervised_learning:
-  batch_size: 128 # shim2018 paper
-
 lr: 1e-3
 encoder:
   output_size: 16 # shim2018 paper

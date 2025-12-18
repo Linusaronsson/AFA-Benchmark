@@ -17,8 +17,7 @@ val_dataset_bundle_path: ???
 save_path: ???
 device: cuda
 
-supervised_learning:
-  batch_size: 128 # shim2018 paper, since kachuee2019 does not specify it
+# batch size set to shim2018 paper default, since kachuee2019 does not specify it
 
 lr: 1e-3
 pq_module:
