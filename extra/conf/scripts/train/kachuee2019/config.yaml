@@ -1,10 +1,12 @@
 hydra:
     searchpath:
+        - file://extra/conf
         - file://extra/conf/global
 
 defaults:
     - _self_
     - dataset@_global_: cube
+    - optional experiment@_global_: ???
     - override hydra/job_logging: colorlog
     - override hydra/hydra_logging: colorlog
     - override hydra/launcher: valter_slurm

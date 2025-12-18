@@ -10,6 +10,7 @@ defaults:
   - components/unmaskers@unmasker: ???
   - components/mdps@mdp: default
   - components/rl_training_loops@rl_training_loop: default
+  - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm

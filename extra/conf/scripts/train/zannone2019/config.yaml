@@ -1,17 +1,53 @@
 hydra:
   searchpath:
+    - file://extra/conf
     - file://extra/conf/global
 
 defaults:
   - _self_
-  - dataset@_global_: cube
+  - components/initializers@initializer: ???
+  - components/unmaskers@unmasker: ???
+  - components/mdps@mdp: default
+  - components/rl_training_loops@rl_training_loop: default
+  - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
-  - override hydra/launcher: filip_slurm
+  - override hydra/launcher: custom_slurm
+
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+pretrained_model_bundle_path: ???
+save_path: ???
+# initializer set as component
+# unmasker set as component
+mdp:
+  hard_budget: ???
+# rl_training_loop set as component
+soft_budget_param: ???
 
 agent:
-  gamma: 1.0
-device: "cuda"
-seed: 42
-visualize: false
+    lmbda: 0.75 # not specified by zannone2019, same as shim2018
+
+    clip_epsilon: 0.2 # not specified by zannone2019
+    entropy_bonus: True # not specified by zannone2019
+    entropy_coef: 0.01 # not specified by zannone2019
+    critic_coef: 1.0 # not specified by zannone2019
+    loss_critic_type: "smooth_l1" # not specified by zannone2019
+
+    num_epochs: 1 # same as shim2018
+    lr: 1e-3 # not specified by zannone2019
+    max_grad_norm: 9001 # not specified by zannone2019
+
+    # value_num_cells: [32, 32] # same complexity as shim2018
+    value_num_cells: [] # zannone2019
+    value_dropout: 0.0 # not specified by zannone2019
+    # policy_num_cells: [32, 32] # same complexity as shim2018
+    policy_num_cells: [] # zannone2019
+    policy_dropout: 0.0 # not specified by zannone2019
+    gamma: 1.0
+n_generated_samples: 0
+generation_batch_size: 100
+seed: null
+use_wandb: false
 smoke_test: false
+device: null
