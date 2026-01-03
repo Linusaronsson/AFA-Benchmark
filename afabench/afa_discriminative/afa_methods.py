@@ -1,7 +1,7 @@
 import math
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Self, override
+from typing import Self, override
 
 import numpy as np
 import torch
@@ -159,30 +159,27 @@ class GreedyDynamicSelection(nn.Module):
                     x = x_batch.to(device)
                     y = y_batch.to(device)
 
-                    # Setup.
+                    # TODO: currently allow double selection
+                    m_sel = torch.zeros(
+                        len(x), mask_size, dtype=x.dtype, device=device
+                    )
                     if initializer is None:
-                        m = torch.zeros(
-                            len(x), mask_size, dtype=x.dtype, device=device
-                        )
-                        effective_max_features = max_features
+                        m_init = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
                     else:
                         init_mask_bool = initializer.initialize(
                             features=x,
                             label=y,
                             feature_shape=feature_shape,
                         ).to(device)
-                        m = init_mask_bool.to(dtype=x.dtype)
-                        num_initial = int(init_mask_bool[0].sum().item())
-                        effective_max_features = max(
-                            0, max_features - num_initial
-                        )
+                        m_init = init_mask_bool.to(dtype=x.dtype)
 
                     selector.zero_grad()
                     predictor.zero_grad()
 
-                    for _ in range(effective_max_features):
+                    for _ in range(max_features):
                         # Evaluate selector model.
-                        x_masked = mask_layer(x, m)
+                        m_ctx = torch.max(m_init, m_sel)
+                        x_masked = mask_layer(x, m_ctx)
                         logits = selector(x_masked).flatten(1)
                         # since not a probability, do exp(logits)/cost <-> logits / log_cost
                         logits_cost = logits - log_cost
@@ -190,7 +187,7 @@ class GreedyDynamicSelection(nn.Module):
                         # Get selections.
                         # soft = selector_layer(logits, temp)
                         soft = selector_layer(logits_cost, temp)
-                        m_soft = torch.max(m, soft)
+                        m_soft = torch.max(m_ctx, soft)
 
                         # Evaluate predictor model.
                         x_masked = mask_layer(x, m_soft)
@@ -202,10 +199,10 @@ class GreedyDynamicSelection(nn.Module):
                         epoch_train_loss += loss.item()
 
                         # Update mask, ensure no repeats.
-                        m = torch.max(
-                            m,
+                        m_sel = torch.max(
+                            m_sel,
                             make_onehot(
-                                selector_layer(logits_cost - 1e6 * m, 1e-6)
+                                selector_layer(logits_cost - 1e6 * m_sel, 1e-6)
                             ),
                         )
 
@@ -228,30 +225,29 @@ class GreedyDynamicSelection(nn.Module):
                         x = x_batch.to(device)
                         y = y_batch.to(device)
 
-                        # Setup.
+                        m_sel = torch.zeros(
+                            len(x), mask_size, dtype=x.dtype, device=device
+                        )
                         if initializer is None:
-                            m = torch.zeros(
+                            m_init = torch.zeros(
                                 len(x), mask_size, dtype=x.dtype, device=device
                             )
-                            effective_max_features = max_features
                         else:
                             init_mask_bool = initializer.initialize(
                                 features=x,
                                 label=y,
                                 feature_shape=feature_shape,
                             ).to(device)
-                            m = init_mask_bool.to(dtype=x.dtype)
-                            num_initial = int(init_mask_bool[0].sum().item())
-                            effective_max_features = max(
-                                0, max_features - num_initial
-                            )
+                            m_init = init_mask_bool.to(dtype=x.dtype)
 
-                        for _ in range(effective_max_features):
+                        m_ctx = torch.max(m_init, m_sel)
+
+                        for _ in range(max_features):
                             # Evaluate selector model.
-                            x_masked = mask_layer(x, m)
+                            x_masked = mask_layer(x, m_ctx)
                             logits = selector(x_masked).flatten(1)
                             logits_cost = logits - log_cost
-                            logits_cost = logits_cost - 1e6 * m
+                            logits_cost = logits_cost - 1e6 * m_ctx
 
                             # Get selections, ensure no repeats.
                             # logits = logits - 1e6 * m
@@ -261,17 +257,16 @@ class GreedyDynamicSelection(nn.Module):
                                 )
                             else:
                                 soft = selector_layer(logits_cost, temp)
-                            m_soft = torch.max(m, soft)
-
-                            # For calculating temp = 0 loss.
-                            m = torch.max(m, make_onehot(soft))
+                            m_soft = torch.max(m_ctx, soft)
+                            m_sel = torch.max(m_sel, make_onehot(soft))
+                            m_ctx = torch.max(m_init, m_sel)
 
                             # Evaluate predictor with soft sample.
                             x_masked = mask_layer(x, m_soft)
                             pred = predictor(x_masked)
 
                             # Evaluate predictor with hard sample.
-                            x_masked = mask_layer(x, m)
+                            x_masked = mask_layer(x, m_ctx)
                             hard_pred = predictor(x_masked)
 
                             # Append predictions and labels.
@@ -1164,48 +1159,3 @@ class Gadgil2023AFAMethod(AFAMethod):
     @override
     def set_cost_param(self, cost_param: float) -> None:
         self.lambda_threshold = cost_param
-
-
-class PredictorBundle:
-    def __init__(
-        self,
-        predictor: nn.Module,
-        architecture: dict[str, Any],
-        device: torch.device,
-    ):
-        self.predictor: nn.Module = predictor.to(device)
-        self.predictor.eval()
-        self.architecture: dict[str, Any] = architecture
-        self._device: torch.device = device
-
-    def save(self, path: Path) -> None:
-        """Save all necessary files into the given path."""
-        path.mkdir(parents=True, exist_ok=True)
-        torch.save(
-            {
-                "predictor_state_dict": self.predictor.state_dict(),
-                "architecture": self.architecture,
-            },
-            path / "model.pt",
-        )
-
-    @classmethod
-    def load(
-        cls,
-        path: Path,
-        map_location: torch.device,
-    ) -> Self:
-        checkpoint = torch.load(path / "model.pt", map_location=map_location)
-        arch = checkpoint["architecture"]
-        state_dict = checkpoint["predictor_state_dict"]
-        predictor = MLP(
-            in_features=arch["in_features"],
-            out_features=arch["out_features"],
-            num_cells=arch["hidden_units"],
-            activation_class=getattr(nn, arch["activation"]),
-            dropout=arch["dropout"],
-        )
-        predictor.load_state_dict(state_dict)
-        predictor.eval()
-
-        return cls(predictor=predictor, architecture=arch, device=map_location)

@@ -462,18 +462,23 @@ cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
 
 @dataclass
 class Covert2023TrainingConfig:
-    pretrained_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    pretrained_model_bundle_path: str
+    save_path: str
     batch_size: int
     lr: float
     hard_budget: int
     nepochs: int
     patience: int
+    activation: str
     device: str
     seed: int
 
     hidden_units: list[int]
     dropout: float
     initializer: InitializerConfig
+    unmasker: UnmaskerConfig
 
 
 cs.store(name="train_covert2023", node=Covert2023TrainingConfig)

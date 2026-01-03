@@ -9,9 +9,11 @@ from omegaconf import OmegaConf
 from torch import nn
 from torchrl.modules import MLP
 
-from afabench.afa_discriminative.afa_methods import PredictorBundle
 from afabench.afa_discriminative.datasets import prepare_datasets
-from afabench.afa_discriminative.models import MaskingPretrainer
+from afabench.afa_discriminative.models import (
+    GreedyAFAClassifier,
+    MaskingPretrainer,
+)
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.common.bundle import (
     load_bundle,
@@ -52,7 +54,7 @@ def main(cfg: Covert2023PretrainingConfig) -> None:
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
-    x_batch, y_batch = next(iter(train_loader))
+    x_batch, _ = next(iter(train_loader))
     print("x_batch shape:", x_batch.shape)
 
     in_features: int = int(d_in * 2)
@@ -92,11 +94,11 @@ def main(cfg: Covert2023PretrainingConfig) -> None:
     )
 
     metadata = {
-        "model_type": "Covert2023Predictor",
+        "model_type": "Covert2023Classifier",
         "dataset_name": dataset_name,
         "pretrain_config": OmegaConf.to_container(cfg),
     }
-    bundle_obj = PredictorBundle(
+    bundle_obj = GreedyAFAClassifier(
         predictor=predictor,
         architecture=architecture,
         device=torch.device("cpu"),

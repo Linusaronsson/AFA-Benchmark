@@ -1,8 +1,24 @@
-from typing import override
+from typing import cast, override
+from pathlib import Path
 
 import torch
 from torch import nn
 from torch.distributions import Categorical, RelaxedOneHotCategorical
+
+from afabench.common.bundle import load_bundle
+from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
+from afabench.common.utils import get_class_frequencies
+from afabench.common.custom_types import AFADataset
+from afabench.common.config_classes import (
+    InitializerConfig,
+    UnmaskerConfig,
+)
+from afabench.common.custom_types import (
+    AFADataset,
+    AFAInitializer,
+    AFAUnmasker,
+)
 
 
 def restore_parameters(model: nn.Module, best_model: nn.Module) -> None:
@@ -31,6 +47,34 @@ def ind_to_onehot(inds: torch.Tensor, n: int) -> torch.Tensor:
     onehot = torch.zeros(len(inds), n, dtype=torch.float32, device=inds.device)
     onehot[torch.arange(len(inds)), inds] = 1
     return onehot
+
+
+def afa_discriminative_training_prep(
+    train_dataset_bundle_path: Path,
+    val_dataset_bundle_path: Path,
+    initializer_cfg: InitializerConfig,
+    unmasker_cfg: UnmaskerConfig,
+) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor]:
+    train_dataset, _train_dataset_manifest = load_bundle(
+        train_dataset_bundle_path,
+    )
+    train_dataset = cast("AFADataset", cast("object", train_dataset))
+    val_dataset, _val_dataset_manifest = load_bundle(
+        val_dataset_bundle_path,
+    )
+    val_dataset = cast("AFADataset", cast("object", val_dataset))
+
+    initializer = get_afa_initializer_from_config(initializer_cfg)
+
+    unmasker = get_afa_unmasker_from_config(unmasker_cfg)
+
+    # Also calculate class weights
+    _train_features, train_labels = train_dataset.get_all_data()
+    train_class_probabilities = get_class_frequencies(train_labels)
+    class_weights = 1 / train_class_probabilities
+    class_weights = class_weights / class_weights.sum()
+
+    return train_dataset, val_dataset, initializer, unmasker, class_weights
 
 
 class MaskLayer(nn.Module):

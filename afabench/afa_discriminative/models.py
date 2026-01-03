@@ -1,14 +1,16 @@
 import math
 import os
 from copy import deepcopy
+from pathlib import Path
+from typing import Self, Any
 
 import torch
 import torch.nn.functional as F
-import wandb
 from torch import nn, optim
+from torchrl.modules import MLP
 
 from afabench.afa_discriminative.utils import restore_parameters
-from afabench.afa_rl.utils import mask_data
+from afabench.afa_rl.common.utils import mask_data
 
 models_dir = "./models/pretrained_resnet_models"
 model_name = {
@@ -519,3 +521,48 @@ class ConvNet(nn.Module):
         x = self.conv(x)
         x = self.flatten(x)
         return x
+
+
+class GreedyAFAClassifier:
+    def __init__(
+        self,
+        predictor: nn.Module,
+        architecture: dict[str, Any],
+        device: torch.device,
+    ):
+        self.predictor: nn.Module = predictor.to(device)
+        self.predictor.eval()
+        self.architecture: dict[str, Any] = architecture
+        self._device: torch.device = device
+
+    def save(self, path: Path) -> None:
+        """Save all necessary files into the given path."""
+        path.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "predictor_state_dict": self.predictor.state_dict(),
+                "architecture": self.architecture,
+            },
+            path / "model.pt",
+        )
+
+    @classmethod
+    def load(
+        cls,
+        path: Path,
+        map_location: torch.device,
+    ) -> Self:
+        checkpoint = torch.load(path / "model.pt", map_location=map_location, weights_only=False)
+        arch = checkpoint["architecture"]
+        state_dict = checkpoint["predictor_state_dict"]
+        predictor = MLP(
+            in_features=arch["in_features"],
+            out_features=arch["out_features"],
+            num_cells=arch["hidden_units"],
+            activation_class=getattr(nn, arch["activation"]),
+            dropout=arch["dropout"],
+        )
+        predictor.load_state_dict(state_dict)
+        predictor.eval()
+
+        return cls(predictor=predictor, architecture=arch, device=map_location)

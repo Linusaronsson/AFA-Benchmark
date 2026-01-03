@@ -38,6 +38,7 @@ REGISTERED_CLASSES = {
     "Shim2018AFAClassifier": "afabench.afa_rl.shim2018.models.Shim2018AFAClassifier",
     "Zannone2019AFAClassifier": "afabench.afa_rl.zannone2019.models.Zannone2019AFAClassifier",
     "Kachuee2019AFAClassifier": "afabench.afa_rl.kachuee2019.models.Kachuee2019AFAClassifier",
+    "GreedyAFAClassifier": "afabench.afa_discriminative.models.GreedyAFAClassifier",
     # AFA Unmasker Classes
     "DirectUnmasker": "afabench.common.unmaskers.DirectUnmasker",
     "ImagePatchUnmasker": "afabench.common.unmaskers.ImagePatchUnmasker",

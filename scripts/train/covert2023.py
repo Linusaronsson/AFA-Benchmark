@@ -1,7 +1,7 @@
 import gc
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from typing import cast
 
 import hydra
 import torch
@@ -9,20 +9,16 @@ from omegaconf import OmegaConf
 from torch import nn
 from torchrl.modules import MLP
 
-from afabench import SAVE_PATH
 from afabench.afa_discriminative.afa_methods import (
     Covert2023AFAMethod,
     GreedyDynamicSelection,
 )
 from afabench.afa_discriminative.datasets import prepare_datasets
-from afabench.afa_discriminative.utils import MaskLayer
+from afabench.afa_discriminative.models import GreedyAFAClassifier
+from afabench.afa_discriminative.utils import MaskLayer, afa_discriminative_training_prep
 from afabench.common.config_classes import Covert2023TrainingConfig
-from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.utils import (
-    get_class_frequencies,
-    load_pretrained_model,
-    load_dataset_splits,
-    save_artifact,
     set_seed,
 )
 
@@ -39,56 +35,37 @@ def main(cfg: Covert2023TrainingConfig):
     print(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
+    torch.set_float32_matmul_precision("medium")
 
-    (
-        model_path,
-        meta_data,
-    ) = load_pretrained_model(
-        Path(cfg.pretrained_path),
-        device=device,
+    train_dataset, val_dataset, initializer, unmasker, class_weights = (
+        afa_discriminative_training_prep(
+            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            initializer_cfg=cfg.initializer,
+            unmasker_cfg=cfg.unmasker,
+        )
     )
-
-    dataset_name = meta_data["dataset_name"]
-    dataset_base_path = meta_data["dataset_base_path"]
-    dataset_split_idx = meta_data["dataset_split_idx"]
-
-    dataset_root = (
-        Path(dataset_base_path) / dataset_name / str(dataset_split_idx)
-    )
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_splits(
-        dataset_root
-    )
-
-    # Prepare loaders
-    _, train_labels = train_dataset.get_all_data()
-    train_class_probabilities = get_class_frequencies(train_labels)
-    class_weights = len(train_class_probabilities) / (
-        len(train_class_probabilities) * train_class_probabilities
-    )
-    class_weights = class_weights.to(device)
 
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
 
     # Predictor network
-    predictor = MLP(
-        in_features = d_in * 2,
-        out_features = d_out,
-        num_cells = cfg.hidden_units,   # hidden_units
-        activation_class = torch.nn.ReLU,
-        dropout = cfg.dropout,
-    ).to(device)
-
-    # Load pretrained predictor weights
-    ckpt = torch.load(model_path, map_location=device)
-    predictor.load_state_dict(ckpt["predictor_state_dict"])
+    predictor, _ = load_bundle(
+        Path(cfg.pretrained_model_bundle_path),
+        map_location=device,
+    )
+    classifier_bundle = cast(
+        "GreedyAFAClassifier",
+        cast("object", predictor),
+    )
+    predictor = classifier_bundle.predictor.to(device)
 
     selector = MLP(
         in_features=d_in * 2,
         out_features=d_in,
         num_cells=cfg.hidden_units,
-        activation_class=nn.ReLU,
+        activation_class=getattr(nn, cfg.activation),
         dropout=cfg.dropout,
     ).to(device)
 
@@ -96,8 +73,6 @@ def main(cfg: Covert2023TrainingConfig):
     mask_layer = MaskLayer(append=True)
     gdfs = GreedyDynamicSelection(selector, predictor, mask_layer).to(device)
 
-    initializer = get_afa_initializer_from_config(cfg.initializer)
-    initializer.set_seed(cfg.seed)
     gdfs.fit(
         train_loader,
         val_loader,
@@ -120,35 +95,13 @@ def main(cfg: Covert2023TrainingConfig):
         d_in=d_in,
         d_out=d_out,
     )
+    save_bundle(
+        obj=afa_method,
+        path=Path(cfg.save_path),
+        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+    )
 
-    # Save locally
-    with TemporaryDirectory() as tmp_dir:
-        tmp_path = Path(tmp_dir)
-        afa_method.save(tmp_path)
-
-        artifact_identifier = f"{dataset_name.lower()}_split_{dataset_split_idx}_budget_{
-            cfg.hard_budget
-        }_seed_{cfg.seed}"
-        artifact_dir = SAVE_PATH / artifact_identifier
-
-        metadata_out = {
-            "method_class_name": afa_method.__class__.__name__,
-            "dataset_class_name": dataset_metadata["class_name"],
-            "dataset_base_path": dataset_base_path,
-            "budget": cfg.hard_budget,
-            "seed": cfg.seed,
-            "split_idx": dataset_split_idx,
-            "initializer_name": cfg.initializer.class_name,
-            "initializer_config": OmegaConf.to_container(cfg.initializer.kwargs),
-        }
-
-        save_artifact(
-            artifact_dir=artifact_dir,
-            files={f.name: f for f in tmp_path.iterdir() if f.is_file()},
-            metadata=metadata_out,
-        )
-
-        log.info(f"Covert2023 method saved to: {artifact_dir}")
+    log.info(f"Covert2023 method saved to: {cfg.save_path}")
 
     gc.collect()
     if torch.cuda.is_available():
