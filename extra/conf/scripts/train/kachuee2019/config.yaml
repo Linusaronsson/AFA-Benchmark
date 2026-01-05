@@ -1,18 +1,58 @@
 hydra:
-    searchpath:
-        - file://extra/conf
-        - file://extra/conf/global
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+    - file://extra/conf/scripts/train/kachuee2019
 
 defaults:
-    - _self_
-    - dataset@_global_: cube
-    - optional experiment@_global_: ???
-    - override hydra/job_logging: colorlog
-    - override hydra/hydra_logging: colorlog
-    - override hydra/launcher: valter_slurm
+  - _self_
+  - components/initializers@initializer: ???
+  - components/unmaskers@unmasker: ???
+  - components/mdps@mdp: default
+  - components/rl_training_loops@rl_training_loop: default
+  - optional experiment@_global_: ???
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
 
-reward_method: "Bayesian-L1" # used in the original implementation
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+pretrained_model_bundle_path: ???
+save_path: ???
+# initializer set as component
+# unmasker set as component
+mdp:
+  hard_budget: ???
+# rl_training_loop set as component
+soft_budget_param: ???
+
+# most settings here are the same as for shim2018, for consistency
 agent:
-    gamma: 1.0
-device: cuda
-seed: 42
+  eps_init: 1.0
+  eps_end: 0.1
+  eps_annealing_fraction: 0.5
+
+  replay_buffer_batch_size: 512 # same as batch size during training usually
+  replay_buffer_size: 100000 # original paper uses 1000*n_features but this makes configuration slightly more complex with no major benefit
+
+  num_epochs: 1
+  max_grad_norm: 9001
+  lr: 1e-3
+  update_tau: 0.005
+
+  loss_function: "l2"
+  delay_value: true
+  double_dqn: true
+
+  gamma: 1.0
+  lmbda: 0.75
+pretrained_model_lr: 1e-3
+activate_joint_training_after_fraction: 0.0
+
+seed: null
+use_wandb: false
+smoke_test: false
+device: null
+
+reward_method: "Bayesian-L1" # same as original paper
+mcdrop_samples: 1000 # same as original paper

@@ -185,23 +185,12 @@ wandb/
 /extra/wandb
 /extra/artifacts
 
+# Everything that the snakefiles produce
+/extra/output
+
 # Data
 data
 /extra/data
-
-# Model folder, includes weights and other types of saved models
-models
-/extra/models
-
-# Results
-/extra/eval_results
-/extra/merged_eval_results
-/extra/plot_results
-
-# Everything inside results folder, except for things we want
-# to show in the README
-/result/*
-!/result/soft_budget*.png
 
 # Hydra output folder
 outputs
@@ -227,17 +216,4 @@ workflow/snakefiles/dummy
 .Rproj.user
 AFA-Benchmark.Rproj
 .Rhistory
-
-# extra dir
-extra/data/*
-!extra/data/
-!extra/data/misc/
-!extra/data/misc/*
-extra/trained_methods
-extra/eval_results*
 checkpoints
-extra/pretrained_models/
-extra/visualizations/synthetic_mnist
-extra/results*
-extra/saved_results
-extra/data/misc

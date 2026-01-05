@@ -22,11 +22,9 @@ coverage:
     uv run coverage report -m
     uv run coverage html
 
-# Build the project, useful for checking that packaging is correct
-# build:
-#     rm -rf build
-#     rm -rf dist
-#     uv build
+# --- Pipeline ---
+rl_and_dummy_pipeline:
+    snakemake -s extra/workflow/snakefiles/RL_and_dummy.smk --configfile extra/workflow/conf/{datasets,hard_budgets,methods,method_options,soft_budget_params,unmaskers}.yaml --config smoke_test=true use_wandb=true --forceall --jobs 10 --rerun-incomplete
 
 # --- Pretraining RL methods ---
 

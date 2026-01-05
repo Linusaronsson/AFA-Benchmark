@@ -31,8 +31,6 @@ agent:
   eps_end: 0.1 # shim2018 paper
   eps_annealing_fraction: 0.5
 
-  replay_buffer_batch_size: 128 # shim2018 paper
-
   num_epochs: 1 # shim2018 paper
   max_grad_norm: 9001 # not specified by shim2018 paper
   lr: 1e-3
