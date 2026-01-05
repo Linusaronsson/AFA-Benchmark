@@ -1,5 +1,4 @@
 line-length = 79
-
 # NOTE: These exclude patterns are automatically synced to pyrightconfig.json
 # by scripts/sync_excludes.py (runs as a pre-commit hook)
 exclude = [
@@ -79,91 +78,69 @@ exclude = [
 
 [lint]
 select = ["ALL"]
-
 ignore = [
   # Documentation (pydocstyle - D)
-  "D100", # undocumented-public-module
-  "D101", # undocumented-public-class
-  "D102", # undocumented-public-method
-  "D103", # undocumented-public-function
-  "D104", # undocumented-public-package
-  "D105", # undocumented-magic-method
-  "D106", # undocumented-public-nested-class
-  "D107", # undocumented-public-init
-  "D203", # incorrect-blank-line-before-class
-  "D212", # multi-line-summary-first-line
-  "D400", # missing-trailing-period. D415 already covers this.
-  "D413", # missing-blank-line-after-last-section
-
+  "D100",  # undocumented-public-module
+  "D101",  # undocumented-public-class
+  "D102",  # undocumented-public-method
+  "D103",  # undocumented-public-function
+  "D104",  # undocumented-public-package
+  "D105",  # undocumented-magic-method
+  "D106",  # undocumented-public-nested-class
+  "D107",  # undocumented-public-init
+  "D203",  # incorrect-blank-line-before-class
+  "D212",  # multi-line-summary-first-line
+  "D400",  # missing-trailing-period. D415 already covers this.
+  "D413",  # missing-blank-line-after-last-section
   # Type annotations (ANN)
-  "ANN204", # missing-return-type-special-method. I don't want to annotate __init__
-
+  "ANN204",  # missing-return-type-special-method. I don't want to annotate __init__
   # Pycodestyle errors (E)
-  "E501", # line-too-long. `ruff format` already fixes this.
-
+  "E501",  # line-too-long. `ruff format` already fixes this.
   # Boolean trap (FBT)
-  "FBT001", # boolean-type-hint-positional-argument
-  "FBT003", # boolean-positional-value-in-call
-
+  "FBT001",  # boolean-type-hint-positional-argument
+  "FBT003",  # boolean-positional-value-in-call
   # Logging (G)
-  "G004", # logging-f-string
-
+  "G004",  # logging-f-string
   # Import conventions (INP)
-  "INP001", # implicit-namespace-package
-
+  "INP001",  # implicit-namespace-package
   # Naming conventions (N)
-  "N812", # lowercase-imported-as-non-lowercase
-  "N806", # non-lowercase-variable-in-function
-
+  "N812",  # lowercase-imported-as-non-lowercase
+  "N806",  # non-lowercase-variable-in-function
   # Pylint refactor (PLR)
-  "PLR0913", # too-many-arguments
-  "PLR2004", # magic-value-comparison
-
+  "PLR0913",  # too-many-arguments
+  "PLR2004",  # magic-value-comparison
   # Return values (RET)
-  "RET504", # unnecessary-assign
-
+  "RET504",  # unnecessary-assign
   # Bandit security (S)
-  "S101", # assert. Useful in unit tests
-  "S311", # suspicious-non-cryptographic-random-usage
-
+  "S101",  # assert. Useful in unit tests
+  "S311",  # suspicious-non-cryptographic-random-usage
   # Print statements (T)
-  "T201", # print,
-  "T203", # pprint
-
+  "T201",  # print,
+  "T203",  # pprint
   # TODO comments (TD)
-  "TD002", # missing-todo-author
-  "TD003", # missing-todo-link
-  "TD005", # missing-todo-description
-
+  "TD002",  # missing-todo-author
+  "TD003",  # missing-todo-link
+  "TD005",  # missing-todo-description
   # Flake8-commas (COM)
-  "COM812", # missing-trailing-comma
-
+  "COM812",  # missing-trailing-comma
   # eradicate (ERA)
-  "ERA001", # commented-out-code
-
+  "ERA001",  # commented-out-code
   # flake8-fixme (FIX)
-  "FIX002", # line-contains-todo
-  "FIX004", # line-contains-hack
-
+  "FIX002",  # line-contains-todo
+  "FIX004",  # line-contains-hack
   # Ruff-specific (RUF)
-  "RUF005", # collection-literal-concatenation. torch.Size cannot be unpacked
-
+  "RUF005",  # collection-literal-concatenation. torch.Size cannot be unpacked
   # (PGH)
-  "PGH004", # blanket-noqa. Very convenient to use on LLM generated files.
-
+  "PGH004",  # blanket-noqa. Very convenient to use on LLM generated files.
   # (F)
-  "F722", # forward-annotation-syntax-error. Allows us to use jaxtyping to annotate shapes.
-
-  "PD901", # pandas-df-variable-name
-
-  "CPY001", # missing-copyright-notice
+  "F722",  # forward-annotation-syntax-error. Allows us to use jaxtyping to annotate shapes.
+  "CPY001",  # missing-copyright-notice
 ]
-
 extend-safe-fixes = [
   "D200",
-  "PTH123", # builtin-open. Seems to not work :(
+  "PTH123",  # builtin-open. Seems to not work :(
   "EM102",  # f-string-in-exception
-  "D415",   # missing-terminal-punctuation
+  "D415",  # missing-terminal-punctuation
 ]
 
 [format]
