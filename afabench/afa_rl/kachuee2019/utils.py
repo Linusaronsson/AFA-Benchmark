@@ -15,7 +15,9 @@ def get_kachuee2019_model_from_config(
     class_probabilities: Float[Tensor, "n_classes"],
 ) -> LitKachuee2019PQModule:
     pq_module = Kachuee2019PQModule(
-        n_features=feature_shape.numel(), n_classes=n_classes, cfg=cfg.pq_module
+        n_features=feature_shape.numel(),
+        n_classes=n_classes,
+        cfg=cfg.pq_module,
     )
     lit_model = LitKachuee2019PQModule(
         pq_module=pq_module,
