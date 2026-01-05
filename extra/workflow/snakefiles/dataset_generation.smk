@@ -21,14 +21,14 @@ INSTANCE_INDICES = range(NUM_INSTANCES)
 
 rule all:
     input:
-        expand("extra/data/datasets/{dataset}", dataset=DATASETS),
+        expand("extra/output/datasets/{dataset}", dataset=DATASETS),
 
 
 # Generate instances for a single type of dataset
 # Use same seeds as instance indices
 rule dataset_generation:
     output:
-        directory("extra/data/datasets/{dataset}"),
+        directory("extra/output/datasets/{dataset}"),
     params:
         instance_indices_str=lambda wildcards: "["
         + ",".join(str(i) for i in INSTANCE_INDICES)
