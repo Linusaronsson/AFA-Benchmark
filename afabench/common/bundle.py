@@ -12,8 +12,8 @@ BUNDLE_VERSION = "1.0.0"
 
 def is_same_major_semver(sv1: str, sv2: str) -> bool:
     """Check if two semantic versions in string form have different major, versions."""
-    major1, minor1, patch1 = map(int, sv1.split("."))
-    major2, minor2, patch2 = map(int, sv2.split("."))
+    major1, _minor1, _patch1 = map(int, sv1.split("."))
+    major2, _minor2, _patch2 = map(int, sv2.split("."))
     return major1 == major2
 
 

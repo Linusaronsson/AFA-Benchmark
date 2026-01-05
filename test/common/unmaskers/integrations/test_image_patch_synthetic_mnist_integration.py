@@ -51,7 +51,7 @@ def test_image_patch_unmasker_with_synthetic_mnist_single_sample(
     synthetic_mnist_dataset: SyntheticMNISTDataset,
 ) -> None:
     """Test ImagePatchUnmasker with single synthetic MNIST sample."""
-    single_features, single_labels = single_sample
+    single_features, _single_labels = single_sample
 
     # Check number of selections
     feature_shape = synthetic_mnist_dataset.feature_shape
@@ -92,7 +92,7 @@ def test_image_patch_unmasker_with_synthetic_mnist_batch(
     synthetic_mnist_dataset: SyntheticMNISTDataset,
 ) -> None:
     """Test ImagePatchUnmasker with batch of synthetic MNIST samples."""
-    batch_features, batch_labels = batch_samples
+    batch_features, _batch_labels = batch_samples
     batch_size = 3
     feature_shape = synthetic_mnist_dataset.feature_shape
 
@@ -130,7 +130,7 @@ def test_image_patch_unmasker_feature_shape_mismatch(
     single_sample: tuple[torch.Tensor, torch.Tensor],
 ) -> None:
     """Test that ImagePatchUnmasker fails gracefully with wrong feature shape."""
-    single_features, single_labels = single_sample
+    single_features, _single_labels = single_sample
 
     # This should reveal the issue - using flattened features with image unmasker
     feature_shape = torch.Size([784])  # Flattened format
@@ -161,7 +161,7 @@ def test_cumulative_unmasking(
     single_sample: tuple[torch.Tensor, torch.Tensor],
 ) -> None:
     """Test that unmasking is cumulative (previous masks are preserved)."""
-    single_features, single_labels = single_sample
+    single_features, _single_labels = single_sample
     features_image = single_features
 
     # Start with empty mask

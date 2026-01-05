@@ -1,3 +1,4 @@
+import torch
 from jaxtyping import Float
 from torch import Tensor
 
@@ -12,7 +13,7 @@ def get_kachuee2019_model_from_config(
     cfg: Kachuee2019PretrainConfig,
     feature_shape: torch.Size,
     n_classes: int,
-    class_probabilities: Float[Tensor, "n_classes"],
+    class_probabilities: Float[Tensor, "n_classes"],  # noqa: F821
 ) -> LitKachuee2019PQModule:
     pq_module = Kachuee2019PQModule(
         n_features=feature_shape.numel(),

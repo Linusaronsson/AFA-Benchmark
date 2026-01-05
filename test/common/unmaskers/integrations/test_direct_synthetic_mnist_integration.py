@@ -50,7 +50,7 @@ def test_direct_unmasker_with_synthetic_mnist_single_sample(
     single_sample: tuple[torch.Tensor, torch.Tensor],
 ) -> None:
     """Test DirectUnmasker with single synthetic MNIST sample."""
-    single_features, single_labels = single_sample
+    single_features, _single_labels = single_sample
 
     # For DirectUnmasker with image data, we need to flatten
     features_flat = single_features.view(1, 784)
@@ -86,7 +86,7 @@ def test_direct_unmasker_with_synthetic_mnist_batch(
     batch_samples: tuple[torch.Tensor, torch.Tensor],
 ) -> None:
     """Test DirectUnmasker with batch of synthetic MNIST samples."""
-    batch_features, batch_labels = batch_samples
+    batch_features, _batch_labels = batch_samples
     batch_size = 3
 
     # For DirectUnmasker with image data, we need to flatten
@@ -169,7 +169,7 @@ def test_direct_unmasker_cumulative_selection(
     single_sample: tuple[torch.Tensor, torch.Tensor],
 ) -> None:
     """Test that DirectUnmasker preserves previous selections (cumulative)."""
-    single_features, single_labels = single_sample
+    single_features, _single_labels = single_sample
     features_flat = single_features.view(1, 784)
 
     # Start with empty mask

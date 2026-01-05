@@ -134,9 +134,9 @@ def main(cfg: EvalConfig) -> None:
         initializer,
         dataset,
         external_classifier,
-        method_metadata,
-        dataset_metadata,
-        external_classifier_metadata,
+        _method_metadata,
+        _dataset_metadata,
+        _external_classifier_metadata,
     ) = load(
         method_bundle_path=Path(cfg.method_bundle_path),
         unmasker_cfg=cfg.unmasker,

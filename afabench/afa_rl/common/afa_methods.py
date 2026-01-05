@@ -19,6 +19,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
+from afabench.common.registry import get_class
 
 
 def get_td_from_masked_features(
@@ -149,7 +150,6 @@ class RLAFAMethod(AFAMethod):
 
         with (path / "classifier_class_name.txt").open() as f:
             classifier_class_name = f.read()
-        from afabench.common.registry import get_class
 
         afa_classifier = get_class(classifier_class_name).load(
             path / "classifier.pt", device=device

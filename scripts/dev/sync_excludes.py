@@ -16,7 +16,7 @@ def load_ruff_excludes(ruff_config_path: Path) -> list[str]:
             )
             sys.exit(1)
 
-        return excludes
+        return excludes  # noqa: TRY300
 
     except FileNotFoundError:
         print(f"Error: {ruff_config_path} not found")
