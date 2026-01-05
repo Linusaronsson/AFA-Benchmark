@@ -237,7 +237,8 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         super().__init__()
         self.partial_vae: PartialVAE = partial_vae
         self.classifier: nn.Module = classifier
-        self.class_weights = 1 / class_probabilities
+        class_weights = 1 / class_probabilities
+        self.class_weights = class_weights / class_weights.sum()
         self.min_masking_probability: float = min_masking_probability
         self.max_masking_probability: float = max_masking_probability
         self.lr: float = lr

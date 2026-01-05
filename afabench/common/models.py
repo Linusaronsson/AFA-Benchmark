@@ -54,7 +54,8 @@ class LitMaskedMLPClassifier(pl.LightningModule):
             self.class_probabilities = torch.ones(n_classes) / n_classes
         else:
             self.class_probabilities = class_probabilities
-        self.class_weight = 1 / self.class_probabilities
+        class_weight = 1 / self.class_probabilities
+        self.class_weight = class_weight / class_weight.sum()
 
         self.lr = lr
 

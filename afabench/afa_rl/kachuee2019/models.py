@@ -140,7 +140,8 @@ class LitKachuee2019PQModule(pl.LightningModule):
         self.save_hyperparameters(ignore=["pq_module"])
         self.pq_module = pq_module
         self.n_feature_dims = n_feature_dims
-        self.class_weight = 1 / class_probabilities
+        class_weight = 1 / class_probabilities
+        self.class_weight = class_weight / class_weight.sum()
         self.min_masking_probability = min_masking_probability
         self.max_masking_probability = max_masking_probability
         self.lr = lr
