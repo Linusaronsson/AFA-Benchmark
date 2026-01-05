@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from jaxtyping import Float
 from torch import nn
 
-from afabench.afa_rl.utils import mask_data
+from afabench.afa_rl.common.utils import mask_data
 from afabench.common.config_classes import Kachuee2019PQModuleConfig
 from afabench.common.custom_types import (
     AFAClassifier,
@@ -82,7 +82,7 @@ class Kachuee2019PQModule(nn.Module):
         for f_layer, p_act in zip(
             self.layers_q[1:-1], acts_p[:-1], strict=False
         ):
-            p_act = p_act.detach()
+            p_act = p_act.detach()  # noqa: PLW2901
             act_last = F.relu(f_layer(torch.cat([act_last, p_act], dim=1)))
         p_act = acts_p[-1].detach()
         qvalues = self.layers_q[-1](torch.cat([act_last, p_act], dim=1))
@@ -91,11 +91,13 @@ class Kachuee2019PQModule(nn.Module):
 
     def confidence(
         self, masked_features: MaskedFeatures, mcdrop_samples: int = 1
-    ):
+    ) -> torch.Tensor:
         """
         Calculate the confidence histogram for each class given a sample.
-        masked_features: input sample of shape (batch_size, n_features)
-        mcdrop_samples: mc dropout samples to use.
+
+        Args:
+            masked_features: input sample of shape (batch_size, n_features)
+            mcdrop_samples: mc dropout samples to use.
         """
         x_rep = masked_features.unsqueeze(1).expand(
             -1, mcdrop_samples, -1
@@ -114,11 +116,15 @@ class Kachuee2019PQModule(nn.Module):
         )  # (batch_size, mcdrop_samples, n_classes)
         return class_probabilities.mean(dim=1)  # (batch_size, n_classes)
 
-    def predict(self, x: torch.Tensor, mcdrop_samples: int = 1):
+    def predict(
+        self, x: torch.Tensor, mcdrop_samples: int = 1
+    ) -> torch.Tensor:
         """
         Make class prediction for a sample.
-        x: input sample
-        mcdrop_samples: mc dropout samples to use.
+
+        Args:
+            x: input sample
+            mcdrop_samples: mc dropout samples to use.
         """
         conf = self.confidence(x, mcdrop_samples)
         pred = torch.argmax(conf)
@@ -130,7 +136,7 @@ class LitKachuee2019PQModule(pl.LightningModule):
     def __init__(
         self,
         pq_module: Kachuee2019PQModule,
-        class_probabilities: Float[torch.Tensor, "n_classes"],
+        class_probabilities: Float[torch.Tensor, "n_classes"],  # noqa: F821
         n_feature_dims: int,
         min_masking_probability: float = 0.0,
         max_masking_probability: float = 1.0,
@@ -168,7 +174,7 @@ class LitKachuee2019PQModule(pl.LightningModule):
     @override
     def training_step(
         self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ):
+    ) -> torch.Tensor:
         features: Features = batch[0]
         label: Label = batch[1]
 
@@ -209,7 +215,7 @@ class LitKachuee2019PQModule(pl.LightningModule):
     @override
     def validation_step(
         self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ):
+    ) -> None:
         feature_values, y = batch
 
         # Mask features with minimum probability -> see many features (observations)
@@ -241,7 +247,7 @@ class LitKachuee2019PQModule(pl.LightningModule):
         self.log("val_acc_few_observations", acc_few_observations)
 
     @override
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> torch.optim.Adam:
         return torch.optim.Adam(self.parameters(), lr=self.lr)
 
 
@@ -258,8 +264,8 @@ class Kachuee2019AFAPredictFn(AFAPredictFn):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         class_logits, _qvalues = self.pq_module.forward(masked_features)
         return class_logits.softmax(dim=-1)
@@ -283,8 +289,8 @@ class Kachuee2019AFAClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         original_device = masked_features.device
 

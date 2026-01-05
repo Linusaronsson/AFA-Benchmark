@@ -19,10 +19,10 @@ exclude = [
   # "afabench/afa_rl/callbacks.py",
   # "afabench/afa_rl/custom_types.py",
   # "afabench/afa_rl/datasets.py",
-  "afabench/afa_rl/kachuee2019/agents.py",
-  "afabench/afa_rl/kachuee2019/models.py",
-  "afabench/afa_rl/kachuee2019/reward.py",
-  "afabench/afa_rl/kachuee2019/utils.py",
+  # "afabench/afa_rl/kachuee2019/agents.py",
+  # "afabench/afa_rl/kachuee2019/models.py",
+  # "afabench/afa_rl/kachuee2019/reward.py",
+  # "afabench/afa_rl/kachuee2019/utils.py",
   # "afabench/afa_rl/shim2018/agents.py",
   # "afabench/afa_rl/shim2018/models.py",
   # "afabench/afa_rl/shim2018/utils.py",
@@ -55,7 +55,7 @@ exclude = [
   "scripts/train/covert2023.py",
   "scripts/train/gadgil2023_image.py",
   "scripts/train/gadgil2023.py",
-  "scripts/train/kachuee2019.py",
+  "scripts/train/kachuee2019_old.py",
   "scripts/train/ma2018.py",
   "scripts/train/masked_mlp_classifier.py",
   "scripts/train/masked_vit_classifier.py",
@@ -78,9 +78,7 @@ exclude = [
 ]
 
 [lint]
-select = [
-    "ALL"
-]
+select = ["ALL"]
 
 ignore = [
   # Documentation (pydocstyle - D)
@@ -159,13 +157,13 @@ ignore = [
   "PD901", # pandas-df-variable-name
 
   "CPY001", # missing-copyright-notice
-  ]
+]
 
 extend-safe-fixes = [
-    "D200",
-    "PTH123", # builtin-open. Seems to not work :(
-    "EM102", # f-string-in-exception
-    "D415", # missing-terminal-punctuation
+  "D200",
+  "PTH123", # builtin-open. Seems to not work :(
+  "EM102",  # f-string-in-exception
+  "D415",   # missing-terminal-punctuation
 ]
 
 [format]

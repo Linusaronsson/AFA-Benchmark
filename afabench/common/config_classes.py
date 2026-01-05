@@ -290,9 +290,6 @@ class Shim2018AgentConfig:
         float  # fraction of total number of expected batches
     )
 
-    # How large batches should be sampled from replay buffer
-    replay_buffer_batch_size: int
-
     # Optimization parameters
     num_epochs: int  # how many times to pass over the batch of data received
     max_grad_norm: float
@@ -768,19 +765,19 @@ class Kachuee2019AgentConfig:
     # epsilon-greedy parameters
     eps_init: float
     eps_end: float
-    eps_annealing_num_batches: int
+    eps_annealing_fraction: (
+        float  # fraction of total number of expected batches
+    )
 
     # How large batches should be sampled from replay buffer
     replay_buffer_batch_size: int
     replay_buffer_size: int  # how many samples fit in the replay buffer
 
     # Optimization parameters
-    num_optim: int  # how many batches to sample from replay buffer
-    max_action_value_grad_norm: float
-    action_value_lr: float
+    num_epochs: int  # how many times to pass over the batch of data received
+    max_grad_norm: float
+    lr: float
     update_tau: float
-    max_classification_grad_norm: float
-    classification_lr: float  # with cross entropy loss
 
     # Loss parameters
     loss_function: str
@@ -789,36 +786,35 @@ class Kachuee2019AgentConfig:
 
     # Value estimator parameters
     gamma: float
+    lmbda: float
 
 
 @dataclass
 class Kachuee2019TrainConfig:
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    pretrained_model_bundle_path: str
+    save_path: str
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+    mdp: AFAMDPConfig
+    rl_training_loop: AFARLTrainingLoopConfig
+    soft_budget_param: float | None
+    agent: Kachuee2019AgentConfig
+    pretrained_model_lr: float
+    activate_joint_training_after_fraction: float
+    seed: int | None
+    use_wandb: bool
+    smoke_test: bool
+    device: str | None
+
+    # Specific to kachuee2019
     reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
     # how many samples to average over when calculating certainty for the reward
     mcdrop_samples: int
 
-    pretrained_model_artifact_name: str
-    n_agents: int
-    hard_budget: int | None
-    cost_param: float | None
-    agent: Kachuee2019AgentConfig
-    n_batches: int  # how many batches to train the agent
-    batch_size: int  # batch size for collector
-    eval_every_n_batches: int | None  # how often to evaluate the agent
-    eval_max_steps: (
-        int  # maximum allowed number of steps in an evaluation episode
-    )
-    n_eval_episodes: int  # how many episodes to average over in evaluation
-
-    device: str
-    seed: int
-    output_artifact_aliases: list[str]
-    evaluate_final_performance: bool
-    eval_only_n_samples: int | None
-
 
 cs.store(name="train_kachuee2019", node=Kachuee2019TrainConfig)
-
 # ACO
 
 

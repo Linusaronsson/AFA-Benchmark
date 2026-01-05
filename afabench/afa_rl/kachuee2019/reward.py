@@ -2,7 +2,7 @@ import torch
 from jaxtyping import Bool
 from torch import Tensor
 
-from afabench.afa_rl.custom_types import (
+from afabench.afa_rl.common.custom_types import (
     AFAReward,
     AFARewardFn,
 )
@@ -13,16 +13,20 @@ from afabench.common.custom_types import (
     Features,
     Label,
     MaskedFeatures,
+    SelectionMask,
 )
 
 
-def calc_reward(conf_a: Tensor, conf_b: Tensor, method: str):
+def calc_reward(conf_a: Tensor, conf_b: Tensor, method: str) -> torch.Tensor:
     """
-    Calculates the reward according to eq. (7) in "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams".
+    Calculate the reward according to eq. (7) in "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams".
 
     Args:
         conf_a (Tensor of shape (batch_size, n_classes)): confidence for feature vector without new feature acquired
         conf_b (Tensor of shape (batch_size, n_classes)): confidence for feature vector with new feature acquired
+        method (str): Which method to use. One of ("softmax", "Bayesian-L1", "Bayesian-L2")
+
+    Returns: a Tensor with shape (batch_size,)
 
     """
     if method == "softmax":
@@ -32,49 +36,47 @@ def calc_reward(conf_a: Tensor, conf_b: Tensor, method: str):
     elif method == "Bayesian-L2":
         reward = ((conf_a - conf_b) ** 2.0).sum(dim=-1)
     else:
-        raise NotImplementedError("Method is not supported:", method)
+        msg = "Method is not supported:"
+        raise NotImplementedError(msg, method)
     return reward
 
 
 def get_kachuee2019_reward_fn(
-    pq_module: Kachuee2019PQModule,
+    pretrained_model: Kachuee2019PQModule,
+    acquisition_costs: torch.Tensor,
+    n_feature_dims: int,
     method: str,
     mcdrop_samples: int,
-    acquisition_costs: torch.Tensor,
 ) -> AFARewardFn:
     """
-    The reward function for kachuee2019.
+    Return the reward function for kachuee2019.
 
     The agent receives a reward at each step of the episode, equal to the relative confidence change.
-
-    Args:
-        - `method` is one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
-        - `mcdrop_samples` determines how many samples to average over to get class probabilities
-
     """
 
     def f(
         masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
+        _feature_mask: FeatureMask,
+        _selection_mask: SelectionMask,
         new_masked_features: MaskedFeatures,
-        new_feature_mask: FeatureMask,
+        _new_feature_mask: FeatureMask,
+        _new_selection_mask: SelectionMask,
         afa_selection: AFASelection,
         _features: Features,
         _label: Label,
-        done: Bool[Tensor, "*batch 1"],
+        _done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
-        # Acquisition cost per feature
-        newly_acquired = (new_feature_mask & ~feature_mask).to(torch.float32)
-        reward = -(newly_acquired * acquisition_costs).sum(dim=-1)
-        reward = reward.squeeze(-1)
-
-        conf_a = pq_module.confidence(
-            masked_features, mcdrop_samples=mcdrop_samples
+        conf_a = pretrained_model.confidence(
+            masked_features.flatten(start_dim=-n_feature_dims),
+            mcdrop_samples=mcdrop_samples,
         )
-        conf_b = pq_module.confidence(
-            new_masked_features, mcdrop_samples=mcdrop_samples
+        conf_b = pretrained_model.confidence(
+            new_masked_features.flatten(start_dim=-n_feature_dims),
+            mcdrop_samples=mcdrop_samples,
         )
-        reward = reward + calc_reward(conf_a, conf_b, method=method)
+        unscaled_reward = calc_reward(conf_a, conf_b, method=method)
+        selection_cost = acquisition_costs[afa_selection]
+        reward = unscaled_reward / selection_cost
         return reward
 
     return f
