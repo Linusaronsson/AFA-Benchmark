@@ -129,6 +129,7 @@ def afa_rl_training_loop(
             | dict_with_prefix(
                 "agent_process_batch_info.", agent_process_batch_info
             )
+            | dict_with_prefix("agent_cheap_info.", agent.get_cheap_info())
             | dict_with_prefix("post_process_info.", post_process_info),
         )
 
@@ -168,6 +169,9 @@ def afa_rl_training_loop(
                     "eval_env_rollout_info.", eval_env_rollout_info
                 )
                 | dict_with_prefix("agent_rollout_info.", agent_rollout_info)
+                | dict_with_prefix(
+                    "agent_expensive_info.", agent.get_expensive_info()
+                )
                 | dict_with_prefix("metrics.", metrics_eval),
             )
 

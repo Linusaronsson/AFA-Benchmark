@@ -312,8 +312,16 @@ class Zannone2019Agent(Agent):
     def get_rollout_info(
         self, rollout_tds: list[TensorDictBase]
     ) -> dict[str, Any]:
+        return {}
+
+    @override
+    def get_expensive_info(self) -> dict[str, Any]:
         return {
             "common_module_norm": module_norm(self.common_module),
             "value_head_norm": module_norm(self.value_head),
             "policy_head_norm": module_norm(self.policy_head),
         }
+
+    @override
+    def get_cheap_info(self) -> dict[str, Any]:
+        return {}

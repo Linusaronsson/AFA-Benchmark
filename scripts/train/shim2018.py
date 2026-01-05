@@ -227,7 +227,6 @@ def main(cfg: Shim2018TrainConfig) -> None:
         embedding_size=pretrained_model.embedder.encoder.output_size,
         action_spec=train_env.action_spec,
         action_mask_key="allowed_action_mask",
-        batch_size=cfg.rl_training_loop.frames_per_batch,
         module_device=device,
         n_feature_dims=len(train_dataset.feature_shape),
         n_batches=cfg.rl_training_loop.n_batches,

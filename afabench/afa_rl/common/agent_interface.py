@@ -19,6 +19,14 @@ class Agent(Protocol):
         """Return a wandb loggable dictionary when the tensordict contains full rollouts."""
         ...
 
+    def get_cheap_info(self) -> dict[str, Any]:
+        """Return a wandb loggable dictionary that is cheap to compute."""
+        ...
+
+    def get_expensive_info(self) -> dict[str, Any]:
+        """Return a wandb loggable dictionary that is expensive to compute."""
+        ...
+
     def get_policy(
         self,
     ) -> TensorDictModuleBase | ProbabilisticActor:

@@ -88,17 +88,15 @@ class Shim2018Agent(Agent):
         embedding_size: int,  # size of the embedding produced by `embedder`
         action_spec: TensorSpec,
         action_mask_key: str,
-        batch_size: int,  # expected batch size received in `process_batch`
         module_device: torch.device,  # device to place nn.Modules on
         n_feature_dims: int,  # how many dimensions the feature shape needs. Used to flatten the features before they are passed to the embedder
-        n_batches: int,  # total number of batches expected during training
+        n_batches: int,  # total number of batches expected during training, needed for eps annealing
     ):
         self.cfg = cfg
         self.embedder = embedder
         self.embedding_size = embedding_size
         self.action_spec = action_spec
         self.action_mask_key = action_mask_key
-        self.batch_size = batch_size
         self.module_device = module_device
         self.n_feature_dims = n_feature_dims
 
@@ -187,6 +185,16 @@ class Shim2018Agent(Agent):
     def get_rollout_info(
         self, rollout_tds: list[TensorDictBase]
     ) -> dict[str, Any]:
+        return {}
+
+    @override
+    def get_cheap_info(self) -> dict[str, Any]:
+        return {
+            "eps": self.egreedy_tdmodule.eps.item()  # pyright: ignore[reportCallIssue]
+        }
+
+    @override
+    def get_expensive_info(self) -> dict[str, Any]:
         return {
             "value net norm": module_norm(self.action_value_module.net),
         }
@@ -225,9 +233,6 @@ class Shim2018Agent(Agent):
             k: v / self.cfg.num_epochs for k, v in total_loss_dict.items()
         }
         process_dict["td_error"] = torch.mean(torch.stack(td_errors)).item()
-
-        # Some more things to log
-        process_dict["eps"] = self.egreedy_tdmodule.eps.item()  # pyright: ignore[reportCallIssue]
 
         return process_dict
 
