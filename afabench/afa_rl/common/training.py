@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import torch
+import wandb
 from rl_helpers import dict_with_prefix
 from tensordict import TensorDict
 from torchrl.collectors import SyncDataCollector
@@ -130,7 +131,8 @@ def afa_rl_training_loop(
                 "agent_process_batch_info.", agent_process_batch_info
             )
             | dict_with_prefix("agent_cheap_info.", agent.get_cheap_info())
-            | dict_with_prefix("post_process_info.", post_process_info),
+            | dict_with_prefix("post_process_info.", post_process_info)
+            | {"action_distribution": wandb.Histogram(td["action"])},
         )
 
         if evaluate_this_batch:
