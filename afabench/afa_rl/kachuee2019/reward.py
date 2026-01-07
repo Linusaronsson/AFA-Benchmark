@@ -75,7 +75,9 @@ def get_kachuee2019_reward_fn(
             mcdrop_samples=mcdrop_samples,
         )
         unscaled_reward = calc_reward(conf_a, conf_b, method=method)
-        selection_cost = acquisition_costs[afa_selection]
+        selection_cost = acquisition_costs[
+            afa_selection - 1
+        ]  # 1-based selections
         reward = unscaled_reward / selection_cost
         return reward
 
