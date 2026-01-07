@@ -27,6 +27,7 @@ from afabench.common.custom_types import (
     Logits,
     MaskedFeatures,
 )
+from afabench.common.utils import flatten_afa_input
 
 
 @final
@@ -369,6 +370,13 @@ class Shim2018AFAPredictFn(AFAPredictFn):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
+        # The model assumes flat features
+        assert feature_shape is not None
+
+        masked_features, feature_mask, label = flatten_afa_input(
+            masked_features, feature_mask, label, feature_shape
+        )
+
         _, logits = self.embedder_and_classifier(masked_features, feature_mask)
         return logits.softmax(dim=-1)
 
@@ -394,10 +402,17 @@ class Shim2018AFAClassifier(AFAClassifier):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
+        # The model assumes flat features
+        assert feature_shape is not None
+
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
+
+        masked_features, feature_mask, label = flatten_afa_input(
+            masked_features, feature_mask, label, feature_shape
+        )
 
         _, logits = self.pretrained_model(masked_features, feature_mask)
         return logits.softmax(dim=-1).to(original_device)

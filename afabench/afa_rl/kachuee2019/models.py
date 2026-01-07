@@ -17,6 +17,7 @@ from afabench.common.custom_types import (
     Label,
     MaskedFeatures,
 )
+from afabench.common.utils import flatten_afa_input
 
 
 @final
@@ -268,6 +269,12 @@ class Kachuee2019AFAPredictFn(AFAPredictFn):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
+        # The model assumes flat features
+        assert feature_shape is not None
+
+        masked_features, feature_mask, label = flatten_afa_input(
+            masked_features, feature_mask, label, feature_shape
+        )
         class_logits, _qvalues = self.pq_module.forward(masked_features)
         return class_logits.softmax(dim=-1)
 
@@ -293,10 +300,17 @@ class Kachuee2019AFAClassifier(AFAClassifier):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
+        # The model assumes flat features
+        assert feature_shape is not None
+
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
+
+        masked_features, feature_mask, label = flatten_afa_input(
+            masked_features, feature_mask, label, feature_shape
+        )
 
         class_logits, _qvalues = self.pq_module(masked_features)
         return class_logits.softmax(dim=-1).to(original_device)

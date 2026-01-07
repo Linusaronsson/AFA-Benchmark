@@ -94,6 +94,8 @@ class AFAMethod(Protocol):
         """
         Return an AFA selection based on observed features.
 
+        Note that the features in general can have *any* feature shape. If your model expects flat features, use `feature_shape` to flatten them first.
+
         Args:
             masked_features: The features with unobserved features masked out (set to zero).
             feature_mask: A boolean mask indicating which features have been observed.
@@ -175,6 +177,8 @@ class AFAClassifier(Protocol):
         """
         Return the predicted label for the features that have been observed so far.
 
+        Note that the features in general can have *any* feature shape. If your model expects flat features, use `feature_shape` to flatten them first.
+
         Args:
             masked_features: The features with unobserved features masked out (set to zero).
             feature_mask: A boolean mask indicating which features have been observed.
@@ -215,6 +219,8 @@ class AFASelectFn(Protocol):
         """
         Make a new AFA selection.
 
+        Note that the features in general can have *any* feature shape. If your model expects flat features, use `feature_shape` to flatten them first.
+
         Args:
             masked_features: The features with unobserved features masked out (set to zero).
             feature_mask: A boolean mask indicating which features have been observed.
@@ -236,6 +242,8 @@ class AFAPredictFn(Protocol):
     ) -> Label:
         """
         Make a prediction.
+
+        Note that the features in general can have *any* feature shape. If your model expects flat features, use `feature_shape` to flatten them first.
 
         Args:
             masked_features: The features with unobserved features masked out (set to zero).
