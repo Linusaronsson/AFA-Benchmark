@@ -4,19 +4,18 @@ from typing import Protocol, Self
 
 import torch
 from jaxtyping import Bool, Float, Integer
-from torch import Tensor
 
-type Features = Float[Tensor, "*batch *feature_shape"]
+type Features = Float[torch.Tensor, "*batch *feature_shape"]
 # MaskedFeatures are similar to Features, but are 0 where FeatureMask is False
-type MaskedFeatures = Float[Tensor, "*batch *feature_shape"]
-type FeatureMask = Bool[Tensor, "*batch *feature_shape"]
-type SelectionMask = Bool[Tensor, "*batch *selection_shape"]
+type MaskedFeatures = Float[torch.Tensor, "*batch *feature_shape"]
+type FeatureMask = Bool[torch.Tensor, "*batch *feature_shape"]
+type SelectionMask = Bool[torch.Tensor, "*batch *selection_shape"]
 # We allow arbitrary labels
-type Label = Float[Tensor, "*batch *label_shape"]
-type Logits = Float[Tensor, "*batch *n_classes"]
+type Label = Float[torch.Tensor, "*batch *label_shape"]
+type Logits = Float[torch.Tensor, "*batch *n_classes"]
 
 # Outputs of AFA methods, representing which feature to collect next, or to stop acquiring features (0)
-type AFASelection = Integer[Tensor, "*batch 1"]
+type AFASelection = Integer[torch.Tensor, "*batch 1"]
 
 
 class AFADataset(Protocol):
@@ -74,7 +73,7 @@ class AFADataset(Protocol):
         """Load the dataset from a file/folder. The file/folder should contain the dataset in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""
         ...
 
-    def get_feature_acquisition_costs(self) -> Tensor:
+    def get_feature_acquisition_costs(self) -> torch.Tensor:
         """Return the acquisition costs for each feature as a tensor of the shape as the features."""
         return torch.ones(
             self.feature_shape
@@ -110,7 +109,7 @@ class AFAMethod(Protocol):
         feature_mask: FeatureMask,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> Tensor:
+    ) -> torch.Tensor:
         """
         Return the predicted label for the features that have been observed so far.
 

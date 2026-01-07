@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, cast
 import hydra
 import torch
 from omegaconf.omegaconf import OmegaConf
+from torch.nn import functional as F
 
 from afabench.afa_rl.common.afa_methods import RLAFAMethod
 from afabench.afa_rl.common.training import (
@@ -28,6 +29,8 @@ from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import (
     Zannone2019TrainConfig,
 )
+from afabench.common.custom_types import Features, Label
+from afabench.common.datasets.wrappers import ExtendedAFADataset
 from afabench.common.utils import (
     initialize_wandb_run,
     set_seed,
@@ -59,6 +62,38 @@ def get_zannone2019_pretrained_model(
     pretrained_model.eval()
     pretrained_model = pretrained_model.to(device)
     return pretrained_model
+
+
+def generate_data_batched(
+    pretrained_model: Zannone2019PretrainingModel,
+    samples: int,
+    batch_size: int,
+) -> tuple[Features, Label]:
+    generated_flat_features = torch.zeros(samples, pretrained_model.n_features)
+    generated_labels = torch.zeros(samples, pretrained_model.n_classes)
+    n_full_batches = samples // batch_size
+    n_samples_rest = samples % batch_size
+    # Add full batches
+    batch_plan = [
+        (i * batch_size, (i + 1) * batch_size, batch_size)
+        for i in range(n_full_batches)
+    ]
+    # Add remainder batch
+    if n_samples_rest > 0:
+        batch_plan.append(
+            (n_full_batches * batch_size, samples, n_samples_rest)
+        )
+
+    for start, end, curr_batch_size in batch_plan:
+        _z, flat_batch, label_batch = pretrained_model.generate_data(
+            n_samples=curr_batch_size
+        )
+        generated_flat_features[start:end, :] = flat_batch.cpu()
+        generated_labels[start:end, :] = F.one_hot(
+            label_batch.argmax(-1),
+            num_classes=label_batch.shape[-1],
+        ).cpu()
+    return generated_flat_features, generated_labels
 
 
 @hydra.main(
@@ -111,10 +146,22 @@ def main(cfg: Zannone2019TrainConfig) -> None:
     )
 
     # zannone2019 unique step: generate additional data using generative model
-    # TODO:
+    if cfg.n_generated_samples > 0:
+        additional_features, additional_labels = generate_data_batched(
+            pretrained_model=pretrained_model,
+            samples=cfg.n_generated_samples,
+            batch_size=cfg.generation_batch_size,
+        )
+        extended_train_dataset = ExtendedAFADataset(
+            base_dataset=train_dataset,
+            additional_features=additional_features,
+            additional_labels=additional_labels,
+        )
+    else:
+        extended_train_dataset = train_dataset
 
     train_env, eval_env = create_afa_envs(
-        train_dataset=train_dataset,
+        train_dataset=extended_train_dataset,
         val_dataset=val_dataset,
         reward_fn=get_zannone2019_reward_fn(
             pretrained_model=pretrained_model,
@@ -153,7 +200,7 @@ def main(cfg: Zannone2019TrainConfig) -> None:
         action_mask_key="allowed_action_mask",
         frames_per_batch=cfg.rl_training_loop.frames_per_batch,
         module_device=device,
-        n_feature_dims=len(train_dataset.feature_shape),
+        n_feature_dims=len(extended_train_dataset.feature_shape),
     )
 
     try:
@@ -165,7 +212,7 @@ def main(cfg: Zannone2019TrainConfig) -> None:
             post_process_batch_callback=None,
             afa_predict_fn=Zannone2019AFAPredictFn(pretrained_model),
             device=device,
-            feature_shape=train_dataset.feature_shape,
+            feature_shape=extended_train_dataset.feature_shape,
             log_fn=log_fn,
             pre_eval_callback=None,
             post_eval_callback=None,

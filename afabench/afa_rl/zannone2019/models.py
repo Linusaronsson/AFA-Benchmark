@@ -224,7 +224,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self,
         partial_vae: PartialVAE,
         classifier: nn.Module,
-        class_probabilities: Float[Tensor, "n_classes"],  # noqa: F821
+        class_probabilities: Float[Tensor, "n_classes"],
         min_masking_probability: float,
         max_masking_probability: float,
         lr: float,
@@ -237,6 +237,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         super().__init__()
         self.partial_vae: PartialVAE = partial_vae
         self.classifier: nn.Module = classifier
+        assert class_probabilities.ndim == 1
         class_weights = 1 / class_probabilities
         self.class_weights = class_weights / class_weights.sum()
         self.min_masking_probability: float = min_masking_probability
@@ -246,6 +247,21 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         self.end_kl_scaling_factor: float = end_kl_scaling_factor
         self.n_annealing_epochs = n_annealing_epochs
         self.classifier_loss_scaling_factor = classifier_loss_scaling_factor
+
+    @property
+    def latent_size(self) -> int:
+        """Return latent size of the PVAE."""
+        return self.partial_vae.latent_size
+
+    @property
+    def n_classes(self) -> int:
+        """Number of classes that the model is trained on."""
+        return len(self.class_weights)
+
+    @property
+    def n_features(self) -> int:
+        """Number of features that the model is trained on."""
+        return self.partial_vae.pointnet.n_features
 
     def current_kl_weight(self) -> float:
         """Compute the current KL weight using linear annealing."""
@@ -525,40 +541,29 @@ class Zannone2019PretrainingModel(pl.LightningModule):
 
     def generate_data(
         self,
-        latent_size: int,
-        device: torch.device,
         n_samples: int = 1,
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Generate `n_samples` of new data.
 
-        Args:
-            latent_size (int): the size of the latent space, needed for sampling
-            device (int): where to place the sampled latent vectors before passing them to the model
-            n_samples (int): how many samples to generate
+        Remember, since the model is trained on flat features, this is also what it will generate.
         """
         dist = torch.distributions.MultivariateNormal(
-            loc=torch.zeros(latent_size),
-            covariance_matrix=torch.eye(latent_size),
+            loc=torch.zeros(self.latent_size),
+            covariance_matrix=torch.eye(self.latent_size),
         )
         z = dist.sample(torch.Size((n_samples,)))
-        z = z.to(device)
 
         # Decode for features
         estimated_flat_features = self.partial_vae.decoder(
             z
         )  # (batch_size, n_features)
 
-        # Unflatten feature dimension
-        estimated_features = estimated_flat_features.unflatten(
-            -1, self.feature_shape
-        )
-
         # Apply classifier for class probabilities
         logits = self.classifier(z)
         classifier_probs = logits.softmax(dim=-1)
 
-        return z, estimated_features, classifier_probs
+        return z, estimated_flat_features, classifier_probs
 
     def fully_observed_reconstruction(
         self,
@@ -620,7 +625,6 @@ class Zannone2019AFAPredictFn(AFAPredictFn):
     def __init__(self, model: Zannone2019PretrainingModel):
         super().__init__()
         self.model = model
-        self.n_classes = len(model.class_weights)
 
     @override
     def __call__(
@@ -643,7 +647,9 @@ class Zannone2019AFAPredictFn(AFAPredictFn):
             [
                 masked_features,
                 torch.zeros(
-                    batch_size, self.n_classes, device=masked_features.device
+                    batch_size,
+                    self.model.n_classes,
+                    device=masked_features.device,
                 ),
             ],
             dim=-1,
@@ -652,7 +658,7 @@ class Zannone2019AFAPredictFn(AFAPredictFn):
             [
                 feature_mask,
                 torch.full(
-                    (batch_size, self.n_classes),
+                    (batch_size, self.model.n_classes),
                     False,
                     device=feature_mask.device,
                 ),
