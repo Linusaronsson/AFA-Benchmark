@@ -68,9 +68,8 @@ def get_zannone2019_pretrained_model(
 )
 def main(cfg: Zannone2019TrainConfig) -> None:
     # Evaluate alias arguments
-    if cfg.hard_budget is not None:
-        cfg.mdp.hard_budget = cfg.hard_budget
-    assert cfg.mdp.hard_budget is not None
+    # Flat hard budget parameter always overrides
+    cfg.mdp.hard_budget = cfg.hard_budget
 
     log.debug(cfg)
     set_seed(cfg.seed)
