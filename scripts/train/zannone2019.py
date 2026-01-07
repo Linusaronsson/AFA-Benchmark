@@ -70,6 +70,7 @@ def main(cfg: Zannone2019TrainConfig) -> None:
     # Evaluate alias arguments
     if cfg.hard_budget is not None:
         cfg.mdp.hard_budget = cfg.hard_budget
+    assert cfg.mdp.hard_budget is not None
 
     log.debug(cfg)
     set_seed(cfg.seed)

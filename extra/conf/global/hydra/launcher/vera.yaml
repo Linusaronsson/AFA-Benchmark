@@ -5,7 +5,7 @@ submitit_folder: ${hydra.sweep.dir}/.submitit/%j
 timeout_min: 1440 # 24 hours
 
 partition: vera
-account: C3SE2025-1-14
+account: C3SE2026-1-12
 
 additional_parameters:
     cpus_per_task: 1

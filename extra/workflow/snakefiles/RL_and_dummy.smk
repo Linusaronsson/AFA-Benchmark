@@ -134,7 +134,7 @@ rule pretrain_model:
             seed={wildcards.pretrain_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            +experiment@_global_={wildcards.dataset}
+            experiment@_global_={wildcards.dataset}
         """
 
 rule train_method_with_pretrained_model:
@@ -173,7 +173,7 @@ rule train_method_with_pretrained_model:
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            +experiment@_global_={wildcards.dataset} \
+            experiment@_global_={wildcards.dataset} \
         """
 
 rule train_method_without_pretrained_model:
@@ -206,7 +206,7 @@ rule train_method_without_pretrained_model:
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            +experiment@_global_={wildcards.dataset} \
+            experiment@_global_={wildcards.dataset} \
         """
 
 # rule train_classifier:

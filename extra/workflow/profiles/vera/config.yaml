@@ -2,7 +2,7 @@ latency-wait: 30 # seconds
 
 default-resources:
   slurm_partition: vera
-  slurm_account: C3SE2025-1-14
+  slurm_account: C3SE2026-1-12
   runtime: 120 # minutes
   cpus_per_task: 1
   mem_mb: 4000
@@ -10,5 +10,7 @@ default-resources:
 set-resources:
   pretrain_model:
     runtime: 6000 # 100 hours
-  train_method:
+  train_method_with_pretrained_model:
+    runtime: 6000 # 100 hours
+  train_method_without_pretrained_model:
     runtime: 6000 # 100 hours
