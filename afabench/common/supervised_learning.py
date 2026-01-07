@@ -154,8 +154,6 @@ def supervised_learning(
         # If None, Lightning will validate at the end of each epoch.
         val_check_interval=cfg.val_check_interval,
         check_val_every_n_epoch=None,
-        limit_train_batches=cfg.limit_train_batches,
-        limit_val_batches=cfg.limit_val_batches,
     )
 
     try:

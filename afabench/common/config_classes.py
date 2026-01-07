@@ -111,8 +111,6 @@ class SupervisedLearningConfig:
     early_stopping_min_batches: int  # minimum number of batches to process before we allow quitting. Useful because many methods fail to learn at the beginning
     early_stopping_patience: int  # early stopping patience
     early_stopping_min_delta: float
-    limit_train_batches: int | None
-    limit_val_batches: int | None
     val_check_interval: int  # how often to validate
 
 
