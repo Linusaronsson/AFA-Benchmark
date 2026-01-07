@@ -3,6 +3,6 @@ supervised_learning:
   max_epochs: 9001 # upper bound, we use early stopping to stop earlier
   checkpoint_earliest_batch: 500
   early_stopping_min_batches: 1000
-  early_stopping_patience: 10
+  early_stopping_patience: 50
   early_stopping_min_delta: 1e-3
   val_check_interval: 100 # validate every n batches
