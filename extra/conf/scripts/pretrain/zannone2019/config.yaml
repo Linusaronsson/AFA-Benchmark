@@ -12,6 +12,9 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
+supervised_learning:
+  early_stopping_min_delta: 1e-1
+
 train_dataset_bundle_path: ???
 val_dataset_bundle_path: ???
 save_path: ???
