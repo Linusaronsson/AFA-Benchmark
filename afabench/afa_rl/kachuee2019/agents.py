@@ -44,6 +44,12 @@ class Kachuee2019ActionValueModule(nn.Module):
         flat_masked_features = flat_masked_features.flatten(end_dim=-2)
         # pq_module.forward ensures that gradients are not backpropagated to the P network
         _class_logits, qvalues = self.pq_module.forward(flat_masked_features)
+
+        # Unflatten batch dimensions
+        qvalues = qvalues.unflatten(
+            0, masked_features.shape[: -self.n_feature_dims]
+        )
+
         # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
         qvalues[~action_mask] = float("-inf")
         return qvalues
@@ -178,7 +184,7 @@ class Kachuee2019Agent(Agent):
         self.replay_buffer.extend(td)
 
         # Initialize total loss dictionary
-        total_loss_dict = {"qvalue_loss": 0.0, "classification_loss": 0.0}
+        total_loss_dict = {"loss": 0.0}
         td_errors = []
 
         for _ in range(self.cfg.num_epochs):

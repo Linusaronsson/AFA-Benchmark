@@ -36,13 +36,13 @@ class Kachuee2019PQModule(nn.Module):
         self.layers_p = nn.ModuleList()
         self.layers_q = nn.ModuleList()
 
-        # initialize the P-Net
+        # Initialize the P-Net
         size_last = self.n_features
         for n_h in self.cfg.n_hiddens + [self.n_classes]:
             self.layers_p.append(nn.Linear(size_last, n_h))
             size_last = n_h
 
-        # initialize the Q-Net
+        # Initialize the Q-Net. The inputs to the Q-network are concatenations of the previous Q-network layer's output and activations from the P-network.
         size_last = self.n_features
         # always share_pq
         self.n_hiddens_q = []
@@ -59,6 +59,7 @@ class Kachuee2019PQModule(nn.Module):
         ):
             self.layers_q.append(nn.Linear(size_last, n_h_q))
             size_last = n_h + n_h_q
+
         # Output of Q-Net now also includes the stop action
         self.layers_q.append(nn.Linear(size_last, self.n_features + 1))
 
@@ -164,8 +165,8 @@ class LitKachuee2019PQModule(pl.LightningModule):
             feature_mask: indicator for missing features, 1 if feature is observed, 0 if missing
 
         Returns:
-            embedding: the embedding of the input features
-            classifier_output: the output of the classifier
+            logits: the logits from the PQ network
+            qvalues: the Q-values from the PQ network
 
         """
         class_logits, qvalues = self.pq_module(masked_features)
@@ -188,7 +189,7 @@ class LitKachuee2019PQModule(pl.LightningModule):
         masked_features, feature_mask, _ = mask_data(
             features, p=masking_probability
         )
-        class_logits, _ = self(masked_features, feature_mask)
+        class_logits, _ = self.forward(masked_features, feature_mask)
         loss = F.cross_entropy(
             class_logits,
             label,

@@ -69,6 +69,7 @@ class Shim2018ActionValueModule(nn.Module):
         with torch.no_grad():
             embedding = self.embedder(flat_masked_features, flat_feature_mask)
         qvalues = self.net(embedding)
+
         # Unflatten batch dimensions
         qvalues = qvalues.unflatten(
             0, masked_features.shape[: -self.n_feature_dims]
