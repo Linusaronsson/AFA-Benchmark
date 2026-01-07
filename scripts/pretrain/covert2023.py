@@ -54,8 +54,6 @@ def main(cfg: Covert2023PretrainingConfig) -> None:
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
-    x_batch, _ = next(iter(train_loader))
-    print("x_batch shape:", x_batch.shape)
 
     in_features: int = int(d_in * 2)
     out_features: int = int(d_out)

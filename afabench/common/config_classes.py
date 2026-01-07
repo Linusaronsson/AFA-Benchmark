@@ -505,8 +505,6 @@ class Gadgil2023PretrainingConfig:
     train_dataset_path: str
     val_dataset_path: str
     save_path: str
-    split_idx: int
-    dataset_base_path: str
     output_dir: str
 
     batch_size: int
@@ -549,13 +547,17 @@ cs.store(name="pretrain_gadgil2023", node=Gadgil2023Pretraining2DConfig)
 
 @dataclass
 class Gadgil2023TrainingConfig:
-    pretrained_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    pretrained_model_bundle_path: str
+    save_path: str
 
     batch_size: int
     lr: float
     hard_budget: int
     nepochs: int
     patience: int
+    activation: str
     eps: float
     eps_decay: float
     eps_steps: int
@@ -565,6 +567,7 @@ class Gadgil2023TrainingConfig:
     hidden_units: list[int]
     dropout: float
     initializer: InitializerConfig
+    unmasker: UnmaskerConfig
 
 
 cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)

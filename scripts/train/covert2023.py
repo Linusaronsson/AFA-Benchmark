@@ -18,9 +18,7 @@ from afabench.afa_discriminative.models import GreedyAFAClassifier
 from afabench.afa_discriminative.utils import MaskLayer, afa_discriminative_training_prep
 from afabench.common.config_classes import Covert2023TrainingConfig
 from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.utils import (
-    set_seed,
-)
+from afabench.common.utils import set_seed
 
 log = logging.getLogger(__name__)
 
@@ -45,6 +43,7 @@ def main(cfg: Covert2023TrainingConfig):
             unmasker_cfg=cfg.unmasker,
         )
     )
+    class_weights = class_weights.to(device)
 
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size

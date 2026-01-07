@@ -710,27 +710,27 @@ class CMIEstimator(nn.Module):
                 x = x_batch.to(device)
                 y = y_batch.to(device)
 
-                # Setup.
+                m_sel = torch.zeros(
+                    len(x), mask_size, dtype=x.dtype, device=device
+                )
                 if initializer is None:
-                    m = torch.zeros(
-                        len(x), mask_size, dtype=x.dtype, device=device
-                    )
-                    current_max_features = max_features
+                    m_init = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
                 else:
                     init_mask_bool = initializer.initialize(
                         features=x,
                         label=y,
                         feature_shape=feature_shape,
                     ).to(device)
-                    m = init_mask_bool.to(dtype=x.dtype)
-                    current_max_features = effective_max_features
+                    m_init = init_mask_bool.to(dtype=x.dtype)
+
                 value_network.zero_grad()
                 predictor.zero_grad()
                 value_network_loss_total = 0
                 pred_loss_total = 0
 
-                # Predictor loss with no features.
-                x_masked = self.mask_layer(x, m)
+                # Predictor loss with initial features.
+                m_ctx = torch.max(m_init, m_sel)
+                x_masked = self.mask_layer(x, m_ctx)
                 pred_without_next_feature = predictor(x_masked)
                 loss_without_next_feature = loss_fn(
                     pred_without_next_feature, y
@@ -742,9 +742,9 @@ class CMIEstimator(nn.Module):
                 pred_without_next_feature = pred_without_next_feature.detach()
                 loss_without_next_feature = loss_without_next_feature.detach()
 
-                for _ in range(current_max_features):
+                for _ in range(max_features):
                     # Estimate CMI using value network.
-                    x_masked = mask_layer(x, m)
+                    x_masked = mask_layer(x, m_ctx)
                     if cmi_scaling == "bounded":
                         entropy = get_entropy(
                             pred_without_next_feature
@@ -765,10 +765,11 @@ class CMIEstimator(nn.Module):
                     )
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
-                    m = torch.max(m, ind_to_onehot(actions, mask_size))
+                    m_sel = torch.max(m_sel, ind_to_onehot(actions, mask_size))
 
                     # Predictor loss.
-                    x_masked = self.mask_layer(x, m)
+                    m_ctx = torch.max(m_init, m_sel)
+                    x_masked = self.mask_layer(x, m_ctx)
                     pred_with_next_feature = predictor(x_masked)
                     loss_with_next_feature = loss_fn(pred_with_next_feature, y)
 
@@ -811,28 +812,30 @@ class CMIEstimator(nn.Module):
                     # Move to device.
                     x = x_batch.to(device)
                     y = y_batch.to(device)
+                    m_sel = torch.zeros(
+                        len(x), mask_size, dtype=x.dtype, device=device
+                    )
 
                     # Setup.
                     if initializer is None:
-                        m = torch.zeros(
+                        m_init = torch.zeros(
                             len(x), mask_size, dtype=x.dtype, device=device
                         )
-                        current_max_features_val = max_features
                     else:
                         init_mask_bool = initializer.initialize(
                             features=x,
                             label=y,
                             feature_shape=feature_shape,
                         ).to(device)
-                        m = init_mask_bool.to(dtype=x.dtype)
-                        current_max_features_val = effective_max_features
-                    x_masked = self.mask_layer(x, m)
+                        m_init = init_mask_bool.to(dtype=x.dtype)
+                    m_ctx = torch.max(m_init, m_sel)
+                    x_masked = self.mask_layer(x, m_ctx)
                     pred = predictor(x_masked)
                     val_preds[0].append(pred)
 
-                    for i in range(1, current_max_features_val + 1):
+                    for i in range(1, max_features + 1):
                         # Estimate CMI using value network.
-                        x_masked = mask_layer(x, m)
+                        x_masked = mask_layer(x, m_ctx)
                         if cmi_scaling == "bounded":
                             entropy = get_entropy(pred).unsqueeze(1)
                             pred_cmi = (
@@ -846,16 +849,17 @@ class CMIEstimator(nn.Module):
                             pred_cmi = value_network(x_masked)
 
                         # Select next feature, ensure no repeats.
-                        pred_cmi -= 1e6 * m
+                        pred_cmi -= 1e6 * m_sel
                         best_feature_index = torch.argmax(
                             pred_cmi / feature_costs, dim=1
                         )
-                        m = torch.max(
-                            m, ind_to_onehot(best_feature_index, mask_size)
+                        m_sel = torch.max(
+                            m_sel, ind_to_onehot(best_feature_index, mask_size)
                         )
+                        m_ctx = torch.max(m_init, m_sel)
 
                         # Make prediction.
-                        x_masked = self.mask_layer(x, m)
+                        x_masked = self.mask_layer(x, m_ctx)
                         pred = self.predictor(x_masked)
                         val_preds[i].append(pred)
 

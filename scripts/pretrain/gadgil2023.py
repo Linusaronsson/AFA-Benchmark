@@ -10,9 +10,11 @@ from torch import nn
 from torchmetrics import Accuracy
 from torchrl.modules import MLP
 
-from afabench.afa_discriminative.afa_methods import PredictorBundle
 from afabench.afa_discriminative.datasets import prepare_datasets
-from afabench.afa_discriminative.models import MaskingPretrainer
+from afabench.afa_discriminative.models import (
+    GreedyAFAClassifier,
+    MaskingPretrainer,
+)
 from afabench.afa_discriminative.utils import MaskLayer
 from afabench.common.bundle import (
     load_bundle,
@@ -29,7 +31,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/pretrain/gadgil2023",
+    config_path="../../extra/conf/scripts/pretrain/gadgil2023",
     config_name="config",
 )
 def main(cfg: Gadgil2023PretrainingConfig) -> None:
@@ -93,11 +95,11 @@ def main(cfg: Gadgil2023PretrainingConfig) -> None:
     )
 
     metadata = {
-        "model_type": "Gadgil2023Predictor",
+        "model_type": "Gadgil2023Classifier",
         "dataset_name": dataset_name,
         "pretrain_config": OmegaConf.to_container(cfg),
     }
-    bundle_obj = PredictorBundle(
+    bundle_obj = GreedyAFAClassifier(
         predictor=predictor,
         architecture=architecture,
         device=torch.device("cpu"),
