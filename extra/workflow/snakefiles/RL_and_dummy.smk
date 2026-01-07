@@ -261,6 +261,7 @@ rule eval_method:
             device={DEVICE} \
             hard_budget={wildcards.eval_hard_budget} \
             use_wandb={USE_WANDB} \
+            smoke_test={SMOKE_TEST}
         """
 
 # Add eval_soft_budget_param column. Not used by dummy methods, but kept for consistency.
