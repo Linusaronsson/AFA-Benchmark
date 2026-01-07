@@ -7,9 +7,7 @@ We pretrained the models on synthetic datasets with no noise, to check whether t
 **Yes:**
 - Noiseless Cube
 - Noiseless AFAContext
-
-**No:**
-- Noiseless synthetic MNIST
+- Noiseless synthetic MNIST (if increasing model complexity)
 
 ---
 
@@ -20,16 +18,15 @@ We pretrained the models on synthetic datasets with no noise, to check whether t
 - Noiseless synthetic MNIST
 
 **Still under investigation**
-- Noiseless AFAContext (needs larger patience?)
+- Noiseless AFAContext (needs larger patience, still debugging this)
 
 ### kachuee2019
 
 **Yes:**
 - Noiseless synthetic MNIST
+- Noiseless Cube (maybe, but needs a bit larger patience, debugging this)
 
 **No:**
-- Noiseless Cube
-*(none)*
+- Noiseless AFAContext
 
-**Still under investigation**
-- Noiseless AFAContext (needs larger patience)
+Since kachuee2019 is not able to distinguish between missing features and features with values 0, these results are not surprising.
