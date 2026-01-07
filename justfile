@@ -23,7 +23,7 @@ coverage:
     uv run coverage html
 
 # --- Pipeline ---
-rl_and_dummy_pipeline:
+rl_and_dummy_all_smoke:
     snakemake -s extra/workflow/snakefiles/RL_and_dummy.smk --configfile extra/workflow/conf/{datasets,hard_budgets,methods,method_options,soft_budget_params,unmaskers}.yaml --config smoke_test=true use_wandb=true --forceall --jobs 10 --rerun-incomplete
 
 # --- Pretraining RL methods ---

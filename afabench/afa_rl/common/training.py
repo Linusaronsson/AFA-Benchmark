@@ -132,7 +132,7 @@ def afa_rl_training_loop(
             )
             | dict_with_prefix("agent_cheap_info.", agent.get_cheap_info())
             | dict_with_prefix("post_process_info.", post_process_info)
-            | {"action_distribution": wandb.Histogram(td["action"])},
+            | {"action_distribution": wandb.Histogram(td["action"].cpu())},
         )
 
         if evaluate_this_batch:
