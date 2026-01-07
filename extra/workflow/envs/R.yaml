@@ -5,3 +5,4 @@ dependencies:
     - r-tidyverse
     - r-knitr
     - r-kableExtra
+    - r-yardstick
