@@ -8,7 +8,7 @@
 
 REGISTERED_CLASSES = {
     # AFA Method Classes
-    "RLAFAMethod": "afabench.afa_rl.afa_methods.RLAFAMethod",
+    "RLAFAMethod": "afabench.afa_rl.common.afa_methods.RLAFAMethod",
     "Covert2023AFAMethod": "afabench.afa_discriminative.afa_methods.Covert2023AFAMethod",
     "Gadgil2023AFAMethod": "afabench.afa_discriminative.afa_methods.Gadgil2023AFAMethod",
     "Ma2018AFAMethod": "afabench.afa_generative.afa_methods.Ma2018AFAMethod",
