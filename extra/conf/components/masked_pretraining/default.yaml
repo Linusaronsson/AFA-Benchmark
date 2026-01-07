@@ -1,6 +1,6 @@
 supervised_learning:
   batch_size: 128 # shim2018 paper
-  max_epochs: 9001 # upper bound, we use early stopping to stop earlier
+  max_epochs: 1_000_000_000 # upper bound, we use early stopping to stop earlier
   checkpoint_earliest_batch: 500
   early_stopping_min_batches: 1000
   early_stopping_patience: 50
