@@ -2,14 +2,13 @@ hydra:
   searchpath:
     - file://extra/conf
     - file://extra/conf/global
-    - file://extra/conf/scripts/train/shim2018
 
 defaults:
+  - /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
+  - /components/mdps@mdp: default
+  - /components/rl_training_loops@rl_training_loop: default
   - _self_
-  - components/initializers@initializer: ???
-  - components/unmaskers@unmasker: ???
-  - components/mdps@mdp: default
-  - components/rl_training_loops@rl_training_loop: default
   - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
@@ -52,3 +51,6 @@ seed: null
 use_wandb: false
 smoke_test: false
 device: null
+
+# Alias arguments, only to implement interface assumed by snakemake
+hard_budget: null

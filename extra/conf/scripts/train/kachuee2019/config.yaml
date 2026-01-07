@@ -2,14 +2,13 @@ hydra:
   searchpath:
     - file://extra/conf
     - file://extra/conf/global
-    - file://extra/conf/scripts/train/kachuee2019
 
 defaults:
+  - /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
+  - /components/mdps@mdp: default
+  - /components/rl_training_loops@rl_training_loop: default
   - _self_
-  - components/initializers@initializer: ???
-  - components/unmaskers@unmasker: ???
-  - components/mdps@mdp: default
-  - components/rl_training_loops@rl_training_loop: default
   - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
@@ -56,3 +55,6 @@ device: null
 
 reward_method: "Bayesian-L1" # same as original paper
 mcdrop_samples: 1000 # same as original paper
+
+# Alias arguments, only to implement interface assumed by snakemake
+hard_budget: null

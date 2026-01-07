@@ -329,6 +329,9 @@ class Shim2018TrainConfig:
     smoke_test: bool = False
     device: str | None = None
 
+    # Aliases, only because snakefile assumes a flat interface
+    hard_budget: int | None = None
+
 
 cs.store(name="train_shim2018", node=Shim2018TrainConfig)
 
@@ -754,6 +757,9 @@ class Zannone2019TrainConfig:
     smoke_test: bool = False
     device: str | None = None
 
+    # Aliases, only because snakefile assumes a flat interface
+    hard_budget: int | None = None
+
 
 cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)
 
@@ -812,6 +818,9 @@ class Kachuee2019TrainConfig:
     reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
     # how many samples to average over when calculating certainty for the reward
     mcdrop_samples: int
+
+    # Aliases, only because snakefile assumes a flat interface
+    hard_budget: int | None = None
 
 
 cs.store(name="train_kachuee2019", node=Kachuee2019TrainConfig)

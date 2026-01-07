@@ -6,11 +6,11 @@ hydra:
 defaults:
   - /components/masked_pretraining@_global_: default
   - /components/masking_probabilities@_global_: simple
+  - _self_
   - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
-  - _self_
 
 train_dataset_bundle_path: ???
 val_dataset_bundle_path: ???

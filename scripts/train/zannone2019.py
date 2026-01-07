@@ -67,6 +67,10 @@ def get_zannone2019_pretrained_model(
     config_name="config",
 )
 def main(cfg: Zannone2019TrainConfig) -> None:
+    # Evaluate alias arguments
+    if cfg.hard_budget is not None:
+        cfg.mdp.hard_budget = cfg.hard_budget
+
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")

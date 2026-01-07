@@ -150,6 +150,10 @@ def get_post_eval_callback(
     config_name="config",
 )
 def main(cfg: Shim2018TrainConfig) -> None:
+    # Evaluate alias arguments
+    if cfg.hard_budget is not None:
+        cfg.mdp.hard_budget = cfg.hard_budget
+
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
