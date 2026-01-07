@@ -526,7 +526,7 @@ rule plot:
     output:
         directory("extra/output/plot_results/RL_and_dummy"),
     conda:
-        "extra/workflow/envs/R.yaml"
+        "../envs/R.yaml"
     shell:
         """
             Rscript scripts/plotting/plot_eval.R {input} {output}
