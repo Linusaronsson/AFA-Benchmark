@@ -5,6 +5,7 @@ from typing import Self, override
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchrl.modules import MLP
@@ -26,6 +27,7 @@ from afabench.afa_discriminative.utils import (
 )
 from afabench.common.custom_types import (
     AFAInitializer,
+    AFAUnmasker,
     AFAMethod,
     AFASelection,
     FeatureMask,
@@ -52,6 +54,8 @@ class GreedyDynamicSelection(nn.Module):
         selector: nn.Module,
         predictor: nn.Module,
         mask_layer: MaskLayer | MaskLayer2d,
+        initializer: AFAInitializer,
+        unmasker: AFAUnmasker,
     ) -> None:
         super().__init__()
 
@@ -62,6 +66,38 @@ class GreedyDynamicSelection(nn.Module):
 
         # Set up selector layer.
         self.selector_layer: nn.Module = ConcreteSelector()
+
+        self.initializer: AFAInitializer = initializer
+        self.unmasker: AFAUnmasker = unmasker
+
+    def _patch_soft_to_feature_soft(
+        self, soft_patch: torch.Tensor, x: torch.Tensor
+    ):
+        """
+        Convert soft patch mask (B, mask_size) into soft feature mask in x space.
+
+        """
+        if len(x.shape) == 4:
+            B, C, H, W = x.shape
+            mask_size = soft_patch.shape[1]
+            mask_width = int(mask_size ** 0.5)
+            m = soft_patch.view(B, 1, mask_width, mask_width)
+            patch_size_h = H // mask_width
+            patch_size_w = W // mask_width
+            m = F.interpolate(m, scale_factor=(patch_size_h, patch_size_w), mode="nearest")
+            return m.expand(B, C, H, W)
+
+        assert len(x.shape) == 2
+        B, D = x.shape
+        mask_size = soft_patch.shape[1]
+
+        if D == mask_size:
+            return soft_patch
+
+        # In case we use patch mask for tabular data
+        assert D % mask_size == 0
+        patch_len = D // mask_size
+        return soft_patch.repeat_interleave(patch_len, dim=1)
 
     def fit(  # noqa: PLR0915, PLR0912, C901
         self,
@@ -83,7 +119,6 @@ class GreedyDynamicSelection(nn.Module):
         argmax: bool = False,  # noqa: FBT002
         verbose: bool = True,  # noqa: FBT002
         feature_costs: torch.Tensor | None = None,
-        initializer: AFAInitializer | None = None,
     ) -> None:
         """Train model to perform greedy adaptive feature selection."""
         # Verify arguments.
@@ -101,6 +136,8 @@ class GreedyDynamicSelection(nn.Module):
         predictor = self.predictor
         mask_layer = self.mask_layer
         selector_layer = self.selector_layer
+        initializer = self.initializer
+        unmasker = self.unmasker
         device = next(predictor.parameters()).device
         val_loss_fn.to(device)
 
@@ -115,7 +152,20 @@ class GreedyDynamicSelection(nn.Module):
         if feature_costs is None:
             feature_costs = torch.ones(mask_size, device=device)
         log_cost = torch.log(feature_costs)
-        feature_shape = torch.Size([mask_size])
+        # feature_shape = torch.Size([mask_size])
+        # Pixel-evel feature masks
+        x0, _ = next(iter(val_loader))
+        x0 = x0.to(device)
+        # TODO: we currently assume feature shape=data shape -> pixel mask for image data
+        feature_shape = torch.Size(list(x0.shape[1:]))
+
+        n_selections = unmasker.get_n_selections(feature_shape)
+        msg = (
+            f"Expected patch-level selection space to equal mask_size. "
+            f"Got unmasker selection size={n_selections}, "
+            f"mask_size={mask_size}."
+        )
+        assert n_selections == mask_size, msg
 
         # For tracking best models with zero temperature.
         best_val = None
@@ -163,34 +213,47 @@ class GreedyDynamicSelection(nn.Module):
                     m_sel = torch.zeros(
                         len(x), mask_size, dtype=x.dtype, device=device
                     )
+                    # Pixel level mask for image data
                     if initializer is None:
-                        m_init = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
+                        m_feat = torch.zeros(
+                            (len(x),) + feature_shape,
+                            dtype=x.dtype,
+                            device=device
+                        )
                     else:
                         init_mask_bool = initializer.initialize(
                             features=x,
                             label=y,
                             feature_shape=feature_shape,
                         ).to(device)
-                        m_init = init_mask_bool.to(dtype=x.dtype)
+                        m_feat = init_mask_bool.to(dtype=x.dtype)
 
                     selector.zero_grad()
                     predictor.zero_grad()
 
                     for _ in range(max_features):
                         # Evaluate selector model.
-                        m_ctx = torch.max(m_init, m_sel)
-                        x_masked = mask_layer(x, m_ctx)
+                        # x_masked = mask_layer(x, m_feat)
+                        if len(x.shape) == 4:
+                            # Always set append=False for image data
+                            x_masked = x * m_feat
+                        else:
+                            x_masked = mask_layer(x, m_feat)
                         logits = selector(x_masked).flatten(1)
                         # since not a probability, do exp(logits)/cost <-> logits / log_cost
                         logits_cost = logits - log_cost
 
                         # Get selections.
                         # soft = selector_layer(logits, temp)
-                        soft = selector_layer(logits_cost, temp)
-                        m_soft = torch.max(m_ctx, soft)
+                        soft_patch = selector_layer(logits_cost, temp)
+                        soft_feat = self._patch_soft_to_feature_soft(soft_patch, x)
+                        m_soft_feat = torch.maximum(m_feat, soft_feat)
 
                         # Evaluate predictor model.
-                        x_masked = mask_layer(x, m_soft)
+                        if len(x.shape) == 4:
+                            x_masked = x * m_soft_feat
+                        else:
+                            x_masked = mask_layer(x, m_soft_feat)
                         pred = predictor(x_masked)
 
                         # Calculate loss.
@@ -199,12 +262,24 @@ class GreedyDynamicSelection(nn.Module):
                         epoch_train_loss += loss.item()
 
                         # Update mask, ensure no repeats.
+                        dist = selector_layer(logits_cost - 1e6 * m_sel, 1e-6)
+                        sel_idx = torch.argmax(dist, dim=1, keepdim=True)
+                        # One-based indexing
+                        afa_selection = sel_idx.to(torch.long) + 1
                         m_sel = torch.max(
                             m_sel,
-                            make_onehot(
-                                selector_layer(logits_cost - 1e6 * m_sel, 1e-6)
-                            ),
+                            make_onehot(dist),
                         )
+                        # TODO: need to check if this work for image data
+                        # TODO: also need to check the feature_shape
+                        m_feat = unmasker.unmask(
+                            masked_features=x_masked,
+                            feature_mask=m_feat,
+                            features=x,
+                            afa_selection=afa_selection,
+                            selection_mask=m_sel,
+                            feature_shape=feature_shape,
+                        ).to(dtype=x.dtype)
 
                     # Take gradient step.
                     opt.step()
@@ -229,8 +304,10 @@ class GreedyDynamicSelection(nn.Module):
                             len(x), mask_size, dtype=x.dtype, device=device
                         )
                         if initializer is None:
-                            m_init = torch.zeros(
-                                len(x), mask_size, dtype=x.dtype, device=device
+                            m_feat = torch.zeros(
+                                (len(x),) + feature_shape,
+                                dtype=x.dtype,
+                                device=device
                             )
                         else:
                             init_mask_bool = initializer.initialize(
@@ -238,35 +315,52 @@ class GreedyDynamicSelection(nn.Module):
                                 label=y,
                                 feature_shape=feature_shape,
                             ).to(device)
-                            m_init = init_mask_bool.to(dtype=x.dtype)
-
-                        m_ctx = torch.max(m_init, m_sel)
+                            m_feat = init_mask_bool.to(dtype=x.dtype)
 
                         for _ in range(max_features):
                             # Evaluate selector model.
-                            x_masked = mask_layer(x, m_ctx)
+                            if len(x.shape) == 4:
+                                x_masked = x * m_feat
+                            else:
+                                x_masked = mask_layer(x, m_feat)
                             logits = selector(x_masked).flatten(1)
                             logits_cost = logits - log_cost
-                            logits_cost = logits_cost - 1e6 * m_ctx
+                            logits_cost = logits_cost - 1e6 * m_sel
 
                             # Get selections, ensure no repeats.
                             # logits = logits - 1e6 * m
                             if argmax:
-                                soft = selector_layer(
+                                soft_patch = selector_layer(
                                     logits_cost, temp, deterministic=True
                                 )
                             else:
-                                soft = selector_layer(logits_cost, temp)
-                            m_soft = torch.max(m_ctx, soft)
-                            m_sel = torch.max(m_sel, make_onehot(soft))
-                            m_ctx = torch.max(m_init, m_sel)
+                                soft_patch = selector_layer(logits_cost, temp)
+                            soft_feat = self._patch_soft_to_feature_soft(soft_patch, x)
+                            m_soft_feat = torch.maximum(m_feat, soft_feat)
+                            m_sel = torch.max(m_sel, make_onehot(soft_patch))
+                            sel_idx = torch.argmax(soft_patch, dim=1, keepdim=True)
+                            afa_selection = sel_idx.to(torch.long) + 1
+                            m_feat = unmasker.unmask(
+                                masked_features=x_masked,
+                                feature_mask=m_feat,
+                                features=x,
+                                afa_selection=afa_selection,
+                                selection_mask=m_sel,
+                                feature_shape=feature_shape,
+                            ).to(dtype=x.dtype)
 
                             # Evaluate predictor with soft sample.
-                            x_masked = mask_layer(x, m_soft)
+                            if len(x.shape) == 4:
+                                x_masked = x * m_soft_feat
+                            else:
+                                x_masked = mask_layer(x, m_soft_feat)
                             pred = predictor(x_masked)
 
                             # Evaluate predictor with hard sample.
-                            x_masked = mask_layer(x, m_ctx)
+                            if len(x.shape) == 4:
+                                x_masked = x * m_feat
+                            else:
+                                x_masked = mask_layer(x, m_feat)
                             hard_pred = predictor(x_masked)
 
                             # Append predictions and labels.

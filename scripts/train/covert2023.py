@@ -59,6 +59,8 @@ def main(cfg: Covert2023TrainingConfig):
         cast("object", predictor),
     )
     predictor = classifier_bundle.predictor.to(device)
+    n_selections = unmasker.get_n_selections(torch.Size([d_in]))
+    assert n_selections == d_in
 
     selector = MLP(
         in_features=d_in * 2,
@@ -70,7 +72,13 @@ def main(cfg: Covert2023TrainingConfig):
 
     # GDFS
     mask_layer = MaskLayer(append=True)
-    gdfs = GreedyDynamicSelection(selector, predictor, mask_layer).to(device)
+    gdfs = GreedyDynamicSelection(
+        selector=selector,
+        predictor=predictor,
+        mask_layer=mask_layer,
+        initializer=initializer,
+        unmasker=unmasker,
+    ).to(device)
 
     gdfs.fit(
         train_loader,
@@ -82,7 +90,6 @@ def main(cfg: Covert2023TrainingConfig):
         patience=cfg.patience,
         verbose=True,
         feature_costs=train_dataset.get_feature_acquisition_costs().to(device),
-        initializer=initializer,
     )
 
     # Build final method
