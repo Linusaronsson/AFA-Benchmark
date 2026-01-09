@@ -24,6 +24,7 @@ from afabench.afa_discriminative.utils import (
     ind_to_onehot,
     make_onehot,
     restore_parameters,
+    patch_soft_to_feature_soft,
 )
 from afabench.common.custom_types import (
     AFAInitializer,
@@ -70,34 +71,34 @@ class GreedyDynamicSelection(nn.Module):
         self.initializer: AFAInitializer = initializer
         self.unmasker: AFAUnmasker = unmasker
 
-    def _patch_soft_to_feature_soft(
-        self, soft_patch: torch.Tensor, x: torch.Tensor
-    ):
-        """
-        Convert soft patch mask (B, mask_size) into soft feature mask in x space.
+    # def _patch_soft_to_feature_soft(
+    #     self, soft_patch: torch.Tensor, x: torch.Tensor
+    # ):
+    #     """
+    #     Convert soft patch mask (B, mask_size) into soft feature mask in x space.
 
-        """
-        if len(x.shape) == 4:
-            B, C, H, W = x.shape
-            mask_size = soft_patch.shape[1]
-            mask_width = int(mask_size ** 0.5)
-            m = soft_patch.view(B, 1, mask_width, mask_width)
-            patch_size_h = H // mask_width
-            patch_size_w = W // mask_width
-            m = F.interpolate(m, scale_factor=(patch_size_h, patch_size_w), mode="nearest")
-            return m.expand(B, C, H, W)
+    #     """
+    #     if len(x.shape) == 4:
+    #         B, C, H, W = x.shape
+    #         mask_size = soft_patch.shape[1]
+    #         mask_width = int(mask_size ** 0.5)
+    #         m = soft_patch.view(B, 1, mask_width, mask_width)
+    #         patch_size_h = H // mask_width
+    #         patch_size_w = W // mask_width
+    #         m = F.interpolate(m, scale_factor=(patch_size_h, patch_size_w), mode="nearest")
+    #         return m.expand(B, C, H, W)
 
-        assert len(x.shape) == 2
-        B, D = x.shape
-        mask_size = soft_patch.shape[1]
+    #     assert len(x.shape) == 2
+    #     B, D = x.shape
+    #     mask_size = soft_patch.shape[1]
 
-        if D == mask_size:
-            return soft_patch
+    #     if D == mask_size:
+    #         return soft_patch
 
-        # In case we use patch mask for tabular data
-        assert D % mask_size == 0
-        patch_len = D // mask_size
-        return soft_patch.repeat_interleave(patch_len, dim=1)
+    #     # In case we use patch mask for tabular data
+    #     assert D % mask_size == 0
+    #     patch_len = D // mask_size
+    #     return soft_patch.repeat_interleave(patch_len, dim=1)
 
     def fit(  # noqa: PLR0915, PLR0912, C901
         self,
@@ -214,19 +215,12 @@ class GreedyDynamicSelection(nn.Module):
                         len(x), mask_size, dtype=x.dtype, device=device
                     )
                     # Pixel level mask for image data
-                    if initializer is None:
-                        m_feat = torch.zeros(
-                            (len(x),) + feature_shape,
-                            dtype=x.dtype,
-                            device=device
-                        )
-                    else:
-                        init_mask_bool = initializer.initialize(
-                            features=x,
-                            label=y,
-                            feature_shape=feature_shape,
-                        ).to(device)
-                        m_feat = init_mask_bool.to(dtype=x.dtype)
+                    init_mask_bool = initializer.initialize(
+                        features=x,
+                        label=y,
+                        feature_shape=feature_shape,
+                    ).to(device)
+                    m_feat = init_mask_bool.to(dtype=x.dtype)
 
                     selector.zero_grad()
                     predictor.zero_grad()
@@ -246,7 +240,7 @@ class GreedyDynamicSelection(nn.Module):
                         # Get selections.
                         # soft = selector_layer(logits, temp)
                         soft_patch = selector_layer(logits_cost, temp)
-                        soft_feat = self._patch_soft_to_feature_soft(soft_patch, x)
+                        soft_feat = patch_soft_to_feature_soft(soft_patch, x)
                         m_soft_feat = torch.maximum(m_feat, soft_feat)
 
                         # Evaluate predictor model.
@@ -303,19 +297,12 @@ class GreedyDynamicSelection(nn.Module):
                         m_sel = torch.zeros(
                             len(x), mask_size, dtype=x.dtype, device=device
                         )
-                        if initializer is None:
-                            m_feat = torch.zeros(
-                                (len(x),) + feature_shape,
-                                dtype=x.dtype,
-                                device=device
-                            )
-                        else:
-                            init_mask_bool = initializer.initialize(
-                                features=x,
-                                label=y,
-                                feature_shape=feature_shape,
-                            ).to(device)
-                            m_feat = init_mask_bool.to(dtype=x.dtype)
+                        init_mask_bool = initializer.initialize(
+                            features=x,
+                            label=y,
+                            feature_shape=feature_shape,
+                        ).to(device)
+                        m_feat = init_mask_bool.to(dtype=x.dtype)
 
                         for _ in range(max_features):
                             # Evaluate selector model.
@@ -335,7 +322,7 @@ class GreedyDynamicSelection(nn.Module):
                                 )
                             else:
                                 soft_patch = selector_layer(logits_cost, temp)
-                            soft_feat = self._patch_soft_to_feature_soft(soft_patch, x)
+                            soft_feat = patch_soft_to_feature_soft(soft_patch, x)
                             m_soft_feat = torch.maximum(m_feat, soft_feat)
                             m_sel = torch.max(m_sel, make_onehot(soft_patch))
                             sel_idx = torch.argmax(soft_patch, dim=1, keepdim=True)
@@ -696,6 +683,8 @@ class CMIEstimator(nn.Module):
         value_network: nn.Module,
         predictor: nn.Module,
         mask_layer: MaskLayer | MaskLayer2d,
+        initializer: AFAInitializer,
+        unmasker: AFAUnmasker,
     ):
         super().__init__()
 
@@ -703,6 +692,8 @@ class CMIEstimator(nn.Module):
         self.value_network: nn.Module = value_network
         self.predictor: nn.Module = predictor
         self.mask_layer: MaskLayer | MaskLayer2d = mask_layer
+        self.initializer: AFAInitializer = initializer
+        self.unmasker: AFAUnmasker = unmasker
 
     def fit(  # noqa: PLR0915, PLR0912, C901
         self,
@@ -724,7 +715,6 @@ class CMIEstimator(nn.Module):
         feature_costs: torch.Tensor | None = None,
         cmi_scaling: str = "bounded",
         verbose: bool = True,  # noqa: FBT002
-        initializer: AFAInitializer | None = None,
     ) -> None:
         if val_loss_fn is None:
             val_loss_fn = loss_fn
@@ -738,6 +728,8 @@ class CMIEstimator(nn.Module):
         value_network: nn.Module = self.value_network
         predictor: nn.Module = self.predictor
         mask_layer: MaskLayer | MaskLayer2d = self.mask_layer
+        initializer: AFAInitializer = self.initializer
+        unmasker: AFAUnmasker = self.unmasker
 
         device = next(predictor.parameters()).device
         val_loss_fn = val_loss_fn.to(device)
@@ -755,21 +747,32 @@ class CMIEstimator(nn.Module):
             feature_costs = torch.ones(mask_size).to(device)
         elif isinstance(feature_costs, np.ndarray):
             feature_costs = torch.tensor(feature_costs).to(device)
-        feature_shape = torch.Size([mask_size])
+        # feature_shape = torch.Size([mask_size])
+        x0, _ = next(iter(val_loader))
+        x0 = x0.to(device)
+        feature_shape = torch.Size(list(x0.shape[1:]))
 
-        if initializer is not None:
-            x0, y0 = next(iter(train_loader))
-            x0 = x0.to(device)
-            y0 = y0.to(device)
-            init_mask_bool0 = initializer.initialize(
-                features=x0,
-                label=y0,
-                feature_shape=feature_shape,
-            ).to(device)
-            num_initial = int(init_mask_bool0[0].sum().item())
-        else:
-            num_initial = 0
-        effective_max_features = max(0, max_features - num_initial)
+        n_selections = unmasker.get_n_selections(feature_shape)
+        msg = (
+            f"Expected patch-level selection space to equal mask_size. "
+            f"Got unmasker selection size={n_selections}, "
+            f"mask_size={mask_size}."
+        )
+        assert n_selections == mask_size, msg
+
+        # if initializer is not None:
+        #     x0, y0 = next(iter(train_loader))
+        #     x0 = x0.to(device)
+        #     y0 = y0.to(device)
+        #     init_mask_bool0 = initializer.initialize(
+        #         features=x0,
+        #         label=y0,
+        #         feature_shape=feature_shape,
+        #     ).to(device)
+        #     num_initial = int(init_mask_bool0[0].sum().item())
+        # else:
+        #     num_initial = 0
+        # effective_max_features = max(0, max_features - num_initial)
 
         opt = optim.Adam(
             set(
@@ -807,15 +810,12 @@ class CMIEstimator(nn.Module):
                 m_sel = torch.zeros(
                     len(x), mask_size, dtype=x.dtype, device=device
                 )
-                if initializer is None:
-                    m_init = torch.zeros(len(x), mask_size, dtype=x.dtype, device=device)
-                else:
-                    init_mask_bool = initializer.initialize(
-                        features=x,
-                        label=y,
-                        feature_shape=feature_shape,
-                    ).to(device)
-                    m_init = init_mask_bool.to(dtype=x.dtype)
+                init_mask_bool = initializer.initialize(
+                    features=x,
+                    label=y,
+                    feature_shape=feature_shape,
+                ).to(device)
+                m_feat = init_mask_bool.to(dtype=x.dtype)
 
                 value_network.zero_grad()
                 predictor.zero_grad()
@@ -823,8 +823,10 @@ class CMIEstimator(nn.Module):
                 pred_loss_total = 0
 
                 # Predictor loss with initial features.
-                m_ctx = torch.max(m_init, m_sel)
-                x_masked = self.mask_layer(x, m_ctx)
+                if len(x.shape) == 4:
+                    x_masked = x * m_feat
+                else:
+                    x_masked = mask_layer(x, m_feat)
                 pred_without_next_feature = predictor(x_masked)
                 loss_without_next_feature = loss_fn(
                     pred_without_next_feature, y
@@ -838,7 +840,10 @@ class CMIEstimator(nn.Module):
 
                 for _ in range(max_features):
                     # Estimate CMI using value network.
-                    x_masked = mask_layer(x, m_ctx)
+                    if len(x.shape) == 4:
+                        x_masked = x * m_feat
+                    else:
+                        x_masked = mask_layer(x, m_feat)
                     if cmi_scaling == "bounded":
                         entropy = get_entropy(
                             pred_without_next_feature
@@ -859,11 +864,24 @@ class CMIEstimator(nn.Module):
                     )
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
+                    # TODO: need to verify if this work for unmasking using image patch index
+                    afa_selection = actions.to(torch.long) + 1
+                    afa_selection = afa_selection.unsqueeze(1)
                     m_sel = torch.max(m_sel, ind_to_onehot(actions, mask_size))
 
                     # Predictor loss.
-                    m_ctx = torch.max(m_init, m_sel)
-                    x_masked = self.mask_layer(x, m_ctx)
+                    m_feat = unmasker.unmask(
+                        masked_features=x_masked,
+                        feature_mask=m_feat,
+                        features=x,
+                        afa_selection=afa_selection,
+                        selection_mask=m_sel,
+                        feature_shape=feature_shape,
+                    )
+                    if len(x.shape) == 4:
+                        x_masked = x * m_feat
+                    else:
+                        x_masked = self.mask_layer(x, m_feat)
                     pred_with_next_feature = predictor(x_masked)
                     loss_with_next_feature = loss_fn(pred_with_next_feature, y)
 
@@ -898,7 +916,7 @@ class CMIEstimator(nn.Module):
             # Calculate validation loss.
             value_network.eval()
             predictor.eval()
-            val_preds = [[] for _ in range(effective_max_features + 1)]
+            val_preds = [[] for _ in range(max_features + 1)]
             val_targets = []
 
             with torch.no_grad():
@@ -911,25 +929,25 @@ class CMIEstimator(nn.Module):
                     )
 
                     # Setup.
-                    if initializer is None:
-                        m_init = torch.zeros(
-                            len(x), mask_size, dtype=x.dtype, device=device
-                        )
+                    init_mask_bool = initializer.initialize(
+                        features=x,
+                        label=y,
+                        feature_shape=feature_shape,
+                    ).to(device)
+                    m_feat = init_mask_bool.to(dtype=x.dtype)
+                    if len(x.shape) == 4:
+                        x_masked = x * m_feat
                     else:
-                        init_mask_bool = initializer.initialize(
-                            features=x,
-                            label=y,
-                            feature_shape=feature_shape,
-                        ).to(device)
-                        m_init = init_mask_bool.to(dtype=x.dtype)
-                    m_ctx = torch.max(m_init, m_sel)
-                    x_masked = self.mask_layer(x, m_ctx)
+                        x_masked = self.mask_layer(x, m_feat)
                     pred = predictor(x_masked)
                     val_preds[0].append(pred)
 
                     for i in range(1, max_features + 1):
                         # Estimate CMI using value network.
-                        x_masked = mask_layer(x, m_ctx)
+                        if len(x.shape) == 4:
+                            x_masked = x * m_feat
+                        else:
+                            x_masked = mask_layer(x, m_feat)
                         if cmi_scaling == "bounded":
                             entropy = get_entropy(pred).unsqueeze(1)
                             pred_cmi = (
@@ -950,10 +968,22 @@ class CMIEstimator(nn.Module):
                         m_sel = torch.max(
                             m_sel, ind_to_onehot(best_feature_index, mask_size)
                         )
-                        m_ctx = torch.max(m_init, m_sel)
+                        afa_selection = best_feature_index.to(torch.long) + 1
+                        afa_selection = afa_selection.unsqueeze(1)
+                        m_feat = unmasker.unmask(
+                            masked_features=x_masked,
+                            feature_mask=m_feat,
+                            features=x,
+                            afa_selection=afa_selection,
+                            selection_mask=m_sel,
+                            feature_shape=feature_shape,
+                        )
 
                         # Make prediction.
-                        x_masked = self.mask_layer(x, m_ctx)
+                        if len(x.shape) == 4:
+                            x_masked = x * m_feat
+                        else:
+                            x_masked = self.mask_layer(x, m_feat)
                         pred = self.predictor(x_masked)
                         val_preds[i].append(pred)
 

@@ -59,6 +59,8 @@ def main(cfg: Gadgil2023TrainingConfig):
         cast("object", predictor),
     )
     predictor = classifier_bundle.predictor.to(device)
+    n_selections = unmasker.get_n_selections(torch.Size([d_in]))
+    assert n_selections == d_in
 
     value_network = MLP(
         in_features = d_in * 2,
@@ -80,7 +82,11 @@ def main(cfg: Gadgil2023TrainingConfig):
     mask_layer = MaskLayer(append=True)
 
     greedy_cmi_estimator = CMIEstimator(
-        value_network, predictor, mask_layer
+        value_network=value_network,
+        predictor=predictor,
+        mask_layer=mask_layer,
+        initializer=initializer,
+        unmasker=unmasker,
     ).to(device)
     greedy_cmi_estimator.fit(
         train_loader,
@@ -96,7 +102,6 @@ def main(cfg: Gadgil2023TrainingConfig):
         eps_steps=cfg.eps_steps,
         patience=cfg.patience,
         feature_costs=train_dataset.get_feature_acquisition_costs().to(device),
-        initializer=initializer,
     )
 
     afa_method = Gadgil2023AFAMethod(

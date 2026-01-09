@@ -2,6 +2,7 @@ from typing import cast, override
 from pathlib import Path
 
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torch.distributions import Categorical, RelaxedOneHotCategorical
 
@@ -75,6 +76,37 @@ def afa_discriminative_training_prep(
     class_weights = class_weights / class_weights.sum()
 
     return train_dataset, val_dataset, initializer, unmasker, class_weights
+
+
+def patch_soft_to_feature_soft(
+    soft_patch: torch.Tensor,
+    x: torch.Tensor,
+) -> torch.Tensor:
+    """
+    Convert soft patch mask (B, mask_size) into soft feature mask in x space.
+
+    """
+    if len(x.shape) == 4:
+        B, C, H, W = x.shape
+        mask_size = soft_patch.shape[1]
+        mask_width = int(mask_size ** 0.5)
+        m = soft_patch.view(B, 1, mask_width, mask_width)
+        patch_size_h = H // mask_width
+        patch_size_w = W // mask_width
+        m = F.interpolate(m, scale_factor=(patch_size_h, patch_size_w), mode="nearest")
+        return m.expand(B, C, H, W)
+
+    assert len(x.shape) == 2
+    B, D = x.shape
+    mask_size = soft_patch.shape[1]
+
+    if D == mask_size:
+        return soft_patch
+
+    # In case we use patch mask for tabular data
+    assert D % mask_size == 0
+    patch_len = D // mask_size
+    return soft_patch.repeat_interleave(patch_len, dim=1)
 
 
 class MaskLayer(nn.Module):
