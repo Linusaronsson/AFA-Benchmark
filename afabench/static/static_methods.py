@@ -1,6 +1,7 @@
 import os
 from copy import deepcopy
 from pathlib import Path
+from typing import override
 
 import numpy as np
 import torch
@@ -13,6 +14,7 @@ from afabench.common.custom_types import (
     FeatureMask,
     Label,
     MaskedFeatures,
+    SelectionMask,
 )
 from afabench.static.utils import restore_parameters
 
@@ -55,10 +57,14 @@ class ConcreteMask(nn.Module):
 class DifferentiableSelector(nn.Module):
     """Differentiable global feature selection."""
 
-    def __init__(self, model, selector_layer):
+    def __init__(
+        self,
+        model: nn.Module,
+        selector_layer: ConcreteMask,
+    ):
         super().__init__()
-        self.model = model
-        self.selector_layer = selector_layer
+        self.model: nn.Module = model
+        self.selector_layer: ConcreteMask = selector_layer
 
     def fit(
         self,
@@ -109,7 +115,7 @@ class DifferentiableSelector(nn.Module):
             )
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
                 opt,
-                mode=val_loss_mode,
+                mode=val_loss_mode,  # pyright: ignore[reportArgumentType]
                 factor=factor,
                 patience=patience,
                 min_lr=min_lr,
@@ -247,12 +253,13 @@ class StaticBaseMethod(AFAMethod):
         self.predictors = {b: m.to(device) for b, m in predictors.items()}
         self._device = device
 
+    @override
     def predict(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features=None,
-        label=None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         counts = feature_mask.sum(dim=1)
         if not (counts == counts[0]).all():
@@ -263,12 +270,14 @@ class StaticBaseMethod(AFAMethod):
         logits = self.predictors[b](x_sel)
         return logits.softmax(dim=-1)
 
+    @override
     def select(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features=None,
-        label=None,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> AFASelection:
         counts = feature_mask.sum(dim=1)
         if not (counts == counts[0]).all():
@@ -277,7 +286,8 @@ class StaticBaseMethod(AFAMethod):
         mask0 = feature_mask[0]
         for idx in self.selected_history[b + 1]:
             if mask0[idx] == 0:
-                choice = idx
+                # TODO: check if this one-based indexing is correct
+                choice = idx + 1
                 return torch.full(
                     (masked_features.size(0),),
                     fill_value=choice,

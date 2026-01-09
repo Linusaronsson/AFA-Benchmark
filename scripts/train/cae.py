@@ -1,25 +1,20 @@
 import gc
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
 
 import hydra
 import numpy as np
 import torch
-import wandb
 from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
 from torchrl.modules import MLP
 
 from afabench.afa_discriminative.datasets import prepare_datasets
+from afabench.afa_discriminative.utils import afa_discriminative_training_prep
 from afabench.common.config_classes import CAETrainingConfig
-from afabench.common.utils import (
-    get_class_frequencies,
-    load_dataset_artifact,
-    set_seed,
-)
+from afabench.common.bundle import save_bundle
+from afabench.common.utils import set_seed
 from afabench.static.models import BaseModel
 from afabench.static.static_methods import (
     ConcreteMask,
@@ -33,29 +28,23 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/train/cae",
+    config_path="../../extra/conf/scripts/train/cae",
     config_name="config",
 )
 def main(cfg: CAETrainingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
-    run = wandb.init(
-        config=cast(
-            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-        ),
-        job_type="training",
-        tags=["CAE"],
-        dir="extra/wandb",
-    )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
+    torch.set_float32_matmul_precision("medium")
 
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
-        cfg.dataset_artifact_name
-    )
-    train_class_probabilities = get_class_frequencies(train_dataset.labels)
-    class_weights = len(train_class_probabilities) / (
-        len(train_class_probabilities) * train_class_probabilities
+    train_dataset, val_dataset, _, _, class_weights = (
+        afa_discriminative_training_prep(
+            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            initializer_cfg=cfg.initializer,
+            unmasker_cfg=cfg.unmasker,
+        )
     )
     class_weights = class_weights.to(device)
     train_loader, val_loader, d_in, d_out = prepare_datasets(
@@ -69,7 +58,10 @@ def main(cfg: CAETrainingConfig):
         activation_class=nn.ReLU,
     )
     selector_layer = ConcreteMask(d_in, cfg.hard_budget)
-    diff_selector = DifferentiableSelector(model, selector_layer).to(device)
+    diff_selector = DifferentiableSelector(
+        model=model,
+        selector_layer=selector_layer,
+    ).to(device)
     diff_selector.fit(
         train_loader,
         val_loader,
@@ -139,35 +131,17 @@ def main(cfg: CAETrainingConfig):
 
     static_method = StaticBaseMethod(selected_history, predictors, device)
 
-    with TemporaryDirectory(delete=False) as tmp_path_str:
-        tmp_path = Path(tmp_path_str)
-        static_method.save(tmp_path)
-        del static_method
-        static_method = StaticBaseMethod.load(tmp_path, device=device)
-        static_method_artifact = wandb.Artifact(
-            name=f"train_cae-{cfg.dataset_artifact_name.split(':')[0]}-budget_{
-                cfg.hard_budget
-            }-seed_{cfg.seed}",
-            type="trained_method",
-            metadata={
-                "method_type": "cae",
-                "dataset_artifact_name": cfg.dataset_artifact_name,
-                "dataset_type": dataset_metadata["dataset_type"],
-                "budget": cfg.hard_budget,
-                "seed": cfg.seed,
-            },
-        )
-        static_method_artifact.add_dir(str(tmp_path))
-        run.log_artifact(
-            static_method_artifact, aliases=cfg.output_artifact_aliases
-        )
+    save_bundle(
+        obj=static_method,
+        path=Path(cfg.save_path),
+        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+    )
+    log.info(f"CAE method saved to: {cfg.save_path}")
 
-    run.finish()
-
-    gc.collect()  # Force Python GC
+    gc.collect()
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-        torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
 
 
 if __name__ == "__main__":

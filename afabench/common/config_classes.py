@@ -596,35 +596,35 @@ cs.store(name="train_gadgil2023", node=Gadgil2023Training2DConfig)
 
 @dataclass
 class StaticSelectorConfig:
-    lr: float = 1e-3
-    nepochs: int = 250
-    num_cells: list[int] = field(default_factory=lambda: [128, 128])
-    patience: int = 5
+    lr: float
+    nepochs: int
+    num_cells: list[int]
+    patience: int
 
 
 @dataclass
 class StaticClassifierConfig:
-    lr: float = 1e-3
-    nepochs: int = 250
-    num_cells: list[int] = field(default_factory=lambda: [128, 128])
+    lr: float
+    nepochs: int
+    num_cells: list[int]
 
 
 @dataclass
 class CAETrainingConfig:
-    dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=list)
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    save_path: str
 
-    batch_size: int = 128
-    hard_budget: int = 20
-    device: str = "cuda"
-    seed: int = 42
+    batch_size: int
+    hard_budget: int
+    device: str
+    seed: int
 
-    selector: StaticSelectorConfig = field(
-        default_factory=StaticSelectorConfig
-    )
-    classifier: StaticClassifierConfig = field(
-        default_factory=StaticClassifierConfig
-    )
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+
+    selector: StaticSelectorConfig
+    classifier: StaticClassifierConfig
 
 
 cs.store(name="train_cae", node=CAETrainingConfig)
@@ -632,20 +632,20 @@ cs.store(name="train_cae", node=CAETrainingConfig)
 
 @dataclass
 class PermutationTrainingConfig:
-    dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=list)
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    save_path: str
 
-    batch_size: int = 128
-    hard_budget: int = 20
-    device: str = "cuda"
-    seed: int = 42
+    batch_size: int
+    hard_budget: int
+    device: str
+    seed: int
 
-    selector: StaticSelectorConfig = field(
-        default_factory=StaticSelectorConfig
-    )
-    classifier: StaticClassifierConfig = field(
-        default_factory=StaticClassifierConfig
-    )
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+
+    selector: StaticSelectorConfig
+    classifier: StaticClassifierConfig
 
 
 cs.store(name="train_permutation", node=PermutationTrainingConfig)

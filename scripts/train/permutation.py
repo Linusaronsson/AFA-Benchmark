@@ -1,13 +1,10 @@
 import gc
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
 
 import hydra
 import numpy as np
 import torch
-import wandb
 from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
@@ -16,12 +13,10 @@ from torchrl.modules import MLP
 from tqdm import tqdm
 
 from afabench.afa_discriminative.datasets import prepare_datasets
+from afabench.afa_discriminative.utils import afa_discriminative_training_prep
 from afabench.common.config_classes import PermutationTrainingConfig
-from afabench.common.utils import (
-    get_class_frequencies,
-    load_dataset_artifact,
-    set_seed,
-)
+from afabench.common.bundle import save_bundle
+from afabench.common.utils import set_seed
 from afabench.static.models import BaseModel
 from afabench.static.static_methods import StaticBaseMethod
 from afabench.static.utils import transform_dataset
@@ -31,36 +26,30 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/train/permutation",
+    config_path="../../extra/conf/scripts/train/permutation",
     config_name="config",
 )
 def main(cfg: PermutationTrainingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
-    run = wandb.init(
-        config=cast(
-            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-        ),
-        job_type="training",
-        tags=["permutation"],
-        dir="extra/wandb",
-    )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
+    torch.set_float32_matmul_precision("medium")
 
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
-        cfg.dataset_artifact_name
-    )
-    train_class_probabilities = get_class_frequencies(train_dataset.labels)
-    class_weights = len(train_class_probabilities) / (
-        len(train_class_probabilities) * train_class_probabilities
+    train_dataset, val_dataset, _, _, class_weights = (
+        afa_discriminative_training_prep(
+            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            initializer_cfg=cfg.initializer,
+            unmasker_cfg=cfg.unmasker,
+        )
     )
     class_weights = class_weights.to(device)
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
 
-    def auroc_metric(pred, y):
+    def auroc_metric(pred: torch.Tensor, y: torch.Tensor):
         return AUROC(task="multiclass", num_classes=d_out)(
             pred.softmax(dim=1), y
         )
@@ -86,10 +75,11 @@ def main(cfg: PermutationTrainingConfig):
     )
 
     permutation_importance = np.zeros(d_in)
-    x_train = train_dataset.features
+    x_train, _ = train_dataset.get_all_data()
     for i in tqdm(range(d_in)):
-        x_val = val_dataset.features.clone()
-        y_val = val_dataset.labels
+        x_val, y_val = val_dataset.get_all_data()
+        x_val = x_val.clone()
+        y_val = y_val.argmax(dim=1).long()
         x_val[:, i] = x_train[
             np.random.choice(len(x_train), size=len(x_val)), i
         ]
@@ -137,30 +127,12 @@ def main(cfg: PermutationTrainingConfig):
 
     static_method = StaticBaseMethod(selected_history, predictors, device)
 
-    with TemporaryDirectory(delete=False) as tmp_path_str:
-        tmp_path = Path(tmp_path_str)
-        static_method.save(tmp_path)
-        del static_method
-        static_method = StaticBaseMethod.load(tmp_path, device=device)
-        static_method_artifact = wandb.Artifact(
-            name=f"train_permutation-{
-                cfg.dataset_artifact_name.split(':')[0]
-            }-budget_{cfg.hard_budget}-seed_{cfg.seed}",
-            type="trained_method",
-            metadata={
-                "method_type": "permutation",
-                "dataset_artifact_name": cfg.dataset_artifact_name,
-                "dataset_type": dataset_metadata["dataset_type"],
-                "budget": cfg.hard_budget,
-                "seed": cfg.seed,
-            },
-        )
-        static_method_artifact.add_dir(str(tmp_path))
-        run.log_artifact(
-            static_method_artifact, aliases=cfg.output_artifact_aliases
-        )
-
-    run.finish()
+    save_bundle(
+        obj=static_method,
+        path=Path(cfg.save_path),
+        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+    )
+    log.info(f"Permutation method saved to: {cfg.save_path}")
 
     gc.collect()  # Force Python GC
     if torch.cuda.is_available():

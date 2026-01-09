@@ -1,7 +1,7 @@
 from copy import deepcopy
 
 import torch
-from static.utils import restore_parameters
+from afabench.static.utils import restore_parameters
 from torch import nn, optim
 
 
