@@ -403,11 +403,17 @@ cs.store(name="pretrain_ma2018", node=Ma2018PretrainingConfig)
 
 @dataclass
 class Ma2018TrainingConfig:
-    pretrained_model_artifact_name: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    pretrained_model_bundle_path: str
+    save_path: str
+
     hard_budget: int
-    device: str = "cuda"
-    seed: int = 42
-    output_artifact_aliases: list[str] = field(default_factory=list)
+    device: str
+    seed: int
+
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
 
 
 cs.store(name="train_ma2018", node=Ma2018TrainingConfig)

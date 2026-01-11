@@ -1,21 +1,18 @@
 import gc
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
+from typing import cast
 
 import hydra
 import torch
-import wandb
 from omegaconf import OmegaConf
 
 from afabench.afa_generative.afa_methods import Ma2018AFAMethod
-from afabench.afa_rl.zannone2019.utils import (
-    load_pretrained_model_artifacts,
-)
-from afabench.common.config_classes import (
-    Ma2018TrainingConfig,
-)
+from afabench.common.bundle import load_bundle, save_bundle
+from afabench.afa_rl.common.training import afa_rl_training_prep
+from afabench.afa_rl.zannone2019.models import Zannone2019PretrainingModel
+from afabench.common.config_classes import Ma2018TrainingConfig
+from afabench.common.torch_bundle import TorchModelBundle
 from afabench.common.utils import set_seed
 
 log = logging.getLogger(__name__)
@@ -29,54 +26,44 @@ log = logging.getLogger(__name__)
 def main(cfg: Ma2018TrainingConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
-    run = wandb.init(
-        config=cast(
-            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-        ),
-        job_type="training",
-        tags=["EDDI"],
-        dir="extra/wandb",
-    )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
-    (
-        train_dataset,
-        val_dataset,
-        _,
-        dataset_metadata,
-        pretrained_model,
-        pretrained_model_config,
-    ) = load_pretrained_model_artifacts(cfg.pretrained_model_artifact_name)
-    num_classes = train_dataset.labels.shape[-1]
+    train_dataset, _, _, _, class_weights = (
+        afa_rl_training_prep(
+            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            initializer_cfg=cfg.initializer,
+            unmasker_cfg=cfg.unmasker,
+        )
+    )
+    class_weights = class_weights.to(device)
+    num_classes = train_dataset.label_shape[-1]
+
+    pretrained_model, _ = load_bundle(
+        Path(cfg.pretrained_model_bundle_path),
+        device=device,
+    )
+    torch_model_bundle = cast(
+        "TorchModelBundle",
+        cast("object", pretrained_model),
+    )
+    pretrained_model = cast(
+        "Zannone2019PretrainingModel", torch_model_bundle.model
+    )
+
     afa_method: Ma2018AFAMethod = Ma2018AFAMethod(
         sampler=pretrained_model.partial_vae,
         predictor=pretrained_model.classifier,
         num_classes=num_classes,
     )
 
-    with TemporaryDirectory(delete=False) as tmp_path_str:
-        tmp_path = Path(tmp_path_str)
-        afa_method.save(tmp_path)
-        del afa_method
-        afa_method = Ma2018AFAMethod.load(tmp_path, device=device)
-        afa_method_artifact = wandb.Artifact(
-            name=f"train_ma2018-{
-                pretrained_model_config.dataset_artifact_name.split(':')[0]
-            }-budget_{cfg.hard_budget}-seed_{cfg.seed}",
-            type="trained_method",
-            metadata={
-                "method_type": "ma2018",
-                "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
-                "dataset_type": dataset_metadata["dataset_type"],
-                "budget": cfg.hard_budget,
-                "seed": cfg.seed,
-            },
-        )
-        afa_method_artifact.add_file(str(tmp_path / "model.pt"))
-        run.log_artifact(
-            afa_method_artifact, aliases=cfg.output_artifact_aliases
-        )
-    run.finish()
+    save_bundle(
+        obj=afa_method,
+        path=Path(cfg.save_path),
+        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+    )
+
+    log.info(f"Ma2018 method saved to: {cfg.save_path}")
 
     gc.collect()  # Force Python GC
     if torch.cuda.is_available():
