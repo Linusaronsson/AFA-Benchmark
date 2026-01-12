@@ -313,4 +313,4 @@ class AFAEnv(EnvBase):
         """Return a wandb-loggable dictionary from a lits of tensordicts collected during evaluation rollouts. Should only contain method-agnostic info."""
         # Every rollout td has shape (n_agents, episode_len)
         flat_td = torch.cat(rollout_tds, dim=-1).flatten()  # pyright: ignore[reportArgumentType, reportCallIssue]
-        return {"action": wandb.Histogram(flat_td["action"])}
+        return {"action": wandb.Histogram(flat_td["action"].cpu())}
