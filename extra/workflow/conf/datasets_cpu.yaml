@@ -1,0 +1,11 @@
+# Which datasets we run the pipeline on
+datasets:
+  - afa_context
+  - afa_context_without_noise
+  # - bank_marketing # needs normalization
+  # - ckd # needs normalization
+  - cube
+  - cube_without_noise
+  # - diabetes # maybe needs normalization?
+  # - miniboone # needs normalization
+  # - physionet # needs normalization

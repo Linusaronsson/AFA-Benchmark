@@ -1,0 +1,7 @@
+# Which datasets we run the pipeline on
+datasets:
+  # - fashion_mnist # data generation needs to be fixed
+  # - imagenette # data generation needs to be fixed
+  # - mnist # data generation needs to be fixed
+  - synthetic_mnist
+  - synthetic_mnist_without_noise
