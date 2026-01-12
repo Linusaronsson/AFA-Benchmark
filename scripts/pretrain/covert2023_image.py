@@ -1,6 +1,5 @@
 import gc
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -9,7 +8,6 @@ import torch
 from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
-from torch.utils.data.dataset import Dataset
 
 from afabench.afa_discriminative.models import (
     MaskingPretrainer,
@@ -42,7 +40,7 @@ def main(cfg: Covert2023Pretraining2DConfig):
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
-    train_dataset, train_manifest = load_bundle(Path(cfg.train_dataset_path))
+    train_dataset, _ = load_bundle(Path(cfg.train_dataset_path))
     train_dataset = cast(AFADataset, train_dataset)
     d_out = train_dataset.label_shape[0]
     val_dataset, _ = load_bundle(Path(cfg.val_dataset_path))

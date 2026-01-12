@@ -671,6 +671,11 @@ class CMIEstimator(nn.Module):
         self.initializer: AFAInitializer = initializer
         self.unmasker: AFAUnmasker = unmasker
 
+    def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
+        if y.ndim >= 2:
+            return y.argmax(dim=-1).long()
+        return y.long()
+
     def fit(  # noqa: PLR0915, PLR0912, C901
         self,
         train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
@@ -736,20 +741,6 @@ class CMIEstimator(nn.Module):
         )
         assert n_selections == mask_size, msg
 
-        # if initializer is not None:
-        #     x0, y0 = next(iter(train_loader))
-        #     x0 = x0.to(device)
-        #     y0 = y0.to(device)
-        #     init_mask_bool0 = initializer.initialize(
-        #         features=x0,
-        #         label=y0,
-        #         feature_shape=feature_shape,
-        #     ).to(device)
-        #     num_initial = int(init_mask_bool0[0].sum().item())
-        # else:
-        #     num_initial = 0
-        # effective_max_features = max(0, max_features - num_initial)
-
         opt = optim.Adam(
             set(
                 list(value_network.parameters()) + list(predictor.parameters())
@@ -781,7 +772,7 @@ class CMIEstimator(nn.Module):
             for x_batch, y_batch in train_loader:
                 # Move to device.
                 x = x_batch.to(device)
-                y = y_batch.to(device)
+                y = self._to_class_indices(y_batch).to(device)
 
                 m_sel = torch.zeros(
                     len(x), mask_size, dtype=x.dtype, device=device
@@ -848,7 +839,7 @@ class CMIEstimator(nn.Module):
                     # Predictor loss.
                     m_feat = unmasker.unmask(
                         masked_features=x_masked,
-                        feature_mask=m_feat,
+                        feature_mask=m_feat.bool(),
                         features=x,
                         afa_selection=afa_selection,
                         selection_mask=m_sel,
@@ -899,7 +890,7 @@ class CMIEstimator(nn.Module):
                 for x_batch, y_batch in val_loader:
                     # Move to device.
                     x = x_batch.to(device)
-                    y = y_batch.to(device)
+                    y = self._to_class_indices(y_batch).to(device)
                     m_sel = torch.zeros(
                         len(x), mask_size, dtype=x.dtype, device=device
                     )
@@ -948,7 +939,7 @@ class CMIEstimator(nn.Module):
                         afa_selection = afa_selection.unsqueeze(1)
                         m_feat = unmasker.unmask(
                             masked_features=x_masked,
-                            feature_mask=m_feat,
+                            feature_mask=m_feat.bool(),
                             features=x,
                             afa_selection=afa_selection,
                             selection_mask=m_sel,

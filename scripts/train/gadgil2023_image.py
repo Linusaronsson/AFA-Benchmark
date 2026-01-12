@@ -1,13 +1,10 @@
 import gc
 import logging
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from typing import Any, cast
+from typing import cast
 
 import hydra
 import torch
-import wandb
-from dacite import from_dict
 from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
@@ -19,106 +16,72 @@ from afabench.afa_discriminative.afa_methods import (
 )
 from afabench.afa_discriminative.models import (
     ConvNet,
-    Predictor,
     ResNet18Backbone,
     resnet18,
 )
-from afabench.afa_discriminative.utils import MaskLayer2d
-from afabench.common.config_classes import (
-    Gadgil2023Pretraining2DConfig,
-    Gadgil2023Training2DConfig,
-)
-from afabench.common.utils import (
-    load_dataset_artifact,
-    set_seed,
-)
+from afabench.afa_discriminative.models import GreedyAFAClassifier
+from afabench.afa_discriminative.utils import MaskLayer2d, afa_discriminative_training_prep
+from afabench.common.config_classes import Gadgil2023Training2DConfig
+from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.utils import set_seed
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/train/gadgil2023",
+    config_path="../../extra/conf/scripts/train/gadgil2023",
     config_name="config",
 )
 def main(cfg: Gadgil2023Training2DConfig):
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
-    run = wandb.init(
-        config=cast(
-            "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-        ),
-        job_type="training",
-        tags=["DIME"],
-        dir="extra/wandb",
-    )
     set_seed(cfg.seed)
+    torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
-    pretrained_model_artifact = wandb.use_artifact(
-        cfg.pretrained_model_artifact_name, type="pretrained_model"
+    train_dataset, val_dataset, initializer, unmasker, _ = (
+        afa_discriminative_training_prep(
+            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            initializer_cfg=cfg.initializer,
+            unmasker_cfg=cfg.unmasker,
+        )
     )
-    pretrained_model_artifact_dir = Path(pretrained_model_artifact.download())
-    artifact_filenames = [
-        f.name for f in pretrained_model_artifact_dir.iterdir()
-    ]
-    assert {"model.pt"}.issubset(
-        artifact_filenames
-    ), f"Dataset artifact must contain a model.pt file. Instead found: {
-        artifact_filenames
-    }"
-    pretraining_run = pretrained_model_artifact.logged_by()
-    assert pretraining_run is not None, (
-        "Pretrained model artifact must be logged by a run."
-    )
-    pretrained_model_config_dict = pretraining_run.config
-    pretrained_model_config: Gadgil2023Pretraining2DConfig = from_dict(
-        data_class=Gadgil2023Pretraining2DConfig,
-        data=pretrained_model_config_dict,
-    )
-    train_dataset, val_dataset, test_dataset, dataset_metadata = (
-        load_dataset_artifact(pretrained_model_config.dataset_artifact_name)
-    )
-    # train_class_probabilities = get_class_probabilities(train_dataset.labels)
-    # class_weights = len(train_class_probabilities) / (
-    #     len(train_class_probabilities) * train_class_probabilities
-    # )
-    # class_weights = class_weights.to(device)
-    # train_loader, val_loader, d_in, d_out = prepare_datasets(
-    #     train_dataset, val_dataset, cfg.batch_size
-    # )
     train_loader = DataLoader(
-        train_dataset,
+        train_dataset, # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
         shuffle=True,
         pin_memory=True,
-        drop_last=True,  # type: ignore
+        drop_last=True,
     )
     val_loader = DataLoader(
-        val_dataset,
+        val_dataset, # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
         shuffle=False,
-        pin_memory=True,  # type: ignore
+        pin_memory=True,
     )
-    d_out = train_dataset.label_shape[0]
 
     base = resnet18(pretrained=True)
     backbone, expansion = ResNet18Backbone(base)
-    predictor = Predictor(backbone, expansion, num_classes=d_out).to(device)
-
-    checkpoint = torch.load(
-        str(pretrained_model_artifact_dir / "model.pt"),
+    classifier_bundle, _ = load_bundle(
+        Path(cfg.pretrained_model_bundle_path),
         map_location=device,
-        weights_only=False,
     )
-    predictor.load_state_dict(checkpoint["predictor_state_dict"])
+    classifier_bundle = cast(
+        GreedyAFAClassifier, classifier_bundle,
+    )
+    predictor = classifier_bundle.predictor.to(device)
 
-    arch = checkpoint["architecture"]
+    arch = classifier_bundle.architecture
     image_size = arch["image_size"]
     patch_size = arch["patch_size"]
     assert image_size % patch_size == 0
     mask_width = arch["mask_width"]
     n_patches = int(mask_width) ** 2
+
+    n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
+    assert n_selections == n_patches
 
     value_network = ConvNet(backbone, expansion).to(device)
 
@@ -137,7 +100,11 @@ def main(cfg: Gadgil2023Training2DConfig):
     )
 
     greedy_cmi_estimator = CMIEstimator(
-        value_network, predictor, mask_layer
+        value_network=value_network,
+        predictor=predictor,
+        mask_layer=mask_layer,
+        initializer=initializer,
+        unmasker=unmasker,
     ).to(device)
     greedy_cmi_estimator.fit(
         train_loader,
@@ -147,12 +114,9 @@ def main(cfg: Gadgil2023Training2DConfig):
         nepochs=cfg.nepochs,
         max_features=cfg.hard_budget,
         eps=cfg.eps,
-        # loss_fn=nn.CrossEntropyLoss(reduction="none", weight=class_weights),
         loss_fn=nn.CrossEntropyLoss(reduction="none"),
         val_loss_fn=Accuracy(task="multiclass", num_classes=d_out).to(device),
         val_loss_mode="max",
-        # val_loss_fn=None,
-        # val_loss_mode=None,
         eps_decay=cfg.eps_decay,
         eps_steps=cfg.eps_steps,
         patience=cfg.patience,
@@ -160,8 +124,9 @@ def main(cfg: Gadgil2023Training2DConfig):
     )
 
     afa_method = Gadgil2023AFAMethod(
-        greedy_cmi_estimator.value_network.cpu(),
-        greedy_cmi_estimator.predictor.cpu(),
+        value_network=greedy_cmi_estimator.value_network.cpu(),
+        predictor=greedy_cmi_estimator.predictor.cpu(),
+        device=torch.device("cpu"),
         modality="image",
         n_patches=n_patches,
     )
@@ -169,30 +134,13 @@ def main(cfg: Gadgil2023Training2DConfig):
     afa_method.patch_size = patch_size
     afa_method.mask_width = mask_width
 
-    with TemporaryDirectory(delete=False) as tmp_path_str:
-        tmp_path = Path(tmp_path_str)
-        afa_method.save(tmp_path)
-        del afa_method
-        afa_method = Gadgil2023AFAMethod.load(tmp_path, device=device)
-        afa_method_artifact = wandb.Artifact(
-            name=f"train_gadgil2023-{
-                pretrained_model_config.dataset_artifact_name.split(':')[0]
-            }-budget_{cfg.hard_budget}-seed_{cfg.seed}",
-            type="trained_method",
-            metadata={
-                "method_type": "gadgil2023",
-                "dataset_artifact_name": pretrained_model_config.dataset_artifact_name,
-                "dataset_type": dataset_metadata["dataset_type"],
-                "budget": cfg.hard_budget,
-                "seed": cfg.seed,
-            },
-        )
-        afa_method_artifact.add_file(str(tmp_path / "model.pt"))
-        run.log_artifact(
-            afa_method_artifact, aliases=cfg.output_artifact_aliases
-        )
+    save_bundle(
+        obj=afa_method,
+        path=Path(cfg.save_path),
+        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+    )
 
-    run.finish()
+    log.info(f"Gadgil2023 method saved to: {cfg.save_path}")
 
     gc.collect()  # Force Python GC
     if torch.cuda.is_available():

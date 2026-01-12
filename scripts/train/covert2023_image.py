@@ -15,7 +15,6 @@ from afabench.afa_discriminative.afa_methods import (
 )
 from afabench.afa_discriminative.models import (
     ConvNet,
-    Predictor,
     ResNet18Backbone,
     resnet18,
 )
