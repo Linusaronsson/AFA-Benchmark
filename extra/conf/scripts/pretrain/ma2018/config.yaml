@@ -1,4 +1,5 @@
 defaults:
+  - hydra: custom
   - _self_
 
 seed: 42

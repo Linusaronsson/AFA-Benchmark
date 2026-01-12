@@ -3,6 +3,7 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - hydra: custom
   - _self_
   - dataset@_global_: cube
   - override hydra/job_logging: colorlog
