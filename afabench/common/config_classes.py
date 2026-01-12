@@ -424,7 +424,6 @@ class Covert2023PretrainingConfig:
     train_dataset_path: str
     val_dataset_path: str
     save_path: str
-    output_dir: str
 
     batch_size: int
     seed: int
@@ -445,20 +444,21 @@ cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
 
 @dataclass
 class Covert2023Pretraining2DConfig:
-    dataset_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=list)
+    train_dataset_path: str
+    val_dataset_path: str
+    save_path: str
 
-    batch_size: int = 128
-    seed: int = 42
-    device: str = "cuda"
-    lr: float = 1e-5
-    nepochs: int = 50
-    patience: int = 2
-    min_masking_probability: float = 0.0
-    max_masking_probability: float = 0.9
+    batch_size: int
+    seed: int
+    device: str
+    lr: float
+    nepochs: int
+    patience: int
+    min_masking_probability: float
+    max_masking_probability: float
 
-    image_size: int = 224
-    patch_size: int = 16
+    image_size: int
+    patch_size: int
 
 
 cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
@@ -490,17 +490,22 @@ cs.store(name="train_covert2023", node=Covert2023TrainingConfig)
 
 @dataclass
 class Covert2023Training2DConfig:
-    pretrained_model_artifact_name: str
-    output_artifact_aliases: list[str] = field(default_factory=list)
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    pretrained_model_bundle_path: str
+    save_path: str
 
-    batch_size: int = 128
-    lr: float = 1e-5
-    min_lr: float = 1e-8
-    hard_budget: int = 20
-    nepochs: int = 50
-    patience: int = 3
-    device: str = "cuda"
-    seed: int = 42
+    batch_size: int
+    lr: float
+    min_lr: float
+    hard_budget: int
+    nepochs: int
+    patience: int
+    device: str
+    seed: int
+
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
 
 
 cs.store(name="train_covert2023", node=Covert2023Training2DConfig)

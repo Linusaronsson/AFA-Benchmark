@@ -71,34 +71,10 @@ class GreedyDynamicSelection(nn.Module):
         self.initializer: AFAInitializer = initializer
         self.unmasker: AFAUnmasker = unmasker
 
-    # def _patch_soft_to_feature_soft(
-    #     self, soft_patch: torch.Tensor, x: torch.Tensor
-    # ):
-    #     """
-    #     Convert soft patch mask (B, mask_size) into soft feature mask in x space.
-
-    #     """
-    #     if len(x.shape) == 4:
-    #         B, C, H, W = x.shape
-    #         mask_size = soft_patch.shape[1]
-    #         mask_width = int(mask_size ** 0.5)
-    #         m = soft_patch.view(B, 1, mask_width, mask_width)
-    #         patch_size_h = H // mask_width
-    #         patch_size_w = W // mask_width
-    #         m = F.interpolate(m, scale_factor=(patch_size_h, patch_size_w), mode="nearest")
-    #         return m.expand(B, C, H, W)
-
-    #     assert len(x.shape) == 2
-    #     B, D = x.shape
-    #     mask_size = soft_patch.shape[1]
-
-    #     if D == mask_size:
-    #         return soft_patch
-
-    #     # In case we use patch mask for tabular data
-    #     assert D % mask_size == 0
-    #     patch_len = D // mask_size
-    #     return soft_patch.repeat_interleave(patch_len, dim=1)
+    def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
+        if y.ndim >= 2:
+            return y.argmax(dim=-1).long()
+        return y.long()
 
     def fit(  # noqa: PLR0915, PLR0912, C901
         self,
@@ -147,7 +123,7 @@ class GreedyDynamicSelection(nn.Module):
             mask_size = int(mask_layer.mask_size)
         else:
             # Must be tabular (1d data).
-            x, y = next(iter(val_loader))
+            x, _ = next(iter(val_loader))
             assert len(x.shape) == 2
             mask_size = x.shape[1]
         if feature_costs is None:
@@ -208,7 +184,7 @@ class GreedyDynamicSelection(nn.Module):
                 for x_batch, y_batch in train_loader:
                     # Move to device.
                     x = x_batch.to(device)
-                    y = y_batch.to(device)
+                    y = self._to_class_indices(y_batch).to(device)
 
                     # TODO: currently allow double selection
                     m_sel = torch.zeros(
@@ -268,7 +244,7 @@ class GreedyDynamicSelection(nn.Module):
                         # TODO: also need to check the feature_shape
                         m_feat = unmasker.unmask(
                             masked_features=x_masked,
-                            feature_mask=m_feat,
+                            feature_mask=m_feat.bool(),
                             features=x,
                             afa_selection=afa_selection,
                             selection_mask=m_sel,
@@ -292,7 +268,7 @@ class GreedyDynamicSelection(nn.Module):
                     for x_batch, y_batch in val_loader:
                         # Move to device.
                         x = x_batch.to(device)
-                        y = y_batch.to(device)
+                        y = self._to_class_indices(y_batch).to(device)
 
                         m_sel = torch.zeros(
                             len(x), mask_size, dtype=x.dtype, device=device
@@ -329,7 +305,7 @@ class GreedyDynamicSelection(nn.Module):
                             afa_selection = sel_idx.to(torch.long) + 1
                             m_feat = unmasker.unmask(
                                 masked_features=x_masked,
-                                feature_mask=m_feat,
+                                feature_mask=m_feat.bool(),
                                 features=x,
                                 afa_selection=afa_selection,
                                 selection_mask=m_sel,

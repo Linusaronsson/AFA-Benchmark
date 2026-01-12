@@ -55,7 +55,7 @@ def afa_discriminative_training_prep(
     val_dataset_bundle_path: Path,
     initializer_cfg: InitializerConfig,
     unmasker_cfg: UnmaskerConfig,
-) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor]:
+) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor | None]:
     train_dataset, _train_dataset_manifest = load_bundle(
         train_dataset_bundle_path,
     )
@@ -70,10 +70,12 @@ def afa_discriminative_training_prep(
     unmasker = get_afa_unmasker_from_config(unmasker_cfg)
 
     # Also calculate class weights
-    _train_features, train_labels = train_dataset.get_all_data()
-    train_class_probabilities = get_class_frequencies(train_labels)
-    class_weights = 1 / train_class_probabilities
-    class_weights = class_weights / class_weights.sum()
+    class_weights: torch.Tensor | None = None
+    if len(train_dataset.feature_shape) == 1:
+        _, train_labels = train_dataset.get_all_data()
+        train_class_probabilities = get_class_frequencies(train_labels)
+        class_weights = 1 / train_class_probabilities
+        class_weights = class_weights / class_weights.sum()
 
     return train_dataset, val_dataset, initializer, unmasker, class_weights
 

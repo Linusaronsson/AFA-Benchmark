@@ -43,6 +43,7 @@ def main(cfg: Covert2023TrainingConfig):
             unmasker_cfg=cfg.unmasker,
         )
     )
+    assert class_weights is not None
     class_weights = class_weights.to(device)
 
     train_loader, val_loader, d_in, d_out = prepare_datasets(
@@ -55,8 +56,7 @@ def main(cfg: Covert2023TrainingConfig):
         map_location=device,
     )
     classifier_bundle = cast(
-        "GreedyAFAClassifier",
-        cast("object", predictor),
+        GreedyAFAClassifier,predictor,
     )
     predictor = classifier_bundle.predictor.to(device)
     n_selections = unmasker.get_n_selections(torch.Size([d_in]))

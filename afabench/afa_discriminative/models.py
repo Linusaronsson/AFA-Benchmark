@@ -2,7 +2,7 @@ import math
 import os
 from copy import deepcopy
 from pathlib import Path
-from typing import Self, Any
+from typing import Self, Any, Callable
 
 import torch
 import torch.nn.functional as F
@@ -178,6 +178,11 @@ class MaskingPretrainer(nn.Module):
         self.model = model
         self.mask_layer = mask_layer
 
+    def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
+        if y.ndim >= 2:
+            return y.argmax(dim=-1).long()
+        return y.long()
+
     def fit(
         self,
         train_loader,
@@ -219,7 +224,7 @@ class MaskingPretrainer(nn.Module):
         )
 
         # For tracking best model and early stopping.
-        best_model = None
+        best_model: nn.Module | None = None
         num_bad_epochs = 0
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
@@ -231,7 +236,7 @@ class MaskingPretrainer(nn.Module):
             for x, y in train_loader:
                 # Move to device.
                 x = x.to(device)
-                y = y.to(device)
+                y = self._to_class_indices(y).to(device)
 
                 # Generate missingness.
                 p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
@@ -264,7 +269,7 @@ class MaskingPretrainer(nn.Module):
                 for x, y in val_loader:
                     # Move to device.
                     x = x.to(device)
-                    y = y.to(device)
+                    y = self._to_class_indices(y).to(device)
 
                     # Generate missingness.
                     p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
@@ -310,6 +315,7 @@ class MaskingPretrainer(nn.Module):
                 break
 
         # Copy parameters from best model.
+        assert best_model is not None
         restore_parameters(model, best_model)
 
     def forward(self, x, mask):
@@ -523,6 +529,26 @@ class ConvNet(nn.Module):
         return x
 
 
+def build_mlp(arch: dict[str, Any]) -> nn.Module:
+    return MLP(
+        in_features=arch["in_features"],
+        out_features=arch["out_features"],
+        num_cells=arch["hidden_units"],
+        activation_class=getattr(nn, arch["activation"]),
+        dropout=arch["dropout"],
+    )
+
+def build_resnet18_predictor(arch: dict[str, Any]) -> nn.Module:
+    base = resnet18(pretrained=bool(arch.get("pretrained", True)))
+    backbone, expansion = ResNet18Backbone(base)
+    return Predictor(backbone, expansion, num_classes=int(arch["d_out"]))
+
+_BUILDERS: dict[str, Callable[[dict[str, Any]], nn.Module]] = {
+    "mlp": build_mlp,
+    "resnet18": build_resnet18_predictor,
+}
+
+
 class GreedyAFAClassifier:
     def __init__(
         self,
@@ -553,15 +579,17 @@ class GreedyAFAClassifier:
         map_location: torch.device,
     ) -> Self:
         checkpoint = torch.load(path / "model.pt", map_location=map_location, weights_only=False)
-        arch = checkpoint["architecture"]
+        arch: dict[str, Any] = checkpoint["architecture"]
         state_dict = checkpoint["predictor_state_dict"]
-        predictor = MLP(
-            in_features=arch["in_features"],
-            out_features=arch["out_features"],
-            num_cells=arch["hidden_units"],
-            activation_class=getattr(nn, arch["activation"]),
-            dropout=arch["dropout"],
-        )
+        model_type = arch.get("type")
+        if not model_type:
+            raise ValueError("Checkpoint missing architecture['type']")
+
+        builder = _BUILDERS.get(str(model_type))
+        if builder is None:
+            raise ValueError(f"Unsupported model type: {model_type}")
+
+        predictor = builder(arch)
         predictor.load_state_dict(state_dict)
         predictor.eval()
 

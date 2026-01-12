@@ -69,6 +69,7 @@ def main(cfg: Gadgil2023PretrainingConfig) -> None:
         dropout=dropout,
     )
     architecture: dict[str, Any] = {
+        "type": "mlp",
         "in_features": in_features,
         "out_features": out_features,
         "hidden_units": hidden_units,

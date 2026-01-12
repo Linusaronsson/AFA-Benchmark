@@ -44,6 +44,7 @@ def main(cfg: PermutationTrainingConfig):
             unmasker_cfg=cfg.unmasker,
         )
     )
+    assert class_weights is not None
     class_weights = class_weights.to(device)
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
