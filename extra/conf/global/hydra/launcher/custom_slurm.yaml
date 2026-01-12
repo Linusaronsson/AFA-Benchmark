@@ -1,5 +1,5 @@
 defaults:
-- submitit_slurm
+    - submitit_slurm
 
 submitit_folder: ${hydra.sweep.dir}/.submitit/%j
 timeout_min: 1440  # 24 hours

@@ -4,6 +4,7 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - hydra: custom
   - /components/masked_pretraining@_global_: default
   - /components/masking_probabilities@_global_: simple
   - _self_
@@ -11,6 +12,7 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
+
 
 supervised_learning:
   early_stopping_min_delta: 1e-2

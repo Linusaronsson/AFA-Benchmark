@@ -4,6 +4,7 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - hydra: custom
   - /components/masked_pretraining@_global_: default
   - /components/masking_probabilities@_global_: simple
   - _self_

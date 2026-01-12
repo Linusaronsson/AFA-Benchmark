@@ -1,0 +1,2 @@
+run:
+  dir: extra/logs/hydra/outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}

@@ -4,6 +4,7 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - hydra: custom
   - /components/initializers@initializer: ???
   - /components/unmaskers@unmasker: ???
   - /components/mdps@mdp: default
