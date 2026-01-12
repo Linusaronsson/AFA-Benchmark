@@ -3,7 +3,7 @@ latency-wait: 30 # seconds
 default-resources:
   runtime: 120 # minutes
   slurm_partition: alvis
-  slurm_account: NAISS2024-22-1677
+  slurm_account: NAISS2025-22-448
   mem_mb: 0 # Only memory attribute that works
   slurm_extra: "--gres=gpu:T4:1"
 
