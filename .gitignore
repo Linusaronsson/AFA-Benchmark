@@ -177,43 +177,25 @@ cython_debug/
 .pypirc
 
 # Logs
-/logs
+/extra/logs
 
 # Wandb folders
-artifacts/
-wandb/
 /extra/wandb
-/extra/artifacts
+
 
 # Everything that the snakefiles produce
 /extra/output
 
 # Data
-data
 /extra/data
 
-# Hydra output folder
-outputs
-/extra/outputs
-
 # Temporary folder for storing intermediate files
-tmp/
-/extra/tmp
+/tmp
 
-/lightning_logs
+# Snakemake cache
+/.snakemake
 
-multirun/
-/extra/multirun
-debug/soft_budget/.Rhistory
-debug/soft_budget/*.csv
-debug/soft_budget/*.png
-conf/soft_eval/lists
-indicators
-.snakemake/metadata
-.snakemake
-scripts/plotting/*.csv
-workflow/snakefiles/dummy
+# R files
 .Rproj.user
 AFA-Benchmark.Rproj
 .Rhistory
-checkpoints
