@@ -143,7 +143,7 @@ def supervised_learning(
         mode=monitor_mode,
         verbose=True,
     )
-    logger = WandbLogger(save_dir="extra/wandb") if use_wandb else False
+    logger = WandbLogger(save_dir="extra/logs/wandb") if use_wandb else False
     trainer = pl.Trainer(
         max_epochs=cfg.max_epochs,
         logger=logger,
@@ -154,6 +154,7 @@ def supervised_learning(
         # If None, Lightning will validate at the end of each epoch.
         val_check_interval=cfg.val_check_interval,
         check_val_every_n_epoch=None,
+        default_root_dir="extra/logs/lightning",
     )
 
     try:
