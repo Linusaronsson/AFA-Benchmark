@@ -196,7 +196,7 @@ def main(cfg: Zannone2019TrainConfig) -> None:
         pointnet=pretrained_model.partial_vae.pointnet,
         encoder=pretrained_model.partial_vae.encoder,
         action_spec=train_env.action_spec,
-        latent_size=pretrained_model.partial_vae.latent_size,
+        latent_size=pretrained_model.latent_size,
         action_mask_key="allowed_action_mask",
         frames_per_batch=cfg.rl_training_loop.frames_per_batch,
         module_device=device,
