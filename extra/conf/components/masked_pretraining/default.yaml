@@ -6,3 +6,5 @@ supervised_learning:
   early_stopping_patience: 50
   early_stopping_min_delta: 1e-3
   val_check_interval: 100 # validate every n batches
+  limit_train_batches: null  # only used for smoke tests
+  limit_val_batches: null  # only used for smoke tests

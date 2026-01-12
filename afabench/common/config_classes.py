@@ -112,6 +112,8 @@ class SupervisedLearningConfig:
     early_stopping_patience: int  # early stopping patience
     early_stopping_min_delta: float
     val_check_interval: int  # how often to validate
+    limit_train_batches: int | None  # only used for smoke tests
+    limit_val_batches: int | None  # only used for smoke tests
 
 
 # --- PRETRAINING MODELS ---

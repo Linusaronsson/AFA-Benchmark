@@ -34,3 +34,16 @@ We pretrained the models on synthetic datasets with no noise, to check whether t
 - Noiseless Cube (95%)
 
 Since kachuee2019 is not able to distinguish between missing features and features with values 0, these results are not surprising.
+
+## Training models
+
+The most basic check we can do is to see if a method learns to never select the last 10 non-informative features in the noiseless cube dataset.
+
+### shim2018
+
+
+### zannone2019
+
+**Yes** (fca04d1)
+
+### kachuee2019
