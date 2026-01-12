@@ -15,10 +15,8 @@ We pretrained the models on synthetic datasets with no noise, to check whether t
 
 **Yes:**
 - Noiseless Cube
-- Noiseless synthetic MNIST
-
-**Still under investigation**
-- Noiseless AFAContext (needs larger patience, still debugging this)
+- Noiseless synthetic MNIST (910be785354e)
+- Noiseless AFAContext (910be785354e)
 
 ### kachuee2019
 
