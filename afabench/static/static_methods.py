@@ -26,7 +26,6 @@ class ConcreteMask(nn.Module):
         self,
         num_features,
         num_select,
-        group_matrix=None,
         append=False,
         gamma=0.2,
     ):
@@ -36,21 +35,40 @@ class ConcreteMask(nn.Module):
         )
         self.append = append
         self.gamma = gamma
-        if group_matrix is None:
-            self.group_matrix = None
-        else:
-            self.register_buffer("group_matrix", group_matrix.float())
 
     def forward(self, x, temp):
         dist = RelaxedOneHotCategorical(temp, logits=self.logits / self.gamma)
         sample = dist.rsample([len(x)])
         m = sample.max(dim=1).values
-        if self.group_matrix is not None:
-            out = x * (m @ self.group_matrix)
-        else:
-            out = x * m
+        out = x * m
         if self.append:
             out = torch.cat([out, m], dim=1)
+        return out
+
+
+class ConcreteMask2d(nn.Module):
+    def __init__(
+        self,
+        width: int,
+        patch_size: int,
+        num_select: int,
+        gamma: float = 0.2,
+    ):
+        super().__init__()
+        self.logits = nn.Parameter(
+            torch.randn(num_select, width ** 2, dtype=torch.float32)
+        )
+        self.upsample = torch.nn.Upsample(scale_factor=patch_size)
+        self.width = width
+        self.patch_size = patch_size
+        self.gamma = gamma
+
+    def forward(self, x, temp):
+        dist = RelaxedOneHotCategorical(temp, logits=self.logits / self.gamma)
+        sample = dist.rsample([len(x)])
+        m = sample.max(dim=1).values
+        m = self.upsample(m.reshape(-1, 1, self.width, self.width))
+        out = x * m
         return out
 
 
@@ -60,11 +78,16 @@ class DifferentiableSelector(nn.Module):
     def __init__(
         self,
         model: nn.Module,
-        selector_layer: ConcreteMask,
+        selector_layer: ConcreteMask | ConcreteMask2d,
     ):
         super().__init__()
         self.model: nn.Module = model
-        self.selector_layer: ConcreteMask = selector_layer
+        self.selector_layer: ConcreteMask | ConcreteMask2d = selector_layer
+
+    def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
+        if y.ndim >= 2:
+            return y.argmax(dim=-1).long()
+        return y.long()
 
     def fit(
         self,
@@ -133,7 +156,7 @@ class DifferentiableSelector(nn.Module):
                 for x, y in train_loader:
                     # Move to device.
                     x = x.to(device)
-                    y = y.to(device)
+                    y = self._to_class_indices(y).to(device)
 
                     # Select features and make prediction.
                     x_masked = selector_layer(x, temp)
@@ -169,7 +192,7 @@ class DifferentiableSelector(nn.Module):
                     for x, y in val_loader:
                         # Move to device.
                         x = x.to(device)
-                        y = y.to(device)
+                        y = self._to_class_indices(y).to(device)
 
                         # Evaluate model with soft sample.
                         x_masked = selector_layer(x, temp)
@@ -199,7 +222,7 @@ class DifferentiableSelector(nn.Module):
                         } total){'-' * 8}"
                     )
                     print(
-                        f"Val loss = {val_loss:.4f}, Zero-temp loss = {val_hard_loss:.4f }\n"
+                        f"Val loss = {val_loss:.4f}, Zero-temp loss = {val_hard_loss:.4f}\n"
                     )
 
                 # Update scheduler.

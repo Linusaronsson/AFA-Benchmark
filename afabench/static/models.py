@@ -8,9 +8,14 @@ from torch import nn, optim
 class BaseModel(nn.Module):
     """Base model, no missing features."""
 
-    def __init__(self, model):
+    def __init__(self, model: nn.Module):
         super().__init__()
         self.model = model
+
+    def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
+        if y.ndim >= 2:
+            return y.argmax(dim=-1).long()
+        return y.long()
 
     def fit(
         self,
@@ -62,7 +67,7 @@ class BaseModel(nn.Module):
             for x, y in train_loader:
                 # Move to device.
                 x = x.to(device)
-                y = y.to(device)
+                y = self._to_class_indices(y).to(device)
 
                 # Calculate loss.
                 pred = model(x)
@@ -83,7 +88,7 @@ class BaseModel(nn.Module):
                 for x, y in val_loader:
                     # Move to device.
                     x = x.to(device)
-                    y = y.to(device)
+                    y = self._to_class_indices(y).to(device)
 
                     # Calculate prediction.
                     pred = model(x)
@@ -118,45 +123,6 @@ class BaseModel(nn.Module):
 
         # Copy parameters from best model.
         restore_parameters(model, best_model)
-
-    def evaluate(self, loader, metric):
-        """
-        Evaluate mean performance across a dataset.
-
-        Args:
-          loader:
-          metric:
-
-        """
-        # Setup.
-        self.model.eval()
-        device = next(self.model.parameters()).device
-
-        # For calculating mean loss.
-        pred_list = []
-        label_list = []
-
-        with torch.no_grad():
-            for x, y in loader:
-                # Move to GPU.
-                x = x.to(device)
-
-                # Calculate loss.
-                pred = self.model(x)
-                pred_list.append(pred.cpu())
-                label_list.append(y.cpu())
-
-            # Calculate metric(s).
-            y = torch.cat(label_list, 0)
-            pred = torch.cat(pred_list, 0)
-            if isinstance(metric, (tuple, list)):
-                score = [m(pred, y).item() for m in metric]
-            elif isinstance(metric, dict):
-                score = {name: m(pred, y).item() for name, m in metric.items()}
-            else:
-                score = metric(pred, y).item()
-
-        return score
 
     def forward(self, x):
         """Generate model prediction."""

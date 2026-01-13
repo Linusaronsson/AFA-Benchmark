@@ -648,6 +648,29 @@ cs.store(name="train_cae", node=CAETrainingConfig)
 
 
 @dataclass
+class CAETraining2DConfig:
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    save_path: str
+
+    batch_size: int
+    image_size: int
+    patch_size: int
+    hard_budget: int
+    device: str
+    seed: int
+
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+
+    selector: StaticSelectorConfig
+    classifier: StaticClassifierConfig
+
+
+cs.store(name="train_cae", node=CAETraining2DConfig)
+
+
+@dataclass
 class PermutationTrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
