@@ -856,6 +856,7 @@ class Kachuee2019TrainConfig:
     use_wandb: bool
     smoke_test: bool
     device: str | None
+    replay_buffer_device_same_as_device: bool  # whether replay buffer device should be the same as `device`. If False, use cpu.
 
     # Specific to kachuee2019
     reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}

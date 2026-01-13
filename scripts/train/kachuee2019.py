@@ -149,6 +149,11 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
         device = torch.device("cpu")
     else:
         device = torch.device(cfg.device)
+    replay_buffer_device = (
+        device
+        if cfg.replay_buffer_device_same_as_device
+        else torch.device("cpu")
+    )
 
     log_fn: Callable[[dict[str, Any]], None]
     if cfg.use_wandb:
@@ -223,7 +228,7 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
         action_spec=train_env.action_spec,
         action_mask_key="allowed_action_mask",
         module_device=device,
-        replay_buffer_device=device,
+        replay_buffer_device=replay_buffer_device,
         n_feature_dims=len(train_dataset.feature_shape),
         n_batches=cfg.rl_training_loop.n_batches,
     )
