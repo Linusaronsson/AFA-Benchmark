@@ -257,18 +257,19 @@ class AFAEnv(EnvBase):
         )
 
         # Always calculate a possible reward
-        reward = self.reward_fn(
-            tensordict["masked_features"],
-            tensordict["feature_mask"],
-            tensordict["performed_selection_mask"],
-            new_masked_features,
-            new_feature_mask,
-            new_performed_selection_mask,
-            tensordict["action"],
-            tensordict["features"],
-            tensordict["label"],
-            done,
-        )
+        with torch.no_grad():
+            reward = self.reward_fn(
+                tensordict["masked_features"],
+                tensordict["feature_mask"],
+                tensordict["performed_selection_mask"],
+                new_masked_features,
+                new_feature_mask,
+                new_performed_selection_mask,
+                tensordict["action"],
+                tensordict["features"],
+                tensordict["label"],
+                done,
+            )
 
         r = TensorDict(
             {
