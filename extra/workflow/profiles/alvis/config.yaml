@@ -1,7 +1,7 @@
 latency-wait: 30 # seconds
 
 default-resources:
-  runtime: 120 # 2 hours
+  runtime: 120 # minutes
   slurm_partition: alvis
   slurm_account: NAISS2025-22-448
   mem_mb: 0 # Only memory attribute that works
@@ -10,5 +10,7 @@ default-resources:
 set-resources:
   pretrain_model:
     runtime: 600 # 10 hours
-  train_method:
+  train_method_with_pretrained_model:
+    runtime: 600 # 10 hours
+  train_method_without_pretrained_model:
     runtime: 600 # 10 hours
