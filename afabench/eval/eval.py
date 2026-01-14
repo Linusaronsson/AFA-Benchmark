@@ -66,15 +66,19 @@ def single_afa_step(
 
     # Convert action to selection for the unmasker
     afa_selection: AFASelection = afa_action - 1
-    new_feature_mask = afa_unmask_fn(
-        masked_features=masked_features,
-        feature_mask=feature_mask,
-        features=features,
-        afa_selection=afa_selection,
-        selection_mask=selection_mask,
-        label=label,
+    no_stop_mask = afa_action.squeeze(-1) != 0
+    # Only give non-stopping samples to the unmasker
+    new_feature_mask_no_stop = afa_unmask_fn(
+        masked_features=masked_features[no_stop_mask],
+        feature_mask=feature_mask[no_stop_mask],
+        features=features[no_stop_mask],
+        afa_selection=afa_selection[no_stop_mask],
+        selection_mask=selection_mask[no_stop_mask],
+        label=label[no_stop_mask],
         feature_shape=feature_shape,
     )
+    new_feature_mask = feature_mask.clone()
+    new_feature_mask[no_stop_mask] = new_feature_mask_no_stop
     new_masked_features = features.clone()
     new_masked_features[~new_feature_mask] = 0.0
 

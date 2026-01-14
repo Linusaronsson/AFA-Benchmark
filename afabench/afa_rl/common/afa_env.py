@@ -197,44 +197,45 @@ class AFAEnv(EnvBase):
         batch_numel = tensordict.batch_size.numel()
         batch_indices = torch.arange(batch_numel, device=tensordict.device)
 
-        # Acquire new features from unmasker
-        # Convert action to selection: action is 0-n_selections, selection is -1-(n_selections-1)
-        # Negative selections are ignored by the unmasker
-        afa_selection = tensordict["action"] - 1
-        new_feature_mask = self.unmask_fn(
-            masked_features=tensordict["masked_features"],
-            feature_mask=tensordict["feature_mask"],
-            features=tensordict["features"],
-            afa_selection=afa_selection.unsqueeze(-1),
-            selection_mask=tensordict["performed_selection_mask"],
-            label=tensordict["label"],
+        # Acquire new features from unmasker if we don't choose the stop action
+        no_stop_mask = tensordict["action"] != 0
+        new_feature_mask_no_stop = self.unmask_fn(
+            masked_features=tensordict["masked_features"][no_stop_mask],
+            feature_mask=tensordict["feature_mask"][no_stop_mask],
+            features=tensordict["features"][no_stop_mask],
+            afa_selection=(tensordict["action"] - 1)[no_stop_mask].unsqueeze(
+                -1
+            ),
+            selection_mask=tensordict["performed_selection_mask"][
+                no_stop_mask
+            ],
+            label=tensordict["label"][no_stop_mask],
             feature_shape=self.feature_shape,
         )
+        new_feature_mask = tensordict["feature_mask"].clone()
+        new_feature_mask[no_stop_mask] = new_feature_mask_no_stop
 
         new_masked_features = tensordict["features"].clone()
         new_masked_features[~new_feature_mask] = 0.0
 
         # Update masks
-        action_idx = tensordict["action"].squeeze(-1)
+        # action_idx = tensordict["action"]
         new_performed_action_mask = tensordict["performed_action_mask"].clone()
-        new_performed_action_mask[batch_indices, action_idx] = True
+        new_performed_action_mask[batch_indices, tensordict["action"]] = True
         new_allowed_action_mask = tensordict["allowed_action_mask"].clone()
         new_performed_selection_mask = tensordict[
             "performed_selection_mask"
         ].clone()
 
         # For non-stop actions, update selection mask and disable that action
-        non_stop_mask = action_idx > 0
-        if non_stop_mask.any():
-            non_stop_indices = batch_indices[non_stop_mask]
-            selection_indices = (
-                action_idx[non_stop_mask] - 1
+        if no_stop_mask.any():
+            non_stop_indices = batch_indices[no_stop_mask]
+            selections = (
+                tensordict["action"][no_stop_mask] - 1
             )  # Convert to 0-based selection index
-            new_performed_selection_mask[
-                non_stop_indices, selection_indices
-            ] = True
+            new_performed_selection_mask[non_stop_indices, selections] = True
             new_allowed_action_mask[
-                non_stop_indices, action_idx[non_stop_mask]
+                non_stop_indices, tensordict["action"][no_stop_mask]
             ] = False
 
         # If stop action is not allowed, ensure it stays disabled
