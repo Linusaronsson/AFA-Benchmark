@@ -1,17 +1,21 @@
 hydra:
   searchpath:
+    - file://extra/conf
     - file://extra/conf/global
 
 defaults:
   - hydra: custom
+  - /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
   - _self_
-  - dataset@_global_: cube
+  - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-device: "cuda"
-seed: 42
-initializer:
-  class_name: "ZeroInitializer"
-  kwargs: {}
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+pretrained_model_bundle_path: ???
+save_path: ???
+device: null
+seed: null

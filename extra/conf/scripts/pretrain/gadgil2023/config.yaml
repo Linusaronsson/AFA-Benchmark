@@ -1,16 +1,18 @@
 hydra:
   searchpath:
+    - file://extra/conf
     - file://extra/conf/global
 
 defaults:
   - hydra: custom
   - _self_
-  - dataset@_global_: cube
+  - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-dataset_base_path: "extra/data/datasets"
-output_dir: "extra/result/gadgil2023/pretrain"
-device: cuda
-seed: 42
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+save_path: ???
+device: null
+seed: null

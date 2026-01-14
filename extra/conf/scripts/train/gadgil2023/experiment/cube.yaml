@@ -1,0 +1,16 @@
+batch_size: 128
+lr: 0.001
+hard_budget: 20
+nepochs: 250
+patience: 5
+eps: 0.05
+eps_decay: 0.2
+eps_steps: 10
+
+hidden_units: [128,128]
+dropout: 0.3
+
+# pretrained_model_bundle_path: "extra/result/gadgil2023/pretrain/cube/0.bundle"
+# train_dataset_bundle_path: "extra/data/datasets/cube/0/train.bundle"
+# val_dataset_bundle_path: "extra/data/datasets/cube/0/val.bundle"
+# save_path: "extra/result/gadgil2023/train/cube/0.bundle"

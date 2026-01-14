@@ -1,0 +1,19 @@
+batch_size: 2
+hard_budget: 5
+image_size: 224
+patch_size: 16
+
+selector:
+  lr: 0.00001
+  nepochs: 100
+  num_cells: [128, 128]
+  patience: 3
+
+classifier:
+  lr: 0.00001
+  nepochs: 50
+  num_cells: [128, 128]
+
+# train_dataset_bundle_path: "extra/data/datasets/imagenette/0/train.bundle"
+# val_dataset_bundle_path: "extra/data/datasets/imagenette/0/val.bundle"
+# save_path: "extra/result/cae/train/imagenette/0.bundle"

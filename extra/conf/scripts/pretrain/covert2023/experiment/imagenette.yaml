@@ -1,0 +1,13 @@
+# train_dataset_path: "extra/data/datasets/imagenette/0/train.bundle"
+# val_dataset_path: "extra/data/datasets/imagenette/0/val.bundle"
+# save_path: "extra/result/covert2023/pretrain/imagenette/0.bundle"
+
+batch_size: 128
+lr: 0.00001
+nepochs: 2
+patience: 2
+
+image_size: 224
+patch_size: 16
+min_masking_probability: 0.0
+max_masking_probability: 0.9

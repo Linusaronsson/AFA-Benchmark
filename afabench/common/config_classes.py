@@ -423,8 +423,8 @@ cs.store(name="train_ma2018", node=Ma2018TrainingConfig)
 
 @dataclass
 class Covert2023PretrainingConfig:
-    train_dataset_path: str
-    val_dataset_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
     save_path: str
 
     batch_size: int
@@ -446,8 +446,8 @@ cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
 
 @dataclass
 class Covert2023Pretraining2DConfig:
-    train_dataset_path: str
-    val_dataset_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
     save_path: str
 
     batch_size: int
@@ -515,10 +515,9 @@ cs.store(name="train_covert2023", node=Covert2023Training2DConfig)
 
 @dataclass
 class Gadgil2023PretrainingConfig:
-    train_dataset_path: str
-    val_dataset_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
     save_path: str
-    output_dir: str
 
     batch_size: int
     seed: int
@@ -539,8 +538,8 @@ cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
 
 @dataclass
 class Gadgil2023Pretraining2DConfig:
-    train_dataset_path: str
-    val_dataset_path: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
     save_path: str
 
     batch_size: int

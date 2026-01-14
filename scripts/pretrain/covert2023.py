@@ -39,8 +39,10 @@ def main(cfg: Covert2023PretrainingConfig) -> None:
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
-    train_dataset, train_manifest = load_bundle(Path(cfg.train_dataset_path))
-    val_dataset, _ = load_bundle(Path(cfg.val_dataset_path))
+    train_dataset, train_manifest = load_bundle(
+        Path(cfg.train_dataset_bundle_path)
+    )
+    val_dataset, _ = load_bundle(Path(cfg.val_dataset_bundle_path))
 
     dataset_name = train_manifest["class_name"].replace("Dataset", "").lower()
     print(dataset_name)
