@@ -166,17 +166,12 @@ def main(cfg: Zannone2019TrainConfig) -> None:
         reward_fn=get_zannone2019_reward_fn(
             pretrained_model=pretrained_model,
             weights=class_weights,
-            acquisition_costs=(
+            selection_costs=(
                 0 if cfg.soft_budget_param is None else cfg.soft_budget_param
             )
-            * torch.ones(
-                (
-                    unmasker.get_n_selections(
-                        feature_shape=train_dataset.feature_shape
-                    ),
-                ),
-                device=class_weights.device,
-            ),
+            * unmasker.get_selection_costs(
+                feature_costs=train_dataset.get_feature_acquisition_costs()
+            ).to(device),
             n_feature_dims=len(train_dataset.feature_shape),
         ),
         n_agents=cfg.mdp.n_agents,

@@ -194,11 +194,6 @@ class AFAEnv(EnvBase):
 
     @override
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
-        # new_feature_mask: FeatureMask = tensordict["feature_mask"].clone()
-        # new_masked_features: MaskedFeatures = tensordict[
-        #     "masked_features"
-        # ].clone()
-
         batch_numel = tensordict.batch_size.numel()
         batch_indices = torch.arange(batch_numel, device=tensordict.device)
 

@@ -195,17 +195,12 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
         val_dataset=val_dataset,
         reward_fn=get_kachuee2019_reward_fn(
             pretrained_model=pretrained_model.pq_module,
-            acquisition_costs=(
+            selection_costs=(
                 0 if cfg.soft_budget_param is None else cfg.soft_budget_param
             )
-            * torch.ones(
-                (
-                    unmasker.get_n_selections(
-                        feature_shape=train_dataset.feature_shape
-                    ),
-                ),
-                device=class_weights.device,
-            ),
+            * unmasker.get_selection_costs(
+                feature_costs=train_dataset.get_feature_acquisition_costs()
+            ).to(device),
             n_feature_dims=len(train_dataset.feature_shape),
             method=cfg.reward_method,
             mcdrop_samples=cfg.mcdrop_samples,

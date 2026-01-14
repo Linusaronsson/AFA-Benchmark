@@ -21,7 +21,7 @@ from afabench.common.custom_types import (
 def get_shim2018_reward_fn(
     pretrained_model: LitShim2018EmbedderClassifier,
     weights: Tensor,
-    acquisition_costs: torch.Tensor,
+    selection_costs: torch.Tensor,
     n_feature_dims: int,
 ) -> AFARewardFn:
     """
@@ -47,7 +47,7 @@ def get_shim2018_reward_fn(
         newly_performed_selections = (new_selection_mask & ~selection_mask).to(
             torch.float32
         )
-        reward = -(newly_performed_selections * acquisition_costs).sum(dim=-1)
+        reward = -(newly_performed_selections * selection_costs).sum(dim=-1)
 
         done_mask = done.squeeze(-1)
 

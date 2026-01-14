@@ -43,7 +43,7 @@ def calc_reward(conf_a: Tensor, conf_b: Tensor, method: str) -> torch.Tensor:
 
 def get_kachuee2019_reward_fn(
     pretrained_model: Kachuee2019PQModule,
-    acquisition_costs: torch.Tensor,
+    selection_costs: torch.Tensor,
     n_feature_dims: int,
     method: str,
     mcdrop_samples: int,
@@ -75,7 +75,7 @@ def get_kachuee2019_reward_fn(
             mcdrop_samples=mcdrop_samples,
         )
         unscaled_reward = calc_reward(conf_a, conf_b, method=method)
-        selection_cost = acquisition_costs[
+        selection_cost = selection_costs[
             afa_selection - 1
         ]  # 1-based selections
         reward = unscaled_reward / selection_cost

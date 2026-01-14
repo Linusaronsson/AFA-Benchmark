@@ -21,7 +21,7 @@ from afabench.common.custom_types import (
 def get_zannone2019_reward_fn(
     pretrained_model: Zannone2019PretrainingModel,
     weights: Tensor,
-    acquisition_costs: torch.Tensor,
+    selection_costs: torch.Tensor,
     n_feature_dims: int,
 ) -> AFARewardFn:
     """Return the reward function for zannone2019."""
@@ -42,7 +42,7 @@ def get_zannone2019_reward_fn(
         newly_performed_selections = (new_selection_mask & ~selection_mask).to(
             torch.float32
         )
-        reward = -(newly_performed_selections * acquisition_costs).sum(dim=-1)
+        reward = -(newly_performed_selections * selection_costs).sum(dim=-1)
 
         # PVAE expects 1D features
         flat_new_masked_features = new_masked_features.flatten(
