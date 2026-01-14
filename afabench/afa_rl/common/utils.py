@@ -527,8 +527,8 @@ def get_eval_metrics(
     n_correct_samples = 0
     total_samples = 0
     for td in eval_tds:
-        eval_metrics["reward_sum"] += td["next", "reward"].sum()
-        eval_metrics["actions"].extend(td["action"].flatten().tolist())
+        eval_metrics["reward_sum"] += td["next", "reward"].sum().item()
+        eval_metrics["actions"].extend(td["action"].flatten().cpu().tolist())
         # Check whether prediction is correct
         td_end = td[:, -1]
         probs = afa_predict_fn(

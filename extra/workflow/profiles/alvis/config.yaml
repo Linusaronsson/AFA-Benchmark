@@ -1,7 +1,7 @@
 latency-wait: 30 # seconds
 
 default-resources:
-  runtime: 120 # minutes
+  runtime: 120 # 2 hours
   slurm_partition: alvis
   slurm_account: NAISS2025-22-448
   mem_mb: 0 # Only memory attribute that works

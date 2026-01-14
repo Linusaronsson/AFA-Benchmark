@@ -148,21 +148,23 @@ def afa_rl_training_loop(
                 td_evals = [
                     eval_env.rollout(
                         cfg.eval_max_steps, agent.get_exploitative_policy()
-                    )
-                    .squeeze(0)
-                    .cpu()
+                    ).squeeze(0)
+                    # .cpu()
                     for _ in tqdm(
                         range(cfg.n_eval_episodes), desc="Evaluating"
                     )
                 ]
 
+            # A cpu copy is passed to logging functions
+            td_evals_cpu = [td_eval.cpu() for td_eval in td_evals]
+
             # Environment specific logging of rollouts
-            eval_env_rollout_info = eval_env.get_rollout_info(td_evals)
+            eval_env_rollout_info = eval_env.get_rollout_info(td_evals_cpu)
 
             # Agent specific logging of rollouts
-            agent_rollout_info = agent.get_rollout_info(td_evals)
+            agent_rollout_info = agent.get_rollout_info(td_evals_cpu)
 
-            # With a predictor we can perform classification at every step of the episode.
+            # With a predictor we can perform classification at every step of the episode. GPU copy is used here
             metrics_eval = get_eval_metrics(
                 td_evals, afa_predict_fn, feature_shape=feature_shape
             )
