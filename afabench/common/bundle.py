@@ -7,7 +7,7 @@ from typing import Any, Protocol, Self
 from afabench.common.registry import get_class
 
 # Do not allow loading of bundles with different major version
-BUNDLE_VERSION = "2.0.0"
+BUNDLE_VERSION = "1.0.0"
 
 
 def is_same_major_semver(sv1: str, sv2: str) -> bool:
