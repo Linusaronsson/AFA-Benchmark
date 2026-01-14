@@ -43,7 +43,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         group="train_masked_vit_classifier",
         job_type="train_classifier",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
-        dir="extra/wandb",
+        dir="extra/logs/wandb",
     )
     log.info(f"W&B run initialized: {run.name} ({run.id})")
     log.info(f"W&B run URL: {run.url}")

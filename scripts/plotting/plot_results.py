@@ -256,7 +256,7 @@ def main(cfg: PlotConfig):
     run = wandb.init(
         job_type="plotting",
         config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
-        dir="extra/wandb",
+        dir="extra/logs/wandb",
     )
 
     eval_results = load_eval_results(

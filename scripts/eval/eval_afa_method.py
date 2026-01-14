@@ -115,7 +115,7 @@ def main(cfg: EvalConfig) -> None:
                 "dict[str, Any]",
                 OmegaConf.to_container(cfg, resolve=True),
             ),
-            dir="extra/wandb",
+            dir="extra/logs/wandb",
         )
         log.info(f"W&B run initialized: {run.name} ({run.id})")
         log.info(f"W&B run URL: {run.url}")

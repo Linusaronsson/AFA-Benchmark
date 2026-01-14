@@ -34,7 +34,7 @@ def main(cfg: OptimalCubeTrainConfig):
         ),
         job_type="training",
         tags=["optimalcube"],
-        dir="extra/wandb",
+        dir="extra/logs/wandb",
     )
 
     # Log W&B run URL
