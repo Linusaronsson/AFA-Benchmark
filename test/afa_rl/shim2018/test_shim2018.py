@@ -63,7 +63,7 @@
 # )
 # from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
 # from afabench.common.custom_types import (
-#     AFASelection,
+#     AFAAction,
 #     FeatureMask,
 #     Features,
 #     Label,
@@ -684,7 +684,7 @@
 #                 _new_masked_features: MaskedFeatures,  # new masked features
 #                 _new_feature_mask: FeatureMask,  # new feature mask
 #                 _new_selection_mask: SelectionMask,  # new selection mask
-#                 _selection: AFASelection,  # which selection we made
+#                 _selection: AFAAction,  # which selection we made
 #                 _features: Features,  # true features
 #                 _label: Label,  # true label
 #                 done: Bool[Tensor, "*batch 1"],  # done key

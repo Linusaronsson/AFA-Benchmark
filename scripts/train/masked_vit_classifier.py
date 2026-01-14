@@ -109,7 +109,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         device=torch.device("cpu"),
     )
     metrics = eval_afa_method(
-        afa_select_fn=afa_method.select,
+        afa_action_fn=afa_method.select,
         dataset=val_dataset,
         budget=afa_method.n_patches,
         afa_predict_fn=afa_method.predict,

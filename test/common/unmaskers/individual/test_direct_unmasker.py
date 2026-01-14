@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from afabench.common.custom_types import (
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Features,
     MaskedFeatures,
@@ -16,7 +16,7 @@ def basic_fixture() -> tuple[
     Features,
     FeatureMask,
     MaskedFeatures,
-    AFASelection,
+    AFAAction,
     SelectionMask,
     torch.Size,
 ]:
@@ -28,8 +28,8 @@ def basic_fixture() -> tuple[
     masked_features = features * feature_mask
     afa_selection = torch.tensor(
         [
-            [1],  # Select feature 1 for the first batch
-            [3],  # Select feature 3 for the second batch
+            [0],  # Select feature 0 (0-based) for the first batch
+            [2],  # Select feature 2 (0-based) for the second batch
         ]
     )
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
@@ -48,7 +48,7 @@ def test_direct_unmasker_basic_functionality(
         Features,
         FeatureMask,
         MaskedFeatures,
-        AFASelection,
+        AFAAction,
         SelectionMask,
         torch.Size,
     ],
@@ -90,9 +90,7 @@ def test_direct_unmasker_arbitrary_batch_shape() -> None:
     masked_features = features * feature_mask
 
     # Select different features for each batch element
-    afa_selection = torch.randint(
-        1, feature_shape.numel() + 1, (*batch_shape, 1)
-    )
+    afa_selection = torch.randint(0, feature_shape.numel(), (*batch_shape, 1))
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     unmasker = DirectUnmasker()
@@ -114,32 +112,6 @@ def test_direct_unmasker_arbitrary_batch_shape() -> None:
         assert new_feature_mask_flat[i].sum() == 1
 
 
-def test_direct_unmasker_zero_selection() -> None:
-    """Test that zero selection is ignored."""
-    batch_size = 3
-    feature_shape = torch.Size([4, 4])
-    features = torch.randn(batch_size, *feature_shape)
-    feature_mask = torch.zeros(batch_size, *feature_shape, dtype=torch.bool)
-    masked_features = features * feature_mask
-
-    # Selection of 0 should be ignored
-    afa_selection = torch.zeros(batch_size, 1, dtype=torch.long)
-    selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
-
-    unmasker = DirectUnmasker()
-    new_feature_mask = unmasker.unmask(
-        masked_features=masked_features,
-        feature_mask=feature_mask,
-        features=features,
-        afa_selection=afa_selection,
-        selection_mask=selection_mask,
-        feature_shape=feature_shape,
-    )
-
-    # No features should be unmasked when selection is 0
-    assert torch.equal(new_feature_mask, feature_mask)
-
-
 def test_direct_unmasker_preserves_existing_mask() -> None:
     """Test that existing mask is preserved and extended."""
     batch_size = 2
@@ -154,7 +126,7 @@ def test_direct_unmasker_preserves_existing_mask() -> None:
     masked_features = features * feature_mask
 
     # Select additional features to unmask
-    afa_selection = torch.tensor([[5], [2]])  # Features 5 and 2
+    afa_selection = torch.tensor([[4], [1]])  # Features 4 and 1 (0-based)
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     unmasker = DirectUnmasker()
@@ -172,10 +144,10 @@ def test_direct_unmasker_preserves_existing_mask() -> None:
     assert new_feature_mask[1, 2, 2]  # Original feature still unmasked
 
     # Verify that new features are unmasked
-    # Feature 5 in flattened 3x3 grid is at position (1, 1) (5-1=4, unravel(4) = (1,1))
-    # Feature 2 in flattened 3x3 grid is at position (0, 1) (2-1=1, unravel(1) = (0,1))
-    assert new_feature_mask[0, 1, 1]  # Feature 5 -> (1, 1) unmasked in batch 0
-    assert new_feature_mask[1, 0, 1]  # Feature 2 -> (0, 1) unmasked in batch 1
+    # Feature 4 (0-based) in flattened 3x3 grid is at position (1, 1) (unravel(4) = (1,1))
+    # Feature 1 (0-based) in flattened 3x3 grid is at position (0, 1) (unravel(1) = (0,1))
+    assert new_feature_mask[0, 1, 1]  # Feature 4 -> (1, 1) unmasked in batch 0
+    assert new_feature_mask[1, 0, 1]  # Feature 1 -> (0, 1) unmasked in batch 1
 
 
 def test_direct_unmasker_1d_features() -> None:
@@ -187,7 +159,7 @@ def test_direct_unmasker_1d_features() -> None:
     masked_features = features * feature_mask
 
     # Select features 3, 7, 1, 9, 5 for each batch element
-    afa_selection = torch.tensor([[3], [7], [1], [9], [5]])
+    afa_selection = torch.tensor([[2], [6], [0], [8], [4]])  # 0-based indices
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     unmasker = DirectUnmasker()
@@ -201,11 +173,11 @@ def test_direct_unmasker_1d_features() -> None:
     )
 
     # Check that correct features are unmasked
-    assert new_feature_mask[0, 2]  # Feature 3 (0-indexed: 2)
-    assert new_feature_mask[1, 6]  # Feature 7 (0-indexed: 6)
-    assert new_feature_mask[2, 0]  # Feature 1 (0-indexed: 0)
-    assert new_feature_mask[3, 8]  # Feature 9 (0-indexed: 8)
-    assert new_feature_mask[4, 4]  # Feature 5 (0-indexed: 4)
+    assert new_feature_mask[0, 2]  # Feature 2 (0-based: 2)
+    assert new_feature_mask[1, 6]  # Feature 6 (0-based: 6)
+    assert new_feature_mask[2, 0]  # Feature 0 (0-based: 0)
+    assert new_feature_mask[3, 8]  # Feature 8 (0-based: 8)
+    assert new_feature_mask[4, 4]  # Feature 4 (0-based: 4)
 
 
 def test_direct_unmasker_3d_features() -> None:
@@ -217,7 +189,9 @@ def test_direct_unmasker_3d_features() -> None:
     masked_features = features * feature_mask
 
     # Select specific features
-    afa_selection = torch.tensor([[1], [12], [24]])  # Various 3D positions
+    afa_selection = torch.tensor(
+        [[0], [11], [23]]
+    )  # Various 3D positions (0-based)
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     unmasker = DirectUnmasker()
@@ -264,7 +238,9 @@ def test_direct_unmasker_edge_cases() -> None:
     masked_features = features * feature_mask
 
     # Test boundary selections (first and last features)
-    afa_selection = torch.tensor([[1], [4]])  # First and last features
+    afa_selection = torch.tensor(
+        [[0], [3]]
+    )  # First and last features (0-based)
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     unmasker = DirectUnmasker()
@@ -278,8 +254,8 @@ def test_direct_unmasker_edge_cases() -> None:
     )
 
     # Verify boundary features are correctly unmasked
-    assert new_feature_mask[0, 0, 0]  # Feature 1 -> position (0, 0)
-    assert new_feature_mask[1, 1, 1]  # Feature 4 -> position (1, 1)
+    assert new_feature_mask[0, 0, 0]  # Feature 0 -> position (0, 0)
+    assert new_feature_mask[1, 1, 1]  # Feature 3 -> position (1, 1)
 
 
 def test_direct_unmasker_large_batch() -> None:
@@ -291,7 +267,7 @@ def test_direct_unmasker_large_batch() -> None:
     masked_features = features * feature_mask
 
     # Random selections for each batch element
-    afa_selection = torch.randint(1, 6, (batch_size, 1))
+    afa_selection = torch.randint(0, 5, (batch_size, 1))  # 0-based
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     unmasker = DirectUnmasker()
@@ -317,7 +293,7 @@ def test_direct_unmasker_multidimensional_batch() -> None:
     masked_features = features * feature_mask
 
     # Random selections for each batch element
-    afa_selection = torch.randint(1, 4, (*batch_shape, 1))
+    afa_selection = torch.randint(0, 3, (*batch_shape, 1))  # 0-based
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     unmasker = DirectUnmasker()

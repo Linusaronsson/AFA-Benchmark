@@ -1,6 +1,7 @@
 import torch
 
 from afabench.common.custom_types import (
+    AFAAction,
     AFASelection,
     FeatureMask,
     Features,
@@ -20,21 +21,20 @@ def afa_unmask_fn(
     label: Label | None = None,  # noqa: ARG001
     feature_shape: torch.Size | None = None,  # noqa: ARG001
 ) -> FeatureMask:
-    # 6 features but selection is 1-3. Unmask a "block" of features.
+    # 6 features but selection is 0-2 (0-based). Unmask a "block" of features.
     batch_size, num_features = masked_features.shape
     new_feature_mask = feature_mask.clone()
     for i in range(batch_size):
         selection = int(afa_selection[i].item())
-        if selection > 0:
-            start_idx = (selection - 1) * 2
-            end_idx = min(start_idx + 2, num_features)
-            new_feature_mask[i, start_idx:end_idx] = 1
+        start_idx = selection * 2
+        end_idx = min(start_idx + 2, num_features)
+        new_feature_mask[i, start_idx:end_idx] = 1
 
     return new_feature_mask
 
 
 def test_single_afa_step() -> None:
-    """Test that single_afa_step works when the selections are not 0."""
+    """Test that single_afa_step works when the actions are not 0."""
     features = torch.tensor(
         [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]], dtype=torch.float32
     )
@@ -46,29 +46,29 @@ def test_single_afa_step() -> None:
         [[1, 1, 0, 0, 0, 0], [0, 0, 1, 1, 0, 0]], dtype=torch.bool
     )
 
-    def afa_select_fn(
+    def afa_action_fn(
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,  # noqa: ARG001
         selection_mask: SelectionMask | None = None,  # noqa: ARG001
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
-    ) -> AFASelection:
-        # Always output selection 3
+    ) -> AFAAction:
+        # Always output action 3 (selection 2)
         return 3 * torch.ones((masked_features.shape[0], 1), dtype=torch.int64)
 
-    selection, new_masked_features, new_feature_mask, _, _ = single_afa_step(
+    action, new_masked_features, new_feature_mask, _, _ = single_afa_step(
         features=features,
         label=label,
         masked_features=masked_features,
         feature_mask=feature_mask,
         selection_mask=feature_mask,
-        afa_select_fn=afa_select_fn,
+        afa_action_fn=afa_action_fn,
         afa_unmask_fn=afa_unmask_fn,
     )
 
     assert torch.allclose(
-        selection, torch.tensor([[3], [3]], dtype=torch.int64)
-    ), f"Expected selection [[3], [3]], but got {selection}"
+        action, torch.tensor([[3], [3]], dtype=torch.int64)
+    ), f"Expected action [[3], [3]], but got {action}"
     assert torch.allclose(
         new_masked_features,
         torch.tensor(
@@ -88,7 +88,7 @@ def test_single_afa_step() -> None:
 
 
 def test_single_afa_step_stop_selection() -> None:
-    """Test that single_afa_step works when some selections are 0."""
+    """Test that single_afa_step works when some actions are 0 (stop)."""
     features = torch.tensor(
         [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]], dtype=torch.float32
     )
@@ -100,34 +100,34 @@ def test_single_afa_step_stop_selection() -> None:
         [[1, 1, 0, 0, 0, 0], [0, 0, 1, 1, 0, 0]], dtype=torch.bool
     )
 
-    def afa_select_fn(
+    def afa_action_fn(
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,  # noqa: ARG001
         selection_mask: SelectionMask | None = None,  # noqa: ARG001
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
-    ) -> AFASelection:
-        # Output selection 0 if the first feature is observed, otherwise 3
+    ) -> AFAAction:
+        # Output action 0 if the first feature is observed, otherwise 3
         batch_size = masked_features.shape[0]
-        selections = 3 * torch.ones((batch_size, 1), dtype=torch.int64)
+        actions = 3 * torch.ones((batch_size, 1), dtype=torch.int64)
         for i in range(batch_size):
             if masked_features[i, 0] == 1:
-                selections[i] = 0
-        return selections
+                actions[i] = 0
+        return actions
 
-    selection, new_masked_features, new_feature_mask, _, _ = single_afa_step(
+    action, new_masked_features, new_feature_mask, _, _ = single_afa_step(
         features=features,
         label=label,
         masked_features=masked_features,
         feature_mask=feature_mask,
         selection_mask=feature_mask,
-        afa_select_fn=afa_select_fn,
+        afa_action_fn=afa_action_fn,
         afa_unmask_fn=afa_unmask_fn,
     )
 
     assert torch.allclose(
-        selection, torch.tensor([[0], [3]], dtype=torch.int64)
-    ), f"Expected selection [[0], [3]], but got {selection}"
+        action, torch.tensor([[0], [3]], dtype=torch.int64)
+    ), f"Expected action [[0], [3]], but got {action}"
     assert torch.allclose(
         new_masked_features,
         torch.tensor(

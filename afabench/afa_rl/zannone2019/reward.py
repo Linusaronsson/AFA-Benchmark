@@ -9,7 +9,7 @@ from afabench.afa_rl.common.custom_types import (
 )
 from afabench.afa_rl.zannone2019.models import Zannone2019PretrainingModel
 from afabench.common.custom_types import (
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Features,
     Label,
@@ -33,7 +33,7 @@ def get_zannone2019_reward_fn(
         new_masked_features: MaskedFeatures,
         new_feature_mask: FeatureMask,
         new_selection_mask: SelectionMask,
-        _afa_selection: AFASelection,
+        _afa_action: AFAAction,
         _features: Features,
         label: Label,
         _done: Bool[Tensor, "*batch 1"],

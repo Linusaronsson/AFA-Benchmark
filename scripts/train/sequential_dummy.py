@@ -71,7 +71,7 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
 
     # Check that everything works together by doing some evaluation
     eval_afa_method(
-        afa_select_fn=afa_method.select,
+        afa_action_fn=afa_method.act,
         afa_unmask_fn=unmasker.unmask,
         n_selection_choices=unmasker.get_n_selections(
             train_dataset.feature_shape

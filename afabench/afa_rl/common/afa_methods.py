@@ -11,9 +11,9 @@ from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import ProbabilisticActor
 
 from afabench.common.custom_types import (
+    AFAAction,
     AFAClassifier,
     AFAMethod,
-    AFASelection,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -81,14 +81,14 @@ class RLAFAMethod(AFAMethod):
         return True
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)

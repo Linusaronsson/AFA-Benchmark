@@ -63,7 +63,7 @@ def test_direct_unmasker_with_synthetic_mnist_single_sample(
     masked_features = features_flat * feature_mask.float()
 
     # Test selection
-    afa_selection = torch.tensor([[1]])  # Select feature 0 (1-indexed)
+    afa_selection = torch.tensor([[0]])  # Select feature 0 (0-indexed)
     selection_mask = torch.tensor([[True]])
 
     new_feature_mask = direct_unmasker.unmask(
@@ -97,7 +97,9 @@ def test_direct_unmasker_with_synthetic_mnist_batch(
     masked_features = features_flat * feature_mask.float()
 
     # Test different selections for each sample in batch
-    afa_selection = torch.tensor([[1], [100], [500]])  # Different features
+    afa_selection = torch.tensor(
+        [[0], [99], [499]]
+    )  # Different features (0-indexed)
     selection_mask = torch.tensor([[True], [True], [True]])
 
     new_feature_mask = direct_unmasker.unmask(
@@ -119,9 +121,7 @@ def test_direct_unmasker_with_synthetic_mnist_batch(
 
     # Check that different features are unmasked for each sample
     assert new_feature_mask[0, 0]  # Feature 0 for first sample
-    assert new_feature_mask[
-        1, 99
-    ]  # Feature 99 for second sample (1-indexed -> 0-indexed)
+    assert new_feature_mask[1, 99]  # Feature 99 for second sample (0-indexed)
     assert new_feature_mask[2, 499]  # Feature 499 for third sample
 
 
@@ -138,8 +138,8 @@ def test_direct_unmasker_selection_ranges(
     feature_mask = torch.zeros(1, 784, dtype=torch.bool)
     selection_mask = torch.tensor([[True]])
 
-    # Test first valid selection (1-indexed)
-    afa_selection = torch.tensor([[1]])
+    # Test first valid selection (0-indexed)
+    afa_selection = torch.tensor([[0]])
     new_mask = direct_unmasker.unmask(
         masked_features=features_flat,
         feature_mask=feature_mask,
@@ -150,9 +150,9 @@ def test_direct_unmasker_selection_ranges(
     )
     assert new_mask[0, 0]  # First feature should be unmasked
 
-    # Test last valid selection (784 in 1-indexed)
+    # Test last valid selection (783 in 0-indexed)
     feature_mask = torch.zeros(1, 784, dtype=torch.bool)
-    afa_selection = torch.tensor([[784]])
+    afa_selection = torch.tensor([[783]])
     new_mask = direct_unmasker.unmask(
         masked_features=features_flat,
         feature_mask=feature_mask,
@@ -176,7 +176,7 @@ def test_direct_unmasker_cumulative_selection(
     feature_mask = torch.zeros(1, 784, dtype=torch.bool)
 
     # First selection
-    afa_selection = torch.tensor([[1]])
+    afa_selection = torch.tensor([[0]])
     selection_mask = torch.tensor([[True]])
 
     feature_mask = direct_unmasker.unmask(
@@ -192,7 +192,7 @@ def test_direct_unmasker_cumulative_selection(
     assert first_unmask_count == 1
 
     # Second selection
-    afa_selection = torch.tensor([[100]])
+    afa_selection = torch.tensor([[99]])
 
     feature_mask = direct_unmasker.unmask(
         masked_features=features_flat * feature_mask.float(),

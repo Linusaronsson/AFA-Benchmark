@@ -42,20 +42,19 @@ def test_random_dummy_method_never_selects_0() -> None:
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
     ) -> FeatureMask:
-        # 8 features but selection is 1-4. Unmask a "block" of features.
+        # 8 features but selection is 0-3 (0-based). Unmask a "block" of features.
         batch_size, num_features = masked_features.shape
         new_feature_mask = feature_mask.clone()
         for i in range(batch_size):
             selection = int(afa_selection[i].item())
-            if selection > 0:
-                start_idx = (selection - 1) * 2
-                end_idx = min(start_idx + 2, num_features)
-                new_feature_mask[i, start_idx:end_idx] = 1
+            start_idx = selection * 2
+            end_idx = min(start_idx + 2, num_features)
+            new_feature_mask[i, start_idx:end_idx] = 1
 
         return new_feature_mask
 
     df_batch = process_batch(
-        afa_select_fn=method.select,
+        afa_action_fn=method.act,
         afa_unmask_fn=afa_unmask_fn,
         n_selection_choices=4,
         features=features,
@@ -73,11 +72,11 @@ def test_random_dummy_method_never_selects_0() -> None:
         f"Expected more than 2 rows when prob_select_0=0.0, got {len(df_batch)}"
     )
 
-    # Verify that no selection_performed is 0 (stop)
+    # Verify that all rows have at least one selection (selections_performed > 0)
     for _, row in df_batch.iterrows():
-        selection_performed = row["selection_performed"]
-        assert selection_performed != 0, (
-            f"Expected no stop selections (0) when prob_select_0=0.0, but got {selection_performed}"
+        selections_performed = row["selections_performed"]
+        assert selections_performed > 0, (
+            f"Expected selections_performed > 0 when prob_select_0=0.0, but got {selections_performed}"
         )
 
 
@@ -111,20 +110,20 @@ def test_random_dummy_method_always_selects_0() -> None:
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
     ) -> FeatureMask:
-        # 8 features but selection is 1-4. Unmask a "block" of features.
+        # 8 features but selection is 0-3 (0-based). Unmask a "block" of features.
         batch_size, num_features = masked_features.shape
         new_feature_mask = feature_mask.clone()
         for i in range(batch_size):
             selection = int(afa_selection[i].item())
-            if selection > 0:
-                start_idx = (selection - 1) * 2
+            if selection >= 0:
+                start_idx = selection * 2
                 end_idx = min(start_idx + 2, num_features)
                 new_feature_mask[i, start_idx:end_idx] = 1
 
         return new_feature_mask
 
     df_batch = process_batch(
-        afa_select_fn=method.select,
+        afa_action_fn=method.act,
         afa_unmask_fn=afa_unmask_fn,
         n_selection_choices=4,
         features=features,
@@ -140,9 +139,9 @@ def test_random_dummy_method_always_selects_0() -> None:
     assert len(df_batch) == 2, (
         f"Expected 2 rows in the result DataFrame, got {len(df_batch)}"
     )
-    # All selection_performed should be 0 (stop)
+    # All selections_performed should be 0 (no selections since we always stop immediately)
     for _, row in df_batch.iterrows():
-        selection_performed = row["selection_performed"]
-        assert selection_performed == 0, (
-            f"Expected all selections to be 0 (stop) when prob_select_0=1.0, but got {selection_performed}"
+        selections_performed = row["selections_performed"]
+        assert selections_performed == 0, (
+            f"Expected selections_performed == 0 (stop) when prob_select_0=1.0, but got {selections_performed}"
         )

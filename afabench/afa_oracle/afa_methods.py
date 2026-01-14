@@ -8,7 +8,7 @@ from typing import Self, final, override
 from afabench.afa_oracle.aaco_core import AACOOracle, load_mask_generator
 from afabench.common.custom_types import (
     AFAMethod,
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Features,
     Label,
@@ -53,7 +53,7 @@ class AACOAFAMethod(AFAMethod):
         self._hard_budget = budget
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
@@ -61,7 +61,7 @@ class AACOAFAMethod(AFAMethod):
         label: Label | None = None,
         selection_mask: SelectionMask | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         """
         Select next feature to acquire using AACO.
 
@@ -74,7 +74,7 @@ class AACOAFAMethod(AFAMethod):
             feature_shape: Shape of features excluding batch dim
 
         Returns:
-            AFASelection tensor with shape (*batch, 1):
+            AFAAction tensor with shape (*batch, 1):
             - 0 = stop acquiring
             - 1 to N = 1-indexed feature to acquire (for DirectUnmasker)
         """

@@ -8,7 +8,7 @@ from afabench.afa_rl.common.custom_types import (
 )
 from afabench.afa_rl.kachuee2019.models import Kachuee2019PQModule
 from afabench.common.custom_types import (
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Features,
     Label,
@@ -61,7 +61,7 @@ def get_kachuee2019_reward_fn(
         new_masked_features: MaskedFeatures,
         _new_feature_mask: FeatureMask,
         _new_selection_mask: SelectionMask,
-        afa_selection: AFASelection,
+        afa_action: AFAAction,
         _features: Features,
         _label: Label,
         _done: Bool[Tensor, "*batch 1"],
@@ -75,10 +75,8 @@ def get_kachuee2019_reward_fn(
             mcdrop_samples=mcdrop_samples,
         )
         unscaled_reward = calc_reward(conf_a, conf_b, method=method)
-        selection_cost = selection_costs[
-            afa_selection - 1
-        ]  # 1-based selections
-        reward = unscaled_reward / selection_cost
+        action_cost = selection_costs[afa_action - 1]  # 1-based actions
+        reward = unscaled_reward / action_cost
         return reward
 
     return f

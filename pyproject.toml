@@ -1,6 +1,6 @@
 [project]
 name = "afa-benchmark"
-version = "0.4.0"
+version = "1.0.0"
 description = "A benchmark of active feature acquisition (AFA) methods."
 readme = "README.md"
 requires-python = "==3.12.10"

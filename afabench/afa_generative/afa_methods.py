@@ -5,7 +5,7 @@ import torch
 
 from afabench.common.custom_types import (
     AFAMethod,
-    AFASelection,
+    AFAAction,
     FeatureMask,
     SelectionMask,
     Label,
@@ -72,14 +72,14 @@ class Ma2018AFAMethod(AFAMethod):
         return probs_mean
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         device = self._device
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)

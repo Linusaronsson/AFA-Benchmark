@@ -14,7 +14,12 @@ type SelectionMask = Bool[torch.Tensor, "*batch *selection_shape"]
 type Label = Float[torch.Tensor, "*batch *label_shape"]
 type Logits = Float[torch.Tensor, "*batch *n_classes"]
 
-# Outputs of AFA methods, representing which feature to collect next, or to stop acquiring features (0)
+
+# Outputs of AFA methods, representing which feature group to acquire next, or to stop acquiring features (0)
+type AFAAction = Integer[torch.Tensor, "*batch 1"]
+
+# Similar to an AFAAction, but does not include the stop action!
+# Unmaskers receive this.
 type AFASelection = Integer[torch.Tensor, "*batch 1"]
 
 
@@ -83,16 +88,16 @@ class AFADataset(Protocol):
 class AFAMethod(Protocol):
     """An AFA method is an object that can decide which features to collect next (or stop collecting features) and also do predictions with the features it has seen so far."""
 
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         """
-        Return an AFA selection based on observed features.
+        Return an AFA action based on observed features (1-indexed selection or 0 to stop).
 
         Note that the features in general can have *any* feature shape. If your model expects flat features, use `feature_shape` to flatten them first.
 
@@ -206,8 +211,8 @@ class AFAClassifier(Protocol):
         ...
 
 
-# Feature selection interface assumed during evaluation
-class AFASelectFn(Protocol):
+# Feature action interface assumed during evaluation
+class AFAActionFn(Protocol):
     def __call__(
         self,
         masked_features: MaskedFeatures,
@@ -215,9 +220,9 @@ class AFASelectFn(Protocol):
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         """
-        Make a new AFA selection.
+        Make a new AFA action (1-indexed selection or 0 to stop).
 
         Note that the features in general can have *any* feature shape. If your model expects flat features, use `feature_shape` to flatten them first.
 
@@ -276,7 +281,7 @@ class AFAUnmasker(Protocol):
             masked_features: The features with unobserved features masked out (set to zero).
             feature_mask: A boolean mask indicating which features have been observed.
             features: The original features before masking.
-            afa_selection: The AFA selection indicating which features to unmask next (or to stop acquiring features).
+            afa_selection: The AFA selection indicating which feature group to unmask next (does not include stop action).
             selection_mask: A boolean mask indicating which selections have already been performed. Note that a selection is generally not the same as a feature.
             label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
             feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
@@ -304,7 +309,7 @@ class AFAUnmaskFn(Protocol):
             masked_features: The features with unobserved features masked out (set to zero).
             feature_mask: A boolean mask indicating which features have been observed.
             features: The original features before masking.
-            afa_selection: The AFA selection indicating which features to unmask next (or to stop acquiring features).
+            afa_selection: The AFA selection indicating which feature group to unmask next (does not include stop action).
             selection_mask: A boolean mask indicating which selections have already been performed. Note that a selection is generally not the same as a feature.
             label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
             feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.

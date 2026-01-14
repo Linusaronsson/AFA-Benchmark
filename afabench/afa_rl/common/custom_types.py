@@ -6,7 +6,7 @@ from jaxtyping import Bool, Float, Integer
 from torch import Tensor
 
 from afabench.common.custom_types import (
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Features,
     Label,
@@ -80,7 +80,7 @@ type AFARewardFn = Callable[
         MaskedFeatures,  # new masked features
         FeatureMask,  # new feature mask
         SelectionMask,  # new selection mask
-        AFASelection,  # which selection we made
+        AFAAction,  # which action we performed
         Features,  # true features
         Label,  # true label
         Bool[Tensor, "*batch 1"],  # done key

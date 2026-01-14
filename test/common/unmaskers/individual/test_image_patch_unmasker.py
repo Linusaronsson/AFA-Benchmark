@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from afabench.common.custom_types import (
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Features,
     MaskedFeatures,
@@ -18,7 +18,7 @@ def basic_image_fixture() -> tuple[
     Features,
     FeatureMask,
     MaskedFeatures,
-    AFASelection,
+    AFAAction,
     SelectionMask,
     torch.Size,
     dict[str, Any],
@@ -37,8 +37,8 @@ def basic_image_fixture() -> tuple[
     masked_features = features * feature_mask
     afa_selection = torch.tensor(
         [
-            [1],  # Select patch 1 for the first batch
-            [3],  # Select patch 3 for the second batch
+            [0],  # Select patch 0 (0-based) for the first batch
+            [2],  # Select patch 2 (0-based) for the second batch
         ]
     )
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
@@ -65,7 +65,7 @@ def test_image_patch_unmasker_basic_functionality(
         Features,
         FeatureMask,
         MaskedFeatures,
-        AFASelection,
+        AFAAction,
         SelectionMask,
         torch.Size,
         dict[str, Any],
@@ -121,7 +121,9 @@ def test_image_patch_unmasker_arbitrary_batch_shape() -> None:
     masked_features = features * feature_mask
 
     # Select patches for each batch element (4 patches total: 2x2 grid)
-    afa_selection = torch.randint(1, 5, (*batch_shape, 1))  # Patches 1-4
+    afa_selection = torch.randint(
+        0, 4, (*batch_shape, 1)
+    )  # Patches 0-3 (0-based)
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     config = {
@@ -151,7 +153,7 @@ def test_image_patch_unmasker_arbitrary_batch_shape() -> None:
 
 
 def test_image_patch_unmasker_zero_selection() -> None:
-    """Test ImagePatchUnmasker with zero selection (no unmasking)."""
+    """Test ImagePatchUnmasker with zero selection (first patch)."""
     batch_size = 3
     image_side_length = 4
     patch_size = 2
@@ -164,7 +166,7 @@ def test_image_patch_unmasker_zero_selection() -> None:
     feature_mask = torch.zeros(batch_size, *feature_shape, dtype=torch.bool)
     masked_features = features * feature_mask
 
-    # Select patch 0 (which means no selection)
+    # Select patch 0 (first patch)
     afa_selection = torch.zeros(batch_size, 1, dtype=torch.long)
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
@@ -184,9 +186,11 @@ def test_image_patch_unmasker_zero_selection() -> None:
         feature_shape=feature_shape,
     )
 
-    # Verify no features are unmasked when selection is 0
-    assert torch.equal(new_feature_mask, feature_mask)
-    assert new_feature_mask.sum() == 0
+    # Verify first patch region is unmasked
+    assert new_feature_mask[0, 0, 0:2, 0:2].all()  # Top-left patch (patch 0)
+    assert not new_feature_mask[0, 0, 2:4, 0:2].any()  # Bottom-left patch
+    assert not new_feature_mask[0, 0, 0:2, 2:4].any()  # Top-right patch
+    assert not new_feature_mask[0, 0, 2:4, 2:4].any()  # Bottom-right patch
 
 
 def test_image_patch_unmasker_preserves_existing_mask() -> None:
@@ -209,7 +213,7 @@ def test_image_patch_unmasker_preserves_existing_mask() -> None:
     masked_features = features * feature_mask
 
     # Select patches to unmask
-    afa_selection = torch.tensor([[2], [1]])  # Different patches
+    afa_selection = torch.tensor([[0], [1]])  # Different patches
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     config = {
@@ -238,10 +242,10 @@ def test_image_patch_unmasker_preserves_existing_mask() -> None:
 
     # Verify that new patches are also unmasked
     assert new_feature_mask[
-        0, :, 0:3, 3:6
-    ].all()  # Patch 2 unmasked in batch 0
+        0, :, 0:3, 0:3
+    ].all()  # Patch 0 unmasked in batch 0
     assert new_feature_mask[
-        1, :, 0:3, 0:3
+        1, :, 0:3, 3:6
     ].all()  # Patch 1 unmasked in batch 1
 
 
@@ -290,7 +294,7 @@ def test_image_patch_unmasker_different_patch_sizes() -> None:
         masked_features = features * feature_mask
 
         # Select first patch
-        afa_selection = torch.ones(batch_size, 1, dtype=torch.long)
+        afa_selection = torch.zeros(batch_size, 1, dtype=torch.long)
         selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
         config = {
@@ -329,7 +333,7 @@ def test_image_patch_unmasker_multichannel() -> None:
     masked_features = features * feature_mask
 
     # Select different patches
-    afa_selection = torch.tensor([[1], [2], [4]])
+    afa_selection = torch.tensor([[0], [1], [3]])
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     config = {
@@ -369,8 +373,8 @@ def test_image_patch_unmasker_all_patches() -> None:
     feature_mask = torch.zeros(batch_size, *feature_shape, dtype=torch.bool)
     masked_features = features * feature_mask
 
-    # Select all patches (1, 2, 3, 4)
-    afa_selection = torch.tensor([[1], [2], [3], [4]])
+    # Select all patches (0, 1, 2, 3) [0-based]
+    afa_selection = torch.tensor([[0], [1], [2], [3]])
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     config = {
@@ -437,7 +441,9 @@ def test_image_patch_unmasker_large_image() -> None:
     max_patch_selection = (image_side_length // patch_size) ** 2
 
     # Select random patches
-    afa_selection = torch.randint(1, max_patch_selection + 1, (batch_size, 1))
+    afa_selection = torch.randint(
+        0, max_patch_selection, (batch_size, 1)
+    )  # 0-based
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     config = {
@@ -491,7 +497,7 @@ def test_image_patch_unmasker_multidimensional_batch() -> None:
     masked_features = features * feature_mask
 
     # Select patches (should have 2x2 = 4 patches available)
-    afa_selection = torch.randint(1, 5, (*batch_shape, 1))
+    afa_selection = torch.randint(0, 4, (*batch_shape, 1))
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     config = {

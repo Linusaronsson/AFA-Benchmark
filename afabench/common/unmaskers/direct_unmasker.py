@@ -36,9 +36,9 @@ class DirectUnmasker(AFAUnmasker):
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
         """
-        Unmasks the features assuming `afa_selection` are 1-based indices of the features to uncover.
+        Unmasks the features assuming `afa_selection` are 0-based indices of the features to uncover.
 
-        afa_selection == 0 is ignored.
+        afa_selection < 0 (e.g., -1 from stop action) is ignored.
         """
         assert feature_shape is not None, "feature_shape must be provided"
         assert afa_selection.shape[-1] == 1, (
@@ -52,12 +52,12 @@ class DirectUnmasker(AFAUnmasker):
         afa_selection_flat = afa_selection.view(-1, 1)
         feature_mask_flat = feature_mask.view(-1, *feature_shape)
 
-        feature_indices = afa_selection_flat.squeeze(1) - 1
+        feature_indices = afa_selection_flat.squeeze(1)
 
         new_feature_mask_flat = feature_mask_flat.clone()
 
-        # Only unmask features where selection > 0 (selection == 0 is ignored)
-        valid_selections = afa_selection_flat.squeeze(1) > 0
+        # Only unmask features where selection >= 0 (selection < 0 is ignored)
+        valid_selections = afa_selection_flat.squeeze(1) >= 0
         if valid_selections.any():
             valid_feature_indices = feature_indices[valid_selections]
             valid_batch_indices = torch.arange(

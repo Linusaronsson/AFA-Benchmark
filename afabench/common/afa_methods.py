@@ -3,11 +3,10 @@ from typing import Self, final, override
 
 import torch
 
-from afabench.afa_rl.common.utils import afacontext_optimal_selection
 from afabench.common.custom_types import (
+    AFAAction,
     AFAClassifier,
     AFAMethod,
-    AFASelection,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -47,14 +46,14 @@ class RandomDummyAFAMethod(AFAMethod):
         return True
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         """
         Chooses a random AFA selection, avoiding already occupied selections.
 
@@ -191,14 +190,14 @@ class SequentialDummyAFAMethod(AFAMethod):
         return True
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         # Requires the selection mask to be given so that we don't
         # repeat selections and know which selection to perform next
         assert selection_mask is not None, (
@@ -320,14 +319,14 @@ class RandomClassificationAFAMethod(AFAMethod):
         return True
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         """Chooses to observe a random feature from the masked features (or stop collecting features)."""
         original_device = masked_features.device
 
@@ -431,14 +430,14 @@ class RandomPatchClassificationAFAMethod(AFAMethod):
         return True
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         """Randomly select an unseen patch (1-based index in [1, n_patches])."""
         original_device = masked_features.device
         feature_mask = feature_mask.to(self._device)
@@ -554,14 +553,14 @@ class SequentialClassificationAFAMethod(AFAMethod):
             self.afa_classifier = afa_classifier.to(device)
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
@@ -629,67 +628,6 @@ class SequentialClassificationAFAMethod(AFAMethod):
 
 
 @final
-class AFAContextSmartMethod(AFAMethod):
-    """Always selects the first feature and then selects three other features depending on the context."""
-
-    def __init__(self, device: torch.device):
-        self._device = device
-        self.n_classes = 8
-
-    @override
-    def select(
-        self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        selection_mask: SelectionMask | None = None,
-        label: Label | None = None,
-        feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
-        original_device = masked_features.device
-
-        return afacontext_optimal_selection(
-            masked_features=masked_features.to(self._device),
-            feature_mask=feature_mask.to(self._device),
-        ).to(original_device)
-
-    @override
-    def predict(
-        self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        label: Label | None = None,
-        feature_shape: torch.Size | None = None,
-    ) -> Label:
-        # Guess class randomly
-        return torch.randint(
-            0,
-            self.n_classes,
-            (masked_features.shape[0],),
-            device=masked_features.device,
-        )
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save({}, path)
-
-    @classmethod
-    @override
-    def load(cls, path: Path, device: torch.device) -> Self:
-        _ = torch.load(path)
-        return cls(device)
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self._device = device
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device
-
-
-@final
 class OptimalCubeAFAMethod(AFAMethod):
     """An AFAMethod that selects features optimally for the cube dataset. It does this by looking at the true label and choosing the 3 informative features. Afterwards, it chooses features randomly."""
 
@@ -698,14 +636,14 @@ class OptimalCubeAFAMethod(AFAMethod):
         self.n_classes = n_classes
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         """Chooses to observe an optimal feature for the cube dataset, or a random unobserved feature if all optimal ones are chosen."""
         original_device = masked_features.device
 

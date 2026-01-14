@@ -9,7 +9,7 @@ from afabench.afa_rl.common.custom_types import (
 )
 from afabench.afa_rl.shim2018.models import LitShim2018EmbedderClassifier
 from afabench.common.custom_types import (
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Features,
     Label,
@@ -38,7 +38,7 @@ def get_shim2018_reward_fn(
         new_masked_features: MaskedFeatures,
         new_feature_mask: FeatureMask,
         new_selection_mask: SelectionMask,
-        _afa_selection: AFASelection,
+        _afa_action: AFAAction,
         features: Features,  # noqa: ARG001
         label: Label,
         done: Bool[Tensor, "*batch 1"],

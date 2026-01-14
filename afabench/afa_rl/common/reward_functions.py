@@ -4,7 +4,7 @@ from torch import Tensor
 
 from afabench.afa_rl.common.custom_types import AFAReward, AFARewardFn
 from afabench.common.custom_types import (
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Features,
     Label,
@@ -24,7 +24,7 @@ def get_fixed_reward_reward_fn(
         new_masked_features: MaskedFeatures,  # new masked features  # noqa: ARG001
         new_feature_mask: FeatureMask,  # new feature mask  # noqa: ARG001
         new_selection_mask: SelectionMask,  # noqa: ARG001
-        selection: AFASelection,  # noqa: ARG001
+        afa_action: AFAAction,  # noqa: ARG001
         features: Features,  # noqa: ARG001
         label: Label,  # noqa: ARG001
         done: Bool[Tensor, "*batch 1"],  # done key
@@ -59,7 +59,7 @@ def get_range_based_reward_fn(
         new_masked_features: MaskedFeatures,  # noqa: ARG001
         new_feature_mask: FeatureMask,  # noqa: ARG001
         new_selection_mask: SelectionMask,
-        afa_selection: AFASelection,  # noqa: ARG001
+        afa_action: AFAAction,  # noqa: ARG001
         features: Features,  # noqa: ARG001
         label: Label,  # noqa: ARG001
         done: Bool[Tensor, "*batch 1"],  # noqa: ARG001

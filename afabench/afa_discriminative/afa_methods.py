@@ -30,7 +30,7 @@ from afabench.common.custom_types import (
     AFAInitializer,
     AFAUnmasker,
     AFAMethod,
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -493,14 +493,14 @@ class Covert2023AFAMethod(AFAMethod):
         return pred.softmax(dim=-1)
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
             logits = self.selector(x_masked).flatten(1)
@@ -1057,7 +1057,7 @@ class Gadgil2023AFAMethod(AFAMethod):
 
     def _flat_mask_to_patch_mask(
         self, feature_mask: torch.Tensor
-    ) -> AFASelection:
+    ) -> torch.Tensor:
         assert feature_mask.dim() == 4
         B, C, H, W = feature_mask.shape
         ps = self.patch_size
@@ -1084,14 +1084,14 @@ class Gadgil2023AFAMethod(AFAMethod):
         return pred.softmax(dim=-1)
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
             pred = self.predict(masked_features, feature_mask)

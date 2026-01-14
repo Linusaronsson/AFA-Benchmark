@@ -10,7 +10,7 @@ from torch.distributions import RelaxedOneHotCategorical
 
 from afabench.common.custom_types import (
     AFAMethod,
-    AFASelection,
+    AFAAction,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -294,14 +294,14 @@ class StaticBaseMethod(AFAMethod):
         return logits.softmax(dim=-1)
 
     @override
-    def select(
+    def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> AFASelection:
+    ) -> AFAAction:
         counts = feature_mask.sum(dim=1)
         if not (counts == counts[0]).all():
             raise RuntimeError("mixed budgets in batch")

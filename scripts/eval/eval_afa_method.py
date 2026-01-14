@@ -176,7 +176,7 @@ def main(cfg: EvalConfig) -> None:
         "AFAMethod", afa_method
     )  # TODO: remove once AACOAFAMethod implements AFAMethod
     df_eval = eval_afa_method(
-        afa_select_fn=afa_method.select,
+        afa_action_fn=afa_method.act,
         afa_unmask_fn=unmasker.unmask,
         n_selection_choices=unmasker.get_n_selections(
             feature_shape=dataset.feature_shape

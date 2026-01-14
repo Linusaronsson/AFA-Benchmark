@@ -59,13 +59,7 @@ class ImagePatchUnmasker(AFAUnmasker):
 
         # Convert afa selection into 1D mask
         sel = afa_selection.view(-1, 1).to(torch.long)
-        stop = sel == 0
-        # avoid -1 for one hot
-        sel = torch.where(stop, torch.ones_like(sel), sel)
-        afa_selection_1d = F.one_hot(
-            sel - 1, num_classes=self.afa_selection_size
-        )
-        afa_selection_1d[stop] = 0
+        afa_selection_1d = F.one_hot(sel, num_classes=self.afa_selection_size)
 
         # Convert to low-dimensional image mask
         afa_selection_low_dim_image = afa_selection_1d.view(
@@ -85,9 +79,6 @@ class ImagePatchUnmasker(AFAUnmasker):
             scale_factor=self.patch_size,
             mode="nearest-exact",
         ).bool()
-
-        # print(f"{afa_selection_image.shape}")
-        # print(f"{feature_mask.shape}")
 
         # Flatten batch dimensions for processing
         feature_mask_flat = feature_mask.view(

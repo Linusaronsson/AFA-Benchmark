@@ -13,7 +13,6 @@ from afabench.afa_rl.common.custom_types import FeatureSet
 from afabench.common.custom_types import (
     AFADataset,
     AFAPredictFn,
-    AFASelection,
     FeatureMask,
     Features,
     MaskedFeatures,
@@ -404,104 +403,6 @@ def check_masked_classifier_performance(
             f"Masked classifier accuracy with optimal features: {accuracy_optimal.item() * 100:.2f }%"
         )
         # print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
-
-
-def afacontext_optimal_selection(
-    masked_features: MaskedFeatures, feature_mask: FeatureMask
-) -> AFASelection:
-    selection = torch.full(
-        (masked_features.shape[0],),
-        -1,
-        dtype=torch.int64,
-        device=masked_features.device,
-    )
-
-    # Case 1: no features are selected yet, select the first feature
-    case1_mask = feature_mask.sum(dim=-1) == 0
-    selection[case1_mask] = 0
-
-    # Case 2: between 1 and 3 features are selected, select the next feature based on the context
-    case2_mask = (feature_mask.sum(dim=-1) > 0) & (
-        feature_mask.sum(dim=-1) < 4
-    )
-    case2_start_idx = masked_features[:, 0].int() * 3 + 1
-    case2_end_idx = case2_start_idx + 3
-    for i in range(masked_features.size(0)):
-        if case2_mask[i]:
-            start = int(case2_start_idx[i].item())
-            end = int(case2_end_idx[i].item())
-
-            # Find the first unselected feature in the range
-            for j in range(start, end):
-                if feature_mask[i, j] == 0:
-                    selection[i] = j
-                    break
-
-    # Case 3: 4 or more features are selected, select a random unselected feature
-    case3_mask = feature_mask.sum(dim=-1) >= 4
-    for i in range(masked_features.size(0)):
-        if case3_mask[i]:
-            unselected_features = (~feature_mask[i]).nonzero(as_tuple=True)[0]
-            if unselected_features.numel() > 0:
-                selection[i] = unselected_features[0]
-
-    return selection
-
-
-def cube_simple_optimal_selection(
-    masked_features: MaskedFeatures, feature_mask: FeatureMask
-) -> AFASelection:
-    selection = torch.full(
-        (masked_features.shape[0],),
-        -1,
-        dtype=torch.int64,
-        device=masked_features.device,
-    )
-
-    # Always select features 0, 2, and 4 in order if they are not already selected
-    for i in range(masked_features.size(0)):
-        for feature_idx in [0, 2, 4]:
-            if feature_mask[i, feature_idx] == 0:
-                selection[i] = feature_idx
-                break
-
-    return selection
-
-
-def cube_simple_optimal_selection_wrapper(
-    td: TensorDictBase,
-) -> TensorDictBase:
-    td["action"] = cube_simple_optimal_selection(
-        td["masked_features"], td["feature_mask"]
-    )
-    return td
-
-
-def cube_simple_worst_selection(
-    masked_features: MaskedFeatures, feature_mask: FeatureMask
-) -> AFASelection:
-    selection = torch.full(
-        (masked_features.shape[0],),
-        -1,
-        dtype=torch.int64,
-        device=masked_features.device,
-    )
-
-    # Always select features 1, 3, and 5 in order if they are not already selected
-    for i in range(masked_features.size(0)):
-        for feature_idx in [1, 3, 5]:
-            if feature_mask[i, feature_idx] == 0:
-                selection[i] = feature_idx
-                break
-
-    return selection
-
-
-def cube_simple_worst_selection_wrapper(td: TensorDictBase) -> TensorDictBase:
-    td["action"] = cube_simple_worst_selection(
-        td["masked_features"], td["feature_mask"]
-    )
-    return td
 
 
 def module_norm(module: nn.Module) -> float:

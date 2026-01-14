@@ -198,11 +198,14 @@ class AFAEnv(EnvBase):
         batch_indices = torch.arange(batch_numel, device=tensordict.device)
 
         # Acquire new features from unmasker
+        # Convert action to selection: action is 0-n_selections, selection is -1-(n_selections-1)
+        # Negative selections are ignored by the unmasker
+        afa_selection = tensordict["action"] - 1
         new_feature_mask = self.unmask_fn(
             masked_features=tensordict["masked_features"],
             feature_mask=tensordict["feature_mask"],
             features=tensordict["features"],
-            afa_selection=tensordict["action"].unsqueeze(-1),
+            afa_selection=afa_selection.unsqueeze(-1),
             selection_mask=tensordict["performed_selection_mask"],
             label=tensordict["label"],
             feature_shape=self.feature_shape,
