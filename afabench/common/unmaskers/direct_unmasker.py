@@ -20,6 +20,11 @@ class DirectUnmasker(AFAUnmasker):
         pass
 
     @override
+    def get_selection_costs(self, feature_costs: torch.Tensor) -> torch.Tensor:
+        """Features correspond to selections, and therefore the costs do as well."""
+        return feature_costs
+
+    @override
     def get_n_selections(self, feature_shape: torch.Size) -> int:
         # The number of selections is a flattened view of the feature shape
         return feature_shape.numel()

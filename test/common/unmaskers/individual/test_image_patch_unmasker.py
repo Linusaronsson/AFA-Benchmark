@@ -522,3 +522,38 @@ def test_image_patch_unmasker_multidimensional_batch() -> None:
     patch_pixels = patch_size * patch_size * n_channels
     total_batch_elements = torch.prod(torch.tensor(batch_shape))
     assert new_feature_mask.sum() == patch_pixels * total_batch_elements
+
+
+def test_image_patch_unmasker_selection_costs() -> None:
+    unmasker = ImagePatchUnmasker(
+        image_side_length=4, patch_size=2, n_channels=2
+    )
+    feature_costs = torch.tensor(
+        [
+            [
+                [1, 2, 3, 4],
+                [5, 6, 7, 8],
+                [9, 10, 11, 12],
+                [13, 14, 15, 16],
+            ],
+            [
+                [17, 18, 19, 20],
+                [21, 22, 23, 24],
+                [25, 26, 27, 28],
+                [29, 30, 31, 32],
+            ],
+        ]
+    )
+    selection_costs = unmasker.get_selection_costs(feature_costs)
+
+    # Patch 0 (top-left): [0:2, 0:2]
+    assert selection_costs[0] == 1 + 2 + 5 + 6 + 17 + 18 + 21 + 22
+
+    # Patch 1 (top-right): [0:2, 2:4]
+    assert selection_costs[1] == 3 + 4 + 7 + 8 + 19 + 20 + 23 + 24
+
+    # Patch 2 (bottom-left): [2:4, 0:2]
+    assert selection_costs[2] == 9 + 10 + 13 + 14 + 25 + 26 + 29 + 30
+
+    # Patch 3 (bottom-right): [2:4, 2:4]
+    assert selection_costs[3] == 11 + 12 + 15 + 16 + 27 + 28 + 31 + 32

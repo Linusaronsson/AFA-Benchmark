@@ -264,6 +264,17 @@ class AFAUnmasker(Protocol):
         """Return how many different selections are possible with this unmasker."""
         ...
 
+    def get_selection_costs(self, feature_costs: torch.Tensor) -> torch.Tensor:
+        """
+        Return selection costs given feature costs.
+
+        For example, a patch-based image unmasker might return the summed feature costs within each patch.
+
+        Args:
+            feature_costs (torch.Tensor): How much each feature in a dataset costs. This tensor is expected to have the same shape as the features themselves.
+        """
+        ...
+
     def unmask(
         self,
         masked_features: MaskedFeatures,
