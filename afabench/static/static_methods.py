@@ -356,3 +356,7 @@ class StaticBaseMethod(AFAMethod):
     @property
     def device(self):
         return self._device
+
+    @property
+    def has_builtin_classifier(self) -> bool:
+        return True
