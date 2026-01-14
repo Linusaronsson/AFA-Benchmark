@@ -34,12 +34,12 @@ UNMASKERS_RAW = config.get("unmaskers", None) # mapping dataset->unmasker
 if UNMASKERS_RAW is None:
     raise ValueError("Expected unmaskers to be provided.")
 # Fill in missing datasets with the default value
-UNMASKERS = UNMASKERS_RAW | {dataset: UNMASKERS_RAW["default"] for dataset in DATASETS}
+UNMASKERS = UNMASKERS_RAW | {dataset: UNMASKERS_RAW["default"] for dataset in DATASETS if dataset not in UNMASKERS_RAW}
 HARD_BUDGETS_RAW = config.get("hard_budgets", None) # mapping dataset->list of hard budgets
 if HARD_BUDGETS_RAW is None:
     raise ValueError("Expected hard_budgets to be provided.")
 # Fill in missing datasets with the default value
-HARD_BUDGETS = HARD_BUDGETS_RAW | {dataset: HARD_BUDGETS_RAW["default"] for dataset in DATASETS}
+HARD_BUDGETS = HARD_BUDGETS_RAW | {dataset: HARD_BUDGETS_RAW["default"] for dataset in DATASETS if dataset not in HARD_BUDGETS_RAW}
 SOFT_BUDGET_PARAMS_RAW = config.get("soft_budget_params", None) # mapping method->dataset->list of soft budget params
 if SOFT_BUDGET_PARAMS_RAW is None:
     raise ValueError("Expected soft_budget_params to be provided.")
@@ -47,7 +47,7 @@ if SOFT_BUDGET_PARAMS_RAW is None:
 SOFT_BUDGET_PARAMS = {
     method: (
         method_soft_budget_params
-        | {dataset: method_soft_budget_params["default"] for dataset in DATASETS}
+        | {dataset: method_soft_budget_params["default"] for dataset in DATASETS if dataset not in method_soft_budget_params}
     )
     for method, method_soft_budget_params in SOFT_BUDGET_PARAMS_RAW.items()
 }
