@@ -11,7 +11,7 @@ import os
 from datetime import datetime
 
 # Configuration
-DATASET_PATH_PREFIX = config.get("dataset_path_prefix", "extra/output/datasets")
+DATASET_PATH_PREFIX = config.get("dataset_path_prefix", "extra/data")
 DATASET_INSTANCE_INDICES = config.get("dataset_instance_indices", (0, 1))
 INITIALIZER = config.get("initializer", "aaco_default")
 EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")

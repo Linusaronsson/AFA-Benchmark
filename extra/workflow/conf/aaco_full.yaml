@@ -3,7 +3,7 @@
 dataset_instance_indices: [0, 1, 2, 3, 4]
 initializer: aaco
 eval_dataset_split: test
-device: cuda
+device: cpu
 use_wandb: false
 smoke_test: false
 
@@ -13,43 +13,43 @@ datasets:
   - cube_without_noise
   - afa_context
   - afa_context_without_noise
-  - actg
-  - ckd
-  - diabetes
-  - physionet
-  - miniboone
-  - bank_marketing
+  # - actg
+  # - ckd
+  # - diabetes
+  # - physionet
+  # - miniboone
+  # - bank_marketing
 
 # Unmaskers per dataset
 unmaskers:
   default: direct
-  synthetic_mnist: 28x28_to_7x7
-  synthetic_mnist_without_noise: 28x28_to_7x7
+  # synthetic_mnist: 28x28_to_7x7
+  # synthetic_mnist_without_noise: 28x28_to_7x7
 
 # Hard budgets for evaluation
 hard_budgets:
   default: [5, 10, 15]
-  cube: [3, 5, 10]
-  cube_without_noise: [3, 5, 10]
-  afa_context: [3, 5, 10]
-  afa_context_without_noise: [3, 5, 10]
-  diabetes: [5, 10, 15]
-  miniboone: [5, 10, 15]
-  physionet: [5, 10, 15]
+  # cube: [3, 5, 10]
+  # cube_without_noise: [3, 5, 10]
+  # afa_context: [3, 5, 10]
+  # afa_context_without_noise: [3, 5, 10]
+  # diabetes: [5, 10, 15]
+  # miniboone: [5, 10, 15]
+  # physionet: [5, 10, 15]
 
 # Cost parameters for AACO training
 cost_params:
   default: [0.01, 0.05, 0.1]
-  cube: [0.001, 0.01, 0.05, 0.1]
-  cube_without_noise: [0.001, 0.01, 0.05, 0.1]
-  afa_context: [0.001, 0.01, 0.05, 0.1]
-  afa_context_without_noise: [0.001, 0.01, 0.05, 0.1]
-  actg: [0.001, 0.01, 0.05]
-  ckd: [0.001, 0.01, 0.05]
-  diabetes: [0.0001, 0.001, 0.01, 0.05]
-  physionet: [0.0001, 0.001, 0.01]
-  miniboone: [0.0001, 0.001, 0.01]
-  bank_marketing: [0.001, 0.01, 0.05]
+  # cube: [0.001, 0.01, 0.05, 0.1]
+  # cube_without_noise: [0.001, 0.01, 0.05, 0.1]
+  # afa_context: [0.001, 0.01, 0.05, 0.1]
+  # afa_context_without_noise: [0.001, 0.01, 0.05, 0.1]
+  # actg: [0.001, 0.01, 0.05]
+  # ckd: [0.001, 0.01, 0.05]
+  # diabetes: [0.0001, 0.001, 0.01, 0.05]
+  # physionet: [0.0001, 0.001, 0.01]
+  # miniboone: [0.0001, 0.001, 0.01]
+  # bank_marketing: [0.001, 0.01, 0.05]
 
 # Whether to train AACO+NN (behavioral cloning)
-train_aaco_nn: true
+train_aaco_nn: false
