@@ -1,8 +1,8 @@
 batch_size: 128
 lr: 0.001
-nepochs: 100
+nepochs: 200
 patience: 5
-activations: 'ReLU'
+activation: 'ReLU'
 
 hidden_units: [128,128]
 dropout: 0.3

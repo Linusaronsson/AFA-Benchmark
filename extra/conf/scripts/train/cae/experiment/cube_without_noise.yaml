@@ -1,0 +1,17 @@
+batch_size: 128
+hard_budget: 20
+
+selector:
+  lr: 0.001
+  nepochs: 250
+  num_cells: [128, 128]
+  patience: 5
+
+classifier:
+  lr: 0.001
+  nepochs: 250
+  num_cells: [128, 128]
+
+# train_dataset_bundle_path: "extra/data/datasets/cube/0/train.bundle"
+# val_dataset_bundle_path: "extra/data/datasets/cube/0/val.bundle"
+# save_path: "extra/result/cae/train/cube/0.bundle"
