@@ -126,7 +126,7 @@ def process_batch(
     selection_budget: int | None = None,
 ) -> pd.DataFrame:
     """
-    Evaluate a single batch.
+    Evaluate a single batch until every sample either acquires all the features or stops feature acquisition.
 
     Assumes that predictions are for classes, and only stores the most likely class prediction.
 
@@ -144,9 +144,9 @@ def process_batch(
         selection_budget (int|None): How many AFA selections to allow per sample. If None, allow unlimited selections. Defaults to None.
 
     Returns:
-        pd.DataFrame: DataFrame containing columns:
-            - "prev_selections_performed" (list[int]): List of 0-based selection indices performed before this row
-            - "selections_performed" (int): Count of how many selections have been performed up to and including this row
+        pd.DataFrame: DataFrame with one row per sample and timestep, containing columns:
+            - "prev_selections_performed" (list[int]): List of 0-based selection indices that the method had previously performed up to the given timestep.
+            - "action_performed" (int): Which action the method chose.
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
             - "true_class" (int)
@@ -183,7 +183,7 @@ def process_batch(
             active_builtin_prediction,
         ) = single_afa_step(
             features=active_features,
-            label=true_label,
+            label=true_label[active_indices],
             masked_features=active_masked_features,
             feature_mask=active_feature_mask,
             afa_action_fn=afa_action_fn,
@@ -207,23 +207,15 @@ def process_batch(
         for active_idx, true_idx in enumerate(active_indices):
             global_idx = int(true_idx.item())
             action = active_afa_action[active_idx].item()
-
-            # Only selections (action > 0) in the performed list
-            if action > 0:
-                # Convert action to 0-based selection index
-                selection_idx = action - 1
-                selections_performed[global_idx].append(selection_idx)
+            # It does not matter if we append -1 here, since we will never access the last value
+            selections_performed[global_idx].append(action - 1)
 
             df_batch_rows.append(
                 {
-                    "prev_selections_performed": selections_performed[
-                        global_idx
-                    ][:-1]
-                    if action > 0
-                    else selections_performed[global_idx],
-                    "selections_performed": len(
-                        selections_performed[global_idx]
-                    ),
+                    "prev_selections_performed": (
+                        selections_performed[global_idx][:-1]
+                    ).copy(),
+                    "action_performed": action,
                     "builtin_predicted_class": None
                     if active_builtin_prediction is None
                     else active_builtin_prediction[active_idx]

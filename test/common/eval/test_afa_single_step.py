@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from afabench.common.custom_types import (
@@ -33,18 +34,42 @@ def afa_unmask_fn(
     return new_feature_mask
 
 
-def test_single_afa_step() -> None:
-    """Test that single_afa_step works when the actions are not 0."""
-    features = torch.tensor(
-        [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]], dtype=torch.float32
+@pytest.fixture
+def features() -> torch.Tensor:
+    return torch.tensor(
+        [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]],
+        dtype=torch.float32,
     )
-    label = torch.tensor([0, 1], dtype=torch.int64)
-    masked_features = torch.tensor(
-        [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 0, 0]], dtype=torch.float32
+
+
+@pytest.fixture
+def label() -> torch.Tensor:
+    return torch.tensor([0, 1], dtype=torch.int64)
+
+
+@pytest.fixture
+def masked_features() -> torch.Tensor:
+    return torch.tensor(
+        [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 0, 0]],
+        dtype=torch.float32,
     )
-    feature_mask = torch.tensor(
-        [[1, 1, 0, 0, 0, 0], [0, 0, 1, 1, 0, 0]], dtype=torch.bool
+
+
+@pytest.fixture
+def feature_mask() -> torch.Tensor:
+    return torch.tensor(
+        [[1, 1, 0, 0, 0, 0], [0, 0, 1, 1, 0, 0]],
+        dtype=torch.bool,
     )
+
+
+def test_single_afa_step(
+    features: torch.Tensor,
+    label: torch.Tensor,
+    masked_features: torch.Tensor,
+    feature_mask: torch.Tensor,
+) -> None:
+    """Test that single_afa_step correctly updates features when all actions are non-zero."""
 
     def afa_action_fn(
         masked_features: MaskedFeatures,
@@ -53,7 +78,7 @@ def test_single_afa_step() -> None:
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
     ) -> AFAAction:
-        # Always output action 3 (selection 2)
+        # Always output action 3 (selection index 2, unmasking features 4-5)
         return 3 * torch.ones((masked_features.shape[0], 1), dtype=torch.int64)
 
     action, new_masked_features, new_feature_mask, _, _ = single_afa_step(
@@ -66,39 +91,40 @@ def test_single_afa_step() -> None:
         afa_unmask_fn=afa_unmask_fn,
     )
 
-    assert torch.allclose(
-        action, torch.tensor([[3], [3]], dtype=torch.int64)
-    ), f"Expected action [[3], [3]], but got {action}"
-    assert torch.allclose(
-        new_masked_features,
-        torch.tensor(
-            [[1, 2, 0, 0, 5, 6], [0, 0, 9, 10, 11, 12]], dtype=torch.float32
-        ),
-    ), (
-        f"Expected new masked features [[1, 2, 0, 0, 5, 6], [0, 0, 9, 10, 11, 12]], but got {new_masked_features}"
+    # Expected: both samples selected action 3, which unmaskes features 4-5
+    expected_action = torch.tensor([[3], [3]], dtype=torch.int64)
+    assert torch.allclose(action, expected_action), (
+        f"Expected action {expected_action.tolist()}, but got {action.tolist()}"
+    )
+
+    expected_masked_features = torch.tensor(
+        [[1, 2, 0, 0, 5, 6], [0, 0, 9, 10, 11, 12]],
+        dtype=torch.float32,
+    )
+    assert torch.allclose(new_masked_features, expected_masked_features), (
+        f"Expected masked features {expected_masked_features.tolist()}, "
+        f"but got {new_masked_features.tolist()}"
+    )
+
+    expected_feature_mask = torch.tensor(
+        [[1, 1, 0, 0, 1, 1], [0, 0, 1, 1, 1, 1]],
+        dtype=torch.bool,
     )
     assert torch.allclose(
-        new_feature_mask,
-        torch.tensor(
-            [[1, 1, 0, 0, 1, 1], [0, 0, 1, 1, 1, 1]], dtype=torch.bool
-        ),
+        new_feature_mask.float(), expected_feature_mask.float()
     ), (
-        f"Expected new feature mask [[1, 1, 0, 0, 1, 1], [0, 0, 1, 1, 1, 1]], but got {new_feature_mask}"
+        f"Expected feature mask {expected_feature_mask.tolist()}, "
+        f"but got {new_feature_mask.tolist()}"
     )
 
 
-def test_single_afa_step_stop_selection() -> None:
-    """Test that single_afa_step works when some actions are 0 (stop)."""
-    features = torch.tensor(
-        [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10, 11, 12]], dtype=torch.float32
-    )
-    label = torch.tensor([0, 1], dtype=torch.int64)
-    masked_features = torch.tensor(
-        [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 0, 0]], dtype=torch.float32
-    )
-    feature_mask = torch.tensor(
-        [[1, 1, 0, 0, 0, 0], [0, 0, 1, 1, 0, 0]], dtype=torch.bool
-    )
+def test_single_afa_step_stop_selection(
+    features: torch.Tensor,
+    label: torch.Tensor,
+    masked_features: torch.Tensor,
+    feature_mask: torch.Tensor,
+) -> None:
+    """Test that single_afa_step correctly handles mixed actions (some samples stop, others continue)."""
 
     def afa_action_fn(
         masked_features: MaskedFeatures,
@@ -107,7 +133,7 @@ def test_single_afa_step_stop_selection() -> None:
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
     ) -> AFAAction:
-        # Output action 0 if the first feature is observed, otherwise 3
+        # Stop if first feature is observed (sample 0), otherwise select action 3
         batch_size = masked_features.shape[0]
         actions = 3 * torch.ones((batch_size, 1), dtype=torch.int64)
         for i in range(batch_size):
@@ -125,22 +151,28 @@ def test_single_afa_step_stop_selection() -> None:
         afa_unmask_fn=afa_unmask_fn,
     )
 
-    assert torch.allclose(
-        action, torch.tensor([[0], [3]], dtype=torch.int64)
-    ), f"Expected action [[0], [3]], but got {action}"
-    assert torch.allclose(
-        new_masked_features,
-        torch.tensor(
-            [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 11, 12]], dtype=torch.float32
-        ),
-    ), (
-        f"Expected new masked features [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 11, 12]], but got {new_masked_features}"
+    # Expected: sample 0 stops (action 0), sample 1 selects action 3
+    expected_action = torch.tensor([[0], [3]], dtype=torch.int64)
+    assert torch.allclose(action, expected_action), (
+        f"Expected action {expected_action.tolist()}, but got {action.tolist()}"
+    )
+
+    expected_masked_features = torch.tensor(
+        [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 11, 12]],
+        dtype=torch.float32,
+    )
+    assert torch.allclose(new_masked_features, expected_masked_features), (
+        f"Expected masked features {expected_masked_features.tolist()}, "
+        f"but got {new_masked_features.tolist()}"
+    )
+
+    expected_feature_mask = torch.tensor(
+        [[1, 1, 0, 0, 0, 0], [0, 0, 1, 1, 1, 1]],
+        dtype=torch.bool,
     )
     assert torch.allclose(
-        new_feature_mask,
-        torch.tensor(
-            [[1, 1, 0, 0, 0, 0], [0, 0, 1, 1, 1, 1]], dtype=torch.bool
-        ),
+        new_feature_mask.float(), expected_feature_mask.float()
     ), (
-        f"Expected new feature mask [[1, 1, 0, 0, 0, 0], [0, 0, 1, 1, 1, 1]], but got {new_feature_mask}"
+        f"Expected feature mask {expected_feature_mask.tolist()}, "
+        f"but got {new_feature_mask.tolist()}"
     )
