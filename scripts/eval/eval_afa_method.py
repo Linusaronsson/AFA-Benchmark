@@ -1,3 +1,28 @@
+"""
+Evaluate an AFA method on a dataset.
+
+This script loads an AFA method, unmasker, initializer, and dataset from bundle
+paths and configuration, then runs evaluation.
+
+Configuration:
+    Provided via Hydra config file at extra/conf/scripts/eval/config.yaml
+
+Outputs:
+    Saves the following to the directory specified in config.save_path:
+    - eval_data.csv: DataFrame with evaluation results containing columns:
+        * prev_selections_performed (list[int]): The selections the method has
+          performed previously.
+        * selection_performed (int): The selection the method performed at this
+          step.
+        * builtin_predicted_class (int|None): The predicted class by the method's
+          built-in classifier, if available.
+        * external_predicted_class (int|None): The predicted class by an external
+          classifier, if provided.
+        * true_class (int): The true class label.
+        * eval_seed (int|null): Seed used for evaluating the method (if applicable).
+        * eval_hard_budget (int|null): Hard budget used for evaluation (if applicable).
+"""
+
 import logging
 from pathlib import Path
 from typing import Any, cast

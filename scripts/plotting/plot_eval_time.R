@@ -1,3 +1,8 @@
+# Expected input dataframe with columns:
+# - afa_method (str): Which method was evaluated. For example "shim2018" or "zannone2019".
+# - dataset (str): Which dataset the method was evaluated on. For example "afa_context" or "mnist".
+# - eval_time (float): How long the evaluation took in seconds.
+
 options(device = "null")
 
 suppressPackageStartupMessages({
