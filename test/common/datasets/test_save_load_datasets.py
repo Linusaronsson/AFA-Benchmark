@@ -7,6 +7,8 @@ import torch
 
 from afabench.common.registry import get_class
 
+pytestmark = pytest.mark.optional
+
 DATASETS_TO_TEST = [
     ("AFAContextDataset", {"n_samples": 10, "seed": 42}),
     ("CubeDataset", {"n_samples": 10, "seed": 42}),
