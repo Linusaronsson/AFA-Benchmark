@@ -582,6 +582,8 @@ rule merge_eval_time:
 rule plot_eval_time:
     input:
         "extra/output/merged_results/RL_and_dummy_eval_time.csv",
+    conda:
+        "../envs/R.yaml"
     output:
         directory("extra/output/plot_results/eval_time/RL_and_dummy"),
     shell:
