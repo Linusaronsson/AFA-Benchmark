@@ -296,7 +296,7 @@ def eval_afa_method(
     Returns:
         pd.DataFrame: DataFrame containing columns:
             - "prev_selections_performed" (list[int]): List of 0-based selection indices performed before this row
-            - "selections_performed" (int): Count of how many selections have been performed up to and including this row
+            - "action_performed" (int): Which action the method chose.
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
             - "true_class" (int)
@@ -355,7 +355,7 @@ def eval_afa_method(
     # Assert that all the columns described in docstring are present
     expected_columns = {
         "prev_selections_performed",
-        "selections_performed",
+        "action_performed",
         "builtin_predicted_class",
         "external_predicted_class",
         "true_class",
