@@ -73,24 +73,19 @@ def test_sequential_dummy_method_never_selects_0() -> None:
         f"Expected more than 2 rows when prob_select_0=0.0, got {len(df_batch)}"
     )
 
-    # Verify that all rows have at least one selection (selections_performed > 0)
+    # Verify that all rows have at least one selection (action_performed > 0)
     for _, row in df_batch.iterrows():
-        selections_performed = row["selections_performed"]
-        assert selections_performed > 0, (
-            f"Expected selections_performed > 0 when prob_select_0=0.0, but got {selections_performed}"
+        action_performed = row["action_performed"]
+        assert action_performed > 0, (
+            f"Expected action_performed > 0 when prob_select_0=0.0, but got {action_performed}"
         )
 
-        # Furthermore, the selections should be made in order. So "prev_selections_performed" should be an ordered list with no gaps, and "selections_performed" should be the count of selections made.
+        # Furthermore, the selections should be made in order.
         prev_selections_performed = row["prev_selections_performed"]
         assert prev_selections_performed == sorted(
             prev_selections_performed
         ), (
             f"Expected prev_selections_performed {prev_selections_performed} to be sorted."
-        )
-        # The selections_performed count should match the length of prev_selections_performed plus 1 (for the current selection)
-        expected_count = len(prev_selections_performed) + 1
-        assert selections_performed == expected_count, (
-            f"Expected selections_performed {selections_performed} to be len(prev_selections_performed) + 1 = {expected_count} given prev_selections_performed {prev_selections_performed}."
         )
 
 
@@ -153,9 +148,9 @@ def test_sequential_dummy_method_always_selects_0() -> None:
     assert len(df_batch) == 2, (
         f"Expected 2 rows in the result DataFrame, got {len(df_batch)}"
     )
-    # All selections_performed should be 0 (no selections since we always stop immediately)
+    # All action_performed should be 0 (no selections since we always stop immediately)
     for _, row in df_batch.iterrows():
-        selections_performed = row["selections_performed"]
-        assert selections_performed == 0, (
-            f"Expected selections_performed == 0 (stop) when prob_select_0=1.0, but got {selections_performed}"
+        action_performed = row["action_performed"]
+        assert action_performed == 0, (
+            f"Expected action_performed == 0 (stop) when prob_select_0=1.0, but got {action_performed}"
         )

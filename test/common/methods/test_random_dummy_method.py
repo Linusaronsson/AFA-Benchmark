@@ -74,9 +74,9 @@ def test_random_dummy_method_never_selects_0() -> None:
 
     # Verify that all rows have at least one selection (selections_performed > 0)
     for _, row in df_batch.iterrows():
-        selections_performed = row["selections_performed"]
-        assert selections_performed > 0, (
-            f"Expected selections_performed > 0 when prob_select_0=0.0, but got {selections_performed}"
+        action_performed = row["action_performed"]
+        assert action_performed > 0, (
+            f"Expected action_performed > 0 when prob_select_0=0.0, but got {action_performed}"
         )
 
 
@@ -141,7 +141,7 @@ def test_random_dummy_method_always_selects_0() -> None:
     )
     # All selections_performed should be 0 (no selections since we always stop immediately)
     for _, row in df_batch.iterrows():
-        selections_performed = row["selections_performed"]
-        assert selections_performed == 0, (
-            f"Expected selections_performed == 0 (stop) when prob_select_0=1.0, but got {selections_performed}"
+        action_performed = row["action_performed"]
+        assert action_performed == 0, (
+            f"Expected action_performed == 0 (stop) when prob_select_0=1.0, but got {action_performed}"
         )
