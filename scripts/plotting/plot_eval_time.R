@@ -33,5 +33,8 @@ if (length(args) == 2) {
 
 plot <- ggplot(df, aes(x = afa_method, y = eval_time, color = dataset)) +
   geom_beeswarm()
-
 ggsave(str_c(output_path, "/beeswarm_plot.svg"), plot, create.dir = TRUE)
+
+plot <- ggplot(df, aes(x = afa_method, y = eval_time)) +
+  geom_violin()
+ggsave(str_c(output_path, "/violin_plot.svg"), plot, create.dir = TRUE)
