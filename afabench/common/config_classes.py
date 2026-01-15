@@ -107,8 +107,10 @@ class InitializerConfig:
 class SupervisedLearningConfig:
     batch_size: int  # batch size for dataloader
     max_epochs: int
-    checkpoint_earliest_batch: int  # at which batch we start to keep track of the best performance. Useful for models such as PVAE for which the loss actually increases at the beginning.
-    early_stopping_min_batches: int  # minimum number of batches to process before we allow quitting. Useful because many methods fail to learn at the beginning
+    # at which batch we start to keep track of the best performance. Useful for models such as PVAE for which the loss actually increases at the beginning.
+    checkpoint_earliest_batch: int
+    # minimum number of batches to process before we allow quitting. Useful because many methods fail to learn at the beginning
+    early_stopping_min_batches: int
     early_stopping_patience: int  # early stopping patience
     early_stopping_min_delta: float
     val_check_interval: int  # how often to validate
@@ -258,9 +260,11 @@ cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)
 
 @dataclass
 class AFARLTrainingLoopConfig:
-    frames_per_batch: int  # how many frames each batch will contain, *including* frames from all parallel agents
+    # how many frames each batch will contain, *including* frames from all parallel agents
+    frames_per_batch: int
     n_batches: int  # for how many batches to train
-    eval_max_steps: int  # how many steps the agent can take in eval env before episode is terminated,
+    # how many steps the agent can take in eval env before episode is terminated,
+    eval_max_steps: int
     n_eval_episodes: int  # how many rollouts to average over during evaluation
     device: str | None = None
     env_seed: int | None = None
@@ -272,9 +276,11 @@ class AFARLTrainingLoopConfig:
 @dataclass
 class AFAMDPConfig:
     hard_budget: int | None = (
-        None  # how many selections are allowed before episode ends. If None, end when all selections are performed.
+        # how many selections are allowed before episode ends. If None, end when all selections are performed.
+        None
     )
-    force_hard_budget: bool = True  # If False, the agent can choose to terminate the episode without reaching the hard budget. Only relevant when hard_budget is set.
+    # If False, the agent can choose to terminate the episode without reaching the hard budget. Only relevant when hard_budget is set.
+    force_hard_budget: bool = True
     n_agents: int = 1  # how many agents to train in parallel
 
 
@@ -855,7 +861,8 @@ class Kachuee2019TrainConfig:
     use_wandb: bool
     smoke_test: bool
     device: str | None
-    replay_buffer_device_same_as_device: bool  # whether replay buffer device should be the same as `device`. If False, use cpu.
+    # whether replay buffer device should be the same as `device`. If False, use cpu.
+    replay_buffer_device_same_as_device: bool
 
     # Specific to kachuee2019
     reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
@@ -874,7 +881,7 @@ cs.store(name="train_kachuee2019", node=Kachuee2019TrainConfig)
 class AACOConfig:
     k_neighbors: int = 5
     acquisition_cost: float = 0.05
-    hide_val: float = 10.0
+    hide_val: float = 0.0  # Use 0 for consistency with MLP training
     evaluate_final_performance: bool = True
     eval_only_n_samples: int | None = None
 
@@ -884,13 +891,44 @@ class AACOTrainConfig:
     aco: AACOConfig
     dataset_artifact_name: Path
     save_path: Path
+    classifier_bundle_path: Path | None = (
+        None  # Path to pre-trained classifier bundle
+    )
     seed: int = 42
     device: str = "cpu"
     cost_param: float | None = None
     hard_budget: int | None = None  # None = soft budget mode
     experiment_id: str | None = None
-    initializer_type: str = "aaco_default"
+    initializer_type: str = "aaco"
     unmasker_type: str = "one_based_index"
+    smoke_test: bool = False
+
+
+@dataclass
+class AACONNTrainConfig:
+    """Config for AACO+NN (behavioral cloning) training."""
+
+    aaco_bundle_path: Path  # Path to trained AACO method bundle
+    dataset_artifact_name: Path  # Training dataset for rollout generation
+    classifier_bundle_path: Path  # Path to pre-trained classifier bundle
+    save_path: Path
+    seed: int = 42
+    device: str = "cpu"
+    # Rollout generation
+    max_acquisitions: int | None = (
+        None  # Max acquisitions per sample during rollouts
+    )
+    # Policy network architecture
+    hidden_dims: list[int] = field(default_factory=lambda: [256, 256])
+    dropout: float = 0.1
+    # Training parameters
+    batch_size: int = 256
+    max_epochs: int = 100
+    learning_rate: float = 1e-3
+    early_stopping_patience: int = 10
+    val_split: float = 0.1  # Fraction of rollout data for validation
+    hard_budget: int | None = None  # Hard budget for the trained policy
+    smoke_test: bool = False
 
 
 # --- TRAINING CLASSIFIERS ---
@@ -918,6 +956,8 @@ class TrainMaskedMLPClassifierConfig:
 
     seed: int
     device: str
+    use_wandb: bool = False
+    smoke_test: bool = False
 
 
 cs.store(

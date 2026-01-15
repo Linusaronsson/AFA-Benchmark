@@ -116,7 +116,7 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
     with (path / "manifest.json").open("w") as f:
         json.dump(
             {
-                "bundle_version": "1.0.0",
+                "bundle_version": BUNDLE_VERSION,
                 "class_name": obj.__class__.__name__,
                 "class_version": class_version,
                 "metadata": metadata,

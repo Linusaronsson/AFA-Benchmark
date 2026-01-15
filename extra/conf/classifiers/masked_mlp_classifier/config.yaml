@@ -37,3 +37,5 @@ dropout: 0.1
 
 seed: 42
 device: "cuda"
+use_wandb: false
+smoke_test: false

@@ -13,7 +13,7 @@ defaults:
 aco:
   k_neighbors: 5
   acquisition_cost: 0.05
-  hide_val: 10.0
+  hide_val: 0.0  # Use 0 for consistency with MLP training
   evaluate_final_performance: true
   eval_only_n_samples: null
 
@@ -23,5 +23,7 @@ cost_param: ???
 hard_budget: ???
 save_path: ???
 dataset_artifact_name: ???
-initializer_type: "aaco_default"
+classifier_bundle_path: ???
+initializer_type: "aaco"
 unmasker_type: "one_based_index"
+smoke_test: false

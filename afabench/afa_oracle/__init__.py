@@ -1,4 +1,18 @@
 from .aaco_core import AACOOracle
+from .aaco_nn import (
+    AACONNAFAMethod,
+    AACOPolicyNetwork,
+    create_aaco_nn_method,
+    generate_aaco_rollouts,
+)
 from .afa_methods import AACOAFAMethod, create_aaco_method
 
-__all__ = ["AACOAFAMethod", "AACOOracle", "create_aaco_method"]
+__all__ = [
+    "AACOAFAMethod",
+    "AACONNAFAMethod",
+    "AACOOracle",
+    "AACOPolicyNetwork",
+    "create_aaco_method",
+    "create_aaco_nn_method",
+    "generate_aaco_rollouts",
+]

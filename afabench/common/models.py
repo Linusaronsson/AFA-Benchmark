@@ -9,7 +9,7 @@ from jaxtyping import Float
 from torch import Tensor, nn, optim
 from torchrl.modules import MLP
 
-from afabench.afa_rl.utils import (
+from afabench.afa_rl.common.utils import (
     mask_data,
 )
 from afabench.common.custom_types import (

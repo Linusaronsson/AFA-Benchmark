@@ -67,7 +67,7 @@ class AACOOracle:
         self,
         k_neighbors: int = 5,
         acquisition_cost: float = 0.05,
-        hide_val: float = 10.0,
+        hide_val: float = 0.0,  # Use 0 for consistency with MLP training
         device: torch.device | None = None,
     ):
         self.k_neighbors = k_neighbors

@@ -1,0 +1,41 @@
+hydra:
+  searchpath:
+    - file://extra/conf/global
+
+defaults:
+  - hydra: custom
+  - _self_
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+# Required paths
+aaco_bundle_path: ???
+dataset_artifact_name: ???
+classifier_bundle_path: ???
+save_path: ???
+
+seed: 42
+device: "cpu"
+
+# Rollout generation
+max_acquisitions: null  # null = until AACO oracle stops
+
+# Policy network architecture
+hidden_dims:
+  - 256
+  - 256
+dropout: 0.1
+
+# Training parameters
+batch_size: 256
+max_epochs: 100
+learning_rate: 0.001
+early_stopping_patience: 10
+val_split: 0.1
+
+# Hard budget for the trained policy (optional)
+hard_budget: null
+
+# Smoke test mode
+smoke_test: false

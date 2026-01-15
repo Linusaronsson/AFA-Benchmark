@@ -1,0 +1,33 @@
+# Smoke test configuration for AACO workflow
+# Quick test to verify the pipeline works
+
+# Use existing data directory
+dataset_path_prefix: extra/data
+
+dataset_instance_indices: [0]
+initializer: aaco
+eval_dataset_split: val
+device: cpu
+use_wandb: false
+smoke_test: true
+
+# Just one small dataset for testing
+datasets:
+  - cube_without_noise
+
+# Unmaskers
+unmaskers:
+  default: direct
+
+# Hard budgets for evaluation
+hard_budgets:
+  default: [3]
+  cube_without_noise: [3]
+
+# Just one cost param for testing
+cost_params:
+  default: [0.05]
+  cube_without_noise: [0.05]
+
+# Don't train AACO+NN in smoke test (faster)
+train_aaco_nn: false

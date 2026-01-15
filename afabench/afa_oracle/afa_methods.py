@@ -3,10 +3,12 @@ import logging
 
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Self, final, override
+from typing import Any, Self, cast, final, override
 
 from afabench.afa_oracle.aaco_core import AACOOracle, load_mask_generator
+from afabench.common.bundle import load_bundle
 from afabench.common.custom_types import (
+    AFAClassifier,
     AFAMethod,
     AFAAction,
     FeatureMask,
@@ -37,6 +39,7 @@ class AACOAFAMethod(AFAMethod):
     """
     aaco_oracle: AACOOracle
     dataset_name: str
+    classifier_bundle_path: Path | None = None  # Path to trained classifier bundle
     _device: torch.device = field(
         default_factory=lambda: torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
@@ -45,8 +48,15 @@ class AACOAFAMethod(AFAMethod):
     _hard_budget: int | None = None  # None = soft budget
 
     def __post_init__(self):
-        """Move oracle to device after initialization."""
+        """Move oracle to device after initialization and load classifier if path provided."""
         self.aaco_oracle = self.aaco_oracle.to(self._device)
+
+        # Load classifier from bundle if path provided
+        if self.classifier_bundle_path is not None:
+            classifier, _ = load_bundle(self.classifier_bundle_path, device=self._device)
+            classifier = cast(AFAClassifier, cast(object, classifier))
+            self.aaco_oracle.set_classifier(classifier)
+            logger.info(f"Loaded classifier from {self.classifier_bundle_path}")
 
     def set_hard_budget(self, budget: int | None) -> None:
         """Set hard budget. None = soft budget mode."""
@@ -229,6 +239,9 @@ class AACOAFAMethod(AFAMethod):
             "hide_val": self.aaco_oracle.hide_val,
             "dataset_name": self.dataset_name,
             "hard_budget": self._hard_budget,
+            "classifier_bundle_path": str(self.classifier_bundle_path)
+            if self.classifier_bundle_path is not None
+            else None,
             "X_train": self.aaco_oracle.X_train.cpu()
             if self.aaco_oracle.X_train is not None
             else None,
@@ -268,9 +281,15 @@ class AACOAFAMethod(AFAMethod):
                 oracle_state["y_train"].to(device),
             )
 
+        # Get classifier path from saved state
+        classifier_bundle_path = oracle_state.get("classifier_bundle_path")
+        if classifier_bundle_path is not None:
+            classifier_bundle_path = Path(classifier_bundle_path)
+
         method = cls(
             aaco_oracle=aaco_oracle,
             dataset_name=oracle_state["dataset_name"],
+            classifier_bundle_path=classifier_bundle_path,
             _device=device,
             _hard_budget=oracle_state.get("hard_budget"),
         )
@@ -296,8 +315,9 @@ def create_aaco_method(
     dataset_name: str,
     k_neighbors: int = 5,
     acquisition_cost: float = 0.05,
-    hide_val: float = 10.0,
+    hide_val: float = 0.0,  # Use 0 for consistency with MLP training
     hard_budget: int | None = None,
+    classifier_bundle_path: Path | None = None,
     device: torch.device | None = None,
 ) -> AACOAFAMethod:
     """
@@ -309,6 +329,7 @@ def create_aaco_method(
         acquisition_cost: Cost per feature acquisition (soft budget)
         hide_val: Value to use for unobserved features
         hard_budget: Max features to acquire (None = soft budget)
+        classifier_bundle_path: Path to pre-trained classifier bundle
         device: Device to use
 
     Returns:
@@ -327,6 +348,7 @@ def create_aaco_method(
     return AACOAFAMethod(
         aaco_oracle=aaco_oracle,
         dataset_name=dataset_name,
+        classifier_bundle_path=classifier_bundle_path,
         _device=device,
         _hard_budget=hard_budget,
     )

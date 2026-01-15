@@ -7,7 +7,6 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 
-from afabench.afa_oracle.afa_methods import AACOAFAMethod
 from afabench.common.bundle import load_bundle
 from afabench.common.config_classes import (
     EvalConfig,
@@ -165,16 +164,6 @@ def main(cfg: EvalConfig) -> None:
         }."
     )
 
-    if isinstance(afa_method, AACOAFAMethod):
-        afa_method.aaco_oracle.set_classifier(
-            external_classifier
-            if external_classifier is not None
-            else afa_method.aaco_oracle.classifier
-        )
-
-    afa_method = cast(
-        "AFAMethod", afa_method
-    )  # TODO: remove once AACOAFAMethod implements AFAMethod
     df_eval = eval_afa_method(
         afa_action_fn=afa_method.act,
         afa_unmask_fn=unmasker.unmask,

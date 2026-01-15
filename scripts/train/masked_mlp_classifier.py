@@ -8,7 +8,7 @@ from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.callbacks import ModelCheckpoint
 
 from afabench.common.models import LitMaskedMLPClassifier
-from afabench.afa_rl.datasets import DataModuleFromDatasets
+from afabench.afa_rl.common.dataset_utils import DataModuleFromDatasets
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.utils import get_class_frequencies, set_seed
 from afabench.common.classifiers import WrappedMaskedMLPClassifier
@@ -27,6 +27,12 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
+
+    # Handle smoke test
+    if cfg.smoke_test:
+        log.info("Smoke test mode: reducing epochs and batch size")
+        cfg.epochs = 2
+        cfg.batch_size = min(cfg.batch_size, 32)
 
     # Load datasets via bundle system
     train_dataset, train_manifest = load_bundle(Path(cfg.train_dataset_path))

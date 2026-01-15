@@ -47,20 +47,31 @@ def main(cfg: AACOTrainConfig):
     # Determine cost parameter
     cost = cfg.cost_param if cfg.cost_param is not None else cfg.aco.acquisition_cost
 
-    # Create AACO method
+    # Validate classifier path is provided
+    if cfg.classifier_bundle_path is None:
+        msg = "classifier_bundle_path must be provided. Train an MLP classifier first."
+        raise ValueError(msg)
+
+    classifier_bundle_path = Path(cfg.classifier_bundle_path)
+    if not classifier_bundle_path.exists():
+        msg = f"Classifier bundle not found at: {classifier_bundle_path}"
+        raise FileNotFoundError(msg)
+
+    # Create AACO method (classifier will be loaded in __post_init__)
     aaco_method = create_aaco_method(
         dataset_name=dataset_name,
         k_neighbors=cfg.aco.k_neighbors,
         acquisition_cost=cost,
         hide_val=cfg.aco.hide_val,
         hard_budget=cfg.hard_budget,
+        classifier_bundle_path=classifier_bundle_path,
         device=device,
     )
 
     # Fit oracle on training data
     log.info("Fitting AACO oracle on training data...")
     aaco_method.aaco_oracle.fit(X_train, y_train)
-    log.info("AACO oracle fitted (classifier must be set separately before use)")
+    log.info(f"AACO oracle fitted with classifier from {classifier_bundle_path}")
 
     # Save
     save_bundle(
@@ -75,6 +86,7 @@ def main(cfg: AACOTrainConfig):
             "hard_budget": cfg.hard_budget,
             "k_neighbors": cfg.aco.k_neighbors,
             "hide_val": cfg.aco.hide_val,
+            "classifier_bundle_path": str(classifier_bundle_path),
             "n_features": X_train.shape[1],
             "n_train_samples": len(X_train),
         },
