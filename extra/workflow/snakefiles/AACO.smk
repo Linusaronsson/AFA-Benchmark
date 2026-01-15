@@ -285,16 +285,9 @@ rule count_selections:
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
-    resources:
-        shell_exec="nu"
     shell:
         """
-        open {input} |
-            insert selections_performed {{
-                get prev_selections_performed | each {{ |row| ($row | from json | length) + 1}}
-            }} |
-            reject prev_selections_performed selection_performed |
-                save {output}
+        python scripts/misc/transform_eval_data.py count_selections {input} {output}
         """
 
 
@@ -318,18 +311,15 @@ rule add_metadata_to_eval_data:
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
-    resources:
-        shell_exec="nu"
     shell:
         """
-        open {input} |
-            insert afa_method {wildcards.method} |
-            insert dataset {wildcards.dataset} |
-            insert train_seed {wildcards.train_seed} |
-            insert cost_param {wildcards.cost_param} |
-            insert hard_budget {wildcards.eval_hard_budget} |
-            insert soft_budget_param "" |
-                save {output}
+        python scripts/misc/transform_eval_data.py add_metadata {input} {output} \
+            --col afa_method={wildcards.method} \
+            --col dataset={wildcards.dataset} \
+            --col train_seed={wildcards.train_seed} \
+            --col cost_param={wildcards.cost_param} \
+            --col hard_budget={wildcards.eval_hard_budget} \
+            --col soft_budget_param=""
         """
 
 
@@ -353,20 +343,9 @@ rule pivot_long_classifier:
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
-    resources:
-        shell_exec="nu"
     shell:
         """
-        open {input} |
-            each {{ |row|
-                [
-                    ($row | insert classifier "builtin" | insert predicted_class $row.builtin_predicted_class),
-                    ($row | insert classifier "external" | insert predicted_class $row.external_predicted_class)
-                ]
-            }} |
-            flatten |
-            reject builtin_predicted_class external_predicted_class |
-                save {output}
+        python scripts/misc/transform_eval_data.py pivot_long_classifier {input} {output}
         """
 
 
@@ -408,9 +387,7 @@ rule plot:
         "extra/output/merged_eval_results/AACO.csv",
     output:
         directory("extra/output/plot_results/AACO"),
-    conda:
-        "../envs/R.yaml"
     shell:
         """
-            Rscript scripts/plotting/plot_eval.R {input} {output}
+        python scripts/plotting/plot_eval.py {input} {output}
         """

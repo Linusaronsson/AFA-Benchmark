@@ -288,13 +288,10 @@ rule add_eval_metadata_to_eval_data:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
-    resources:
-        shell_exec="nu"
     shell:
         """
-        open {input} |
-            insert eval_soft_budget_param "" |
-                save {output}
+        python scripts/misc/transform_eval_data.py add_metadata {input} {output} \
+            --col eval_soft_budget_param=""
         """
 
 # Convert the `prev_selections_performed` (list[int]) and `selection_performed` columns into `selections_performed` (int)
@@ -321,16 +318,9 @@ rule count_selections:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
-    resources:
-        shell_exec="nu"
     shell:
         """
-        open {input} |
-            insert selections_performed {{
-                get prev_selections_performed | each {{ |row| ($row | from json | length) + 1}}
-            }} |
-            reject prev_selections_performed selection_performed |
-                save {output}
+        python scripts/misc/transform_eval_data.py count_selections {input} {output}
         """
 
 # Add some metadata columns from training
@@ -357,17 +347,14 @@ rule add_train_metadata_to_eval_data:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
-    resources:
-        shell_exec="nu"
     shell:
         """
-        open {input} |
-            insert afa_method {wildcards.method} |
-            insert dataset {wildcards.dataset} |
-            insert train_seed {wildcards.train_seed} |
-            insert train_hard_budget {wildcards.train_hard_budget} |
-            insert train_soft_budget_param {wildcards.train_soft_budget_param} |
-                save {output}
+        python scripts/misc/transform_eval_data.py add_metadata {input} {output} \
+            --col afa_method={wildcards.method} \
+            --col dataset={wildcards.dataset} \
+            --col train_seed={wildcards.train_seed} \
+            --col train_hard_budget={wildcards.train_hard_budget} \
+            --col train_soft_budget_param={wildcards.train_soft_budget_param}
         """
 
 # Make sure that train_hard_budget and eval_hard_budget are the same
@@ -397,35 +384,9 @@ rule validate_hard_budget_and_soft_budget_param:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
-    resources:
-        shell_exec="nu"
     shell:
         """
-        use std/assert
-        let df = open {input}
-        let hard_budget_columns_are_same = $df |
-            all {{|row| $row.train_hard_budget == $row.eval_hard_budget}}
-        assert $hard_budget_columns_are_same
-        let df = $df |
-            rename --column {{ train_hard_budget: hard_budget }} |
-            reject eval_hard_budget
-        let not_both_soft_budget_param_non_null = $df |
-            all {{|row|
-                let train_is_null = ($row.train_soft_budget_param == "")
-                let eval_is_null = ($row.eval_soft_budget_param == "")
-                $train_is_null or $eval_is_null
-            }}
-        assert $not_both_soft_budget_param_non_null
-        let df = $df |
-            insert soft_budget_param {{|row|
-                if $row.train_soft_budget_param != "" {{
-                    $row.train_soft_budget_param
-                }} else {{
-                    $row.eval_soft_budget_param
-                }}
-            }} |
-            reject train_soft_budget_param eval_soft_budget_param
-        $df | save {output}
+        python scripts/misc/transform_eval_data.py validate_budgets {input} {output}
         """
 
 # Instead of two separate classifier columns, the plotting script expects tidy data
@@ -452,20 +413,9 @@ rule pivot_long_classifier:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
-    resources:
-        shell_exec="nu"
     shell:
         """
-        open {input} |
-            each {{ |row|
-                [
-                    ($row | insert classifier "builtin" | insert predicted_class $row.builtin_predicted_class),
-                    ($row | insert classifier "external" | insert predicted_class $row.external_predicted_class)
-                ]
-            }} |
-            flatten |
-            reject builtin_predicted_class external_predicted_class |
-                save {output}
+        python scripts/misc/transform_eval_data.py pivot_long_classifier {input} {output}
         """
 
 rule merge_eval:
@@ -525,9 +475,7 @@ rule plot:
         "extra/output/merged_eval_results/RL_and_dummy.csv",
     output:
         directory("extra/output/plot_results/RL_and_dummy"),
-    conda:
-        "../envs/R.yaml"
     shell:
         """
-            Rscript scripts/plotting/plot_eval.R {input} {output}
+        python scripts/plotting/plot_eval.py {input} {output}
         """

@@ -4,7 +4,7 @@
 # Use existing data directory
 dataset_path_prefix: extra/data
 
-dataset_instance_indices: [0]
+dataset_instance_indices: [0, 1, 2, 3, 4]
 initializer: aaco
 eval_dataset_split: val
 device: cpu
@@ -14,6 +14,7 @@ smoke_test: true
 # Just one small dataset for testing
 datasets:
   - cube_without_noise
+  - afa_context_without_noise
 
 # Unmaskers
 unmaskers:
@@ -21,13 +22,10 @@ unmaskers:
 
 # Hard budgets for evaluation
 hard_budgets:
-  default: [3]
-  cube_without_noise: [3]
+  default: [5, 10, 15]
 
 # Just one cost param for testing
 cost_params:
-  default: [0.05]
-  cube_without_noise: [0.05]
+  default: [0.05, 0.1, 0.2]
 
-# Don't train AACO+NN in smoke test (faster)
 train_aaco_nn: false
