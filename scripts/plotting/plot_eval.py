@@ -1,18 +1,6 @@
-"""
-Generate evaluation plots from merged evaluation results.
-
-Replaces scripts/plotting/plot_eval.R with pure Python using plotnine.
-
-Usage:
-    python plot_eval.py [eval_results.csv] output_folder
-
-If no input CSV is provided, generates dummy data for testing.
-"""
-
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +22,10 @@ from sklearn.metrics import accuracy_score, cohen_kappa_score, f1_score
 METHOD_NAME_MAPPING = {
     "random_dummy": "Random dummy",
     "sequential_dummy": "Sequential dummy",
+    "shim2018": "Shim 2018",
+    "eddi": "EDDI",
+    "dime": "DIME",
+    "zannone2019": "Zannone 2019",
     "aaco": "AACO",
     "aaco_nn": "AACO+NN",
 }
@@ -171,11 +163,14 @@ def create_hard_budget_plot(
     use_dataset_metric_labeller: bool = True,
 ) -> ggplot:
     """Create hard budget plot with lines and ribbon."""
+    # Pre-compute ribbon bounds and facet label
+    df = df.copy()
+    df["y_min"] = df["estimate_mean"] - df["estimate_sd"]
+    df["y_max"] = df["estimate_mean"] + df["estimate_sd"]
+
     if use_dataset_metric_labeller:
-        df = df.copy()
         df["facet_label"] = df["dataset"].apply(dataset_with_metric_labeller)
     else:
-        df = df.copy()
         df["facet_label"] = df["dataset"].apply(
             lambda x: DATASET_NAME_MAPPING.get(x, x)
         )
@@ -193,8 +188,8 @@ def create_hard_budget_plot(
         + geom_line()
         + geom_ribbon(
             aes(
-                ymin="estimate_mean - estimate_sd",
-                ymax="estimate_mean + estimate_sd",
+                ymin="y_min",
+                ymax="y_max",
             ),
             alpha=0.2,
             color=None,
@@ -215,11 +210,20 @@ def create_soft_budget_plot(
     use_dataset_metric_labeller: bool = True,
 ) -> ggplot:
     """Create soft budget plot with error bars."""
+    # Pre-compute error bar bounds and facet label
+    df = df.copy()
+    df["y_min"] = df["estimate_mean"] - df["estimate_sd"]
+    df["y_max"] = df["estimate_mean"] + df["estimate_sd"]
+    df["x_min"] = (
+        df["selections_performed_mean"] - df["selections_performed_sd"]
+    )
+    df["x_max"] = (
+        df["selections_performed_mean"] + df["selections_performed_sd"]
+    )
+
     if use_dataset_metric_labeller:
-        df = df.copy()
         df["facet_label"] = df["dataset"].apply(dataset_with_metric_labeller)
     else:
-        df = df.copy()
         df["facet_label"] = df["dataset"].apply(
             lambda x: DATASET_NAME_MAPPING.get(x, x)
         )
@@ -236,18 +240,9 @@ def create_soft_budget_plot(
         )
         + geom_line()
         + geom_errorbar(
-            aes(
-                ymin="estimate_mean - estimate_sd",
-                ymax="estimate_mean + estimate_sd",
-            ),
+            aes(ymin="y_min", ymax="y_max"),
             alpha=0.5,
-        )
-        + geom_errorbar(
-            aes(
-                xmin="selections_performed_mean - selections_performed_sd",
-                xmax="selections_performed_mean + selections_performed_sd",
-            ),
-            alpha=0.5,
+            width=0.1,
         )
         + facet_wrap("~facet_label", scales="free")
         + labs(x="Selection budget", y=y_label)
@@ -255,6 +250,7 @@ def create_soft_budget_plot(
         + scale_fill_discrete(name="AFA method")
         + theme(legend_position="bottom")
     )
+
     return plot
 
 
@@ -373,37 +369,39 @@ def process_soft_budget(df: pd.DataFrame) -> pd.DataFrame:
     return summary
 
 
-def main() -> None:  # noqa: C901, PLR0912, PLR0915
-    """Run the main entry point."""
+def parse_args() -> argparse.Namespace:
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Generate evaluation plots from merged results"
+        description="Generate evaluation plots from merged evaluation results.",
+        epilog="If no input CSV is provided, generates dummy data for testing.",
     )
     parser.add_argument(
-        "args",
-        nargs="*",
-        help="[input_csv] output_folder",
+        "output_folder",
+        type=Path,
+        help="Output folder where plots will be saved",
+    )
+    parser.add_argument(
+        "-i",
+        "--input",
+        type=Path,
+        default=None,
+        help="Input CSV file with evaluation results. If not provided, uses dummy data.",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    if len(args.args) == 0:
-        print("Proceeding with plotting using dummy data...")
-        df = generate_dummy_data(n=10000)
-        output_path = None
-    elif len(args.args) == 1:
-        print("Proceeding with plotting using dummy data...")
-        df = generate_dummy_data(n=10000)
-        output_path = Path(args.args[0])
-    elif len(args.args) == 2:
-        df = read_csv_safe(Path(args.args[0]))
-        output_path = Path(args.args[1])
+
+def load_or_generate_df(args: argparse.Namespace) -> pd.DataFrame:
+    if args.input:
+        print(f"Loading data from {args.input}...")
+        df = read_csv_safe(args.input)
     else:
-        print("Usage: python plot_eval.py [eval_results.csv] output_folder")
-        sys.exit(1)
+        print("Proceeding with plotting using dummy data...")
+        df = generate_dummy_data(n=10000)
+    return df
 
-    if output_path:
-        output_path.mkdir(parents=True, exist_ok=True)
 
+def produce_hard_budget_plots(df: pd.DataFrame, output_folder: Path) -> None:
     df_hard_budget = process_hard_budget(df)
 
     if len(df_hard_budget) > 0:
@@ -432,12 +430,9 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
             )
 
             hard_budget_plot = create_hard_budget_plot(builtin_hard, "Metric")
-            if output_path:
-                hard_budget_plot.save(
-                    output_path / "hard_budget.png", dpi=150, verbose=False
-                )
-            else:
-                print(hard_budget_plot)
+            hard_budget_plot.save(
+                output_folder / "hard_budget.png", dpi=150, verbose=False
+            )
 
             builtin_hard_kappa = builtin_hard.copy()
             builtin_hard_kappa["estimate_mean"] = builtin_hard_kappa[
@@ -449,71 +444,71 @@ def main() -> None:  # noqa: C901, PLR0912, PLR0915
                 "Cohen's Kappa",
                 use_dataset_metric_labeller=False,
             )
-            if output_path:
-                hard_budget_kappa_plot.save(
-                    output_path / "hard_budget_kappa.png",
-                    dpi=150,
-                    verbose=False,
-                )
-            else:
-                print(hard_budget_kappa_plot)
+            hard_budget_kappa_plot.save(
+                output_folder / "hard_budget_kappa.png",
+                dpi=150,
+                verbose=False,
+            )
 
+
+def produce_soft_budget_plots(df: pd.DataFrame, output_folder: Path) -> None:
+    """Produce soft budget plots."""
     df_soft_budget = process_soft_budget(df)
 
-    if len(df_soft_budget) > 0:
-        builtin_soft = df_soft_budget.loc[
-            df_soft_budget["classifier"] == "builtin"
-        ].copy()
-        assert isinstance(builtin_soft, pd.DataFrame)
+    if len(df_soft_budget) == 0:
+        print("No soft budget data found in the evaluation results.")
+        return
 
-        if len(builtin_soft) > 0:
+    builtin_soft = df_soft_budget.loc[
+        df_soft_budget["classifier"] == "builtin"
+    ].copy()
+    assert isinstance(builtin_soft, pd.DataFrame)
 
-            def get_estimate(row: pd.Series) -> float:
-                dataset = str(row["dataset"])
-                metric = DATASET_METRIC_MAPPING.get(dataset, "accuracy")
-                return float(row[f"{metric}_mean"])
+    if len(builtin_soft) == 0:
+        print("No soft budget data with 'builtin' classifier found.")
+        return
 
-            def get_estimate_sd(row: pd.Series) -> float:
-                dataset = str(row["dataset"])
-                metric = DATASET_METRIC_MAPPING.get(dataset, "accuracy")
-                return float(row[f"{metric}_sd"])
+    def get_estimate(row: pd.Series) -> float:
+        dataset = str(row["dataset"])
+        metric = DATASET_METRIC_MAPPING.get(dataset, "accuracy")
+        return float(row[f"{metric}_mean"])
 
-            builtin_soft["estimate_mean"] = builtin_soft.apply(
-                get_estimate, axis=1
-            )
-            builtin_soft["estimate_sd"] = builtin_soft.apply(
-                get_estimate_sd, axis=1
-            )
+    def get_estimate_sd(row: pd.Series) -> float:
+        dataset = str(row["dataset"])
+        metric = DATASET_METRIC_MAPPING.get(dataset, "accuracy")
+        return float(row[f"{metric}_sd"])
 
-            soft_budget_plot = create_soft_budget_plot(builtin_soft, "Metric")
-            if output_path:
-                soft_budget_plot.save(
-                    output_path / "soft_budget.png", dpi=150, verbose=False
-                )
-            else:
-                print(soft_budget_plot)
+    builtin_soft["estimate_mean"] = builtin_soft.apply(get_estimate, axis=1)
+    builtin_soft["estimate_sd"] = builtin_soft.apply(get_estimate_sd, axis=1)
 
-            builtin_soft_kappa = builtin_soft.copy()
-            builtin_soft_kappa["estimate_mean"] = builtin_soft_kappa[
-                "kappa_mean"
-            ]
-            builtin_soft_kappa["estimate_sd"] = builtin_soft_kappa["kappa_sd"]
-            soft_budget_kappa_plot = create_soft_budget_plot(
-                builtin_soft_kappa,
-                "Cohen's Kappa",
-                use_dataset_metric_labeller=False,
-            )
-            if output_path:
-                soft_budget_kappa_plot.save(
-                    output_path / "soft_budget_kappa.png",
-                    dpi=150,
-                    verbose=False,
-                )
-            else:
-                print(soft_budget_kappa_plot)
+    soft_budget_plot = create_soft_budget_plot(builtin_soft, "Metric")
+    soft_budget_plot.save(
+        output_folder / "soft_budget.png", dpi=150, verbose=False
+    )
 
-    if output_path:
-        print(f"Plots saved to {output_path}")
+    builtin_soft_kappa = builtin_soft.copy()
+    builtin_soft_kappa["estimate_mean"] = builtin_soft_kappa["kappa_mean"]
+    builtin_soft_kappa["estimate_sd"] = builtin_soft_kappa["kappa_sd"]
+    soft_budget_kappa_plot = create_soft_budget_plot(
+        builtin_soft_kappa,
+        "Cohen's Kappa",
+        use_dataset_metric_labeller=False,
+    )
+    soft_budget_kappa_plot.save(
+        output_folder / "soft_budget_kappa.png",
+        dpi=150,
+        verbose=False,
+    )
+
+
+def main() -> None:
+    args = parse_args()
+    args.output_folder.mkdir(parents=True, exist_ok=True)
+
+    df = load_or_generate_df(args)
+
+    produce_hard_budget_plots(df, args.output_folder)
+    produce_soft_budget_plots(df, args.output_folder)
 
 
 if __name__ == "__main__":

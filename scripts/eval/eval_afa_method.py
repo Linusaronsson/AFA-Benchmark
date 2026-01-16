@@ -211,14 +211,13 @@ def main(cfg: EvalConfig) -> None:
 
     # Add eval_seed and eval_hard_budget to dataframe
     df_eval["eval_seed"] = cfg.seed
-    df_eval["eval_hard_budget"] = (
-        cfg.hard_budget if cfg.hard_budget is not None else float("nan")
-    )
+    df_eval["eval_hard_budget"] = cfg.hard_budget
 
     # Save CSV directly
     csv_path = Path(cfg.save_path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    df_eval.to_csv(csv_path, index=False)
+    # When we save the dataframe in csv format, we want None values to actually be a value and not just missing, to fit in to the snakemake pipeline
+    df_eval.to_csv(csv_path, index=False, na_rep="null")
     log.info(f"Saved evaluation data to CSV at: {csv_path}")
 
     log.info(f"Evaluation results saved to: {cfg.save_path}")

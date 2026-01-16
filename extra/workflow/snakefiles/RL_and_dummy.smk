@@ -64,9 +64,10 @@ HARD_BUDGET_AND_SOFT_BUDGET_PARAMS = {
 
 rule all:
     input:
-        "extra/output/plot_results/eval_performance/RL_and_dummy",
+        "extra/output/plot_results/eval_perf/RL_and_dummy",
+        "extra/output/plot_results/time/RL_and_dummy",
 
-rule pretrain_model_all:
+rule all_pretrain_model:
     input:
         [
             (
@@ -80,7 +81,7 @@ rule pretrain_model_all:
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
         ]
 
-rule train_method_all:
+rule all_train_method:
     input:
         [
             (
@@ -113,6 +114,8 @@ rule train_method_all:
             for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
         ]
 
+
+
 rule pretrain_model:
     input:
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
@@ -122,19 +125,33 @@ rule pretrain_model:
             "extra/output/pretrained_models/{method}/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
-                    "pretrain_seed-{pretrain_seed}.bundle"
+                    "pretrain_seed-{pretrain_seed}/"
+                        "model.bundle"
         ),
+
+        "extra/output/pretrained_models/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "pretrain_time.txt"
+
+    resources:
+        shell_exec="bash"
     shell:
         """
+        START_TIME=$(date +%s.%N)
         python scripts/pretrain/{wildcards.method}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
-            save_path={output} \
+            save_path={output[0]} \
             device={DEVICE} \
             seed={wildcards.pretrain_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
             experiment@_global_={wildcards.dataset}
+        END_TIME=$(date +%s.%N)
+        ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')
+        echo $ELAPSED > '{output[1]}'
         """
 
 rule train_method_with_pretrained_model:
@@ -145,7 +162,8 @@ rule train_method_with_pretrained_model:
         "extra/output/pretrained_models/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}.bundle"
+                "pretrain_seed-{pretrain_seed}/"
+                    "model.bundle"
     output:
         directory(
             "extra/output/trained_methods/{method}/"
@@ -154,17 +172,29 @@ rule train_method_with_pretrained_model:
                     "pretrain_seed-{pretrain_seed}/"
                         "train_seed-{train_seed}+"
                         "train_hard_budget-{train_hard_budget}+"
-                        "train_soft_budget_param-{train_soft_budget_param}.bundle"
+                        "train_soft_budget_param-{train_soft_budget_param}/"
+                            "method.bundle"
         ),
+        "extra/output/trained_methods/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "train_time.txt"
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+    resources:
+        shell_exec="bash"
     shell:
         """
+        START_TIME=$(date +%s.%N)
         python scripts/train/{wildcards.method}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
             pretrained_model_bundle_path={input[2]} \
-            save_path={output} \
+            save_path={output[0]} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
             hard_budget={wildcards.train_hard_budget} \
@@ -173,7 +203,10 @@ rule train_method_with_pretrained_model:
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            experiment@_global_={wildcards.dataset} \
+            experiment@_global_={wildcards.dataset}
+        END_TIME=$(date +%s.%N)
+        ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')
+        echo $ELAPSED > '{output[1]}'
         """
 
 rule train_method_without_pretrained_model:
@@ -188,16 +221,28 @@ rule train_method_without_pretrained_model:
                     f"{NO_PRETRAIN_STR}/"
                         "train_seed-{train_seed}+"
                         "train_hard_budget-{train_hard_budget}+"
-                        "train_soft_budget_param-{train_soft_budget_param}.bundle"
+                        "train_soft_budget_param-{train_soft_budget_param}/"
+                            "method.bundle"
         ),
+        "extra/output/trained_methods/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                f"{NO_PRETRAIN_STR}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "train_time.txt"
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+    resources:
+        shell_exec="bash"
     shell:
         """
+        START_TIME=$(date +%s.%N)
         python scripts/train/{wildcards.method}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
-            save_path={output} \
+            save_path={output[0]} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
             hard_budget={wildcards.train_hard_budget} \
@@ -206,7 +251,10 @@ rule train_method_without_pretrained_model:
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            experiment@_global_={wildcards.dataset} \
+            experiment@_global_={wildcards.dataset}
+        END_TIME=$(date +%s.%N)
+        ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')
+        echo $ELAPSED > '{output[1]}'
         """
 
 # rule train_classifier:
@@ -232,7 +280,8 @@ rule eval_method:
                 "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}.bundle",
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "method.bundle",
         # "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
     output:
         "extra/output/eval_results/{method}/"
@@ -245,7 +294,7 @@ rule eval_method:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
-        "extra/output/eval_results/{method}/"
+        "extra/output/eval_time_results/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "{pretrain_folder}"
@@ -305,6 +354,8 @@ rule add_eval_metadata_to_eval_data:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
+    resources:
+        shell_exec="bash"
     shell:
         """
         python scripts/misc/transform_eval_data.py add_metadata {input} {output} \
@@ -335,6 +386,8 @@ rule count_selections:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
+    resources:
+        shell_exec="bash"
     shell:
         """
         python scripts/misc/transform_eval_data.py count_selections {input} {output}
@@ -364,6 +417,8 @@ rule add_train_metadata_to_eval_data:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
+    resources:
+        shell_exec="bash"
     shell:
         """
         python scripts/misc/transform_eval_data.py add_metadata {input} {output} \
@@ -401,6 +456,8 @@ rule validate_hard_budget_and_soft_budget_param:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
+    resources:
+        shell_exec="bash"
     shell:
         """
         python scripts/misc/transform_eval_data.py validate_budgets {input} {output}
@@ -430,6 +487,8 @@ rule pivot_long_classifier:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_data.csv",
+    resources:
+        shell_exec="bash"
     shell:
         """
         python scripts/misc/transform_eval_data.py pivot_long_classifier {input} {output}
@@ -479,6 +538,8 @@ rule merge_eval_perf:
                 soft_budget_param,
             ) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
         ]
+    resources:
+        shell_exec="bash"
     output:
         "extra/output/merged_results/RL_and_dummy_eval_perf.csv",
     shell:
@@ -492,18 +553,36 @@ rule plot_eval:
         "extra/output/merged_results/RL_and_dummy_eval_perf.csv",
     output:
         directory("extra/output/plot_results/eval_perf/RL_and_dummy"),
+    resources:
+        shell_exec="bash"
     shell:
         """
-        python scripts/plotting/plot_eval.py {input} {output}
+        python scripts/plotting/plot_eval.py -i {input} {output}
         """
 
-# --- RULES TO PRODUCE EVAL TIME PLOT ---
-rule eval_time_to_csv:
+# --- RULES TO PRODUCE TIME PLOT ---
+
+
+# Combines txt files containing separate pretrain, train and eval times into a single dataframe.
+rule time_df_with_pretrain:
     input:
-        "extra/output/eval_results/{method}/"
+        "extra/output/pretrained_models/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "{pretrain_folder}"
+                "pretrain_seed-{pretrain_seed}/"
+                    "pretrain_time.txt",
+        "extra/output/trained_methods/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "train_time.txt",
+        "extra/output/eval_time_results/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "pretrain_seed-{pretrain_seed}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
@@ -511,28 +590,69 @@ rule eval_time_to_csv:
                         "eval_hard_budget-{eval_hard_budget}/"
                             "eval_time.txt"
     output:
-        "extra/output/eval_time_results/{method}/"
+        "extra/output/combined_time_results/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "{pretrain_folder}"
+                "pretrain_seed-{pretrain_seed}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}/"
-                            "eval_time.csv"
+                            "combined_time.csv"
     resources:
         shell_exec="nu"
     shell:
         """
-        {{afa_method: {wildcards.method}, dataset: {wildcards.dataset}, eval_time: (open {input})}} | to csv | save {output}
+        {{afa_method: {wildcards.method}, dataset: {wildcards.dataset}, time_pretrain: (open {input[0]}), time_train: (open {input[1]}), time_eval: (open {input[2]})}} | save {output}
         """
 
-rule merge_eval_time:
+# Combines csv files containing separate pretrain, train and eval times into a single dataframe. Pretrain time is set to null.
+rule time_df_without_pretrain:
+    input:
+        "extra/output/trained_methods/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                f"{NO_PRETRAIN_STR}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "train_time.txt",
+        "extra/output/eval_time_results/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                f"{NO_PRETRAIN_STR}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_time.txt"
+    output:
+        "extra/output/combined_time_results/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                f"{NO_PRETRAIN_STR}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "combined_time.csv"
+    resources:
+        shell_exec="nu"
+    shell:
+        """
+        {{afa_method: {wildcards.method}, dataset: {wildcards.dataset}, time_pretrain: null, time_train: (open {input[0]}), time_eval: (open {input[1]})}} | save {output}
+        """
+
+
+rule merge_time:
+    # Inputs are expected to have columns afa_method, dataset, pretrain_time, train_time, eval_time
     input:
         [
             (
-                f"extra/output/eval_time_results/{method}/"
+                f"extra/output/combined_time_results/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"
@@ -541,7 +661,7 @@ rule merge_eval_time:
                             f"train_soft_budget_param-{soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{hard_budget}/"
-                                    f"eval_time.csv"
+                                    f"combined_time.csv"
             )
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
@@ -553,7 +673,7 @@ rule merge_eval_time:
         ] +
         [
             (
-                f"extra/output/eval_time_results/{method}/"
+                f"extra/output/combined_time_results/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -562,7 +682,7 @@ rule merge_eval_time:
                             f"train_soft_budget_param-{soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{hard_budget}/"
-                                    f"eval_time.csv"
+                                    f"combined_time.csv"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
@@ -573,20 +693,22 @@ rule merge_eval_time:
             ) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
         ]
     output:
-        "extra/output/merged_results/RL_and_dummy_eval_time.csv",
+        "extra/output/merged_results/RL_and_dummy_time.csv",
+    resources:
+        shell_exec="bash"
     shell:
         """
-            csvstack {input} > {output}
+        csvstack {input} > {output}
         """
 
-rule plot_eval_time:
+rule plot_time:
     input:
-        "extra/output/merged_results/RL_and_dummy_eval_time.csv",
-    conda:
-        "../envs/R.yaml"
+        "extra/output/merged_results/RL_and_dummy_time.csv",
     output:
-        directory("extra/output/plot_results/eval_time/RL_and_dummy"),
+        directory("extra/output/plot_results/time/RL_and_dummy"),
+    resources:
+        shell_exec="bash"
     shell:
         """
-        Rscript scripts/plotting/plot_eval_time.R {input} {output}
+        python scripts/plotting/plot_total_time.py -i {input} {output}
         """

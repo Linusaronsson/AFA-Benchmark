@@ -24,24 +24,26 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+NA_REP = "null"
+
 
 def nullable_int(value: str) -> int | None:
-    """Convert string to int, treating 'null' as None."""
-    if value.lower() == "null":
+    """Convert string to int, treating NA_REP as None."""
+    if value.lower() == NA_REP:
         return None
     return int(value)
 
 
 def nullable_float(value: str) -> float | None:
-    """Convert string to float, treating 'null' as None."""
-    if value.lower() == "null":
+    """Convert string to float, treating NA_REP as None."""
+    if value.lower() == NA_REP:
         return None
     return float(value)
 
 
 def nullable_str(value: str) -> str | None:
-    """Convert string to str, treating 'null' as None."""
-    if value.lower() == "null":
+    """Convert string to str, treating NA_REP as None."""
+    if value.lower() == NA_REP:
         return None
     return value
 
@@ -208,8 +210,10 @@ def validate_and_consolidate_budgets(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     if "train_hard_budget" in df.columns and "eval_hard_budget" in df.columns:
-        mismatched = df[df["train_hard_budget"] != df["eval_hard_budget"]]
-        if len(mismatched) > 0:
+        train_filled = df["train_hard_budget"].fillna("_NaN_marker")
+        eval_filled = df["eval_hard_budget"].fillna("_NaN_marker")
+        mismatched = train_filled != eval_filled
+        if mismatched.any():
             msg = (
                 f"train_hard_budget and eval_hard_budget mismatch in "
                 f"{len(mismatched)} rows"
@@ -227,7 +231,7 @@ def validate_and_consolidate_budgets(df: pd.DataFrame) -> pd.DataFrame:
         def is_empty(val: object) -> bool:
             if is_missing_value(val):
                 return True
-            return isinstance(val, str) and val in {"", "null"}
+            return isinstance(val, str) and val in {"", NA_REP}
 
         both_set = df.apply(
             lambda row: not is_empty(row["train_soft_budget_param"])
@@ -316,7 +320,7 @@ def transform_eval_data(
     df = df[final_columns]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(output_path, index=False)
+    df.to_csv(output_path, index=False, na_rep=NA_REP)
 
 
 def parse_col_arg(col_arg: str) -> tuple[str, str]:
@@ -333,7 +337,7 @@ def cmd_count_selections(args: argparse.Namespace) -> None:
     df = pd.read_csv(args.input_path)
     df = count_selections(df)
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(args.output_path, index=False)
+    df.to_csv(args.output_path, index=False, na_rep=NA_REP)
 
 
 def cmd_add_metadata(args: argparse.Namespace) -> None:
@@ -350,7 +354,7 @@ def cmd_add_metadata(args: argparse.Namespace) -> None:
     df = add_metadata_columns(df, metadata)
 
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(args.output_path, index=False)
+    df.to_csv(args.output_path, index=False, na_rep=NA_REP)
 
 
 def cmd_pivot_long_classifier(args: argparse.Namespace) -> None:
@@ -358,7 +362,7 @@ def cmd_pivot_long_classifier(args: argparse.Namespace) -> None:
     df = pd.read_csv(args.input_path)
     df = pivot_long_classifier(df)
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(args.output_path, index=False)
+    df.to_csv(args.output_path, index=False, na_rep=NA_REP)
 
 
 def cmd_validate_budgets(args: argparse.Namespace) -> None:
@@ -366,7 +370,7 @@ def cmd_validate_budgets(args: argparse.Namespace) -> None:
     df = pd.read_csv(args.input_path)
     df = validate_and_consolidate_budgets(df)
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(args.output_path, index=False)
+    df.to_csv(args.output_path, index=False, na_rep=NA_REP)
 
 
 def cmd_transform(args: argparse.Namespace) -> None:
