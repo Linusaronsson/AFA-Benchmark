@@ -439,6 +439,9 @@ class Covert2023AFAMethod(AFAMethod):
         device: torch.device,
         lambda_threshold: float | None = None,
         feature_costs: torch.Tensor | None = None,
+        selector_hidden_layers: list[int] = [128, 128],
+        predictor_hidden_layers: list[int] = [128, 128],
+        dropout: float = 0.3,
         modality: str | None = "tabular",
         n_patches: int | None = None,
         d_in: int | None = None,
@@ -455,6 +458,9 @@ class Covert2023AFAMethod(AFAMethod):
         else:
             self.lambda_threshold = lambda_threshold
         self._feature_costs: torch.Tensor | None = feature_costs
+        self.selector_hidden_layers = selector_hidden_layers
+        self.predictor_hidden_layers = predictor_hidden_layers
+        self.dropout = dropout
         self.modality: str | None = modality
         # for image selection
         self.n_patches: int | None = n_patches
@@ -538,8 +544,12 @@ class Covert2023AFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device) -> Self:
         checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint["architecture"]
+        lambda_threshold = checkpoint.get("lambda_threshold", None)
+        feature_costs = checkpoint.get("feature_costs", None)
+        if feature_costs is not None:
+            feature_costs = feature_costs.to(device)
         # tabular
-        if "predictor_hidden_layers" in arch:
+        if arch["type"] == "mlp":
             d_in = arch["d_in"]
             d_out = arch["d_out"]
             selector_hidden_layers = arch["selector_hidden_layers"]
@@ -560,15 +570,23 @@ class Covert2023AFAMethod(AFAMethod):
                 dropout=dropout,
             )
 
-            model = cls(selector, predictor, device)
+            model = cls(
+                selector=selector,
+                predictor=predictor,
+                device=device,
+                lambda_threshold=lambda_threshold,
+                feature_costs=feature_costs,
+                selector_hidden_layers=selector_hidden_layers,
+                predictor_hidden_layers=predictor_hidden_layers,
+                dropout=dropout,
+            )
             model.selector.load_state_dict(checkpoint["selector_state_dict"])
             model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
             model.selector.eval()
             model.predictor.eval()
             return model.to(device)
 
-        backbone = arch["backbone"]
-        if backbone == "resnet18":
+        elif arch["type"] == "resnet18":
             d_out = arch["d_out"]
             base = resnet18(pretrained=False)
             backbone_net, expansion = ResNet18Backbone(base)
@@ -579,6 +597,8 @@ class Covert2023AFAMethod(AFAMethod):
                 selector=selector,
                 predictor=predictor,
                 device=device,
+                lambda_threshold=lambda_threshold,
+                feature_costs=feature_costs,
                 modality="image",
                 n_patches=int(arch["mask_width"]) ** 2,
             )
@@ -600,16 +620,18 @@ class Covert2023AFAMethod(AFAMethod):
         path.mkdir(parents=True, exist_ok=True)
         if self.modality == "tabular":
             arch = {
+                "type": "mlp",
                 "d_in": self.d_in,
                 "d_out": self.d_out,
-                "selector_hidden_layers": [128, 128],
-                "predictor_hidden_layers": [128, 128],
-                "dropout": 0.3,
+                "selector_hidden_layers": self.selector_hidden_layers,
+                "predictor_hidden_layers": self.predictor_hidden_layers,
+                "dropout": self.dropout,
                 "model_type": "tabular",
             }
         else:
             # TODO: pass self.predictor.fc.out_features as d_out here
             arch = {
+                "type": "resnet18",
                 "backbone": "resnet18",
                 "image_size": getattr(self, "image_size", 224),
                 "patch_size": getattr(self, "patch_size", 16),
@@ -621,6 +643,8 @@ class Covert2023AFAMethod(AFAMethod):
             "selector_state_dict": self.selector.state_dict(),
             "predictor_state_dict": self.predictor.state_dict(),
             "architecture": arch,
+            "lambda_threshold": float(self.lambda_threshold),
+            "feature_costs": self._feature_costs.detach().cpu() if self._feature_costs is not None else None
         }
         torch.save(payload, Path(path) / "model.pt")
 
@@ -1031,6 +1055,9 @@ class Gadgil2023AFAMethod(AFAMethod):
         device: torch.device,
         lambda_threshold: float | None = None,
         feature_costs: torch.Tensor | None = None,
+        value_network_hidden_layers: list[int] = [128, 128],
+        predictor_hidden_layers: list[int] = [128, 128],
+        dropout: float = 0.3,
         modality: str | None = "tabular",
         n_patches: int | None = None,
         d_in: int | None = None,
@@ -1047,6 +1074,9 @@ class Gadgil2023AFAMethod(AFAMethod):
         else:
             self.lambda_threshold = lambda_threshold
         self._feature_costs: torch.Tensor | None = feature_costs
+        self.value_network_hidden_layers = value_network_hidden_layers
+        self.predictor_hidden_layers = predictor_hidden_layers
+        self.dropout = dropout
         self.modality: str | None = modality
         self.n_patches: int | None = n_patches
         self.d_in: int | None = d_in
@@ -1128,7 +1158,11 @@ class Gadgil2023AFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device) -> Self:
         checkpoint = torch.load(path / "model.pt", map_location=device)
         arch = checkpoint["architecture"]
-        if "predictor_hidden_layers" in arch:
+        lambda_threshold = checkpoint.get("lambda_threshold", None)
+        feature_costs = checkpoint.get("feature_costs", None)
+        if feature_costs is not None:
+            feature_costs = feature_costs.to(device)
+        if arch["type"] == "mlp":
             d_in = arch["d_in"]
             d_out = arch["d_out"]
             value_network_hidden_layers = arch["value_network_hidden_layers"]
@@ -1151,19 +1185,29 @@ class Gadgil2023AFAMethod(AFAMethod):
             # Tie weights
             # value_network.hidden[0] = predictor.hidden[0]
             # value_network.hidden[1] = predictor.hidden[1]
-            pred_linears = [m for m in predictor if isinstance(m, nn.Linear)]
-            value_linears = [
-                m for m in value_network if isinstance(m, nn.Linear)
-            ]
+            # TODO: check if weight tying is needed for evaluation
+            # pred_linears = [m for m in predictor if isinstance(m, nn.Linear)]
+            # value_linears = [
+            #     m for m in value_network if isinstance(m, nn.Linear)
+            # ]
 
-            assert len(value_network_hidden_layers) == len(
-                predictor_hidden_layers
+            # assert len(value_network_hidden_layers) == len(
+            #     predictor_hidden_layers
+            # )
+            # for i in range(len(value_network_hidden_layers)):
+            #     value_linears[i].weight = pred_linears[i].weight
+            #     value_linears[i].bias = pred_linears[i].bias
+
+            model = cls(
+                value_network=value_network,
+                predictor=predictor,
+                device=device,
+                lambda_threshold=lambda_threshold,
+                feature_costs=feature_costs,
+                value_network_hidden_layers=value_network_hidden_layers,
+                predictor_hidden_layers=predictor_hidden_layers,
+                dropout=dropout,
             )
-            for i in range(len(value_network_hidden_layers)):
-                value_linears[i].weight = pred_linears[i].weight
-                value_linears[i].bias = pred_linears[i].bias
-
-            model = cls(value_network, predictor, device)
             model.value_network.load_state_dict(
                 checkpoint["value_network_state_dict"]
             )
@@ -1172,8 +1216,7 @@ class Gadgil2023AFAMethod(AFAMethod):
             model.predictor.eval()
             return model.to(device)
 
-        backbone = arch["backbone"]
-        if backbone == "resnet18":
+        elif arch["type"] == "resnet18":
             d_out = arch["d_out"]
             base = resnet18(pretrained=False)
             backbone_net, expansion = ResNet18Backbone(base)
@@ -1184,6 +1227,8 @@ class Gadgil2023AFAMethod(AFAMethod):
                 value_network=value_network,
                 predictor=predictor,
                 device=device,
+                lambda_threshold=lambda_threshold,
+                feature_costs=feature_costs,
                 modality="image",
                 n_patches=int(arch["mask_width"]) ** 2,
             )
@@ -1206,15 +1251,17 @@ class Gadgil2023AFAMethod(AFAMethod):
         path.mkdir(parents=True, exist_ok=True)
         if self.modality == "tabular":
             arch = {
+                "type": "mlp",
                 "d_in": self.d_in,
                 "d_out": self.d_out,
-                "value_network_hidden_layers": [128, 128],
-                "predictor_hidden_layers": [128, 128],
-                "dropout": 0.3,
+                "value_network_hidden_layers": self.value_network_hidden_layers,
+                "predictor_hidden_layers": self.predictor_hidden_layers,
+                "dropout": self.dropout,
                 "model_type": "tabular",
             }
         else:
             arch = {
+                "type": "resnet18",
                 "backbone": "resnet18",
                 "image_size": getattr(self, "image_size", 224),
                 "patch_size": getattr(self, "patch_size", 16),
@@ -1226,6 +1273,8 @@ class Gadgil2023AFAMethod(AFAMethod):
             "value_network_state_dict": self.value_network.state_dict(),
             "predictor_state_dict": self.predictor.state_dict(),
             "architecture": arch,
+            "lambda_threshold": float(self.lambda_threshold),
+            "feature_costs": self._feature_costs.detach().cpu() if self._feature_costs is not None else None
         }
         torch.save(payload, Path(path) / "model.pt")
 

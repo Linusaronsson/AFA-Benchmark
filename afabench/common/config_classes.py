@@ -697,6 +697,18 @@ class PermutationTrainingConfig:
 
 cs.store(name="train_permutation", node=PermutationTrainingConfig)
 
+
+@dataclass
+class ResaveConfig:
+    trained_model_bundle_path: str
+    save_path: str
+
+    device: str
+    soft_budget_param: float
+
+
+cs.store(name="resave", node=ResaveConfig)
+
 # random_dummy
 
 

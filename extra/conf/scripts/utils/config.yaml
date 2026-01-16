@@ -1,0 +1,17 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - hydra: custom
+  - _self_
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+trained_model_bundle_path: ???
+save_path: ???
+
+soft_budget_param: ???
+device: null

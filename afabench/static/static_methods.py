@@ -260,6 +260,8 @@ class DifferentiableSelector(nn.Module):
             restore_parameters(selector_layer, best_selector)
 
         # Copy parameters from best model with zero temperature.
+        assert best_zerotemp_model is not None
+        assert best_zerotemp_selector is not None
         restore_parameters(model, best_zerotemp_model)
         restore_parameters(selector_layer, best_zerotemp_selector)
 

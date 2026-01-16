@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 from typing import override
 
@@ -20,7 +21,7 @@ class Ma2018AFAMethod(AFAMethod):
         predictor,
         num_classes,
         device=torch.device("cpu"),
-        lambda_threshold: float = -float("inf"),
+        lambda_threshold: float | None = None,
         feature_costs: torch.Tensor | None = None,
         num_mc_samples: int = 128,
     ):
@@ -29,7 +30,10 @@ class Ma2018AFAMethod(AFAMethod):
         self.predictor = predictor
         self.num_classes = num_classes
         self._device: torch.device = device
-        self.lambda_threshold = lambda_threshold
+        if lambda_threshold is None:
+            self.lambda_threshold: float = -math.inf
+        else:
+            self.lambda_threshold = lambda_threshold
         self._feature_costs = feature_costs
         self.num_mc_samples = num_mc_samples
 
@@ -168,17 +172,27 @@ class Ma2018AFAMethod(AFAMethod):
         return selections
 
     @classmethod
-    def load(cls, path, device="cpu"):
+    def load(cls, path, device):
         checkpoint = torch.load(
             str(path / "model.pt"), map_location=device, weights_only=False
         )
         sampler = checkpoint["sampler"]
         predictor = checkpoint["predictor"]
         num_classes = checkpoint["num_classes"]
+        lambda_threshold = checkpoint.get("lambda_threshold", None)
+        feature_costs = checkpoint.get("feature_costs", None)
+        if feature_costs is not None:
+            feature_costs = feature_costs.to(device)
 
-        predictor = predictor.to(device)
-        sampler = sampler.to(device)
-        return cls(sampler, predictor, num_classes, device)
+        method = cls(
+            sampler=sampler,
+            predictor=predictor,
+            num_classes=num_classes,
+            device=device,
+            lambda_threshold=lambda_threshold,
+            feature_costs=feature_costs,
+        )
+        return method.to(device)
 
     def save(self, path: Path):
         path.mkdir(parents=True, exist_ok=True)
@@ -187,6 +201,8 @@ class Ma2018AFAMethod(AFAMethod):
                 "sampler": self.sampler,
                 "predictor": self.predictor,
                 "num_classes": self.num_classes,
+                "lambda_threshold": float(self.lambda_threshold),
+                "feature_costs": self._feature_costs.detach().cpu() if self._feature_costs is not None else None
             },
             str(path / "model.pt"),
         )
