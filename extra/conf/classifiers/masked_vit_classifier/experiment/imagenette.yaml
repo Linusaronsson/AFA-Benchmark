@@ -1,0 +1,12 @@
+model_name: "vit_small_patch16_224"
+
+batch_size: 128
+image_size: 224
+patch_size: 16
+
+epochs: 200
+patience: 3
+lr: 1e-5
+min_lr: 1e-8
+min_masking_probability: 0.0
+max_masking_probability: 0.9

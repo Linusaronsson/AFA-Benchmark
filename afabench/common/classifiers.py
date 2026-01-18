@@ -230,8 +230,8 @@ class WrappedMaskedViTClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Label:
         original_device = masked_features.device
         masked_features = masked_features.to(self._device)

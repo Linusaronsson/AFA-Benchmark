@@ -979,12 +979,15 @@ cs.store(
 
 @dataclass
 class TrainMaskedViTClassifierConfig:
-    dataset_artifact_name: str
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    save_path: str
+
     batch_size: int
     epochs: int
     min_masking_probability: float
     max_masking_probability: float
-    only_n_samples: int
+    # only_n_samples: int
 
     model_name: str
     image_size: int
@@ -995,7 +998,8 @@ class TrainMaskedViTClassifierConfig:
     lr: float
     seed: int
     device: str
-    output_artifact_aliases: list[str]
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
 
 
 cs.store(

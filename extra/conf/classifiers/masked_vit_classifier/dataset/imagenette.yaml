@@ -1,9 +1,0 @@
-dataset_artifact_name: "imagenette_split_1:tmp"
-batch_size: 128
-epochs: 200
-min_masking_probability: 0.0
-max_masking_probability: 0.9
-lr: 1e-5
-min_lr: 1e-8
-seed: 42
-device: "cuda"

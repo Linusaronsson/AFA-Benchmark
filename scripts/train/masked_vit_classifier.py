@@ -1,30 +1,20 @@
+import gc
 import logging
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 
 import hydra
 import timm
 import torch
-import wandb
 from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
 
-from afabench.afa_discriminative.utils import MaskLayer2d
-from afabench.common.afa_methods import RandomPatchClassificationAFAMethod
+from afabench.afa_discriminative.utils import MaskLayer2d, afa_discriminative_training_prep
 from afabench.common.classifiers import WrappedMaskedViTClassifier
-from afabench.common.config_classes import (
-    ImagePatchUnmaskerConfig,
-    TrainMaskedViTClassifierConfig,
-)
+from afabench.common.config_classes import TrainMaskedViTClassifierConfig
 from afabench.common.models import MaskedViTClassifier, MaskedViTTrainer
-from afabench.common.unmaskers import ImagePatchUnmasker
-from afabench.common.utils import (
-    load_dataset_artifact,
-    set_seed,
-)
-from afabench.eval.hard_budget import eval_afa_method
-from afabench.eval.utils import plot_metrics
+from afabench.common.utils import set_seed
+from afabench.common.bundle import save_bundle
 
 log = logging.getLogger(__name__)
 
@@ -38,29 +28,26 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     log.info(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
+    device = torch.device(cfg.device)
 
-    run = wandb.init(
-        group="train_masked_vit_classifier",
-        job_type="train_classifier",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore[reportArgumentType]
-        dir="extra/logs/wandb",
-    )
-    log.info(f"W&B run initialized: {run.name} ({run.id})")
-    log.info(f"W&B run URL: {run.url}")
-
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
-        cfg.dataset_artifact_name
+    train_dataset, val_dataset, _, _, _ = (
+        afa_discriminative_training_prep(
+            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            initializer_cfg=cfg.initializer,
+            unmasker_cfg=cfg.unmasker,
+        )
     )
     d_out = train_dataset.label_shape[0]
     train_loader = DataLoader(
-        train_dataset,  # type: ignore
+        train_dataset,  # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
         shuffle=True,
         pin_memory=True,
         drop_last=True,
     )
     val_loader = DataLoader(
-        val_dataset,  # type: ignore
+        val_dataset,  # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
         shuffle=False,
         pin_memory=True,
@@ -73,7 +60,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     mask_layer = MaskLayer2d(
         mask_width=mask_width, patch_size=cfg.patch_size, append=False
     )
-    trainer = MaskedViTTrainer(model, mask_layer).to(cfg.device)
+    trainer = MaskedViTTrainer(model, mask_layer).to(device)
 
     trainer.fit(
         train_loader=train_loader,
@@ -91,61 +78,23 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
 
     wrapped_classifier = WrappedMaskedViTClassifier(
         module=model,
-        device=torch.device(cfg.device),
+        device=device,
         pretrained_model_name=cfg.model_name,
         image_size=cfg.image_size,
         patch_size=cfg.patch_size,
     )
-    unmasker_config = ImagePatchUnmaskerConfig(
-        image_side_length=cfg.image_size,
-        n_channels=3,
-        patch_size=cfg.patch_size,
+    save_bundle(
+        obj=wrapped_classifier,
+        path=Path(cfg.save_path),
+        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
     )
-    afa_uncover_fn = ImagePatchUnmasker(unmasker_config).unmask
-    afa_method = RandomPatchClassificationAFAMethod(
-        afa_classifier=wrapped_classifier,
-        image_side_length=cfg.image_size,
-        patch_size=cfg.patch_size,
-        device=torch.device("cpu"),
-    )
-    metrics = eval_afa_method(
-        afa_action_fn=afa_method.select,
-        dataset=val_dataset,
-        budget=afa_method.n_patches,
-        afa_predict_fn=afa_method.predict,
-        only_n_samples=cfg.only_n_samples,
-        batch_size=cfg.batch_size,
-        device=torch.device(cfg.device),
-        afa_uncover_fn=afa_uncover_fn,
-        patch_size=cfg.patch_size,
-    )
-    fig = plot_metrics(metrics)
-    run.log({"metrics_plot": fig})
 
-    with NamedTemporaryFile(delete=False) as tmp_file:
-        save_path = Path(tmp_file.name)
-        wrapped_classifier.save(save_path)
+    log.info(f"Masked ViT classifier saved to: {cfg.save_path}")
 
-    trained_classifier_artifact = wandb.Artifact(
-        name=f"masked_vit_classifier-{
-            cfg.dataset_artifact_name.split(':')[0]
-        }",
-        type="trained_classifier",
-        metadata={
-            "dataset_type": dataset_metadata["dataset_type"],
-            "seed": cfg.seed,
-            "classifier_class_name": wrapped_classifier.__class__.__name__,
-            "classifier_type": "MaskedViTClassifier",
-            "pretrained_model_name": cfg.model_name,
-            "image_size": cfg.image_size,
-            "patch_size": cfg.patch_size,
-        },
-    )
-    trained_classifier_artifact.add_file(str(save_path), name="classifier.pt")
-    run.log_artifact(
-        trained_classifier_artifact, aliases=cfg.output_artifact_aliases
-    )
-    run.finish()
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
 
 
 if __name__ == "__main__":

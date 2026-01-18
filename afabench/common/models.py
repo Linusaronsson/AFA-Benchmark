@@ -9,6 +9,7 @@ from jaxtyping import Float
 from torch import Tensor, nn, optim
 from torchrl.modules import MLP
 
+from afabench.afa_discriminative.utils import MaskLayer2d
 from afabench.afa_rl.common.utils import (
     mask_data,
 )
@@ -230,10 +231,18 @@ class MaskedViTClassifier(nn.Module):
 
 
 class MaskedViTTrainer(nn.Module):
-    def __init__(self, model: nn.Module, mask_layer):
+    def __init__(self,
+        model: nn.Module,
+        mask_layer: MaskLayer2d
+    ) -> None:
         super().__init__()
         self.model = model
         self.mask_layer = mask_layer
+
+    def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
+        if y.ndim >= 2:
+            return y.argmax(dim=-1).long()
+        return y.long()
 
     def fit(
         self,
@@ -249,9 +258,7 @@ class MaskedViTTrainer(nn.Module):
         min_lr: float = 1e-6,
         min_mask: float = 0.1,
         max_mask: float = 0.9,
-        tag: str = "eval_loss",
     ):
-        wandb.watch(self.model, log="all", log_freq=100)
 
         assert val_loss_fn is not None
         assert val_loss_mode in ["min", "max"]
@@ -273,13 +280,13 @@ class MaskedViTTrainer(nn.Module):
         best_state = None
         best_metric = None
 
-        for epoch in range(nepochs):
+        for _ in range(nepochs):
             model.train()
             total_loss = 0.0
 
-            for x, y in train_loader:
-                x = x.to(device)
-                y = y.to(device)
+            for x_batch, y_batch in train_loader:
+                x = x_batch.to(device)
+                y = self._to_class_indices(y_batch).to(device)
 
                 # Random mask ratio
                 p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
@@ -296,16 +303,16 @@ class MaskedViTTrainer(nn.Module):
 
                 total_loss += loss.item()
 
-            avg_train_loss = total_loss / len(train_loader)
+            # avg_train_loss = total_loss / len(train_loader)
 
             model.eval()
             with torch.no_grad():
                 all_preds, all_labels = [], []
                 correct = 0
                 total = 0
-                for x, y in val_loader:
-                    x = x.to(device)
-                    y = y.to(device)
+                for x_batch, y_batch in val_loader:
+                    x = x_batch.to(device)
+                    y = self._to_class_indices(y_batch).to(device)
                     p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
                     n = self.mask_layer.mask_size
                     m = (torch.rand(x.size(0), n, device=device) < p).float()
@@ -321,16 +328,7 @@ class MaskedViTTrainer(nn.Module):
                 y_full = torch.cat(all_labels)
                 preds_full = torch.cat(all_preds)
                 val_loss = val_loss_fn(preds_full, y_full).item()
-                val_accuracy = correct / total
-
-            wandb.log(
-                {
-                    "train_loss": avg_train_loss,
-                    "val_loss": val_loss,
-                    "val_accuracy": val_accuracy,
-                },
-                step=epoch,
-            )
+                # val_accuracy = correct / total
 
             scheduler.step(val_loss)
 
@@ -340,7 +338,6 @@ class MaskedViTTrainer(nn.Module):
 
         if best_state:
             model.load_state_dict(best_state)
-        wandb.unwatch(self.model)
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         x_masked = self.mask_layer(x, mask)
