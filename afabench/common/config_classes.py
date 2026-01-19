@@ -902,6 +902,7 @@ class AACOConfig:
 class AACOTrainConfig:
     aco: AACOConfig
     dataset_artifact_name: Path
+    unmasker: UnmaskerConfig
     save_path: Path
     classifier_bundle_path: Path | None = (
         None  # Path to pre-trained classifier bundle
@@ -909,7 +910,7 @@ class AACOTrainConfig:
     seed: int = 42
     device: str = "cpu"
     cost_param: float | None = None
-    hard_budget: int | None = None  # None = soft budget mode
+    hard_budget: int | None = None  # If set, use forced acquisition mode
     experiment_id: str | None = None
     initializer_type: str = "aaco"
     unmasker_type: str = "one_based_index"
@@ -923,6 +924,7 @@ class AACONNTrainConfig:
     aaco_bundle_path: Path  # Path to trained AACO method bundle
     dataset_artifact_name: Path  # Training dataset for rollout generation
     classifier_bundle_path: Path  # Path to pre-trained classifier bundle
+    unmasker: UnmaskerConfig
     save_path: Path
     seed: int = 42
     device: str = "cpu"
@@ -939,7 +941,9 @@ class AACONNTrainConfig:
     learning_rate: float = 1e-3
     early_stopping_patience: int = 10
     val_split: float = 0.1  # Fraction of rollout data for validation
-    hard_budget: int | None = None  # Hard budget for the trained policy
+    hard_budget: int | None = (
+        None  # If set, train policy in forced acquisition mode
+    )
     smoke_test: bool = False
 
 

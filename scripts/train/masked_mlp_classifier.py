@@ -10,6 +10,7 @@ from lightning.pytorch.callbacks import ModelCheckpoint
 from afabench.common.models import LitMaskedMLPClassifier
 from afabench.afa_rl.common.dataset_utils import DataModuleFromDatasets
 from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.datasets.utils import flatten_features_collate
 from afabench.common.utils import get_class_frequencies, set_seed
 from afabench.common.classifiers import WrappedMaskedMLPClassifier
 from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
@@ -42,14 +43,19 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     log.info(f"Dataset: {train_manifest['class_name']}")
     log.info(f"Train: {len(train_dataset)}, Val: {len(val_dataset)}")
 
-    datamodule = DataModuleFromDatasets(
-        train_dataset, val_dataset, batch_size=cfg.batch_size
-    )
-
     # Get dimensions (flatten for MLP)
     feature_shape = train_dataset.feature_shape
     n_features = feature_shape.numel()
     n_classes = train_dataset.label_shape[0]
+
+    datamodule = DataModuleFromDatasets(
+        train_dataset,
+        val_dataset,
+        batch_size=cfg.batch_size,
+        collate_fn=flatten_features_collate(
+            n_feature_dims=len(feature_shape)
+        ),
+    )
 
     # Class weights
     _, train_labels = train_dataset.get_all_data()

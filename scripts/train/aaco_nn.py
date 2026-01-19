@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, Protocol, cast
 
 import hydra
 import torch
@@ -10,19 +10,41 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
 
 from afabench.afa_oracle import (
-    AACOAFAMethod,
     AACOPolicyNetwork,
     create_aaco_nn_method,
     generate_aaco_rollouts,
 )
+from afabench.afa_oracle.afa_methods import AACOAFAMethod
 from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.config_classes import AACONNTrainConfig
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import set_seed
 
-if TYPE_CHECKING:
-    from afabench.common.config_classes import AACONNTrainConfig
-    from afabench.common.custom_types import AFAClassifier
-
 log = logging.getLogger(__name__)
+
+
+class _Unmasker(Protocol):
+    def get_n_selections(self, feature_shape: torch.Size) -> int: ...
+
+
+class _Classifier(Protocol):
+    def __call__(
+        self,
+        masked_features: torch.Tensor,
+        feature_mask: torch.Tensor,
+        label: torch.Tensor | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> torch.Tensor: ...
+
+    def save(self, path: Path) -> None: ...
+
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> _Classifier: ...
+
+    def to(self, device: torch.device) -> _Classifier: ...
+
+    @property
+    def device(self) -> torch.device: ...
 
 
 def _run_train_epoch(
@@ -151,32 +173,30 @@ def _create_data_loaders(
     return train_loader, val_loader, len(train_dataset), len(val_dataset)
 
 
-@hydra.main(
-    version_base=None,
-    config_path="../../extra/conf/scripts/train/aaco_nn",
-    config_name="config",
-)
-def main(cfg: AACONNTrainConfig) -> None:
-    log.debug(cfg)
-    set_seed(cfg.seed)
-    torch.set_float32_matmul_precision("medium")
-    device = torch.device(cfg.device)
-
-    # Handle smoke test
+def _configure_smoke_test(cfg: AACONNTrainConfig) -> None:
     if cfg.smoke_test:
         log.info("Smoke test mode: reducing training samples and epochs")
         cfg.max_epochs = 2
         cfg.batch_size = min(cfg.batch_size, 32)
 
-    # Load AACO method
+
+def _load_aaco_method(
+    cfg: AACONNTrainConfig, device: torch.device
+) -> tuple[AACOAFAMethod, bool]:
     log.info(f"Loading AACO method from {cfg.aaco_bundle_path}...")
     aaco_method, _aaco_manifest = load_bundle(
         Path(cfg.aaco_bundle_path), device=device
     )
-    aaco_method = cast("AACOAFAMethod", cast("object", aaco_method))
+    assert isinstance(aaco_method, AACOAFAMethod)
     log.info("Loaded AACO method")
+    force_acquisition = cfg.hard_budget is not None
+    aaco_method.force_acquisition = force_acquisition
+    return aaco_method, force_acquisition
 
-    # Load dataset for rollout generation
+
+def _load_rollout_dataset(
+    cfg: AACONNTrainConfig,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Size, str, int | None]:
     log.info(f"Loading dataset from {cfg.dataset_artifact_name}...")
     dataset_obj, dataset_manifest = load_bundle(
         Path(cfg.dataset_artifact_name)
@@ -185,38 +205,95 @@ def main(cfg: AACONNTrainConfig) -> None:
         dataset_manifest["class_name"].replace("Dataset", "").lower()
     )
     split = dataset_manifest["metadata"].get("split_idx", None)
-
     dataset: Any = dataset_obj
-    X_train, y_train = dataset.get_all_data()
-    feature_shape = dataset.feature_shape
+    x_train, y_train = dataset.get_all_data()
+    return x_train, y_train, dataset.feature_shape, dataset_name, split
+
+
+def _prepare_rollout_data(
+    cfg: AACONNTrainConfig,
+    x_train: torch.Tensor,
+    y_train: torch.Tensor,
+    feature_shape: torch.Size,
+    unmasker: _Unmasker,
+) -> tuple[torch.Tensor, torch.Tensor, int, int, int]:
+    selection_size = unmasker.get_n_selections(feature_shape=feature_shape)
     if len(feature_shape) > 1:
-        X_train = X_train.view(X_train.shape[0], -1)
+        x_train = x_train.view(x_train.shape[0], -1)
         log.info(
-            f"Flattened features from {feature_shape} to {X_train.shape[1]}"
+            f"Flattened features from {feature_shape} to {x_train.shape[1]}"
         )
 
-    # Limit samples in smoke test mode
     if cfg.smoke_test:
-        max_samples = min(100, len(X_train))
-        X_train = X_train[:max_samples]
+        max_samples = min(100, len(x_train))
+        x_train = x_train[:max_samples]
         y_train = y_train[:max_samples]
         log.info(f"Smoke test: using only {max_samples} samples for rollouts")
 
-    n_features = X_train.shape[1]
+    n_features = x_train.shape[1]
     n_classes = y_train.shape[1]
     log.info(
-        f"Dataset: {len(X_train)} samples, {n_features} features, {
-            n_classes
-        } classes"
+        "Dataset: %s samples, %s features, %s classes",
+        len(x_train),
+        n_features,
+        n_classes,
     )
+    return x_train, y_train, selection_size, n_features, n_classes
+
+
+def _resolve_rollout_max(cfg: AACONNTrainConfig) -> int | None:
+    if cfg.max_acquisitions is not None:
+        return cfg.max_acquisitions
+    if cfg.hard_budget is not None:
+        return int(cfg.hard_budget)
+    return None
+
+
+def _load_classifier(
+    cfg: AACONNTrainConfig, device: torch.device
+) -> _Classifier:
+    log.info(f"Loading classifier from {cfg.classifier_bundle_path}...")
+    classifier, _ = load_bundle(
+        Path(cfg.classifier_bundle_path), device=device
+    )
+    classifier = cast("_Classifier", cast("object", classifier))
+    log.info("Loaded classifier")
+    return classifier
+
+
+@hydra.main(
+    version_base=None,
+    config_path="../../extra/conf/scripts/train/aaco_nn",
+    config_name="config",
+)
+def main(cfg: AACONNTrainConfig) -> None:
+    assert isinstance(cfg, AACONNTrainConfig)
+    log.debug(cfg)
+    set_seed(cfg.seed)
+    torch.set_float32_matmul_precision("medium")
+    device = torch.device(cfg.device)
+
+    _configure_smoke_test(cfg)
+    aaco_method, force_acquisition = _load_aaco_method(cfg, device)
+    x_train, y_train, feature_shape, dataset_name, split = (
+        _load_rollout_dataset(cfg)
+    )
+    unmasker = get_afa_unmasker_from_config(cfg.unmasker)
+    x_train, y_train, selection_size, n_features, n_classes = (
+        _prepare_rollout_data(cfg, x_train, y_train, feature_shape, unmasker)
+    )
+    rollout_max_acquisitions = _resolve_rollout_max(cfg)
 
     # Generate rollouts from AACO oracle
     log.info("Generating AACO rollouts...")
+    aaco_method.set_exclude_instance(True)
     masked_features, feature_masks, actions = generate_aaco_rollouts(
         aaco_method=aaco_method,
-        features=X_train,
+        features=x_train,
         labels=y_train,
-        max_acquisitions=cfg.max_acquisitions,
+        feature_shape=feature_shape,
+        unmasker=unmasker,
+        max_acquisitions=rollout_max_acquisitions,
         device=device,
     )
     log.info(f"Generated {len(actions)} state-action pairs")
@@ -233,7 +310,7 @@ def main(cfg: AACONNTrainConfig) -> None:
     log.info(f"Train: {n_train} samples, Val: {n_val} samples")
 
     # Create policy network
-    n_actions = n_features + 1  # n_features + stop action
+    n_actions = selection_size + 1  # selection_size + stop action
     policy_network = AACOPolicyNetwork(
         n_features=n_features,
         n_actions=n_actions,
@@ -255,20 +332,15 @@ def main(cfg: AACONNTrainConfig) -> None:
     )
     log.info("Training complete")
 
-    # Load classifier for the AACO+NN method
-    log.info(f"Loading classifier from {cfg.classifier_bundle_path}...")
-    classifier, _ = load_bundle(
-        Path(cfg.classifier_bundle_path), device=device
-    )
-    classifier = cast("AFAClassifier", cast("object", classifier))
-    log.info("Loaded classifier")
+    classifier = _load_classifier(cfg, device)
 
     # Create AACO+NN method
     aaco_nn_method = create_aaco_nn_method(
         policy_network=policy_network,
         classifier=classifier,
         dataset_name=dataset_name,
-        hard_budget=cfg.hard_budget,
+        classifier_bundle_path=Path(cfg.classifier_bundle_path),
+        force_acquisition=force_acquisition,
         device=device,
     )
 
@@ -284,11 +356,15 @@ def main(cfg: AACONNTrainConfig) -> None:
             "split_idx": split,
             "seed": cfg.seed,
             "hard_budget": cfg.hard_budget,
-            "max_acquisitions": cfg.max_acquisitions,
-            "hidden_dims": cfg.hidden_dims,
+            "force_acquisition": force_acquisition,
+            "max_acquisitions": rollout_max_acquisitions,
+            "hidden_dims": list(
+                cfg.hidden_dims
+            ),  # Convert OmegaConf ListConfig to list
             "dropout": cfg.dropout,
             "n_features": n_features,
             "n_classes": n_classes,
+            "selection_size": selection_size,
             "n_rollout_samples": len(actions),
         },
     )

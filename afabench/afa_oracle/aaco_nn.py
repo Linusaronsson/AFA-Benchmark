@@ -1,42 +1,129 @@
-"""
-AACO+NN: Neural network approximation of AACO via behavioral cloning.
-
-This module implements the AACO+NN approach from Valancius et al. 2024 (Section 3.5),
-which trains a neural network to imitate the AACO oracle for faster inference.
-
-The approach:
-1. Generate expert rollouts from a trained AACO oracle
-2. Collect (state, action) pairs from these rollouts
-3. Train a policy network via behavioral cloning (supervised learning)
-4. At inference time, use the fast NN policy instead of the expensive KNN oracle
-"""
-
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Self, final, override
+from typing import Self, cast, final, override
 
 import torch
 import torch.nn.functional as F
 from torch import nn
 
+from afabench.afa_oracle.afa_methods import AACOAFAMethod
+from afabench.afa_oracle.utils import (
+    compute_patch_selection_mask,
+    flatten_for_aaco,
+)
+from afabench.common.bundle import load_bundle
 from afabench.common.custom_types import (
     AFAAction,
     AFAClassifier,
     AFAMethod,
+    AFAUnmasker,
     FeatureMask,
     Label,
     MaskedFeatures,
     SelectionMask,
 )
+from afabench.common.initializers.aaco_default_initializer import (
+    AACODefaultInitializer,
+)
 
 logger = logging.getLogger(__name__)
 
 
+def _build_selection_mask(
+    feature_mask_structured: torch.Tensor,
+    selection_size: int,
+    feature_shape: torch.Size,
+    device: torch.device,
+) -> torch.Tensor:
+    feature_mask_flat = feature_mask_structured.reshape(-1)
+    if selection_size == feature_mask_flat.numel():
+        return feature_mask_flat.bool().clone()
+    if (
+        len(feature_shape) in (2, 3)
+        and selection_size < feature_mask_flat.numel()
+    ):
+        return compute_patch_selection_mask(
+            feature_mask_structured, selection_size, feature_shape
+        ).squeeze(0)
+    return torch.zeros(selection_size, dtype=torch.bool, device=device)
+
+
+def _init_rollout_state(
+    x_flat: torch.Tensor,
+    feature_shape: torch.Size,
+    selection_size: int,
+    initializer: AACODefaultInitializer,
+    device: torch.device,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    x_view = x_flat.view(feature_shape) if len(feature_shape) > 1 else x_flat
+    feature_mask_structured = initializer.initialize(
+        features=x_view.unsqueeze(0),
+        label=None,
+        feature_shape=feature_shape,
+    ).squeeze(0)
+    masked_features_structured = x_view * feature_mask_structured.float()
+    feature_mask_flat = feature_mask_structured.reshape(-1)
+    masked_features_flat = masked_features_structured.reshape(-1)
+    selection_mask = _build_selection_mask(
+        feature_mask_structured, selection_size, feature_shape, device
+    )
+    return (
+        x_view,
+        feature_mask_structured,
+        masked_features_structured,
+        feature_mask_flat,
+        masked_features_flat,
+        selection_mask,
+    )
+
+
+def _apply_selection(
+    selection_idx: int,
+    *,
+    x_view: torch.Tensor,
+    selection_mask: torch.Tensor,
+    feature_mask_structured: torch.Tensor,
+    masked_features_structured: torch.Tensor,
+    unmasker: AFAUnmasker,
+    feature_shape: torch.Size,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    selection_mask[selection_idx] = True
+    new_feature_mask_structured = unmasker.unmask(
+        masked_features=masked_features_structured.unsqueeze(0),
+        feature_mask=feature_mask_structured.unsqueeze(0),
+        features=x_view.unsqueeze(0),
+        afa_selection=torch.tensor([[selection_idx]], device=device),
+        selection_mask=selection_mask.unsqueeze(0),
+        label=None,
+        feature_shape=feature_shape,
+    ).squeeze(0)
+    feature_mask_structured = new_feature_mask_structured
+    masked_features_structured = x_view * feature_mask_structured.float()
+    feature_mask_flat = feature_mask_structured.reshape(-1)
+    masked_features_flat = masked_features_structured.reshape(-1)
+    return (
+        feature_mask_structured,
+        masked_features_structured,
+        feature_mask_flat,
+        masked_features_flat,
+    )
+
+
 def generate_aaco_rollouts(
-    aaco_method: "AFAMethod",
+    aaco_method: AACOAFAMethod,
     features: torch.Tensor,
     labels: torch.Tensor,
+    feature_shape: torch.Size | None = None,
+    unmasker: AFAUnmasker | None = None,
     max_acquisitions: int | None = None,
     device: torch.device | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -50,6 +137,8 @@ def generate_aaco_rollouts(
         aaco_method: Trained AACOAFAMethod instance
         features: Training features (N x d)
         labels: Training labels (N x n_classes), one-hot encoded
+        feature_shape: Shape of features excluding batch dim
+        unmasker: Unmasker to apply selections
         max_acquisitions: Maximum acquisitions per sample (None = until oracle stops)
         device: Device to use
 
@@ -62,8 +151,17 @@ def generate_aaco_rollouts(
     del labels  # Unused, kept for API compatibility
     if device is None:
         device = features.device
+    assert isinstance(aaco_method, AACOAFAMethod)
 
     n_samples, n_features = features.shape
+    if feature_shape is None:
+        feature_shape = torch.Size([n_features])
+
+    assert unmasker is not None, (
+        "AACO+NN rollouts require an unmasker to apply selections."
+    )
+
+    selection_size = unmasker.get_n_selections(feature_shape=feature_shape)
 
     # Lists to collect rollout data
     all_masked_features = []
@@ -72,36 +170,46 @@ def generate_aaco_rollouts(
 
     logger.info(f"Generating rollouts for {n_samples} samples...")
 
+    initializer = AACODefaultInitializer(aaco_method.dataset_name)
+
     for i in range(n_samples):
-        x = features[i].to(device)
-
-        # Initialize with first feature (following AACODefaultInitializer)
-        # Start with feature 0 observed
-        feature_mask = torch.zeros(n_features, dtype=torch.bool, device=device)
-        feature_mask[0] = True
-        masked_features = x * feature_mask.float()
-
-        n_acquired = 1
+        x_flat = features[i].to(device)
+        (
+            x_view,
+            feature_mask_structured,
+            masked_features_structured,
+            feature_mask_flat,
+            masked_features_flat,
+            selection_mask,
+        ) = _init_rollout_state(
+            x_flat,
+            feature_shape,
+            selection_size,
+            initializer,
+            device,
+        )
+        n_acquired = int(selection_mask.sum().item())
         while True:
             # Check budget limit
             if max_acquisitions is not None and n_acquired >= max_acquisitions:
                 # Forced stop at budget
-                all_masked_features.append(masked_features.clone())
-                all_feature_masks.append(feature_mask.clone())
+                all_masked_features.append(masked_features_flat.clone())
+                all_feature_masks.append(feature_mask_flat.clone())
                 all_actions.append(
                     torch.tensor(0, device=device)
                 )  # Stop action
                 break
 
             # Record current state
-            all_masked_features.append(masked_features.clone())
-            all_feature_masks.append(feature_mask.clone())
+            all_masked_features.append(masked_features_flat.clone())
+            all_feature_masks.append(feature_mask_flat.clone())
 
             # Get AACO's action
             action = aaco_method.act(
-                masked_features=masked_features.unsqueeze(0),
-                feature_mask=feature_mask.float().unsqueeze(0),
-                feature_shape=torch.Size([n_features]),
+                masked_features=masked_features_flat.unsqueeze(0),
+                feature_mask=feature_mask_flat.float().unsqueeze(0),
+                selection_mask=selection_mask.unsqueeze(0),
+                feature_shape=feature_shape,
             )
             action_val = action.item()
 
@@ -113,10 +221,23 @@ def generate_aaco_rollouts(
                 break
 
             # Apply action (acquire the feature)
-            feature_idx = int(action_val) - 1  # Convert 1-indexed to 0-indexed
-            feature_mask[feature_idx] = True
-            masked_features = x * feature_mask.float()
-            n_acquired += 1
+            selection_idx = int(action_val) - 1
+            (
+                feature_mask_structured,
+                masked_features_structured,
+                feature_mask_flat,
+                masked_features_flat,
+            ) = _apply_selection(
+                selection_idx,
+                x_view=x_view,
+                selection_mask=selection_mask,
+                feature_mask_structured=feature_mask_structured,
+                masked_features_structured=masked_features_structured,
+                unmasker=unmasker,
+                feature_shape=feature_shape,
+                device=device,
+            )
+            n_acquired = int(selection_mask.sum().item())
 
         if (i + 1) % 1000 == 0:
             logger.info(
@@ -129,7 +250,9 @@ def generate_aaco_rollouts(
     all_actions = torch.stack(all_actions)
 
     logger.info(
-        f"Generated {len(all_actions)} state-action pairs from {n_samples} samples"
+        "Generated %s state-action pairs from %s samples",
+        len(all_actions),
+        n_samples,
     )
     logger.info(
         f"  Average steps per sample: {len(all_actions) / n_samples:.2f}"
@@ -214,20 +337,17 @@ class AACONNAFAMethod(AFAMethod):
     policy_network: AACOPolicyNetwork
     classifier: AFAClassifier
     dataset_name: str
+    classifier_bundle_path: Path | None = None
     _device: torch.device = field(
         default_factory=lambda: torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
     )
-    _hard_budget: int | None = None
+    force_acquisition: bool = False
 
     def __post_init__(self):
         """Move to device after initialization."""
         self.policy_network = self.policy_network.to(self._device)
-
-    def set_hard_budget(self, budget: int | None) -> None:
-        """Set hard budget. None = soft budget mode."""
-        self._hard_budget = budget
 
     @override
     def act(
@@ -253,25 +373,15 @@ class AACONNAFAMethod(AFAMethod):
             - 0 = stop acquiring
             - 1 to N = 1-indexed feature to acquire
         """
-        del selection_mask, label  # Unused
+        del label  # Unused
         original_device = masked_features.device
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        # Flatten features if needed
-        batch_shape = (
-            feature_mask.shape[:-1]
-            if feature_shape is None
-            else feature_mask.shape[: -len(feature_shape)]
+        masked_features, feature_mask, batch_shape = flatten_for_aaco(
+            masked_features, feature_mask, feature_shape
         )
-        if feature_shape is not None:
-            n_features = feature_shape.numel()
-            masked_features = masked_features.view(-1, n_features)
-            feature_mask = feature_mask.view(-1, n_features)
-        else:
-            n_features = masked_features.shape[-1]
-            masked_features = masked_features.view(-1, n_features)
-            feature_mask = feature_mask.view(-1, n_features)
+        n_features = masked_features.shape[-1]
 
         # Get policy network predictions
         self.policy_network.eval()
@@ -282,21 +392,42 @@ class AACONNAFAMethod(AFAMethod):
         # Apply mask to already-acquired features (can't re-acquire)
         # Action 0 = stop, actions 1-n = acquire feature 0 to n-1
         # Set logits to -inf for already acquired features
-        acquired_mask = feature_mask.bool()
-        # Shift by 1 because action 0 is stop
+        selection_size = self.policy_network.n_actions - 1
+        selection_mask_flat = (
+            selection_mask.view(-1, selection_size).bool()
+            if selection_mask is not None
+            else None
+        )
+
+        if selection_size == n_features:
+            acquired_mask = feature_mask.bool()
+        elif (
+            feature_shape is not None
+            and len(feature_shape) in (2, 3)
+            and selection_size < n_features
+        ):
+            fm = feature_mask.view(-1, *feature_shape)
+            acquired_mask = compute_patch_selection_mask(
+                fm, selection_size, feature_shape
+            )
+        else:
+            acquired_mask = torch.zeros(
+                (masked_features.shape[0], selection_size),
+                dtype=torch.bool,
+                device=self._device,
+            )
+
+        if selection_mask_flat is not None:
+            acquired_mask = acquired_mask | selection_mask_flat
+
         action_logits[:, 1:][acquired_mask] = float("-inf")
+
+        if self.force_acquisition:
+            has_available = ~acquired_mask.all(dim=-1)
+            action_logits[has_available, 0] = float("-inf")
 
         # Select best action
         actions = action_logits.argmax(dim=-1)
-
-        # Handle hard budget
-        if self._hard_budget is not None:
-            n_acquired = feature_mask.sum(dim=-1)
-            at_budget = n_acquired >= self._hard_budget
-            # Force stop if at budget
-            actions = torch.where(
-                at_budget, torch.zeros_like(actions), actions
-            )
 
         # Reshape to match batch shape
         return actions.view(*batch_shape, 1).to(original_device)
@@ -326,18 +457,9 @@ class AACONNAFAMethod(AFAMethod):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        # Flatten if needed
-        if feature_shape is not None:
-            batch_shape = feature_mask.shape[: -len(feature_shape)]
-            n_features = feature_shape.numel()
-            masked_features_flat = masked_features.view(-1, n_features)
-            feature_mask_flat = feature_mask.view(-1, n_features)
-        else:
-            batch_shape = feature_mask.shape[:-1]
-            masked_features_flat = masked_features.view(
-                -1, masked_features.shape[-1]
-            )
-            feature_mask_flat = feature_mask.view(-1, feature_mask.shape[-1])
+        masked_features_flat, feature_mask_flat, batch_shape = (
+            flatten_for_aaco(masked_features, feature_mask, feature_shape)
+        )
 
         # Get classifier predictions
         with torch.no_grad():
@@ -373,12 +495,12 @@ class AACONNAFAMethod(AFAMethod):
             "n_features": self.policy_network.n_features,
             "n_actions": self.policy_network.n_actions,
             "dataset_name": self.dataset_name,
-            "hard_budget": self._hard_budget,
+            "force_acquisition": self.force_acquisition,
+            "classifier_bundle_path": str(self.classifier_bundle_path)
+            if self.classifier_bundle_path is not None
+            else None,
         }
         torch.save(state, path / f"aaco_nn_{self.dataset_name}.pt")
-
-        # Save classifier reference (assumed to be saved separately)
-        # The classifier bundle path should be provided during training
         logger.info(f"Saved AACO+NN method to {path}")
 
     @classmethod
@@ -395,7 +517,9 @@ class AACONNAFAMethod(AFAMethod):
             msg = f"No AACO+NN files found in {path}"
             raise FileNotFoundError(msg)
 
-        state = torch.load(nn_files[0], map_location=device)
+        state = torch.load(
+            nn_files[0], map_location=device, weights_only=False
+        )
 
         # Reconstruct policy network
         policy_network = AACOPolicyNetwork(
@@ -404,11 +528,30 @@ class AACONNAFAMethod(AFAMethod):
         )
         policy_network.load_state_dict(state["policy_network_state_dict"])
 
-        # Load classifier (needs classifier_bundle_path in manifest)
-        # For now, we'll require it to be passed during method creation
-        # TODO: Save and load classifier path like in AACOAFAMethod
-        msg = "AACO+NN loading requires classifier. Use create_aaco_nn_method() instead."
-        raise NotImplementedError(msg)
+        # Load classifier from saved bundle path
+        classifier_bundle_path = state.get("classifier_bundle_path")
+        assert classifier_bundle_path is not None, (
+            "AACO+NN loading requires classifier_bundle_path in saved state."
+        )
+
+        classifier_bundle_path = Path(classifier_bundle_path)
+        classifier, _ = load_bundle(classifier_bundle_path, device=device)
+        classifier = cast("AFAClassifier", cast("object", classifier))
+
+        force_acquisition = state.get("force_acquisition")
+        if force_acquisition is None:
+            force_acquisition = state.get("hard_budget") is not None
+
+        method = cls(
+            policy_network=policy_network,
+            classifier=classifier,
+            dataset_name=state["dataset_name"],
+            classifier_bundle_path=classifier_bundle_path,
+            force_acquisition=force_acquisition,
+            _device=device,
+        )
+
+        return method
 
     @override
     def to(self, device: torch.device) -> Self:
@@ -428,7 +571,9 @@ def create_aaco_nn_method(
     policy_network: AACOPolicyNetwork,
     classifier: AFAClassifier,
     dataset_name: str,
-    hard_budget: int | None = None,
+    classifier_bundle_path: Path | None = None,
+    *,
+    force_acquisition: bool = False,
     device: torch.device | None = None,
 ) -> AACONNAFAMethod:
     """
@@ -438,7 +583,8 @@ def create_aaco_nn_method(
         policy_network: Trained policy network
         classifier: Classifier for predictions
         dataset_name: Name of dataset
-        hard_budget: Max features to acquire (None = soft budget)
+        classifier_bundle_path: Path to classifier bundle (for save/load)
+        force_acquisition: If True, never stop early (hard budget mode)
         device: Device to use
 
     Returns:
@@ -451,6 +597,7 @@ def create_aaco_nn_method(
         policy_network=policy_network,
         classifier=classifier,
         dataset_name=dataset_name,
+        classifier_bundle_path=classifier_bundle_path,
+        force_acquisition=force_acquisition,
         _device=device,
-        _hard_budget=hard_budget,
     )

@@ -34,7 +34,7 @@ UNMASKERS = UNMASKERS_RAW | {
     if dataset not in UNMASKERS_RAW
 }
 
-# Hard budgets for evaluation (AACO uses soft budget during training)
+# Hard budgets for evaluation and hard-budget training
 HARD_BUDGETS_RAW = config.get("hard_budgets", None)
 if HARD_BUDGETS_RAW is None:
     raise ValueError("Expected hard_budgets to be provided.")
@@ -56,11 +56,26 @@ COST_PARAMS = COST_PARAMS_RAW | {
 
 # Whether to also train AACO+NN
 TRAIN_AACO_NN = config.get("train_aaco_nn", False)
+# Whether to evaluate soft budgets (hard_budget=null with cost_param metadata)
+SOFT_BUDGET_EVAL = config.get("soft_budget_eval", False)
+
+# Hard budget settings for training
+TRAIN_HARD_BUDGETS = {
+    dataset: (
+        (["null"] if SOFT_BUDGET_EVAL else []) + HARD_BUDGETS[dataset]
+    )
+    for dataset in DATASETS
+}
 
 # Methods to include in final output
 AACO_METHODS = ["aaco"]
 if TRAIN_AACO_NN:
     AACO_METHODS.append("aaco_nn")
+
+
+def _normalize_dataset_name(dataset: str) -> str:
+    name = dataset.replace("_without_noise", "")
+    return name.replace("_", "")
 
 
 # ============================================================================
@@ -94,11 +109,13 @@ rule train_aaco_all:
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"train_seed-{dataset_instance_idx}+"
+                        f"train_hard_budget-{train_hard_budget}+"
                         f"cost_param-{cost_param}.bundle"
             )
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for cost_param in COST_PARAMS[dataset]
+            for train_hard_budget in TRAIN_HARD_BUDGETS[dataset]
         ]
 
 
@@ -110,11 +127,13 @@ rule train_aaco_nn_all:
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"train_seed-{dataset_instance_idx}+"
+                        f"train_hard_budget-{train_hard_budget}+"
                         f"cost_param-{cost_param}.bundle"
             )
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for cost_param in COST_PARAMS[dataset]
+            for train_hard_budget in TRAIN_HARD_BUDGETS[dataset]
         ] if TRAIN_AACO_NN else []
 
 
@@ -163,8 +182,11 @@ rule train_aaco:
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
                     "cost_param-{cost_param}.bundle"
         ),
+    params:
+        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
     shell:
         """
         python scripts/train/aaco.py \
@@ -172,7 +194,8 @@ rule train_aaco:
             classifier_bundle_path={input.classifier} \
             save_path={output} \
             cost_param={wildcards.cost_param} \
-            hard_budget=null \
+            hard_budget={wildcards.train_hard_budget} \
+            components/unmaskers@unmasker={params.unmasker} \
             device={DEVICE} \
             seed={wildcards.train_seed} \
             smoke_test={SMOKE_TEST}
@@ -188,6 +211,7 @@ rule train_aaco_nn:
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
                     "cost_param-{cost_param}.bundle"
         ),
         classifier=(
@@ -202,8 +226,11 @@ rule train_aaco_nn:
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
                     "cost_param-{cost_param}.bundle"
         ),
+    params:
+        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
     shell:
         """
         python scripts/train/aaco_nn.py \
@@ -211,7 +238,8 @@ rule train_aaco_nn:
             dataset_artifact_name={input.train} \
             classifier_bundle_path={input.classifier} \
             save_path={output} \
-            hard_budget=null \
+            hard_budget={wildcards.train_hard_budget} \
+            components/unmaskers@unmasker={params.unmasker} \
             device={DEVICE} \
             seed={wildcards.train_seed} \
             smoke_test={SMOKE_TEST}
@@ -231,6 +259,7 @@ rule eval_aaco_method:
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
+                    "train_hard_budget-{eval_hard_budget}+"
                     "cost_param-{cost_param}.bundle"
         ),
     output:
@@ -244,11 +273,15 @@ rule eval_aaco_method:
                         "eval_data.csv",
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        initializer_dataset_name=lambda wildcards: _normalize_dataset_name(
+            wildcards.dataset
+        ),
     shell:
         """
         python scripts/eval/eval_afa_method.py \
             method_bundle_path={input.method} \
             components/initializers@initializer={INITIALIZER} \
+            initializer.kwargs.dataset_name={params.initializer_dataset_name} \
             components/unmaskers@unmasker={params.unmasker} \
             dataset_bundle_path={input.dataset} \
             save_path={output} \
@@ -260,6 +293,48 @@ rule eval_aaco_method:
             smoke_test={SMOKE_TEST}
         """
 
+rule eval_aaco_method_soft:
+    """Evaluate an AACO-based method in soft budget mode."""
+    input:
+        dataset=lambda wc: f"{DATASET_PATH_PREFIX}/{wc.dataset}/{wc.dataset_instance_idx}/{EVAL_DATASET_SPLIT}.bundle",
+        method=(
+            "extra/output/trained_methods/{method}/"
+                "dataset-{dataset}+"
+                "instance_idx-{dataset_instance_idx}/"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-null+"
+                    "cost_param-{cost_param}.bundle"
+        ),
+    output:
+        "extra/output/eval_results_soft/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "cost_param-{cost_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-null/"
+                        "eval_data.csv",
+    params:
+        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        initializer_dataset_name=lambda wildcards: _normalize_dataset_name(
+            wildcards.dataset
+        ),
+    shell:
+        """
+        python scripts/eval/eval_afa_method.py \
+            method_bundle_path={input.method} \
+            components/initializers@initializer={INITIALIZER} \
+            initializer.kwargs.dataset_name={params.initializer_dataset_name} \
+            components/unmaskers@unmasker={params.unmasker} \
+            dataset_bundle_path={input.dataset} \
+            save_path={output} \
+            classifier_bundle_path=null \
+            seed={wildcards.eval_seed} \
+            device={DEVICE} \
+            hard_budget=null \
+            use_wandb={USE_WANDB} \
+            smoke_test={SMOKE_TEST}
+        """
 
 # ============================================================================
 # POST-PROCESSING RULES
@@ -290,6 +365,30 @@ rule count_selections:
         python scripts/misc/transform_eval_data.py count_selections {input} {output}
         """
 
+rule count_selections_soft:
+    """Convert prev_selections_performed list to selections_performed count."""
+    input:
+        "extra/output/eval_results_soft/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "cost_param-{cost_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-null/"
+                        "eval_data.csv",
+    output:
+        "extra/output/eval_results_soft2/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "cost_param-{cost_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-null/"
+                        "eval_data.csv",
+    shell:
+        """
+        python scripts/misc/transform_eval_data.py count_selections {input} {output}
+        """
 
 rule add_metadata_to_eval_data:
     """Add training and evaluation metadata columns."""
@@ -322,6 +421,36 @@ rule add_metadata_to_eval_data:
             --col soft_budget_param=""
         """
 
+rule add_metadata_to_eval_data_soft:
+    """Add training and evaluation metadata columns."""
+    input:
+        "extra/output/eval_results_soft2/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "cost_param-{cost_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-null/"
+                        "eval_data.csv",
+    output:
+        "extra/output/eval_results_soft3/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "cost_param-{cost_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-null/"
+                        "eval_data.csv",
+    shell:
+        """
+        python scripts/misc/transform_eval_data.py add_metadata {input} {output} \
+            --col afa_method={wildcards.method} \
+            --col dataset={wildcards.dataset} \
+            --col train_seed={wildcards.train_seed} \
+            --col cost_param={wildcards.cost_param} \
+            --col hard_budget="" \
+            --col soft_budget_param={wildcards.cost_param}
+        """
 
 rule pivot_long_classifier:
     """Pivot classifier predictions to tidy format."""
@@ -348,6 +477,30 @@ rule pivot_long_classifier:
         python scripts/misc/transform_eval_data.py pivot_long_classifier {input} {output}
         """
 
+rule pivot_long_classifier_soft:
+    """Pivot classifier predictions to tidy format."""
+    input:
+        "extra/output/eval_results_soft3/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "cost_param-{cost_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-null/"
+                        "eval_data.csv",
+    output:
+        "extra/output/eval_results_soft4/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "train_seed-{train_seed}+"
+                "cost_param-{cost_param}/"
+                    "eval_seed-{eval_seed}+"
+                    "eval_hard_budget-null/"
+                        "eval_data.csv",
+    shell:
+        """
+        python scripts/misc/transform_eval_data.py pivot_long_classifier {input} {output}
+        """
 
 # ============================================================================
 # MERGE AND PLOT
@@ -356,23 +509,45 @@ rule pivot_long_classifier:
 rule merge_eval:
     """Merge all evaluation results into a single CSV."""
     input:
-        [
-            (
-                f"extra/output/eval_results4/{method}/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"train_seed-{dataset_instance_idx}+"
-                        f"cost_param-{cost_param}/"
-                            f"eval_seed-{dataset_instance_idx}+"
-                            f"eval_hard_budget-{hard_budget}/"
-                                f"eval_data.csv"
+        (
+            [
+                (
+                    f"extra/output/eval_results4/{method}/"
+                        f"dataset-{dataset}+"
+                        f"instance_idx-{dataset_instance_idx}/"
+                            f"train_seed-{dataset_instance_idx}+"
+                            f"cost_param-{cost_param}/"
+                                f"eval_seed-{dataset_instance_idx}+"
+                                f"eval_hard_budget-{hard_budget}/"
+                                    f"eval_data.csv"
+                )
+                for method in AACO_METHODS
+                for dataset in DATASETS
+                for dataset_instance_idx in DATASET_INSTANCE_INDICES
+                for cost_param in COST_PARAMS[dataset]
+                for hard_budget in HARD_BUDGETS[dataset]
+            ]
+            + (
+                [
+                    (
+                        f"extra/output/eval_results_soft4/{method}/"
+                            f"dataset-{dataset}+"
+                            f"instance_idx-{dataset_instance_idx}/"
+                                f"train_seed-{dataset_instance_idx}+"
+                                f"cost_param-{cost_param}/"
+                                    f"eval_seed-{dataset_instance_idx}+"
+                                    f"eval_hard_budget-null/"
+                                        f"eval_data.csv"
+                    )
+                    for method in AACO_METHODS
+                    for dataset in DATASETS
+                    for dataset_instance_idx in DATASET_INSTANCE_INDICES
+                    for cost_param in COST_PARAMS[dataset]
+                ]
+                if SOFT_BUDGET_EVAL
+                else []
             )
-            for method in AACO_METHODS
-            for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for cost_param in COST_PARAMS[dataset]
-            for hard_budget in HARD_BUDGETS[dataset]
-        ]
+        )
     output:
         "extra/output/merged_eval_results/AACO.csv",
     shell:
@@ -389,5 +564,5 @@ rule plot:
         directory("extra/output/plot_results/AACO"),
     shell:
         """
-        python scripts/plotting/plot_eval.py {input} {output}
+        python scripts/plotting/plot_eval.py -i {input} {output}
         """

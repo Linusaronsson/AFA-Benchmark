@@ -1,11 +1,13 @@
 hydra:
   searchpath:
+    - file://extra/conf
     - file://extra/conf/global
 
 defaults:
   - hydra: custom
   - _self_
   - dataset@_global_: cube
+  - components/unmaskers@unmasker: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm

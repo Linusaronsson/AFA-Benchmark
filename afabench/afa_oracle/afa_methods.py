@@ -1,18 +1,18 @@
-import torch
-import logging
-
-from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Any, Self, cast, final, override
+import logging
+from pathlib import Path
+from typing import Self, cast, final, override
 
-from afabench.afa_oracle.aaco_core import AACOOracle, load_mask_generator
+import torch
+
+from afabench.afa_oracle.aaco_core import AACOOracle
+from afabench.afa_oracle.utils import flatten_for_aaco
 from afabench.common.bundle import load_bundle
 from afabench.common.custom_types import (
     AFAClassifier,
     AFAMethod,
     AFAAction,
     FeatureMask,
-    Features,
     Label,
     MaskedFeatures,
     SelectionMask,
@@ -35,17 +35,19 @@ class AACOAFAMethod(AFAMethod):
     - AFAUnmasker (e.g., DirectUnmasker) for action-to-mask mapping
 
     Supports both soft budget (cost-based stopping) and hard budget
-    (fixed number of acquisitions) modes.
+    (forced acquisition, stopping handled by the evaluator) modes.
     """
     aaco_oracle: AACOOracle
     dataset_name: str
     classifier_bundle_path: Path | None = None  # Path to trained classifier bundle
+    force_acquisition: bool = False  # Hard budget mode uses forced acquisition
     _device: torch.device = field(
         default_factory=lambda: torch.device(
             "cuda" if torch.cuda.is_available() else "cpu"
         )
     )
-    _hard_budget: int | None = None  # None = soft budget
+    _selection_size: int | None = None  # None = feature-level selections
+    _exclude_instance: bool = True
 
     def __post_init__(self):
         """Move oracle to device after initialization and load classifier if path provided."""
@@ -53,23 +55,24 @@ class AACOAFAMethod(AFAMethod):
 
         # Load classifier from bundle if path provided
         if self.classifier_bundle_path is not None:
-            classifier, _ = load_bundle(self.classifier_bundle_path, device=self._device)
+            classifier, _ = load_bundle(
+                self.classifier_bundle_path, device=self._device
+            )
             classifier = cast(AFAClassifier, cast(object, classifier))
             self.aaco_oracle.set_classifier(classifier)
             logger.info(f"Loaded classifier from {self.classifier_bundle_path}")
 
-    def set_hard_budget(self, budget: int | None) -> None:
-        """Set hard budget. None = soft budget mode."""
-        self._hard_budget = budget
+    def set_exclude_instance(self, exclude_instance: bool) -> None:
+        """Set whether to exclude the query instance from KNN results."""
+        self._exclude_instance = exclude_instance
 
     @override
     def act(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None = None,
-        label: Label | None = None,
         selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
         """
@@ -78,9 +81,8 @@ class AACOAFAMethod(AFAMethod):
         Args:
             masked_features: Currently observed features (unobserved = 0)
             feature_mask: Boolean mask of observed features
-            features: Original features (unused, for protocol compatibility)
-            label: True label (unused, AACO doesn't cheat)
             selection_mask: Which selections have been made (unused for DirectUnmasker)
+            label: True label (unused, AACO doesn't cheat)
             feature_shape: Shape of features excluding batch dim
 
         Returns:
@@ -93,27 +95,25 @@ class AACOAFAMethod(AFAMethod):
         feature_mask = feature_mask.to(self._device)
 
         # Flatten features if needed (AACO works on flat features)
-        batch_shape = feature_mask.shape[:-
-                                         1] if feature_shape is None else feature_mask.shape[: -len(feature_shape)]
-        if feature_shape is not None:
-            n_features = feature_shape.numel()
-            masked_features = masked_features.view(-1, n_features)
-            feature_mask = feature_mask.view(-1, n_features)
-        else:
-            n_features = masked_features.shape[-1]
-            masked_features = masked_features.view(-1, n_features)
-            feature_mask = feature_mask.view(-1, n_features)
+        masked_features, feature_mask, batch_shape = flatten_for_aaco(
+            masked_features, feature_mask, feature_shape
+        )
+        n_features = masked_features.shape[-1]
 
         batch_size = masked_features.shape[0]
         selections = []
+        selection_size = (
+            selection_mask.shape[-1]
+            if selection_mask is not None
+            else self._selection_size
+        )
 
         for i in range(batch_size):
             x_obs = masked_features[i]
             obs_mask = feature_mask[i].bool()
-            n_acquired = obs_mask.sum().item()
 
             # Check if no features observed (should use initializer first)
-            if n_acquired == 0:
+            if not obs_mask.any():
                 # This shouldn't happen if using an AFAInitializer
                 # But handle gracefully by stopping
                 logger.warning(
@@ -123,21 +123,15 @@ class AACOAFAMethod(AFAMethod):
                 selections.append(0)
                 continue
 
-            # Hard budget mode: check if at limit
-            if self._hard_budget is not None:
-                if n_acquired >= self._hard_budget:
-                    selections.append(0)  # Stop - reached budget
-                    continue
-                force_acquisition = True
-            else:
-                force_acquisition = False
-
             # Get next feature from AACO oracle
             next_feature = self.aaco_oracle.select_next_feature(
                 x_obs,
                 obs_mask,
                 instance_idx=i,
-                force_acquisition=force_acquisition,
+                force_acquisition=self.force_acquisition,
+                exclude_instance=self._exclude_instance,
+                feature_shape=feature_shape,
+                selection_size=selection_size,
             )
 
             if next_feature is None:
@@ -159,7 +153,6 @@ class AACOAFAMethod(AFAMethod):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
@@ -169,7 +162,6 @@ class AACOAFAMethod(AFAMethod):
         Args:
             masked_features: Currently observed features
             feature_mask: Boolean mask of observed features
-            features: Original features (unused)
             label: True label (unused)
             feature_shape: Shape of features excluding batch dim
 
@@ -180,17 +172,9 @@ class AACOAFAMethod(AFAMethod):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        # Flatten if needed
-        if feature_shape is not None:
-            batch_shape = feature_mask.shape[: -len(feature_shape)]
-            n_features = feature_shape.numel()
-            masked_features_flat = masked_features.view(-1, n_features)
-            feature_mask_flat = feature_mask.view(-1, n_features)
-        else:
-            batch_shape = feature_mask.shape[:-1]
-            masked_features_flat = masked_features.view(
-                -1, masked_features.shape[-1])
-            feature_mask_flat = feature_mask.view(-1, feature_mask.shape[-1])
+        masked_features_flat, feature_mask_flat, batch_shape = flatten_for_aaco(
+            masked_features, feature_mask, feature_shape
+        )
 
         batch_size = masked_features_flat.shape[0]
 
@@ -238,7 +222,8 @@ class AACOAFAMethod(AFAMethod):
             "acquisition_cost": self.aaco_oracle.acquisition_cost,
             "hide_val": self.aaco_oracle.hide_val,
             "dataset_name": self.dataset_name,
-            "hard_budget": self._hard_budget,
+            "force_acquisition": self.force_acquisition,
+            "selection_size": self._selection_size,
             "classifier_bundle_path": str(self.classifier_bundle_path)
             if self.classifier_bundle_path is not None
             else None,
@@ -286,12 +271,17 @@ class AACOAFAMethod(AFAMethod):
         if classifier_bundle_path is not None:
             classifier_bundle_path = Path(classifier_bundle_path)
 
+        force_acquisition = oracle_state.get("force_acquisition")
+        if force_acquisition is None:
+            force_acquisition = oracle_state.get("hard_budget") is not None
+
         method = cls(
             aaco_oracle=aaco_oracle,
             dataset_name=oracle_state["dataset_name"],
             classifier_bundle_path=classifier_bundle_path,
+            force_acquisition=force_acquisition,
             _device=device,
-            _hard_budget=oracle_state.get("hard_budget"),
+            _selection_size=oracle_state.get("selection_size"),
         )
 
         logger.info(f"Loaded AACO method from {path}")
@@ -316,7 +306,9 @@ def create_aaco_method(
     k_neighbors: int = 5,
     acquisition_cost: float = 0.05,
     hide_val: float = 0.0,  # Use 0 for consistency with MLP training
-    hard_budget: int | None = None,
+    *,
+    force_acquisition: bool = False,
+    selection_size: int | None = None,
     classifier_bundle_path: Path | None = None,
     device: torch.device | None = None,
 ) -> AACOAFAMethod:
@@ -328,7 +320,8 @@ def create_aaco_method(
         k_neighbors: Number of neighbors for KNN
         acquisition_cost: Cost per feature acquisition (soft budget)
         hide_val: Value to use for unobserved features
-        hard_budget: Max features to acquire (None = soft budget)
+        force_acquisition: If True, never stop early (hard budget mode)
+        selection_size: Optional selection space size for patch-based unmaskers
         classifier_bundle_path: Path to pre-trained classifier bundle
         device: Device to use
 
@@ -349,6 +342,7 @@ def create_aaco_method(
         aaco_oracle=aaco_oracle,
         dataset_name=dataset_name,
         classifier_bundle_path=classifier_bundle_path,
+        force_acquisition=force_acquisition,
         _device=device,
-        _hard_budget=hard_budget,
+        _selection_size=selection_size,
     )

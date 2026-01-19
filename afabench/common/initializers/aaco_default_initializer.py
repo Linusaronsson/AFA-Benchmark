@@ -28,11 +28,15 @@ class AACODefaultInitializer(AFAInitializer):
         "gas10": 6,
         "mnist": 100,
         "fashionmnist": 100,
+        "syntheticmnist": 100,
         "afacontext": 0,  # context feature first
     }
 
     def __init__(self, dataset_name: str):
-        self.dataset_name = dataset_name.lower()
+        normalized = dataset_name.lower()
+        normalized = normalized.replace("_", "")
+        normalized = normalized.replace("withoutnoise", "")
+        self.dataset_name = normalized
 
     @override
     def set_seed(self, seed: int | None) -> None:

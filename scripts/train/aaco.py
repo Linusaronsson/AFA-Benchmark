@@ -1,13 +1,14 @@
-import hydra
-import torch
 import logging
-
 from pathlib import Path
 
-from afabench.common.utils import set_seed
+import hydra
+import torch
+
 from afabench.afa_oracle import create_aaco_method
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import AACOTrainConfig
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
+from afabench.common.utils import set_seed
 
 log = logging.getLogger(__name__)
 
@@ -25,9 +26,11 @@ def main(cfg: AACOTrainConfig):
 
     # Load dataset bundle
     dataset_obj, dataset_manifest = load_bundle(
-        Path(cfg.dataset_artifact_name))
+        Path(cfg.dataset_artifact_name)
+    )
     dataset_name = dataset_manifest["class_name"].replace(
-        "Dataset", "").lower()
+        "Dataset", ""
+    ).lower()
     split = dataset_manifest["metadata"].get("split_idx", None)
 
     log.info(f"Dataset: {dataset_manifest['class_name']}, Split: {split}")
@@ -38,14 +41,22 @@ def main(cfg: AACOTrainConfig):
     feature_shape = dataset_obj.feature_shape
     if len(feature_shape) > 1:
         X_train = X_train.view(X_train.shape[0], -1)
-        log.info(f"Flattened features from {
-                 feature_shape} to {X_train.shape[1]}")
+        log.info(
+            "Flattened features from %s to %s",
+            feature_shape,
+            X_train.shape[1],
+        )
 
     X_train = X_train.to(device)
     y_train = y_train.to(device)
 
     # Determine cost parameter
-    cost = cfg.cost_param if cfg.cost_param is not None else cfg.aco.acquisition_cost
+    cost = (
+        cfg.cost_param
+        if cfg.cost_param is not None
+        else cfg.aco.acquisition_cost
+    )
+    force_acquisition = cfg.hard_budget is not None
 
     # Validate classifier path is provided
     if cfg.classifier_bundle_path is None:
@@ -57,13 +68,20 @@ def main(cfg: AACOTrainConfig):
         msg = f"Classifier bundle not found at: {classifier_bundle_path}"
         raise FileNotFoundError(msg)
 
+    # Determine selection space from unmasker
+    unmasker = get_afa_unmasker_from_config(cfg.unmasker)
+    selection_size = unmasker.get_n_selections(
+        feature_shape=dataset_obj.feature_shape
+    )
+
     # Create AACO method (classifier will be loaded in __post_init__)
     aaco_method = create_aaco_method(
         dataset_name=dataset_name,
         k_neighbors=cfg.aco.k_neighbors,
         acquisition_cost=cost,
         hide_val=cfg.aco.hide_val,
-        hard_budget=cfg.hard_budget,
+        force_acquisition=force_acquisition,
+        selection_size=selection_size,
         classifier_bundle_path=classifier_bundle_path,
         device=device,
     )
@@ -84,6 +102,8 @@ def main(cfg: AACOTrainConfig):
             "seed": cfg.seed,
             "cost_param": cost,
             "hard_budget": cfg.hard_budget,
+            "force_acquisition": force_acquisition,
+            "selection_size": selection_size,
             "k_neighbors": cfg.aco.k_neighbors,
             "hide_val": cfg.aco.hide_val,
             "classifier_bundle_path": str(classifier_bundle_path),

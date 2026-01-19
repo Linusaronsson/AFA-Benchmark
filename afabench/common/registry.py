@@ -13,6 +13,7 @@ REGISTERED_CLASSES = {
     "Gadgil2023AFAMethod": "afabench.afa_discriminative.afa_methods.Gadgil2023AFAMethod",
     "Ma2018AFAMethod": "afabench.afa_generative.afa_methods.Ma2018AFAMethod",
     "AACOAFAMethod": "afabench.afa_oracle.afa_methods.AACOAFAMethod",
+    "AACONNAFAMethod": "afabench.afa_oracle.aaco_nn.AACONNAFAMethod",
     "StaticBaseMethod": "afabench.static.static_methods.StaticBaseMethod",
     "SequentialDummyAFAMethod": "afabench.common.afa_methods.SequentialDummyAFAMethod",
     "RandomDummyAFAMethod": "afabench.common.afa_methods.RandomDummyAFAMethod",
