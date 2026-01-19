@@ -245,10 +245,11 @@ def is_column_subset_row(row: pd.Series, expected_row: pd.Series) -> bool:
     """
     Check whether row is a subset of expected_row column-wise.
 
-    This means that expected_row can contain columns that are not in row.
+    This means that row can contain columns that are not in expected_row.
+    Only compares columns that exist in both row and expected_row.
     """
-    for key, value in row.items():
-        if not (key in expected_row and expected_row[key] == value):
+    for key, value in expected_row.items():
+        if key not in row or row[key] != value:
             return False
     return True
 
