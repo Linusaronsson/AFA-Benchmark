@@ -363,35 +363,35 @@ rule add_eval_metadata_to_eval_data:
         """
 
 # Convert the `prev_selections_performed` (list[int]) and `selection_performed` columns into `selections_performed` (int)
-rule count_selections:
-    input:
-        "extra/output/eval_results2/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "{pretrain_folder}"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
-                            "eval_data.csv",
-    output:
-        "extra/output/eval_results3/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "{pretrain_folder}"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
-                            "eval_data.csv",
-    resources:
-        shell_exec="bash"
-    shell:
-        """
-        python scripts/misc/transform_eval_data.py count_selections {input} {output}
-        """
+# rule count_selections:
+#     input:
+#         "extra/output/eval_results2/{method}/"
+#             "dataset-{dataset}+"
+#             "instance_idx-{dataset_instance_idx}/"
+#                 "{pretrain_folder}"
+#                     "train_seed-{train_seed}+"
+#                     "train_hard_budget-{train_hard_budget}+"
+#                     "train_soft_budget_param-{train_soft_budget_param}/"
+#                         "eval_seed-{eval_seed}+"
+#                         "eval_hard_budget-{eval_hard_budget}/"
+#                             "eval_data.csv",
+#     output:
+#         "extra/output/eval_results3/{method}/"
+#             "dataset-{dataset}+"
+#             "instance_idx-{dataset_instance_idx}/"
+#                 "{pretrain_folder}"
+#                     "train_seed-{train_seed}+"
+#                     "train_hard_budget-{train_hard_budget}+"
+#                     "train_soft_budget_param-{train_soft_budget_param}/"
+#                         "eval_seed-{eval_seed}+"
+#                         "eval_hard_budget-{eval_hard_budget}/"
+#                             "eval_data.csv",
+#     resources:
+#         shell_exec="bash"
+#     shell:
+#         """
+#         python scripts/misc/transform_eval_data.py count_selections {input} {output}
+#         """
 
 # Add some metadata columns from training
 rule add_train_metadata_to_eval_data:
