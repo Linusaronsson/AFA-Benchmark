@@ -9,6 +9,7 @@ from plotnine import (
     aes,
     facet_wrap,
     geom_errorbar,
+    geom_errorbarh,
     geom_line,
     geom_ribbon,
     ggplot,
@@ -242,7 +243,12 @@ def create_soft_budget_plot(
         + geom_errorbar(
             aes(ymin="y_min", ymax="y_max"),
             alpha=0.5,
-            width=0.1,
+            width=0,
+        )
+        + geom_errorbarh(
+            aes(xmin="x_min", xmax="x_max"),
+            alpha=0.5,
+            height=0,
         )
         + facet_wrap("~facet_label", scales="free")
         + labs(x="Selection budget", y=y_label)
