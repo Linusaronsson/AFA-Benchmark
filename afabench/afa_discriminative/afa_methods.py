@@ -542,7 +542,7 @@ class Covert2023AFAMethod(AFAMethod):
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
-        checkpoint = torch.load(path / "model.pt", map_location=device)
+        checkpoint = torch.load(path / "model.pt", weights_only=False, map_location=device)
         arch = checkpoint["architecture"]
         lambda_threshold = checkpoint.get("lambda_threshold", None)
         feature_costs = checkpoint.get("feature_costs", None)
@@ -579,6 +579,9 @@ class Covert2023AFAMethod(AFAMethod):
                 selector_hidden_layers=selector_hidden_layers,
                 predictor_hidden_layers=predictor_hidden_layers,
                 dropout=dropout,
+                modality="tabular",
+                d_in=d_in,
+                d_out=d_out,
             )
             model.selector.load_state_dict(checkpoint["selector_state_dict"])
             model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
@@ -601,6 +604,7 @@ class Covert2023AFAMethod(AFAMethod):
                 feature_costs=feature_costs,
                 modality="image",
                 n_patches=int(arch["mask_width"]) ** 2,
+                d_out=d_out,
             )
 
             model.mask_width = int(arch["mask_width"])
@@ -1156,7 +1160,7 @@ class Gadgil2023AFAMethod(AFAMethod):
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
-        checkpoint = torch.load(path / "model.pt", map_location=device)
+        checkpoint = torch.load(path / "model.pt", weights_only=False, map_location=device)
         arch = checkpoint["architecture"]
         lambda_threshold = checkpoint.get("lambda_threshold", None)
         feature_costs = checkpoint.get("feature_costs", None)
@@ -1207,6 +1211,9 @@ class Gadgil2023AFAMethod(AFAMethod):
                 value_network_hidden_layers=value_network_hidden_layers,
                 predictor_hidden_layers=predictor_hidden_layers,
                 dropout=dropout,
+                modality="tabular",
+                d_in=d_in,
+                d_out=d_out,
             )
             model.value_network.load_state_dict(
                 checkpoint["value_network_state_dict"]
@@ -1231,6 +1238,7 @@ class Gadgil2023AFAMethod(AFAMethod):
                 feature_costs=feature_costs,
                 modality="image",
                 n_patches=int(arch["mask_width"]) ** 2,
+                d_out=d_out,
             )
             model.mask_width = int(arch["mask_width"])
             model.patch_size = int(arch["patch_size"])
