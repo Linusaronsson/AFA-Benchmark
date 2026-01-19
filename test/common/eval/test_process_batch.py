@@ -1,9 +1,12 @@
+from collections.abc import Sequence
+
 import pandas as pd
 import pytest
 import torch
 
 from afabench.common.custom_types import (
     AFAAction,
+    AFAActionFn,
     AFASelection,
     FeatureMask,
     Features,
@@ -11,7 +14,9 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
+from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.eval.eval import process_batch
+from test.common.eval.helpers import assert_where_selections_there_cost
 
 
 def random_afa_action_fn(
@@ -326,6 +331,44 @@ def test_batch_dynamics_without_budget(
         f"DataFrame does not contain expected rows.\n"
         f"Expected rows to match:\n{expected_df}\n\n"
         f"Actual DataFrame:\n{df.to_string()}"
+    )
+
+
+def get_deterministic_afa_action_fn(actions: Sequence[int]) -> AFAActionFn:
+    raise NotImplementedError
+
+
+def test_process_batch_tracks_costs() -> None:
+    # Arrange
+    deterministic_afa_action_fn = get_deterministic_afa_action_fn(
+        actions=[1, 3, 4, 2, 0]
+    )
+    direct_unmasker = DirectUnmasker()
+
+    # Act
+    df = process_batch(
+        afa_action_fn=deterministic_afa_action_fn,
+        afa_unmask_fn=direct_unmasker.unmask,
+        n_selection_choices=4,
+        features=torch.tensor([[1, 2, 3, 4]]),
+        initial_masked_features=torch.tensor([[0, 0, 0, 0]]),
+        initial_feature_mask=torch.tensor([[0, 0, 0, 0]], dtype=torch.bool),
+        true_label=torch.tensor([[0]]),
+        external_afa_predict_fn=None,
+        builtin_afa_predict_fn=None,
+        selection_budget=None,
+        selection_costs=[3, 2, 4, 5],
+    )
+
+    # Assert
+    assert_where_selections_there_cost(df, selections=[], cost=0.0)
+    assert_where_selections_there_cost(df, selections=[0], cost=3.0)
+    assert_where_selections_there_cost(df, selections=[0, 2], cost=3.0 + 4.0)
+    assert_where_selections_there_cost(
+        df, selections=[0, 2, 3], cost=3.0 + 4.0 + 5.0
+    )
+    assert_where_selections_there_cost(
+        df, selections=[0, 2, 3, 1], cost=3.0 + 4.0 + 5.0 + 2.0
     )
 
 

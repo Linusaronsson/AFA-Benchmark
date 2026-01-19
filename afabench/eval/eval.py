@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 
 import pandas as pd
 import torch
@@ -124,6 +125,7 @@ def process_batch(
     external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     selection_budget: int | None = None,
+    selection_costs: Sequence[float] | None = None,
 ) -> pd.DataFrame:
     """
     Evaluate a single batch until every sample either acquires all the features or stops feature acquisition.
@@ -142,6 +144,7 @@ def process_batch(
         external_afa_predict_fn (AFAPredictFn): An external classifier.
         builtin_afa_predict_fn (AFAPredictFn): A builtin classifier, if such exists.
         selection_budget (int|None): How many AFA selections to allow per sample. If None, allow unlimited selections. Defaults to None.
+        selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
 
     Returns:
         pd.DataFrame: DataFrame with one row per sample and timestep, containing columns:
@@ -150,6 +153,7 @@ def process_batch(
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
             - "true_class" (int)
+            - "accumulated_cost" (float)
     """
     # TODO: remove cloning if necessary for speed up
     features = features.clone()
