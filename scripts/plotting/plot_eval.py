@@ -151,7 +151,9 @@ def compute_metrics(group: pd.DataFrame) -> pd.Series:
         return pd.Series({"accuracy": np.nan, "f1": np.nan, "kappa": np.nan})
 
     acc = accuracy_score(y_true, y_pred)
-    f1 = f1_score(y_true, y_pred, average="macro")
+    # Macro average F1 including all classes (standard approach)
+    # sklearn's f1_score with average="macro" automatically includes all classes
+    f1 = f1_score(y_true, y_pred, average="macro", zero_division="warn")
     kappa = cohen_kappa_score(y_true, y_pred)
 
     return pd.Series({"accuracy": acc, "f1": f1, "kappa": kappa})
