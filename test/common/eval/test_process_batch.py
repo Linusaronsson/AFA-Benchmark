@@ -1,12 +1,9 @@
-from collections.abc import Sequence
-
 import pandas as pd
 import pytest
 import torch
 
 from afabench.common.custom_types import (
     AFAAction,
-    AFAActionFn,
     AFASelection,
     FeatureMask,
     Features,
@@ -16,7 +13,10 @@ from afabench.common.custom_types import (
 )
 from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.eval.eval import process_batch
-from test.common.eval.helpers import assert_where_selections_there_cost
+from afabench.test.eval.helpers import (
+    assert_where_selections_there_cost,
+    get_deterministic_afa_action_fn,
+)
 
 
 def random_afa_action_fn(
@@ -334,10 +334,6 @@ def test_batch_dynamics_without_budget(
     )
 
 
-def get_deterministic_afa_action_fn(actions: Sequence[int]) -> AFAActionFn:
-    raise NotImplementedError
-
-
 def test_process_batch_tracks_costs() -> None:
     # Arrange
     deterministic_afa_action_fn = get_deterministic_afa_action_fn(
@@ -350,14 +346,15 @@ def test_process_batch_tracks_costs() -> None:
         afa_action_fn=deterministic_afa_action_fn,
         afa_unmask_fn=direct_unmasker.unmask,
         n_selection_choices=4,
-        features=torch.tensor([[1, 2, 3, 4]]),
-        initial_masked_features=torch.tensor([[0, 0, 0, 0]]),
-        initial_feature_mask=torch.tensor([[0, 0, 0, 0]], dtype=torch.bool),
-        true_label=torch.tensor([[0]]),
+        features=torch.tensor([[1, 2, 3, 4, 5]]),
+        initial_masked_features=torch.tensor([[0, 0, 0, 0, 0]]),
+        initial_feature_mask=torch.tensor([[0, 0, 0, 0, 0]], dtype=torch.bool),
+        true_label=torch.tensor([[0, 1]]),  # 2 classes, but does not matter
+        feature_shape=torch.Size((5,)),
         external_afa_predict_fn=None,
         builtin_afa_predict_fn=None,
         selection_budget=None,
-        selection_costs=[3, 2, 4, 5],
+        selection_costs=[3, 2, 4, 5, 100],  # last cost does not matter
     )
 
     # Assert

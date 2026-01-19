@@ -113,7 +113,7 @@ def single_afa_step(
     )
 
 
-def process_batch(
+def process_batch(  # noqa: C901
     afa_action_fn: AFAActionFn,
     afa_unmask_fn: AFAUnmaskFn,
     n_selection_choices: int,
@@ -167,6 +167,15 @@ def process_batch(
 
     # Track which selections have been made per sample (0-based indices)
     selections_performed = [[] for _ in range(features.shape[0])]
+
+    # Track accumulated costs per sample
+    accumulated_costs = [0.0 for _ in range(features.shape[0])]
+
+    # Convert selection_costs to a list if provided, otherwise use unit costs
+    if selection_costs is None:
+        selection_costs_list = [1.0] * n_selection_choices
+    else:
+        selection_costs_list = list(selection_costs)
 
     # Process a subset of the batch, which gets smaller and smaller until it's empty
     active_indices = torch.arange(features.shape[0], device=features.device)
@@ -231,6 +240,7 @@ def process_batch(
                     .argmax(-1)
                     .item(),
                     "true_class": true_label[true_idx].argmax(-1).item(),
+                    "accumulated_cost": accumulated_costs[global_idx],
                 }
             )
 
@@ -244,6 +254,15 @@ def process_batch(
             selection_mask[
                 active_indices[valid_selections], actions[valid_selections] - 1
             ] = True
+            # Update accumulated costs for valid selections
+            for active_idx, global_idx in enumerate(active_indices):
+                global_idx_int = int(global_idx.item())
+                action = int(actions[active_idx].item())
+                if action > 0:  # Valid selection (not stop action)
+                    selection_idx = action - 1
+                    accumulated_costs[global_idx_int] += selection_costs_list[
+                        selection_idx
+                    ]
 
         # Determine which samples have finished
         # A sample finishes if:
