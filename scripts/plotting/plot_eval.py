@@ -89,7 +89,6 @@ def read_csv_safe(path: Path) -> pd.DataFrame:
             df[col] = df[col].astype("category")
 
     int_cols = [
-        "selections_performed",
         "predicted_class",
         "true_class",
         "train_seed",
@@ -102,10 +101,15 @@ def read_csv_safe(path: Path) -> pd.DataFrame:
             assert isinstance(series, pd.Series)
             df[col] = series.astype("Int64")
 
-    if "soft_budget_param" in df.columns:
-        series = pd.to_numeric(df["soft_budget_param"], errors="coerce")
-        assert isinstance(series, pd.Series)
-        df["soft_budget_param"] = series
+    float_cols = [
+        "accumulated_cost",
+        "soft_budget_param",
+    ]
+    for col in float_cols:
+        if col in df.columns:
+            series = pd.to_numeric(df[col], errors="coerce")
+            assert isinstance(series, pd.Series)
+            df[col] = series
 
     return apply_method_labels(df)
 
@@ -126,7 +130,7 @@ def generate_dummy_data(n: int = 10000) -> pd.DataFrame:
             "afa_method": rng.choice(methods, n),
             "classifier": rng.choice(classifiers, n),
             "dataset": rng.choice(datasets, n),
-            "selections_performed": rng.integers(1, 16, n),
+            "accumulated_cost": rng.uniform(0.5, 15.0, n),
             "predicted_class": rng.integers(0, n_classes, n),
             "true_class": rng.integers(0, n_classes, n),
             "train_seed": rng.choice(train_seeds, n),
@@ -217,12 +221,8 @@ def create_soft_budget_plot(
     df = df.copy()
     df["y_min"] = df["estimate_mean"] - df["estimate_sd"]
     df["y_max"] = df["estimate_mean"] + df["estimate_sd"]
-    df["x_min"] = (
-        df["selections_performed_mean"] - df["selections_performed_sd"]
-    )
-    df["x_max"] = (
-        df["selections_performed_mean"] + df["selections_performed_sd"]
-    )
+    df["x_min"] = df["accumulated_cost_mean"] - df["accumulated_cost_sd"]
+    df["x_max"] = df["accumulated_cost_mean"] + df["accumulated_cost_sd"]
 
     if use_dataset_metric_labeller:
         df["facet_label"] = df["dataset"].apply(dataset_with_metric_labeller)
@@ -235,7 +235,7 @@ def create_soft_budget_plot(
         ggplot(
             df,
             aes(
-                x="selections_performed_mean",
+                x="accumulated_cost_mean",
                 y="estimate_mean",
                 color="afa_method",
                 fill="afa_method",
@@ -253,7 +253,7 @@ def create_soft_budget_plot(
             height=0,
         )
         + facet_wrap("~facet_label", scales="free")
-        + labs(x="Selection budget", y=y_label)
+        + labs(x="Accumulated cost", y=y_label)
         + scale_color_discrete(name="AFA method")
         + scale_fill_discrete(name="AFA method")
         + theme(legend_position="bottom")
@@ -271,8 +271,9 @@ def process_hard_budget(df: pd.DataFrame) -> pd.DataFrame:
     if len(df_hard) == 0:
         return pd.DataFrame()
 
+    # We only consider the performance at the end of each "episode"
     df_hard = df_hard.loc[
-        df_hard["selections_performed"] == df_hard["hard_budget"]
+        df_hard["accumulated_cost"] >= df_hard["hard_budget"]
     ]
 
     if len(df_hard) == 0:
@@ -336,9 +337,9 @@ def process_soft_budget(df: pd.DataFrame) -> pd.DataFrame:
         "soft_budget_param",
     ]
 
-    selections_df = (
+    cost_df = (
         df_soft.groupby(group_cols, observed=True)
-        .agg(avg_selections_performed=("selections_performed", "mean"))
+        .agg(avg_accumulated_cost=("accumulated_cost", "mean"))
         .reset_index()
     )
 
@@ -356,14 +357,14 @@ def process_soft_budget(df: pd.DataFrame) -> pd.DataFrame:
 
     metrics_df = pd.DataFrame(metrics_list)
 
-    combined = metrics_df.merge(selections_df, on=group_cols)
+    combined = metrics_df.merge(cost_df, on=group_cols)
 
     summary_cols = ["afa_method", "classifier", "dataset", "soft_budget_param"]
     summary = (
         combined.groupby(summary_cols, observed=True)
         .agg(
-            selections_performed_mean=("avg_selections_performed", "mean"),
-            selections_performed_sd=("avg_selections_performed", "std"),
+            accumulated_cost_mean=("avg_accumulated_cost", "mean"),
+            accumulated_cost_sd=("avg_accumulated_cost", "std"),
             accuracy_mean=("accuracy", "mean"),
             accuracy_sd=("accuracy", "std"),
             f1_mean=("f1", "mean"),
