@@ -14,8 +14,10 @@ from afabench.common.custom_types import (
 from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.eval.eval import process_batch
 from afabench.test.eval.helpers import (
+    assert_terminated_due_to_budget,
     assert_where_selections_there_cost,
-    get_deterministic_afa_action_fn,
+    get_batch_from_costs_and_budget,
+    get_batched_deterministic_afa_action_fn,
 )
 
 
@@ -337,8 +339,23 @@ def test_batch_dynamics_without_budget(
 
 def test_process_batch_tracks_costs() -> None:
     # Arrange
-    deterministic_afa_action_fn = get_deterministic_afa_action_fn(
-        actions=[1, 3, 4, 2, 0]
+    deterministic_afa_action_fn = get_batched_deterministic_afa_action_fn(
+        actions=[
+            [
+                1,
+                3,
+                4,
+                2,
+                0,
+            ],  # sample 0: actions 1(cost 0), 3(cost 0), 4(cost 10), 2(cost 10) reach budget 20
+            [
+                4,
+                2,
+                1,
+                0,
+                0,
+            ],  # sample 1: action 4(cost 10), 2(cost 10) reach budget 20
+        ]
     )
     direct_unmasker = DirectUnmasker()
 
@@ -359,18 +376,66 @@ def test_process_batch_tracks_costs() -> None:
     )
 
     # Assert
-    assert_where_selections_there_cost(df, selections=[], cost=0.0)
-    assert_where_selections_there_cost(df, selections=[0], cost=3.0)
-    assert_where_selections_there_cost(df, selections=[0, 2], cost=3.0 + 4.0)
+    # Notice how the cost also includes the current action! We do this since the predictions also use the current action.
+    assert_where_selections_there_cost(df, selections=[], cost=3.0)
+    assert_where_selections_there_cost(df, selections=[0], cost=3.0 + 4.0)
     assert_where_selections_there_cost(
-        df, selections=[0, 2, 3], cost=3.0 + 4.0 + 5.0
+        df, selections=[0, 2], cost=3.0 + 4.0 + 5.0
+    )
+    assert_where_selections_there_cost(
+        df, selections=[0, 2, 3], cost=3.0 + 4.0 + 5.0 + 2.0
     )
     assert_where_selections_there_cost(
         df, selections=[0, 2, 3, 1], cost=3.0 + 4.0 + 5.0 + 2.0
     )
 
 
-def test_process_batch_respects_budget(
+def test_process_batch_respects_budget_nonuniform_cost() -> None:
+    # Arrange
+    deterministic_afa_action_fn = get_batched_deterministic_afa_action_fn(
+        actions=[
+            [
+                1,
+                3,
+                4,
+                2,
+                0,
+            ],  # sample 0, should terminate after 4 actions
+            [
+                4,
+                2,
+                1,
+                0,
+                0,
+            ],  # sample 1, should terminate after 2 actions
+        ]
+    )
+    direct_unmasker = DirectUnmasker()
+
+    # Act
+    # We don't care about features here
+    df = get_batch_from_costs_and_budget(
+        afa_action_fn=deterministic_afa_action_fn,
+        afa_unmask_fn=direct_unmasker.unmask,
+        selection_budget=20.0,
+        selection_costs=[
+            0,
+            10,
+            0,
+            10,
+            0,
+            0,
+        ],  # actions 2 and 4 reach budget, but action 3 is also needed to **exceed** budget.
+        batch_size=2,
+        n_features=6,
+    )
+
+    # Assert
+    assert_terminated_due_to_budget(df, idx=0, n_steps=4)
+    assert_terminated_due_to_budget(df, idx=1, n_steps=2)
+
+
+def test_process_batch_respects_budget_uniform_cost(
     features: torch.Tensor,
     masked_features: torch.Tensor,
     feature_mask: torch.Tensor,

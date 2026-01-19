@@ -113,7 +113,7 @@ def single_afa_step(
     )
 
 
-def process_batch(  # noqa: C901
+def process_batch(  # noqa: C901, PLR0912, PLR0915
     afa_action_fn: AFAActionFn,
     afa_unmask_fn: AFAUnmaskFn,
     n_selection_choices: int,
@@ -124,11 +124,16 @@ def process_batch(  # noqa: C901
     feature_shape: torch.Size | None = None,
     external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
-    selection_budget: int | None = None,
+    selection_budget: float | None = None,
     selection_costs: Sequence[float] | None = None,
 ) -> pd.DataFrame:
     """
-    Evaluate a single batch until every sample either acquires all the features or stops feature acquisition.
+    Evaluate a single batch.
+
+    Until every sample either
+    1. Performs all available selections.
+    2. Stops feature acquisition (action=0).
+    3. Runs out of selection budget.
 
     Assumes that predictions are for classes, and only stores the most likely class prediction.
 
@@ -143,7 +148,7 @@ def process_batch(  # noqa: C901
         feature_shape (torch.Size|None): Shape of the features, required by some objects.
         external_afa_predict_fn (AFAPredictFn): An external classifier.
         builtin_afa_predict_fn (AFAPredictFn): A builtin classifier, if such exists.
-        selection_budget (int|None): How many AFA selections to allow per sample. If None, allow unlimited selections. Defaults to None.
+        selection_budget (float|None): Total accumulated selection cost to allow per sample. If None, allow unlimited selections. Defaults to None.
         selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
 
     Returns:
@@ -153,7 +158,8 @@ def process_batch(  # noqa: C901
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
             - "true_class" (int)
-            - "accumulated_cost" (float)
+            - "accumulated_cost" (float): Acculumulated cost from `prev_selections_performed` **and** the current action.
+            - "idx" (int): Which sample the row corresponds to.
     """
     # TODO: remove cloning if necessary for speed up
     features = features.clone()
@@ -216,6 +222,34 @@ def process_batch(  # noqa: C901
                 "Expected external prediction to have class dimension"
             )
 
+        # Check budget and override actions if they would exceed it
+        if selection_budget is not None:
+            for active_idx, true_idx in enumerate(active_indices):
+                global_idx = int(true_idx.item())
+                action = int(active_afa_action[active_idx].item())
+                if action > 0:  # Valid selection (not stop action)
+                    selection_idx = action - 1
+                    action_cost = selection_costs_list[selection_idx]
+                    if (
+                        accumulated_costs[global_idx] + action_cost
+                        > selection_budget
+                    ):
+                        # Override action to stop (0) if it would exceed budget
+                        active_afa_action[active_idx, 0] = 0
+
+        # Update accumulated costs for valid selections (BEFORE appending rows)
+        actions = active_afa_action.squeeze(-1)
+        valid_selections = actions > 0
+        if valid_selections.any():
+            for active_idx, global_idx in enumerate(active_indices):
+                global_idx_int = int(global_idx.item())
+                action = int(actions[active_idx].item())
+                if action > 0:  # Valid selection (not stop action)
+                    selection_idx = action - 1
+                    accumulated_costs[global_idx_int] += selection_costs_list[
+                        selection_idx
+                    ]
+
         # Append one row per active sample
         for active_idx, true_idx in enumerate(active_indices):
             global_idx = int(true_idx.item())
@@ -241,28 +275,18 @@ def process_batch(  # noqa: C901
                     .item(),
                     "true_class": true_label[true_idx].argmax(-1).item(),
                     "accumulated_cost": accumulated_costs[global_idx],
+                    "idx": global_idx,
                 }
             )
 
         # Update feature mask, masked features and selection mask
         masked_features[active_indices] = active_new_masked_features
         feature_mask[active_indices] = active_new_feature_mask
-        actions = active_afa_action.squeeze(-1)
-        valid_selections = actions > 0
         if valid_selections.any():
             # Update selection mask for valid selections
             selection_mask[
                 active_indices[valid_selections], actions[valid_selections] - 1
             ] = True
-            # Update accumulated costs for valid selections
-            for active_idx, global_idx in enumerate(active_indices):
-                global_idx_int = int(global_idx.item())
-                action = int(actions[active_idx].item())
-                if action > 0:  # Valid selection (not stop action)
-                    selection_idx = action - 1
-                    accumulated_costs[global_idx_int] += selection_costs_list[
-                        selection_idx
-                    ]
 
         # Determine which samples have finished
         # A sample finishes if:
@@ -273,11 +297,12 @@ def process_batch(  # noqa: C901
             start_dim=1
         ).all(dim=1)
 
-        # Check if selection budget is reached
+        # Check if selection budget is reached (cost-based budget)
         for active_idx, global_idx in enumerate(active_indices):
             global_idx_int = int(global_idx.item())
-            if len(selections_performed[global_idx_int]) >= (
-                selection_budget or float("inf")
+            if (
+                selection_budget is not None
+                and accumulated_costs[global_idx_int] >= selection_budget
             ):
                 finished_mask[active_idx] = True
 
@@ -299,6 +324,7 @@ def eval_afa_method(
     device: torch.device | None = None,
     selection_budget: int | None = None,
     batch_size: int = 1,
+    selection_costs: Sequence[float] | None = None,
 ) -> pd.DataFrame:
     """
     Evaluate an AFA method with support for early stopping and batched processing.
@@ -315,6 +341,7 @@ def eval_afa_method(
         device (torch.device|None): Device to place data on. Defaults to "cpu".
         selection_budget (int|None): How many AFA selections to allow per sample. If None, allow unlimited selections. Defaults to None.
         batch_size (int): Batch size for processing samples. Defaults to 1.
+        selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
@@ -371,6 +398,7 @@ def eval_afa_method(
                 external_afa_predict_fn=external_afa_predict_fn,
                 builtin_afa_predict_fn=builtin_afa_predict_fn,
                 selection_budget=selection_budget,
+                selection_costs=selection_costs,
             )
         )
     # Concatenate all batch DataFrames
