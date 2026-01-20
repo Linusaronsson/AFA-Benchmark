@@ -19,6 +19,8 @@ class AACODefaultInitializer(AFAInitializer):
     - cube: feature 6
     - mnist/fashionmnist: feature 100
     - others: middle feature
+
+    # 2026-01-20 TEST: Use random first feature for ablation
     """
 
     DATASET_INITIAL_FEATURES: ClassVar = {
@@ -55,9 +57,18 @@ class AACODefaultInitializer(AFAInitializer):
         )
         num_features = feature_shape.numel()
 
-        initial_feature_flat_index = self.DATASET_INITIAL_FEATURES.get(
-            self.dataset_name,
-            num_features // 2,  # fallback: middle feature
+        # initial_feature_flat_index = self.DATASET_INITIAL_FEATURES.get(
+        #     self.dataset_name,
+        #     num_features // 2,  # fallback: middle feature
+        # )
+
+        # 2026-01-20 TEST: Use random first feature for ablation
+        # Make sure we have same type as above for consistency
+        initial_feature_flat_index = torch.randint(
+            low=0, high=num_features, size=(1,)
+        ).item()
+        assert isinstance(initial_feature_flat_index, int), (
+            "Random initial feature index should be an integer"
         )
 
         # AACO always starts with exactly 1 feature
@@ -67,7 +78,9 @@ class AACODefaultInitializer(AFAInitializer):
         # Ensure the selected feature is within bounds
         assert 0 <= initial_feature_flat_index < num_features, (
             f"Initial feature index {initial_feature_flat_index} for dataset "
-            f"'{self.dataset_name}' is out of bounds for {num_features} features."
+            f"'{self.dataset_name}' is out of bounds for {
+                num_features
+            } features."
         )
 
         # We can figure out the batch shape by subtracting the feature shape
