@@ -512,3 +512,29 @@ def test_process_batch_forced_stop_action_if_exceeding_budget() -> None:
     # The second action exceeds the budget, and is therefore converted into a stop action
     assert_terminated_after_n_steps(df, idx=0, n_steps=2)
     assert_where_selections_there_action(df, selections=[0], action=0)
+
+
+def test_process_batch_allow_same_selection_multiple_times() -> None:
+    """We should be allowed to repeat selections multiple times, as long as we don't exceed the budget."""
+    # Arrange
+    n_features = 2
+    selection_costs = [0.0, 0.0]
+    deterministic_afa_action_fn = get_deterministic_afa_action_fn(
+        actions=[1, 2, 1, 2, 0],
+    )
+    direct_unmasker = DirectUnmasker()
+    selection_budget = 1.0
+
+    # Act
+    df = get_batch_from_costs_and_budget(
+        afa_action_fn=deterministic_afa_action_fn,
+        afa_unmask_fn=direct_unmasker.unmask,
+        selection_budget=selection_budget,
+        selection_costs=selection_costs,
+        batch_size=1,
+        n_features=n_features,
+    )
+
+    # Assert
+    assert_terminated_after_n_steps(df, idx=0, n_steps=5)
+    assert_where_selections_there_action(df, selections=[0, 1, 0, 1], action=0)

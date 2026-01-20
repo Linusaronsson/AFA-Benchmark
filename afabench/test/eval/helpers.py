@@ -150,3 +150,9 @@ def assert_terminated_after_n_steps(
     assert len(sample_rows) == n_steps, (
         f"Expected {n_steps} rows for sample {idx}, but got {len(sample_rows)}. "
     )
+    # There should be a single row where the action = 0 (stop action)
+    for _, row in sample_rows.iterrows():
+        if len(row["prev_selections_performed"]) == n_steps - 1:
+            assert row["action_performed"] == 0
+        else:
+            assert row["action_performed"] != 0
