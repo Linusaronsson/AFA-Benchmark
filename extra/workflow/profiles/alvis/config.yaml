@@ -12,6 +12,7 @@ default-resources:
   slurm_partition: alvis
   slurm_account: NAISS2025-22-448
   runtime: 60
+  slurm_extra: "--constraint=NOGPU"
   mem_mb: 0 # Alvis rejects direct memory requests; keep unset in sbatch.
 
 set-resources:
