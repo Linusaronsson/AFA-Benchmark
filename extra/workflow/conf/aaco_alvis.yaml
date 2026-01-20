@@ -18,7 +18,7 @@ device_aaco: cpu
 device_aaco_nn: cuda
 eval_device_by_method:
   aaco: cpu
-  aaco_nn: cuda
+  aaco_nn: cpu
 use_wandb: false
 smoke_test: false
 initializer: aaco

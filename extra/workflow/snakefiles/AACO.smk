@@ -546,5 +546,5 @@ rule plot:
         directory("extra/output/plot_results/AACO"),
     shell:
         """
-        python scripts/plotting/plot_eval.py -i {input} {output}
+        python scripts/plotting/plot_eval.py {input} {output}
         """

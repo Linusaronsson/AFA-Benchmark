@@ -12,7 +12,6 @@ default-resources:
   slurm_partition: alvis
   slurm_account: NAISS2025-22-448
   runtime: 60
-  slurm_extra: "--gres=gpu:T4:1"
   mem_mb: 0 # Alvis rejects direct memory requests; keep unset in sbatch.
 
 set-resources:
@@ -20,10 +19,12 @@ set-resources:
     runtime: 120
   train_masked_mlp_classifier:
     runtime: 120
+    slurm_extra: "--gres=gpu:T4:1"
   train_aaco:
     runtime: 30
   train_aaco_nn:
     runtime: 180
+    slurm_extra: "--gres=gpu:T4:1"
   eval_aaco:
     runtime: 60
   eval_aaco_nn:

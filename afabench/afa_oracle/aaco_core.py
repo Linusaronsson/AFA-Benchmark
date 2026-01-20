@@ -75,6 +75,7 @@ class AACOOracle:
         self.hide_val = hide_val
         self.classifier = None
         self.mask_generator = None
+        self._patch_mask_generators: dict[int, random_mask_generator] = {}
         self.X_train: torch.Tensor | None = None
         self.y_train: torch.Tensor | None = None
         self.device = device or torch.device("cpu")
@@ -191,9 +192,16 @@ class AACOOracle:
             )
             patch_mask_curr = fm.any(dim=(0, 2, 4)).view(1, -1).float()
 
-            patch_mask_generator = random_mask_generator(
-                100, selection_size, 100
+            patch_mask_generator = self._patch_mask_generators.get(
+                selection_size
             )
+            if patch_mask_generator is None:
+                patch_mask_generator = random_mask_generator(
+                    100, selection_size, 100
+                )
+                self._patch_mask_generators[selection_size] = (
+                    patch_mask_generator
+                )
             new_masks = patch_mask_generator(patch_mask_curr).to(device)
             mask_patch = torch.maximum(
                 new_masks, patch_mask_curr.repeat(new_masks.shape[0], 1)

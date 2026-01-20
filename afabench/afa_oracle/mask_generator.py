@@ -62,17 +62,21 @@ class random_mask_generator:
         self.num_samples = num_samples
         self.feature_dim = feature_dim
         self.num_generated_masks = num_generated_masks
+        self._cached_masks = None
 
     def __call__(self, mask_curr):
-        ball = generate_ball(
-            self.num_generated_masks, self.feature_dim, self.feature_dim
-        )
-        return torch.tensor(
-            ball[
-                :,
-                np.random.permutation(self.num_generated_masks)[
-                    : self.num_generated_masks
+        # Cache masks to avoid repeated numpy generation in tight loops.
+        if self._cached_masks is None:
+            ball = generate_ball(
+                self.num_generated_masks, self.feature_dim, self.feature_dim
+            )
+            self._cached_masks = torch.tensor(
+                ball[
+                    :,
+                    np.random.permutation(self.num_generated_masks)[
+                        : self.num_generated_masks
+                    ],
                 ],
-            ],
-            dtype=torch.float32,
-        ).T
+                dtype=torch.float32,
+            ).T
+        return self._cached_masks

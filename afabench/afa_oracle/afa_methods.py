@@ -90,63 +90,64 @@ class AACOAFAMethod(AFAMethod):
             - 0 = stop acquiring
             - 1 to N = 1-indexed feature to acquire (for DirectUnmasker)
         """
-        original_device = masked_features.device
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
+        with torch.no_grad():
+            original_device = masked_features.device
+            masked_features = masked_features.to(self._device)
+            feature_mask = feature_mask.to(self._device)
 
-        # Flatten features if needed (AACO works on flat features)
-        masked_features, feature_mask, batch_shape = flatten_for_aaco(
-            masked_features, feature_mask, feature_shape
-        )
-        n_features = masked_features.shape[-1]
+            # Flatten features if needed (AACO works on flat features)
+            masked_features, feature_mask, batch_shape = flatten_for_aaco(
+                masked_features, feature_mask, feature_shape
+            )
+            n_features = masked_features.shape[-1]
 
-        batch_size = masked_features.shape[0]
-        selections = []
-        selection_size = (
-            selection_mask.shape[-1]
-            if selection_mask is not None
-            else self._selection_size
-        )
-
-        for i in range(batch_size):
-            x_obs = masked_features[i]
-            obs_mask = feature_mask[i].bool()
-
-            # Check if no features observed (should use initializer first)
-            if not obs_mask.any():
-                # This shouldn't happen if using an AFAInitializer
-                # But handle gracefully by stopping
-                logger.warning(
-                    "AACO select() called with no features observed. "
-                    "Use an AFAInitializer for initial feature selection."
-                )
-                selections.append(0)
-                continue
-
-            # Get next feature from AACO oracle
-            next_feature = self.aaco_oracle.select_next_feature(
-                x_obs,
-                obs_mask,
-                instance_idx=i,
-                force_acquisition=self.force_acquisition,
-                exclude_instance=self._exclude_instance,
-                feature_shape=feature_shape,
-                selection_size=selection_size,
+            batch_size = masked_features.shape[0]
+            selections = []
+            selection_size = (
+                selection_mask.shape[-1]
+                if selection_mask is not None
+                else self._selection_size
             )
 
-            if next_feature is None:
-                # Soft budget: oracle decided to stop
-                selections.append(0)
-            else:
-                # Convert 0-indexed to 1-indexed for DirectUnmasker
-                selections.append(next_feature + 1)
+            for i in range(batch_size):
+                x_obs = masked_features[i]
+                obs_mask = feature_mask[i].bool()
 
-        selection_tensor = torch.tensor(
-            selections, dtype=torch.long, device=original_device
-        )
+                # Check if no features observed (should use initializer first)
+                if not obs_mask.any():
+                    # This shouldn't happen if using an AFAInitializer
+                    # But handle gracefully by stopping
+                    logger.warning(
+                        "AACO select() called with no features observed. "
+                        "Use an AFAInitializer for initial feature selection."
+                    )
+                    selections.append(0)
+                    continue
 
-        # Reshape to match batch shape
-        return selection_tensor.view(*batch_shape, 1)
+                # Get next feature from AACO oracle
+                next_feature = self.aaco_oracle.select_next_feature(
+                    x_obs,
+                    obs_mask,
+                    instance_idx=i,
+                    force_acquisition=self.force_acquisition,
+                    exclude_instance=self._exclude_instance,
+                    feature_shape=feature_shape,
+                    selection_size=selection_size,
+                )
+
+                if next_feature is None:
+                    # Soft budget: oracle decided to stop
+                    selections.append(0)
+                else:
+                    # Convert 0-indexed to 1-indexed for DirectUnmasker
+                    selections.append(next_feature + 1)
+
+            selection_tensor = torch.tensor(
+                selections, dtype=torch.long, device=original_device
+            )
+
+            # Reshape to match batch shape
+            return selection_tensor.view(*batch_shape, 1)
 
     @override
     def predict(
@@ -168,34 +169,39 @@ class AACOAFAMethod(AFAMethod):
         Returns:
             Class probabilities with shape (*batch, n_classes)
         """
-        original_device = masked_features.device
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
+        with torch.no_grad():
+            original_device = masked_features.device
+            masked_features = masked_features.to(self._device)
+            feature_mask = feature_mask.to(self._device)
 
-        masked_features_flat, feature_mask_flat, batch_shape = flatten_for_aaco(
-            masked_features, feature_mask, feature_shape
-        )
-
-        batch_size = masked_features_flat.shape[0]
-
-        # Get n_classes from oracle's training data
-        if self.aaco_oracle.y_train is not None:
-            n_classes = self.aaco_oracle.y_train.shape[-1]
-        else:
-            n_classes = 10  # fallback
-
-        predictions = torch.zeros(batch_size, n_classes, device=self._device)
-
-        for i in range(batch_size):
-            pred = self.aaco_oracle.predict_with_mask(
-                masked_features_flat[i],
-                feature_mask_flat[i].bool(),
+            masked_features_flat, feature_mask_flat, batch_shape = (
+                flatten_for_aaco(
+                    masked_features, feature_mask, feature_shape
+                )
             )
-            predictions[i] = pred[:n_classes]
 
-        # Reshape and return
-        output_shape = batch_shape + (n_classes,)
-        return predictions.view(*output_shape).to(original_device)
+            batch_size = masked_features_flat.shape[0]
+
+            # Get n_classes from oracle's training data
+            if self.aaco_oracle.y_train is not None:
+                n_classes = self.aaco_oracle.y_train.shape[-1]
+            else:
+                n_classes = 10  # fallback
+
+            predictions = torch.zeros(
+                batch_size, n_classes, device=self._device
+            )
+
+            for i in range(batch_size):
+                pred = self.aaco_oracle.predict_with_mask(
+                    masked_features_flat[i],
+                    feature_mask_flat[i].bool(),
+                )
+                predictions[i] = pred[:n_classes]
+
+            # Reshape and return
+            output_shape = batch_shape + (n_classes,)
+            return predictions.view(*output_shape).to(original_device)
 
     @property
     @override
