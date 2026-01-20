@@ -113,7 +113,7 @@ def single_afa_step(
     )
 
 
-def process_batch(  # noqa: C901, PLR0912
+def process_batch(  # noqa: C901, PLR0912, PLR0915
     afa_action_fn: AFAActionFn,
     afa_unmask_fn: AFAUnmaskFn,
     n_selection_choices: int,
@@ -159,6 +159,7 @@ def process_batch(  # noqa: C901, PLR0912
             - "true_class" (int)
             - "accumulated_cost" (float): Acculumulated cost from `prev_selections_performed` **and** the current action.
             - "idx" (int): Which sample the row corresponds to.
+            - "forced_stop" (bool): Whether the episode terminated due to budget being exceeded.
     """
     # TODO: remove cloning if necessary for speed up
     features = features.clone()
@@ -175,6 +176,9 @@ def process_batch(  # noqa: C901, PLR0912
 
     # Track accumulated costs per sample
     accumulated_costs = [0.0 for _ in range(features.shape[0])]
+
+    # Track whether each sample was forced to stop due to budget
+    forced_stops = [False for _ in range(features.shape[0])]
 
     # Convert selection_costs to a list if provided, otherwise use unit costs
     if selection_costs is None:
@@ -235,6 +239,7 @@ def process_batch(  # noqa: C901, PLR0912
                     ):
                         # Override action to stop (0) if it would exceed budget
                         active_afa_action[active_idx, 0] = 0
+                        forced_stops[global_idx] = True
 
         # Update accumulated costs for valid selections (BEFORE appending rows)
         actions = active_afa_action.squeeze(-1)
@@ -275,6 +280,7 @@ def process_batch(  # noqa: C901, PLR0912
                     "true_class": true_label[true_idx].argmax(-1).item(),
                     "accumulated_cost": accumulated_costs[global_idx],
                     "idx": global_idx,
+                    "forced_stop": forced_stops[global_idx],
                 }
             )
 
