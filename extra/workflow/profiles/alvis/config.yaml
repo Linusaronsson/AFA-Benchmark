@@ -1,47 +1,36 @@
 # Snakemake profile for Alvis SLURM cluster
 #
 # This profile submits jobs to SLURM instead of running locally.
-# All jobs request a T4 GPU since most workloads benefit from it.
+# Note: Alvis does NOT allow direct memory requests.
 
 executor: slurm
-jobs: 50                    # Max concurrent SLURM jobs
-latency-wait: 60            # Wait for NFS file propagation
-retries: 1                  # Retry failed jobs once
+jobs: 50
+latency-wait: 60
+retries: 1
 
-# Default resources for all jobs
 default-resources:
   slurm_partition: alvis
   slurm_account: NAISS2025-22-448
-  runtime: 60               # 1 hour default
-  mem_mb: 16000             # 16GB RAM
+  runtime: 60
   slurm_extra: "--gres=gpu:T4:1"
 
-# Resource overrides per rule
 set-resources:
-  # MLP classifier training
   train_classifier:
-    runtime: 120            # 2 hours (image datasets take longer)
-
-  # AACO training - very fast (just fitting, no iterations)
+    runtime: 120
+  train_masked_mlp_classifier:
+    runtime: 120
   train_aaco:
-    runtime: 30             # 30 min should be plenty
-
-  # AACO+NN training - neural network training
+    runtime: 30
   train_aaco_nn:
-    runtime: 180            # 3 hours
-
-  # Evaluation - varies by dataset size
-  # Tabular: fast, Images: slower (more patches)
+    runtime: 180
   eval_aaco:
-    runtime: 60             # 1 hour
+    runtime: 60
   eval_aaco_nn:
     runtime: 60
   eval_aaco_soft:
     runtime: 60
   eval_aaco_nn_soft:
     runtime: 60
-
-  # Pivoting/aggregation - CPU only, fast
   aggregate_all:
     runtime: 10
   pivot_long_classifier:
