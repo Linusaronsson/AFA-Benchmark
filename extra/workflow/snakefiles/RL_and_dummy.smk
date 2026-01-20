@@ -362,36 +362,36 @@ rule add_eval_metadata_to_eval_data:
             --col eval_soft_budget_param=""
         """
 
-# Convert the `prev_selections_performed` (list[int]) and `selection_performed` columns into `selections_performed` (int)
-# rule count_selections:
-#     input:
-#         "extra/output/eval_results2/{method}/"
-#             "dataset-{dataset}+"
-#             "instance_idx-{dataset_instance_idx}/"
-#                 "{pretrain_folder}"
-#                     "train_seed-{train_seed}+"
-#                     "train_hard_budget-{train_hard_budget}+"
-#                     "train_soft_budget_param-{train_soft_budget_param}/"
-#                         "eval_seed-{eval_seed}+"
-#                         "eval_hard_budget-{eval_hard_budget}/"
-#                             "eval_data.csv",
-#     output:
-#         "extra/output/eval_results3/{method}/"
-#             "dataset-{dataset}+"
-#             "instance_idx-{dataset_instance_idx}/"
-#                 "{pretrain_folder}"
-#                     "train_seed-{train_seed}+"
-#                     "train_hard_budget-{train_hard_budget}+"
-#                     "train_soft_budget_param-{train_soft_budget_param}/"
-#                         "eval_seed-{eval_seed}+"
-#                         "eval_hard_budget-{eval_hard_budget}/"
-#                             "eval_data.csv",
-#     resources:
-#         shell_exec="bash"
-#     shell:
-#         """
-#         python scripts/misc/transform_eval_data.py count_selections {input} {output}
-#         """
+# The column containing the history of all selections takes up a lot of space, and we don't use it yet for any plots
+rule remove_selections:
+    input:
+        "extra/output/eval_results2/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "{pretrain_folder}"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    output:
+        "extra/output/eval_results3/{method}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "{pretrain_folder}"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}/"
+                            "eval_data.csv",
+    resources:
+        shell_exec="nu"
+    shell:
+        """
+        open {input} | reject prev_selections_performed | save {output}
+        """
 
 # Add some metadata columns from training
 rule add_train_metadata_to_eval_data:
