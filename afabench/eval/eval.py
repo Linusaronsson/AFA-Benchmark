@@ -131,9 +131,8 @@ def process_batch(  # noqa: C901, PLR0912
     Evaluate a single batch.
 
     Until every sample either
-    1. Performs all available selections.
-    2. Stops feature acquisition (action=0).
-    3. Runs out of selection budget. More precisely, this means that if the next action was selected such that the budget would have been **exceeded**, we instead force the stop action.
+    1. Stops feature acquisition voluntarily (action=0).
+    2. Runs out of selection budget and is forced to stop (action=0). More precisely, this means that if the next action was selected such that the budget would have been **exceeded**, we instead force the stop action.
 
     Assumes that predictions are for classes, and only stores the most likely class prediction.
 
@@ -153,7 +152,7 @@ def process_batch(  # noqa: C901, PLR0912
 
     Returns:
         pd.DataFrame: DataFrame with one row per sample and timestep, containing columns:
-            - "prev_selections_performed" (list[int]): List of 0-based selection indices that the method had previously performed up to the given timestep.
+            - "prev_selections_performed" (list[int]): List of 0-based selection indices that the method had previously performed up to the given timestep. The length of this list gives the timestep of the current episode.
             - "action_performed" (int): Which action the method chose.
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
@@ -288,14 +287,8 @@ def process_batch(  # noqa: C901, PLR0912
                 active_indices[valid_selections], actions[valid_selections] - 1
             ] = True
 
-        # Determine which samples have finished
-        # A sample finishes if:
-        # - action == 0 (method chose to stop), OR
-        # - all features unmasked, OR
-        # - selection budget reached
-        finished_mask = (actions == 0) | active_new_feature_mask.flatten(
-            start_dim=1
-        ).all(dim=1)
+        # A sample finishes if action == 0, either by manually choosing it or being forced to choose it due to exceeding the budget. Notably, we don't care whether you've already choosen all features and choose to do more selections. This scenario could be interesting with stochastic unmaskers.
+        finished_mask = actions == 0
 
         # Filter out finished samples
         active_indices = active_indices[~finished_mask]
