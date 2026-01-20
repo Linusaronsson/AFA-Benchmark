@@ -4,12 +4,13 @@ hydra:
     - file://extra/conf/global
 
 defaults:
-  - _self_
+  - hydra: custom
   - components/initializers@initializer: ???
   - components/unmaskers@unmasker: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
+  - _self_
 
 method_bundle_path: ???
 # unmasker set as component
