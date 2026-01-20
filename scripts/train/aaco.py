@@ -1,16 +1,16 @@
+import torch
+import hydra
 import logging
+
 from pathlib import Path
 
-import hydra
-import torch
-
+from afabench.common.utils import set_seed
 from afabench.afa_oracle import create_aaco_method
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import AACOTrainConfig
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import set_seed
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @hydra.main(
@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: AACOTrainConfig):
-    log.debug(cfg)
+    logger.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
@@ -33,22 +33,25 @@ def main(cfg: AACOTrainConfig):
     ).lower()
     split = dataset_manifest["metadata"].get("split_idx", None)
 
-    log.info(f"Dataset: {dataset_manifest['class_name']}, Split: {split}")
-    log.info(f"Training samples: {len(dataset_obj)}")
+    logger.info(f"Dataset: {dataset_manifest['class_name']}, Split: {split}")
+    logger.info(f"Training samples: {len(dataset_obj)}")
 
     # Get training data (flatten if needed - AACO works on flat features)
     X_train, y_train = dataset_obj.get_all_data()
     feature_shape = dataset_obj.feature_shape
+
     if len(feature_shape) > 1:
         X_train = X_train.view(X_train.shape[0], -1)
-        log.info(
-            "Flattened features from %s to %s",
-            feature_shape,
-            X_train.shape[1],
+        logger.info(
+            f"Flattened features from {feature_shape} to {X_train.shape[1]}"
         )
 
     X_train = X_train.to(device)
     y_train = y_train.to(device)
+
+    logger.debug(f"X_train shape {
+                 X_train.shape}, y_train shape {y_train.shape}")
+    logger.debug(f"Feature shape: {feature_shape}")
 
     # Determine cost parameter
     cost = (
@@ -58,15 +61,11 @@ def main(cfg: AACOTrainConfig):
     )
     force_acquisition = cfg.hard_budget is not None
 
-    # Validate classifier path is provided
-    if cfg.classifier_bundle_path is None:
-        msg = "classifier_bundle_path must be provided. Train an MLP classifier first."
-        raise ValueError(msg)
-
+    assert cfg.classifier_bundle_path is not None, "classifier_bundle_path must be provided. Train an MLP classifier first."
     classifier_bundle_path = Path(cfg.classifier_bundle_path)
-    if not classifier_bundle_path.exists():
-        msg = f"Classifier bundle not found at: {classifier_bundle_path}"
-        raise FileNotFoundError(msg)
+
+    assert classifier_bundle_path.exists(), f"Classifier bundle not found at: {
+        classifier_bundle_path}"
 
     # Determine selection space from unmasker
     unmasker = get_afa_unmasker_from_config(cfg.unmasker)
@@ -87,9 +86,10 @@ def main(cfg: AACOTrainConfig):
     )
 
     # Fit oracle on training data
-    log.info("Fitting AACO oracle on training data...")
+    logger.info("Fitting AACO oracle on training data...")
     aaco_method.aaco_oracle.fit(X_train, y_train)
-    log.info(f"AACO oracle fitted with classifier from {classifier_bundle_path}")
+    logger.info(f"AACO oracle fitted with classifier from {
+        classifier_bundle_path}")
 
     # Save
     save_bundle(
@@ -111,7 +111,7 @@ def main(cfg: AACOTrainConfig):
             "n_train_samples": len(X_train),
         },
     )
-    log.info(f"Saved AACO method to: {cfg.save_path}")
+    logger.info(f"Saved AACO method to: {cfg.save_path}")
 
 
 if __name__ == "__main__":

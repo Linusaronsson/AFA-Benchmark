@@ -1,0 +1,95 @@
+# Full AACO configuration for Alvis cluster (ALL datasets)
+#
+# PREREQUISITE: Train MLP classifiers first!
+#   snakemake -s extra/workflow/snakefiles/mlp.smk \
+#       --configfile extra/workflow/conf/mlp_alvis.yaml \
+#       --profile extra/workflow/profiles/alvis -j 50
+#
+# Usage:
+#   snakemake -s extra/workflow/snakefiles/AACO.smk \
+#       --configfile extra/workflow/conf/aaco_alvis.yaml \
+#       --profile extra/workflow/profiles/alvis -j 50
+
+# Data paths
+dataset_path_prefix: extra/data
+
+# Dataset instances (5 seeds for statistical significance)
+dataset_instance_indices: [0, 1, 2, 3, 4]
+
+# Initializer and evaluation settings
+initializer: aaco
+eval_dataset_split: test
+device: cuda
+use_wandb: false
+smoke_test: false
+
+# ============================================================================
+# ALL Datasets
+# ============================================================================
+datasets:
+  # Synthetic tabular (small, fast)
+  - cube
+  - cube_without_noise
+  - afa_context
+  - afa_context_without_noise
+  # Real-world tabular
+  - actg
+  - ckd
+  - diabetes
+  - physionet
+  - miniboone
+  - bank_marketing
+  # Image datasets
+  - synthetic_mnist
+  - synthetic_mnist_without_noise
+
+# ============================================================================
+# Unmaskers
+# ============================================================================
+# Unmaskers determine how selections map to features
+# - direct: 1:1 mapping (for tabular data)
+# - 28x28_to_7x7: 4x4 patches, 49 selections (for 28x28 images)
+# - 28x28_to_4x4: 7x7 patches, 16 selections (for 28x28 images)
+
+unmaskers:
+  default: direct
+  synthetic_mnist: 28x28_to_7x7
+  synthetic_mnist_without_noise: 28x28_to_7x7
+
+# ============================================================================
+# Hard budgets for training and evaluation
+# ============================================================================
+# Budget = max features/patches that can be acquired
+# Tabular datasets: typically 5-15 features
+# Images with 7x7 grid (49 patches): typically 10-30 patches
+
+hard_budgets:
+  # Tabular datasets
+  default: [5, 10, 15]
+  # Datasets with more features
+  afa_context: [5, 10, 15, 20]
+  afa_context_without_noise: [5, 10, 15]
+  miniboone: [5, 10, 15, 25]
+  physionet: [5, 10, 15, 20]
+  # Image datasets (49 patches total with 7x7 grid)
+  synthetic_mnist: [10, 20, 30]
+  synthetic_mnist_without_noise: [10, 20, 30]
+
+# ============================================================================
+# Cost parameters (soft budget)
+# ============================================================================
+# Higher cost = fewer features acquired
+# Tabular: 0.01-0.1 typical range
+# Images: may need lower costs (0.001-0.05) due to more features
+
+cost_params:
+  default: [0.01, 0.05, 0.1]
+  # Image datasets typically need lower cost params
+  synthetic_mnist: [0.005, 0.01, 0.05]
+  synthetic_mnist_without_noise: [0.005, 0.01, 0.05]
+
+# ============================================================================
+# AACO+NN Training
+# ============================================================================
+train_aaco_nn: true
+soft_budget_eval: true

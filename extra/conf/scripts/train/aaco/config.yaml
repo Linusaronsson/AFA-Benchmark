@@ -12,20 +12,43 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
+# ============================================================================
+# AACO Oracle Parameters
+# ============================================================================
+# k_neighbors: Number of nearest neighbors for AACO oracle (default: 5)
+# acquisition_cost: Cost per feature acquisition (controls soft budget)
+#   - Higher cost = fewer features acquired
+#   - Typical range: 0.001 - 0.2 depending on dataset
+# hide_val: Value used for unobserved features (0.0 for consistency with MLP)
+
 aco:
   k_neighbors: 5
   acquisition_cost: 0.05
-  hide_val: 0.0  # Use 0 for consistency with MLP training
+  hide_val: 0.0
   evaluate_final_performance: true
   eval_only_n_samples: null
 
-seed: 42
-device: "cpu"
-cost_param: ???
-hard_budget: ???
-save_path: ???
+# ============================================================================
+# Required paths (must be provided)
+# ============================================================================
 dataset_artifact_name: ???
 classifier_bundle_path: ???
+save_path: ???
+
+# ============================================================================
+# Budget settings
+# ============================================================================
+# cost_param: Overrides aco.acquisition_cost if provided
+# hard_budget: If set, forces acquisition until budget is reached (null = soft budget)
+
+cost_param: ???
+hard_budget: ???
+
+# ============================================================================
+# Other settings
+# ============================================================================
+seed: 42
+device: "cpu"
 initializer_type: "aaco"
 unmasker_type: "one_based_index"
 smoke_test: false

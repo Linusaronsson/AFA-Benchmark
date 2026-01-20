@@ -11,33 +11,60 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-# Required paths
-aaco_bundle_path: ???
-dataset_artifact_name: ???
-classifier_bundle_path: ???
+# ============================================================================
+# Required paths (must be provided)
+# ============================================================================
+aaco_bundle_path: ???       # Trained AACO method to clone
+dataset_artifact_name: ???  # Training dataset for generating rollouts
+classifier_bundle_path: ??? # Pre-trained classifier for predictions
 save_path: ???
 
-seed: 42
-device: "cpu"
-
+# ============================================================================
 # Rollout generation
-max_acquisitions: null  # null = until AACO oracle stops
+# ============================================================================
+# max_acquisitions: Maximum features to acquire per sample during rollouts
+#   - null: AACO oracle decides when to stop (soft budget mode)
+#   - integer: Force stop after this many acquisitions (hard budget mode)
 
+max_acquisitions: null
+
+# ============================================================================
 # Policy network architecture
+# ============================================================================
+# hidden_dims: Hidden layer sizes for the MLP policy
+#   - [256, 256] is sufficient for tabular data
+#   - Larger for more complex datasets
+# dropout: Regularization (0.1-0.2 is typical)
+
 hidden_dims:
   - 256
   - 256
 dropout: 0.1
 
+# ============================================================================
 # Training parameters
+# ============================================================================
+# batch_size: 256 works well for behavioral cloning
+# max_epochs: 100 with early stopping
+# learning_rate: 1e-3 is a good default for Adam
+# early_stopping_patience: Stop if val loss doesn't improve for 10 epochs
+# val_split: Use 10% of rollout data for validation
+
 batch_size: 256
 max_epochs: 100
 learning_rate: 0.001
 early_stopping_patience: 10
 val_split: 0.1
 
-# Hard budget for the trained policy (optional)
+# ============================================================================
+# Other settings
+# ============================================================================
+# hard_budget: If set, train policy in forced acquisition mode
+#   - null: Soft budget (policy learns when to stop)
+#   - integer: Hard budget (policy always acquires up to budget)
+
 hard_budget: null
 
-# Smoke test mode
+seed: 42
+device: "cpu"
 smoke_test: false

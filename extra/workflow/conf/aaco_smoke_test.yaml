@@ -1,35 +1,44 @@
 # Smoke test configuration for AACO workflow
-# Quick test to verify the pipeline works
+#
+# PREREQUISITE: Train MLP classifiers first!
+#   snakemake -s extra/workflow/snakefiles/mlp.smk \
+#       --configfile extra/workflow/conf/mlp_smoke_test.yaml -j 4
+#
+# Quick test to verify the AACO pipeline works end-to-end.
+# smoke_test=true reduces epochs and samples in training scripts.
+#
+# Usage:
+#   snakemake -s extra/workflow/snakefiles/AACO.smk \
+#       --configfile extra/workflow/conf/aaco_smoke_test.yaml -j 4
 
-# Use existing data directory
+# Data paths
 dataset_path_prefix: extra/data
 
+# Minimal configuration for quick testing
 dataset_instance_indices: [0, 1]
 initializer: aaco
-eval_dataset_split: val
+eval_dataset_split: val  # Use val split for faster smoke test
 device: cpu
 use_wandb: false
-smoke_test: true
+smoke_test: true  # Reduces epochs and samples
 
-# Just one small dataset for testing
+# Small tabular datasets only (no images for faster testing)
 datasets:
   - cube_without_noise
   - afa_context_without_noise
-  - synthetic_mnist_fast
 
 # Unmaskers
 unmaskers:
   default: direct
-  synthetic_mnist_fast: 28x28_to_7x7
 
-# Hard budgets for evaluation
+# Minimal hard budgets for quick testing
 hard_budgets:
-  default: [5, 10, 15]
-  synthetic_mnist_fast: [16, 32, 48]
+  default: [5, 10]
 
-# Just one cost param for testing
+# Just a couple cost params for testing
 cost_params:
-  default: [0.05, 0.1, 0.2]
+  default: [0.05, 0.1]
 
+# Test both AACO and AACO+NN
 train_aaco_nn: true
-soft_budget_eval: true
+soft_budget_eval: false  # Skip soft budget eval in smoke test for speed

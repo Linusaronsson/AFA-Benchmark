@@ -947,6 +947,9 @@ class AACONNTrainConfig:
     smoke_test: bool = False
 
 
+cs.store(name="train_aaco", node=AACOTrainConfig)
+cs.store(name="train_aaco_nn", node=AACONNTrainConfig)
+
 # --- TRAINING CLASSIFIERS ---
 
 

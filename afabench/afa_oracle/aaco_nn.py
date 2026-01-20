@@ -1,16 +1,18 @@
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Self, cast, final, override
+from typing import Any, Self, cast, final, override
 
 import torch
 import torch.nn.functional as F
 from torch import nn
+from torch.utils.data import DataLoader, TensorDataset, random_split
 
 from afabench.afa_oracle.afa_methods import AACOAFAMethod
 from afabench.afa_oracle.utils import (
     compute_patch_selection_mask,
     flatten_for_aaco,
+    uses_patch_selection,
 )
 from afabench.common.bundle import load_bundle
 from afabench.common.custom_types import (
@@ -39,10 +41,7 @@ def _build_selection_mask(
     feature_mask_flat = feature_mask_structured.reshape(-1)
     if selection_size == feature_mask_flat.numel():
         return feature_mask_flat.bool().clone()
-    if (
-        len(feature_shape) in (2, 3)
-        and selection_size < feature_mask_flat.numel()
-    ):
+    if uses_patch_selection(selection_size, feature_shape):
         return compute_patch_selection_mask(
             feature_mask_structured, selection_size, feature_shape
         ).squeeze(0)
@@ -323,6 +322,136 @@ class AACOPolicyNetwork(nn.Module):
         return self.network(x)
 
 
+def _run_train_epoch(
+    policy_network: AACOPolicyNetwork,
+    train_loader: DataLoader[Any],
+    optimizer: torch.optim.Optimizer,
+    criterion: nn.CrossEntropyLoss,
+    device: torch.device,
+) -> tuple[float, float]:
+    """Run a single training epoch and return (loss, accuracy)."""
+    policy_network.train()
+    total_loss, correct, total = 0.0, 0, 0
+    for features_cpu, masks_cpu, actions_cpu in train_loader:
+        features = features_cpu.to(device)
+        masks = masks_cpu.to(device)
+        actions = actions_cpu.to(device)
+        optimizer.zero_grad()
+        logits = policy_network(features, masks)
+        loss = criterion(logits, actions)
+        loss.backward()
+        optimizer.step()
+        total_loss += loss.item() * len(actions)
+        correct += (logits.argmax(dim=-1) == actions).sum().item()
+        total += len(actions)
+    return total_loss / total, correct / total
+
+
+def _run_val_epoch(
+    policy_network: AACOPolicyNetwork,
+    val_loader: DataLoader[Any],
+    criterion: nn.CrossEntropyLoss,
+    device: torch.device,
+) -> tuple[float, float]:
+    """Run a single validation epoch and return (loss, accuracy)."""
+    policy_network.eval()
+    total_loss, correct, total = 0.0, 0, 0
+    with torch.no_grad():
+        for features_cpu, masks_cpu, actions_cpu in val_loader:
+            features = features_cpu.to(device)
+            masks = masks_cpu.to(device)
+            actions = actions_cpu.to(device)
+            logits = policy_network(features, masks)
+            loss = criterion(logits, actions)
+            total_loss += loss.item() * len(actions)
+            correct += (logits.argmax(dim=-1) == actions).sum().item()
+            total += len(actions)
+    return total_loss / total, correct / total
+
+
+def train_policy_network(
+    policy_network: AACOPolicyNetwork,
+    train_loader: DataLoader[Any],
+    val_loader: DataLoader[Any],
+    max_epochs: int,
+    learning_rate: float,
+    patience: int,
+    device: torch.device,
+) -> AACOPolicyNetwork:
+    """Train the policy network via behavioral cloning."""
+    policy_network = policy_network.to(device)
+    optimizer = torch.optim.AdamW(
+        policy_network.parameters(), lr=learning_rate
+    )
+    criterion = nn.CrossEntropyLoss()
+
+    best_val_loss = float("inf")
+    epochs_without_improvement = 0
+    best_state_dict = None
+
+    for epoch in range(max_epochs):
+        train_loss, train_acc = _run_train_epoch(
+            policy_network, train_loader, optimizer, criterion, device
+        )
+        val_loss, val_acc = _run_val_epoch(
+            policy_network, val_loader, criterion, device
+        )
+
+        logger.info(
+            f"Epoch {epoch + 1}/{max_epochs}: "
+            f"Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}, "
+            f"Val Loss={val_loss:.4f}, Val Acc={val_acc:.4f}"
+        )
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            epochs_without_improvement = 0
+            best_state_dict = policy_network.state_dict().copy()
+        else:
+            epochs_without_improvement += 1
+            if epochs_without_improvement >= patience:
+                logger.info(f"Early stopping at epoch {epoch + 1}")
+                break
+
+    if best_state_dict is not None:
+        policy_network.load_state_dict(best_state_dict)
+        logger.info(
+            f"Loaded best model with validation loss {best_val_loss:.4f}"
+        )
+
+    return policy_network
+
+
+def create_rollout_data_loaders(
+    masked_features: torch.Tensor,
+    feature_masks: torch.Tensor,
+    actions: torch.Tensor,
+    batch_size: int,
+    val_split: float,
+    seed: int,
+) -> tuple[DataLoader[Any], DataLoader[Any], int, int]:
+    """Create train and validation data loaders from rollout data."""
+    tensor_dataset = TensorDataset(
+        masked_features.cpu(), feature_masks.cpu().float(), actions.cpu()
+    )
+    val_size = int(len(tensor_dataset) * val_split)
+    train_size = len(tensor_dataset) - val_size
+
+    train_dataset, val_dataset = random_split(
+        tensor_dataset,
+        [train_size, val_size],
+        generator=torch.Generator().manual_seed(seed),
+    )
+
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=0
+    )
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, shuffle=False, num_workers=0
+    )
+    return train_loader, val_loader, len(train_dataset), len(val_dataset)
+
+
 @dataclass
 @final
 class AACONNAFAMethod(AFAMethod):
@@ -401,11 +530,8 @@ class AACONNAFAMethod(AFAMethod):
 
         if selection_size == n_features:
             acquired_mask = feature_mask.bool()
-        elif (
-            feature_shape is not None
-            and len(feature_shape) in (2, 3)
-            and selection_size < n_features
-        ):
+        elif uses_patch_selection(selection_size, feature_shape):
+            assert feature_shape is not None
             fm = feature_mask.view(-1, *feature_shape)
             acquired_mask = compute_patch_selection_mask(
                 fm, selection_size, feature_shape

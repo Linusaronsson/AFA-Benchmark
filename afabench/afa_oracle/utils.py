@@ -3,27 +3,48 @@
 import torch
 
 
-def compute_patch_selection_mask(
-    feature_mask: torch.Tensor,
-    selection_size: int,
-    feature_shape: torch.Size,
-) -> torch.Tensor:
+def uses_patch_selection(
+    selection_size: int | None,
+    feature_shape: torch.Size | None,
+) -> bool:
     """
-    Convert feature-level mask to patch-level selection mask.
+    Determine if patch-based selection should be used.
 
     Args:
-        feature_mask: Feature mask with shape (*batch, *feature_shape) or
-            (*batch, n_features) where n_features = prod(feature_shape).
-        selection_size: Number of patches (must be a perfect square)
-        feature_shape: Shape of features (H, W) or (C, H, W)
+        selection_size: Number of selections (patches). None = feature-level.
+        feature_shape: Shape of features (H, W) or (C, H, W).
 
     Returns:
-        Patch selection mask with shape (batch_size, selection_size)
+        True if patch-based selection should be used.
+    """
+    if selection_size is None or feature_shape is None:
+        return False
+    n_features = feature_shape.numel()
+    return selection_size < n_features and len(feature_shape) in (2, 3)
+
+
+def get_patch_dimensions(
+    selection_size: int,
+    feature_shape: torch.Size,
+) -> tuple[int, int, int, int, int]:
+    """
+    Compute patch grid dimensions from selection size and feature shape.
+
+    Args:
+        selection_size: Number of patches (must be a perfect square).
+        feature_shape: Shape of features (H, W) or (C, H, W).
+
+    Returns:
+        Tuple of (n_channels, height, width, patch_h, patch_w).
+
+    Raises:
+        AssertionError: If selection_size is not a perfect square or
+                       doesn't evenly divide the image dimensions.
     """
     if len(feature_shape) == 3:
-        channels, height, width = feature_shape
+        n_channels, height, width = feature_shape
     else:
-        channels = 1
+        n_channels = 1
         height, width = feature_shape
 
     mask_width = int(selection_size**0.5)
@@ -41,6 +62,31 @@ def compute_patch_selection_mask(
 
     patch_h = height // mask_width
     patch_w = width // mask_width
+
+    return n_channels, height, width, patch_h, patch_w
+
+
+def compute_patch_selection_mask(
+    feature_mask: torch.Tensor,
+    selection_size: int,
+    feature_shape: torch.Size,
+) -> torch.Tensor:
+    """
+    Convert feature-level mask to patch-level selection mask.
+
+    Args:
+        feature_mask: Feature mask with shape (*batch, *feature_shape) or
+            (*batch, n_features) where n_features = prod(feature_shape).
+        selection_size: Number of patches (must be a perfect square)
+        feature_shape: Shape of features (H, W) or (C, H, W)
+
+    Returns:
+        Patch selection mask with shape (batch_size, selection_size)
+    """
+    n_channels, _height, _width, patch_h, patch_w = get_patch_dimensions(
+        selection_size, feature_shape
+    )
+    mask_width = int(selection_size**0.5)
 
     n_features = feature_shape.numel()
     mask = feature_mask
@@ -62,7 +108,7 @@ def compute_patch_selection_mask(
     batch_size = mask.shape[0]
     mask = mask.view(
         batch_size,
-        channels,
+        n_channels,
         mask_width,
         patch_h,
         mask_width,
@@ -89,19 +135,7 @@ def count_acquisitions(
     Returns:
         Number of acquisitions made
     """
-    n_features = (
-        feature_shape.numel()
-        if feature_shape is not None
-        else feature_mask.shape[-1]
-    )
-    use_patches = (
-        selection_size is not None
-        and selection_size < n_features
-        and feature_shape is not None
-        and len(feature_shape) in (2, 3)
-    )
-
-    if use_patches:
+    if uses_patch_selection(selection_size, feature_shape):
         assert selection_size is not None
         assert feature_shape is not None
         patch_mask = compute_patch_selection_mask(

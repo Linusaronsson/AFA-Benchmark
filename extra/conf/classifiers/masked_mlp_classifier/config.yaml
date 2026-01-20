@@ -9,17 +9,50 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
+# Required paths
 train_dataset_path: ???
 val_dataset_path: ???
 save_path: ???
 
+# ============================================================================
+# Training hyperparameters
+# ============================================================================
+# Tuned for small tabular datasets (600 samples, 20-33 features)
+#
+# epochs: 100 with early stopping via ModelCheckpoint (monitors val_loss)
+# batch_size: 64 - smaller batches work better for small datasets
+# lr: 1e-3 - standard starting point for Adam/AdamW
+# num_cells: [128, 128] - sufficient capacity for simple tabular data
+# dropout: 0.2 - moderate regularization for small datasets
+
 epochs: 100
-batch_size: 128
-limit_train_batches: null
-limit_val_batches: null
+batch_size: 64
+lr: 1e-3
+num_cells: [128, 128]
+dropout: 0.2
+
+# ============================================================================
+# Masked training
+# ============================================================================
+# Train the classifier with random masking to handle partial observations
+# This is critical for AFA methods that need predictions with missing features
+#
+# min_masking_probability: 0.0 - include fully observed samples
+# max_masking_probability: 0.9 - up to 90% of features can be masked
+
 min_masking_probability: 0.0
 max_masking_probability: 0.9
 
+# ============================================================================
+# Other settings
+# ============================================================================
+
+# For smoke tests / debugging
+limit_train_batches: null
+limit_val_batches: null
+eval_only_n_samples: null
+
+# Not used by MLP classifier but kept for config compatibility
 initializer:
   class_name: "ZeroInitializer"
   kwargs: {}
@@ -28,14 +61,8 @@ unmasker:
   class_name: "DirectUnmasker"
   kwargs: {}
 
-eval_only_n_samples: null
-
-
-lr: 1e-3
-num_cells: [128, 128]
-dropout: 0.1
-
+# Runtime settings
 seed: 42
-device: "cuda"
+device: "cpu"  # Use "cuda" for GPU
 use_wandb: false
 smoke_test: false

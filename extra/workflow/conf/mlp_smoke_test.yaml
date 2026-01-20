@@ -1,0 +1,34 @@
+# Smoke test configuration for MLP classifier training
+#
+# Quick test to verify the MLP classifier training pipeline works.
+# smoke_test=true reduces epochs to 2 in the training script.
+#
+# Usage:
+#   snakemake -s extra/workflow/snakefiles/mlp.smk \
+#       --configfile extra/workflow/conf/mlp_smoke_test.yaml
+
+# Data paths
+dataset_path_prefix: extra/data
+output_path_prefix: extra/output/classifiers
+
+# Minimal set for quick testing
+datasets:
+  - cube_without_noise
+  - afa_context_without_noise
+
+# Just two instances for smoke test
+dataset_instance_indices: [0, 1]
+
+# Training settings
+device: cpu
+use_wandb: false
+smoke_test: true  # Reduces epochs to 2 in training script
+
+# Model hyperparameters (same as full config, smoke_test flag handles reduction)
+epochs: 100
+batch_size: 64
+lr: 1e-3
+num_cells: [128, 128]
+dropout: 0.2
+min_masking_probability: 0.0
+max_masking_probability: 0.9

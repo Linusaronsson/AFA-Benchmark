@@ -1,0 +1,48 @@
+# Configuration for training masked MLP classifiers
+#
+# These classifiers are prerequisites for AACO and other AFA methods.
+# Train them once and reuse across experiments.
+#
+# Usage:
+#   snakemake -s extra/workflow/snakefiles/mlp.smk \
+#       --configfile extra/workflow/conf/mlp.yaml -j 4
+
+# Data paths
+dataset_path_prefix: extra/data
+output_path_prefix: extra/output/classifiers
+
+# Which datasets to train classifiers for
+datasets:
+  - cube
+  - cube_without_noise
+  - afa_context
+  - afa_context_without_noise
+
+# Dataset instances (one classifier per instance)
+# Each instance uses its index as both the instance_idx and seed
+dataset_instance_indices: [0, 1, 2, 3, 4]
+
+# Training settings
+device: cpu
+use_wandb: false
+smoke_test: false
+
+# ============================================================================
+# Model hyperparameters
+# ============================================================================
+# These are tuned for small tabular datasets (600 samples, 20-33 features)
+#
+# epochs: 100 with early stopping via Lightning's ModelCheckpoint
+# batch_size: 64 - smaller batches work better for small datasets
+# lr: 1e-3 - standard starting point for Adam/AdamW
+# num_cells: [128, 128] - sufficient capacity for simple tabular data
+# dropout: 0.2 - moderate regularization for small datasets
+# masking: train with 0-90% features masked to handle partial observations
+
+epochs: 100
+batch_size: 64
+lr: 1e-3
+num_cells: [128, 128]
+dropout: 0.2
+min_masking_probability: 0.0
+max_masking_probability: 0.9

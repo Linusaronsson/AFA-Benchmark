@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from afabench.common.utils import get_class_frequencies
 from afabench.afa_oracle.mask_generator import random_mask_generator
+from afabench.afa_oracle.utils import get_patch_dimensions, uses_patch_selection
 
 logger = logging.getLogger(__name__)
 
@@ -153,12 +154,7 @@ class AACOOracle:
         )
 
         feature_count = len(x_observed)
-        use_patch_selection = (
-            selection_size is not None
-            and selection_size < feature_count
-            and feature_shape is not None
-            and len(feature_shape) in (2, 3)
-        )
+        use_patch_selection = uses_patch_selection(selection_size, feature_shape)
         mask_curr = observed_mask.float().unsqueeze(0)
 
         assert observed_mask.any(), (
@@ -180,21 +176,10 @@ class AACOOracle:
 
         if use_patch_selection:
             assert feature_shape and selection_size is not None
-            if len(feature_shape) == 3:
-                n_channels, height, width = feature_shape
-            else:
-                n_channels = 1
-                height, width = feature_shape
-
+            n_channels, height, width, patch_h, patch_w = get_patch_dimensions(
+                selection_size, feature_shape
+            )
             mask_width = int(selection_size**0.5)
-            assert mask_width * mask_width == selection_size, (
-                "Patch selection size must be a square number."
-            )
-            assert height % mask_width == 0 and width % mask_width == 0, (
-                "Patch grid must evenly divide image dimensions."
-            )
-            patch_h = height // mask_width
-            patch_w = width // mask_width
 
             observed_mask_2d = observed_mask.view(n_channels, height, width)
             fm = observed_mask_2d.view(

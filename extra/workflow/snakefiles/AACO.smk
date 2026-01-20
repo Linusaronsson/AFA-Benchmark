@@ -1,11 +1,18 @@
 """
 Snakemake workflow for AACO and AACO+NN methods.
 
+PREREQUISITE: Run mlp.smk first to train MLP classifiers!
+    snakemake -s extra/workflow/snakefiles/mlp.smk \
+        --configfile extra/workflow/conf/mlp.yaml -j 4
+
 This workflow handles:
-1. Training MLP classifiers (prerequisite for AACO)
-2. Training AACO methods with various cost parameters
-3. Training AACO+NN (behavioral cloning from AACO)
-4. Evaluation of both methods
+1. Training AACO methods with various cost parameters
+2. Training AACO+NN (behavioral cloning from AACO)
+3. Evaluation of both methods
+
+Usage:
+    snakemake -s extra/workflow/snakefiles/AACO.smk \
+        --configfile extra/workflow/conf/aaco_full.yaml -j 4
 """
 import os
 from datetime import datetime
@@ -87,20 +94,6 @@ rule all:
         "extra/output/plot_results/AACO",
 
 
-rule train_classifiers_all:
-    input:
-        [
-            (
-                f"extra/output/classifiers/masked_mlp_classifier/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"seed-{dataset_instance_idx}.bundle"
-            )
-            for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
-        ]
-
-
 rule train_aaco_all:
     input:
         [
@@ -140,31 +133,8 @@ rule train_aaco_nn_all:
 # ============================================================================
 # TRAINING RULES
 # ============================================================================
-
-rule train_classifier:
-    """Train a masked MLP classifier for a dataset."""
-    input:
-        train=lambda wc: f"{DATASET_PATH_PREFIX}/{wc.dataset}/{wc.dataset_instance_idx}/train.bundle",
-        val=lambda wc: f"{DATASET_PATH_PREFIX}/{wc.dataset}/{wc.dataset_instance_idx}/val.bundle",
-    output:
-        directory(
-            "extra/output/classifiers/masked_mlp_classifier/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "seed-{seed}.bundle"
-        ),
-    shell:
-        """
-        python scripts/train/masked_mlp_classifier.py \
-            train_dataset_path={input.train} \
-            val_dataset_path={input.val} \
-            save_path={output} \
-            device={DEVICE} \
-            seed={wildcards.seed} \
-            use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST}
-        """
-
+# NOTE: MLP classifiers are assumed to be already trained via mlp.smk
+# The classifier path is specified as an input dependency to fail early if missing.
 
 rule train_aaco:
     """Train AACO method with a given cost parameter."""
