@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, final, override
 
 import torch
@@ -46,13 +47,15 @@ class AFAEnv(EnvBase):
         feature_shape: torch.Size,
         n_selections: int,  # action dim = n_selections + 1 since we have a stop action as well
         n_classes: int,
-        hard_budget: int
-        | None,  # how many selections can be performed before the episode ends. If None, no limit.
+        hard_budget: float
+        | None,  # accumulated selection cost allowed before the episode ends. If None, no limit.
         initialize_fn: AFAInitializeFn,
         unmask_fn: AFAUnmaskFn,
         *,
         force_hard_budget: bool = False,  # if True and hard_budget is set, never allow the stop action
         seed: int | None = None,
+        selection_costs: Sequence[float]
+        | None = None,  # How much each sequence costs. If None, assume unit cost (1).
     ):
         # Do not allow empty batch sizes
         assert batch_size != torch.Size(()), "Batch size must be non-empty"
@@ -76,6 +79,14 @@ class AFAEnv(EnvBase):
         self.initialize_fn = initialize_fn
         self.unmask_fn = unmask_fn
         self.seed = seed
+        if selection_costs is None:
+            self.selection_costs = torch.ones(
+                (self.n_selections,), device=self.device
+            )
+        else:
+            self.selection_costs = torch.tensor(
+                selection_costs, device=self.device
+            )
 
         self.rng = torch.Generator()
         if self.seed is not None:
@@ -120,6 +131,9 @@ class AFAEnv(EnvBase):
             label=Unbounded(
                 shape=self.batch_size + (self.n_classes,),
                 dtype=torch.float32,
+            ),
+            accumulated_cost=Unbounded(
+                shape=self.batch_size, dtype=torch.float32
             ),
             batch_size=self.batch_size,
         )
@@ -181,6 +195,11 @@ class AFAEnv(EnvBase):
                 "masked_features": initial_masked_features,
                 "features": features,
                 "label": label,
+                "accumulated_cost": torch.zeros(
+                    tensordict.batch_size,
+                    dtype=torch.float32,
+                    device=tensordict.device,
+                ),
             },
             batch_size=tensordict.batch_size,
             device=tensordict.device,
@@ -218,8 +237,13 @@ class AFAEnv(EnvBase):
         new_masked_features = tensordict["features"].clone()
         new_masked_features[~new_feature_mask] = 0.0
 
+        # Add up costs
+        new_accumulated_cost = tensordict["accumulated_cost"].clone()
+        new_accumulated_cost[no_stop_mask] += self.selection_costs[
+            (tensordict["action"] - 1)[no_stop_mask]
+        ]
+
         # Update masks
-        # action_idx = tensordict["action"]
         new_performed_action_mask = tensordict["performed_action_mask"].clone()
         new_performed_action_mask[batch_indices, tensordict["action"]] = True
         new_allowed_action_mask = tensordict["allowed_action_mask"].clone()
@@ -242,15 +266,14 @@ class AFAEnv(EnvBase):
         if not self.allow_stop_action:
             new_allowed_action_mask[:, 0] = False
 
-        # Done if we exceed the hard budget, have chosen all the actions, choose to stop (action 0),
+        # Done if we **exceed** the hard budget, have chosen all the actions, choose to stop (action 0),
         # or all selection actions are exhausted
-        selections_taken = new_performed_selection_mask.sum(-1)
         # Check if all selection actions (actions 1 through n_selections) are disabled
         selection_actions_available = new_allowed_action_mask[:, 1:].any(
             dim=-1
         )
         done = (
-            ((selections_taken >= self.hard_budget).unsqueeze(-1))
+            ((new_accumulated_cost > self.hard_budget).unsqueeze(-1))
             | (tensordict["action"] == 0).unsqueeze(-1)
             | (~selection_actions_available).unsqueeze(-1)
         )
@@ -282,6 +305,7 @@ class AFAEnv(EnvBase):
                 # features and label are not cloned since they stay the same
                 "features": tensordict["features"],
                 "label": tensordict["label"],
+                "accumulated_cost": new_accumulated_cost,
             },
             batch_size=tensordict.batch_size,
         )

@@ -81,7 +81,7 @@ def test_initializer_and_unmasker_integration() -> None:
         feature_shape=torch.Size((2, 4, 4)),
         n_selections=4,
         n_classes=3,
-        hard_budget=2,
+        hard_budget=1.99,
         initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
         unmask_fn=ImagePatchUnmasker(
             image_side_length=4,
@@ -209,7 +209,7 @@ def test_initializer_and_unmasker_integration() -> None:
     # Pick the first patch for the first sample and the fourth patch for the second sample
     td["action"] = torch.tensor([1, 4], dtype=torch.int64)
 
-    # t = 2 (final step due to hard_budget=2)
+    # t = 2 (final step due to hard_budget=1.99)
     td = env.step(td)
     td = td["next"]
     expected_feature_mask_t2 = torch.tensor(
@@ -286,12 +286,12 @@ def test_initializer_and_unmasker_integration() -> None:
 
 
 def test_stop_due_to_hard_budget() -> None:
-    """Test that the environment terminates when hard budget is reached."""
+    """Test that the environment terminates when hard budget is **exceeded**."""
     # Use simple 1D features for easy testing
     all_features = torch.tensor(
         [
-            [1.0, 2.0, 3.0, 4.0],  # Sample 1
-            [5.0, 6.0, 7.0, 8.0],  # Sample 2
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],  # Sample 1
+            [5.0, 6.0, 7.0, 8.0, 9.0, 10.0],  # Sample 2
         ]
     )
     all_labels = torch.tensor(
@@ -310,10 +310,10 @@ def test_stop_due_to_hard_budget() -> None:
         ),
         device=torch.device("cpu"),
         batch_size=torch.Size((2,)),
-        feature_shape=torch.Size((4,)),
-        n_selections=4,  # 4 possible selections
+        feature_shape=torch.Size((6,)),
+        n_selections=6,  # 4 possible selections
         n_classes=2,
-        hard_budget=2,  # Should terminate after 2 selections
+        hard_budget=2.0,  # Should terminate after 3 selections
         initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
@@ -333,15 +333,26 @@ def test_stop_due_to_hard_budget() -> None:
         "Environment should not terminate after first selection"
     )
 
-    # Second selection - should terminate due to hard budget
+    # Second selection - should not terminate due to hard budget
     td["action"] = torch.tensor(
         [3, 4], dtype=torch.int64
     )  # Select features 3 and 4
     td = env.step(td)
     td = td["next"]
 
+    assert not td["done"].any(), (
+        "Environment should not terminate when budget is reached, only if it is exceeded."
+    )
+
+    # Third selection - should terminate due to hard budget
+    td["action"] = torch.tensor(
+        [5, 6], dtype=torch.int64
+    )  # Select features 4 and 5
+    td = env.step(td)
+    td = td["next"]
+
     assert td["done"].all(), (
-        "Environment should terminate after reaching hard budget of 2"
+        "Environment should terminate after exceeding hard budget"
     )
 
 
@@ -494,7 +505,7 @@ def test_per_sample_termination_hard_budget() -> None:
         feature_shape=torch.Size((4,)),
         n_selections=4,
         n_classes=3,
-        hard_budget=2,  # All samples have same hard budget
+        hard_budget=1.99,  # All samples have same hard budget
         initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
@@ -1825,3 +1836,70 @@ def test_initializer_application() -> None:
         td["performed_selection_mask"],
         expected_performed_selection_mask_after_step,
     ), "Only actual selections should be marked in performed_selection_mask"
+
+
+def test_accumulated_cost_tracked() -> None:
+    """Test that the environment keeps track of accumulated costs."""
+    # Use simple 1D features for easy testing
+    all_features = torch.tensor(
+        [
+            [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],  # Sample 1
+            [5.0, 6.0, 7.0, 8.0, 9.0, 10.0],  # Sample 2
+        ]
+    )
+    all_labels = torch.tensor(
+        [
+            [1, 0],  # Sample 1 label
+            [0, 1],  # Sample 2 label
+        ]
+    )
+    dataset_fn = get_afa_dataset_fn(all_features, all_labels, shuffle=False)
+
+    env = AFAEnv(
+        dataset_fn=dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=torch.device("cpu"),
+        batch_size=torch.Size((2,)),
+        feature_shape=torch.Size((6,)),
+        n_selections=6,  # 4 possible selections
+        n_classes=2,
+        hard_budget=10.0,  # Large, should not terminate
+        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+        selection_costs=[1.1, 2.1, 3.1, 4.1, 5.1, 6.1],
+    )
+
+    # Reset environment
+    td = env.reset()
+
+    td["action"] = torch.tensor(
+        [1, 2], dtype=torch.int64
+    )  # Select features 1 and 2
+    td = env.step(td)
+    td = td["next"]
+
+    assert torch.allclose(td["accumulated_cost"], torch.tensor([1.1, 2.1]))
+
+    td["action"] = torch.tensor(
+        [3, 4], dtype=torch.int64
+    )  # Select features 3 and 4
+    td = env.step(td)
+    td = td["next"]
+
+    assert torch.allclose(
+        td["accumulated_cost"], torch.tensor([1.1 + 3.1, 2.1 + 4.1])
+    )
+
+    td["action"] = torch.tensor(
+        [5, 6], dtype=torch.int64
+    )  # Select features 4 and 5
+    td = env.step(td)
+    td = td["next"]
+
+    assert torch.allclose(
+        td["accumulated_cost"],
+        torch.tensor([1.1 + 3.1 + 5.1, 2.1 + 4.1 + 6.1]),
+    )
