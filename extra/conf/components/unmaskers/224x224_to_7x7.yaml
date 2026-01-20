@@ -1,0 +1,5 @@
+class_name: "ImagePatchUnmasker"
+kwargs:
+  image_side_length: 224  # Imagenette size
+  n_channels: 3
+  patch_size: 32  # 7x7 grid = 49 patches

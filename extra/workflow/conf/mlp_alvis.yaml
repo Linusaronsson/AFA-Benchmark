@@ -1,41 +1,43 @@
-# Full MLP classifier training config for Alvis cluster
+# MLP classifier training for Alvis cluster
 #
 # Usage:
 #   snakemake -s extra/workflow/snakefiles/mlp.smk \
 #       --configfile extra/workflow/conf/mlp_alvis.yaml \
-#       --profile extra/workflow/profiles/alvis -j 50
+#       --profile extra/workflow/profiles/alvis
 
-# Data paths
 dataset_path_prefix: extra/data
 output_path_prefix: extra/output/classifiers
+dataset_instance_indices: [0, 1, 2, 3, 4]
+device: cuda
+use_wandb: false
+smoke_test: false
 
-# ALL available datasets
+# ============================================================================
+# Datasets
+# ============================================================================
 datasets:
-  # Synthetic tabular (small, fast)
+  # Tabular
   - cube
   - cube_without_noise
   - afa_context
   - afa_context_without_noise
-  # Real-world tabular
   - actg
   - ckd
   - diabetes
   - physionet
   - miniboone
   - bank_marketing
-  # Image datasets
+  # Tabular (flat image)
+  - mnist
+  - fashion_mnist
+  # Image (patch-based)
   - synthetic_mnist
   - synthetic_mnist_without_noise
+  - imagenette
 
-# 5 seeds for statistical significance
-dataset_instance_indices: [0, 1, 2, 3, 4]
-
-# Training settings for Alvis (GPU)
-device: cuda
-use_wandb: false
-smoke_test: false
-
+# ============================================================================
 # Model hyperparameters
+# ============================================================================
 epochs: 100
 batch_size: 128
 lr: 1e-3
