@@ -340,6 +340,7 @@ def eval_afa_method(
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
             - "true_class" (int)
+            - "forced_stop" (bool): Whether stopping happened due to exceeding the budget.
     """
     assert isinstance(dataset, Dataset)
     if device is None:
@@ -400,6 +401,7 @@ def eval_afa_method(
         "builtin_predicted_class",
         "external_predicted_class",
         "true_class",
+        "forced_stop",
     }
     assert expected_columns.issubset(set(df_batches.columns)), (
         f"Expected columns {expected_columns}, but got {set(df_batches.columns)}"

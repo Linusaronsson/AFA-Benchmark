@@ -57,6 +57,19 @@ METRIC_NAME_MAPPING = {
     "kappa": "Cohen's Kappa",
 }
 
+DTYPE_SPEC = {
+    "afa_method": "category",
+    "classifier": "category",
+    "dataset": "category",
+    "predicted_class": "category",
+    "true_class": "category",
+    "train_seed": "int64",
+    "eval_seed": "int64",
+    "accumulated_cost": "float64",
+    "hard_budget": "float64",
+    "soft_budget_param": "float64",
+}
+
 
 def dataset_with_metric_labeller(dataset: str) -> str:
     """Create facet label with dataset name and metric."""
@@ -68,8 +81,6 @@ def dataset_with_metric_labeller(dataset: str) -> str:
 
 def apply_method_labels(df: pd.DataFrame) -> pd.DataFrame:
     """Apply display labels to method codes."""
-    if "afa_method" not in df.columns:
-        return df
     df = df.copy()
     df["afa_method"] = (
         df["afa_method"]
@@ -81,72 +92,11 @@ def apply_method_labels(df: pd.DataFrame) -> pd.DataFrame:
 
 def read_csv_safe(path: Path) -> pd.DataFrame:
     """Read evaluation CSV with proper column types."""
-    df = pd.read_csv(path)
-
-    categorical_cols = ["afa_method", "classifier", "dataset"]
-    for col in categorical_cols:
-        if col in df.columns:
-            df[col] = df[col].astype("category")
-
-    int_cols = [
-        "predicted_class",
-        "true_class",
-        "train_seed",
-        "eval_seed",
-        "hard_budget",
-    ]
-    for col in int_cols:
-        if col in df.columns:
-            series = pd.to_numeric(df[col], errors="coerce")
-            assert isinstance(series, pd.Series)
-            df[col] = series.astype("Int64")
-
-    float_cols = [
-        "accumulated_cost",
-        "soft_budget_param",
-    ]
-    for col in float_cols:
-        if col in df.columns:
-            series = pd.to_numeric(df[col], errors="coerce")
-            assert isinstance(series, pd.Series)
-            df[col] = series
-
-    return apply_method_labels(df)
+    df = pd.read_csv(path, dtype=DTYPE_SPEC, na_values=["null"])  # pyright: ignore[reportCallIssue, reportArgumentType]
+    return df
 
 
-def generate_dummy_data(n: int = 10000) -> pd.DataFrame:
-    """Generate dummy data for testing."""
-    rng = np.random.default_rng(42)
-    methods = ["random_dummy", "sequential_dummy", "aaco"]
-    classifiers = ["builtin", "external"]
-    datasets = ["cube", "afa_context", "synthetic_mnist"]
-    train_seeds = [1, 2]
-    eval_seeds = [1, 2]
-    hard_budgets = [5, 10, 15]
-    n_classes = 5
-
-    df = pd.DataFrame(
-        {
-            "afa_method": rng.choice(methods, n),
-            "classifier": rng.choice(classifiers, n),
-            "dataset": rng.choice(datasets, n),
-            "accumulated_cost": rng.uniform(0.5, 15.0, n),
-            "predicted_class": rng.integers(0, n_classes, n),
-            "true_class": rng.integers(0, n_classes, n),
-            "train_seed": rng.choice(train_seeds, n),
-            "eval_seed": rng.choice(eval_seeds, n),
-            "hard_budget": rng.choice(hard_budgets, n),
-            "soft_budget_param": rng.choice([np.nan, 0.1, 1.0], n),
-        }
-    )
-
-    for col in ["afa_method", "classifier", "dataset"]:
-        df[col] = df[col].astype("category")
-
-    return apply_method_labels(df)
-
-
-def compute_metrics(group: pd.DataFrame) -> pd.Series:
+def compute_classification_metrics(group: pd.DataFrame) -> pd.Series:
     """Compute classification metrics for a group."""
     y_true = group["true_class"].to_numpy()
     y_pred = group["predicted_class"].to_numpy()
@@ -262,39 +212,25 @@ def create_soft_budget_plot(
     return plot
 
 
-def process_hard_budget(df: pd.DataFrame) -> pd.DataFrame:
-    """Process data for hard budget plots."""
-    df_hard = df.loc[
-        df["hard_budget"].notna() & df["soft_budget_param"].isna()
-    ].copy()
-
-    if len(df_hard) == 0:
-        return pd.DataFrame()
-
-    # We only consider the performance at the end of each "episode"
-    df_hard = df_hard.loc[
-        df_hard["accumulated_cost"] >= df_hard["hard_budget"]
-    ]
-
-    if len(df_hard) == 0:
-        return pd.DataFrame()
-
+def metrics_grouped_by_param(df: pd.DataFrame, param: str) -> pd.DataFrame:
     group_cols = [
         "afa_method",
         "classifier",
         "dataset",
         "train_seed",
         "eval_seed",
-        "hard_budget",
+        param,
     ]
     metrics_list = []
 
-    for name, group in df_hard.groupby(group_cols, observed=True):
+    for name, group in df.groupby(group_cols, observed=True):
         assert isinstance(group, pd.DataFrame)
         group_name = name if isinstance(name, tuple) else (name,)
-        metrics = compute_metrics(group)
+        metrics = compute_classification_metrics(group)
         row = dict(zip(group_cols, group_name, strict=True))
         row.update(metrics.to_dict())
+        # Add accumulated_cost from the group
+        row["accumulated_cost"] = group["accumulated_cost"].mean()  # pyright: ignore[reportArgumentType]
         metrics_list.append(row)
 
     if not metrics_list:
@@ -302,10 +238,15 @@ def process_hard_budget(df: pd.DataFrame) -> pd.DataFrame:
 
     metrics_df = pd.DataFrame(metrics_list)
 
-    summary_cols = ["afa_method", "classifier", "dataset", "hard_budget"]
+    # Everything in group_cols, except for seeds
+    summary_cols = [
+        col for col in group_cols if col not in ("train_seed", "eval_seed")
+    ]
     summary = (
         metrics_df.groupby(summary_cols, observed=True)
         .agg(
+            accumulated_cost_mean=("accumulated_cost", "mean"),
+            accumulated_cost_sd=("accumulated_cost", "std"),
             accuracy_mean=("accuracy", "mean"),
             accuracy_sd=("accuracy", "std"),
             f1_mean=("f1", "mean"),
@@ -317,6 +258,15 @@ def process_hard_budget(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     return summary
+
+
+def process_hard_budget_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Process data for hard budget plots."""
+    df_hard = df.loc[
+        df["hard_budget"].notna() & df["soft_budget_param"].isna()
+    ].copy()
+    df_hard = metrics_grouped_by_param(df_hard, param="hard_budget")
+    return df_hard
 
 
 def process_soft_budget(df: pd.DataFrame) -> pd.DataFrame:
@@ -324,65 +274,19 @@ def process_soft_budget(df: pd.DataFrame) -> pd.DataFrame:
     df_soft = df.loc[
         df["hard_budget"].isna() & df["soft_budget_param"].notna()
     ].copy()
-
-    if len(df_soft) == 0:
-        return pd.DataFrame()
-
-    group_cols = [
-        "afa_method",
-        "classifier",
-        "dataset",
-        "train_seed",
-        "eval_seed",
-        "soft_budget_param",
-    ]
-
-    cost_df = (
-        df_soft.groupby(group_cols, observed=True)
-        .agg(avg_accumulated_cost=("accumulated_cost", "mean"))
-        .reset_index()
-    )
-
-    metrics_list = []
-    for name, group in df_soft.groupby(group_cols, observed=True):
-        assert isinstance(group, pd.DataFrame)
-        group_name = name if isinstance(name, tuple) else (name,)
-        metrics = compute_metrics(group)
-        row = dict(zip(group_cols, group_name, strict=True))
-        row.update(metrics.to_dict())
-        metrics_list.append(row)
-
-    if not metrics_list:
-        return pd.DataFrame()
-
-    metrics_df = pd.DataFrame(metrics_list)
-
-    combined = metrics_df.merge(cost_df, on=group_cols)
-
-    summary_cols = ["afa_method", "classifier", "dataset", "soft_budget_param"]
-    summary = (
-        combined.groupby(summary_cols, observed=True)
-        .agg(
-            accumulated_cost_mean=("avg_accumulated_cost", "mean"),
-            accumulated_cost_sd=("avg_accumulated_cost", "std"),
-            accuracy_mean=("accuracy", "mean"),
-            accuracy_sd=("accuracy", "std"),
-            f1_mean=("f1", "mean"),
-            f1_sd=("f1", "std"),
-            kappa_mean=("kappa", "mean"),
-            kappa_sd=("kappa", "std"),
-        )
-        .reset_index()
-    )
-
-    return summary
+    df_soft = metrics_grouped_by_param(df_soft, param="soft_budget_param")
+    return df_soft
 
 
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Generate evaluation plots from merged evaluation results.",
-        epilog="If no input CSV is provided, generates dummy data for testing.",
+    )
+    parser.add_argument(
+        "input_folder",
+        type=Path,
+        help="Input CSV file with evaluation results.",
     )
     parser.add_argument(
         "output_folder",
@@ -390,77 +294,62 @@ def parse_args() -> argparse.Namespace:
         help="Output folder where plots will be saved",
     )
     parser.add_argument(
-        "-i",
-        "--input",
-        type=Path,
-        default=None,
-        help="Input CSV file with evaluation results. If not provided, uses dummy data.",
+        "--optional",
+        type=bool,
+        default=True,
+        help="If true, don't crash if either hard budget of soft budget data is missing.",
     )
 
     return parser.parse_args()
 
 
-def load_or_generate_df(args: argparse.Namespace) -> pd.DataFrame:
-    if args.input:
-        print(f"Loading data from {args.input}...")
-        df = read_csv_safe(args.input)
-    else:
-        print("Proceeding with plotting using dummy data...")
-        df = generate_dummy_data(n=10000)
+def get_metric_estimate(row: pd.Series, metric: str) -> float:
+    """Extract metric estimate from row based on dataset-specific metric."""
+    dataset = str(row["dataset"])
+    metric_code = DATASET_METRIC_MAPPING.get(dataset, "accuracy")
+    return float(row[f"{metric_code}_{metric}"])
+
+
+def add_estimate_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Add estimate_mean and estimate_sd columns using dataset-specific metrics."""
+    df = df.copy()
+    df["estimate_mean"] = df.apply(
+        lambda row: get_metric_estimate(row, "mean"), axis=1
+    )
+    df["estimate_sd"] = df.apply(
+        lambda row: get_metric_estimate(row, "sd"), axis=1
+    )
     return df
 
 
-def produce_hard_budget_plots(df: pd.DataFrame, output_folder: Path) -> None:
-    df_hard_budget = process_hard_budget(df)
-
-    if len(df_hard_budget) > 0:
-        builtin_hard = df_hard_budget.loc[
-            df_hard_budget["classifier"] == "builtin"
-        ].copy()
-        assert isinstance(builtin_hard, pd.DataFrame)
-
-        if len(builtin_hard) > 0:
-
-            def get_estimate(row: pd.Series) -> float:
-                dataset = str(row["dataset"])
-                metric = DATASET_METRIC_MAPPING.get(dataset, "accuracy")
-                return float(row[f"{metric}_mean"])
-
-            def get_estimate_sd(row: pd.Series) -> float:
-                dataset = str(row["dataset"])
-                metric = DATASET_METRIC_MAPPING.get(dataset, "accuracy")
-                return float(row[f"{metric}_sd"])
-
-            builtin_hard["estimate_mean"] = builtin_hard.apply(
-                get_estimate, axis=1
-            )
-            builtin_hard["estimate_sd"] = builtin_hard.apply(
-                get_estimate_sd, axis=1
-            )
-
-            hard_budget_plot = create_hard_budget_plot(builtin_hard, "Metric")
-            hard_budget_plot.save(
-                output_folder / "hard_budget.png", dpi=150, verbose=False
-            )
-
-            builtin_hard_kappa = builtin_hard.copy()
-            builtin_hard_kappa["estimate_mean"] = builtin_hard_kappa[
-                "kappa_mean"
-            ]
-            builtin_hard_kappa["estimate_sd"] = builtin_hard_kappa["kappa_sd"]
-            hard_budget_kappa_plot = create_hard_budget_plot(
-                builtin_hard_kappa,
-                "Cohen's Kappa",
-                use_dataset_metric_labeller=False,
-            )
-            hard_budget_kappa_plot.save(
-                output_folder / "hard_budget_kappa.png",
-                dpi=150,
-                verbose=False,
-            )
+def save_plot(plot: ggplot, output_path: Path, dpi: int = 150) -> None:
+    """Save a ggplot to file."""
+    plot.save(output_path, dpi=dpi, verbose=False)
 
 
-def produce_soft_budget_plots(df: pd.DataFrame, output_folder: Path) -> None:
+def produce_hard_budget_plots(
+    df: pd.DataFrame, output_folder: Path, optional: bool
+) -> None:
+    df_hard_budget = process_hard_budget_df(df)
+
+    builtin_hard = df_hard_budget.loc[
+        df_hard_budget["classifier"] == "builtin"
+    ].copy()
+
+    if not optional and len(builtin_hard) == 0:
+        return
+
+    # Add estimate columns using dataset-specific metrics
+    builtin_hard = add_estimate_columns(builtin_hard)
+
+    # Main metric plot
+    hard_budget_plot = create_hard_budget_plot(builtin_hard, "Metric")
+    save_plot(hard_budget_plot, output_folder / "hard_budget.png")
+
+
+def produce_soft_budget_plots(
+    df: pd.DataFrame, output_folder: Path, optional: bool
+) -> None:
     """Produce soft budget plots."""
     df_soft_budget = process_soft_budget(df)
 
@@ -471,53 +360,34 @@ def produce_soft_budget_plots(df: pd.DataFrame, output_folder: Path) -> None:
     builtin_soft = df_soft_budget.loc[
         df_soft_budget["classifier"] == "builtin"
     ].copy()
-    assert isinstance(builtin_soft, pd.DataFrame)
 
-    if len(builtin_soft) == 0:
+    if not optional and len(builtin_soft) == 0:
         print("No soft budget data with 'builtin' classifier found.")
         return
 
-    def get_estimate(row: pd.Series) -> float:
-        dataset = str(row["dataset"])
-        metric = DATASET_METRIC_MAPPING.get(dataset, "accuracy")
-        return float(row[f"{metric}_mean"])
+    # Add estimate columns using dataset-specific metrics
+    builtin_soft = add_estimate_columns(builtin_soft)
 
-    def get_estimate_sd(row: pd.Series) -> float:
-        dataset = str(row["dataset"])
-        metric = DATASET_METRIC_MAPPING.get(dataset, "accuracy")
-        return float(row[f"{metric}_sd"])
-
-    builtin_soft["estimate_mean"] = builtin_soft.apply(get_estimate, axis=1)
-    builtin_soft["estimate_sd"] = builtin_soft.apply(get_estimate_sd, axis=1)
-
+    # Main metric plot
     soft_budget_plot = create_soft_budget_plot(builtin_soft, "Metric")
-    soft_budget_plot.save(
-        output_folder / "soft_budget.png", dpi=150, verbose=False
-    )
+    save_plot(soft_budget_plot, output_folder / "soft_budget.png")
 
-    builtin_soft_kappa = builtin_soft.copy()
-    builtin_soft_kappa["estimate_mean"] = builtin_soft_kappa["kappa_mean"]
-    builtin_soft_kappa["estimate_sd"] = builtin_soft_kappa["kappa_sd"]
-    soft_budget_kappa_plot = create_soft_budget_plot(
-        builtin_soft_kappa,
-        "Cohen's Kappa",
-        use_dataset_metric_labeller=False,
-    )
-    soft_budget_kappa_plot.save(
-        output_folder / "soft_budget_kappa.png",
-        dpi=150,
-        verbose=False,
-    )
+
+def only_last_step_in_episode(df: pd.DataFrame) -> pd.DataFrame:
+    dfc = df.copy()
+    dfc = dfc[dfc["action_performed"] == 0]
+    assert isinstance(dfc, pd.DataFrame)
+    return dfc
 
 
 def main() -> None:
     args = parse_args()
     args.output_folder.mkdir(parents=True, exist_ok=True)
+    df = read_csv_safe(args.input_folder)
+    df = only_last_step_in_episode(df)
 
-    df = load_or_generate_df(args)
-
-    produce_hard_budget_plots(df, args.output_folder)
-    produce_soft_budget_plots(df, args.output_folder)
+    produce_hard_budget_plots(df, args.output_folder, optional=args.optional)
+    produce_soft_budget_plots(df, args.output_folder, optional=args.optional)
 
 
 if __name__ == "__main__":
