@@ -557,7 +557,7 @@ rule plot_eval:
         shell_exec="bash"
     shell:
         """
-        python scripts/plotting/plot_eval.py -i {input} {output}
+        python scripts/plotting/plot_eval.py {input} {output}
         """
 
 # --- RULES TO PRODUCE TIME PLOT ---
