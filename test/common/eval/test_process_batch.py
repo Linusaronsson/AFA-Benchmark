@@ -14,10 +14,12 @@ from afabench.common.custom_types import (
 from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.eval.eval import process_batch
 from afabench.test.eval.helpers import (
-    assert_terminated_due_to_budget,
+    assert_terminated_after_n_steps,
+    assert_where_selections_there_action,
     assert_where_selections_there_cost,
     get_batch_from_costs_and_budget,
     get_batched_deterministic_afa_action_fn,
+    get_deterministic_afa_action_fn,
 )
 
 
@@ -420,19 +422,19 @@ def test_process_batch_respects_budget_nonuniform_cost() -> None:
         selection_budget=20.0,
         selection_costs=[
             0,
-            10,
+            10.1,
             0,
-            10,
+            10.1,
             0,
             0,
-        ],  # actions 2 and 4 reach budget, but action 3 is also needed to **exceed** budget.
+        ],  # actions 2 and 4 exceed budget
         batch_size=2,
         n_features=6,
     )
 
     # Assert
-    assert_terminated_due_to_budget(df, idx=0, n_steps=4)
-    assert_terminated_due_to_budget(df, idx=1, n_steps=2)
+    assert_terminated_after_n_steps(df, idx=0, n_steps=4)
+    assert_terminated_after_n_steps(df, idx=1, n_steps=2)
 
 
 def test_process_batch_respects_budget_uniform_cost(
@@ -455,7 +457,58 @@ def test_process_batch_respects_budget_uniform_cost(
         selection_budget=2,
     )
 
-    # We expect 4 rows, since each sample gets 2 selections
-    assert len(df_batch) == 4, (
-        f"Expected 4 rows in the result DataFrame, got {len(df_batch)}."
+    # We expect 4 rows, since each sample gets 2 selections, plus the stop action forced on them
+    assert len(df_batch) == 6, (
+        f"Expected 6 rows in the result DataFrame, got {len(df_batch)}."
     )
+
+
+def test_process_batch_can_reach_budget_and_continue() -> None:
+    # Arrange
+    n_features = 6
+    selection_costs = [5.0, 5.0, 0, 0, 0, 0]
+    deterministic_afa_action_fn = get_deterministic_afa_action_fn(
+        actions=[1, 2, 3, 4, 0],
+    )
+    direct_unmasker = DirectUnmasker()
+    selection_budget = 10.0
+
+    # Act
+    df = get_batch_from_costs_and_budget(
+        afa_action_fn=deterministic_afa_action_fn,
+        afa_unmask_fn=direct_unmasker.unmask,
+        selection_budget=selection_budget,
+        selection_costs=selection_costs,
+        batch_size=1,
+        n_features=n_features,
+    )
+
+    # Assert
+    # Even though we **reach** the budget after 2 steps, we don't exceed it, and are therefore allowed to continue until we choose the stop action
+    assert_terminated_after_n_steps(df, idx=0, n_steps=5)
+
+
+def test_process_batch_forced_stop_action_if_exceeding_budget() -> None:
+    # Arrange
+    n_features = 4
+    selection_costs = [5.0, 5.1, 0.0, 0]
+    deterministic_afa_action_fn = get_deterministic_afa_action_fn(
+        actions=[1, 2, 3, 4, 0],
+    )
+    direct_unmasker = DirectUnmasker()
+    selection_budget = 10.0
+
+    # Act
+    df = get_batch_from_costs_and_budget(
+        afa_action_fn=deterministic_afa_action_fn,
+        afa_unmask_fn=direct_unmasker.unmask,
+        selection_budget=selection_budget,
+        selection_costs=selection_costs,
+        batch_size=1,
+        n_features=n_features,
+    )
+
+    # Assert
+    # The second action exceeds the budget, and is therefore converted into a stop action
+    assert_terminated_after_n_steps(df, idx=0, n_steps=2)
+    assert_where_selections_there_action(df, selections=[0], action=0)

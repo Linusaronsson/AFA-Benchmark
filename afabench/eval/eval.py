@@ -113,7 +113,7 @@ def single_afa_step(
     )
 
 
-def process_batch(  # noqa: C901, PLR0912, PLR0915
+def process_batch(  # noqa: C901, PLR0912
     afa_action_fn: AFAActionFn,
     afa_unmask_fn: AFAUnmaskFn,
     n_selection_choices: int,
@@ -133,7 +133,7 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
     Until every sample either
     1. Performs all available selections.
     2. Stops feature acquisition (action=0).
-    3. Runs out of selection budget.
+    3. Runs out of selection budget. More precisely, this means that if the next action was selected such that the budget would have been **exceeded**, we instead force the stop action.
 
     Assumes that predictions are for classes, and only stores the most likely class prediction.
 
@@ -296,15 +296,6 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
         finished_mask = (actions == 0) | active_new_feature_mask.flatten(
             start_dim=1
         ).all(dim=1)
-
-        # Check if selection budget is reached (cost-based budget)
-        for active_idx, global_idx in enumerate(active_indices):
-            global_idx_int = int(global_idx.item())
-            if (
-                selection_budget is not None
-                and accumulated_costs[global_idx_int] >= selection_budget
-            ):
-                finished_mask[active_idx] = True
 
         # Filter out finished samples
         active_indices = active_indices[~finished_mask]

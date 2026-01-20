@@ -27,6 +27,18 @@ def assert_where_selections_there_cost(
     assert row["accumulated_cost"] == cost
 
 
+def assert_where_selections_there_action(
+    df: pd.DataFrame, selections: Sequence[int], action: int
+) -> None:
+    """Assert that wherever "prev_selections_performed" in the dataframe is equal to `selections`, "action_performed" has to be equal to `action`."""
+    rows = df[df["prev_selections_performed"].apply(lambda x: x == selections)]
+    assert len(rows) == 1, (
+        f"While evaluating dataframe \n{df}\n, expected exactly one row to contain prev_selections_performed={selections}, instead got \n{rows}\n"
+    )
+    row = rows.iloc[0]
+    assert row["action_performed"] == action
+
+
 def get_deterministic_afa_action_fn(actions: Sequence[int]) -> AFAActionFn:
     """Return an AFAActionFn that outputs actions in a specified order."""
     action_idx = 0
@@ -123,11 +135,11 @@ def get_batch_from_costs_and_budget(
     return df
 
 
-def assert_terminated_due_to_budget(
+def assert_terminated_after_n_steps(
     df: pd.DataFrame, idx: int, n_steps: int
 ) -> None:
     """
-    Assert that sample `idx` terminated due to reaching the selection budget after performing `n_steps` actions.
+    Assert that sample `idx` terminated after performing `n_steps` actions.
 
     Args:
         df: The dataframe from process_batch
