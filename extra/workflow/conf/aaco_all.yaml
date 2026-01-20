@@ -56,7 +56,8 @@ unmaskers:
 
 hard_budgets:
   default: [5, 10, 15]
-  synthetic_mnist_fast: [16, 25, 36]
+  # Patch cost is 16 (4x4), so budgets should be multiples of 16.
+  synthetic_mnist_fast: [16, 32, 48]
 
 # ============================================================================
 # Cost parameters (soft budget)

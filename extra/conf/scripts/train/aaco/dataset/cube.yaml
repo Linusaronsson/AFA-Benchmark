@@ -3,7 +3,7 @@ dataset_artifact_name: ???
 aco:
   k_neighbors: 5
   acquisition_cost: 0.05
-  hide_val: 10.0
+  hide_val: 0.0
 
   # Evaluation settings
   evaluate_final_performance: true

@@ -70,8 +70,9 @@ hard_budgets:
   mnist: [50, 100, 200]
   fashion_mnist: [50, 100, 200]
   # Patch-based images (49 patches)
-  synthetic_mnist: [10, 20, 30]
-  synthetic_mnist_without_noise: [10, 20, 30]
+  # Patch cost is 16 (4x4), so budgets should be multiples of 16.
+  synthetic_mnist: [16, 32, 48]
+  synthetic_mnist_without_noise: [16, 32, 48]
   imagenette: [10, 20, 30]
 
 # ============================================================================
