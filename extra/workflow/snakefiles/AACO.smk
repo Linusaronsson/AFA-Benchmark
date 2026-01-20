@@ -23,6 +23,12 @@ DATASET_INSTANCE_INDICES = config.get("dataset_instance_indices", (0, 1))
 INITIALIZER = config.get("initializer", "aaco_default")
 EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")
 DEVICE = config.get("device", "cpu")
+DEVICE_AACO = config.get("device_aaco", DEVICE)
+DEVICE_AACO_NN = config.get("device_aaco_nn", DEVICE)
+EVAL_DEVICE_BY_METHOD = config.get(
+    "eval_device_by_method",
+    {"aaco": DEVICE_AACO, "aaco_nn": DEVICE_AACO_NN},
+)
 USE_WANDB = config.get("use_wandb", False)
 SMOKE_TEST = config.get("smoke_test", False)
 
@@ -83,6 +89,10 @@ if TRAIN_AACO_NN:
 def _normalize_dataset_name(dataset: str) -> str:
     name = dataset.replace("_without_noise", "")
     return name.replace("_", "")
+
+
+def _eval_device(method: str) -> str:
+    return EVAL_DEVICE_BY_METHOD.get(method, DEVICE)
 
 
 # ============================================================================
@@ -166,7 +176,7 @@ rule train_aaco:
             cost_param={wildcards.cost_param} \
             hard_budget={wildcards.train_hard_budget} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={DEVICE} \
+            device={DEVICE_AACO} \
             seed={wildcards.train_seed} \
             smoke_test={SMOKE_TEST}
         """
@@ -210,7 +220,7 @@ rule train_aaco_nn:
             save_path={output} \
             hard_budget={wildcards.train_hard_budget} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={DEVICE} \
+            device={DEVICE_AACO_NN} \
             seed={wildcards.train_seed} \
             smoke_test={SMOKE_TEST}
         """
@@ -246,6 +256,7 @@ rule eval_aaco_method:
         initializer_dataset_name=lambda wildcards: _normalize_dataset_name(
             wildcards.dataset
         ),
+        eval_device=lambda wildcards: _eval_device(wildcards.method),
     shell:
         """
         python scripts/eval/eval_afa_method.py \
@@ -257,7 +268,7 @@ rule eval_aaco_method:
             save_path={output} \
             classifier_bundle_path=null \
             seed={wildcards.eval_seed} \
-            device={DEVICE} \
+            device={params.eval_device} \
             hard_budget={wildcards.eval_hard_budget} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST}
@@ -289,6 +300,7 @@ rule eval_aaco_method_soft:
         initializer_dataset_name=lambda wildcards: _normalize_dataset_name(
             wildcards.dataset
         ),
+        eval_device=lambda wildcards: _eval_device(wildcards.method),
     shell:
         """
         python scripts/eval/eval_afa_method.py \
@@ -300,7 +312,7 @@ rule eval_aaco_method_soft:
             save_path={output} \
             classifier_bundle_path=null \
             seed={wildcards.eval_seed} \
-            device={DEVICE} \
+            device={params.eval_device} \
             hard_budget=null \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST}

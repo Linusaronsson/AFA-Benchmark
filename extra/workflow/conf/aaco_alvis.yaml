@@ -13,7 +13,12 @@
 dataset_path_prefix: extra/data
 dataset_instance_indices: [0, 1, 2, 3, 4]
 eval_dataset_split: test
-device: cuda
+device: cpu
+device_aaco: cpu
+device_aaco_nn: cuda
+eval_device_by_method:
+  aaco: cpu
+  aaco_nn: cuda
 use_wandb: false
 smoke_test: false
 initializer: aaco
