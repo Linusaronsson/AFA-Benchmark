@@ -433,8 +433,8 @@ def test_process_batch_respects_budget_nonuniform_cost() -> None:
     )
 
     # Assert
-    assert_terminated_after_n_steps(df, idx=0, n_steps=4)
-    assert_terminated_after_n_steps(df, idx=1, n_steps=2)
+    assert_terminated_after_n_steps(df, idx=0, n_steps=4, forced=True)
+    assert_terminated_after_n_steps(df, idx=1, n_steps=2, forced=True)
 
 
 def test_process_batch_respects_budget_uniform_cost(
@@ -485,7 +485,7 @@ def test_process_batch_can_reach_budget_and_continue() -> None:
 
     # Assert
     # Even though we **reach** the budget after 2 steps, we don't exceed it, and are therefore allowed to continue until we choose the stop action
-    assert_terminated_after_n_steps(df, idx=0, n_steps=5)
+    assert_terminated_after_n_steps(df, idx=0, n_steps=5, forced=False)
 
 
 def test_process_batch_forced_stop_action_if_exceeding_budget() -> None:
@@ -510,7 +510,7 @@ def test_process_batch_forced_stop_action_if_exceeding_budget() -> None:
 
     # Assert
     # The second action exceeds the budget, and is therefore converted into a stop action
-    assert_terminated_after_n_steps(df, idx=0, n_steps=2)
+    assert_terminated_after_n_steps(df, idx=0, n_steps=2, forced=True)
     assert_where_selections_there_action(df, selections=[0], action=0)
 
 
@@ -536,5 +536,5 @@ def test_process_batch_allow_same_selection_multiple_times() -> None:
     )
 
     # Assert
-    assert_terminated_after_n_steps(df, idx=0, n_steps=5)
+    assert_terminated_after_n_steps(df, idx=0, n_steps=5, forced=False)
     assert_where_selections_there_action(df, selections=[0, 1, 0, 1], action=0)

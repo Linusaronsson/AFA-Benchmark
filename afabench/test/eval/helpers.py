@@ -136,7 +136,7 @@ def get_batch_from_costs_and_budget(
 
 
 def assert_terminated_after_n_steps(
-    df: pd.DataFrame, idx: int, n_steps: int
+    df: pd.DataFrame, idx: int, n_steps: int, forced: bool | None = None
 ) -> None:
     """
     Assert that sample `idx` terminated after performing `n_steps` actions.
@@ -145,6 +145,7 @@ def assert_terminated_after_n_steps(
         df: The dataframe from process_batch
         idx: The sample index to check
         n_steps: The number of actual selections
+        forced: if set, checks that the "forced_stop" column is set to the specified value. Can be used to distinguish between cases where an episode stops due to a method voluntarily choosing to stop, or being forced to stop due to exceeding the budget.
     """
     sample_rows = df[df["idx"] == idx]
     assert len(sample_rows) == n_steps, (
@@ -154,5 +155,7 @@ def assert_terminated_after_n_steps(
     for _, row in sample_rows.iterrows():
         if len(row["prev_selections_performed"]) == n_steps - 1:
             assert row["action_performed"] == 0
+            if forced is not None:
+                assert row["forced_stop"] == forced
         else:
             assert row["action_performed"] != 0
