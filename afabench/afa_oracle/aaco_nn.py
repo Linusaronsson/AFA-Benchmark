@@ -68,6 +68,7 @@ def _init_rollout_state(
         label=None,
         feature_shape=feature_shape,
     ).squeeze(0)
+    feature_mask_structured = feature_mask_structured.to(device)
     masked_features_structured = x_view * feature_mask_structured.float()
     feature_mask_flat = feature_mask_structured.reshape(-1)
     masked_features_flat = masked_features_structured.reshape(-1)
