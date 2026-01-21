@@ -106,10 +106,14 @@ class Zannone2019RLTrainer(RLTrainer):
         )
 
         # zannone2019 unique step: generate additional data using generative model
-        if self.typed_cfg.n_generated_samples > 0:
+        if self.typed_cfg.additional_generation_fraction > 0.0:
+            n_artificial_samples = int(
+                self.typed_cfg.additional_generation_fraction
+                * len(self.train_dataset)
+            )
             additional_features, additional_labels = generate_data_batched(
                 pretrained_model=self.pretrained_model,
-                samples=self.typed_cfg.n_generated_samples,
+                samples=n_artificial_samples,
                 batch_size=self.typed_cfg.generation_batch_size,
             )
             self.extended_train_dataset = ExtendedAFADataset(

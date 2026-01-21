@@ -46,7 +46,7 @@ agent:
     policy_num_cells: [] # zannone2019
     policy_dropout: 0.0 # not specified by zannone2019
     gamma: 1.0
-n_generated_samples: 0
+additional_generation_fraction: 0.0
 generation_batch_size: 100
 seed: null
 use_wandb: false

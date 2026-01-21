@@ -806,9 +806,7 @@ class Zannone2019TrainConfig:
     rl_training_loop: AFARLTrainingLoopConfig
     soft_budget_param: float | None
     agent: Zannone2019AgentConfig
-    n_generated_samples: (
-        int  # how many artificial samples to generate using pretrained model
-    )
+    additional_generation_fraction: float  # how much synthetic data to generate, as a multiple of the real data. So 1.0 means generate the same amount of data is real data, 2.0 is twice as much, etc.
     generation_batch_size: (
         int  # which batch size to use for artificial data generation
     )
