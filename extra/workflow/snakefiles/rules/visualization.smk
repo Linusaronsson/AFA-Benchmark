@@ -10,9 +10,9 @@ Generates plots from aggregated results:
 rule plot_eval:
     """Generate evaluation performance plots."""
     input:
-        "extra/output/merged_results/RL_and_dummy_eval_perf.csv",
+        "extra/output/merged_results/rl_and_dummy_eval_perf.csv",
     output:
-        directory("extra/output/plot_results/eval_perf/RL_and_dummy"),
+        directory("extra/output/plot_results/eval_perf/rl_and_dummy"),
     resources:
         shell_exec="bash"
     shell:
@@ -24,9 +24,9 @@ rule plot_eval:
 rule plot_time:
     """Generate timing analysis plots."""
     input:
-        "extra/output/merged_results/RL_and_dummy_time.csv",
+        "extra/output/merged_results/rl_and_dummy_time.csv",
     output:
-        directory("extra/output/plot_results/time/RL_and_dummy"),
+        directory("extra/output/plot_results/time/rl_and_dummy"),
     resources:
         shell_exec="bash"
     shell:

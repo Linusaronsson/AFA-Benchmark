@@ -44,8 +44,8 @@ include: "../rules/visualization.smk"
 
 rule all:
     input:
-        "extra/output/plot_results/eval_perf/RL_and_dummy",
-        "extra/output/plot_results/time/RL_and_dummy",
+        "extra/output/plot_results/eval_perf/rl_and_dummy",
+        "extra/output/plot_results/time/rl_and_dummy",
 
 
 rule all_pretrain_model:

@@ -1,0 +1,20 @@
+run:
+  rl_and_dummy:
+    command: >
+      uv run snakemake
+      --dry-run
+      -s extra/workflow/snakefiles/orchestration/rl_and_dummy.smk
+      extra/output/plot_results/eval_perf/rl_and_dummy
+      extra/output/plot_results/time/rl_and_dummy
+      --configfile
+      extra/workflow/conf/hard_budgets_fast.yaml
+      extra/workflow/conf/methods.yaml
+      extra/workflow/conf/method_options.yaml
+      extra/workflow/conf/soft_budget_params_fast.yaml
+      extra/workflow/conf/unmaskers.yaml
+      --config
+      methods=[jafa,odin_model_free,odin_model_based,ol,random_dummy,sequential_dummy]
+      datasets=[cube_without_noise,afa_context_without_noise,synthetic_mnist_without_noise]
+      smoke_test=true
+      use_wandb=false
+    expectCode: 0

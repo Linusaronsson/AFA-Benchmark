@@ -26,12 +26,14 @@ rule pretrain_model:
                 "pretrain_seed-{pretrain_seed}/"
                     "pretrain_time.txt"
 
+    params:
+        script_name=lambda wildcards: METHOD_PRETRAIN_SCRIPT_NAMES[wildcards.method]
     resources:
         shell_exec="bash"
     shell:
         """
         START_TIME=$(date +%s.%N)
-        python scripts/pretrain/{wildcards.method}.py \
+        python scripts/pretrain/{params.script_name}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
             save_path={output[0]} \

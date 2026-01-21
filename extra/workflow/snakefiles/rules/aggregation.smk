@@ -56,7 +56,7 @@ rule merge_eval_perf:
     resources:
         shell_exec="bash"
     output:
-        "extra/output/merged_results/RL_and_dummy_eval_perf.csv",
+        "extra/output/merged_results/rl_and_dummy_eval_perf.csv",
     shell:
         """
             csvstack {input} > {output}
@@ -194,7 +194,7 @@ rule merge_time:
             ) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
         ]
     output:
-        "extra/output/merged_results/RL_and_dummy_time.csv",
+        "extra/output/merged_results/rl_and_dummy_time.csv",
     resources:
         shell_exec="bash"
     shell:
