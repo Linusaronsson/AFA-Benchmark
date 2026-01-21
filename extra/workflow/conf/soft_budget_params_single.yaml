@@ -1,8 +1,8 @@
 soft_budget_params:
   jafa:
     default: [0.01]
-  ol:
-    default: [0.5]
+  # ol:
+  #   default: [0.5]
   odin_model_free: &odin
     default: [0.1]
   odin_model_based: *odin
