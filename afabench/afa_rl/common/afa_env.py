@@ -42,7 +42,7 @@ class AFAEnv(EnvBase):
         self,
         dataset_fn: AFADatasetFn,  # a function that returns data in batches when called
         reward_fn: AFARewardFn,
-        device: torch.device,
+        device: torch.device | None,
         batch_size: torch.Size,
         feature_shape: torch.Size,
         n_selections: int,  # action dim = n_selections + 1 since we have a stop action as well
