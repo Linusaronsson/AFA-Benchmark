@@ -16,6 +16,7 @@ def get_knn(
     num_neighbors: int,
     instance_idx: int = 0,
     exclude_instance: bool = True,
+    batch_size: int = 1000,
 ) -> torch.Tensor:
     """
     K-NN implementation from the AACO paper.
@@ -29,15 +30,27 @@ def get_knn(
         num_neighbors: Number of neighbors (k)
         instance_idx: Index of current instance (for exclusion)
         exclude_instance: Whether to exclude the query instance from results
+        batch_size: Number of training samples to process at once (for memory)
     """
-    X_train_squared = X_train**2
+    N = X_train.shape[0]
     X_query_squared = X_query**2
-    X_train_X_query = X_train * X_query
-    dist_squared = (
-        torch.matmul(X_train_squared, masks)
-        - 2.0 * torch.matmul(X_train_X_query, masks)
-        + torch.matmul(X_query_squared, masks)
-    )
+    query_term = torch.matmul(X_query_squared, masks)  # 1 x R, computed once
+
+    # Process in batches to avoid OOM on large datasets
+    dist_squared_chunks = []
+    for i in range(0, N, batch_size):
+        X_batch = X_train[i: i + batch_size]
+        X_batch_squared = X_batch**2
+        X_batch_X_query = X_batch * X_query
+
+        dist_batch = (
+            torch.matmul(X_batch_squared, masks)
+            - 2.0 * torch.matmul(X_batch_X_query, masks)
+            + query_term
+        )
+        dist_squared_chunks.append(dist_batch)
+
+    dist_squared = torch.cat(dist_squared_chunks, dim=0)
 
     k = num_neighbors + int(exclude_instance)
     idx_topk = torch.topk(dist_squared, k, dim=0, largest=False)[1]
@@ -155,7 +168,8 @@ class AACOOracle:
         )
 
         feature_count = len(x_observed)
-        use_patch_selection = uses_patch_selection(selection_size, feature_shape)
+        use_patch_selection = uses_patch_selection(
+            selection_size, feature_shape)
         mask_curr = observed_mask.float().unsqueeze(0)
 
         assert observed_mask.any(), (
