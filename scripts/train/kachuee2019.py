@@ -215,6 +215,9 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
         force_hard_budget=cfg.mdp.force_hard_budget,
         device=device,
         seed=cfg.seed,
+        selection_costs=unmasker.get_selection_costs(
+            train_dataset.get_feature_acquisition_costs()
+        ).tolist(),
     )
 
     agent = Kachuee2019Agent(

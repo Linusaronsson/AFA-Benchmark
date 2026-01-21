@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, cast
 
@@ -230,6 +230,7 @@ def create_afa_envs(
     force_hard_budget: bool,
     device: torch.device,
     seed: int | None,
+    selection_costs: Sequence[float],
 ) -> tuple[AFAEnv, AFAEnv]:
     train_features, train_labels = train_dataset.get_all_data()
     val_features, val_labels = val_dataset.get_all_data()
@@ -257,6 +258,7 @@ def create_afa_envs(
         unmask_fn=unmask_fn,
         force_hard_budget=force_hard_budget,
         seed=seed,
+        selection_costs=selection_costs,
     )
     eval_env = AFAEnv(
         dataset_fn=val_dataset_fn,
@@ -271,5 +273,6 @@ def create_afa_envs(
         unmask_fn=unmask_fn,
         force_hard_budget=force_hard_budget,
         seed=seed,
+        selection_costs=selection_costs,
     )
     return train_env, eval_env

@@ -184,6 +184,9 @@ def main(cfg: Zannone2019TrainConfig) -> None:
         force_hard_budget=cfg.mdp.force_hard_budget,
         device=device,
         seed=cfg.seed,
+        selection_costs=unmasker.get_selection_costs(
+            train_dataset.get_feature_acquisition_costs()
+        ).tolist(),
     )
 
     agent = Zannone2019Agent(
