@@ -1,10 +1,11 @@
 soft_budget_params:
-  shim2018:
+  jafa:
     default: [0.01]
-  kachuee2019:
+  ol:
     default: [0.5]
-  zannone2019:
+  odin_model_free: &odin
     default: [0.1]
+  odin_model_based: *odin
   random_dummy:
     default: [0.3]
   sequential_dummy:

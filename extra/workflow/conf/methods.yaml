@@ -1,7 +1,8 @@
 # Which methods we run the pipeline on
 methods:
-  - shim2018
-  - zannone2019
-  - kachuee2019
+  - jafa
+  - odin_model_free
+  - odin_model_based
+  - ol
   - random_dummy
   - sequential_dummy
