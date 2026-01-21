@@ -77,7 +77,7 @@ rule train_method_with_pretrained_model:
                         "train_time.txt"
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
-        script_name=lambda wildcards: METHOD_TO_SCRIPT_NAME_MAPPING[wildcards.method],
+        script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],
         method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method]
     resources:
         shell_exec="bash"
@@ -130,7 +130,7 @@ rule train_method_without_pretrained_model:
                         "train_time.txt"
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
-        script_name=lambda wildcards: METHOD_TO_SCRIPT_NAME_MAPPING[wildcards.method],
+        script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],
         method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method]
     resources:
         shell_exec="bash"

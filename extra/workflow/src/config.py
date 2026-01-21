@@ -49,24 +49,31 @@ def load_config(config):
         raise ValueError("Expected methods to be provided.")
 
     # Filter methods by pretraining stage availability
+    # A method has a pretraining stage if pretrain_script_name is set
     methods_with_pretraining_stage = [
         method
         for method, options in method_options.items()
-        if options["has_pretraining_stage"] and method in methods
+        if "pretrain_script_name" in options and method in methods
     ]
 
     methods_without_pretraining_stage = [
         method
         for method, options in method_options.items()
-        if not options["has_pretraining_stage"] and method in methods
+        if "pretrain_script_name" not in options and method in methods
     ]
 
-    # Build method option mappings
-    # Default script_name to method name if not provided
-    method_to_script_name_mapping = {
-        method: options.get("script_name", method)
+    # Build method option mappings for training scripts
+    method_train_script_names = {
+        method: options.get("train_script_name", method)
         for method, options in method_options.items()
-        if method in methods
+        if method in methods and "train_script_name" in options
+    }
+
+    # Build method option mappings for pretraining scripts
+    method_pretrain_script_names = {
+        method: options.get("pretrain_script_name", method)
+        for method, options in method_options.items()
+        if method in methods and "pretrain_script_name" in options
     }
 
     # Default method_specific_params to empty list if not provided
@@ -142,7 +149,8 @@ def load_config(config):
         "METHODS": methods,
         "METHODS_WITH_PRETRAINING_STAGE": methods_with_pretraining_stage,
         "METHODS_WITHOUT_PRETRAINING_STAGE": methods_without_pretraining_stage,
-        "METHOD_TO_SCRIPT_NAME_MAPPING": method_to_script_name_mapping,
+        "METHOD_TRAIN_SCRIPT_NAMES": method_train_script_names,
+        "METHOD_PRETRAIN_SCRIPT_NAMES": method_pretrain_script_names,
         "METHOD_SPECIFIC_PARAMS": method_specific_params,
         "DATASETS": datasets,
         "UNMASKERS": unmaskers,
