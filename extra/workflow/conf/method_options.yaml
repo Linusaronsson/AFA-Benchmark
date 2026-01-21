@@ -1,9 +1,19 @@
 method_options:
-  shim2018:
+  jafa:
+    script_name: "shim2018"
     has_pretraining_stage: true
-  zannone2019:
+  odin_model_based:
+    script_name: "zannone2019"
+    method_specific_params:
+      - "additional_generation_fraction=1.0"
     has_pretraining_stage: true
-  kachuee2019:
+  odin_model_free:
+    script_name: "zannone2019"
+    method_specific_params:
+      - "additional_generation_fraction=0.0"
+    has_pretraining_stage: true
+  ol:
+    script_name: "kachuee2019"
     has_pretraining_stage: true
   random_dummy:
     has_pretraining_stage: false

@@ -27,6 +27,8 @@ METHODS_WITHOUT_PRETRAINING_STAGE = [
     for method, options in METHOD_OPTIONS.items()
     if not options["has_pretraining_stage"] and method in METHODS
 ]
+METHOD_TO_SCRIPT_NAME_MAPPING = [method: options["script_name"] for method, options in METHOD_OPTIONS.items() if method in METHODS]
+METHOD_SPECIFIC_PARAMS = [method: options["method_specific_params"] for method, options in METHOD_OPTIONS.items() if method in METHODS]
 DATASETS = config.get("datasets", None) # a list, allowing us to run experiments on a subset of datasets if desired
 if DATASETS is None:
     raise ValueError("Expected datasets to be provided.")
@@ -185,12 +187,14 @@ rule train_method_with_pretrained_model:
                         "train_time.txt"
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        script_name=lambda wildcards: METHOD_TO_SCRIPT_NAME_MAPPING[wildcards.method]
+        method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method]
     resources:
         shell_exec="bash"
     shell:
         """
         START_TIME=$(date +%s.%N)
-        python scripts/train/{wildcards.method}.py \
+        python scripts/train/{params.script_name}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
             pretrained_model_bundle_path={input[2]} \
@@ -203,7 +207,8 @@ rule train_method_with_pretrained_model:
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            experiment@_global_={wildcards.dataset}
+            experiment@_global_={wildcards.dataset} \
+            {params.method_specific_params}
         END_TIME=$(date +%s.%N)
         ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')
         echo $ELAPSED > '{output[1]}'
@@ -234,12 +239,14 @@ rule train_method_without_pretrained_model:
                         "train_time.txt"
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        script_name=lambda wildcards: METHOD_TO_SCRIPT_NAME_MAPPING[wildcards.method]
+        method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method]
     resources:
         shell_exec="bash"
     shell:
         """
         START_TIME=$(date +%s.%N)
-        python scripts/train/{wildcards.method}.py \
+        python scripts/train/{params.script_name}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
             save_path={output[0]} \
@@ -251,7 +258,8 @@ rule train_method_without_pretrained_model:
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            experiment@_global_={wildcards.dataset}
+            experiment@_global_={wildcards.dataset} \
+            {params.method_specific_params}
         END_TIME=$(date +%s.%N)
         ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')
         echo $ELAPSED > '{output[1]}'
