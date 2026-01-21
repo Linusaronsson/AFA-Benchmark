@@ -1,17 +1,19 @@
 import math
 from pathlib import Path
-from typing import override
+from typing import cast, override
 
 import torch
 
 from afabench.common.custom_types import (
     AFAMethod,
     AFAAction,
+    AFAClassifier,
     FeatureMask,
     SelectionMask,
     Label,
     MaskedFeatures,
 )
+from afabench.common.bundle import load_bundle
 
 
 class Ma2018AFAMethod(AFAMethod):
@@ -24,6 +26,7 @@ class Ma2018AFAMethod(AFAMethod):
         lambda_threshold: float | None = None,
         feature_costs: torch.Tensor | None = None,
         num_mc_samples: int = 128,
+        classifier_bundle_path: Path | None = None,
     ):
         super().__init__()
         self.sampler = sampler
@@ -36,6 +39,13 @@ class Ma2018AFAMethod(AFAMethod):
             self.lambda_threshold = lambda_threshold
         self._feature_costs = feature_costs
         self.num_mc_samples = num_mc_samples
+        self.classifier = None
+        if classifier_bundle_path is not None:
+            classifier, _ = load_bundle(
+                classifier_bundle_path, device=self._device
+            )
+            classifier = cast(AFAClassifier, cast(object, classifier))
+            self.classifier = classifier
 
     def _logits_to_probs(self, logits: torch.Tensor) -> torch.Tensor:
         if logits.ndim == 2 and logits.size(1) > 1:
@@ -106,9 +116,17 @@ class Ma2018AFAMethod(AFAMethod):
             _, _, _, z_base, x_full = self.sampler.forward(
                 x_rep, m_rep
             )
-            logits_base = self.predictor(z_base)
-            probs_base = self._logits_to_probs(logits_base).view(S, B, -1)
-            base_probs = probs_base.mean(dim=0)
+            if self.classifier is None:
+                logits_base = self.predictor(z_base)
+                probs_base = self._logits_to_probs(logits_base).view(S, B, -1)
+                base_probs = probs_base.mean(dim=0)
+            else:
+                # TODO: make sure classifier always returns probabilities
+                base_probs = self.classifier(
+                    masked_features=masked_features,
+                    feature_mask=feature_mask,
+                    feature_shape=feature_shape,
+                )
         x_full = x_full.view(S, B, -1)[:, :, :F]
         missing = ~feature_mask.bool()
         x_filled = masked_features.unsqueeze(0).expand(S, B, F).clone()
@@ -135,9 +153,19 @@ class Ma2018AFAMethod(AFAMethod):
         x_rep = x_rep.reshape(S * B * F, F + self.num_classes)
         x_masks = x_rep * mask_tests_rep
         with torch.no_grad():
-            _, _, _, z_all, _ = self.sampler(x_masks, mask_tests_rep)
-            logits_all = self.predictor(z_all)
-            preds_all = self._logits_to_probs(logits_all).view(S, B * F, -1)
+            if self.classifier is None:
+                _, _, _, z_all, _ = self.sampler(x_masks, mask_tests_rep)
+                logits_all = self.predictor(z_all)
+                preds_all = self._logits_to_probs(logits_all).view(S, B * F, -1)
+            else:
+                x_masks_raw = x_masks[:, :F]
+                mask_tests_raw = mask_tests_rep[:, :F]
+                preds_flat = self.classifier(
+                    masked_features=x_masks_raw,
+                    feature_mask=mask_tests_raw,
+                    feature_shape=feature_shape,
+                )
+                preds_all = preds_flat.view(S, B * F, -1)
 
         # S: num_mc_samples
         S, BF, C = preds_all.shape
@@ -192,6 +220,11 @@ class Ma2018AFAMethod(AFAMethod):
             lambda_threshold=lambda_threshold,
             feature_costs=feature_costs,
         )
+        classifier = checkpoint.get("classifier", None)
+        if classifier is not None:
+            classifier = cast(AFAClassifier, cast(object, classifier))
+            classifier = classifier.to(device)
+            method.classifier = classifier
         return method.to(device)
 
     def save(self, path: Path):
@@ -200,9 +233,14 @@ class Ma2018AFAMethod(AFAMethod):
             {
                 "sampler": self.sampler,
                 "predictor": self.predictor,
+                "classifier": self.classifier,
                 "num_classes": self.num_classes,
                 "lambda_threshold": float(self.lambda_threshold),
-                "feature_costs": self._feature_costs.detach().cpu() if self._feature_costs is not None else None
+                "feature_costs": (
+                    self._feature_costs.detach().cpu()
+                    if self._feature_costs is not None
+                    else None
+                ),
             },
             str(path / "model.pt"),
         )
@@ -210,6 +248,8 @@ class Ma2018AFAMethod(AFAMethod):
     def to(self, device):
         self.sampler = self.sampler.to(device)
         self.predictor = self.predictor.to(device)
+        if self.classifier is not None:
+            self.classifier = self.classifier.to(device)
         self._device = device
         return self
 
