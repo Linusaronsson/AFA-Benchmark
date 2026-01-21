@@ -21,6 +21,12 @@ set-resources:
   train_masked_mlp_classifier:
     runtime: 120
     slurm_extra: "--gres=gpu:T4:1"
+  pretrain_model:
+    runtime: 360 # 6 hours
+  train_method_with_pretrained_model:
+    runtime: 360 # 6 hours
+  train_method_without_pretrained_model:
+    runtime: 360 # 6 hours
   # AACO training - device controlled per-dataset in snakefile
   # imagenette/mnist/fashion_mnist get GPU, others get CPU (--constraint=NOGPU)
   train_aaco:
