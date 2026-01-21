@@ -105,20 +105,29 @@ def method_specific_init(
 
 
 class Kachuee2019RLTrainer(RLTrainer):
-    typed_cfg: Kachuee2019TrainConfig
     pretrained_model: LitKachuee2019PQModule
     pretrained_model_optim: torch.optim.Adam
     replay_buffer_device: torch.device
     afa_method: RLAFAMethod
     activate_joint_training_after_batch: int
+    typed_cfg: Kachuee2019TrainConfig
 
-    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+    def __init__(
+        self,
+        *args,  # noqa: ANN002
+        typed_cfg: Kachuee2019TrainConfig,
+        **kwargs,  # noqa: ANN003
+    ) -> None:
+        self.typed_cfg = typed_cfg
         super().__init__(*args, **kwargs)
 
-        self.typed_cfg = cast(
-            "Kachuee2019TrainConfig", cast("object", self.cfg)
+        self.activate_joint_training_after_batch = int(
+            self.typed_cfg.rl_training_loop.n_batches
+            * self.typed_cfg.activate_joint_training_after_fraction
         )
 
+    @override
+    def _setup_subclass_specific_state(self) -> None:
         self.replay_buffer_device = (
             self.device
             if self.typed_cfg.replay_buffer_device_same_as_device
@@ -132,18 +141,6 @@ class Kachuee2019RLTrainer(RLTrainer):
                 pretrained_model_lr=self.typed_cfg.pretrained_model_lr,
                 device=self.device,
             )
-        )
-
-        self.afa_method = RLAFAMethod(
-            self.agent.get_exploitative_policy().to("cpu"),
-            Kachuee2019AFAClassifier(
-                self.pretrained_model.pq_module, device=torch.device("cpu")
-            ),
-        )
-
-        self.activate_joint_training_after_batch = int(
-            self.typed_cfg.rl_training_loop.n_batches
-            * self.typed_cfg.activate_joint_training_after_fraction
         )
 
     def _get_pretrained_model_and_optim(
@@ -269,8 +266,8 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
     cfg = method_specific_init(cfg)
 
     trainer = Kachuee2019RLTrainer(
-        train_dataset_bundle_path=cfg.train_dataset_bundle_path,
-        val_dataset_bundle_path=cfg.val_dataset_bundle_path,
+        train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+        val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
         initializer_cfg=cfg.initializer,
         unmasker_cfg=cfg.unmasker,
         mdp_cfg=cfg.mdp,
@@ -278,6 +275,7 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
         seed=cfg.seed,
         device=cfg.device if cfg.device is not None else torch.device("cpu"),
         cfg=cast("dict[str,Any]", OmegaConf.to_container(cfg)),
+        typed_cfg=cfg,
     )
 
     try:

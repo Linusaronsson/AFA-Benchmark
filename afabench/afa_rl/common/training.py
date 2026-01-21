@@ -106,8 +106,9 @@ class RLTrainer(ABC):
         self._calculate_class_weights()
         self._create_unmasker()
         self._create_initializer()
-        self.reward_fn = self._get_reward_fn()
         self._create_selection_costs()
+        self._setup_subclass_specific_state()
+        self.reward_fn = self._get_reward_fn()
         self._create_envs()
         self.agent = self._get_agent()
 
@@ -116,6 +117,14 @@ class RLTrainer(ABC):
             self.log_fn = self.run.log
         else:
             self.log_fn: Callable[[dict[str, Any]], None] = lambda _d: None
+
+    def _setup_subclass_specific_state(self) -> None:
+        """
+        Hook for subclasses to initialize state before abstract methods are called.
+
+        This is called after basic attributes are set (device, cfg, etc.) but before
+        abstract methods like _get_reward_fn() and _get_agent() are invoked.
+        """
 
     @abstractmethod
     def _get_tags(self) -> list[str]: ...
