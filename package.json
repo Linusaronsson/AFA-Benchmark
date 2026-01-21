@@ -1,0 +1,8 @@
+{
+  "devDependencies": {
+    "@intuit/judo": "^0.4.3"
+  },
+  "scripts": {
+    "test": "judo test/cli"
+  }
+}
