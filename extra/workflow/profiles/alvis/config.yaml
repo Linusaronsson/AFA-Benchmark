@@ -6,7 +6,7 @@
 executor: slurm
 jobs: 50
 latency-wait: 60
-retries: 1
+retries: 2
 
 default-resources:
   slurm_partition: alvis
@@ -21,22 +21,32 @@ set-resources:
   train_masked_mlp_classifier:
     runtime: 120
     slurm_extra: "--gres=gpu:T4:1"
+  # AACO training - device controlled per-dataset in snakefile
+  # imagenette/mnist/fashion_mnist get GPU, others get CPU (--constraint=NOGPU)
   train_aaco:
-    runtime: 30
+    runtime: 120
+  # AACO+NN training - device controlled per-dataset in snakefile
   train_aaco_nn:
+    runtime: 240
+  # Evaluation rules - FIXED rule names to match AACO.smk
+  eval_aaco_method:
+    runtime: 120
+  eval_aaco_method_soft:
     runtime: 180
-    slurm_extra: "--gres=gpu:T4:1"
-  eval_aaco:
-    runtime: 60
-  eval_aaco_nn:
-    runtime: 60
-  eval_aaco_soft:
-    runtime: 60
-  eval_aaco_nn_soft:
-    runtime: 60
-  aggregate_all:
-    runtime: 10
+  # Post-processing rules
+  count_selections:
+    runtime: 30
+  count_selections_soft:
+    runtime: 30
+  add_metadata_to_eval_data:
+    runtime: 30
+  add_metadata_to_eval_data_soft:
+    runtime: 30
   pivot_long_classifier:
     runtime: 10
   pivot_long_classifier_soft:
     runtime: 10
+  merge_eval:
+    runtime: 30
+  plot:
+    runtime: 30

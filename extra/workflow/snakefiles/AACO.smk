@@ -25,6 +25,9 @@ EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")
 DEVICE = config.get("device", "cpu")
 DEVICE_AACO = config.get("device_aaco", DEVICE)
 DEVICE_AACO_NN = config.get("device_aaco_nn", DEVICE)
+# Per-dataset device overrides (for datasets that need GPU)
+DEVICE_AACO_BY_DATASET_RAW = config.get("device_aaco_by_dataset", {})
+DEVICE_AACO_NN_BY_DATASET_RAW = config.get("device_aaco_nn_by_dataset", {})
 EVAL_DEVICE_BY_METHOD = config.get(
     "eval_device_by_method",
     {"aaco": DEVICE_AACO, "aaco_nn": DEVICE_AACO_NN},
@@ -93,6 +96,32 @@ def _normalize_dataset_name(dataset: str) -> str:
 
 def _eval_device(method: str) -> str:
     return EVAL_DEVICE_BY_METHOD.get(method, DEVICE)
+
+
+def _device_aaco(dataset: str) -> str:
+    """Get device for AACO training, with per-dataset override."""
+    return DEVICE_AACO_BY_DATASET_RAW.get(dataset, DEVICE_AACO)
+
+
+def _device_aaco_nn(dataset: str) -> str:
+    """Get device for AACO+NN training, with per-dataset override."""
+    return DEVICE_AACO_NN_BY_DATASET_RAW.get(dataset, DEVICE_AACO_NN)
+
+
+def _slurm_extra_aaco(dataset: str) -> str:
+    """Get SLURM extra args for AACO training based on device."""
+    device = _device_aaco(dataset)
+    if device == "cuda":
+        return "--gres=gpu:T4:1"
+    return "--constraint=NOGPU"
+
+
+def _slurm_extra_aaco_nn(dataset: str) -> str:
+    """Get SLURM extra args for AACO+NN training based on device."""
+    device = _device_aaco_nn(dataset)
+    if device == "cuda":
+        return "--gres=gpu:T4:1"
+    return "--constraint=NOGPU"
 
 
 # ============================================================================
@@ -167,6 +196,9 @@ rule train_aaco:
         ),
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        device=lambda wildcards: _device_aaco(wildcards.dataset),
+    resources:
+        slurm_extra=lambda wildcards: _slurm_extra_aaco(wildcards.dataset),
     shell:
         """
         python scripts/train/aaco.py \
@@ -176,7 +208,7 @@ rule train_aaco:
             cost_param={wildcards.cost_param} \
             hard_budget={wildcards.train_hard_budget} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={DEVICE_AACO} \
+            device={params.device} \
             seed={wildcards.train_seed} \
             smoke_test={SMOKE_TEST}
         """
@@ -211,6 +243,9 @@ rule train_aaco_nn:
         ),
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        device=lambda wildcards: _device_aaco_nn(wildcards.dataset),
+    resources:
+        slurm_extra=lambda wildcards: _slurm_extra_aaco_nn(wildcards.dataset),
     shell:
         """
         python scripts/train/aaco_nn.py \
@@ -220,7 +255,7 @@ rule train_aaco_nn:
             save_path={output} \
             hard_budget={wildcards.train_hard_budget} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={DEVICE_AACO_NN} \
+            device={params.device} \
             seed={wildcards.train_seed} \
             smoke_test={SMOKE_TEST}
         """

@@ -16,6 +16,16 @@ eval_dataset_split: test
 device: cpu
 device_aaco: cpu
 device_aaco_nn: cuda
+# Per-dataset device overrides - only use GPU for memory-intensive datasets
+# This avoids Alvis "inefficient GPU usage" warnings for small tabular datasets
+device_aaco_by_dataset:
+  imagenette: cuda
+  mnist: cuda
+  fashion_mnist: cuda
+device_aaco_nn_by_dataset:
+  imagenette: cuda
+  mnist: cuda
+  fashion_mnist: cuda
 eval_device_by_method:
   aaco: cpu
   aaco_nn: cpu
