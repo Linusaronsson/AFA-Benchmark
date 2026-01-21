@@ -55,7 +55,8 @@ rule all_pretrain_model:
                 f"extra/output/pretrained_models/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
-                        f"pretrain_seed-{dataset_instance_idx}.bundle"
+                        f"pretrain_seed-{dataset_instance_idx}/"
+                            "model.bundle"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
@@ -73,7 +74,8 @@ rule all_train_method:
                         f"pretrain_seed-{dataset_instance_idx}/"
                             f"train_seed-{dataset_instance_idx}+"
                             f"train_hard_budget-{hard_budget}+"
-                            f"train_soft_budget_param-{soft_budget_param}.bundle"
+                            f"train_soft_budget_param-{soft_budget_param}/"
+                                "method.bundle"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
@@ -88,7 +90,8 @@ rule all_train_method:
                         f"{NO_PRETRAIN_STR}/"
                             f"train_seed-{dataset_instance_idx}+"
                             f"train_hard_budget-{hard_budget}+"
-                            f"train_soft_budget_param-{soft_budget_param}.bundle"
+                            f"train_soft_budget_param-{soft_budget_param}/"
+                                "method.bundle"
             )
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
