@@ -4,8 +4,12 @@ import time
 from datetime import datetime
 
 # Add src directory to Python path for imports
-# Workflow structure: extra/workflow/src and extra/workflow/snakefiles/orchestration
-src_dir = os.path.join(os.path.dirname(__file__), "..", "..", "src")
+# Use workflow.basedir which gives us the directory containing the Snakefile
+# The Snakefile is at: extra/workflow/snakefiles/orchestration/RL_and_dummy.smk
+# We need to import from: extra/workflow/src/
+snakefile_dir = workflow.basedir
+workflow_dir = os.path.dirname(os.path.dirname(snakefile_dir))
+src_dir = os.path.join(workflow_dir, "src")
 sys.path.insert(0, src_dir)
 
 from config import load_config

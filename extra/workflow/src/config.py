@@ -62,14 +62,16 @@ def load_config(config):
     ]
 
     # Build method option mappings
+    # Default script_name to method name if not provided
     method_to_script_name_mapping = {
-        method: options["script_name"]
+        method: options.get("script_name", method)
         for method, options in method_options.items()
         if method in methods
     }
 
+    # Default method_specific_params to empty list if not provided
     method_specific_params = {
-        method: options["method_specific_params"]
+        method: " ".join(options.get("method_specific_params", []))
         for method, options in method_options.items()
         if method in methods
     }
