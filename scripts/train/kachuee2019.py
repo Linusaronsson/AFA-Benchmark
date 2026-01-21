@@ -1,37 +1,34 @@
-import gc
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, override
 
 import hydra
 import torch
 from omegaconf.omegaconf import OmegaConf
-from tensordict import TensorDict
+from tensordict import TensorDict, TensorDictBase
 from torch import optim
 from torch.nn import functional as F
 
-from afabench.afa_rl.common.afa_env import AFAEnv
 from afabench.afa_rl.common.afa_methods import RLAFAMethod
+from afabench.afa_rl.common.agent_interface import Agent
+from afabench.afa_rl.common.custom_types import AFARewardFn
 from afabench.afa_rl.common.training import (
-    afa_rl_training_loop,
-    afa_rl_training_prep,
-    create_afa_envs,
+    RLTrainer,
 )
 from afabench.afa_rl.kachuee2019.agents import Kachuee2019Agent
 from afabench.afa_rl.kachuee2019.models import (
     Kachuee2019AFAClassifier,
-    Kachuee2019AFAPredictFn,
     Kachuee2019PQModule,
     LitKachuee2019PQModule,
 )
 from afabench.afa_rl.kachuee2019.reward import get_kachuee2019_reward_fn
-from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.bundle import load_bundle
 from afabench.common.config_classes import (
     Kachuee2019TrainConfig,
 )
+from afabench.common.custom_types import AFAMethod
 from afabench.common.utils import (
-    initialize_wandb_run,
     set_seed,
 )
 
@@ -89,54 +86,9 @@ def get_post_process_batch_callback(
     return f
 
 
-def get_kachuee2019_pretrained_model(
-    pretrained_model_bundle_path: Path,
-    pretrained_model_lr: float,
-    device: torch.device,
-) -> tuple[LitKachuee2019PQModule, optim.Adam]:
-    pretrained_model, _ = load_bundle(
-        Path(pretrained_model_bundle_path),
-        device=device,
-    )
-    torch_model_bundle = cast(
-        "TorchModelBundle",
-        cast("object", pretrained_model),
-    )
-    pretrained_model = cast("LitKachuee2019PQModule", torch_model_bundle.model)
-    pretrained_model.eval()
-    pretrained_model = pretrained_model.to(device)
-    pretrained_model_optim = optim.Adam(
-        pretrained_model.parameters(), lr=pretrained_model_lr
-    )
-    return pretrained_model, pretrained_model_optim
-
-
-def get_pre_eval_callback(
-    agent: Kachuee2019Agent, eval_env: AFAEnv
-) -> Callable[[], None]:
-    def f() -> None:
-        # HACK: Set the action spec of the agent to the eval env action spec
-        agent.egreedy_tdmodule._spec = eval_env.action_spec  # noqa: SLF001
-
-    return f
-
-
-def get_post_eval_callback(
-    agent: Kachuee2019Agent, train_env: AFAEnv
-) -> Callable[[], None]:
-    def f() -> None:
-        # Reset the action spec of the agent to the train env action spec
-        agent.egreedy_tdmodule._spec = train_env.action_spec  # noqa: SLF001
-
-    return f
-
-
-@hydra.main(
-    version_base=None,
-    config_path="../../extra/conf/scripts/train/kachuee2019",
-    config_name="config",
-)
-def main(cfg: Kachuee2019TrainConfig) -> None:
+def method_specific_init(
+    cfg: Kachuee2019TrainConfig,
+) -> Kachuee2019TrainConfig:
     # Evaluate alias arguments
     # Flat hard budget parameter always overrides
     cfg.mdp.hard_budget = cfg.hard_budget
@@ -145,144 +97,196 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
-    if cfg.device is None:
-        device = torch.device("cpu")
-    else:
-        device = torch.device(cfg.device)
-    replay_buffer_device = (
-        device
-        if cfg.replay_buffer_device_same_as_device
-        else torch.device("cpu")
-    )
-
-    log_fn: Callable[[dict[str, Any]], None]
-    if cfg.use_wandb:
-        run = initialize_wandb_run(
-            cfg=cfg, job_type="training", tags=["kachuee2019"]
-        )
-        log_fn = run.log
-    else:
-        run = None
-        log_fn = lambda _d: None  # noqa: E731
-
     if cfg.smoke_test:
         log.info("Smoke test detected.")
         cfg.rl_training_loop.n_batches = 2
 
-    # Prep: things we need to get before creating an environment
-    train_dataset, val_dataset, initializer, unmasker, class_weights = (
-        afa_rl_training_prep(
-            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-            initializer_cfg=cfg.initializer,
-            unmasker_cfg=cfg.unmasker,
-        )
-    )
-    class_weights = class_weights.to(device)
+    return cfg
 
-    pretrained_model, pretrained_model_optim = (
-        get_kachuee2019_pretrained_model(
-            pretrained_model_bundle_path=Path(
-                cfg.pretrained_model_bundle_path
+
+class Kachuee2019RLTrainer(RLTrainer):
+    typed_cfg: Kachuee2019TrainConfig
+    pretrained_model: LitKachuee2019PQModule
+    pretrained_model_optim: torch.optim.Adam
+    replay_buffer_device: torch.device
+    afa_method: RLAFAMethod
+    activate_joint_training_after_batch: int
+
+    def __init__(self, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        super().__init__(*args, **kwargs)
+
+        self.typed_cfg = cast(
+            "Kachuee2019TrainConfig", cast("object", self.cfg)
+        )
+
+        self.replay_buffer_device = (
+            self.device
+            if self.typed_cfg.replay_buffer_device_same_as_device
+            else torch.device("cpu")
+        )
+        self.pretrained_model, self.pretrained_model_optim = (
+            self._get_pretrained_model_and_optim(
+                pretrained_model_bundle_path=Path(
+                    self.typed_cfg.pretrained_model_bundle_path
+                ),
+                pretrained_model_lr=self.typed_cfg.pretrained_model_lr,
+                device=self.device,
+            )
+        )
+
+        self.afa_method = RLAFAMethod(
+            self.agent.get_exploitative_policy().to("cpu"),
+            Kachuee2019AFAClassifier(
+                self.pretrained_model.pq_module, device=torch.device("cpu")
             ),
-            pretrained_model_lr=cfg.pretrained_model_lr,
+        )
+
+        self.activate_joint_training_after_batch = int(
+            self.typed_cfg.rl_training_loop.n_batches
+            * self.typed_cfg.activate_joint_training_after_fraction
+        )
+
+    def _get_pretrained_model_and_optim(
+        self,
+        pretrained_model_bundle_path: Path,
+        pretrained_model_lr: float,
+        device: torch.device | None,
+    ) -> tuple[LitKachuee2019PQModule, optim.Adam]:
+        pretrained_model, _ = load_bundle(
+            Path(pretrained_model_bundle_path),
             device=device,
         )
-    )
+        torch_model_bundle = cast(
+            "TorchModelBundle",
+            cast("object", pretrained_model),
+        )
+        pretrained_model = cast(
+            "LitKachuee2019PQModule", torch_model_bundle.model
+        )
+        pretrained_model.eval()
+        pretrained_model = pretrained_model.to(device)
+        pretrained_model_optim = optim.Adam(
+            pretrained_model.parameters(), lr=pretrained_model_lr
+        )
+        return pretrained_model, pretrained_model_optim
 
-    train_env, eval_env = create_afa_envs(
-        train_dataset=train_dataset,
-        val_dataset=val_dataset,
-        reward_fn=get_kachuee2019_reward_fn(
-            pretrained_model=pretrained_model.pq_module,
+    @override
+    def _get_tags(self) -> list[str]:
+        return ["kachuee2019"]
+
+    @override
+    def _get_reward_fn(self) -> AFARewardFn:
+        return get_kachuee2019_reward_fn(
+            pretrained_model=self.pretrained_model.pq_module,
             selection_costs=(
-                0 if cfg.soft_budget_param is None else cfg.soft_budget_param
+                0
+                if self.typed_cfg.soft_budget_param is None
+                else self.typed_cfg.soft_budget_param
             )
-            * unmasker.get_selection_costs(
-                feature_costs=train_dataset.get_feature_acquisition_costs()
-            ).to(device),
-            n_feature_dims=len(train_dataset.feature_shape),
-            method=cfg.reward_method,
-            mcdrop_samples=cfg.mcdrop_samples,
-        ),
-        n_agents=cfg.mdp.n_agents,
-        n_selections=unmasker.get_n_selections(
-            feature_shape=train_dataset.feature_shape
-        ),
-        hard_budget=cfg.mdp.hard_budget,
-        initialize_fn=initializer.initialize,
-        unmask_fn=unmasker.unmask,
-        force_hard_budget=cfg.mdp.force_hard_budget,
-        device=device,
-        seed=cfg.seed,
-        selection_costs=unmasker.get_selection_costs(
-            train_dataset.get_feature_acquisition_costs()
-        ).tolist(),
-    )
+            * self.unnormalized_selection_costs.to(self.device),
+            n_feature_dims=self._n_feature_dims,
+            method=self.typed_cfg.reward_method,
+            mcdrop_samples=self.typed_cfg.mcdrop_samples,
+        )
 
-    agent = Kachuee2019Agent(
-        cfg=cfg.agent,
-        pq_module=pretrained_model.pq_module,
-        action_spec=train_env.action_spec,
-        action_mask_key="allowed_action_mask",
-        module_device=device,
-        replay_buffer_device=replay_buffer_device,
-        n_feature_dims=len(train_dataset.feature_shape),
-        n_batches=cfg.rl_training_loop.n_batches,
+    @override
+    def _get_agent(self) -> Agent:
+        return Kachuee2019Agent(
+            cfg=self.typed_cfg.agent,
+            pq_module=self.pretrained_model.pq_module,
+            action_spec=self.train_env.action_spec,
+            action_mask_key="allowed_action_mask",
+            module_device=self.device,
+            replay_buffer_device=self.replay_buffer_device,
+            n_feature_dims=len(self.train_dataset.feature_shape),
+            n_batches=self.typed_cfg.rl_training_loop.n_batches,
+        )
+
+    @override
+    def _get_afa_method(self, device: torch.device) -> AFAMethod:
+        return RLAFAMethod(
+            self.agent.get_exploitative_policy().to(device),
+            Kachuee2019AFAClassifier(
+                self.pretrained_model.pq_module, device=device
+            ),
+        )
+
+    @override
+    def _post_process_batch(
+        self, td: TensorDictBase, batch_idx: int
+    ) -> dict[str, Any]:
+        assert td.batch_dims == 2, "Expected two batch dimensions"
+
+        if batch_idx >= self.activate_joint_training_after_batch:
+            if batch_idx == self.activate_joint_training_after_batch:
+                log.info("Activating joint training of classifier")
+            self.pretrained_model.pq_module.train()
+            self.pretrained_model_optim.zero_grad()
+
+            # Flatten feature dims
+            flat_masked_features = td["next", "masked_features"].flatten(
+                start_dim=-self._n_feature_dims
+            )
+            assert flat_masked_features.ndim == td["next", "label"].ndim, (
+                "Label should be 1D"
+            )
+
+            # Flatten batch dims
+            flat_masked_features = flat_masked_features.flatten(end_dim=-2)
+            flat_label = td["next", "label"].flatten(end_dim=-2)
+
+            logits_next, _qvalues = self.pretrained_model.pq_module.forward(
+                flat_masked_features
+            )
+            class_loss_next = F.cross_entropy(
+                logits_next,
+                flat_label,
+                weight=self.class_weights,
+            )
+            class_loss_next.mean().backward()
+
+            self.pretrained_model_optim.step()
+            self.pretrained_model.pq_module.eval()
+
+            return {"avg_class_loss": class_loss_next.mean().cpu().item()}
+        return {}
+
+    @override
+    def _pre_eval(self) -> None:
+        self.agent.egreedy_tdmodule._spec = self.eval_env.action_spec  # noqa: SLF001  # pyright: ignore[reportAttributeAccessIssue]
+
+    @override
+    def _post_eval(self) -> None:
+        self.agent.egreedy_tdmodule._spec = self.train_env.action_spec  # noqa: SLF001  # pyright: ignore[reportAttributeAccessIssue]
+
+
+@hydra.main(
+    version_base=None,
+    config_path="../../extra/conf/scripts/train/kachuee2019",
+    config_name="config",
+)
+def main(cfg: Kachuee2019TrainConfig) -> None:
+    cfg = method_specific_init(cfg)
+
+    trainer = Kachuee2019RLTrainer(
+        train_dataset_bundle_path=cfg.train_dataset_bundle_path,
+        val_dataset_bundle_path=cfg.val_dataset_bundle_path,
+        initializer_cfg=cfg.initializer,
+        unmasker_cfg=cfg.unmasker,
+        mdp_cfg=cfg.mdp,
+        n_agents=cfg.mdp.n_agents,
+        seed=cfg.seed,
+        device=cfg.device if cfg.device is not None else torch.device("cpu"),
+        cfg=cast("dict[str,Any]", OmegaConf.to_container(cfg)),
     )
 
     try:
-        afa_rl_training_loop(
-            cfg=cfg.rl_training_loop,
-            train_env=train_env,
-            eval_env=eval_env,
-            agent=agent,
-            post_process_batch_callback=get_post_process_batch_callback(
-                pq_module=pretrained_model.pq_module,
-                pq_module_optim=pretrained_model_optim,
-                activate_joint_training_after_batch=int(
-                    cfg.rl_training_loop.n_batches
-                    * cfg.activate_joint_training_after_fraction
-                ),
-                class_weights=class_weights,
-                feature_shape=train_dataset.feature_shape,
-            ),
-            afa_predict_fn=Kachuee2019AFAPredictFn(pretrained_model.pq_module),
-            device=device,
-            feature_shape=train_dataset.feature_shape,
-            log_fn=log_fn,
-            pre_eval_callback=get_pre_eval_callback(
-                agent=agent, eval_env=eval_env
-            ),
-            post_eval_callback=get_post_eval_callback(
-                agent=agent, train_env=train_env
-            ),
-        )
+        trainer.train(cfg=cfg.rl_training_loop)
     except KeyboardInterrupt:
         log.info("Training interrupted by user")
     finally:
         log.info("Training completed, starting cleanup and model saving")
-        pretrained_model = pretrained_model.to(torch.device("cpu"))
-        afa_method = RLAFAMethod(
-            agent.get_exploitative_policy().to("cpu"),
-            Kachuee2019AFAClassifier(
-                pretrained_model.pq_module, device=torch.device("cpu")
-            ),
-        )
-
-        save_bundle(
-            obj=afa_method,
-            path=Path(cfg.save_path),
-            metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
-        )
-
-        if run is not None:
-            run.finish()
-
-        gc.collect()
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()
+        trainer.save(save_path=Path(cfg.save_path))
         log.info("Script completed successfully")
 
 
