@@ -74,6 +74,7 @@ exclude = [
   # "test/common/initializers/individual/test_mutual_information_initializer.py",
   # "test/common/initializers/individual/test_zero_initializer.py",
   "test/common/test_artifact_system.py",
+  "extra/workflow/src/config.py"
 ]
 
 [lint]

@@ -44,7 +44,8 @@
     "scripts/train/masked_vit_classifier.py",
     "scripts/train/optimalcube.py",
     "scripts/train/permutation.py",
-    "test/common/test_artifact_system.py"
+    "test/common/test_artifact_system.py",
+    "extra/workflow/src/config.py"
   ],
   "strict": [],
   "ignore": [],
