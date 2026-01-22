@@ -74,6 +74,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         min_lr=cfg.min_lr,
         min_mask=cfg.min_masking_probability,
         max_mask=cfg.max_masking_probability,
+        logger=log,
     )
 
     wrapped_classifier = WrappedMaskedViTClassifier(

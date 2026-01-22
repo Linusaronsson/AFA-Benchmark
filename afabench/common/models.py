@@ -1,3 +1,4 @@
+import logging
 from copy import deepcopy
 from typing import final, override
 
@@ -258,10 +259,15 @@ class MaskedViTTrainer(nn.Module):
         min_lr: float = 1e-6,
         min_mask: float = 0.1,
         max_mask: float = 0.9,
+        logger: logging.Logger | None = None,
     ):
 
         assert val_loss_fn is not None
         assert val_loss_mode in ["min", "max"]
+        if logger is not None:
+            log = logger
+        else:
+            log = logging.getLogger(__name__)
 
         model = self.model
         device = next(model.parameters()).device
@@ -280,7 +286,7 @@ class MaskedViTTrainer(nn.Module):
         best_state = None
         best_metric = None
 
-        for _ in range(nepochs):
+        for epoch in range(nepochs):
             model.train()
             total_loss = 0.0
 
@@ -303,7 +309,7 @@ class MaskedViTTrainer(nn.Module):
 
                 total_loss += loss.item()
 
-            # avg_train_loss = total_loss / len(train_loader)
+            avg_train_loss = total_loss / len(train_loader)
 
             model.eval()
             with torch.no_grad():
@@ -328,7 +334,15 @@ class MaskedViTTrainer(nn.Module):
                 y_full = torch.cat(all_labels)
                 preds_full = torch.cat(all_preds)
                 val_loss = val_loss_fn(preds_full, y_full).item()
-                # val_accuracy = correct / total
+                val_accuracy = correct / total
+                log.info(
+                    "Epoch %d/%d | train_loss=%.4f | val_loss=%.4f | val_acc=%.4f",
+                    epoch,
+                    nepochs,
+                    avg_train_loss,
+                    val_loss,
+                    val_accuracy,
+                )
 
             scheduler.step(val_loss)
 
