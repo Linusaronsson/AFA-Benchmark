@@ -234,8 +234,8 @@ class GreedyDynamicSelection(nn.Module):
                         # Update mask, ensure no repeats.
                         dist = selector_layer(logits_cost - 1e6 * m_sel, 1e-6)
                         sel_idx = torch.argmax(dist, dim=1, keepdim=True)
-                        # One-based indexing
-                        afa_selection = sel_idx.to(torch.long) + 1
+                        # Zero-based indexing for unmaskers
+                        afa_selection = sel_idx.to(torch.long)
                         m_sel = torch.max(
                             m_sel,
                             make_onehot(dist),
@@ -302,7 +302,7 @@ class GreedyDynamicSelection(nn.Module):
                             m_soft_feat = torch.maximum(m_feat, soft_feat)
                             m_sel = torch.max(m_sel, make_onehot(soft_patch))
                             sel_idx = torch.argmax(soft_patch, dim=1, keepdim=True)
-                            afa_selection = sel_idx.to(torch.long) + 1
+                            afa_selection = sel_idx.to(torch.long)
                             m_feat = unmasker.unmask(
                                 masked_features=x_masked,
                                 feature_mask=m_feat.bool(),
@@ -860,7 +860,7 @@ class CMIEstimator(nn.Module):
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
                     # TODO: need to verify if this work for unmasking using image patch index
-                    afa_selection = actions.to(torch.long) + 1
+                    afa_selection = actions.to(torch.long)
                     afa_selection = afa_selection.unsqueeze(1)
                     m_sel = torch.max(m_sel, ind_to_onehot(actions, mask_size))
 
@@ -963,7 +963,7 @@ class CMIEstimator(nn.Module):
                         m_sel = torch.max(
                             m_sel, ind_to_onehot(best_feature_index, mask_size)
                         )
-                        afa_selection = best_feature_index.to(torch.long) + 1
+                        afa_selection = best_feature_index.to(torch.long)
                         afa_selection = afa_selection.unsqueeze(1)
                         m_feat = unmasker.unmask(
                             masked_features=x_masked,
