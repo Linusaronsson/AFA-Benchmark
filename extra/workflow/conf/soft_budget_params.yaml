@@ -13,6 +13,8 @@ soft_budget_params:
   #   cube: [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]
   #   cube_without_noise: [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]
   #   miniboone: [0.5, 0.1, 0.075, 0.05, 0.01]
+  ol:
+    default: []
   odin_model_free: &odin
     default: [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
     afa_context: [0.464, 0.4635, 0.463, 0.4625, 0.462]

@@ -6,6 +6,8 @@ soft_budget_params:
   #   default: [0.5, 0.1, 0.05, 0.01]
   #   afa_context_without_noise: [0.1, 0.075]
   #   cube_without_noise: [0.5, 0.05]
+  ol:
+    default: []
   odin_model_free: &odin
     default: [1, 0.1]
     afa_context_without_noise: [0.464, 0.462]
