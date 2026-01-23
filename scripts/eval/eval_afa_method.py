@@ -4,9 +4,9 @@ from typing import Any, cast
 
 import hydra
 import torch
+import wandb
 from omegaconf import OmegaConf
 
-import wandb
 from afabench.common.bundle import load_bundle
 from afabench.common.config_classes import (
     EvalConfig,

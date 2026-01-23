@@ -370,7 +370,7 @@ def eval_afa_method(
             batch_features,
             batch_label,
             feature_shape=dataset.feature_shape,
-        )
+        ).to(device)
         batch_initial_masked_features = batch_features.clone()
         batch_initial_masked_features[~batch_initial_feature_mask] = (
             0.0  # Assuming zero masking
