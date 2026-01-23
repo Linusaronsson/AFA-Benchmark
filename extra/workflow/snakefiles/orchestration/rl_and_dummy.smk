@@ -98,3 +98,42 @@ rule all_train_method:
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
         ]
+
+rule all_eval_method:
+    input:
+        [
+            (
+                f"extra/output/eval_results/{method}/"
+                    f"dataset-{dataset}+"
+                    f"instance_idx-{dataset_instance_idx}/"
+                        f"pretrain_seed-{dataset_instance_idx}/"
+                            f"train_seed-{dataset_instance_idx}+"
+                            f"train_hard_budget-{hard_budget}+"
+                            f"train_soft_budget_param-{soft_budget_param}/"
+                                f"eval_seed-{dataset_instance_idx}+"
+                                f"eval_hard_budget-{hard_budget}/"
+                                    f"eval_data.csv",
+            )
+            for method in METHODS_WITH_PRETRAINING_STAGE
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
+        ] +
+        [
+            (
+                f"extra/output/eval_results/{method}/"
+                    f"dataset-{dataset}+"
+                    f"instance_idx-{dataset_instance_idx}/"
+                        f"{NO_PRETRAIN_STR}/"
+                            f"train_seed-{dataset_instance_idx}+"
+                            f"train_hard_budget-{hard_budget}+"
+                            f"train_soft_budget_param-{soft_budget_param}/"
+                                f"eval_seed-{dataset_instance_idx}+"
+                                f"eval_hard_budget-{hard_budget}/"
+                                    f"eval_data.csv",
+            )
+            for method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
+        ]

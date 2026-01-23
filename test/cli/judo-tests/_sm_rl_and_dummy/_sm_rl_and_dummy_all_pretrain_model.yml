@@ -4,6 +4,7 @@ run:
       uv run snakemake
       --dry-run
       -s extra/workflow/snakefiles/orchestration/rl_and_dummy.smk
+      all_pretrain_model
       extra/output/plot_results/eval_perf/rl_and_dummy
       extra/output/plot_results/time/rl_and_dummy
       --configfile
