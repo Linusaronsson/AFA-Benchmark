@@ -5,7 +5,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import torch
-import wandb
 from rl_helpers import dict_with_prefix
 from tensordict import TensorDictBase
 from torchrl.collectors import SyncDataCollector
@@ -13,6 +12,7 @@ from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
+import wandb
 from afabench.afa_rl.common.afa_env import AFAEnv
 from afabench.afa_rl.common.agent_interface import Agent
 from afabench.afa_rl.common.custom_types import AFARewardFn
@@ -147,7 +147,8 @@ class RLTrainer(ABC):
         _train_features, train_labels = self.train_dataset.get_all_data()
         train_class_probabilities = get_class_frequencies(train_labels)
         class_weights = 1 / train_class_probabilities
-        self.class_weights = class_weights / class_weights.sum()
+        class_weights = class_weights / class_weights.sum()
+        self.class_weights = class_weights.to(self.device)
 
     def _create_unmasker(self) -> None:
         self.unmasker = get_afa_unmasker_from_config(self.unmasker_cfg)
