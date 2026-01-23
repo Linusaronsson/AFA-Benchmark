@@ -5,7 +5,7 @@ hydra:
 
 defaults:
   - hydra: custom
-  - scripts/dataset_generation/dataset@dataset: ???
+  - dataset: ???
   - override hydra/hydra_logging: colorlog
   - _self_
 

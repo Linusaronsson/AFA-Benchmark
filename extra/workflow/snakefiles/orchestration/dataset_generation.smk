@@ -47,7 +47,7 @@ rule dataset_generation:
     shell:
         """
         python scripts/dataset_generation/{params.dataset_generation_script} \
-            scripts/dataset_generation/dataset@dataset={wildcards.dataset} \
+            dataset={wildcards.dataset} \
             instance_indices={params.instance_indices_str} \
             seeds={params.instance_indices_str} \
             save_path={output}
