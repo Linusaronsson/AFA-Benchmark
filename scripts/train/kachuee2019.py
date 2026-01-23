@@ -275,6 +275,7 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
         seed=cfg.seed,
         device=cfg.device if cfg.device is not None else torch.device("cpu"),
         cfg=cast("dict[str,Any]", OmegaConf.to_container(cfg)),
+        use_wandb=cfg.use_wandb,
         typed_cfg=cfg,
     )
 
