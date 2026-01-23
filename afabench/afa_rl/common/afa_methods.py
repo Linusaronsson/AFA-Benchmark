@@ -68,7 +68,7 @@ class RLAFAMethod(AFAMethod):
 
     policy_tdmodule: TensorDictModuleBase | ProbabilisticActor
     afa_classifier: AFAClassifier
-    _device: torch.device = torch.device("cpu")  # noqa: RUF009
+    _device: torch.device
 
     def __post_init__(self):
         # Move policy and classifier to the specified device

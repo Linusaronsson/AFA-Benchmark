@@ -206,6 +206,7 @@ class Kachuee2019RLTrainer(RLTrainer):
             Kachuee2019AFAClassifier(
                 self.pretrained_model.pq_module, device=device
             ),
+            device,
         )
 
     @override

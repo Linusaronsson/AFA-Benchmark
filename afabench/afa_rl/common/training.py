@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 import torch
+import wandb
 from rl_helpers import dict_with_prefix
 from tensordict import TensorDictBase
 from torchrl.collectors import SyncDataCollector
@@ -12,7 +13,6 @@ from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
-import wandb
 from afabench.afa_rl.common.afa_env import AFAEnv
 from afabench.afa_rl.common.agent_interface import Agent
 from afabench.afa_rl.common.custom_types import AFARewardFn

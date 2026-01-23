@@ -144,6 +144,7 @@ class Shim2018RLTrainer(RLTrainer):
         return RLAFAMethod(
             self.agent.get_exploitative_policy().to(device),
             Shim2018AFAClassifier(self.pretrained_model, device=device),
+            device,
         )
 
     @override

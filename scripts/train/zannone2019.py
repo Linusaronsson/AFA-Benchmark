@@ -182,6 +182,7 @@ class Zannone2019RLTrainer(RLTrainer):
         return RLAFAMethod(
             self.agent.get_exploitative_policy().to(device),
             Zannone2019AFAClassifier(self.pretrained_model, device=device),
+            device,
         )
 
     @override
