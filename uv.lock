@@ -43,6 +43,7 @@ dev = [
     { name = "csvkit" },
     { name = "ipython" },
     { name = "pre-commit" },
+    { name = "pytest-dependency" },
     { name = "pytest-watch" },
     { name = "ruff" },
     { name = "snakemake" },
@@ -83,6 +84,7 @@ dev = [
     { name = "csvkit", specifier = ">=2.1.0" },
     { name = "ipython", specifier = ">=8.36.0" },
     { name = "pre-commit", specifier = ">=4.3.0" },
+    { name = "pytest-dependency", specifier = ">=0.6.0" },
     { name = "pytest-watch", specifier = ">=4.2.0" },
     { name = "ruff", specifier = ">=0.11.8" },
     { name = "snakemake", specifier = ">=9.12.0" },
@@ -1750,6 +1752,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/ae/3c/c9d525a414d506893
 wheels = [
     { url = "https://files.pythonhosted.org/packages/30/3d/64ad57c803f1fa1e963a7946b6e0fea4a70df53c1a7fed304586539c2bac/pytest-8.3.5-py3-none-any.whl", hash = "sha256:c69214aa47deac29fad6c2a4f590b9c4a9fdb16a403176fe154b79c0b4d4d820", size = 343634, upload-time = "2025-03-02T12:54:52.069Z" },
 ]
+
+[[package]]
+name = "pytest-dependency"
+version = "0.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+    { name = "setuptools" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7e/3b/317cc04e77d707d338540ca67b619df8f247f3f4c9f40e67bf5ea503ad94/pytest-dependency-0.6.0.tar.gz", hash = "sha256:934b0e6a39d95995062c193f7eaeed8a8ffa06ff1bcef4b62b0dc74a708bacc1", size = 19499, upload-time = "2023-12-31T20:38:54.991Z" }
 
 [[package]]
 name = "pytest-watch"
