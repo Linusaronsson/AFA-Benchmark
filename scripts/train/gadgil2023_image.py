@@ -48,6 +48,7 @@ def main(cfg: Gadgil2023Training2DConfig):
             unmasker_cfg=cfg.unmasker,
         )
     )
+    d_out = train_dataset.label_shape[0]
     train_loader = DataLoader(
         train_dataset, # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
@@ -129,6 +130,7 @@ def main(cfg: Gadgil2023Training2DConfig):
         device=torch.device("cpu"),
         modality="image",
         n_patches=n_patches,
+        d_out=d_out,
     )
     afa_method.image_size = image_size
     afa_method.patch_size = patch_size

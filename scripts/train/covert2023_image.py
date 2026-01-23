@@ -60,6 +60,7 @@ def main(cfg: Covert2023Training2DConfig):
         shuffle=False,
         pin_memory=True,
     )
+    d_out = train_dataset.label_shape[0]
 
     base = resnet18(pretrained=True)
     backbone, expansion = ResNet18Backbone(base)
@@ -123,6 +124,7 @@ def main(cfg: Covert2023Training2DConfig):
         device=torch.device("cpu"),
         modality="image",
         n_patches=n_patches,
+        d_out=d_out,
     )
     afa_method.image_size = image_size
     afa_method.patch_size = patch_size
