@@ -1,4 +1,5 @@
-DATASETS = [
+# Load configuration with defaults
+DATASETS = config.get("datasets", [
     "afa_context",
     "afa_context_without_noise",
     # "fashion_mnist", # unexpected keyword argument 'load_subdirs'
@@ -14,9 +15,9 @@ DATASETS = [
     "imagenette",
     "miniboone",
     "physionet",
-]
-NUM_INSTANCES = 5
-INSTANCE_INDICES = range(NUM_INSTANCES)
+])
+
+DATASET_INSTANCE_INDICES = config.get("dataset_instance_indices", list(range(5)))
 
 
 rule all:
@@ -31,7 +32,7 @@ rule dataset_generation:
         directory("extra/output/datasets/{dataset}"),
     params:
         instance_indices_str=lambda wildcards: "["
-        + ",".join(str(i) for i in INSTANCE_INDICES)
+        + ",".join(str(i) for i in DATASET_INSTANCE_INDICES)
         + "]",
         dataset_generation_script=lambda wildcards: (
             "generate_image_dataset.py"
