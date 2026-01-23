@@ -308,20 +308,24 @@ class StaticBaseMethod(AFAMethod):
         if not (counts == counts[0]).all():
             raise RuntimeError("mixed budgets in batch")
         b = int(counts[0].item())
+        if (b + 1) not in self.selected_history:
+            return torch.zeros(
+                (masked_features.size(0), 1), dtype=torch.long, device=self._device
+            )
+
         mask0 = feature_mask[0]
         for idx in self.selected_history[b + 1]:
             if mask0[idx] == 0:
-                # TODO: check if this one-based indexing is correct
                 choice = idx + 1
                 return torch.full(
-                    (masked_features.size(0),),
+                    (masked_features.size(0),1),
                     fill_value=choice,
                     dtype=torch.long,
                     device=self._device,
                 )
 
         return torch.zeros(
-            (masked_features.size(0),), dtype=torch.long, device=self._device
+            (masked_features.size(0),1), dtype=torch.long, device=self._device
         )
 
     def save(self, path: Path):
