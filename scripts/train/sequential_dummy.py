@@ -1,10 +1,11 @@
 import gc
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
+from omegaconf import OmegaConf
 
 from afabench.common.afa_methods import SequentialDummyAFAMethod
 from afabench.common.bundle import load_bundle, save_bundle
@@ -37,7 +38,11 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
 
     if cfg.use_wandb:
         run = initialize_wandb_run(
-            cfg=cfg, job_type="training", tags=["random_dummy"]
+            cfg=cast(
+                "dict[str,Any]", OmegaConf.to_container(cfg, resolve=True)
+            ),
+            job_type="pretraining",
+            tags=["sequential_dummy"],
         )
     else:
         run = None

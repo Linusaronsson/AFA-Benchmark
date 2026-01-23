@@ -2,11 +2,11 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, final, override
 
 import torch
-import wandb
 from tensordict import TensorDict, TensorDictBase
 from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
+import wandb
 from afabench.afa_rl.common.custom_types import (
     AFADatasetFn,
     AFARewardFn,

@@ -3,15 +3,14 @@ import os
 import random
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import torch
-import wandb
-from omegaconf import OmegaConf
 from torch import nn
 from wandb.sdk.wandb_run import Run
 
+import wandb
 from afabench.common.custom_types import FeatureMask, Label, MaskedFeatures
 
 logger = logging.getLogger(__name__)
@@ -55,22 +54,17 @@ def eval_mode(*models: nn.Module) -> Generator[None, None, None]:
 
 
 def initialize_wandb_run(
-    cfg: Any,  # noqa: ANN401
+    cfg: dict[str, Any],
     job_type: str,
     tags: list[str],
 ) -> Run:
-    # Convert config to a plain dict for W&B
-    config_dict = cast(
-        "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-    )
-
     # Allow grouping of runs via environment variable `WANDB_GROUP`
     # or via a `wandb_group` key in the config dict. Environment
     # variable takes precedence.
-    group = os.environ.get("WANDB_GROUP") or config_dict.get("wandb_group")
+    group = os.environ.get("WANDB_GROUP") or cfg.get("wandb_group")
 
     init_kwargs: dict[str, Any] = {
-        "config": config_dict,
+        "config": cfg,
         "job_type": job_type,
         "tags": tags,
         "dir": "extra/logs/wandb",

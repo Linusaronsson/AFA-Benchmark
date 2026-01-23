@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 import lightning as pl
@@ -59,7 +60,11 @@ def main(cfg: Kachuee2019PretrainConfig) -> None:
 
     if cfg.use_wandb:
         _run = initialize_wandb_run(
-            cfg=cfg, job_type="pretraining", tags=["kachuee2019"]
+            cfg=cast(
+                "dict[str,Any]", OmegaConf.to_container(cfg, resolve=True)
+            ),
+            job_type="pretraining",
+            tags=["kachuee2019"],
         )
 
     # If smoke test, override some options
