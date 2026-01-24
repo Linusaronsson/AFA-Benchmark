@@ -1,12 +1,13 @@
-# Pretrained model configurations
+# Pretraining Configuration Mapping
 #
-# Each pretrained model is identified by a unique name and specifies:
+# Maps pretrained model names to their pretraining scripts and parameters.
+# Each entry is identified by a unique name and specifies:
 # - pretrain_script_name: The script to use for pretraining (without .py extension)
 # - pretrain_params: Optional list of additional parameters to pass to the pretrain script
 #
-# Multiple methods can reference the same pretrained model by name.
+# Multiple methods can reference the same pretrained model name.
 
-pretrained_models:
+pretrain_mapping:
   pvae:
     pretrain_script_name: "zannone2019"
     pretrain_params: []
@@ -26,3 +27,10 @@ pretrained_models:
   gadgil2023:
     pretrain_script_name: "gadgil2023"
     pretrain_params: []
+
+  # Example: If you need a variant with specific parameters
+  # pvae_custom:
+  #   pretrain_script_name: "zannone2019"
+  #   pretrain_params:
+  #     - "arg1=42"
+  #     - "arg2=100"

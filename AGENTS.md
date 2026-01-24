@@ -67,6 +67,8 @@ uv run pytest . --device=cuda           # Use CUDA device
 uv run pytest . --cores=4               # Use 4 CPU cores
 uv run pytest . -m optional             # Run optional tests
 uv run pytest . -m "not optional"       # Skip optional tests (default)
+uv run pytest . -m pipeline             # Run pipeline/system tests
+uv run pytest . -m "not pipeline"       # Skip pipeline tests (default)
 
 # Run tests without smoke tests
 uv run pytest . --no-smoke-test
@@ -178,6 +180,7 @@ uv sync
 - Asserts allowed in tests (S101 ignored)
 - Use pytest fixtures for setup/teardown
 - Mark optional/slow tests with `@pytest.mark.optional`
+- Mark pipeline/system tests with `@pytest.mark.pipeline`
 - Example:
   ```python
   import pytest
@@ -190,6 +193,12 @@ uv sync
   def test_expensive_operation():
       # Long-running test
       ...
+
+  @pytest.mark.pipeline
+  class TestPipeline:
+      # End-to-end system tests
+      def test_full_workflow():
+          ...
   ```
 
 ### Code Organization

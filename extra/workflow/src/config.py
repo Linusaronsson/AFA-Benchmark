@@ -41,19 +41,19 @@ def load_config(config):
     # Pretrained Models Configuration
     # ========================================================================
 
-    pretrained_models_config = config.get("pretrained_models", None)
-    if pretrained_models_config is None:
-        raise ValueError("Expected pretrained_models to be provided.")
+    pretrain_mapping = config.get("pretrain_mapping", None)
+    if pretrain_mapping is None:
+        raise ValueError("Expected pretrain_mapping to be provided.")
 
     # Extract pretrain script names and params for each pretrained model
-    pretrained_model_script_names = {
+    pretrain_model_script_names = {
         model_name: model_config["pretrain_script_name"]
-        for model_name, model_config in pretrained_models_config.items()
+        for model_name, model_config in pretrain_mapping.items()
     }
 
-    pretrained_model_params = {
+    pretrain_model_params = {
         model_name: " ".join(model_config.get("pretrain_params", []))
-        for model_name, model_config in pretrained_models_config.items()
+        for model_name, model_config in pretrain_mapping.items()
     }
 
     # ========================================================================
@@ -165,9 +165,9 @@ def load_config(config):
         "DEVICE": device,
         "USE_WANDB": use_wandb,
         "SMOKE_TEST": smoke_test,
-        "PRETRAINED_MODELS": list(pretrained_models_config.keys()),
-        "PRETRAINED_MODEL_SCRIPT_NAMES": pretrained_model_script_names,
-        "PRETRAINED_MODEL_PARAMS": pretrained_model_params,
+        "PRETRAIN_NAMES": list(pretrain_mapping.keys()),
+        "PRETRAIN_SCRIPT_NAMES": pretrain_model_script_names,
+        "PRETRAIN_PARAMS": pretrain_model_params,
         "METHOD_OPTIONS": method_options,
         "METHODS": methods,
         "METHODS_WITH_PRETRAINING_STAGE": methods_with_pretraining_stage,

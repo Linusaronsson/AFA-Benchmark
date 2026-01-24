@@ -27,8 +27,8 @@ rule pretrain_model:
                     "pretrain_time.txt"
 
     params:
-        script_name=lambda wildcards: PRETRAINED_MODEL_SCRIPT_NAMES[wildcards.pretrained_model_name],
-        pretrain_params=lambda wildcards: PRETRAINED_MODEL_PARAMS[wildcards.pretrained_model_name]
+        script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
+        pretrain_params=lambda wildcards: PRETRAIN_PARAMS[wildcards.pretrained_model_name]
     resources:
         shell_exec="bash"
     shell:

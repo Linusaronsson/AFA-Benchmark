@@ -11,6 +11,7 @@ def check_output_exists(path: Path) -> bool:
     return path.exists()
 
 
+@pytest.mark.pipeline
 class TestRLAndDummyPipeline:
     """Test the complete RL and dummy methods pipeline using Snakemake."""
 

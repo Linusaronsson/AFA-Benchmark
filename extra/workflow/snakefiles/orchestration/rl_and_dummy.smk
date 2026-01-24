@@ -23,12 +23,15 @@ EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
 DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]
 SMOKE_TEST = _config["SMOKE_TEST"]
+PRETRAIN_NAMES = _config["PRETRAIN_NAMES"]
+PRETRAIN_SCRIPT_NAMES = _config["PRETRAIN_SCRIPT_NAMES"]
+PRETRAIN_PARAMS = _config["PRETRAIN_PARAMS"]
 METHOD_OPTIONS = _config["METHOD_OPTIONS"]
 METHODS = _config["METHODS"]
 METHODS_WITH_PRETRAINING_STAGE = _config["METHODS_WITH_PRETRAINING_STAGE"]
 METHODS_WITHOUT_PRETRAINING_STAGE = _config["METHODS_WITHOUT_PRETRAINING_STAGE"]
 METHOD_TRAIN_SCRIPT_NAMES = _config["METHOD_TRAIN_SCRIPT_NAMES"]
-METHOD_PRETRAIN_SCRIPT_NAMES = _config["METHOD_PRETRAIN_SCRIPT_NAMES"]
+METHOD_TO_PRETRAINED_MODEL = _config["METHOD_TO_PRETRAINED_MODEL"]
 METHOD_SPECIFIC_PARAMS = _config["METHOD_SPECIFIC_PARAMS"]
 DATASETS = _config["DATASETS"]
 UNMASKERS = _config["UNMASKERS"]
@@ -52,13 +55,13 @@ rule all_pretrain_model:
     input:
         [
             (
-                f"extra/output/pretrained_models/{pretrained_model_name}/"
+                f"extra/output/pretrained_models/{pretrain_name}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
                             "model.bundle"
             )
-            for pretrained_model_name in PRETRAINED_MODELS
+            for pretrain_name in PRETRAIN_NAMES
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
         ]
