@@ -1,0 +1,28 @@
+# Pretrained model configurations
+#
+# Each pretrained model is identified by a unique name and specifies:
+# - pretrain_script_name: The script to use for pretraining (without .py extension)
+# - pretrain_params: Optional list of additional parameters to pass to the pretrain script
+#
+# Multiple methods can reference the same pretrained model by name.
+
+pretrained_models:
+  pvae:
+    pretrain_script_name: "zannone2019"
+    pretrain_params: []
+
+  jafa:
+    pretrain_script_name: "shim2018"
+    pretrain_params: []
+
+  ol:
+    pretrain_script_name: "kachuee2019"
+    pretrain_params: []
+
+  covert2023:
+    pretrain_script_name: "covert2023"
+    pretrain_params: []
+
+  gadgil2023:
+    pretrain_script_name: "gadgil2023"
+    pretrain_params: []

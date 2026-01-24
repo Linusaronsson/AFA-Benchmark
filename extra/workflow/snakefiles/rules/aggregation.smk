@@ -66,11 +66,13 @@ rule merge_eval_perf:
 rule time_df_with_pretrain:
     """Combine pretrain, train, and eval time measurements into a single dataframe."""
     input:
-        "extra/output/pretrained_models/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
-                    "pretrain_time.txt",
+        lambda wildcards: (
+            f"extra/output/pretrained_models/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
+                f"dataset-{wildcards.dataset}+"
+                f"instance_idx-{wildcards.dataset_instance_idx}/"
+                    f"pretrain_seed-{wildcards.pretrain_seed}/"
+                        "pretrain_time.txt"
+        ),
         "extra/output/trained_methods/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"

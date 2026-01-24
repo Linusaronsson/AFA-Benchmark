@@ -52,13 +52,13 @@ rule all_pretrain_model:
     input:
         [
             (
-                f"extra/output/pretrained_models/{method}/"
+                f"extra/output/pretrained_models/{pretrained_model_name}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
                             "model.bundle"
             )
-            for method in METHODS_WITH_PRETRAINING_STAGE
+            for pretrained_model_name in PRETRAINED_MODELS
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
         ]

@@ -14,6 +14,7 @@ def load_config(config):
 
     Processes and validates:
     - Basic configuration (device, seeds, etc.)
+    - Pretrained model configurations
     - Method options and filtering
     - Dataset configuration
     - Budget and unmasker parameters
@@ -37,6 +38,25 @@ def load_config(config):
     smoke_test = config.get("smoke_test", False)
 
     # ========================================================================
+    # Pretrained Models Configuration
+    # ========================================================================
+
+    pretrained_models_config = config.get("pretrained_models", None)
+    if pretrained_models_config is None:
+        raise ValueError("Expected pretrained_models to be provided.")
+
+    # Extract pretrain script names and params for each pretrained model
+    pretrained_model_script_names = {
+        model_name: model_config["pretrain_script_name"]
+        for model_name, model_config in pretrained_models_config.items()
+    }
+
+    pretrained_model_params = {
+        model_name: " ".join(model_config.get("pretrain_params", []))
+        for model_name, model_config in pretrained_models_config.items()
+    }
+
+    # ========================================================================
     # Methods Configuration
     # ========================================================================
 
@@ -49,17 +69,17 @@ def load_config(config):
         raise ValueError("Expected methods to be provided.")
 
     # Filter methods by pretraining stage availability
-    # A method has a pretraining stage if pretrain_script_name is set
+    # A method has a pretraining stage if pretrained_model_name is set
     methods_with_pretraining_stage = [
         method
         for method, options in method_options.items()
-        if "pretrain_script_name" in options and method in methods
+        if "pretrained_model_name" in options and method in methods
     ]
 
     methods_without_pretraining_stage = [
         method
         for method, options in method_options.items()
-        if "pretrain_script_name" not in options and method in methods
+        if "pretrained_model_name" not in options and method in methods
     ]
 
     # Build method option mappings for training scripts
@@ -69,11 +89,11 @@ def load_config(config):
         if method in methods and "train_script_name" in options
     }
 
-    # Build method option mappings for pretraining scripts
-    method_pretrain_script_names = {
-        method: options.get("pretrain_script_name", method)
+    # Build mapping from method to pretrained model name
+    method_to_pretrained_model = {
+        method: options["pretrained_model_name"]
         for method, options in method_options.items()
-        if method in methods and "pretrain_script_name" in options
+        if method in methods and "pretrained_model_name" in options
     }
 
     # Default method_specific_params to empty list if not provided
@@ -145,12 +165,15 @@ def load_config(config):
         "DEVICE": device,
         "USE_WANDB": use_wandb,
         "SMOKE_TEST": smoke_test,
+        "PRETRAINED_MODELS": list(pretrained_models_config.keys()),
+        "PRETRAINED_MODEL_SCRIPT_NAMES": pretrained_model_script_names,
+        "PRETRAINED_MODEL_PARAMS": pretrained_model_params,
         "METHOD_OPTIONS": method_options,
         "METHODS": methods,
         "METHODS_WITH_PRETRAINING_STAGE": methods_with_pretraining_stage,
         "METHODS_WITHOUT_PRETRAINING_STAGE": methods_without_pretraining_stage,
         "METHOD_TRAIN_SCRIPT_NAMES": method_train_script_names,
-        "METHOD_PRETRAIN_SCRIPT_NAMES": method_pretrain_script_names,
+        "METHOD_TO_PRETRAINED_MODEL": method_to_pretrained_model,
         "METHOD_SPECIFIC_PARAMS": method_specific_params,
         "DATASETS": datasets,
         "UNMASKERS": unmaskers,

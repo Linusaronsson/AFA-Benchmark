@@ -13,21 +13,22 @@ rule pretrain_model:
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
     output:
         directory(
-            "extra/output/pretrained_models/{method}/"
+            "extra/output/pretrained_models/{pretrained_model_name}/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "pretrain_seed-{pretrain_seed}/"
                         "model.bundle"
         ),
 
-        "extra/output/pretrained_models/{method}/"
+        "extra/output/pretrained_models/{pretrained_model_name}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
                     "pretrain_time.txt"
 
     params:
-        script_name=lambda wildcards: METHOD_PRETRAIN_SCRIPT_NAMES[wildcards.method]
+        script_name=lambda wildcards: PRETRAINED_MODEL_SCRIPT_NAMES[wildcards.pretrained_model_name],
+        pretrain_params=lambda wildcards: PRETRAINED_MODEL_PARAMS[wildcards.pretrained_model_name]
     resources:
         shell_exec="bash"
     shell:
@@ -41,7 +42,8 @@ rule pretrain_model:
             seed={wildcards.pretrain_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            experiment@_global_={wildcards.dataset}
+            experiment@_global_={wildcards.dataset} \
+            {params.pretrain_params}
         END_TIME=$(date +%s.%N)
         ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')
         echo $ELAPSED > '{output[1]}'
@@ -53,11 +55,13 @@ rule train_method_with_pretrained_model:
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
 
-        "extra/output/pretrained_models/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
-                    "model.bundle"
+        lambda wildcards: (
+            f"extra/output/pretrained_models/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
+                f"dataset-{wildcards.dataset}+"
+                f"instance_idx-{wildcards.dataset_instance_idx}/"
+                    f"pretrain_seed-{wildcards.pretrain_seed}/"
+                        "model.bundle"
+        )
     output:
         directory(
             "extra/output/trained_methods/{method}/"
