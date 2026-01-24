@@ -20,14 +20,6 @@ pretrain_mapping:
     pretrain_script_name: "kachuee2019"
     pretrain_params: []
 
-  covert2023:
-    pretrain_script_name: "covert2023"
-    pretrain_params: []
-
-  gadgil2023:
-    pretrain_script_name: "gadgil2023"
-    pretrain_params: []
-
   # Example: If you need a variant with specific parameters
   # pvae_custom:
   #   pretrain_script_name: "zannone2019"

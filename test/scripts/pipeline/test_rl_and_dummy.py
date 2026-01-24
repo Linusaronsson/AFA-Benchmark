@@ -23,6 +23,7 @@ class TestRLAndDummyPipeline:
         "extra/workflow/conf/hard_budgets_single.yaml",
         "extra/workflow/conf/methods.yaml",
         "extra/workflow/conf/method_options.yaml",
+        "extra/workflow/conf/pretrain_mapping.yaml",
         "extra/workflow/conf/soft_budget_params_single.yaml",
         "extra/workflow/conf/unmaskers.yaml",
     ]

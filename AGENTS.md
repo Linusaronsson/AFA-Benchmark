@@ -62,16 +62,18 @@ uv run pytest test/path/to/test_file.py::test_function_name
 # Run a specific test class
 uv run pytest test/path/to/test_file.py::TestClassName
 
-# Run tests with custom options
+# Run tests with custom options (defined in test/conftest.py)
 uv run pytest . --device=cuda           # Use CUDA device
 uv run pytest . --cores=4               # Use 4 CPU cores
 uv run pytest . -m optional             # Run optional tests
 uv run pytest . -m "not optional"       # Skip optional tests (default)
 uv run pytest . -m pipeline             # Run pipeline/system tests
 uv run pytest . -m "not pipeline"       # Skip pipeline tests (default)
+uv run pytest . --no-smoke-test         # Run full tests instead of smoke tests
+uv run pytest . --force-rerun           # Force rerun, ignore existing outputs
 
-# Run tests without smoke tests
-uv run pytest . --no-smoke-test
+# Pipeline tests with specific methods and datasets
+uv run pytest . -m pipeline --methods jafa ol --datasets cube_without_noise
 
 # Run coverage analysis
 just coverage                           # Generates HTML report in htmlcov/
