@@ -1,3 +1,25 @@
+"""
+RL and dummy methods pipeline: pretrain, train, eval, and visualize.
+
+Runtime filters (--config, select subsets to run):
+    methods (list[str], required): Subset of methods from method_options.yaml
+    datasets (list[str], required): Subset of datasets to run
+    dataset_instance_indices (list[int], default=[0,1]): Subset of random seeds
+    device (str, default='cpu'): Device for training
+    use_wandb (bool, default=False): Enable W&B logging
+    smoke_test (bool, default=False): Run smoke tests
+    initializer (str, default='cold'): Initialization strategy
+    eval_dataset_split (str, default='val'): Dataset split for evaluation
+
+Config files (--configfile):
+    Fixed definitions: method_options.yaml, pretrain_mapping.yaml, methods.yaml
+    Runtime params: hard_budgets_*.yaml, soft_budget_params_*.yaml, unmaskers.yaml
+
+Rules: all, all_pretrain_model, all_train_method, all_eval_method
+
+Note: Pretrain configs auto-filtered by selected methods. Keep docstring updated.
+"""
+
 import os
 import sys
 import time

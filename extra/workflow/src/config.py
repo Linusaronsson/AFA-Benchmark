@@ -96,6 +96,14 @@ def load_config(config):
         if method in methods and "pretrained_model_name" in options
     }
 
+    # Filter pretrain_names to only include those needed by selected methods
+    pretrain_names_needed = set(method_to_pretrained_model.values())
+    pretrain_names = [
+        name
+        for name in pretrain_mapping.keys()
+        if name in pretrain_names_needed
+    ]
+
     # Default method_specific_params to empty list if not provided
     method_specific_params = {
         method: " ".join(options.get("method_specific_params", []))
@@ -165,7 +173,7 @@ def load_config(config):
         "DEVICE": device,
         "USE_WANDB": use_wandb,
         "SMOKE_TEST": smoke_test,
-        "PRETRAIN_NAMES": list(pretrain_mapping.keys()),
+        "PRETRAIN_NAMES": pretrain_names,
         "PRETRAIN_SCRIPT_NAMES": pretrain_model_script_names,
         "PRETRAIN_PARAMS": pretrain_model_params,
         "METHOD_OPTIONS": method_options,

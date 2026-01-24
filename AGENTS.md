@@ -75,6 +75,10 @@ uv run pytest . --force-rerun           # Force rerun, ignore existing outputs
 # Pipeline tests with specific methods and datasets
 uv run pytest . -m pipeline --methods jafa ol --datasets cube_without_noise
 
+# Note: Pretrain configs are automatically determined from selected methods
+# Example: --methods odin_model_free will only pretrain 'pvae'
+#          --methods odin_model_free jafa will pretrain 'pvae' and 'jafa'
+
 # Run coverage analysis
 just coverage                           # Generates HTML report in htmlcov/
 ```
@@ -297,6 +301,7 @@ extra/                     # Non-source files
 - **Hydra configs:** Scripts use `@hydra.main()` decorator for configuration management
 - **CUDA support:** Optional GPU acceleration via cupy-cuda12x (Linux only)
 - **Experiment tracking:** Weights & Biases integration (run `uv run wandb login` if needed)
+- **Snakefile documentation:** When modifying Snakefiles in `extra/workflow/snakefiles/orchestration/`, always update the docstring at the top of the file to document configuration arguments, required files, and usage examples
 
 ## Reference Files
 
