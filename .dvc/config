@@ -1,0 +1,4 @@
+[core]
+    remote = mimer_shared
+['remote "mimer_shared"']
+    url = /mimer/NOBACKUP/groups/active-learning/data/afa_dvcstore/
