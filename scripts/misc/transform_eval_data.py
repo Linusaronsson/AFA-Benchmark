@@ -56,6 +56,14 @@ def is_missing_value(val: object) -> bool:
     return False
 
 
+def norm_na(x: object) -> object:
+    if is_missing_value(x):
+        return None
+    if isinstance(x, str) and x.strip().lower() == NA_REP:
+        return None
+    return x
+
+
 def count_selections(df: pd.DataFrame) -> pd.DataFrame:
     """
     Convert prev_selections_performed JSON list to selections_performed count.
@@ -210,13 +218,18 @@ def validate_and_consolidate_budgets(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
     if "train_hard_budget" in df.columns and "eval_hard_budget" in df.columns:
-        train_filled = df["train_hard_budget"].fillna("_NaN_marker")
-        eval_filled = df["eval_hard_budget"].fillna("_NaN_marker")
-        mismatched = train_filled != eval_filled
+        # train_filled = df["train_hard_budget"].fillna("_NaN_marker")
+        # eval_filled = df["eval_hard_budget"].fillna("_NaN_marker")
+        # mismatched = train_filled != eval_filled
+        # Only check the hard budget evaluation
+        train_norm = df["train_hard_budget"].map(norm_na)
+        eval_norm = df["eval_hard_budget"].map(norm_na)
+        mismatched = (eval_norm.notna()) & (train_norm != eval_norm)
+
         if mismatched.any():
             msg = (
                 f"train_hard_budget and eval_hard_budget mismatch in "
-                f"{len(mismatched)} rows"
+                f"{mismatched.sum()} rows"
             )
             raise ValueError(msg)
 
