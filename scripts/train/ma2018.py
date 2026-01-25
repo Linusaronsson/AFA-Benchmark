@@ -9,7 +9,7 @@ from omegaconf import OmegaConf
 
 from afabench.afa_generative.afa_methods import Ma2018AFAMethod
 from afabench.common.bundle import load_bundle, save_bundle
-from afabench.afa_rl.common.training import afa_rl_training_prep
+from afabench.afa_discriminative.utils import afa_discriminative_training_prep
 from afabench.afa_rl.zannone2019.models import Zannone2019PretrainingModel
 from afabench.common.config_classes import Ma2018TrainingConfig
 from afabench.common.torch_bundle import TorchModelBundle
@@ -29,13 +29,14 @@ def main(cfg: Ma2018TrainingConfig):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     train_dataset, _, _, _, class_weights = (
-        afa_rl_training_prep(
+        afa_discriminative_training_prep(
             train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
             val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
             initializer_cfg=cfg.initializer,
             unmasker_cfg=cfg.unmasker,
         )
     )
+    assert class_weights is not None
     class_weights = class_weights.to(device)
     num_classes = train_dataset.label_shape[-1]
 

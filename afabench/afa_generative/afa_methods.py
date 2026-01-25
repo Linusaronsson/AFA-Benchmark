@@ -195,8 +195,8 @@ class Ma2018AFAMethod(AFAMethod):
         lam = self.lambda_threshold
         stop_mask = best_scores < lam
         stop_mask = stop_mask | (best_scores < -1e5)
-        selections = (best_idx + 1).to(torch.long)
-        selections = selections.masked_fill(stop_mask, 0)
+        selections = (best_idx + 1).to(torch.long).unsqueeze(-1)
+        selections = selections.masked_fill(stop_mask.unsqueeze(-1), 0)
         return selections
 
     @classmethod
