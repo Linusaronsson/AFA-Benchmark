@@ -1,19 +1,25 @@
-import hydra
-import torch
 import logging
-import lightning as pl
-
 from pathlib import Path
-from lightning.pytorch.loggers import CSVLogger
-from lightning.pytorch.callbacks import ModelCheckpoint
+from typing import TYPE_CHECKING, cast
 
-from afabench.common.models import LitMaskedMLPClassifier
+import hydra
+import lightning as pl
+import torch
+from lightning.pytorch.callbacks import ModelCheckpoint
+from lightning.pytorch.loggers import CSVLogger
+
 from afabench.afa_rl.common.dataset_utils import DataModuleFromDatasets
 from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.datasets.utils import flatten_features_collate
-from afabench.common.utils import get_class_frequencies, set_seed
 from afabench.common.classifiers import WrappedMaskedMLPClassifier
 from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
+from afabench.common.datasets.utils import flatten_features_collate
+from afabench.common.models import LitMaskedMLPClassifier
+from afabench.common.utils import get_class_frequencies, set_seed
+
+if TYPE_CHECKING:
+    from torch.utils.data import Dataset
+
+    from afabench.common.custom_types import AFADataset, Features, Label
 
 log = logging.getLogger(__name__)
 
@@ -37,11 +43,10 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
 
     # Load datasets via bundle system
     train_dataset, train_manifest = load_bundle(Path(cfg.train_dataset_path))
-    val_dataset, _ = load_bundle(Path(cfg.val_dataset_path))
-
     dataset_name = train_manifest["class_name"].replace("Dataset", "").lower()
-    log.info(f"Dataset: {train_manifest['class_name']}")
-    log.info(f"Train: {len(train_dataset)}, Val: {len(val_dataset)}")
+    train_dataset = cast("AFADataset", cast("object", train_dataset))
+    val_dataset, _ = load_bundle(Path(cfg.val_dataset_path))
+    val_dataset = cast("AFADataset", cast("object", val_dataset))
 
     # Get dimensions (flatten for MLP)
     feature_shape = train_dataset.feature_shape
@@ -49,12 +54,14 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     n_classes = train_dataset.label_shape[0]
 
     datamodule = DataModuleFromDatasets(
-        train_dataset,
-        val_dataset,
-        batch_size=cfg.batch_size,
-        collate_fn=flatten_features_collate(
-            n_feature_dims=len(feature_shape)
+        train_dataset=cast(
+            "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
         ),
+        val_dataset=cast(
+            "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
+        ),
+        batch_size=cfg.batch_size,
+        collate_fn=flatten_features_collate(n_feature_dims=len(feature_shape)),
     )
 
     # Class weights
@@ -97,7 +104,8 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     # Load best checkpoint
     best_checkpoint = checkpoint_callback.best_model_path
     if not best_checkpoint:
-        raise RuntimeError("No checkpoint saved during training")
+        msg = "No checkpoint saved during training"
+        raise RuntimeError(msg)
 
     best_lit_model = LitMaskedMLPClassifier.load_from_checkpoint(
         best_checkpoint,
