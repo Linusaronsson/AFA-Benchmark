@@ -90,7 +90,7 @@ class ImagePatchUnmasker(AFAUnmasker):
 
     @override
     def get_selection_costs(self, feature_costs: torch.Tensor) -> torch.Tensor:
-        """Sum the feature cost within each patch."""
+        """Average the feature cost within each patch."""
         assert feature_costs.shape == (
             self.n_channels,
             self.image_side_length,
@@ -100,7 +100,7 @@ class ImagePatchUnmasker(AFAUnmasker):
         selection_costs = torch.zeros(self.selection_size)
         for selection_idx in range(self.selection_size):
             image_mask = self._get_image_mask_from_selection(selection_idx)
-            feature_cost_in_patch = (feature_costs * image_mask).sum()
+            feature_cost_in_patch = (feature_costs * image_mask).mean()
             selection_costs[selection_idx] = feature_cost_in_patch
         return selection_costs
 
