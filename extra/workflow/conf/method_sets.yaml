@@ -1,0 +1,12 @@
+# Maps to methods in `methods.yaml`
+method_sets:
+  rl_and_dummy:
+    - jafa
+    - odin_model_free
+    - odin_model_based
+    - ol
+    - random_dummy
+    - sequential_dummy
+  odin_variants:
+    - odin_model_free
+    - odin_model_based

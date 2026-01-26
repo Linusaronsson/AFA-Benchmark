@@ -69,6 +69,7 @@ DATASETS = _config["DATASETS"]
 UNMASKERS = _config["UNMASKERS"]
 BUDGET_PARAMS = _config["BUDGET_PARAMS"]
 CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
+METHOD_SETS = _config["METHOD_SETS"]
 
 include: "../rules/training.smk"
 include: "../rules/classifier_training.smk"
@@ -79,9 +80,15 @@ include: "../rules/visualization.smk"
 
 rule all:
     input:
-        "extra/output/plot_results/eval_perf/rl_and_dummy+classifier_type-builtin",
-        "extra/output/plot_results/eval_perf/rl_and_dummy+classifier_type-external",
-        "extra/output/plot_results/time/rl_and_dummy",
+        [
+            f"extra/output/plot_results/eval_perf/{method_set}+classifier_type-builtin" for method_set in METHOD_SETS
+        ] +
+        [
+            f"extra/output/plot_results/eval_perf/{method_set}+classifier_type-external" for method_set in METHOD_SETS
+        ] +
+        [
+            "extra/output/plot_results/time/rl_and_dummy"
+        ]
 
 
 rule all_pretrain_model:

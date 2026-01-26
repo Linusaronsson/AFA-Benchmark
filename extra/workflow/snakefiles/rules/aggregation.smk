@@ -9,8 +9,8 @@ Combines individual results into unified datasets:
 
 
 rule merge_eval_perf:
-    """Merge evaluation performance results from all method-dataset combinations."""
-    input:
+    """Merge evaluation performance results from all methods within a method set."""
+    input: lambda wc:
         [
             (
                 f"extra/output/eval_results_transformed/{method}/"
@@ -24,7 +24,7 @@ rule merge_eval_perf:
                                 f"eval_hard_budget-{eval_hard_budget}/"
                                     f"eval_data.csv"
             )
-            for method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for method in METHOD_SETS[wc.method_set] if method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for (
@@ -46,7 +46,7 @@ rule merge_eval_perf:
                                 f"eval_hard_budget-{eval_hard_budget}/"
                                     f"eval_data.csv"
             )
-            for method in METHODS_WITH_PRETRAINING_STAGE
+            for method in METHOD_SETS[wc.method_set] if method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for (
@@ -58,7 +58,7 @@ rule merge_eval_perf:
     resources:
         shell_exec="bash"
     output:
-        "extra/output/merged_results/eval_perf/rl_and_dummy.csv",
+        "extra/output/merged_results/eval_perf/{method_set}.csv",
     shell:
         """
             csvstack {input} > {output}
@@ -66,10 +66,10 @@ rule merge_eval_perf:
 
 rule split_by_classifier_type:
     input:
-        "extra/output/merged_results/eval_perf/rl_and_dummy.csv"
+        "extra/output/merged_results/eval_perf/{method_set}.csv"
     output:
-        "extra/output/merged_results/eval_perf/rl_and_dummy+classifier_type-builtin.csv",
-        "extra/output/merged_results/eval_perf/rl_and_dummy+classifier_type-external.csv"
+        "extra/output/merged_results/eval_perf/{method_set}+classifier_type-builtin.csv",
+        "extra/output/merged_results/eval_perf/{method_set}+classifier_type-external.csv"
     resources:
         shell_exec="nu"
     shell:
@@ -215,7 +215,7 @@ rule merge_time:
             ) in BUDGET_PARAMS[method][dataset]
         ]
     output:
-        "extra/output/merged_results/rl_and_dummy_time.csv",
+        "extra/output/merged_results/all.csv",
     resources:
         shell_exec="bash"
     shell:
