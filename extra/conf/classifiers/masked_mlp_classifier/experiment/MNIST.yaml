@@ -1,0 +1,6 @@
+batch_size: 128
+epochs: 1000
+min_masking_probability: 0.75
+max_masking_probability: 0.99
+eval_only_n_samples: 100
+dropout: 0.1

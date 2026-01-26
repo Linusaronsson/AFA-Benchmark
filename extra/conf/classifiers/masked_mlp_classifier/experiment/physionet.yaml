@@ -1,0 +1,4 @@
+batch_size: 128
+# physionet is unbalanced and therefore very prone to overfit
+epochs: 100
+dropout: 0.1

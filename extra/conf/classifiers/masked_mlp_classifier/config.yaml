@@ -4,7 +4,9 @@ hydra:
 
 defaults:
   - _self_
-  - dataset@_global_: cube
+  - /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
+  - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
@@ -51,15 +53,6 @@ max_masking_probability: 0.9
 limit_train_batches: null
 limit_val_batches: null
 eval_only_n_samples: null
-
-# Not used by MLP classifier but kept for config compatibility
-initializer:
-  class_name: "ZeroInitializer"
-  kwargs: {}
-
-unmasker:
-  class_name: "DirectUnmasker"
-  kwargs: {}
 
 # Runtime settings
 seed: 42
