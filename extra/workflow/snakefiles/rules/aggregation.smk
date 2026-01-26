@@ -13,7 +13,7 @@ rule merge_eval_perf:
     input:
         [
             (
-                f"extra/output/eval_results6/{method}/"
+                f"extra/output/eval_results_transformed/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"
@@ -35,7 +35,7 @@ rule merge_eval_perf:
         ] +
         [
             (
-                f"extra/output/eval_results6/{method}/"
+                f"extra/output/eval_results_transformed/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"

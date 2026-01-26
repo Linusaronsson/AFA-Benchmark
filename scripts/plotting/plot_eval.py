@@ -67,7 +67,7 @@ DTYPE_SPEC = {
     "eval_seed": "int64",
     "accumulated_cost": "float64",
     "eval_hard_budget": "float64",
-    "soft_budget_param": "float64",
+    "train_soft_budget_param": "float64",
 }
 
 
@@ -263,7 +263,7 @@ def metrics_grouped_by_param(df: pd.DataFrame, param: str) -> pd.DataFrame:
 def process_hard_budget_df(df: pd.DataFrame) -> pd.DataFrame:
     """Process data for hard budget plots."""
     df_hard = df.loc[
-        df["eval_hard_budget"].notna() & df["soft_budget_param"].isna()
+        df["eval_hard_budget"].notna() & df["train_soft_budget_param"].isna()
     ].copy()
     df_hard = metrics_grouped_by_param(df_hard, param="eval_hard_budget")
     return df_hard
@@ -272,9 +272,11 @@ def process_hard_budget_df(df: pd.DataFrame) -> pd.DataFrame:
 def process_soft_budget(df: pd.DataFrame) -> pd.DataFrame:
     """Process data for soft budget plots."""
     df_soft = df.loc[
-        df["eval_hard_budget"].isna() & df["soft_budget_param"].notna()
+        df["eval_hard_budget"].isna() & df["train_soft_budget_param"].notna()
     ].copy()
-    df_soft = metrics_grouped_by_param(df_soft, param="soft_budget_param")
+    df_soft = metrics_grouped_by_param(
+        df_soft, param="train_soft_budget_param"
+    )
     return df_soft
 
 
