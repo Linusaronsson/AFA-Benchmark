@@ -1,0 +1,44 @@
+# Smoke test configuration for AACO (image datasets).
+#
+# PREREQUISITE: Train MLP classifiers for imagenette first.
+#   Update extra/workflow/conf/mlp_smoke_test.yaml to include imagenette,
+#   then run:
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
+#       --configfile extra/workflow/conf/mlp_smoke_test.yaml -j 4
+#
+# Usage:
+#   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
+#       --configfile extra/workflow/conf/AACO/image_smoketest.yaml -j 4
+
+dataset_path_prefix: extra/data
+
+# Keep this small for a quick image smoke test (imagenette still takes time)
+dataset_instance_indices: [0]
+initializer: random
+eval_dataset_split: val
+
+# CPU is fine for local smoke tests; use *_alvis_* configs for GPU
+
+device: cpu
+use_wandb: false
+smoke_test: true
+
+# Image datasets (imagenette only)
+datasets:
+  - imagenette
+
+# Unmaskers (patch-based for 224x224 images)
+unmaskers:
+  default: 224x224_to_7x7
+
+# Minimal hard budgets for quick testing
+hard_budgets:
+  default: [10]
+
+# Minimal cost params for testing
+cost_params:
+  default: [0.001]
+
+# Keep AACO+NN on for end-to-end coverage
+train_aaco_nn: true
+soft_budget_eval: false

@@ -1,0 +1,47 @@
+# Smoke test configuration for AACO (tabular only).
+#
+# PREREQUISITE: Train MLP classifiers first!
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
+#       --configfile extra/workflow/conf/mlp_smoke_test.yaml -j 4
+#
+# Usage:
+#   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
+#       --configfile extra/workflow/conf/AACO/tabular_smoketest.yaml -j 4
+
+# Data paths
+dataset_path_prefix: extra/data
+
+# Minimal configuration for quick testing
+dataset_instance_indices: [0, 1]
+
+# Random = random single-feature initializer
+initializer: random
+
+# Use val split for faster smoke test
+eval_dataset_split: val
+
+# Training settings
+device: cpu
+use_wandb: false
+smoke_test: true
+
+# Small tabular datasets only (fast smoke test)
+datasets:
+  - cube_without_noise
+  - afa_context_without_noise
+
+# Unmaskers
+unmaskers:
+  default: direct
+
+# Minimal hard budgets for quick testing
+hard_budgets:
+  default: [5, 10]
+
+# Minimal cost params for testing
+cost_params:
+  default: [0.05]
+
+# Test both AACO and AACO+NN
+train_aaco_nn: true
+soft_budget_eval: false

@@ -1,4 +1,4 @@
-# Snakemake profile for Alvis SLURM cluster
+# Snakemake profile for Alvis SLURM cluster (Rezvan)
 #
 # This profile submits jobs to SLURM instead of running locally.
 # Note: Alvis does NOT allow direct memory requests.
@@ -28,7 +28,8 @@ set-resources:
   train_method_without_pretrained_model:
     runtime: 360 # 6 hours
   # AACO training - device controlled per-dataset in snakefile
-  # imagenette/mnist/fashion_mnist get GPU, others get CPU (--constraint=NOGPU)
+  # Use GPU for datasets configured with device=cuda (e.g. imagenette,
+  # MNIST/FashionMNIST when enabled).
   train_aaco:
     runtime: 120
   # AACO+NN training - device controlled per-dataset in snakefile

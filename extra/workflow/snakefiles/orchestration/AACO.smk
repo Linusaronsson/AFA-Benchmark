@@ -1,18 +1,47 @@
 """
 Snakemake workflow for AACO and AACO+NN methods.
 
-PREREQUISITE: Run mlp.smk first to train MLP classifiers!
-    snakemake -s extra/workflow/snakefiles/mlp.smk \
-        --configfile extra/workflow/conf/mlp.yaml -j 4
+Prerequisite (train MLP classifiers first):
+    snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
+        --configfile extra/workflow/conf/mlp_all.yaml -j 4
 
-This workflow handles:
-1. Training AACO methods with various cost parameters
-2. Training AACO+NN (behavioral cloning from AACO)
-3. Evaluation of both methods
+Configuration arguments (config file):
+  - dataset_path_prefix: Path prefix for dataset bundles (default: extra/data)
+  - dataset_instance_indices: List of split indices to run
+  - initializer: Initializer for evaluation (e.g. random)
+  - eval_dataset_split: Split to evaluate on (train/val/test)
+  - device: Default device (cpu/cuda)
+  - device_aaco: Device for AACO training (defaults to device)
+  - device_aaco_nn: Device for AACO+NN training (defaults to device)
+  - device_aaco_by_dataset: Per-dataset AACO device overrides
+  - device_aaco_nn_by_dataset: Per-dataset AACO+NN device overrides
+  - eval_device_by_method: Per-method eval device overrides
+  - use_wandb: Enable Weights & Biases logging
+  - smoke_test: Reduce epochs/samples for quick runs
+  - datasets: List of dataset names (required)
+  - unmaskers: Mapping with a default unmasker (required)
+  - hard_budgets: Mapping with a default hard budget list (required)
+  - cost_params: Mapping with a default cost list (required)
+  - train_aaco_nn: Whether to train AACO+NN
+  - soft_budget_eval: Whether to evaluate soft budgets
 
-Usage:
-    snakemake -s extra/workflow/snakefiles/AACO.smk \
-        --configfile extra/workflow/conf/aaco_full.yaml -j 4
+Required files:
+  - Dataset bundles at:
+      {dataset_path_prefix}/{dataset}/{instance_idx}/train.bundle
+      {dataset_path_prefix}/{dataset}/{instance_idx}/val.bundle
+      {dataset_path_prefix}/{dataset}/{instance_idx}/test.bundle
+  - Trained classifiers from mlp.smk at:
+      extra/output/classifiers/masked_mlp_classifier/...
+  - Unmasker configs in extra/conf/components/unmaskers/
+
+Usage examples:
+  - Tabular (local):
+      snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
+          --configfile extra/workflow/conf/AACO/tabular.yaml -j 4
+  - Alvis (tabular + MNIST/FashionMNIST):
+      snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
+          --configfile extra/workflow/conf/AACO/full_alvis.yaml \
+          --profile extra/workflow/profiles/alvis_rezvan
 """
 import os
 from datetime import datetime

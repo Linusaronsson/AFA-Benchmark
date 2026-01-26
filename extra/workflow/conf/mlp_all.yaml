@@ -1,7 +1,8 @@
 # Full configuration for training MLP classifiers on all tabular datasets
+# (including MNIST/FashionMNIST).
 #
 # Usage:
-#   snakemake -s extra/workflow/snakefiles/mlp.smk \
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
 #       --configfile extra/workflow/conf/mlp_all.yaml -j 4
 
 # Data paths
@@ -20,6 +21,8 @@ datasets:
   - diabetes
   - miniboone
   - physionet
+  - mnist
+  - fashion_mnist
 
 # Dataset instances (5 seeds for statistical significance)
 dataset_instance_indices: [0, 1, 2, 3, 4]

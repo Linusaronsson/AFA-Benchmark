@@ -4,7 +4,7 @@
 # smoke_test=true reduces epochs to 2 in the training script.
 #
 # Usage:
-#   snakemake -s extra/workflow/snakefiles/mlp.smk \
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
 #       --configfile extra/workflow/conf/mlp_smoke_test.yaml
 
 # Data paths

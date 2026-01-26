@@ -1,0 +1,44 @@
+# AACO configuration for Alvis (image datasets).
+#
+# PREREQUISITE: Train MLP classifiers for imagenette first.
+#   Extend extra/workflow/conf/mlp_alvis.yaml to include imagenette,
+#   then run:
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
+#       --configfile extra/workflow/conf/mlp_alvis.yaml \
+#       --profile extra/workflow/profiles/alvis_rezvan
+#
+# Usage:
+#   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
+#       --configfile extra/workflow/conf/AACO/image_alvis.yaml \
+#       --profile extra/workflow/profiles/alvis_rezvan
+
+dataset_path_prefix: extra/data
+dataset_instance_indices: [0, 1, 2, 3, 4]
+initializer: random
+eval_dataset_split: test
+
+# Run image workloads on GPU.
+device: cuda
+device_aaco: cuda
+device_aaco_nn: cuda
+use_wandb: false
+smoke_test: false
+
+# Image datasets (imagenette only)
+datasets:
+  - imagenette
+
+# Unmaskers (patch-based for 224x224 images)
+unmaskers:
+  default: 224x224_to_7x7
+
+# Hard budgets for 224x224 images (49 patches)
+hard_budgets:
+  default: [10, 20, 30]
+
+# Cost parameters (soft budget)
+cost_params:
+  default: [0.0001, 0.001, 0.01]
+
+train_aaco_nn: true
+soft_budget_eval: true

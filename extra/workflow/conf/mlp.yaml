@@ -4,7 +4,7 @@
 # Train them once and reuse across experiments.
 #
 # Usage:
-#   snakemake -s extra/workflow/snakefiles/mlp.smk \
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
 #       --configfile extra/workflow/conf/mlp.yaml -j 4
 
 # Data paths

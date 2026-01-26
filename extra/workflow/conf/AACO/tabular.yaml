@@ -1,31 +1,35 @@
-# Full configuration for AACO experiments on all tabular datasets
+# Tabular-only configuration for AACO experiments.
 #
 # PREREQUISITE: Train MLP classifiers first!
-#   snakemake -s extra/workflow/snakefiles/mlp.smk \
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
 #       --configfile extra/workflow/conf/mlp_all.yaml -j 4
 #
-# This includes all tabular datasets with appropriate settings.
-#
 # Usage:
-#   snakemake -s extra/workflow/snakefiles/AACO.smk \
-#       --configfile extra/workflow/conf/aaco_all.yaml -j 4
+#   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
+#       --configfile extra/workflow/conf/AACO/tabular.yaml -j 4
 
 # Data paths
 dataset_path_prefix: extra/data
 
-# Dataset instances (5 seeds for statistical significance)
+# Dataset instances to use (5 seeds for statistical significance)
 dataset_instance_indices: [0, 1, 2, 3, 4]
 
-# Initializer and evaluation settings (random = random single-feature)
+# Initializer for evaluation (random = random single-feature initializer)
 initializer: random
+
+# Which split to evaluate on
 eval_dataset_split: test
+
+# Training settings
 device: cpu
 use_wandb: false
 smoke_test: false
 
 # ============================================================================
-# Datasets (tabular only)
+# Datasets
 # ============================================================================
+# Tabular datasets for AACO experiments (including MNIST/FashionMNIST).
+
 datasets:
   - actg
   - afa_context
@@ -37,12 +41,14 @@ datasets:
   - diabetes
   - miniboone
   - physionet
+  - mnist
+  - fashion_mnist
 
 # ============================================================================
 # Unmaskers
 # ============================================================================
 # Unmaskers determine how selections map to features
-# - direct: 1:1 mapping (for tabular data)
+# - direct: each selection reveals one feature (tabular data)
 
 unmaskers:
   default: direct
@@ -50,23 +56,44 @@ unmaskers:
 # ============================================================================
 # Hard budgets for training and evaluation
 # ============================================================================
-# Budget = max features/patches that can be acquired
-# For tabular: typically 5-15 (varies by feature count)
+# Hard budget = maximum number of features that can be acquired
+# For tabular datasets, 5-15 is a common starting range
 
 hard_budgets:
   default: [5, 10, 15]
+  # Small tabular (16-24 features)
+  cube: [3, 5, 10]
+  cube_without_noise: [3, 5, 10]
+  bank_marketing: [3, 5, 10]
+  actg: [5, 10, 15]
+  ckd: [5, 10, 15]
+  # Medium tabular (33-50 features)
+  afa_context: [5, 10, 15]
+  afa_context_without_noise: [5, 10, 15]
+  diabetes: [5, 10, 20]
+  physionet: [5, 10, 20]
+  miniboone: [5, 15, 25]
+  # MNIST-style (784 features)
+  mnist: [10, 20, 30]
+  fashion_mnist: [10, 20, 30]
 
 # ============================================================================
 # Cost parameters (soft budget)
 # ============================================================================
+# Cost parameter controls the tradeoff between accuracy and acquisition cost
 # Higher cost = fewer features acquired
-# Tabular: 0.01-0.1 typical range
 
 cost_params:
   default: [0.01, 0.05, 0.1]
+  # MNIST-style (784 features)
+  mnist: [0.0001, 0.001, 0.01]
+  fashion_mnist: [0.0001, 0.001, 0.01]
 
 # ============================================================================
 # AACO+NN Training
 # ============================================================================
+# train_aaco_nn: Train neural network policy via behavioral cloning from AACO
+# soft_budget_eval: Also evaluate with soft budget (no hard limit)
+
 train_aaco_nn: true
 soft_budget_eval: true

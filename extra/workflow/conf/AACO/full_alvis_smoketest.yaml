@@ -1,0 +1,50 @@
+# Smoke test configuration for Alvis (tabular + MNIST).
+#
+# PREREQUISITE: Train MLP classifiers for the datasets below first.
+#   Update extra/workflow/conf/mlp_smoke_test.yaml to include mnist,
+#   then run:
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
+#       --configfile extra/workflow/conf/mlp_smoke_test.yaml \
+#       --profile extra/workflow/profiles/alvis_rezvan
+#
+# Usage:
+#   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
+#       --configfile extra/workflow/conf/AACO/full_alvis_smoketest.yaml \
+#       --profile extra/workflow/profiles/alvis_rezvan
+
+dataset_path_prefix: extra/data
+dataset_instance_indices: [0]
+initializer: random
+eval_dataset_split: val
+
+# Default to CPU; MNIST overrides to GPU.
+device: cpu
+device_aaco: cpu
+device_aaco_nn: cpu
+
+device_aaco_by_dataset:
+  mnist: cuda
+
+device_aaco_nn_by_dataset:
+  mnist: cuda
+
+use_wandb: false
+smoke_test: true
+
+datasets:
+  - cube_without_noise
+  - mnist
+
+unmaskers:
+  default: direct
+
+hard_budgets:
+  default: [5]
+  mnist: [10]
+
+cost_params:
+  default: [0.05]
+  mnist: [0.001]
+
+train_aaco_nn: true
+soft_budget_eval: false

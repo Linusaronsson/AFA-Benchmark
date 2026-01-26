@@ -1,0 +1,39 @@
+# Smoke test configuration for AACO on Alvis (image datasets).
+#
+# PREREQUISITE: Train MLP classifiers for imagenette first.
+#   Update extra/workflow/conf/mlp_smoke_test.yaml to include imagenette,
+#   then run:
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
+#       --configfile extra/workflow/conf/mlp_smoke_test.yaml \
+#       --profile extra/workflow/profiles/alvis_rezvan
+#
+# Usage:
+#   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
+#       --configfile extra/workflow/conf/AACO/image_alvis_smoketest.yaml \
+#       --profile extra/workflow/profiles/alvis_rezvan
+
+dataset_path_prefix: extra/data
+dataset_instance_indices: [0]
+initializer: random
+eval_dataset_split: val
+
+device: cuda
+device_aaco: cuda
+device_aaco_nn: cuda
+use_wandb: false
+smoke_test: true
+
+datasets:
+  - imagenette
+
+unmaskers:
+  default: 224x224_to_7x7
+
+hard_budgets:
+  default: [10]
+
+cost_params:
+  default: [0.001]
+
+train_aaco_nn: true
+soft_budget_eval: false

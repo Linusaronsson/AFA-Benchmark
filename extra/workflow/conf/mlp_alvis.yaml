@@ -1,9 +1,9 @@
-# MLP classifier training for Alvis cluster
+# MLP classifier training for Alvis cluster (tabular + MNIST/FashionMNIST)
 #
 # Usage:
-#   snakemake -s extra/workflow/snakefiles/mlp.smk \
+#   snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
 #       --configfile extra/workflow/conf/mlp_alvis.yaml \
-#       --profile extra/workflow/profiles/alvis
+#       --profile extra/workflow/profiles/alvis_rezvan
 
 dataset_path_prefix: extra/data
 output_path_prefix: extra/output/classifiers
@@ -27,6 +27,8 @@ datasets:
   - physionet
   - miniboone
   - bank_marketing
+  - mnist
+  - fashion_mnist
 
 # ============================================================================
 # Model hyperparameters
