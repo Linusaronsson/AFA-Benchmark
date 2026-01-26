@@ -56,7 +56,7 @@ exclude = [
   "scripts/train/gadgil2023.py",
   "scripts/train/kachuee2019_old.py",
   "scripts/train/ma2018.py",
-  "scripts/train/masked_mlp_classifier.py",
+  # "scripts/train/masked_mlp_classifier.py",
   "scripts/train/masked_vit_classifier.py",
   "scripts/train/optimalcube.py",
   "scripts/train/permutation.py",
