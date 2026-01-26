@@ -3,6 +3,7 @@ methods:
   - jafa
   - odin_model_free
   - odin_model_based
-  - ol
+  - ol_without_mask
+  - ol_with_mask
   - random_dummy
   - sequential_dummy

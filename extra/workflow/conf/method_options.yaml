@@ -20,11 +20,9 @@ method_options:
     train_script_name: "kachuee2019"
   random_dummy:
     train_script_name: "random_dummy"
-    eval_to_train_hard_budget_mapping:
-      cube_without_noise:
-        10: 5
+    # Example:
+    # eval_to_train_hard_budget_mapping:
+    #   cube_without_noise:
+    #     10: 5
   sequential_dummy:
     train_script_name: "sequential_dummy"
-    eval_to_train_hard_budget_mapping:
-      afa_context_without_noise:
-        10: 7
