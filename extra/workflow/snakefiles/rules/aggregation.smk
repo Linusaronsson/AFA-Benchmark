@@ -58,7 +58,7 @@ rule merge_eval_perf:
     resources:
         shell_exec="bash"
     output:
-        "extra/output/merged_results/eval_perf/{method_set}.csv",
+        "extra/output/merged_results/eval_perf/method_set-{method_set}.csv",
     shell:
         """
             csvstack {input} > {output}
@@ -66,10 +66,10 @@ rule merge_eval_perf:
 
 rule split_by_classifier_type:
     input:
-        "extra/output/merged_results/eval_perf/{method_set}.csv"
+        "extra/output/merged_results/eval_perf/method_set-{method_set}.csv"
     output:
-        "extra/output/merged_results/eval_perf/{method_set}+classifier_type-builtin.csv",
-        "extra/output/merged_results/eval_perf/{method_set}+classifier_type-external.csv"
+        "extra/output/merged_results/eval_perf/method_set-{method_set}+classifier_type-builtin.csv",
+        "extra/output/merged_results/eval_perf/method_set-{method_set}+classifier_type-external.csv"
     resources:
         shell_exec="nu"
     shell:
