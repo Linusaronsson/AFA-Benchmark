@@ -120,7 +120,9 @@ class Zannone2019RLTrainer(RLTrainer):
             )
             self.extended_train_dataset = ExtendedAFADataset(
                 base_dataset=self.train_dataset,
-                additional_features=additional_features,
+                additional_features=additional_features.view(
+                    (-1, *self.train_dataset.feature_shape)
+                ),
                 additional_labels=additional_labels,
             )
         else:
