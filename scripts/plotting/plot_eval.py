@@ -66,7 +66,7 @@ DTYPE_SPEC = {
     "train_seed": "int64",
     "eval_seed": "int64",
     "accumulated_cost": "float64",
-    "hard_budget": "float64",
+    "eval_hard_budget": "float64",
     "soft_budget_param": "float64",
 }
 
@@ -136,7 +136,7 @@ def create_hard_budget_plot(
         ggplot(
             df,
             aes(
-                x="hard_budget",
+                x="eval_hard_budget",
                 y="estimate_mean",
                 color="afa_method",
                 fill="afa_method",
@@ -263,16 +263,16 @@ def metrics_grouped_by_param(df: pd.DataFrame, param: str) -> pd.DataFrame:
 def process_hard_budget_df(df: pd.DataFrame) -> pd.DataFrame:
     """Process data for hard budget plots."""
     df_hard = df.loc[
-        df["hard_budget"].notna() & df["soft_budget_param"].isna()
+        df["eval_hard_budget"].notna() & df["soft_budget_param"].isna()
     ].copy()
-    df_hard = metrics_grouped_by_param(df_hard, param="hard_budget")
+    df_hard = metrics_grouped_by_param(df_hard, param="eval_hard_budget")
     return df_hard
 
 
 def process_soft_budget(df: pd.DataFrame) -> pd.DataFrame:
     """Process data for soft budget plots."""
     df_soft = df.loc[
-        df["hard_budget"].isna() & df["soft_budget_param"].notna()
+        df["eval_hard_budget"].isna() & df["soft_budget_param"].notna()
     ].copy()
     df_soft = metrics_grouped_by_param(df_soft, param="soft_budget_param")
     return df_soft

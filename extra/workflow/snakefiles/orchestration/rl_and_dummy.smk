@@ -13,7 +13,10 @@ Runtime filters (--config, select subsets to run):
 
 Config files (--configfile):
     Fixed definitions: method_options.yaml, pretrain_mapping.yaml, methods.yaml
-    Runtime params: hard_budgets_*.yaml, soft_budget_params_*.yaml, unmaskers.yaml
+    Runtime params: eval_hard_budgets.yaml, soft_budget_params_*.yaml, unmaskers.yaml
+
+    Note: method_options.yaml can include eval_to_train_hard_budget_mapping to
+    specify different budgets for training vs evaluation per method/dataset.
 
 Rules: all, all_pretrain_model, all_train_method, all_eval_method
 
@@ -57,9 +60,7 @@ METHOD_TO_PRETRAINED_MODEL = _config["METHOD_TO_PRETRAINED_MODEL"]
 METHOD_SPECIFIC_PARAMS = _config["METHOD_SPECIFIC_PARAMS"]
 DATASETS = _config["DATASETS"]
 UNMASKERS = _config["UNMASKERS"]
-HARD_BUDGETS = _config["HARD_BUDGETS"]
-SOFT_BUDGET_PARAMS = _config["SOFT_BUDGET_PARAMS"]
-HARD_BUDGET_AND_SOFT_BUDGET_PARAMS = _config["HARD_BUDGET_AND_SOFT_BUDGET_PARAMS"]
+BUDGET_PARAMS = _config["BUDGET_PARAMS"]
 
 include: "../rules/training.smk"
 include: "../rules/evaluation.smk"
@@ -98,14 +99,14 @@ rule all_train_method:
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
                             f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{hard_budget}+"
-                            f"train_soft_budget_param-{soft_budget_param}/"
+                            f"train_hard_budget-{train_hard_budget}+"
+                            f"train_soft_budget_param-{train_soft_budget_param}/"
                                 "method.bundle"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
+            for (train_hard_budget, _, train_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ] +
         [
             (
@@ -114,14 +115,14 @@ rule all_train_method:
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"
                             f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{hard_budget}+"
-                            f"train_soft_budget_param-{soft_budget_param}/"
+                            f"train_hard_budget-{train_hard_budget}+"
+                            f"train_soft_budget_param-{train_soft_budget_param}/"
                                 "method.bundle"
             )
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
+            for (train_hard_budget, _, train_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ]
 
 rule all_eval_method:
@@ -133,16 +134,16 @@ rule all_eval_method:
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
                             f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{hard_budget}+"
-                            f"train_soft_budget_param-{soft_budget_param}/"
+                            f"train_hard_budget-{train_hard_budget}+"
+                            f"train_soft_budget_param-{train_soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{hard_budget}/"
-                                    f"eval_data.csv",
+                                f"eval_hard_budget-{eval_hard_budget}/"
+                                    f"eval_data.csv"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
+            for (train_hard_budget, eval_hard_budget, train_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ] +
         [
             (
@@ -151,14 +152,14 @@ rule all_eval_method:
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"
                             f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{hard_budget}+"
-                            f"train_soft_budget_param-{soft_budget_param}/"
+                            f"train_hard_budget-{train_hard_budget}+"
+                            f"train_soft_budget_param-{train_soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{hard_budget}/"
-                                    f"eval_data.csv",
+                                f"eval_hard_budget-{eval_hard_budget}/"
+                                    f"eval_data.csv"
             )
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (hard_budget, soft_budget_param) in HARD_BUDGET_AND_SOFT_BUDGET_PARAMS[method][dataset]
+            for (train_hard_budget, eval_hard_budget, train_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ]

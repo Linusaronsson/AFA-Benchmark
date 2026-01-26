@@ -1,4 +1,4 @@
-hard_budgets:
+eval_hard_budgets:
   default: [5, 15]
   afa_context_without_noise: [3, 10]
   cube_without_noise: [3, 10]

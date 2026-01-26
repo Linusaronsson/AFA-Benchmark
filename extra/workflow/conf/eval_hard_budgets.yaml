@@ -1,4 +1,4 @@
-hard_budgets:
+eval_hard_budgets:
   default: [5, 10, 15]
   # actg: []
   afa_context: [3, 5, 10]

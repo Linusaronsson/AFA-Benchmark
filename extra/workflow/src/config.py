@@ -128,11 +128,11 @@ def load_config(config):
         raise ValueError("Expected unmaskers to be provided.")
     unmaskers = _fill_missing_datasets_with_default(unmaskers_raw, datasets)
 
-    hard_budgets_raw = config.get("hard_budgets", None)
-    if hard_budgets_raw is None:
-        raise ValueError("Expected hard_budgets to be provided.")
-    hard_budgets = _fill_missing_datasets_with_default(
-        hard_budgets_raw, datasets
+    eval_hard_budgets_raw = config.get("eval_hard_budgets", None)
+    if eval_hard_budgets_raw is None:
+        raise ValueError("Expected eval_hard_budgets to be provided.")
+    eval_hard_budgets = _fill_missing_datasets_with_default(
+        eval_hard_budgets_raw, datasets
     )
 
     soft_budget_params_raw = config.get("soft_budget_params", None)
@@ -146,19 +146,35 @@ def load_config(config):
     }
 
     # ========================================================================
-    # Combined Budget Parameters
+    # Train Budget Mapping Configuration
     # ========================================================================
 
-    # Create combinations of hard and soft budget parameters for each method-dataset pair.
-    # Methods can be trained with either a hard budget or a soft budget, but not both.
-    # Note: "null" is used instead of None since it will be passed to hydra
-    hard_budget_and_soft_budget_params = {
+    # Extract eval_to_train_hard_budget_mapping from method_options
+    # Format: {method: {dataset: {eval_budget: train_budget, ...}}}
+    eval_to_train_hard_budget_mapping = {
+        method: options.get("eval_to_train_hard_budget_mapping", {})
+        for method, options in method_options.items()
+        if method in methods
+    }
+
+    # ========================================================================
+    # Budget Parameters Structure
+    # ========================================================================
+
+    # Build the main data structure: method -> dataset -> list of
+    # (train_hard_budget, eval_hard_budget, soft_budget_param) tuples
+    #
+    # For each method-dataset pair:
+    # - Create hard budget combinations: (train_budget, eval_budget, "null")
+    # - Create soft budget combinations: ("null", "null", soft_budget_param)
+    budget_params = {
         method: {
             dataset: _create_budget_combinations(
                 method,
                 dataset,
-                hard_budgets[dataset],
+                eval_hard_budgets[dataset],
                 soft_budget_params[method][dataset],
+                eval_to_train_hard_budget_mapping,
             )
             for dataset in datasets
         }
@@ -185,9 +201,7 @@ def load_config(config):
         "METHOD_SPECIFIC_PARAMS": method_specific_params,
         "DATASETS": datasets,
         "UNMASKERS": unmaskers,
-        "HARD_BUDGETS": hard_budgets,
-        "SOFT_BUDGET_PARAMS": soft_budget_params,
-        "HARD_BUDGET_AND_SOFT_BUDGET_PARAMS": hard_budget_and_soft_budget_params,
+        "BUDGET_PARAMS": budget_params,
     }
 
 
@@ -205,10 +219,97 @@ def _fill_missing_datasets_with_default(config_dict, datasets):
     }
 
 
-def _create_budget_combinations(
-    method, dataset, hard_budgets, soft_budget_params
+def _get_eval_hard_budget(
+    method,
+    dataset,
+    train_hard_budget,
+    eval_to_train_hard_budget_mapping,
 ):
-    """Create combinations of hard and soft budget parameters for a method-dataset pair."""
-    hard_budget_combos = [(hb, "null") for hb in hard_budgets]
-    soft_budget_combos = [("null", sbp) for sbp in soft_budget_params]
-    return hard_budget_combos + soft_budget_combos
+    """
+    Get the evaluation hard budget for a given training hard budget.
+
+    If the method has a mapping defined, use it. Otherwise, use the training budget.
+
+    Args:
+        method: Method name
+        dataset: Dataset name
+        train_hard_budget: Training hard budget value
+        eval_to_train_hard_budget_mapping: Mapping from eval to train budgets
+
+    Returns:
+        The evaluation hard budget to use
+    """
+    # Check if method has a mapping for this dataset
+    method_mapping = eval_to_train_hard_budget_mapping.get(method, {})
+    dataset_mapping = method_mapping.get(dataset, {})
+
+    # Search for train_hard_budget in the mapping values (reverse lookup)
+    for eval_budget, train_budget in dataset_mapping.items():
+        if train_budget == train_hard_budget:
+            return eval_budget
+
+    # Default: use the training budget for evaluation
+    return train_hard_budget
+
+
+def _create_budget_combinations(
+    method,
+    dataset,
+    eval_hard_budgets,
+    soft_budget_params,
+    eval_to_train_hard_budget_mapping,
+):
+    """
+    Create budget parameter tuples for a method-dataset pair.
+
+    Returns list of tuples: (train_hard_budget, eval_hard_budget, soft_budget_param)
+
+    For hard budgets: train_hard_budget and eval_hard_budget are mapped per config,
+    soft_budget_param is "null"
+
+    For soft budgets: train_hard_budget and eval_hard_budget are "null",
+    soft_budget_param is the actual soft budget value
+    """
+    result = []
+
+    # Hard budget combinations
+    for eval_budget in eval_hard_budgets:
+        train_budget = _get_train_hard_budget_from_eval(
+            method, dataset, eval_budget, eval_to_train_hard_budget_mapping
+        )
+        result.append((train_budget, eval_budget, "null"))
+
+    # Soft budget combinations
+    for soft_budget in soft_budget_params:
+        result.append(("null", "null", soft_budget))
+
+    return result
+
+
+def _get_train_hard_budget_from_eval(
+    method, dataset, eval_budget, eval_to_train_hard_budget_mapping
+):
+    """
+    Get the training hard budget for a given evaluation hard budget.
+
+    This is the reverse lookup: given an eval budget, find the train budget.
+
+    Args:
+        method: Method name
+        dataset: Dataset name
+        eval_budget: Evaluation hard budget value
+        eval_to_train_hard_budget_mapping: Mapping from eval to train budgets
+
+    Returns:
+        The training hard budget to use (or same as eval_budget if no mapping)
+    """
+    # Check if method has a mapping for this dataset
+    method_mapping = eval_to_train_hard_budget_mapping.get(method, {})
+    dataset_mapping = method_mapping.get(dataset, {})
+
+    # Direct lookup: eval_budget -> train_budget
+    if eval_budget in dataset_mapping:
+        return dataset_mapping[eval_budget]
+
+    # Default: use the eval budget for training (same budget)
+    return eval_budget
