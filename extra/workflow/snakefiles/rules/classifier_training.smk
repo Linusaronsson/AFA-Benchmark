@@ -1,17 +1,17 @@
-rule train_masked_mlp_classifier:
+rule train_classifier:
     input:
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
-        "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
+        "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle"
     output:
         directory(
-            "extra/output/trained_classifiers/masked_mlp_classifier/"
+            f"extra/output/trained_classifiers/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "classifier_seed-{classifier_seed}.bundle"
         )
     params:
-        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset]
-        script_name=lambda wildcards: CLASSIFIER_SCRIPT_NAMES[wildcards.dataset]
+        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        script_name=lambda wildcards: CLASSIFIER_NAMES[wildcards.dataset]
     resources:
         shell_exec="bash"
     shell:

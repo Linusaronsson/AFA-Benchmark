@@ -17,10 +17,11 @@ rule eval_method:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "method.bundle",
-        "extra/trained_classifiers/masked_mlp_classifier/"
+
+        f"extra/output/trained_classifiers/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
-                "classifier_seed-{classifier_seed}.bundle"
+                "classifier_seed-{train_seed}.bundle"
 
     output:
         "extra/output/eval_results/{method}/"

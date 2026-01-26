@@ -71,6 +71,7 @@ BUDGET_PARAMS = _config["BUDGET_PARAMS"]
 CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
 
 include: "../rules/training.smk"
+include: "../rules/classifier_training.smk"
 include: "../rules/evaluation.smk"
 include: "../rules/transformations.smk"
 include: "../rules/aggregation.smk"
