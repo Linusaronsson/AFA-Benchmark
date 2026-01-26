@@ -16,22 +16,12 @@ eval_dataset_split: test
 device: cpu
 device_aaco: cpu
 device_aaco_nn: cuda
-# Per-dataset device overrides - only use GPU for memory-intensive datasets
-# This avoids Alvis "inefficient GPU usage" warnings for small tabular datasets
-device_aaco_by_dataset:
-  imagenette: cuda
-  mnist: cuda
-  fashion_mnist: cuda
-device_aaco_nn_by_dataset:
-  imagenette: cuda
-  mnist: cuda
-  fashion_mnist: cuda
 eval_device_by_method:
   aaco: cpu
   aaco_nn: cpu
 use_wandb: false
 smoke_test: false
-initializer: aaco
+initializer: random
 
 # ============================================================================
 # Datasets
@@ -48,22 +38,12 @@ datasets:
   - physionet
   - miniboone
   - bank_marketing
-  # Tabular (flat image) - slow but required
-  - mnist
-  - fashion_mnist
-  # Image (patch-based)
-  - synthetic_mnist
-  - synthetic_mnist_without_noise
-  - imagenette
 
 # ============================================================================
 # Unmaskers
 # ============================================================================
 unmaskers:
   default: direct
-  synthetic_mnist: 28x28_to_7x7
-  synthetic_mnist_without_noise: 28x28_to_7x7
-  imagenette: 224x224_to_7x7
 
 # ============================================================================
 # Hard budgets
@@ -81,27 +61,12 @@ hard_budgets:
   diabetes: [5, 10, 20]
   physionet: [5, 10, 20]
   miniboone: [5, 15, 25]
-  # Flat images (784 features) - use smaller budgets
-  mnist: [50, 100, 200]
-  fashion_mnist: [50, 100, 200]
-  # Patch-based images (49 patches)
-  # Patch cost is 16 (4x4), so budgets should be multiples of 16.
-  synthetic_mnist: [16, 32, 48]
-  synthetic_mnist_without_noise: [16, 32, 48]
-  imagenette: [10, 20, 30]
 
 # ============================================================================
 # Cost parameters (soft budget)
 # ============================================================================
 cost_params:
   default: [0.01, 0.05, 0.1]
-  # Flat images need lower costs
-  mnist: [0.001, 0.005, 0.01]
-  fashion_mnist: [0.001, 0.005, 0.01]
-  # Patch-based images
-  synthetic_mnist: [0.005, 0.01, 0.05]
-  synthetic_mnist_without_noise: [0.005, 0.01, 0.05]
-  imagenette: [0.005, 0.01, 0.05]
 
 # ============================================================================
 # Training options

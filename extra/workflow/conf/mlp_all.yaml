@@ -1,6 +1,4 @@
-# Full configuration for training MLP classifiers on ALL datasets
-#
-# This includes both tabular and image datasets.
+# Full configuration for training MLP classifiers on all tabular datasets
 #
 # Usage:
 #   snakemake -s extra/workflow/snakefiles/mlp.smk \
@@ -10,23 +8,18 @@
 dataset_path_prefix: extra/data
 output_path_prefix: extra/output/classifiers
 
-# All available datasets
+# All tabular datasets
 datasets:
-  # Small tabular (600 samples, 20-33 features)
-  - cube
-  - cube_without_noise
+  - actg
   - afa_context
   - afa_context_without_noise
-  # Image datasets
-  - synthetic_mnist_fast  # 60 samples, 28x28, 10 classes (quick testing)
-  # Uncomment as needed:
-  # - synthetic_mnist     # Full synthetic MNIST
-  # - actg
-  # - ckd
-  # - diabetes
-  # - physionet
-  # - miniboone
-  # - bank_marketing
+  - bank_marketing
+  - ckd
+  - cube
+  - cube_without_noise
+  - diabetes
+  - miniboone
+  - physionet
 
 # Dataset instances (5 seeds for statistical significance)
 dataset_instance_indices: [0, 1, 2, 3, 4]
@@ -39,8 +32,7 @@ smoke_test: false
 # ============================================================================
 # Model hyperparameters
 # ============================================================================
-# Default values tuned for small tabular datasets
-# For image datasets, you may want to increase num_cells
+# Default values tuned for tabular datasets
 
 epochs: 100
 batch_size: 64

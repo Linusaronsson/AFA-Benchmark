@@ -1,11 +1,5 @@
 from afabench.common.config_classes import InitializerConfig
 from afabench.common.custom_types import AFAInitializer
-from afabench.common.initializers.aaco_default_initializer import (
-    AACODefaultInitializer,
-)
-from afabench.common.initializers.dynamic_random_initializer import (
-    DynamicRandomInitializer,
-)
 from afabench.common.initializers.fixed_random_initializer import (
     FixedRandomInitializer,
 )
@@ -16,11 +10,14 @@ from afabench.common.initializers.manual_initializer import ManualInitializer
 from afabench.common.initializers.mutual_information_initializer import (
     MutualInformationInitializer,
 )
+from afabench.common.initializers.random_initializer import (
+    RandomInitializer,
+)
 from afabench.common.initializers.zero_initializer import ZeroInitializer
 from afabench.common.registry import get_class
 
 
-def get_afa_initializer_from_config(  # noqa: PLR0911
+def get_afa_initializer_from_config(
     initializer_config: InitializerConfig,
 ) -> AFAInitializer:
     """Get initializer from config."""
@@ -34,11 +31,6 @@ def get_afa_initializer_from_config(  # noqa: PLR0911
     if initializer_config.class_name == "FixedRandomInitializer":
         cls = get_class(initializer_config.class_name)
         assert cls is FixedRandomInitializer
-        return cls(**initializer_config.kwargs)
-
-    if initializer_config.class_name == "DynamicRandomInitializer":
-        cls = get_class(initializer_config.class_name)
-        assert cls is DynamicRandomInitializer
         return cls(**initializer_config.kwargs)
 
     if initializer_config.class_name == "ManualInitializer":
@@ -56,9 +48,9 @@ def get_afa_initializer_from_config(  # noqa: PLR0911
         assert cls is LeastInformativeInitializer
         return cls(**initializer_config.kwargs)
 
-    if initializer_config.class_name == "AACODefaultInitializer":
+    if initializer_config.class_name == "RandomInitializer":
         cls = get_class(initializer_config.class_name)
-        assert cls is AACODefaultInitializer
+        assert cls is RandomInitializer
         return cls(**initializer_config.kwargs)
 
     msg = f"Unknown initializer: {initializer_config.class_name}"

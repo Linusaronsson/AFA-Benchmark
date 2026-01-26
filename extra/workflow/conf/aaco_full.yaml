@@ -19,8 +19,8 @@ dataset_path_prefix: extra/data
 # Dataset instances to use (5 seeds for statistical significance)
 dataset_instance_indices: [0, 1, 2, 3, 4]
 
-# Initializer for evaluation (aaco = AACODefaultInitializer)
-initializer: aaco
+# Initializer for evaluation (random = random single-feature initializer)
+initializer: random
 
 # Which split to evaluate on
 eval_dataset_split: test
@@ -34,16 +34,17 @@ smoke_test: false
 # Datasets
 # ============================================================================
 # Tabular datasets for AACO experiments
-# - cube: 600 samples, 20 features, 8 classes (synthetic, with noise)
-# - cube_without_noise: same but without noise features
-# - afa_context: 600 samples, 33 features, 8 classes (synthetic, with noise)
-# - afa_context_without_noise: same but without noise features
-
 datasets:
-  - cube
-  - cube_without_noise
+  - actg
   - afa_context
   - afa_context_without_noise
+  - bank_marketing
+  - ckd
+  - cube
+  - cube_without_noise
+  - diabetes
+  - miniboone
+  - physionet
 
 # ============================================================================
 # Unmaskers
@@ -59,7 +60,7 @@ unmaskers:
 # Hard budgets for training and evaluation
 # ============================================================================
 # Hard budget = maximum number of features that can be acquired
-# For cube/afa_context with 20/33 features, sensible budgets are 5-15
+# For tabular datasets, 5-15 is a common starting range
 
 hard_budgets:
   default: [5, 10, 15]

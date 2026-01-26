@@ -31,7 +31,7 @@ class AACOAFAMethod(AFAMethod):
     Valancius et al. 2024 to select features for acquisition.
 
     The method is designed to work with:
-    - AFAInitializer (e.g., AACODefaultInitializer) for initial feature selection
+    - AFAInitializer (e.g., RandomInitializer) for initial feature selection
     - AFAUnmasker (e.g., DirectUnmasker) for action-to-mask mapping
 
     Supports both soft budget (cost-based stopping) and hard budget

@@ -14,51 +14,55 @@ def features_2d() -> tuple[Features, torch.Size]:
     return features, feature_shape
 
 
+def _assert_per_batch_count(
+    mask: torch.Tensor, feature_shape: torch.Size, expected: int
+) -> None:
+    batch_shape = mask.shape[: -len(feature_shape)]
+    batch_size = (
+        int(torch.prod(torch.tensor(batch_shape))) if batch_shape else 1
+    )
+    assert mask.sum() == expected * batch_size
+
+
 def test_fixed_random_basic_functionality(
     features_2d: tuple[Features, torch.Size],
 ) -> None:
     """Test basic functionality with 2D features."""
     features, feature_shape = features_2d
 
-    kwargs = {"unmask_ratio": 0.3}
-    initializer = FixedRandomInitializer(**kwargs)
+    num_initial_features = 3
+    initializer = FixedRandomInitializer(
+        num_initial_features=num_initial_features
+    )
     initializer.set_seed(42)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
     )
 
-    # Check output shape
     assert mask.shape == features.shape
-
-    # Check correct number of features selected
-    expected_feature_count = int(feature_shape.numel() * 0.3)
-    assert mask.sum() == expected_feature_count * features.shape[0]
+    _assert_per_batch_count(mask, feature_shape, num_initial_features)
 
 
 def test_fixed_random_arbitrary_batch_shape() -> None:
     """Test with arbitrary batch shapes."""
-    batch_shape = torch.Size([3, 4, 2])
-    feature_shape = torch.Size([5, 6])
+    batch_shape = torch.Size([2, 3])
+    feature_shape = torch.Size([4, 4])
     features = torch.randn(*batch_shape, *feature_shape)
 
-    kwargs = {"unmask_ratio": 0.2}
-    initializer = FixedRandomInitializer(**kwargs)
+    num_initial_features = 4
+    initializer = FixedRandomInitializer(
+        num_initial_features=num_initial_features
+    )
     initializer.set_seed(42)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
     )
 
-    # Check output shape
     assert mask.shape == features.shape
+    _assert_per_batch_count(mask, feature_shape, num_initial_features)
 
-    # Check that all batch elements have the same mask (fixed random)
-    expected_count = int(feature_shape.numel() * 0.2)
-    batch_size = torch.prod(torch.tensor(batch_shape))
-    assert mask.sum() == expected_count * batch_size
-
-    # Verify all batch elements have identical masks
     mask_flat = mask.view(-1, *feature_shape)
     for i in range(1, mask_flat.shape[0]):
         assert torch.equal(mask_flat[0], mask_flat[i])
@@ -69,17 +73,19 @@ def test_fixed_random_consistency() -> None:
     features = torch.randn(10, 3, 4)
     feature_shape = torch.Size([3, 4])
 
-    kwargs = {"unmask_ratio": 0.25}
+    num_initial_features = 3
 
-    # First run
-    initializer1 = FixedRandomInitializer(**kwargs)
+    initializer1 = FixedRandomInitializer(
+        num_initial_features=num_initial_features
+    )
     initializer1.set_seed(123)
     mask1 = initializer1.initialize(
         features=features, feature_shape=feature_shape
     )
 
-    # Second run with same seed
-    initializer2 = FixedRandomInitializer(**kwargs)
+    initializer2 = FixedRandomInitializer(
+        num_initial_features=num_initial_features
+    )
     initializer2.set_seed(123)
     mask2 = initializer2.initialize(
         features=features, feature_shape=feature_shape
@@ -88,57 +94,61 @@ def test_fixed_random_consistency() -> None:
     assert torch.equal(mask1, mask2)
 
 
-def test_fixed_random_caching() -> None:
-    """Test that masks are cached and reused."""
-    features1 = torch.randn(5, 2, 3)
-    features2 = torch.randn(8, 2, 3)  # Different batch size
-    feature_shape = torch.Size([2, 3])
+def test_fixed_random_different_seeds() -> None:
+    """Test that different seeds produce different results."""
+    features = torch.randn(20, 4, 3)
+    feature_shape = torch.Size([4, 3])
 
-    kwargs = {"unmask_ratio": 0.4}
-    initializer = FixedRandomInitializer(**kwargs)
-    initializer.set_seed(456)
+    num_initial_features = 5
 
-    mask1 = initializer.initialize(
-        features=features1, feature_shape=feature_shape
+    initializer1 = FixedRandomInitializer(
+        num_initial_features=num_initial_features
     )
-    mask2 = initializer.initialize(
-        features=features2, feature_shape=feature_shape
+    initializer1.set_seed(111)
+    mask1 = initializer1.initialize(
+        features=features, feature_shape=feature_shape
     )
 
-    # Both should use the same underlying pattern, just different batch sizes
-    assert mask1[0].equal(mask2[0])  # First batch element should be identical
+    initializer2 = FixedRandomInitializer(
+        num_initial_features=num_initial_features
+    )
+    initializer2.set_seed(222)
+    mask2 = initializer2.initialize(
+        features=features, feature_shape=feature_shape
+    )
+
+    assert not torch.equal(mask1, mask2)
 
 
-def test_fixed_random_different_unmask_ratios() -> None:
-    """Test different unmask ratios."""
-    features = torch.randn(20, 4, 4)
-    feature_shape = torch.Size([4, 4])
+def test_fixed_random_different_counts() -> None:
+    """Test different numbers of initial features."""
+    features = torch.randn(15, 5, 5)
+    feature_shape = torch.Size([5, 5])
 
-    ratios = [0.1, 0.25, 0.5, 0.75]
+    counts = [1, 3, 7, 12]
 
-    for ratio in ratios:
-        kwargs = {"unmask_ratio": ratio}
-        initializer = FixedRandomInitializer(**kwargs)
+    for count in counts:
+        initializer = FixedRandomInitializer(num_initial_features=count)
         initializer.set_seed(789)
 
         mask = initializer.initialize(
             features=features, feature_shape=feature_shape
         )
 
-        expected_count = int(feature_shape.numel() * ratio)
-        actual_count = mask.sum() // features.shape[0]  # Per batch element
-
-        assert actual_count == expected_count
+        actual_count = mask.sum() // features.shape[0]
+        assert actual_count == count
 
 
 def test_fixed_random_1d_features() -> None:
     """Test with 1D features."""
     batch_size = 50
-    feature_shape = torch.Size([10])
+    feature_shape = torch.Size([8])
     features = torch.randn(batch_size, *feature_shape)
 
-    kwargs = {"unmask_ratio": 0.3}
-    initializer = FixedRandomInitializer(**kwargs)
+    num_initial_features = 3
+    initializer = FixedRandomInitializer(
+        num_initial_features=num_initial_features
+    )
     initializer.set_seed(101)
 
     mask = initializer.initialize(
@@ -146,17 +156,19 @@ def test_fixed_random_1d_features() -> None:
     )
 
     assert mask.shape == features.shape
-    assert mask.sum() == int(feature_shape.numel() * 0.3) * batch_size
+    _assert_per_batch_count(mask, feature_shape, num_initial_features)
 
 
 def test_fixed_random_3d_features() -> None:
     """Test with 3D features."""
-    batch_size = 15
+    batch_size = 12
     feature_shape = torch.Size([2, 3, 4])
     features = torch.randn(batch_size, *feature_shape)
 
-    kwargs = {"unmask_ratio": 0.2}
-    initializer = FixedRandomInitializer(**kwargs)
+    num_initial_features = 4
+    initializer = FixedRandomInitializer(
+        num_initial_features=num_initial_features
+    )
     initializer.set_seed(202)
 
     mask = initializer.initialize(
@@ -164,16 +176,15 @@ def test_fixed_random_3d_features() -> None:
     )
 
     assert mask.shape == features.shape
-    assert mask.sum() == int(feature_shape.numel() * 0.2) * batch_size
+    _assert_per_batch_count(mask, feature_shape, num_initial_features)
 
 
-def test_fixed_random_zero_ratio() -> None:
-    """Test with zero unmask ratio."""
-    features = torch.randn(10, 5)
-    feature_shape = torch.Size([5])
+def test_fixed_random_zero_features() -> None:
+    """Test with zero initial features."""
+    features = torch.randn(10, 6)
+    feature_shape = torch.Size([6])
 
-    kwargs = {"unmask_ratio": 0.0}
-    initializer = FixedRandomInitializer(**kwargs)
+    initializer = FixedRandomInitializer(num_initial_features=0)
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape
@@ -183,13 +194,14 @@ def test_fixed_random_zero_ratio() -> None:
     assert mask.sum() == 0
 
 
-def test_fixed_random_full_ratio() -> None:
-    """Test with full unmask ratio."""
-    features = torch.randn(10, 3, 2)
-    feature_shape = torch.Size([3, 2])
+def test_fixed_random_full_features() -> None:
+    """Test with all features selected."""
+    features = torch.randn(8, 3, 3)
+    feature_shape = torch.Size([3, 3])
 
-    kwargs = {"unmask_ratio": 1.0}
-    initializer = FixedRandomInitializer(**kwargs)
+    initializer = FixedRandomInitializer(
+        num_initial_features=feature_shape.numel()
+    )
 
     mask = initializer.initialize(
         features=features, feature_shape=feature_shape

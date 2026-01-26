@@ -67,7 +67,7 @@ exclude = [
   # "test/afa_rl/test_datasets.py",
   # "test/afa_rl/test_readprocessencoder.py",
   # "test/afa_rl/test_utils.py",
-  # "test/common/initializers/individual/test_aaco_default_initializer.py",
+  # "test/common/initializers/individual/test_random_initializer.py",
   # "test/common/initializers/individual/test_dynamic_random_initializer.py",
   # "test/common/initializers/individual/test_fixed_random_initializer.py",
   # "test/common/initializers/individual/test_manual_initializer.py",

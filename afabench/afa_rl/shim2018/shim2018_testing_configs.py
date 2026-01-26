@@ -80,14 +80,14 @@
 # def get_cold_initializer_config() -> InitializerConfig:
 #     """Get configuration for cold start initializer."""
 #     return InitializerConfig(
-#         class_name="FixedRandomInitializer", kwargs={"unmask_ratio": 0.0}
+#         class_name="FixedRandomInitializer", kwargs={"num_initial_features": 0}
 #     )
 
 
 # def get_warm_initializer_config() -> InitializerConfig:
 #     """Get configuration for warm start initializer."""
 #     return InitializerConfig(
-#         class_name="FixedRandomInitializer", kwargs={"unmask_ratio": 0.2}
+#         class_name="FixedRandomInitializer", kwargs={"num_initial_features": 1}
 #     )
 
 

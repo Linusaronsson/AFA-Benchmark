@@ -60,28 +60,23 @@ class UnmaskerConfig:
 
 
 # @dataclass
-# class AACODefaultInitializerConfig:
-#     dataset_name: str
-
-
-# @dataclass
 # class FixedRandomInitializerConfig:
-#     unmask_ratio: float  # how many features to unmask
+#     num_initial_features: int  # how many features to unmask
 
 
 # @dataclass
 # class RandomPerEpisodeInitializerConfig:
-#     unmask_ratio: float  # how many features to unmask
+#     num_initial_features: int  # how many features to unmask
 
 
 # @dataclass
 # class MutualInformationInitializerConfig:
-#     unmask_ratio: float  # how many features to unmask
+#     num_initial_features: int  # how many features to unmask
 
 
 # @dataclass
 # class LeastInformativeInitializerConfig:
-#     unmask_ratio: float  # how many features to unmask
+#     num_initial_features: int  # how many features to unmask
 
 
 @dataclass
@@ -89,7 +84,6 @@ class InitializerConfig:
     class_name: str
     # config: (
     #     ManualInitializerConfig
-    #     | AACODefaultInitializerConfig
     #     | FixedRandomInitializerConfig
     #     | RandomPerEpisodeInitializerConfig
     #     | MutualInformationInitializerConfig

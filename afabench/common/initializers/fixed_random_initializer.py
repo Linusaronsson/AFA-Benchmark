@@ -14,8 +14,8 @@ from afabench.common.custom_types import (
 class FixedRandomInitializer(AFAInitializer):
     """Select random features once and reuse them across all episodes."""
 
-    def __init__(self, unmask_ratio: float):
-        self.unmask_ratio = unmask_ratio
+    def __init__(self, num_initial_features: int):
+        self.num_initial_features = num_initial_features
         self._cached_mask: FeatureMask | None = None
         self.rng = torch.Generator()
 
@@ -45,7 +45,11 @@ class FixedRandomInitializer(AFAInitializer):
                 "feature_shape must be provided for FixedRandomInitializer"
             )
             num_features = feature_shape.numel()
-            num_features_to_unmask = int(num_features * self.unmask_ratio)
+            num_features_to_unmask = self.num_initial_features
+            assert 0 <= num_features_to_unmask <= num_features, (
+                f"num_initial_features={num_features_to_unmask} must be "
+                f"within [0, {num_features}]"
+            )
             # Sample feature indices
             flat_indices = torch.randperm(num_features, generator=self.rng)[
                 :num_features_to_unmask

@@ -9,8 +9,8 @@ from afabench.afa_rl.common.afa_env import AFAEnv
 from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
 from afabench.afa_rl.common.reward_functions import get_range_based_reward_fn
 from afabench.afa_rl.common.utils import get_eval_metrics
-from afabench.common.initializers.dynamic_random_initializer import (
-    DynamicRandomInitializer,
+from afabench.common.initializers.random_initializer import (
+    RandomInitializer,
 )
 from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 
@@ -94,7 +94,7 @@ def test_env() -> AFAEnv:
         n_selections=n_features,
         n_classes=n_classes,
         hard_budget=hard_budget,
-        initialize_fn=DynamicRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=RandomInitializer(num_initial_features=0).initialize,
         unmask_fn=DirectUnmasker().unmask,
         force_hard_budget=False,
         seed=42,
@@ -208,14 +208,18 @@ def test_perfect_policy_reward_calculation(test_env: AFAEnv) -> None:
     print(f"get_eval_metrics result: {metrics['reward_sum']}")
 
     # Verify that get_eval_metrics now correctly calculates per-agent-per-episode average
-    assert abs(metrics["reward_sum"] - expected_avg_per_agent) < 1e-6, (
-        f"get_eval_metrics should return {expected_avg_per_agent}, got {metrics['reward_sum']}"
-    )
+    assert (
+        abs(metrics["reward_sum"] - expected_avg_per_agent) < 1e-6
+    ), f"get_eval_metrics should return {expected_avg_per_agent}, got {
+        metrics['reward_sum']
+    }"
 
     # Perfect policy should get 5 rewards per episode (features 5-9 each give 1.0 reward)
-    assert abs(metrics["reward_sum"] - 5.0) < 1e-6, (
-        f"Perfect policy should get 5.0 rewards per episode, got {metrics['reward_sum']}"
-    )
+    assert (
+        abs(metrics["reward_sum"] - 5.0) < 1e-6
+    ), f"Perfect policy should get 5.0 rewards per episode, got {
+        metrics['reward_sum']
+    }"
     print(
         "✅ get_eval_metrics correctly returns per-agent-per-episode average!"
     )
@@ -248,14 +252,18 @@ def test_partial_policy_reward_calculation(test_env: AFAEnv) -> None:
     print(f"  get_eval_metrics result: {metrics['reward_sum']}")
 
     # Verify that get_eval_metrics now correctly calculates per-agent-per-episode average
-    assert abs(metrics["reward_sum"] - expected_avg_per_agent) < 1e-6, (
-        f"get_eval_metrics should return {expected_avg_per_agent}, got {metrics['reward_sum']}"
-    )
+    assert (
+        abs(metrics["reward_sum"] - expected_avg_per_agent) < 1e-6
+    ), f"get_eval_metrics should return {expected_avg_per_agent}, got {
+        metrics['reward_sum']
+    }"
 
     # Partial policy should get 3 rewards per episode (features 5, 6, 7 each give 1.0 reward)
-    assert abs(metrics["reward_sum"] - 3.0) < 1e-6, (
-        f"Partial policy should get 3.0 rewards per episode, got {metrics['reward_sum']}"
-    )
+    assert (
+        abs(metrics["reward_sum"] - 3.0) < 1e-6
+    ), f"Partial policy should get 3.0 rewards per episode, got {
+        metrics['reward_sum']
+    }"
 
 
 def test_poor_policy_reward_calculation(test_env: AFAEnv) -> None:
@@ -309,9 +317,7 @@ def test_correct_behavior_all_batch_sizes() -> None:
             n_selections=n_features,
             n_classes=n_classes,
             hard_budget=hard_budget,
-            initialize_fn=DynamicRandomInitializer(
-                unmask_ratio=0.0
-            ).initialize,
+            initialize_fn=RandomInitializer(num_initial_features=0).initialize,
             unmask_fn=DirectUnmasker().unmask,
             force_hard_budget=False,
             seed=42,
@@ -335,9 +341,11 @@ def test_correct_behavior_all_batch_sizes() -> None:
         )
 
         # Verify correct behavior across all batch sizes
-        assert abs(metrics["reward_sum"] - expected_avg_per_agent) < 1e-6, (
-            f"Expected {expected_avg_per_agent}, got {metrics['reward_sum']} for batch_size={batch_size}"
-        )
+        assert (
+            abs(metrics["reward_sum"] - expected_avg_per_agent) < 1e-6
+        ), f"Expected {expected_avg_per_agent}, got {
+            metrics['reward_sum']
+        } for batch_size={batch_size}"
 
 
 def test_range_based_reward_function() -> None:

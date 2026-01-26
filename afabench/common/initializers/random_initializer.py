@@ -11,11 +11,11 @@ from afabench.common.custom_types import (
 
 
 @final
-class DynamicRandomInitializer(AFAInitializer):
+class RandomInitializer(AFAInitializer):
     """Select different random features for each episode."""
 
-    def __init__(self, unmask_ratio: float):
-        self.unmask_ratio = unmask_ratio
+    def __init__(self, num_initial_features: int):
+        self.num_initial_features = num_initial_features
         self.rng = torch.Generator()
 
     @override
@@ -40,7 +40,11 @@ class DynamicRandomInitializer(AFAInitializer):
         batch_size = int(torch.prod(torch.tensor(batch_shape)))
 
         num_features = feature_shape.numel()
-        num_features_to_unmask = int(num_features * self.unmask_ratio)
+        num_features_to_unmask = self.num_initial_features
+        assert 0 <= num_features_to_unmask <= num_features, (
+            f"num_initial_features={num_features_to_unmask} must be within "
+            f"[0, {num_features}]"
+        )
 
         # Create different random masks for each batch element
         masks = []

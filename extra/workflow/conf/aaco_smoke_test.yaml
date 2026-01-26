@@ -16,7 +16,8 @@ dataset_path_prefix: extra/data
 
 # Minimal configuration for quick testing
 dataset_instance_indices: [0, 1]
-initializer: aaco
+# random = random single-feature initializer
+initializer: random
 eval_dataset_split: val  # Use val split for faster smoke test
 device: cpu
 use_wandb: false

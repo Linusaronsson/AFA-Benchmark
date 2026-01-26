@@ -82,7 +82,9 @@ def test_initializer_and_unmasker_integration() -> None:
         n_selections=4,
         n_classes=3,
         hard_budget=1.99,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=ImagePatchUnmasker(
             image_side_length=4,
             patch_size=2,
@@ -314,7 +316,9 @@ def test_stop_due_to_hard_budget() -> None:
         n_selections=6,  # 4 possible selections
         n_classes=2,
         hard_budget=2.0,  # Should terminate after 3 selections
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -385,7 +389,9 @@ def test_stop_due_to_no_more_actions() -> None:
         n_selections=2,  # Only 2 possible selections
         n_classes=2,
         hard_budget=10,  # High budget, should terminate due to no more actions
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -445,7 +451,9 @@ def test_stop_due_to_stop_action() -> None:
         n_selections=4,
         n_classes=2,
         hard_budget=10,  # High budget, should not terminate due to budget
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -506,7 +514,9 @@ def test_per_sample_termination_hard_budget() -> None:
         n_selections=4,
         n_classes=3,
         hard_budget=1.99,  # All samples have same hard budget
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -568,7 +578,9 @@ def test_per_sample_termination_no_more_actions() -> None:
         n_selections=2,
         n_classes=3,
         hard_budget=10,  # High budget
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -629,7 +641,9 @@ def test_per_sample_termination_stop_action() -> None:
         n_selections=4,
         n_classes=3,
         hard_budget=10,  # High budget
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -707,7 +721,9 @@ def test_invalid_action_handling() -> None:
         n_selections=4,
         n_classes=2,
         hard_budget=5,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -766,7 +782,9 @@ def test_mask_consistency() -> None:
         n_selections=4,
         n_classes=2,
         hard_budget=5,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -846,7 +864,9 @@ def test_reward_integration() -> None:
         n_selections=4,
         n_classes=2,
         hard_budget=3,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -911,7 +931,9 @@ def test_state_immutability() -> None:
         n_selections=4,
         n_classes=2,
         hard_budget=5,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -982,7 +1004,9 @@ def test_different_batch_sizes() -> None:
         n_selections=4,
         n_classes=4,
         hard_budget=2,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1015,7 +1039,9 @@ def test_different_batch_sizes() -> None:
         n_selections=4,
         n_classes=4,
         hard_budget=2,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1067,7 +1093,9 @@ def test_environment_reset_behavior() -> None:
         n_selections=4,
         n_classes=2,
         hard_budget=5,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1157,7 +1185,9 @@ def test_tensordict_structure_validation() -> None:
         n_selections=4,
         n_classes=2,
         hard_budget=5,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1286,7 +1316,9 @@ def test_allow_stop_action_true() -> None:
         n_selections=n_selections,
         n_classes=n_classes,
         hard_budget=None,  # This should set allow_stop_action=True
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1343,7 +1375,9 @@ def test_force_hard_budget_false_default() -> None:
         n_selections=n_selections,
         n_classes=n_classes,
         hard_budget=5,  # With force_hard_budget=False (default), stop action should be allowed
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1401,7 +1435,9 @@ def test_force_hard_budget_true() -> None:
         n_classes=n_classes,
         hard_budget=5,
         force_hard_budget=True,  # This should set allow_stop_action=False
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1459,7 +1495,9 @@ def test_force_hard_budget_true_consistency_across_steps() -> None:
         n_classes=n_classes,
         hard_budget=3,
         force_hard_budget=True,  # This should set allow_stop_action=False
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1520,7 +1558,9 @@ def test_force_hard_budget_false_consistency_across_steps() -> None:
         n_classes=n_classes,
         hard_budget=3,
         force_hard_budget=False,  # Stop action should be allowed
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1580,7 +1620,9 @@ def test_force_hard_budget_with_different_settings() -> None:
         n_selections=n_selections,
         n_classes=n_classes,
         hard_budget=None,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1606,7 +1648,9 @@ def test_force_hard_budget_with_different_settings() -> None:
         n_classes=n_classes,
         hard_budget=1,
         force_hard_budget=False,  # Default value
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1632,7 +1676,9 @@ def test_force_hard_budget_with_different_settings() -> None:
         n_classes=n_classes,
         hard_budget=1,
         force_hard_budget=True,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1677,7 +1723,9 @@ def test_force_hard_budget_comprehensive() -> None:
         n_selections=n_selections,
         n_classes=n_classes,
         hard_budget=None,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1698,7 +1746,9 @@ def test_force_hard_budget_comprehensive() -> None:
         n_classes=n_classes,
         hard_budget=2,
         force_hard_budget=False,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1719,7 +1769,9 @@ def test_force_hard_budget_comprehensive() -> None:
         n_classes=n_classes,
         hard_budget=2,
         force_hard_budget=True,
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
     )
@@ -1866,7 +1918,9 @@ def test_accumulated_cost_tracked() -> None:
         n_selections=6,  # 4 possible selections
         n_classes=2,
         hard_budget=10.0,  # Large, should not terminate
-        initialize_fn=FixedRandomInitializer(unmask_ratio=0.0).initialize,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
         unmask_fn=DirectUnmasker().unmask,
         seed=123,
         selection_costs=[1.1, 2.1, 3.1, 4.1, 5.1, 6.1],

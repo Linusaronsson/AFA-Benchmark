@@ -174,7 +174,7 @@ class AACOOracle:
 
         assert observed_mask.any(), (
             "No features observed. Use an AFAInitializer (e.g., "
-            "AACODefaultInitializer) to select the initial feature."
+            "RandomInitializer) to select the initial feature."
         )
 
         # Get nearest neighbors based on currently observed features

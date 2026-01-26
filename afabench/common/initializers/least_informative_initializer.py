@@ -20,8 +20,8 @@ class LeastInformativeInitializer(AFAInitializer):
     Useful for robustness testing - how well do methods perform with poor initialization?
     """
 
-    def __init__(self, unmask_ratio: float):
-        self.unmask_ratio = unmask_ratio
+    def __init__(self, num_initial_features: int):
+        self.num_initial_features = num_initial_features
         self._cached_ranking: np.ndarray | None = None  # pyright: ignore[reportMissingTypeArgument]
         self._seed: int | None = None
 
@@ -46,7 +46,11 @@ class LeastInformativeInitializer(AFAInitializer):
         )
 
         num_features = feature_shape.numel()
-        num_features_to_unmask = int(num_features * self.unmask_ratio)
+        num_features_to_unmask = self.num_initial_features
+        assert 0 <= num_features_to_unmask <= num_features, (
+            f"num_initial_features={num_features_to_unmask} must be within "
+            f"[0, {num_features}]"
+        )
 
         # We can figure out the batch shape by subtracting the feature shape
         batch_shape = features.shape[: -len(feature_shape)]
@@ -58,6 +62,12 @@ class LeastInformativeInitializer(AFAInitializer):
         # Convert to numpy for mutual_info_classif
         train_features_np = features_flat.cpu().numpy()
         train_labels_np = label_flat.cpu().numpy()
+
+        if num_features_to_unmask == 0:
+            mask = torch.zeros(feature_shape, dtype=torch.bool)
+            for _ in range(len(batch_shape)):
+                mask = mask.unsqueeze(0)
+            return mask.expand(batch_shape + feature_shape)
 
         # Compute MI once and cache ranking (NumPy array)
         if self._cached_ranking is None:

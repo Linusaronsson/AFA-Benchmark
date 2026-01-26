@@ -20,7 +20,7 @@ from datetime import datetime
 # Configuration
 DATASET_PATH_PREFIX = config.get("dataset_path_prefix", "extra/data")
 DATASET_INSTANCE_INDICES = config.get("dataset_instance_indices", (0, 1))
-INITIALIZER = config.get("initializer", "aaco_default")
+INITIALIZER = config.get("initializer", "random")
 EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")
 DEVICE = config.get("device", "cpu")
 DEVICE_AACO = config.get("device_aaco", DEVICE)
@@ -87,11 +87,6 @@ TRAIN_HARD_BUDGETS = {
 AACO_METHODS = ["aaco"]
 if TRAIN_AACO_NN:
     AACO_METHODS.append("aaco_nn")
-
-
-def _normalize_dataset_name(dataset: str) -> str:
-    name = dataset.replace("_without_noise", "")
-    return name.replace("_", "")
 
 
 def _eval_device(method: str) -> str:
@@ -288,16 +283,12 @@ rule eval_aaco_method:
                         "eval_data.csv",
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
-        initializer_dataset_name=lambda wildcards: _normalize_dataset_name(
-            wildcards.dataset
-        ),
         eval_device=lambda wildcards: _eval_device(wildcards.method),
     shell:
         """
         python scripts/eval/eval_afa_method.py \
             method_bundle_path={input.method} \
             components/initializers@initializer={INITIALIZER} \
-            initializer.kwargs.dataset_name={params.initializer_dataset_name} \
             components/unmaskers@unmasker={params.unmasker} \
             dataset_bundle_path={input.dataset} \
             save_path={output} \
@@ -332,16 +323,12 @@ rule eval_aaco_method_soft:
                         "eval_data.csv",
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
-        initializer_dataset_name=lambda wildcards: _normalize_dataset_name(
-            wildcards.dataset
-        ),
         eval_device=lambda wildcards: _eval_device(wildcards.method),
     shell:
         """
         python scripts/eval/eval_afa_method.py \
             method_bundle_path={input.method} \
             components/initializers@initializer={INITIALIZER} \
-            initializer.kwargs.dataset_name={params.initializer_dataset_name} \
             components/unmaskers@unmasker={params.unmasker} \
             dataset_bundle_path={input.dataset} \
             save_path={output} \

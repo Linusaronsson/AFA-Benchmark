@@ -167,7 +167,7 @@ def test_image_patch_unmasker_zero_selection() -> None:
     masked_features = features * feature_mask
 
     # Select patch 0 (first patch)
-    afa_selection = torch.zeros(batch_size, 1, dtype=torch.long)
+    afa_selection = torch.zeros(batch_size, 1, dtype=torch.float)
     selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
     config = {
@@ -294,7 +294,7 @@ def test_image_patch_unmasker_different_patch_sizes() -> None:
         masked_features = features * feature_mask
 
         # Select first patch
-        afa_selection = torch.zeros(batch_size, 1, dtype=torch.long)
+        afa_selection = torch.zeros(batch_size, 1, dtype=torch.float)
         selection_mask = torch.ones_like(afa_selection, dtype=torch.bool)
 
         config = {

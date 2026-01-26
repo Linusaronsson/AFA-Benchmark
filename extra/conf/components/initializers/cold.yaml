@@ -1,3 +1,3 @@
-class_name: "DynamicRandomInitializer" # FixedRandomInitializer should also work
+class_name: "RandomInitializer"
 kwargs:
-  unmask_ratio: 0.0
+  num_initial_features: 0

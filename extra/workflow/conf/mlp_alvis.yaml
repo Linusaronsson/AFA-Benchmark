@@ -13,7 +13,7 @@ use_wandb: false
 smoke_test: false
 
 # ============================================================================
-# Datasets
+# Datasets (tabular only)
 # ============================================================================
 datasets:
   # Tabular
@@ -27,13 +27,6 @@ datasets:
   - physionet
   - miniboone
   - bank_marketing
-  # Tabular (flat image)
-  - mnist
-  - fashion_mnist
-  # Image (patch-based)
-  - synthetic_mnist
-  - synthetic_mnist_without_noise
-  - imagenette
 
 # ============================================================================
 # Model hyperparameters

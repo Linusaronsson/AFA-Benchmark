@@ -1,3 +1,0 @@
-class_name: "AACODefaultInitializer"
-kwargs:
-  dataset_name: "cube"  # or mnist, fashionmnist, etc.

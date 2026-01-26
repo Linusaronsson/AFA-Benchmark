@@ -1,10 +1,10 @@
-# Full configuration for AACO experiments on ALL datasets
+# Full configuration for AACO experiments on all tabular datasets
 #
 # PREREQUISITE: Train MLP classifiers first!
 #   snakemake -s extra/workflow/snakefiles/mlp.smk \
 #       --configfile extra/workflow/conf/mlp_all.yaml -j 4
 #
-# This includes both tabular and image datasets with appropriate settings.
+# This includes all tabular datasets with appropriate settings.
 #
 # Usage:
 #   snakemake -s extra/workflow/snakefiles/AACO.smk \
@@ -16,59 +16,54 @@ dataset_path_prefix: extra/data
 # Dataset instances (5 seeds for statistical significance)
 dataset_instance_indices: [0, 1, 2, 3, 4]
 
-# Initializer and evaluation settings
-initializer: aaco
+# Initializer and evaluation settings (random = random single-feature)
+initializer: random
 eval_dataset_split: test
 device: cpu
 use_wandb: false
 smoke_test: false
 
 # ============================================================================
-# Datasets
+# Datasets (tabular only)
 # ============================================================================
 datasets:
-  # Tabular datasets
-  - cube                        # 600 samples, 20 features, 8 classes
-  - cube_without_noise          # Same without noise features
-  - afa_context                 # 600 samples, 33 features, 8 classes
-  - afa_context_without_noise   # Same without noise features
-  # Image datasets
-  - synthetic_mnist_fast        # 60 samples, 28x28, 10 classes
+  - actg
+  - afa_context
+  - afa_context_without_noise
+  - bank_marketing
+  - ckd
+  - cube
+  - cube_without_noise
+  - diabetes
+  - miniboone
+  - physionet
 
 # ============================================================================
 # Unmaskers
 # ============================================================================
 # Unmaskers determine how selections map to features
 # - direct: 1:1 mapping (for tabular data)
-# - 28x28_to_7x7: 4x4 patches, 49 selections (for 28x28 images)
-# - 28x28_to_4x4: 7x7 patches, 16 selections (for 28x28 images)
 
 unmaskers:
   default: direct
-  synthetic_mnist_fast: 28x28_to_7x7
 
 # ============================================================================
 # Hard budgets for training and evaluation
 # ============================================================================
 # Budget = max features/patches that can be acquired
-# For tabular: typically 5-15 (out of 20-33 features)
-# For images with 7x7 grid: typically 16-49 (out of 49 patches)
+# For tabular: typically 5-15 (varies by feature count)
 
 hard_budgets:
   default: [5, 10, 15]
-  # Patch cost is 16 (4x4), so budgets should be multiples of 16.
-  synthetic_mnist_fast: [16, 32, 48]
 
 # ============================================================================
 # Cost parameters (soft budget)
 # ============================================================================
 # Higher cost = fewer features acquired
 # Tabular: 0.01-0.1 typical range
-# Images: may need lower costs (0.001-0.05) due to more features
 
 cost_params:
   default: [0.01, 0.05, 0.1]
-  synthetic_mnist_fast: [0.005, 0.01, 0.05]
 
 # ============================================================================
 # AACO+NN Training

@@ -25,9 +25,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.common.initializers.aaco_default_initializer import (
-    AACODefaultInitializer,
-)
+from afabench.common.initializers.random_initializer import RandomInitializer
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +50,7 @@ def _init_rollout_state(
     x_flat: torch.Tensor,
     feature_shape: torch.Size,
     selection_size: int,
-    initializer: AACODefaultInitializer,
+    initializer: RandomInitializer,
     device: torch.device,
 ) -> tuple[
     torch.Tensor,
@@ -170,7 +168,7 @@ def generate_aaco_rollouts(
 
     logger.info(f"Generating rollouts for {n_samples} samples...")
 
-    initializer = AACODefaultInitializer(aaco_method.dataset_name)
+    initializer = RandomInitializer(num_initial_features=1)
 
     for i in range(n_samples):
         x_flat = features[i].to(device)
