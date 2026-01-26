@@ -161,8 +161,13 @@ class WrappedMaskedMLPClassifier(AFAClassifier):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
+        # Classifier expects flat features, so flatten them
+        assert feature_shape is not None
+        masked_features_flat = masked_features.flatten(start_dim=-len(feature_shape))
+        feature_mask_flat = feature_mask.flatten(start_dim=-len(feature_shape))
+
         with torch.no_grad():
-            logits = self.module(masked_features, feature_mask)
+            logits = self.module(masked_features_flat, feature_mask_flat)
         return logits.softmax(dim=-1).to(original_device)
 
     @override
