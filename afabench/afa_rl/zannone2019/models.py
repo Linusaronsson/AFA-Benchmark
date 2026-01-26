@@ -552,7 +552,7 @@ class Zannone2019PretrainingModel(pl.LightningModule):
             loc=torch.zeros(self.latent_size),
             covariance_matrix=torch.eye(self.latent_size),
         )
-        z = dist.sample(torch.Size((n_samples,)))
+        z = dist.sample(torch.Size((n_samples,))).to(self.device)
 
         # Decode for features
         estimated_flat_features = self.partial_vae.decoder(
