@@ -58,10 +58,25 @@ rule merge_eval_perf:
     resources:
         shell_exec="bash"
     output:
-        "extra/output/merged_results/rl_and_dummy_eval_perf.csv",
+        "extra/output/merged_results/eval_perf/rl_and_dummy.csv",
     shell:
         """
             csvstack {input} > {output}
+        """
+
+rule split_by_classifier_type:
+    input:
+        "extra/output/merged_results/eval_perf/rl_and_dummy.csv"
+    output:
+        "extra/output/merged_results/eval_perf/rl_and_dummy+classifier_type-builtin.csv",
+        "extra/output/merged_results/eval_perf/rl_and_dummy+classifier_type-external.csv"
+    resources:
+        shell_exec="nu"
+    shell:
+        """
+            let df = open {{input}}
+            $df | where {$it.classifier == builtin} | reject classifier | save {{output[0]}}
+            $df | where {$it.classifier == external} | reject classifier | save {{output[1]}}
         """
 
 

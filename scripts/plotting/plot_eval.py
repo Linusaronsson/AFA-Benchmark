@@ -59,7 +59,6 @@ METRIC_NAME_MAPPING = {
 
 DTYPE_SPEC = {
     "afa_method": "category",
-    "classifier": "category",
     "dataset": "category",
     "predicted_class": "category",
     "true_class": "category",
@@ -215,7 +214,6 @@ def create_soft_budget_plot(
 def metrics_grouped_by_param(df: pd.DataFrame, param: str) -> pd.DataFrame:
     group_cols = [
         "afa_method",
-        "classifier",
         "dataset",
         "train_seed",
         "eval_seed",
@@ -295,13 +293,6 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Output folder where plots will be saved",
     )
-    parser.add_argument(
-        "--optional",
-        type=bool,
-        default=True,
-        help="If true, don't crash if either hard budget of soft budget data is missing.",
-    )
-
     return parser.parse_args()
 
 
@@ -329,29 +320,18 @@ def save_plot(plot: ggplot, output_path: Path, dpi: int = 150) -> None:
     plot.save(output_path, dpi=dpi, verbose=False)
 
 
-def produce_hard_budget_plots(
-    df: pd.DataFrame, output_folder: Path, optional: bool
-) -> None:
+def produce_hard_budget_plots(df: pd.DataFrame, output_folder: Path) -> None:
     df_hard_budget = process_hard_budget_df(df)
 
-    builtin_hard = df_hard_budget.loc[
-        df_hard_budget["classifier"] == "builtin"
-    ].copy()
-
-    if not optional and len(builtin_hard) == 0:
-        return
-
     # Add estimate columns using dataset-specific metrics
-    builtin_hard = add_estimate_columns(builtin_hard)
+    builtin_hard = add_estimate_columns(df_hard_budget)
 
     # Main metric plot
     hard_budget_plot = create_hard_budget_plot(builtin_hard, "Metric")
     save_plot(hard_budget_plot, output_folder / "hard_budget.png")
 
 
-def produce_soft_budget_plots(
-    df: pd.DataFrame, output_folder: Path, optional: bool
-) -> None:
+def produce_soft_budget_plots(df: pd.DataFrame, output_folder: Path) -> None:
     """Produce soft budget plots."""
     df_soft_budget = process_soft_budget(df)
 
@@ -359,16 +339,8 @@ def produce_soft_budget_plots(
         print("No soft budget data found in the evaluation results.")
         return
 
-    builtin_soft = df_soft_budget.loc[
-        df_soft_budget["classifier"] == "builtin"
-    ].copy()
-
-    if not optional and len(builtin_soft) == 0:
-        print("No soft budget data with 'builtin' classifier found.")
-        return
-
     # Add estimate columns using dataset-specific metrics
-    builtin_soft = add_estimate_columns(builtin_soft)
+    builtin_soft = add_estimate_columns(df_soft_budget)
 
     # Main metric plot
     soft_budget_plot = create_soft_budget_plot(builtin_soft, "Metric")
@@ -388,8 +360,8 @@ def main() -> None:
     df = read_csv_safe(args.input_folder)
     df = only_last_step_in_episode(df)
 
-    produce_hard_budget_plots(df, args.output_folder, optional=args.optional)
-    produce_soft_budget_plots(df, args.output_folder, optional=args.optional)
+    produce_hard_budget_plots(df, args.output_folder)
+    produce_soft_budget_plots(df, args.output_folder)
 
 
 if __name__ == "__main__":

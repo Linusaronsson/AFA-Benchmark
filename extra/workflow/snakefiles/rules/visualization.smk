@@ -10,9 +10,9 @@ Generates plots from aggregated results:
 rule plot_eval:
     """Generate evaluation performance plots."""
     input:
-        "extra/output/merged_results/rl_and_dummy_eval_perf.csv",
+        "extra/output/merged_results/eval_perf/rl_and_dummy+classifier_type-{classifier_type}.csv",
     output:
-        directory("extra/output/plot_results/eval_perf/rl_and_dummy"),
+        directory("extra/output/plot_results/eval_perf/rl_and_dummy+classifier_type-{classifier_type}"),
     resources:
         shell_exec="bash"
     shell:
