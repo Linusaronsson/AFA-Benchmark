@@ -79,7 +79,8 @@ include: "../rules/visualization.smk"
 
 rule all:
     input:
-        "extra/output/plot_results/eval_perf/rl_and_dummy",
+        "extra/output/plot_results/eval_perf/rl_and_dummy+classifier_type-builtin",
+        "extra/output/plot_results/eval_perf/rl_and_dummy+classifier_type-external",
         "extra/output/plot_results/time/rl_and_dummy",
 
 

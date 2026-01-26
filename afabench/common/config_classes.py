@@ -962,8 +962,8 @@ class TrainMaskedMLPClassifierConfig:
     min_masking_probability: float
     max_masking_probability: float
 
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
+    initializer: InitializerConfig  # not used, but follows pipeline interface
+    unmasker: UnmaskerConfig  # not used, but follows pipeline interface
 
     lr: float
     num_cells: list[int]

@@ -74,9 +74,9 @@ rule split_by_classifier_type:
         shell_exec="nu"
     shell:
         """
-            let df = open {{input}}
-            $df | where {$it.classifier == builtin} | reject classifier | save {{output[0]}}
-            $df | where {$it.classifier == external} | reject classifier | save {{output[1]}}
+            let df = open {input}
+            $df | where {{$in.classifier == builtin}} | reject classifier | save {output[0]}
+            $df | where {{$in.classifier == external}} | reject classifier | save {output[1]}
         """
 
 

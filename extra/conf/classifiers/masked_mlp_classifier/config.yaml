@@ -1,11 +1,13 @@
 hydra:
   searchpath:
+    - file://extra/conf
     - file://extra/conf/global
 
 defaults:
-  - _self_
+  - hydra: custom
   - /components/initializers@initializer: ???
   - /components/unmaskers@unmasker: ???
+  - _self_
   - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
