@@ -13,7 +13,8 @@ def check_output_exists(path: Path) -> bool:
 
 
 def load_method_to_pretrained_model_mapping() -> dict[str, str | None]:
-    """Load the mapping from methods to pretrained model names.
+    """
+    Load the mapping from methods to pretrained model names.
 
     Returns a dictionary mapping method names to their pretrained_model_name,
     or None if the method doesn't use a pretrained model.
@@ -26,6 +27,30 @@ def load_method_to_pretrained_model_mapping() -> dict[str, str | None]:
         method: opts.get("pretrained_model_name")
         for method, opts in data["method_options"].items()
     }
+
+
+def load_methods_from_config() -> list[str]:
+    """
+    Load the list of methods from the methods config file.
+
+    Returns a list of method names to test.
+    """
+    methods_path = Path("extra/workflow/conf/methods.yaml")
+    with methods_path.open() as f:
+        data = yaml.safe_load(f)
+    return data["methods"]
+
+
+def load_datasets_from_config() -> list[str]:
+    """
+    Load the list of datasets from the datasets config file.
+
+    Returns a list of dataset names to test.
+    """
+    datasets_path = Path("extra/workflow/conf/datasets_sanity_check.yaml")
+    with datasets_path.open() as f:
+        data = yaml.safe_load(f)
+    return data["datasets"]
 
 
 @pytest.mark.pipeline
@@ -43,15 +68,12 @@ class TestRLAndDummyPipeline:
         "extra/workflow/conf/pretrain_mapping.yaml",
         "extra/workflow/conf/soft_budget_params_single.yaml",
         "extra/workflow/conf/unmaskers.yaml",
+        "extra/workflow/conf/datasets_sanity_check.yaml",
     ]
 
-    # Test methods and datasets
-    METHODS: ClassVar[list[str]] = ["odin_model_free", "jafa", "ol"]
-    DATASETS: ClassVar[list[str]] = [
-        "cube_without_noise",
-        "afa_context_without_noise",
-        "synthetic_mnist_without_noise",
-    ]
+    # Test methods and datasets - loaded from config files
+    METHODS: ClassVar[list[str]] = load_methods_from_config()
+    DATASETS: ClassVar[list[str]] = load_datasets_from_config()
 
     @pytest.fixture(scope="class")
     def output_dir(self, tmp_path_factory: pytest.TempPathFactory) -> Path:
@@ -112,8 +134,8 @@ class TestRLAndDummyPipeline:
         """Pretrain a single pretrain config on a single dataset using Snakemake."""
         # Check if dependency outputs exist (unless force_rerun is set)
         dataset_dir = Path(f"extra/output/datasets/{dataset}/0")
-        if force_rerun or not check_output_exists(dataset_dir):
-            # Enforce dependency if force_rerun or output doesn't exist
+        if not force_rerun and not check_output_exists(dataset_dir):
+            # Enforce dependency if force_rerun is not set and output doesn't exist
             depends(
                 request,
                 [f"TestRLAndDummyPipeline::test_generate_dataset[{dataset}]"],
@@ -187,8 +209,8 @@ class TestRLAndDummyPipeline:
                 / pretrained_model_name
                 / f"dataset-{dataset}+instance_idx-0"
             )
-            if force_rerun or not check_output_exists(pretrained_dir):
-                # Enforce dependency if force_rerun or output doesn't exist
+            if not force_rerun and not check_output_exists(pretrained_dir):
+                # Enforce dependency if force_rerun is not set and output doesn't exist
                 depends(
                     request,
                     [
@@ -259,8 +281,8 @@ class TestRLAndDummyPipeline:
             / method
             / f"dataset-{dataset}+instance_idx-0"
         )
-        if force_rerun or not check_output_exists(trained_dir):
-            # Enforce dependency if force_rerun or output doesn't exist
+        if not force_rerun and not check_output_exists(trained_dir):
+            # Enforce dependency if force_rerun is not set and output doesn't exist
             depends(
                 request,
                 [
