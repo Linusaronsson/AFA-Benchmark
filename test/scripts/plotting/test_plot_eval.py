@@ -28,10 +28,10 @@ def test_plot_eval_script_runs_without_crashing(tmp_path: Path) -> None:
             "train_seed": rng.choice([1, 2], n),
             "eval_seed": rng.choice([1, 2], n),
             "accumulated_cost": rng.uniform(0.5, 15.0, n),
-            "hard_budget": np.where(
+            "eval_hard_budget": np.where(
                 rng.random(n) > 0.5, rng.choice([5, 10, 15], n), np.nan
             ),
-            "soft_budget_param": np.where(
+            "train_soft_budget_param": np.where(
                 rng.random(n) > 0.5, rng.choice([0.1, 1.0], n), np.nan
             ),
             "action_performed": rng.choice([0, 1, 2], n),
