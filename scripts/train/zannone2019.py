@@ -54,7 +54,9 @@ def generate_data_batched(
     batch_size: int,
 ) -> tuple[Features, Label]:
     """Generate synthetic data using the generative model in batches. Data is placed on cpu, since there might be a lot of it."""
-    generated_flat_features = torch.zeros(samples, pretrained_model.n_features)
+    generated_flat_features = torch.zeros(
+        samples, pretrained_model.n_output_features
+    )
     generated_labels = torch.zeros(samples, pretrained_model.n_classes)
     n_full_batches = samples // batch_size
     n_samples_rest = samples % batch_size

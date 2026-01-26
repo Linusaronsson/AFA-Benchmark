@@ -259,9 +259,14 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         return len(self.class_weights)
 
     @property
-    def n_features(self) -> int:
-        """Number of features that the model is trained on."""
+    def n_input_features(self) -> int:
+        """Number of features in the input that the model is trained on."""
         return self.partial_vae.pointnet.n_features
+
+    @property
+    def n_output_features(self) -> int:
+        """Number of features in the output that the model is trained on."""
+        return self.n_input_features - self.n_classes
 
     def current_kl_weight(self) -> float:
         """Compute the current KL weight using linear annealing."""
