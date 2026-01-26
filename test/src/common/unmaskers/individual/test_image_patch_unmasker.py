@@ -544,16 +544,15 @@ def test_image_patch_unmasker_selection_costs() -> None:
             ],
         ]
     )
+    expected_selection_costs = [
+        (1 + 2 + 5 + 6 + 17 + 18 + 21 + 22) / 8,  # top-left
+        (3 + 4 + 7 + 8 + 19 + 20 + 23 + 24) / 8,  # top-right
+        (9 + 10 + 13 + 14 + 25 + 26 + 29 + 30) / 8,  # bottom-left
+        (11 + 12 + 15 + 16 + 27 + 28 + 31 + 32) / 8,  # bottom-right
+    ]
     selection_costs = unmasker.get_selection_costs(feature_costs)
 
-    # Patch 0 (top-left): [0:2, 0:2]
-    assert selection_costs[0] == 1 + 2 + 5 + 6 + 17 + 18 + 21 + 22
-
-    # Patch 1 (top-right): [0:2, 2:4]
-    assert selection_costs[1] == 3 + 4 + 7 + 8 + 19 + 20 + 23 + 24
-
-    # Patch 2 (bottom-left): [2:4, 0:2]
-    assert selection_costs[2] == 9 + 10 + 13 + 14 + 25 + 26 + 29 + 30
-
-    # Patch 3 (bottom-right): [2:4, 2:4]
-    assert selection_costs[3] == 11 + 12 + 15 + 16 + 27 + 28 + 31 + 32
+    for _, (cost, expected_cost) in enumerate(
+        zip(selection_costs, expected_selection_costs, strict=True)
+    ):
+        assert cost == expected_cost

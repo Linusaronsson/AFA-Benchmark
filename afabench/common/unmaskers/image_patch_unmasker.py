@@ -100,7 +100,14 @@ class ImagePatchUnmasker(AFAUnmasker):
         selection_costs = torch.zeros(self.selection_size)
         for selection_idx in range(self.selection_size):
             image_mask = self._get_image_mask_from_selection(selection_idx)
-            feature_cost_in_patch = (feature_costs * image_mask).mean()
+            # Expand mask to all channels
+            expanded_mask = image_mask.unsqueeze(0).expand(
+                self.n_channels, -1, -1
+            )
+            features_in_patch = expanded_mask.sum()
+            feature_cost_in_patch = (
+                feature_costs * expanded_mask.float()
+            ).sum() / features_in_patch
             selection_costs[selection_idx] = feature_cost_in_patch
         return selection_costs
 
