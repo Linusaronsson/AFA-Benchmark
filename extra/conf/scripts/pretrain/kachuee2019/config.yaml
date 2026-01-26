@@ -5,6 +5,8 @@ hydra:
 
 defaults:
   - hydra: custom
+  - optional /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
   - /components/masked_pretraining@_global_: default
   - /components/masking_probabilities@_global_: simple
   - _self_
@@ -27,6 +29,7 @@ lr: 1e-3
 pq_module:
   n_hiddens: [64,32,16] # kachuee2019 implementation for Diabetes
   p_dropout: 0.5 # kachuee2019 implementation
+  use_feature_mask: false # like original paper
 
 seed: null
 use_wandb: false

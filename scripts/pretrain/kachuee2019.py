@@ -15,6 +15,7 @@ from afabench.afa_rl.kachuee2019.models import (
 from afabench.common.config_classes import Kachuee2019PretrainConfig
 from afabench.common.custom_types import AFADataset
 from afabench.common.supervised_learning import supervised_learning
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
     get_class_frequencies,
     initialize_wandb_run,
@@ -32,8 +33,15 @@ def get_kachuee2019_model_fn(
         n_classes = dataset.label_shape.numel()
         _features, labels = dataset.get_all_data()
         class_probabilities = get_class_frequencies(labels)
+
+        n_selections = get_afa_unmasker_from_config(
+            cfg.unmasker
+        ).get_n_selections(dataset.feature_shape)
         pq_module = Kachuee2019PQModule(
-            n_features=n_features, n_classes=n_classes, cfg=cfg.pq_module
+            n_features=n_features,
+            n_classes=n_classes,
+            n_actions=n_selections + 1,
+            cfg=cfg.pq_module,
         )
         lit_model = LitKachuee2019PQModule(
             pq_module=pq_module,

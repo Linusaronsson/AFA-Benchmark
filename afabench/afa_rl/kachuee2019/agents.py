@@ -21,12 +21,16 @@ from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 from afabench.afa_rl.common.agent_interface import Agent
 from afabench.afa_rl.kachuee2019.models import Kachuee2019PQModule
 from afabench.common.config_classes import Kachuee2019AgentConfig
-from afabench.common.custom_types import MaskedFeatures
+from afabench.common.custom_types import FeatureMask, MaskedFeatures
 
 
 @final
 class Kachuee2019ActionValueModule(nn.Module):
-    def __init__(self, pq_module: Kachuee2019PQModule, n_feature_dims: int):
+    def __init__(
+        self,
+        pq_module: Kachuee2019PQModule,
+        n_feature_dims: int,
+    ):
         super().__init__()
 
         self.pq_module = pq_module
@@ -34,16 +38,25 @@ class Kachuee2019ActionValueModule(nn.Module):
 
     @override
     def forward(
-        self, masked_features: MaskedFeatures, action_mask: Tensor
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        action_mask: Tensor,
     ) -> Tensor:
         # Flatten feature dimensions
         flat_masked_features = masked_features.flatten(
             start_dim=-self.n_feature_dims
         )
+        flat_feature_mask = feature_mask.flatten(
+            start_dim=-self.n_feature_dims
+        )
         # Flatten batch dimensions
         flat_masked_features = flat_masked_features.flatten(end_dim=-2)
+        flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
         # pq_module.forward ensures that gradients are not backpropagated to the P network
-        _class_logits, qvalues = self.pq_module.forward(flat_masked_features)
+        _class_logits, qvalues = self.pq_module.forward(
+            flat_masked_features, flat_feature_mask
+        )
 
         # Unflatten batch dimensions
         qvalues = qvalues.unflatten(
@@ -77,12 +90,13 @@ class Kachuee2019Agent(Agent):
         self.n_feature_dims = n_feature_dims
 
         self.action_value_module = Kachuee2019ActionValueModule(
-            pq_module=self.pq_module, n_feature_dims=self.n_feature_dims
+            pq_module=self.pq_module,
+            n_feature_dims=self.n_feature_dims,
         ).to(self.module_device)
 
         self.action_value_tdmodule = TensorDictModule(
             module=self.action_value_module,
-            in_keys=["masked_features", self.action_mask_key],
+            in_keys=["masked_features", "feature_mask", self.action_mask_key],
             out_keys=["action_value"],
         )
 

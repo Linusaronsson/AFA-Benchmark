@@ -46,6 +46,7 @@ agent:
 
   gamma: 1.0
   lmbda: 0.75
+
 pretrained_model_lr: 1e-3
 activate_joint_training_after_fraction: 0.0
 

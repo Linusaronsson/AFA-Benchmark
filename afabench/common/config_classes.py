@@ -232,6 +232,9 @@ class Kachuee2019PQModuleConfig:
         # hidden layers in P network. The hidden layers of the Q network are calculated from this.
     ]
     p_dropout: float
+    use_feature_mask: (
+        bool  # whether we concatenate the feature mask on top of the features
+    )
 
 
 @dataclass
@@ -239,6 +242,7 @@ class Kachuee2019PretrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     save_path: str
+    unmasker: UnmaskerConfig  # kachuee2019 needs to know which unmasker we will use during training, since the unmasker determines the number of selections, which determines how many Q-values we output
     device: str
 
     supervised_learning: SupervisedLearningConfig
@@ -247,9 +251,9 @@ class Kachuee2019PretrainConfig:
     max_masking_probability: float
     lr: float
     pq_module: Kachuee2019PQModuleConfig
-    seed: int | None = None
-    use_wandb: bool = False
-    smoke_test: bool = False
+    seed: int | None
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)

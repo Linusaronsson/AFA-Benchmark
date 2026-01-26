@@ -28,7 +28,8 @@ rule pretrain_model:
 
     params:
         script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
-        pretrain_params=lambda wildcards: PRETRAIN_PARAMS[wildcards.pretrained_model_name]
+        pretrain_params=lambda wildcards: PRETRAIN_PARAMS[wildcards.pretrained_model_name],
+        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset]
     resources:
         shell_exec="bash"
     shell:
@@ -38,6 +39,8 @@ rule pretrain_model:
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
             save_path={output[0]} \
+            components/initializers@initializer={INITIALIZER} \
+            components/unmaskers@unmasker={params.unmasker} \
             device={DEVICE} \
             seed={wildcards.pretrain_seed} \
             use_wandb={USE_WANDB} \

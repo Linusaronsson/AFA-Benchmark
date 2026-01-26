@@ -225,16 +225,18 @@ class Kachuee2019RLTrainer(RLTrainer):
             flat_masked_features = td["next", "masked_features"].flatten(
                 start_dim=-self._n_feature_dims
             )
-            assert flat_masked_features.ndim == td["next", "label"].ndim, (
-                "Label should be 1D"
+            flat_feature_mask = td["next", "feature_mask"].flatten(
+                start_dim=-self._n_feature_dims
             )
+            assert flat_masked_features.ndim == td["next", "label"].ndim
 
             # Flatten batch dims
             flat_masked_features = flat_masked_features.flatten(end_dim=-2)
+            flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
             flat_label = td["next", "label"].flatten(end_dim=-2)
 
             logits_next, _qvalues = self.pretrained_model.pq_module.forward(
-                flat_masked_features
+                flat_masked_features, flat_feature_mask
             )
             class_loss_next = F.cross_entropy(
                 logits_next,

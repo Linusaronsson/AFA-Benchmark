@@ -16,9 +16,13 @@ pretrain_mapping:
     pretrain_script_name: "shim2018"
     pretrain_params: []
 
-  ol:
+  ol_without_mask:
     pretrain_script_name: "kachuee2019"
-    pretrain_params: []
+    pretrain_params: ["pq_module.use_feature_mask=false"]
+
+  ol_with_mask:
+    pretrain_script_name: "kachuee2019"
+    pretrain_params: ["pq_module.use_feature_mask=true"]
 
   # Example: If you need a variant with specific parameters
   # pvae_custom:

@@ -25,26 +25,37 @@ class Kachuee2019PQModule(nn.Module):
     """The architecture proposed in the paper "Opportunistic Learning: Budgeted Cost-Sensitive Learning from Data Streams", slightly cleaned up from the implementation found at https://github.com/mkachuee/Opportunistic/blob/master/Demo_OL_DQN.ipynb."""
 
     def __init__(
-        self, n_features: int, n_classes: int, cfg: Kachuee2019PQModuleConfig
+        self,
+        n_features: int,
+        n_classes: int,
+        n_actions: int,  # how many Q-values to output
+        cfg: Kachuee2019PQModuleConfig,
     ):
         super().__init__()
 
         self.n_features = n_features
         self.n_classes = n_classes
+        self.n_actions = n_actions
         self.cfg = cfg
 
         # Create network
         self.layers_p = nn.ModuleList()
         self.layers_q = nn.ModuleList()
 
+        self.n_inputs = (
+            2 * self.n_features
+            if self.cfg.use_feature_mask
+            else self.n_features
+        )
+
         # Initialize the P-Net
-        size_last = self.n_features
+        size_last = self.n_inputs
         for n_h in self.cfg.n_hiddens + [self.n_classes]:
             self.layers_p.append(nn.Linear(size_last, n_h))
             size_last = n_h
 
         # Initialize the Q-Net. The inputs to the Q-network are concatenations of the previous Q-network layer's output and activations from the P-network.
-        size_last = self.n_features
+        size_last = self.n_inputs
         # always share_pq
         self.n_hiddens_q = []
         for ind in range(len(self.cfg.n_hiddens)):
@@ -61,15 +72,18 @@ class Kachuee2019PQModule(nn.Module):
             self.layers_q.append(nn.Linear(size_last, n_h_q))
             size_last = n_h + n_h_q
 
-        # Output of Q-Net now also includes the stop action
-        self.layers_q.append(nn.Linear(size_last, self.n_features + 1))
+        self.layers_q.append(nn.Linear(size_last, self.n_actions))
 
     @override
     def forward(
-        self, masked_features: MaskedFeatures
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        assert masked_features.ndim == 2
+        x = self._maybe_concatenate(masked_features, feature_mask)
         # P-Net forward path
-        act_last = masked_features
+        act_last = x
         acts_p = []
         for f_layer in self.layers_p[:-1]:
             act_last = F.dropout(
@@ -79,7 +93,7 @@ class Kachuee2019PQModule(nn.Module):
         class_logits = self.layers_p[-1](act_last)
 
         # Q-Net forward path, gradients are not backpropagated to P-Net
-        act_last = masked_features
+        act_last = x
         act_last = F.relu(self.layers_q[0](act_last))
         for f_layer, p_act in zip(
             self.layers_q[1:-1], acts_p[:-1], strict=False
@@ -91,24 +105,41 @@ class Kachuee2019PQModule(nn.Module):
 
         return class_logits, qvalues
 
-    def confidence(
-        self, masked_features: MaskedFeatures, mcdrop_samples: int = 1
+    def _maybe_concatenate(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask | None
     ) -> torch.Tensor:
-        """
-        Calculate the confidence histogram for each class given a sample.
+        if self.cfg.use_feature_mask:
+            assert feature_mask is not None
+            return torch.cat([masked_features, feature_mask], dim=-1)
+        return masked_features
 
-        Args:
-            masked_features: input sample of shape (batch_size, n_features)
-            mcdrop_samples: mc dropout samples to use.
-        """
-        x_rep = masked_features.unsqueeze(1).expand(
+    @staticmethod
+    def _repeat_batch(x: torch.Tensor, mcdrop_samples: int) -> torch.Tensor:
+        x_rep = x.unsqueeze(1).expand(
             -1, mcdrop_samples, -1
         )  # (batch_size, mcdrop_samples, n_features)
         x_rep = x_rep.reshape(
-            x_rep.shape[0] * mcdrop_samples, x_rep.shape[-1]
+            x_rep.shape[0] * mcdrop_samples,
+            x_rep.shape[-1],
         )  # (batch_size*mcdrop_samples, n_features)
+        return x_rep
+
+    def confidence(
+        self,
+        masked_features: MaskedFeatures,
+        mcdrop_samples: int = 1,
+        feature_mask: FeatureMask | None = None,
+    ) -> torch.Tensor:
+        """Calculate the confidence histogram for each class given a sample."""
+        masked_features_rep = self._repeat_batch(
+            masked_features, mcdrop_samples
+        )
+        if feature_mask is not None:
+            feature_mask_rep = self._repeat_batch(feature_mask, mcdrop_samples)
+        else:
+            feature_mask_rep = None
         class_logits, _qvalues = self.forward(
-            x_rep
+            masked_features_rep, feature_mask_rep
         )  # class_logits.shape = (batch_size*mcdrop_samples, n_classes)
         class_logits = class_logits.view(
             masked_features.shape[0], mcdrop_samples, -1
@@ -119,16 +150,16 @@ class Kachuee2019PQModule(nn.Module):
         return class_probabilities.mean(dim=1)  # (batch_size, n_classes)
 
     def predict(
-        self, x: torch.Tensor, mcdrop_samples: int = 1
+        self,
+        masked_features: MaskedFeatures,
+        mcdrop_samples: int = 1,
+        feature_mask: FeatureMask | None = None,
     ) -> torch.Tensor:
-        """
-        Make class prediction for a sample.
-
-        Args:
-            x: input sample
-            mcdrop_samples: mc dropout samples to use.
-        """
-        conf = self.confidence(x, mcdrop_samples)
+        conf = self.confidence(
+            masked_features,
+            mcdrop_samples=mcdrop_samples,
+            feature_mask=feature_mask,
+        )
         pred = torch.argmax(conf)
         return pred
 
@@ -170,7 +201,7 @@ class LitKachuee2019PQModule(pl.LightningModule):
             qvalues: the Q-values from the PQ network
 
         """
-        class_logits, qvalues = self.pq_module(masked_features)
+        class_logits, qvalues = self.pq_module(masked_features, feature_mask)
         return class_logits, qvalues
 
     @override
@@ -275,7 +306,9 @@ class Kachuee2019AFAPredictFn(AFAPredictFn):
         masked_features, feature_mask, label = flatten_afa_input(
             masked_features, feature_mask, label, feature_shape
         )
-        class_logits, _qvalues = self.pq_module.forward(masked_features)
+        class_logits, _qvalues = self.pq_module.forward(
+            masked_features, feature_mask
+        )
         return class_logits.softmax(dim=-1)
 
 
@@ -312,7 +345,7 @@ class Kachuee2019AFAClassifier(AFAClassifier):
             masked_features, feature_mask, label, feature_shape
         )
 
-        class_logits, _qvalues = self.pq_module(masked_features)
+        class_logits, _qvalues = self.pq_module(masked_features, feature_mask)
         return class_logits.softmax(dim=-1).to(original_device)
 
     @override

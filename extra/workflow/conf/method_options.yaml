@@ -12,8 +12,11 @@ method_options:
     train_script_name: "zannone2019"
     method_specific_params:
       - "additional_generation_fraction=0.0"
-  ol:
-    pretrained_model_name: "ol"
+  ol_without_mask:
+    pretrained_model_name: "ol_without_mask"
+    train_script_name: "kachuee2019"
+  ol_with_mask:
+    pretrained_model_name: "ol_with_mask"
     train_script_name: "kachuee2019"
   random_dummy:
     train_script_name: "random_dummy"

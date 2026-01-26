@@ -56,10 +56,10 @@ def get_kachuee2019_reward_fn(
 
     def f(
         masked_features: MaskedFeatures,
-        _feature_mask: FeatureMask,
+        feature_mask: FeatureMask,
         _selection_mask: SelectionMask,
         new_masked_features: MaskedFeatures,
-        _new_feature_mask: FeatureMask,
+        new_feature_mask: FeatureMask,
         _new_selection_mask: SelectionMask,
         afa_action: AFAAction,
         _features: Features,
@@ -69,10 +69,12 @@ def get_kachuee2019_reward_fn(
         conf_a = pretrained_model.confidence(
             masked_features.flatten(start_dim=-n_feature_dims),
             mcdrop_samples=mcdrop_samples,
+            feature_mask=feature_mask.flatten(start_dim=-n_feature_dims),
         )
         conf_b = pretrained_model.confidence(
             new_masked_features.flatten(start_dim=-n_feature_dims),
             mcdrop_samples=mcdrop_samples,
+            feature_mask=new_feature_mask.flatten(start_dim=-n_feature_dims),
         )
         unscaled_reward = calc_reward(conf_a, conf_b, method=method)
         action_cost = selection_costs[afa_action - 1]  # 1-based actions
