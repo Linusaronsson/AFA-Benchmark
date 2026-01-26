@@ -146,6 +146,17 @@ def load_config(config):
     }
 
     # ========================================================================
+    # Classifier Names Configuration
+    # ========================================================================
+
+    classifier_names_raw = config.get("classifier_names", None)
+    if classifier_names_raw is None:
+        raise ValueError("Expected classifier_names to be provided.")
+    classifier_names = _fill_missing_datasets_with_default(
+        classifier_names_raw, datasets
+    )
+
+    # ========================================================================
     # Train Budget Mapping Configuration
     # ========================================================================
 
@@ -202,6 +213,7 @@ def load_config(config):
         "DATASETS": datasets,
         "UNMASKERS": unmaskers,
         "BUDGET_PARAMS": budget_params,
+        "CLASSIFIER_NAMES": classifier_names,
     }
 
 

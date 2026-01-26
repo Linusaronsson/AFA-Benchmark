@@ -17,7 +17,11 @@ rule eval_method:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "method.bundle",
-        # "extra/trained_classifiers/masked_mlp_classifier/dataset-{dataset}+instance-{dataset_instance}",
+        "extra/trained_classifiers/masked_mlp_classifier/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "classifier_seed-{classifier_seed}.bundle"
+
     output:
         "extra/output/eval_results/{method}/"
             "dataset-{dataset}+"
@@ -52,7 +56,7 @@ rule eval_method:
             components/unmaskers@unmasker={params.unmasker} \
             dataset_bundle_path={input[0]} \
             save_path={output[0]} \
-            classifier_bundle_path=null \
+            classifier_bundle_path={input[2]} \
             seed={wildcards.eval_seed} \
             device={DEVICE} \
             hard_budget={wildcards.eval_hard_budget} \

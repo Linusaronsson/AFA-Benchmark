@@ -1,0 +1,3 @@
+classifier_names:
+  default: "masked_mlp_classifier"
+  some_other_dataset: "some_other_classifier"

@@ -12,8 +12,15 @@ Runtime filters (--config, select subsets to run):
     eval_dataset_split (str, default='val'): Dataset split for evaluation
 
 Config files (--configfile):
-    Fixed definitions: method_options.yaml, pretrain_mapping.yaml, methods.yaml
-    Runtime params: eval_hard_budgets.yaml, soft_budget_params_*.yaml, unmaskers.yaml
+    Fixed definitions:
+        method_options.yaml,
+        pretrain_mapping.yaml,
+        methods.yaml
+        classifier_names.yaml
+    Runtime params:
+        eval_hard_budgets.yaml,
+        soft_budget_params_*.yaml,
+        unmaskers.yaml
 
     Note: method_options.yaml can include eval_to_train_hard_budget_mapping to
     specify different budgets for training vs evaluation per method/dataset.
@@ -61,6 +68,7 @@ METHOD_SPECIFIC_PARAMS = _config["METHOD_SPECIFIC_PARAMS"]
 DATASETS = _config["DATASETS"]
 UNMASKERS = _config["UNMASKERS"]
 BUDGET_PARAMS = _config["BUDGET_PARAMS"]
+CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
 
 include: "../rules/training.smk"
 include: "../rules/evaluation.smk"
