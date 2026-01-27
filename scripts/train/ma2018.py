@@ -51,11 +51,17 @@ def main(cfg: Ma2018TrainingConfig):
     pretrained_model = cast(
         "Zannone2019PretrainingModel", torch_model_bundle.model
     )
+    classifier_bundle_path = (
+        Path(cfg.trained_classifier_bundle_path)
+        if cfg.trained_classifier_bundle_path is not None
+        else None
+    )
 
     afa_method: Ma2018AFAMethod = Ma2018AFAMethod(
         sampler=pretrained_model.partial_vae,
         predictor=pretrained_model.classifier,
         num_classes=num_classes,
+        classifier_bundle_path=classifier_bundle_path,
     )
 
     save_bundle(

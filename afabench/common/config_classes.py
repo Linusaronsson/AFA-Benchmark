@@ -412,6 +412,7 @@ class Ma2018TrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     pretrained_model_bundle_path: str
+    trained_classifier_bundle_path: str | None
     save_path: str
 
     hard_budget: int
