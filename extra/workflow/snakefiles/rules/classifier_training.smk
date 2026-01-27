@@ -1,7 +1,8 @@
+# We only train the classifier once per dataset (on the first instance)
 rule train_classifier:
     input:
-        "extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
-        "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle"
+        "extra/output/datasets/{dataset}/0/train.bundle",
+        "extra/output/datasets/{dataset}/0/val.bundle"
     output:
         directory(
             f"extra/output/trained_classifiers/"
@@ -21,7 +22,7 @@ rule train_classifier:
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
             device={DEVICE} \
-            seed={wildcards.classifier_seed} \
+            seed=0 \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
             experiment@_global_={wildcards.dataset}
