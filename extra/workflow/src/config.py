@@ -240,39 +240,6 @@ def _fill_missing_datasets_with_default(config_dict, datasets):
     }
 
 
-def _get_eval_hard_budget(
-    method,
-    dataset,
-    train_hard_budget,
-    eval_to_train_hard_budget_mapping,
-):
-    """
-    Get the evaluation hard budget for a given training hard budget.
-
-    If the method has a mapping defined, use it. Otherwise, use the training budget.
-
-    Args:
-        method: Method name
-        dataset: Dataset name
-        train_hard_budget: Training hard budget value
-        eval_to_train_hard_budget_mapping: Mapping from eval to train budgets
-
-    Returns:
-        The evaluation hard budget to use
-    """
-    # Check if method has a mapping for this dataset
-    method_mapping = eval_to_train_hard_budget_mapping.get(method, {})
-    dataset_mapping = method_mapping.get(dataset, {})
-
-    # Search for train_hard_budget in the mapping values (reverse lookup)
-    for eval_budget, train_budget in dataset_mapping.items():
-        if train_budget == train_hard_budget:
-            return eval_budget
-
-    # Default: use the training budget for evaluation
-    return train_hard_budget
-
-
 def _create_budget_combinations(
     method,
     dataset,
