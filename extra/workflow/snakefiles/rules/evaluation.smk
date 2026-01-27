@@ -19,9 +19,7 @@ rule eval_method:
                         "method.bundle",
 
         f"extra/output/trained_classifiers/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "classifier_seed-{train_seed}.bundle"
+            "dataset-{dataset}.bundle"
 
     output:
         "extra/output/eval_results/{method}/"

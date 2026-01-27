@@ -5,9 +5,7 @@ rule train_classifier:
     output:
         directory(
             f"extra/output/trained_classifiers/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "classifier_seed-{classifier_seed}.bundle"
+                "dataset-{dataset}.bundle"
         )
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
