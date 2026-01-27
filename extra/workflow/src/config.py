@@ -32,7 +32,7 @@ def load_config(config):
 
     dataset_instance_indices = config.get("dataset_instance_indices", (0, 1))
     initializer = config.get("initializer", "cold")
-    eval_dataset_split = config.get("eval_dataset_split", "val")
+    eval_dataset_split = config.get("eval_dataset_split", "test") # switch to val while developing
     device = config.get("device", "cpu")
     use_wandb = config.get("use_wandb", False)
     smoke_test = config.get("smoke_test", False)
