@@ -4,24 +4,28 @@ soft_budget_params:
   aaco_nn:
     default: [0.05, 0.01]
   jafa:
-    default: [0.01, 0.00001]
-    afa_context_without_noise: [0.01, 0.0000000001]
-  # ol:
-  #   default: [0.5, 0.1, 0.05, 0.01]
-  #   afa_context_without_noise: [0.1, 0.075]
-  #   cube_without_noise: [0.5, 0.05]
+    default:
+      - [0.01, null]
+      - [0.00001, null]
+    afa_context_without_noise:
+      - [0.01, null]
+      - [0.0000000001, null]
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
     default:
-      - 0.001
-      - 0.01
-      - 0.1
-      - 0.5
-      - 0.8
+      - [0.001, null]
+      - [0.01, null]
+      - [0.1, null]
+      - [0.5, null]
+      - [0.8, null]
   odin_model_based: *odin
   random_dummy:
-    default: [0.3, 0.7]
+    default:
+      - [0.3, null]
+      - [0.7, null]
   sequential_dummy:
-    default: [0.3, 0.7]
+    default:
+      - [0.3, null]
+      - [0.7, null]

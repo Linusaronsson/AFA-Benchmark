@@ -1,6 +1,4 @@
 """
-RL and dummy methods pipeline: pretrain, train, eval, and visualize.
-
 Runtime filters (--config, select subsets to run):
     methods (list[str], required): Subset of methods from method_options.yaml
     datasets (list[str], required): Subset of datasets to run
@@ -35,10 +33,6 @@ import sys
 import time
 from datetime import datetime
 
-# Add src directory to Python path for imports
-# Use workflow.basedir which gives us the directory containing the Snakefile
-# The Snakefile is at: extra/workflow/snakefiles/orchestration/RL_and_dummy.smk
-# We need to import from: extra/workflow/src/
 snakefile_dir = workflow.basedir
 workflow_dir = os.path.dirname(os.path.dirname(snakefile_dir))
 src_dir = os.path.join(workflow_dir, "src")
@@ -123,7 +117,7 @@ rule all_train_method:
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (train_hard_budget, _, train_soft_budget_param) in BUDGET_PARAMS[method][dataset]
+            for (train_hard_budget, _eval_hard_budget, train_soft_budget_param, _eval_soft_budget _) in BUDGET_PARAMS[method][dataset]
         ] +
         [
             (
@@ -139,7 +133,7 @@ rule all_train_method:
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (train_hard_budget, _, train_soft_budget_param) in BUDGET_PARAMS[method][dataset]
+            for (train_hard_budget, _eval_hard_budget, train_soft_budget_param, _eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ]
 
 rule all_eval_method:
@@ -154,13 +148,14 @@ rule all_eval_method:
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}/"
+                                f"eval_hard_budget-{eval_hard_budget}+"
+                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"eval_data.csv"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (train_hard_budget, eval_hard_budget, train_soft_budget_param) in BUDGET_PARAMS[method][dataset]
+            for (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ] +
         [
             (
@@ -172,11 +167,12 @@ rule all_eval_method:
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}/"
+                                f"eval_hard_budget-{eval_hard_budget}+"
+                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"eval_data.csv"
             )
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (train_hard_budget, eval_hard_budget, train_soft_budget_param) in BUDGET_PARAMS[method][dataset]
+            for (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ]

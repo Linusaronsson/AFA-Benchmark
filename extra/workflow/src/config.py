@@ -32,7 +32,9 @@ def load_config(config):
 
     dataset_instance_indices = config.get("dataset_instance_indices", (0, 1))
     initializer = config.get("initializer", "cold")
-    eval_dataset_split = config.get("eval_dataset_split", "test") # switch to val while developing
+    eval_dataset_split = config.get(
+        "eval_dataset_split", "test"
+    )  # switch to val while developing
     device = config.get("device", "cpu")
     use_wandb = config.get("use_wandb", False)
     smoke_test = config.get("smoke_test", False)
@@ -74,7 +76,9 @@ def load_config(config):
         method_sets["all"] = methods
     # Filter out methods that have not been enabled by the "methods" option
     for key in method_sets:
-        method_sets[key] = [method for method in method_sets[key] if method in methods]
+        method_sets[key] = [
+            method for method in method_sets[key] if method in methods
+        ]
 
     # Filter methods by pretraining stage availability
     # A method has a pretraining stage if pretrained_model_name is set
@@ -181,11 +185,11 @@ def load_config(config):
     # ========================================================================
 
     # Build the main data structure: method -> dataset -> list of
-    # (train_hard_budget, eval_hard_budget, soft_budget_param) tuples
+    # (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) tuples
     #
     # For each method-dataset pair:
-    # - Create hard budget combinations: (train_budget, eval_budget, "null")
-    # - Create soft budget combinations: ("null", "null", soft_budget_param)
+    # - Create hard budget combinations: (train_budget, eval_budget, "null", "null")
+    # - Create soft budget combinations: ("null", "null", train_soft_budget_param, eval_soft_budget_param)
     budget_params = {
         method: {
             dataset: _create_budget_combinations(
@@ -250,13 +254,13 @@ def _create_budget_combinations(
     """
     Create budget parameter tuples for a method-dataset pair.
 
-    Returns list of tuples: (train_hard_budget, eval_hard_budget, soft_budget_param)
+    Returns list of tuples: (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param)
 
     For hard budgets: train_hard_budget and eval_hard_budget are mapped per config,
-    soft_budget_param is "null"
+    soft budget params are "null"
 
-    For soft budgets: train_hard_budget and eval_hard_budget are "null",
-    soft_budget_param is the actual soft budget value
+    For soft budgets: hard budgets are "null",
+    soft budget params are extracted from the tuple: [train_soft_budget_param, eval_soft_budget_param]
     """
     result = []
 
@@ -265,11 +269,16 @@ def _create_budget_combinations(
         train_budget = _get_train_hard_budget_from_eval(
             method, dataset, eval_budget, eval_to_train_hard_budget_mapping
         )
-        result.append((train_budget, eval_budget, "null"))
+        result.append((train_budget, eval_budget, "null", "null"))
 
     # Soft budget combinations
-    for soft_budget in soft_budget_params:
-        result.append(("null", "null", soft_budget))
+    for soft_budget_tuple in soft_budget_params:
+        # soft_budget_tuple is [train_soft_budget_param, eval_soft_budget_param]
+        train_soft_budget_param = soft_budget_tuple[0]
+        eval_soft_budget_param = soft_budget_tuple[1]
+        result.append(
+            ("null", "null", train_soft_budget_param, eval_soft_budget_param)
+        )
 
     return result
 

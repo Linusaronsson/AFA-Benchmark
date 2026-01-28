@@ -1,32 +1,61 @@
 soft_budget_params:
   jafa:
-    default: [0.01, 0.001, 0.0001, 0.00001]
-    afa_context: [0.01, 0.001, 0.0000001, 0.0000000001]
-    afa_context_without_noise: [0.01, 0.001, 0.0000001, 0.0000000001]
-    diabetes: [0.01, 0.00001, 0.00000001, 0.00000000001, 0.0000000000001]
-    miniboone: [0.01, 0.005, 0.001, 0.0001, 0.000001, 0.00000001, 0.0000000001]
-    physionet: [0.01, 0.001, 0.0001, 0.00001, 0.000001]
-  # ol:
-  #   default: [0.5, 0.1, 0.05, 0.01]
-  #   afa_context: [0.1, 0.095, 0.09, 0.085, 0.08, 0.075]
-  #   afa_context_without_noise: [0.1, 0.095, 0.09, 0.085, 0.08, 0.075]
-  #   cube: [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]
-  #   cube_without_noise: [0.5, 0.4, 0.3, 0.2, 0.1, 0.05]
-  #   miniboone: [0.5, 0.1, 0.075, 0.05, 0.01]
+    default:
+      - [0.01, null]
+      - [0.001, null]
+      - [0.0001, null]
+      - [0.00001, null]
+    afa_context:
+      - [0.01, null]
+      - [0.001, null]
+      - [0.0000001, null]
+      - [0.0000000001, null]
+    afa_context_without_noise:
+      - [0.01, null]
+      - [0.001, null]
+      - [0.0000001, null]
+      - [0.0000000001, null]
+    diabetes:
+      - [0.01, null]
+      - [0.00001, null]
+      - [0.00000001, null]
+      - [0.00000000001, null]
+      - [0.0000000000001, null]
+    miniboone:
+      - [0.01, null]
+      - [0.005, null]
+      - [0.001, null]
+      - [0.0001, null]
+      - [0.000001, null]
+      - [0.00000001, null]
+      - [0.0000000001, null]
+    physionet:
+      - [0.01, null]
+      - [0.001, null]
+      - [0.0001, null]
+      - [0.00001, null]
+      - [0.000001, null]
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
-    default: [1, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1]
-    afa_context: [0.464, 0.4635, 0.463, 0.4625, 0.462]
-    afa_context_without_noise: [0.464, 0.4635, 0.463, 0.4625, 0.462]
-    cube: [0.7, 0.65, 0.5, 0.4]
-    cube_without_noise: [0.7, 0.65, 0.5, 0.4]
-    diabetes: [0.3, 0.2, 0.15, 0.1]
-    miniboone: [0.925, 0.91, 0.9, 0.8, 0.7, 0.6]
-    physionet: [1, 0.9, 0.8, 0.1]
+    default:
+      - [1, null]
+      - [0.9, null]
+      - [0.8, null]
+      - [0.7, null]
+      - [0.6, null]
+      - [0.5, null]
+      - [0.4, null]
+      - [0.3, null]
+      - [0.2, null]
+      - [0.1, null]
   odin_model_based: *odin
   random_dummy:
-    default: [0.3, 0.7]
+    default:
+      - [0.3, null]
+      - [0.7, null]
   sequential_dummy:
-    default: [0.3, 0.7]
+    default:
+      - [0.3, null]
+      - [0.7, null]

@@ -1,15 +1,17 @@
 soft_budget_params:
   jafa:
-    default: [0.01]
-  # ol:
-  #   default: [0.5]
+    default:
+      - [0.01, null]
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
-    default: [0.1]
+    default:
+      - [0.1, null]
   odin_model_based: *odin
   random_dummy:
-    default: [0.3]
+    default:
+      - [0.3, null]
   sequential_dummy:
-    default: [0.3]
+    default:
+      - [0.3, null]

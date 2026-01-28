@@ -82,13 +82,12 @@ def create_dummy_data() -> pl.DataFrame:  # noqa: C901
                                 "forced_stop": False,
                                 "eval_seed": eval_seed,
                                 "eval_hard_budget": float(budget),
-                                "eval_soft_budget_param": None,
+                                "soft_budget_param": None,
                                 "selections_performed": 0,
                                 "afa_method": method,
                                 "dataset": dataset,
                                 "train_seed": train_seed,
                                 "train_hard_budget": None,
-                                "train_soft_budget_param": None,
                                 "predicted_class": np.random.randint(0, 3),  # noqa: NPY002
                             }
                         )
@@ -111,13 +110,12 @@ def create_dummy_data() -> pl.DataFrame:  # noqa: C901
                                 "forced_stop": False,
                                 "eval_seed": eval_seed,
                                 "eval_hard_budget": None,
-                                "eval_soft_budget_param": None,
+                                "soft_budget_param": float(param),
                                 "selections_performed": 0,
                                 "afa_method": method,
                                 "dataset": dataset,
                                 "train_seed": train_seed,
                                 "train_hard_budget": None,
-                                "train_soft_budget_param": float(param),
                                 "predicted_class": np.random.randint(0, 3),  # noqa: NPY002
                             }
                         )
@@ -132,13 +130,12 @@ def create_dummy_data() -> pl.DataFrame:  # noqa: C901
             "forced_stop": pl.Boolean,
             "eval_seed": pl.Int64,
             "eval_hard_budget": pl.Float64,
-            "eval_soft_budget_param": pl.Float64,
+            "soft_budget_param": pl.Float64,
             "selections_performed": pl.Int64,
             "afa_method": pl.String,
             "dataset": pl.String,
             "train_seed": pl.Int64,
             "train_hard_budget": pl.Float64,
-            "train_soft_budget_param": pl.Float64,
             "predicted_class": pl.Int64,
         },
     )
@@ -151,7 +148,7 @@ def get_metrics_at_stop_action(df: pl.DataFrame) -> pl.DataFrame:
         "train_seed",
         "eval_seed",
         "eval_hard_budget",
-        "train_soft_budget_param",
+        "soft_budget_param",
     ).map_groups(
         lambda group_df: pl.DataFrame(
             {
@@ -160,9 +157,7 @@ def get_metrics_at_stop_action(df: pl.DataFrame) -> pl.DataFrame:
                 "train_seed": [group_df["train_seed"].first()],
                 "eval_seed": [group_df["eval_seed"].first()],
                 "eval_hard_budget": [group_df["eval_hard_budget"].first()],
-                "train_soft_budget_param": [
-                    group_df["train_soft_budget_param"].first()
-                ],
+                "soft_budget_param": [group_df["soft_budget_param"].first()],
                 "accuracy": [
                     accuracy_score(
                         group_df["true_class"], group_df["predicted_class"]
@@ -183,7 +178,7 @@ def get_metrics_at_stop_action(df: pl.DataFrame) -> pl.DataFrame:
                 "train_seed": pl.Int64,
                 "eval_seed": pl.Int64,
                 "eval_hard_budget": pl.Float64,
-                "train_soft_budget_param": pl.Float64,
+                "soft_budget_param": pl.Float64,
                 "accuracy": pl.Float64,
                 "f_score": pl.Float64,
                 "avg_accumulated_cost": pl.Float64,
@@ -203,13 +198,12 @@ def read_csv(input_csv_path: Path) -> pl.DataFrame:
             "forced_stop": pl.Boolean,
             "eval_seed": pl.Int64,
             "eval_hard_budget": pl.Float64,
-            "eval_soft_budget_param": pl.Float64,
+            "soft_budget_param": pl.Float64,
             "selections_performed": pl.Int64,
             "afa_method": pl.String,
             "dataset": pl.String,
             "train_seed": pl.Int64,
             "train_hard_budget": pl.Float64,
-            "train_soft_budget_param": pl.Float64,
             "predicted_class": pl.Int64,
         },
         null_values=["null"],

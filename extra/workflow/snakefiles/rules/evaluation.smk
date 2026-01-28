@@ -30,7 +30,8 @@ rule eval_method:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_data.csv",
         "extra/output/eval_time_results/{method}/"
             "dataset-{dataset}+"
@@ -40,7 +41,8 @@ rule eval_method:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_time.txt",
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
@@ -59,6 +61,7 @@ rule eval_method:
             seed={wildcards.eval_seed} \
             device={DEVICE} \
             hard_budget={wildcards.eval_hard_budget} \
+            soft_budget_param={wildcards.eval_soft_budget_param} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST}
         END_TIME=$(date +%s.%N)

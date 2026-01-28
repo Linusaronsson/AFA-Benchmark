@@ -27,7 +27,8 @@ rule transform_eval_data:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_data.csv",
     output:
         "extra/output/eval_results_transformed/{method}/"
@@ -38,7 +39,8 @@ rule transform_eval_data:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_data.csv",
     resources:
         shell_exec="bash"
@@ -49,5 +51,6 @@ rule transform_eval_data:
             {wildcards.dataset} \
             {wildcards.train_seed} \
             {wildcards.train_hard_budget} \
-            {wildcards.train_soft_budget_param}
+            {wildcards.train_soft_budget_param} \
+            {wildcards.eval_soft_budget_param}
         """

@@ -21,7 +21,8 @@ rule merge_eval_perf:
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}/"
+                                f"eval_hard_budget-{eval_hard_budget}+"
+                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"eval_data.csv"
             )
             for method in METHOD_SETS[wc.method_set] if method in METHODS_WITHOUT_PRETRAINING_STAGE
@@ -31,6 +32,7 @@ rule merge_eval_perf:
                 train_hard_budget,
                 eval_hard_budget,
                 train_soft_budget_param,
+                eval_soft_budget_param,
             ) in BUDGET_PARAMS[method][dataset]
         ] +
         [
@@ -43,7 +45,8 @@ rule merge_eval_perf:
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}/"
+                                f"eval_hard_budget-{eval_hard_budget}+"
+                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"eval_data.csv"
             )
             for method in METHOD_SETS[wc.method_set] if method in METHODS_WITH_PRETRAINING_STAGE
@@ -53,6 +56,7 @@ rule merge_eval_perf:
                 train_hard_budget,
                 eval_hard_budget,
                 train_soft_budget_param,
+                eval_soft_budget_param,
             ) in BUDGET_PARAMS[method][dataset]
         ]
     resources:
@@ -106,7 +110,8 @@ rule time_df_with_pretrain:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_time.txt"
     output:
         "extra/output/combined_time_results/{method}/"
@@ -117,7 +122,8 @@ rule time_df_with_pretrain:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "combined_time.csv"
     resources:
         shell_exec="nu"
@@ -146,7 +152,8 @@ rule time_df_without_pretrain:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_time.txt"
     output:
         "extra/output/combined_time_results/{method}/"
@@ -157,7 +164,8 @@ rule time_df_without_pretrain:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}/"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "combined_time.csv"
     resources:
         shell_exec="nu"
@@ -180,7 +188,8 @@ rule merge_time:
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}/"
+                                f"eval_hard_budget-{eval_hard_budget}+"
+                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"combined_time.csv"
             )
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
@@ -190,6 +199,7 @@ rule merge_time:
                 train_hard_budget,
                 eval_hard_budget,
                 train_soft_budget_param,
+                eval_soft_budget_param,
             ) in BUDGET_PARAMS[method][dataset]
         ] +
         [
@@ -202,7 +212,8 @@ rule merge_time:
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}/"
+                                f"eval_hard_budget-{eval_hard_budget}+"
+                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"combined_time.csv"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
