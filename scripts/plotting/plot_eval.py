@@ -337,6 +337,19 @@ def main() -> None:
 
     df = read_csv(args.input)
 
+    # Either train_soft_budget_param is set, or eval_soft_budget_param is set, but not both. This means that one of them must always be null
+    assert (
+        df["train_soft_budget_param"].is_null()
+        | df["eval_soft_budget_param"].is_null()
+    ).all(), (
+        "Both train_soft_budget_param and eval_soft_budget_param cannot be set. Choose one."
+    )
+    df = df.with_columns(
+        soft_budget_param=pl.coalesce(
+            "train_soft_budget_param", "eval_soft_budget_param"
+        )
+    )
+
     # Only consider performance at stop action
     df = df.filter(pl.col("action_performed") == 0)
 
