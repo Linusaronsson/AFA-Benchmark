@@ -60,9 +60,11 @@ rule pretrain_model:
 
 rule train_method_with_pretrained_model:
     input:
+        # Datasets
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
 
+        # Pretrained model
         lambda wildcards: (
             f"extra/output/pretrained_models/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
                 f"dataset-{wildcards.dataset}+"
@@ -70,6 +72,11 @@ rule train_method_with_pretrained_model:
                     f"pretrain_seed-{wildcards.pretrain_seed}/"
                         "model.bundle"
         )
+
+        # Classifier
+        "extra/output/trained_classifiers/"
+            "dataset-{dataset}.bundle"
+
     output:
         directory(
             "extra/output/trained_methods/{method}/"
@@ -102,6 +109,7 @@ rule train_method_with_pretrained_model:
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
             pretrained_model_bundle_path={input[2]} \
+            classifier_bundle_path={input[3]} \
             save_path={output[0]} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
@@ -121,8 +129,13 @@ rule train_method_with_pretrained_model:
 
 rule train_method_without_pretrained_model:
     input:
+        # Datasets
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
+
+        # Classifier
+        "extra/output/trained_classifiers/"
+            "dataset-{dataset}.bundle"
     output:
         directory(
             "extra/output/trained_methods/{method}/"
@@ -154,6 +167,7 @@ rule train_method_without_pretrained_model:
         python scripts/train/{params.script_name}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
+            classifier_bundle_path={input[2]} \
             save_path={output[0]} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
