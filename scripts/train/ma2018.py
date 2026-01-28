@@ -20,7 +20,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/train/ma2018",
+    config_path="../../extra/conf/scripts/train/ma2018",
     config_name="config",
 )
 def main(cfg: Ma2018TrainingConfig):
