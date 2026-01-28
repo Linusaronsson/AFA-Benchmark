@@ -1,0 +1,3 @@
+# When you only want to train with soft budget
+eval_hard_budgets:
+  default: []
