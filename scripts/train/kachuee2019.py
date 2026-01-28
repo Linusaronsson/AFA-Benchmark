@@ -175,12 +175,7 @@ class Kachuee2019RLTrainer(RLTrainer):
     def _get_reward_fn(self) -> AFARewardFn:
         return get_kachuee2019_reward_fn(
             pretrained_model=self.pretrained_model.pq_module,
-            selection_costs=(
-                0
-                if self.typed_cfg.soft_budget_param is None
-                else self.typed_cfg.soft_budget_param
-            )
-            * self.unnormalized_selection_costs.to(self.device),
+            selection_costs=self.unnormalized_selection_costs.to(self.device),
             n_feature_dims=self._n_feature_dims,
             method=self.typed_cfg.reward_method,
             mcdrop_samples=self.typed_cfg.mcdrop_samples,
