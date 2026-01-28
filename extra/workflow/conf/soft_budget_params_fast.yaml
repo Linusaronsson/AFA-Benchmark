@@ -14,9 +14,7 @@ soft_budget_params:
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
-    default: [1, 0.1]
-    afa_context_without_noise: [0.464, 0.462]
-    cube_without_noise: [0.7, 0.4]
+    default: [0.01, 0.001, 0.0001]
   odin_model_based: *odin
   random_dummy:
     default: [0.3, 0.7]
