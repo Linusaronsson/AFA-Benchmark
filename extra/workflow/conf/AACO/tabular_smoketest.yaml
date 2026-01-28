@@ -28,7 +28,8 @@ smoke_test: true
 
 # Small tabular datasets only (fast smoke test)
 datasets:
-  - afa_context
+  - afa_context_without_noise
+  - cube_without_noise
 
 # Methods to run
 methods:
@@ -42,13 +43,17 @@ unmaskers:
 
 # Minimal hard budgets for quick testing
 eval_hard_budgets:
-  default: [5, 10]
+  default: [5, 10, 15]
 
 # Minimal soft budget params for testing
 soft_budget_params:
   aaco:
     default:
+      - [0.01, null]
       - [0.05, null]
+      - [0.1, null]
   aaco_nn:
     default:
+      - [0.01, null]
       - [0.05, null]
+      - [0.1, null]

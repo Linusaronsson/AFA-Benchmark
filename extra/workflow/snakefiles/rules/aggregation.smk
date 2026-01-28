@@ -75,12 +75,13 @@ rule split_by_classifier_type:
         "extra/output/merged_results/eval_perf/method_set-{method_set}+classifier_type-builtin.csv",
         "extra/output/merged_results/eval_perf/method_set-{method_set}+classifier_type-external.csv"
     resources:
-        shell_exec="nu"
+        shell_exec="bash"
     shell:
         """
-            let df = open {input}
-            $df | where {{$in.classifier == builtin}} | reject classifier | save {output[0]}
-            $df | where {{$in.classifier == external}} | reject classifier | save {output[1]}
+            python scripts/misc/split_eval_perf_by_classifier.py \
+                --input_path {input} \
+                --output_builtin {output[0]} \
+                --output_external {output[1]}
         """
 
 
@@ -126,10 +127,16 @@ rule time_df_with_pretrain:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "combined_time.csv"
     resources:
-        shell_exec="nu"
+        shell_exec="bash"
     shell:
         """
-        {{afa_method: {wildcards.method}, dataset: {wildcards.dataset}, time_pretrain: (open {input[0]}), time_train: (open {input[1]}), time_eval: (open {input[2]})}} | save {output}
+        python scripts/misc/merge_time_results.py \
+            --output_path {output} \
+            --method {wildcards.method} \
+            --dataset {wildcards.dataset} \
+            --time_pretrain_path {input[0]} \
+            --time_train_path {input[1]} \
+            --time_eval_path {input[2]}
         """
 
 
@@ -168,10 +175,15 @@ rule time_df_without_pretrain:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "combined_time.csv"
     resources:
-        shell_exec="nu"
+        shell_exec="bash"
     shell:
         """
-        {{afa_method: {wildcards.method}, dataset: {wildcards.dataset}, time_pretrain: null, time_train: (open {input[0]}), time_eval: (open {input[1]})}} | save {output}
+        python scripts/misc/merge_time_results.py \
+            --output_path {output} \
+            --method {wildcards.method} \
+            --dataset {wildcards.dataset} \
+            --time_train_path {input[0]} \
+            --time_eval_path {input[1]}
         """
 
 

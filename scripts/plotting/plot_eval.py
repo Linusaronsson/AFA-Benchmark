@@ -198,16 +198,16 @@ def read_csv(input_csv_path: Path) -> pl.DataFrame:
             "forced_stop": pl.Boolean,
             "eval_seed": pl.Int64,
             "eval_hard_budget": pl.Float64,
-            "train_soft_budget_param": pl.Float64,
-            "eval_soft_budget_param": pl.Float64,
             "selections_performed": pl.Int64,
             "afa_method": pl.String,
             "dataset": pl.String,
             "train_seed": pl.Int64,
             "train_hard_budget": pl.Float64,
+            "train_soft_budget_param": pl.Float64,
+            "eval_soft_budget_param": pl.Float64,
             "predicted_class": pl.Int64,
         },
-        null_values=["null"],
+        null_values=["", "null", "nan", "NaN"],
     )
 
 
@@ -352,7 +352,13 @@ def main() -> None:
     )
 
     # Only consider performance at stop action
-    df = df.filter(pl.col("action_performed") == 0)
+    df = df.filter(
+        (pl.col("action_performed") == 0)
+        & pl.col("predicted_class").is_not_null()
+    )
+    if df.is_empty():
+        print(f"No predictions available in {args.input}. Skipping.")
+        return
 
     metric_df = get_metrics_at_stop_action(df)
 
@@ -383,8 +389,11 @@ def main() -> None:
     df_soft_budget = var_metric_df.filter(
         pl.col("soft_budget_param").is_null().not_()
     )
-    soft_budget_plot = get_soft_budget_plot(df_soft_budget)
-    soft_budget_plot.save(args.output_folder / "soft_budget.pdf")
+    if df_soft_budget.is_empty():
+        print(f"No soft-budget data in {args.input}. Skipping.")
+    else:
+        soft_budget_plot = get_soft_budget_plot(df_soft_budget)
+        soft_budget_plot.save(args.output_folder / "soft_budget.pdf")
 
 
 if __name__ == "__main__":

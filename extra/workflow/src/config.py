@@ -274,13 +274,23 @@ def _create_budget_combinations(
     # Soft budget combinations
     for soft_budget_tuple in soft_budget_params:
         # soft_budget_tuple is [train_soft_budget_param, eval_soft_budget_param]
-        train_soft_budget_param = soft_budget_tuple[0]
-        eval_soft_budget_param = soft_budget_tuple[1]
+        train_soft_budget_param = _normalize_nullable_param(
+            soft_budget_tuple[0]
+        )
+        eval_soft_budget_param = _normalize_nullable_param(
+            soft_budget_tuple[1]
+        )
         result.append(
             ("null", "null", train_soft_budget_param, eval_soft_budget_param)
         )
 
     return result
+
+
+def _normalize_nullable_param(value):
+    if value is None:
+        return "null"
+    return value
 
 
 def _get_train_hard_budget_from_eval(

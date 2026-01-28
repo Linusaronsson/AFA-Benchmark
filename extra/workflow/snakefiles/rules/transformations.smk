@@ -46,11 +46,13 @@ rule transform_eval_data:
         shell_exec="bash"
     shell:
         """
-        python scripts/misc/transform_eval_data_pipeline.py {input} {output} \
-            {wildcards.method} \
-            {wildcards.dataset} \
-            {wildcards.train_seed} \
-            {wildcards.train_hard_budget} \
-            {wildcards.train_soft_budget_param} \
-            {wildcards.eval_soft_budget_param}
+        python scripts/misc/transform_eval_data_pipeline.py \
+            --input_path {input} \
+            --output_path {output} \
+            --method {wildcards.method} \
+            --dataset {wildcards.dataset} \
+            --train_seed {wildcards.train_seed} \
+            --train_hard_budget {wildcards.train_hard_budget} \
+            --train_soft_budget_param {wildcards.train_soft_budget_param} \
+            --eval_soft_budget_param {wildcards.eval_soft_budget_param}
         """
