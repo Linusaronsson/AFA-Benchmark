@@ -198,7 +198,8 @@ def read_csv(input_csv_path: Path) -> pl.DataFrame:
             "forced_stop": pl.Boolean,
             "eval_seed": pl.Int64,
             "eval_hard_budget": pl.Float64,
-            "soft_budget_param": pl.Float64,
+            "train_soft_budget_param": pl.Float64,
+            "eval_soft_budget_param": pl.Float64,
             "selections_performed": pl.Int64,
             "afa_method": pl.String,
             "dataset": pl.String,
@@ -212,7 +213,7 @@ def read_csv(input_csv_path: Path) -> pl.DataFrame:
 
 def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
     df = df.group_by(
-        "afa_method", "dataset", "eval_hard_budget", "train_soft_budget_param"
+        "afa_method", "dataset", "eval_hard_budget", "soft_budget_param"
     ).agg(
         mean_accuracy=pl.col("accuracy").mean(),
         std_accuracy=pl.col("accuracy").std(),
@@ -380,7 +381,7 @@ def main() -> None:
     hard_budget_plot.save(args.output_folder / "hard_budget.pdf")
 
     df_soft_budget = var_metric_df.filter(
-        pl.col("train_soft_budget_param").is_null().not_()
+        pl.col("soft_budget_param").is_null().not_()
     )
     soft_budget_plot = get_soft_budget_plot(df_soft_budget)
     soft_budget_plot.save(args.output_folder / "soft_budget.pdf")

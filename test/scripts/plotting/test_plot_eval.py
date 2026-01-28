@@ -18,25 +18,63 @@ def test_plot_eval_script_runs_without_crashing(tmp_path: Path) -> None:
     rng = np.random.default_rng(42)
     n = 500
 
-    df = pd.DataFrame(
+    # Create hard budget and soft budget data separately to ensure
+    # that exactly one is set (not both) as per the script's assertion
+    hard_budget_rows = n // 2
+    soft_budget_rows = n - hard_budget_rows
+
+    # Hard budget data: train_soft_budget_param is null
+    hard_budget_df = pd.DataFrame(
         {
-            "afa_method": rng.choice(["random_dummy", "aaco"], n),
-            "classifier": rng.choice(["builtin", "external"], n),
-            "dataset": rng.choice(["cube", "afa_context"], n),
-            "predicted_class": rng.integers(0, 5, n),
-            "true_class": rng.integers(0, 5, n),
-            "train_seed": rng.choice([1, 2], n),
-            "eval_seed": rng.choice([1, 2], n),
-            "accumulated_cost": rng.uniform(0.5, 15.0, n),
-            "eval_hard_budget": np.where(
-                rng.random(n) > 0.5, rng.choice([5, 10, 15], n), np.nan
+            "afa_method": rng.choice(
+                ["random_dummy", "aaco"], hard_budget_rows
             ),
-            "train_soft_budget_param": np.where(
-                rng.random(n) > 0.5, rng.choice([0.1, 1.0], n), np.nan
+            "dataset": rng.choice(["cube", "afa_context"], hard_budget_rows),
+            "predicted_class": rng.integers(0, 5, hard_budget_rows),
+            "true_class": rng.integers(0, 5, hard_budget_rows),
+            "train_seed": rng.choice([1, 2], hard_budget_rows),
+            "eval_seed": rng.choice([1, 2], hard_budget_rows),
+            "accumulated_cost": rng.uniform(0.5, 15.0, hard_budget_rows),
+            "eval_hard_budget": rng.choice(
+                [5.0, 10.0, 15.0], hard_budget_rows
             ),
-            "action_performed": rng.choice([0, 1, 2], n),
+            "train_soft_budget_param": np.nan,
+            "eval_soft_budget_param": np.nan,
+            "action_performed": 0,
+            "idx": 0,
+            "forced_stop": False,
+            "selections_performed": 0,
+            "train_hard_budget": np.nan,
         }
     )
+
+    # Soft budget data: eval_hard_budget is null
+    soft_budget_df = pd.DataFrame(
+        {
+            "afa_method": rng.choice(
+                ["random_dummy", "aaco"], soft_budget_rows
+            ),
+            "dataset": rng.choice(["cube", "afa_context"], soft_budget_rows),
+            "predicted_class": rng.integers(0, 5, soft_budget_rows),
+            "true_class": rng.integers(0, 5, soft_budget_rows),
+            "train_seed": rng.choice([1, 2], soft_budget_rows),
+            "eval_seed": rng.choice([1, 2], soft_budget_rows),
+            "accumulated_cost": rng.uniform(0.5, 15.0, soft_budget_rows),
+            "eval_hard_budget": np.nan,
+            "train_soft_budget_param": rng.choice(
+                [0.1, 0.5, 1.0], soft_budget_rows
+            ),
+            "eval_soft_budget_param": np.nan,
+            "action_performed": 0,
+            "idx": 0,
+            "forced_stop": False,
+            "selections_performed": 0,
+            "train_hard_budget": np.nan,
+        }
+    )
+
+    # Combine data
+    df = pd.concat([hard_budget_df, soft_budget_df], ignore_index=True)
 
     # Save dummy CSV
     input_csv = tmp_path / "dummy_eval.csv"
