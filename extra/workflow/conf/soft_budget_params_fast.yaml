@@ -15,11 +15,11 @@ soft_budget_params:
   ol_with_mask: *ol
   odin_model_free: &odin
     default:
-      - 0.00001
-      - 0.0000001
-      - 0.000000001
-      - 0.00000000001
-      - 0.0000000000001
+      - 0.001
+      - 0.01
+      - 0.1
+      - 0.5
+      - 0.8
   odin_model_based: *odin
   random_dummy:
     default: [0.3, 0.7]
