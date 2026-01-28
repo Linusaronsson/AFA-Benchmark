@@ -328,6 +328,9 @@ class Shim2018TrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     pretrained_model_bundle_path: str
+    classifier_dataset_bundle_path: (
+        str | None
+    )  # not needed for this method, but pipeline passes it to us
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -724,6 +727,9 @@ cs.store(name="resave", node=ResaveConfig)
 class RandomDummyTrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_dataset_bundle_path: (
+        str | None
+    )  # not needed for this method, but pipeline passes it to us
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -745,6 +751,9 @@ cs.store(name="train_random_dummy", node=RandomDummyTrainConfig)
 class SequentialDummyTrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_dataset_bundle_path: (
+        str | None
+    )  # not needed for this method, but pipeline passes it to us
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -807,6 +816,9 @@ class Zannone2019TrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     pretrained_model_bundle_path: str
+    classifier_dataset_bundle_path: (
+        str | None
+    )  # not needed for this method, but pipeline passes it to us
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -866,6 +878,9 @@ class Kachuee2019TrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     pretrained_model_bundle_path: str
+    classifier_dataset_bundle_path: (
+        str | None
+    )  # not needed for this method, but pipeline passes it to us
     save_path: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
