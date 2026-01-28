@@ -2,6 +2,7 @@ import torch
 from jaxtyping import Bool
 from torch import Tensor
 from torch.nn import functional as F
+import pdb
 
 from afabench.afa_rl.common.custom_types import (
     AFAReward,
@@ -27,9 +28,9 @@ def get_zannone2019_reward_fn(
     """Return the reward function for zannone2019."""
 
     def f(
-        _masked_features: MaskedFeatures,
+        masked_features: MaskedFeatures,
         _feature_mask: FeatureMask,
-        selection_mask: SelectionMask,
+        _selection_mask: SelectionMask,
         new_masked_features: MaskedFeatures,
         new_feature_mask: FeatureMask,
         new_selection_mask: SelectionMask,
@@ -38,12 +39,6 @@ def get_zannone2019_reward_fn(
         label: Label,
         _done: Bool[Tensor, "*batch 1"],
     ) -> AFAReward:
-        # Acquisition cost per selection
-        newly_performed_selections = (new_selection_mask & ~selection_mask).to(
-            torch.float32
-        )
-        reward = -(newly_performed_selections * selection_costs).sum(dim=-1)
-
         # PVAE expects 1D features
         flat_new_masked_features = new_masked_features.flatten(
             start_dim=-n_feature_dims
@@ -51,6 +46,8 @@ def get_zannone2019_reward_fn(
         flat_new_feature_mask = new_feature_mask.flatten(
             start_dim=-n_feature_dims
         )
+        assert flat_new_masked_features.ndim == 2
+        batch_size, n_features = flat_new_masked_features.shape
 
         # We don't get to observe the label
         new_augmented_masked_features = torch.cat(
@@ -63,13 +60,15 @@ def get_zannone2019_reward_fn(
             new_augmented_masked_features, new_augmented_feature_mask
         )
         logits = pretrained_model.classifier(mu)
-        ce_loss = F.cross_entropy(
-            logits,
-            label.float(),
-            weight=weights,
-            reduction="none",
+
+        # Only consider prediction value of true class
+        prob_true_class = logits.softmax(dim=-1)[
+            torch.arange(batch_size), label.argmax(dim=-1)
+        ]
+        cost = (new_selection_mask.to(torch.float32) * selection_costs).sum(
+            dim=-1
         )
-        reward += -ce_loss
+        reward = prob_true_class - cost
 
         return reward
 
