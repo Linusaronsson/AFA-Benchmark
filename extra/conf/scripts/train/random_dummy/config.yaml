@@ -15,7 +15,7 @@ defaults:
 
 train_dataset_bundle_path: ???
 val_dataset_bundle_path: ???
-classifier_dataset_bundle_path: null # not needed for this method, but pipeline passes it to us
+classifier_bundle_path: null # not needed for this method, but pipeline passes it to us
 save_path: ???
 # initializer set as component
 # unmasker set as component
