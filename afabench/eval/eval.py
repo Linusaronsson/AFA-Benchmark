@@ -83,11 +83,11 @@ def single_afa_step(
     new_masked_features = features.clone()
     new_masked_features[~new_feature_mask] = 0.0
 
-    # Allow classifiers to make predictions using new masked features
+    # Allow classifiers to make predictions using **current** features
     if external_afa_predict_fn is not None:
         external_prediction = external_afa_predict_fn(
-            masked_features=new_masked_features,
-            feature_mask=new_feature_mask,
+            masked_features=masked_features,
+            feature_mask=feature_mask,
             label=label,
             feature_shape=feature_shape,
         )
@@ -96,8 +96,8 @@ def single_afa_step(
 
     if builtin_afa_predict_fn is not None:
         builtin_prediction = builtin_afa_predict_fn(
-            masked_features=new_masked_features,
-            feature_mask=new_feature_mask,
+            masked_features=masked_features,
+            feature_mask=feature_mask,
             label=label,
             feature_shape=feature_shape,
         )
