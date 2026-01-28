@@ -13,51 +13,53 @@ soft_budget_params:
       - [0.001, null]
       - [0.0001, null]
       - [0.00001, null]
-    afa_context:
-      - [0.01, null]
-      - [0.001, null]
-      - [0.0000001, null]
-      - [0.0000000001, null]
-    afa_context_without_noise:
-      - [0.01, null]
-      - [0.001, null]
-      - [0.0000001, null]
-      - [0.0000000001, null]
-    diabetes:
-      - [0.01, null]
-      - [0.00001, null]
-      - [0.00000001, null]
-      - [0.00000000001, null]
-      - [0.0000000000001, null]
-    miniboone:
-      - [0.01, null]
-      - [0.005, null]
-      - [0.001, null]
-      - [0.0001, null]
-      - [0.000001, null]
-      - [0.00000001, null]
-      - [0.0000000001, null]
-    physionet:
-      - [0.01, null]
-      - [0.001, null]
-      - [0.0001, null]
-      - [0.00001, null]
-      - [0.000001, null]
+    # afa_context:
+    #   - [0.01, null]
+    #   - [0.001, null]
+    #   - [0.0000001, null]
+    #   - [0.0000000001, null]
+    # afa_context_without_noise:
+    #   - [0.01, null]
+    #   - [0.001, null]
+    #   - [0.0000001, null]
+    #   - [0.0000000001, null]
+    # diabetes:
+    #   - [0.01, null]
+    #   - [0.00001, null]
+    #   - [0.00000001, null]
+    #   - [0.00000000001, null]
+    #   - [0.0000000000001, null]
+    # miniboone:
+    #   - [0.01, null]
+    #   - [0.005, null]
+    #   - [0.001, null]
+    #   - [0.0001, null]
+    #   - [0.000001, null]
+    #   - [0.00000001, null]
+    #   - [0.0000000001, null]
+    # physionet:
+    #   - [0.01, null]
+    #   - [0.001, null]
+    #   - [0.0001, null]
+    #   - [0.00001, null]
+    #   - [0.000001, null]
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
     default:
-      - [1, null]
-      - [0.9, null]
-      - [0.8, null]
-      - [0.7, null]
-      - [0.6, null]
-      - [0.5, null]
-      - [0.4, null]
-      - [0.3, null]
-      - [0.2, null]
-      - [0.1, null]
+      - [0.05, null]
+      - [0.1, null] # good performance, observes 20%
+      - [0.15, null]
+      - [0.20, null]
+    # synthetic_mnist_without_noise:
+      # - [0.01, null] # diverges
+      # - [0.1, null] # good performance, observes 20%
+      # - [0.5, null] # too large, collapses to stop action
+    # cube_without_noise:
+      # - [0.01, null] # too small, chooses all features
+      # - [0.1, null] # good performance, observes 50%
+      # - [0.5, null] # too large, collapses to stop action
   odin_model_based: *odin
   random_dummy:
     default:

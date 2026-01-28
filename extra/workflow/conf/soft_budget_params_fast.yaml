@@ -1,3 +1,4 @@
+# Fill this config when you have done a full sweep and only want the edge cases
 soft_budget_params:
   aaco:
     default:
@@ -8,22 +9,12 @@ soft_budget_params:
       - [0.05, null]
       - [0.01, null]
   jafa:
-    default:
-      - [0.01, null]
-      - [0.00001, null]
-    afa_context_without_noise:
-      - [0.01, null]
-      - [0.0000000001, null]
+    default: []
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
-    default:
-      - [0.001, null]
-      - [0.01, null]
-      - [0.1, null]
-      - [0.5, null]
-      - [0.8, null]
+    default: []
   odin_model_based: *odin
   random_dummy:
     default:
