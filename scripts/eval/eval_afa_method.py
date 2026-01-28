@@ -154,6 +154,10 @@ def main(cfg: EvalConfig) -> None:
     unmasker.set_seed(cfg.seed)
     initializer.set_seed(cfg.seed)
 
+    # Some methods require a soft budget parameter set during evaluation instead of training
+    if cfg.soft_budget_param is not None:
+        afa_method.set_cost_param(cost_param=cfg.soft_budget_param)
+
     if cfg.hard_budget is not None:
         hard_budget_str = f"hard budget {cfg.hard_budget}"
     else:

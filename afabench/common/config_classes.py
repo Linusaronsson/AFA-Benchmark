@@ -1035,6 +1035,8 @@ class EvalConfig:
     batch_size: int
     # Set a hard budget during evaluation
     hard_budget: int | None = None
+    # Some methods require a soft budget parameter during evaluation, not training
+    soft_budget_param: float | None = None
     # Whether to log to wandb
     use_wandb: bool = False
     smoke_test: bool = False
