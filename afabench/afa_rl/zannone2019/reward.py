@@ -1,8 +1,6 @@
 import torch
 from jaxtyping import Bool
 from torch import Tensor
-from torch.nn import functional as F
-import pdb
 
 from afabench.afa_rl.common.custom_types import (
     AFAReward,
@@ -21,14 +19,14 @@ from afabench.common.custom_types import (
 
 def get_zannone2019_reward_fn(
     pretrained_model: Zannone2019PretrainingModel,
-    weights: Tensor,
+    weights: Tensor,  # noqa: ARG001
     selection_costs: torch.Tensor,
     n_feature_dims: int,
 ) -> AFARewardFn:
     """Return the reward function for zannone2019."""
 
     def f(
-        masked_features: MaskedFeatures,
+        masked_features: MaskedFeatures,  # noqa: ARG001
         _feature_mask: FeatureMask,
         _selection_mask: SelectionMask,
         new_masked_features: MaskedFeatures,
@@ -47,7 +45,7 @@ def get_zannone2019_reward_fn(
             start_dim=-n_feature_dims
         )
         assert flat_new_masked_features.ndim == 2
-        batch_size, n_features = flat_new_masked_features.shape
+        batch_size, _n_features = flat_new_masked_features.shape
 
         # We don't get to observe the label
         new_augmented_masked_features = torch.cat(
