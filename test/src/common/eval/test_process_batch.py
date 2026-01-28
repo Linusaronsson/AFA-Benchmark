@@ -1,540 +1,159 @@
-import pandas as pd
-import pytest
+import polars as pl
 import torch
 
 from afabench.common.custom_types import (
-    AFAAction,
-    AFASelection,
-    FeatureMask,
     Features,
     Label,
-    MaskedFeatures,
-    SelectionMask,
 )
-from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.eval.eval import process_batch
-from afabench.test.eval.helpers import (
-    assert_terminated_after_n_steps,
-    assert_where_selections_there_action,
-    assert_where_selections_there_cost,
-    get_batch_from_costs_and_budget,
-    get_batched_deterministic_afa_action_fn,
-    get_deterministic_afa_action_fn,
+from afabench.test.helpers import (
+    get_deterministic_action_fn,
+    get_deterministic_afa_predict_fn,
+    get_direct_unmask_fn,
+    get_random_afa_predict_fn,
 )
 
 
-def random_afa_action_fn(
-    masked_features: MaskedFeatures,
-    feature_mask: FeatureMask,  # noqa: ARG001
-    selection_mask: SelectionMask | None = None,  # noqa: ARG001
-    label: Label | None = None,  # noqa: ARG001
-    feature_shape: torch.Size | None = None,  # noqa: ARG001
-) -> AFAAction:
-    # Random selection (not 0)
-    return torch.randint(
-        1, 5, (masked_features.shape[0], 1), dtype=torch.int64
-    )
+def process_batch_wrapper(
+    actions: list[list[int]],
+    features: Features | None = None,
+    external_predictions: list[list[int]] | None = None,
+    builtin_predictions: list[list[int]] | None = None,
+    true_label: Label | None = None,
+    selection_budget: float | None = None,
+) -> pl.DataFrame:
+    if features is None:
+        features = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]])
+    assert features.ndim == 2, "Only 1D features with batch dim supported"
+    n_samples = features.shape[0]
+    n_features = features.shape[-1]
 
+    if true_label is None:
+        true_label = torch.zeros((n_samples, 4), dtype=torch.float32)
+    n_classes = true_label.shape[-1]
 
-def get_deterministic_action(  # noqa: PLR0911
-    sample_idx: int, selection_mask: torch.Tensor
-) -> int:
-    if sample_idx == 0:
-        if (selection_mask == torch.tensor([0, 0, 0, 0])).all():
-            return 3
-        if (selection_mask == torch.tensor([0, 0, 1, 0])).all():
-            return 1
-        if (selection_mask == torch.tensor([1, 0, 1, 0])).all():
-            return 2
-        if (selection_mask == torch.tensor([1, 1, 1, 0])).all():
-            return 0
-    elif sample_idx == 1:
-        if (selection_mask == torch.tensor([0, 0, 0, 0])).all():
-            return 2
-        if (selection_mask == torch.tensor([0, 1, 0, 0])).all():
-            return 4
-        if (selection_mask == torch.tensor([0, 1, 0, 1])).all():
-            return 0
-    msg = "Not reachable"
-    raise RuntimeError(msg)
-
-
-def deterministic_afa_action_fn(
-    masked_features: MaskedFeatures,
-    feature_mask: FeatureMask,  # noqa: ARG001
-    selection_mask: SelectionMask | None = None,
-    label: Label | None = None,  # noqa: ARG001
-    feature_shape: torch.Size | None = None,  # noqa: ARG001
-) -> AFAAction:
-    assert selection_mask is not None
-    batch_size = masked_features.shape[0]
-    actions = torch.zeros(batch_size, 1, dtype=torch.int)
-    for sample_idx in range(batch_size):
-        actions[sample_idx] = get_deterministic_action(
-            sample_idx, selection_mask[sample_idx]
+    if external_predictions is None:
+        external_afa_predict_fn = get_random_afa_predict_fn(
+            n_classes=n_classes
         )
-    return actions
-
-
-def get_deterministic_builtin_prediction(
-    sample_idx: int, masked_features: torch.Tensor
-) -> int:
-    if sample_idx == 0:
-        if torch.allclose(
-            masked_features,
-            torch.tensor([1.0, 2.0, 0.0, 0.0, 5.0, 6.0, 0.0, 0.0]),
-        ):
-            return 1
-        if torch.allclose(
-            masked_features,
-            torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.0, 0.0]),
-        ):
-            return 0
-    elif sample_idx == 1:
-        if torch.allclose(
-            masked_features,
-            torch.tensor([0.0, 0.0, 11.0, 12.0, 0.0, 0.0, 0.0, 0.0]),
-        ):
-            return 1
-        if torch.allclose(
-            masked_features,
-            torch.tensor([0.0, 0.0, 11.0, 12.0, 0.0, 0.0, 15.0, 16.0]),
-        ):
-            return 2
-    msg = "Not reachable"
-    raise RuntimeError(msg)
-
-
-def get_deterministic_external_prediction(
-    sample_idx: int, masked_features: torch.Tensor
-) -> int:
-    print(f"{sample_idx=}, {masked_features=}")
-    if sample_idx == 0:
-        if torch.allclose(
-            masked_features,
-            torch.tensor([1.0, 2.0, 0.0, 0.0, 5.0, 6.0, 0.0, 0.0]),
-        ):
-            return 2
-        if torch.allclose(
-            masked_features,
-            torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.0, 0.0]),
-        ):
-            return 1
-    elif sample_idx == 1:
-        if torch.allclose(
-            masked_features,
-            torch.tensor([0.0, 0.0, 11.0, 12.0, 0.0, 0.0, 0.0, 0.0]),
-        ):
-            return 2
-        if torch.allclose(
-            masked_features,
-            torch.tensor([0.0, 0.0, 11.0, 12.0, 0.0, 0.0, 15.0, 16.0]),
-        ):
-            return 2
-    msg = "Not reachable"
-    raise RuntimeError(msg)
-
-
-def deterministic_builtin_afa_predict_fn(
-    masked_features: MaskedFeatures,
-    feature_mask: FeatureMask,  # noqa: ARG001
-    label: Label | None = None,  # noqa: ARG001
-    feature_shape: torch.Size | None = None,  # noqa: ARG001
-) -> Label:
-    batch_size = masked_features.shape[0]
-    predictions = torch.zeros((batch_size, 3), dtype=torch.float32)
-    for sample_idx in range(batch_size):
-        class_pred = get_deterministic_builtin_prediction(
-            sample_idx, masked_features[sample_idx]
+    else:
+        external_afa_predict_fn = get_deterministic_afa_predict_fn(
+            external_predictions, n_classes=n_classes
         )
-        predictions[sample_idx, class_pred] = 1.0
-    return predictions
-
-
-def deterministic_external_afa_predict_fn(
-    masked_features: MaskedFeatures,
-    feature_mask: FeatureMask,  # noqa: ARG001
-    label: Label | None = None,  # noqa: ARG001
-    feature_shape: torch.Size | None = None,  # noqa: ARG001
-) -> Label:
-    batch_size = masked_features.shape[0]
-    predictions = torch.zeros((batch_size, 3), dtype=torch.float32)
-    for sample_idx in range(batch_size):
-        class_pred = get_deterministic_external_prediction(
-            sample_idx, masked_features[sample_idx]
+    if builtin_predictions is None:
+        builtin_afa_predict_fn = get_random_afa_predict_fn(n_classes=n_classes)
+    else:
+        builtin_afa_predict_fn = get_deterministic_afa_predict_fn(
+            builtin_predictions, n_classes=n_classes
         )
-        predictions[sample_idx, class_pred] = 1.0
-    return predictions
 
-
-def afa_unmask_fn(
-    masked_features: MaskedFeatures,
-    feature_mask: FeatureMask,
-    features: Features,  # noqa: ARG001
-    afa_selection: AFASelection,
-    selection_mask: SelectionMask,  # noqa: ARG001
-    label: Label | None = None,  # noqa: ARG001
-    feature_shape: torch.Size | None = None,  # noqa: ARG001
-) -> FeatureMask:
-    # 8 features but selection is 0-3 (0-based). Unmask a "block" of features.
-    batch_size, num_features = masked_features.shape
-    new_feature_mask = feature_mask.clone()
-    for i in range(batch_size):
-        selection = int(afa_selection[i].item())
-        if selection >= 0:
-            start_idx = selection * 2
-            end_idx = min(start_idx + 2, num_features)
-            new_feature_mask[i, start_idx:end_idx] = 1
-
-    return new_feature_mask
-
-
-@pytest.fixture
-def features() -> torch.Tensor:
-    return torch.tensor(
-        [[1, 2, 3, 4, 5, 6, 7, 8], [9, 10, 11, 12, 13, 14, 15, 16]],
-        dtype=torch.float32,
-    )
-
-
-@pytest.fixture
-def feature_mask() -> torch.Tensor:
-    return torch.tensor(
-        [[1, 1, 0, 0, 0, 0, 0, 0], [0, 0, 1, 1, 0, 0, 0, 0]], dtype=torch.bool
-    )
-
-
-@pytest.fixture
-def masked_features() -> torch.Tensor:
-    return torch.tensor(
-        [[1, 2, 0, 0, 0, 0, 0, 0], [0, 0, 11, 12, 0, 0, 0, 0]],
-        dtype=torch.float32,
-    )
-
-
-@pytest.fixture
-def true_label() -> torch.Tensor:
-    return torch.tensor([[1, 0], [0, 1]], dtype=torch.int64)
-
-
-def create_expected_eval_df(
-    actions: list[int],
-    builtin_preds: list[int],
-    external_preds: list[int],
-    true_class: int,
-) -> pd.DataFrame:
-    assert len(actions) == len(builtin_preds) == len(external_preds)
-    # The stop actions must always come last
-    if 0 in actions:
-        assert 0 not in actions[:-1]
-    rows = []
-    prev_selections = []
-    for action, builtin_pred, external_pred in zip(
-        actions, builtin_preds, external_preds, strict=True
-    ):
-        rows.append(
-            {
-                "prev_selections_performed": prev_selections.copy(),
-                "action_performed": action,
-                "builtin_predicted_class": builtin_pred,
-                "external_predicted_class": external_pred,
-                "true_class": true_class,
-            }
-        )
-        prev_selections.append(action - 1)
-    return pd.DataFrame(rows)
-
-
-def is_column_subset_row(row: pd.Series, expected_row: pd.Series) -> bool:
-    """
-    Check whether row is a subset of expected_row column-wise.
-
-    This means that row can contain columns that are not in expected_row.
-    Only compares columns that exist in both row and expected_row.
-    """
-    for key, value in expected_row.items():
-        if key not in row or row[key] != value:
-            return False
-    return True
-
-
-def is_column_subset_df(df: pd.DataFrame, expected_df: pd.DataFrame) -> bool:
-    """
-    Check whether df is a subset of expected_df column-wise.
-
-    This means that expected_df can contain columns that are not in df, but they have to have the same number of rows.
-    """
-    for _, row in df.iterrows():
-        row_matched = False
-        for _, expected_row in expected_df.iterrows():
-            if is_column_subset_row(row, expected_row):
-                row_matched = True
-                break
-        assert row_matched, (
-            f"\n{row}\n did not match any row in the expected dataframe \n{expected_df.to_string()}\n"
-        )
-    return True
-
-
-def test_batch_dynamics_without_budget(
-    features: torch.Tensor,
-    masked_features: torch.Tensor,
-    feature_mask: torch.Tensor,
-    true_label: torch.Tensor,
-) -> None:
-    """Test that process_batch correctly simulates feature acquisition with deterministic actions and predictions."""
+    initial_feature_mask = torch.zeros_like(features, dtype=torch.bool)
+    initial_masked_features = torch.zeros_like(features)
+    n_selection_choices = n_features
     df = process_batch(
-        afa_action_fn=deterministic_afa_action_fn,
-        afa_unmask_fn=afa_unmask_fn,
-        n_selection_choices=4,
+        # afa_action_fn=get_sequential_action_fn(),
+        afa_action_fn=get_deterministic_action_fn(actions),
+        afa_unmask_fn=get_direct_unmask_fn(),
+        n_selection_choices=n_selection_choices,
         features=features,
-        initial_masked_features=masked_features,
-        initial_feature_mask=feature_mask,
+        initial_feature_mask=initial_feature_mask,
+        initial_masked_features=initial_masked_features,
         true_label=true_label,
-        external_afa_predict_fn=deterministic_external_afa_predict_fn,
-        builtin_afa_predict_fn=deterministic_builtin_afa_predict_fn,
-        selection_budget=None,
+        feature_shape=torch.Size((n_features,)),
+        external_afa_predict_fn=external_afa_predict_fn,
+        builtin_afa_predict_fn=builtin_afa_predict_fn,
+        selection_budget=selection_budget,
+        selection_costs=None,
     )
-
-    # Quick check that dataframe at least contains the correct column names
-    assert "prev_selections_performed" in df
-    assert "action_performed" in df
-    assert "builtin_predicted_class" in df
-    assert "external_predicted_class" in df
-    assert "true_class" in df
-
-    sample0_actions = [3, 1, 2, 0]
-    sample0_builtin_preds = [1, 1, 0, 0]
-    sample0_external_preds = [2, 2, 1, 1]
-
-    sample1_actions = [2, 4, 0]
-    sample1_builtin_preds = [1, 2, 2]
-    sample1_external_preds = [2, 2, 2]
-
-    expected_rows_sample0 = create_expected_eval_df(
-        sample0_actions,
-        sample0_builtin_preds,
-        sample0_external_preds,
-        true_class=0,
-    )
-    expected_rows_sample1 = create_expected_eval_df(
-        sample1_actions,
-        sample1_builtin_preds,
-        sample1_external_preds,
-        true_class=1,
-    )
-
-    expected_df = pd.concat([expected_rows_sample0, expected_rows_sample1])
-
-    # Check total number of rows
-    assert len(df) == len(expected_df), (
-        f"Expected {len(expected_df)} rows in DataFrame, got {len(df)}.\n"
-        f"Actual DataFrame:\n{df.to_string()}"
-    )
-
-    assert is_column_subset_df(df, expected_df), (
-        f"DataFrame does not contain expected rows.\n"
-        f"Expected rows to match:\n{expected_df}\n\n"
-        f"Actual DataFrame:\n{df.to_string()}"
-    )
+    df = pl.from_pandas(df)
+    return df
 
 
-def test_process_batch_tracks_costs() -> None:
-    # Arrange
-    deterministic_afa_action_fn = get_batched_deterministic_afa_action_fn(
-        actions=[
-            [
-                1,
-                3,
-                4,
-                2,
-                0,
-            ],  # sample 0: actions 1(cost 0), 3(cost 0), 4(cost 10), 2(cost 10) reach budget 20
-            [
-                4,
-                2,
-                1,
-                0,
-                0,
-            ],  # sample 1: action 4(cost 10), 2(cost 10) reach budget 20
-        ]
-    )
-    direct_unmasker = DirectUnmasker()
-
-    # Act
-    df = process_batch(
-        afa_action_fn=deterministic_afa_action_fn,
-        afa_unmask_fn=direct_unmasker.unmask,
-        n_selection_choices=4,
-        features=torch.tensor([[1, 2, 3, 4, 5]]),
-        initial_masked_features=torch.tensor([[0, 0, 0, 0, 0]]),
-        initial_feature_mask=torch.tensor([[0, 0, 0, 0, 0]], dtype=torch.bool),
-        true_label=torch.tensor([[0, 1]]),  # 2 classes, but does not matter
-        feature_shape=torch.Size((5,)),
-        external_afa_predict_fn=None,
-        builtin_afa_predict_fn=None,
-        selection_budget=None,
-        selection_costs=[3, 2, 4, 5, 100],  # last cost does not matter
-    )
-
-    # Assert
-    # Notice how the cost also includes the current action! We do this since the predictions also use the current action.
-    assert_where_selections_there_cost(df, selections=[], cost=3.0)
-    assert_where_selections_there_cost(df, selections=[0], cost=3.0 + 4.0)
-    assert_where_selections_there_cost(
-        df, selections=[0, 2], cost=3.0 + 4.0 + 5.0
-    )
-    assert_where_selections_there_cost(
-        df, selections=[0, 2, 3], cost=3.0 + 4.0 + 5.0 + 2.0
-    )
-    assert_where_selections_there_cost(
-        df, selections=[0, 2, 3, 1], cost=3.0 + 4.0 + 5.0 + 2.0
-    )
+def add_time_column(df: pl.DataFrame) -> pl.DataFrame:
+    return df.with_columns(time=pl.col("prev_selections_performed").list.len())
 
 
-def test_process_batch_respects_budget_nonuniform_cost() -> None:
-    # Arrange
-    deterministic_afa_action_fn = get_batched_deterministic_afa_action_fn(
-        actions=[
-            [
-                1,
-                3,
-                4,
-                2,
-                0,
-            ],  # sample 0, should terminate after 4 actions
-            [
-                4,
-                2,
-                1,
-                0,
-                0,
-            ],  # sample 1, should terminate after 2 actions
-        ]
-    )
-    direct_unmasker = DirectUnmasker()
-
-    # Act
-    # We don't care about features here
-    df = get_batch_from_costs_and_budget(
-        afa_action_fn=deterministic_afa_action_fn,
-        afa_unmask_fn=direct_unmasker.unmask,
-        selection_budget=20.0,
-        selection_costs=[
-            0,
-            10.1,
-            0,
-            10.1,
-            0,
-            0,
-        ],  # actions 2 and 4 exceed budget
-        batch_size=2,
-        n_features=6,
-    )
-
-    # Assert
-    assert_terminated_after_n_steps(df, idx=0, n_steps=4, forced=True)
-    assert_terminated_after_n_steps(df, idx=1, n_steps=2, forced=True)
-
-
-def test_process_batch_respects_budget_uniform_cost(
-    features: torch.Tensor,
-    masked_features: torch.Tensor,
-    feature_mask: torch.Tensor,
-    true_label: torch.Tensor,
+def assert_predictions(
+    df: pl.DataFrame,
+    idx: int,
+    expected_predictions: list[int],
+    prediction_type: str,
 ) -> None:
-    """Test that process_batch runs and does not include results that are incompatible with the budget given."""
-    df_batch = process_batch(
-        afa_action_fn=random_afa_action_fn,
-        afa_unmask_fn=afa_unmask_fn,
-        n_selection_choices=4,
+    if prediction_type == "external":
+        prediction_col = "external_predicted_class"
+    elif prediction_type == "builtin":
+        prediction_col = "builtin_predicted_class"
+    else:
+        raise ValueError
+    predictions = df.filter(pl.col("idx") == idx).sort("time")[prediction_col]
+    assert (predictions == expected_predictions).all(), (
+        f"Expected {predictions.to_list()} and {expected_predictions} to be equal."
+    )
+
+
+def test_expected_length() -> None:
+    """Test that the returned dataframe has an expected number of rows."""
+    features = torch.tensor([[1, 2, 3], [4, 5, 6]])
+    actions = [[1, 2, 3, 0], [1, 2, 3, 0]]
+
+    df = process_batch_wrapper(features=features, actions=actions)
+
+    # With 3 features, we should have 4 rows for each sample. We make one prediction at 0 features, 1 feature, 2 features, and 3 features
+    assert len(df.filter(pl.col("idx") == 0)) == 4
+    assert len(df.filter(pl.col("idx") == 1)) == 4
+    assert len(df) == 8
+
+
+def test_external_predictions() -> None:
+    # Batched
+    features = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]])
+    actions = [[1, 2, 3, 4, 0], [1, 2, 3, 4, 0]]
+    external_predictions = [[0, 1, 3, 2, 1], [3, 1, 0, 2, 0]]
+
+    df = process_batch_wrapper(
         features=features,
-        initial_masked_features=masked_features,
-        initial_feature_mask=feature_mask,
-        true_label=true_label,
-        external_afa_predict_fn=None,
-        builtin_afa_predict_fn=None,
-        selection_budget=2,
+        actions=actions,
+        external_predictions=external_predictions,
+    )
+    df = add_time_column(df)
+
+    assert_predictions(
+        df,
+        idx=0,
+        expected_predictions=external_predictions[0],
+        prediction_type="external",
     )
 
-    # We expect 4 rows, since each sample gets 2 selections, plus the stop action forced on them
-    assert len(df_batch) == 6, (
-        f"Expected 6 rows in the result DataFrame, got {len(df_batch)}."
+    assert_predictions(
+        df,
+        idx=1,
+        expected_predictions=external_predictions[1],
+        prediction_type="external",
     )
 
 
-def test_process_batch_can_reach_budget_and_continue() -> None:
-    # Arrange
-    n_features = 6
-    selection_costs = [5.0, 5.0, 0, 0, 0, 0]
-    deterministic_afa_action_fn = get_deterministic_afa_action_fn(
-        actions=[1, 2, 3, 4, 0],
+def test_builtin_predictions() -> None:
+    # Batched
+    features = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]])
+    actions = [[1, 2, 3, 4, 0], [1, 2, 3, 4, 0]]
+    builtin_predictions = [[0, 1, 3, 2, 1], [3, 1, 0, 2, 0]]
+
+    df = process_batch_wrapper(
+        features=features,
+        actions=actions,
+        builtin_predictions=builtin_predictions,
     )
-    direct_unmasker = DirectUnmasker()
-    selection_budget = 10.0
+    df = add_time_column(df)
 
-    # Act
-    df = get_batch_from_costs_and_budget(
-        afa_action_fn=deterministic_afa_action_fn,
-        afa_unmask_fn=direct_unmasker.unmask,
-        selection_budget=selection_budget,
-        selection_costs=selection_costs,
-        batch_size=1,
-        n_features=n_features,
+    assert_predictions(
+        df,
+        idx=0,
+        expected_predictions=builtin_predictions[0],
+        prediction_type="builtin",
     )
-
-    # Assert
-    # Even though we **reach** the budget after 2 steps, we don't exceed it, and are therefore allowed to continue until we choose the stop action
-    assert_terminated_after_n_steps(df, idx=0, n_steps=5, forced=False)
-
-
-def test_process_batch_forced_stop_action_if_exceeding_budget() -> None:
-    # Arrange
-    n_features = 4
-    selection_costs = [5.0, 5.1, 0.0, 0]
-    deterministic_afa_action_fn = get_deterministic_afa_action_fn(
-        actions=[1, 2, 3, 4, 0],
+    assert_predictions(
+        df,
+        idx=1,
+        expected_predictions=builtin_predictions[1],
+        prediction_type="builtin",
     )
-    direct_unmasker = DirectUnmasker()
-    selection_budget = 10.0
-
-    # Act
-    df = get_batch_from_costs_and_budget(
-        afa_action_fn=deterministic_afa_action_fn,
-        afa_unmask_fn=direct_unmasker.unmask,
-        selection_budget=selection_budget,
-        selection_costs=selection_costs,
-        batch_size=1,
-        n_features=n_features,
-    )
-
-    # Assert
-    # The second action exceeds the budget, and is therefore converted into a stop action
-    assert_terminated_after_n_steps(df, idx=0, n_steps=2, forced=True)
-    assert_where_selections_there_action(df, selections=[0], action=0)
-
-
-def test_process_batch_allow_same_selection_multiple_times() -> None:
-    """We should be allowed to repeat selections multiple times, as long as we don't exceed the budget."""
-    # Arrange
-    n_features = 2
-    selection_costs = [0.0, 0.0]
-    deterministic_afa_action_fn = get_deterministic_afa_action_fn(
-        actions=[1, 2, 1, 2, 0],
-    )
-    direct_unmasker = DirectUnmasker()
-    selection_budget = 1.0
-
-    # Act
-    df = get_batch_from_costs_and_budget(
-        afa_action_fn=deterministic_afa_action_fn,
-        afa_unmask_fn=direct_unmasker.unmask,
-        selection_budget=selection_budget,
-        selection_costs=selection_costs,
-        batch_size=1,
-        n_features=n_features,
-    )
-
-    # Assert
-    assert_terminated_after_n_steps(df, idx=0, n_steps=5, forced=False)
-    assert_where_selections_there_action(df, selections=[0, 1, 0, 1], action=0)
