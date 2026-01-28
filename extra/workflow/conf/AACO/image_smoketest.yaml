@@ -8,9 +8,11 @@
 #
 # Usage:
 #   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
-#       --configfile extra/workflow/conf/AACO/image_smoketest.yaml -j 4
-
-dataset_path_prefix: extra/data
+#       --configfile extra/workflow/conf/AACO/image_smoketest.yaml \
+#       --configfile extra/workflow/conf/method_options.yaml \
+#       --configfile extra/workflow/conf/pretrain_mapping.yaml \
+#       --configfile extra/workflow/conf/classifier_names.yaml \
+#       -j 4
 
 # Keep this small for a quick image smoke test (imagenette still takes time)
 dataset_instance_indices: [0]
@@ -31,14 +33,20 @@ datasets:
 unmaskers:
   default: 224x224_to_7x7
 
+# Methods
+methods:
+  - aaco
+  - aaco_nn
+
 # Minimal hard budgets for quick testing
-hard_budgets:
+eval_hard_budgets:
   default: [10]
 
 # Minimal soft budget params for testing
 soft_budget_params:
-  default: [0.001]
-
-# Keep AACO+NN on for end-to-end coverage
-train_aaco_nn: true
-soft_budget_eval: false
+  aaco:
+    default:
+      - [0.001, null]
+  aaco_nn:
+    default:
+      - [0.001, null]

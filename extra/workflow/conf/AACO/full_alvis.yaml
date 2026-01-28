@@ -10,26 +10,16 @@
 # Usage:
 #   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
 #       --configfile extra/workflow/conf/AACO/full_alvis.yaml \
+#       --configfile extra/workflow/conf/method_options.yaml \
+#       --configfile extra/workflow/conf/pretrain_mapping.yaml \
+#       --configfile extra/workflow/conf/classifier_names.yaml \
 #       --profile extra/workflow/profiles/alvis_rezvan
-
-dataset_path_prefix: extra/data
 dataset_instance_indices: [0, 1, 2, 3, 4]
 initializer: random
 eval_dataset_split: test
 
-# Default to CPU; MNIST/FashionMNIST override to GPU.
+# Default to CPU; override device at runtime if needed.
 device: cpu
-device_aaco: cpu
-device_aaco_nn: cpu
-
-# Per-dataset GPU overrides for MNIST/FashionMNIST.
-device_aaco_by_dataset:
-  mnist: cuda
-  fashion_mnist: cuda
-
-device_aaco_nn_by_dataset:
-  mnist: cuda
-  fashion_mnist: cuda
 
 use_wandb: false
 smoke_test: false
@@ -58,9 +48,16 @@ unmaskers:
   default: direct
 
 # ============================================================================
-# Hard budgets
+# Methods
 # ============================================================================
-hard_budgets:
+methods:
+  - aaco
+  - aaco_nn
+
+# ============================================================================
+# Hard budgets (eval_hard_budgets)
+# ============================================================================
+eval_hard_budgets:
   default: [5, 10, 15]
   # Small tabular (16-24 features)
   cube: [3, 5, 10]
@@ -82,12 +79,29 @@ hard_budgets:
 # Soft budget parameters
 # ============================================================================
 soft_budget_params:
-  default: [0.01, 0.05, 0.1]
-  mnist: [0.0001, 0.001, 0.01]
-  fashion_mnist: [0.0001, 0.001, 0.01]
-
-# ============================================================================
-# Training options
-# ============================================================================
-train_aaco_nn: true
-soft_budget_eval: true
+  aaco:
+    default:
+      - [0.01, null]
+      - [0.05, null]
+      - [0.1, null]
+    mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+    fashion_mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+  aaco_nn:
+    default:
+      - [0.01, null]
+      - [0.05, null]
+      - [0.1, null]
+    mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+    fashion_mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]

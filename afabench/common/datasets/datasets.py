@@ -608,7 +608,6 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     ):
         super().__init__()
         self.root = root
-        self.feature_costs = None
         # Check if file exists
         if not Path(self.root).exists():
             msg = f"Diabetes dataset not found at {self.root}"
@@ -661,7 +660,6 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "feature_names": self.feature_names,
-                "feature_costs": self.feature_costs,
                 "config": {
                     "root": self.root,
                 },
@@ -677,20 +675,10 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         # Create instance without calling __init__
         obj = cls.__new__(cls)
         obj.root = data["config"]["root"]
-        obj.feature_costs = data["feature_costs"]
         obj.features = data["features"]
         obj.labels = data["labels"]
         obj.feature_names = data["feature_names"]
         return obj
-
-    @override
-    def get_feature_acquisition_costs(self) -> Tensor:
-        # msg = "Missing feature acquisition costs for DiabetesDataset."
-        # raise NotImplementedError(msg)
-        if self.feature_costs is None:
-            msg = "Missing feature acquisition costs for DiabetesDataset. Generate or load costs first."
-            raise ValueError(msg)
-        return self.feature_costs
 
 
 @final

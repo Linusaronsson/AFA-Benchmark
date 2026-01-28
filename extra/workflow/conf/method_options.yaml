@@ -2,6 +2,7 @@ method_options:
   aaco:
     train_script_name: "aaco"
   aaco_nn:
+    pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"
   jafa:
     pretrained_model_name: "jafa"

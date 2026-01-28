@@ -6,10 +6,11 @@
 #
 # Usage:
 #   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
-#       --configfile extra/workflow/conf/AACO/tabular_smoketest.yaml -j 4
-
-# Data paths
-dataset_path_prefix: extra/data
+#       --configfile extra/workflow/conf/AACO/tabular_smoketest.yaml \
+#       --configfile extra/workflow/conf/method_options.yaml \
+#       --configfile extra/workflow/conf/pretrain_mapping.yaml \
+#       --configfile extra/workflow/conf/classifier_names.yaml \
+#       -j 4
 
 # Minimal configuration for quick testing
 dataset_instance_indices: [0, 1]
@@ -27,21 +28,27 @@ smoke_test: true
 
 # Small tabular datasets only (fast smoke test)
 datasets:
-  - cube_without_noise
-  - afa_context_without_noise
+  - afa_context
+
+# Methods to run
+methods:
+  - aaco
+  - aaco_nn
 
 # Unmaskers
 unmaskers:
   default: direct
+  # synthetic_mnist_without_noise: 28x28_to_7x7
 
 # Minimal hard budgets for quick testing
-hard_budgets:
+eval_hard_budgets:
   default: [5, 10]
 
-# Minimal cost params for testing
-cost_params:
-  default: [0.05]
-
-# Test both AACO and AACO+NN
-train_aaco_nn: true
-soft_budget_eval: false
+# Minimal soft budget params for testing
+soft_budget_params:
+  aaco:
+    default:
+      - [0.05, null]
+  aaco_nn:
+    default:
+      - [0.05, null]

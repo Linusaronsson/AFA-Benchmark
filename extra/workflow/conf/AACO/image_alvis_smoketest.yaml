@@ -10,16 +10,15 @@
 # Usage:
 #   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
 #       --configfile extra/workflow/conf/AACO/image_alvis_smoketest.yaml \
+#       --configfile extra/workflow/conf/method_options.yaml \
+#       --configfile extra/workflow/conf/pretrain_mapping.yaml \
+#       --configfile extra/workflow/conf/classifier_names.yaml \
 #       --profile extra/workflow/profiles/alvis_rezvan
-
-dataset_path_prefix: extra/data
 dataset_instance_indices: [0]
 initializer: random
 eval_dataset_split: val
 
 device: cuda
-device_aaco: cuda
-device_aaco_nn: cuda
 use_wandb: false
 smoke_test: true
 
@@ -29,11 +28,18 @@ datasets:
 unmaskers:
   default: 224x224_to_7x7
 
-hard_budgets:
+# Methods
+methods:
+  - aaco
+  - aaco_nn
+
+eval_hard_budgets:
   default: [10]
 
 soft_budget_params:
-  default: [0.001]
-
-train_aaco_nn: true
-soft_budget_eval: false
+  aaco:
+    default:
+      - [0.001, null]
+  aaco_nn:
+    default:
+      - [0.001, null]

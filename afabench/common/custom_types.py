@@ -1,9 +1,14 @@
+import csv
+import logging
 from collections.abc import Sequence
+from math import prod
 from pathlib import Path
 from typing import Protocol, Self
 
 import torch
 from jaxtyping import Bool, Float, Integer
+
+logger = logging.getLogger(__name__)
 
 type Features = Float[torch.Tensor, "*batch *feature_shape"]
 # MaskedFeatures are similar to Features, but are 0 where FeatureMask is False
@@ -22,6 +27,34 @@ type AFAAction = Integer[torch.Tensor, "*batch 1"]
 # Unmaskers receive this.
 type AFASelection = Integer[torch.Tensor, "*batch 1"]
 
+_DATASET_KEY_ALIASES = {
+    "ACTG175Dataset": "actg",
+    "AFAContextDataset": "afa_context",
+    "BankMarketingDataset": "bank_marketing",
+    "CKDDataset": "ckd",
+    "CubeDataset": "cube",
+    "DiabetesDataset": "diabetes",
+    "FashionMNISTDataset": "fashion_mnist",
+    "ImagenetteDataset": "imagenette",
+    "MiniBooNEDataset": "miniboone",
+    "MNISTDataset": "mnist",
+    "PhysionetDataset": "physionet",
+    "SyntheticMNISTDataset": "synthetic_mnist",
+}
+
+
+def _infer_dataset_key(dataset: object) -> str:
+    class_name = dataset.__class__.__name__
+    if class_name in _DATASET_KEY_ALIASES:
+        return _DATASET_KEY_ALIASES[class_name]
+    class_name = class_name.removesuffix("Dataset")
+    key_parts = []
+    for idx, char in enumerate(class_name):
+        if char.isupper() and idx > 0:
+            key_parts.append("_")
+        key_parts.append(char.lower())
+    return "".join(key_parts)
+
 
 class AFADataset(Protocol):
     """
@@ -32,6 +65,8 @@ class AFADataset(Protocol):
 
     If the dataset is synthetic, accepts_seed() should return True. In that case, the constructor should also accept a `seed` argument.
     """
+
+    feature_costs: torch.Tensor | None
 
     @property
     def feature_shape(self) -> torch.Size:
@@ -80,9 +115,64 @@ class AFADataset(Protocol):
 
     def get_feature_acquisition_costs(self) -> torch.Tensor:
         """Return the acquisition costs for each feature as a tensor of the shape as the features."""
-        return torch.ones(
-            self.feature_shape
-        )  # Default: all features have cost 1
+        feature_costs = getattr(self, "feature_costs", None)
+        if feature_costs is None:
+            feature_costs = self.load_feature_costs()
+            self.feature_costs = feature_costs
+        return feature_costs
+
+    def load_feature_costs(
+        self,
+        dataset_key: str | None = None,
+        feature_shape: torch.Size | None = None,
+        costs_path: Path | None = None,
+    ) -> torch.Tensor:
+        """
+        Load per-feature acquisition costs from a CSV file if it exists.
+
+        Falls back to uniform unit costs when no file is present.
+        """
+        resolved_shape = (
+            feature_shape if feature_shape is not None else self.feature_shape
+        )
+        resolved_key = dataset_key or _infer_dataset_key(self)
+        resolved_path = (
+            costs_path
+            or Path("extra/data/misc/feature_costs") / f"{resolved_key}.csv"
+        )
+        if not resolved_path.exists():
+            logger.info(
+                "No feature cost CSV for %s at %s. Using unit costs.",
+                resolved_key,
+                resolved_path,
+            )
+            return torch.ones(resolved_shape, dtype=torch.float32)
+        values: list[float] = []
+        with resolved_path.open(newline="") as handle:
+            reader = csv.reader(handle)
+            for row in reader:
+                for cell in row:
+                    cell_value = cell.strip()
+                    if cell_value:
+                        values.append(float(cell_value))
+        expected = prod(resolved_shape)
+        assert len(values) == expected, (
+            f"Feature cost file {resolved_path} has {len(values)} values, "
+            f"expected {expected} for feature shape {resolved_shape}."
+        )
+        costs = torch.tensor(values, dtype=torch.float32).reshape(
+            resolved_shape
+        )
+        logger.info(
+            "Loaded feature costs for %s from %s (n=%d, min=%.4f, max=%.4f, mean=%.4f).",
+            resolved_key,
+            resolved_path,
+            costs.numel(),
+            costs.min().item(),
+            costs.max().item(),
+            costs.mean().item(),
+        )
+        return costs
 
 
 class AFAMethod(Protocol):

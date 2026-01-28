@@ -6,10 +6,11 @@
 #
 # Usage:
 #   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
-#       --configfile extra/workflow/conf/AACO/tabular.yaml -j 4
-
-# Data paths
-dataset_path_prefix: extra/data
+#       --configfile extra/workflow/conf/AACO/tabular.yaml \
+#       --configfile extra/workflow/conf/method_options.yaml \
+#       --configfile extra/workflow/conf/pretrain_mapping.yaml \
+#       --configfile extra/workflow/conf/classifier_names.yaml \
+#       -j 4
 
 # Dataset instances to use (5 seeds for statistical significance)
 dataset_instance_indices: [0, 1, 2, 3, 4]
@@ -23,7 +24,7 @@ eval_dataset_split: test
 # Training settings
 device: cpu
 use_wandb: false
-smoke_test: false
+smoke_test: true
 
 # ============================================================================
 # Datasets
@@ -45,6 +46,13 @@ datasets:
   - fashion_mnist
 
 # ============================================================================
+# Methods
+# ============================================================================
+methods:
+  - aaco
+  - aaco_nn
+
+# ============================================================================
 # Unmaskers
 # ============================================================================
 # Unmaskers determine how selections map to features
@@ -54,12 +62,12 @@ unmaskers:
   default: direct
 
 # ============================================================================
-# Hard budgets for training and evaluation
+# Hard budgets for training and evaluation (eval_hard_budgets)
 # ============================================================================
 # Hard budget = maximum number of features that can be acquired
 # For tabular datasets, 5-15 is a common starting range
 
-hard_budgets:
+eval_hard_budgets:
   default: [5, 10, 15]
   # Small tabular (16-24 features)
   cube: [3, 5, 10]
@@ -80,20 +88,34 @@ hard_budgets:
 # ============================================================================
 # Soft budget parameters
 # ============================================================================
-# Soft budget parameter controls the tradeoff between accuracy and acquisition cost
-# Higher value = fewer features acquired
+# Each entry is [train_soft_budget_param, eval_soft_budget_param].
+# Set eval to null to reuse the trained cost.
 
 soft_budget_params:
-  default: [0.01, 0.05, 0.1]
-  # MNIST-style (784 features)
-  mnist: [0.0001, 0.001, 0.01]
-  fashion_mnist: [0.0001, 0.001, 0.01]
-
-# ============================================================================
-# AACO+NN Training
-# ============================================================================
-# train_aaco_nn: Train neural network policy via behavioral cloning from AACO
-# soft_budget_eval: Also evaluate with soft budget (no hard limit)
-
-train_aaco_nn: true
-soft_budget_eval: true
+  aaco:
+    default:
+      - [0.01, null]
+      - [0.05, null]
+      - [0.1, null]
+    # MNIST-style (784 features)
+    mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+    fashion_mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+  aaco_nn:
+    default:
+      - [0.01, null]
+      - [0.05, null]
+      - [0.1, null]
+    mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+    fashion_mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]

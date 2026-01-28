@@ -163,9 +163,19 @@ def main(cfg: EvalConfig) -> None:
     else:
         hard_budget_str = "no hard budget"
     log.info(
-        f"Starting evaluation with batch size {cfg.batch_size} and {
-            hard_budget_str
-        }."
+        "Starting evaluation with batch size %s and %s.",
+        cfg.batch_size,
+        hard_budget_str,
+    )
+    selection_costs = unmasker.get_selection_costs(
+        feature_costs=dataset.get_feature_acquisition_costs()
+    )
+    log.info(
+        "Selection costs summary: n=%d, min=%.4f, max=%.4f, mean=%.4f.",
+        selection_costs.numel(),
+        selection_costs.min().item(),
+        selection_costs.max().item(),
+        selection_costs.mean().item(),
     )
 
     df_eval = eval_afa_method(
@@ -186,9 +196,7 @@ def main(cfg: EvalConfig) -> None:
         device=torch.device(cfg.device),
         selection_budget=cfg.hard_budget,
         batch_size=cfg.batch_size,
-        selection_costs=unmasker.get_selection_costs(
-            feature_costs=dataset.get_feature_acquisition_costs()
-        ).tolist(),
+        selection_costs=selection_costs.tolist(),
     )
 
     # Add eval_seed and eval_hard_budget to dataframe
@@ -198,7 +206,7 @@ def main(cfg: EvalConfig) -> None:
     # Save CSV directly
     csv_path = Path(cfg.save_path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
-    # When we save the dataframe in csv format, we want None values to actually be a value and not just missing, to fit in to the snakemake pipeline
+    # Use explicit null strings to avoid missing values in the pipeline.
     df_eval.to_csv(csv_path, index=False, na_rep="null")
     log.info(f"Saved evaluation data to CSV at: {csv_path}")
 

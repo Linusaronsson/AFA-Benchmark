@@ -922,14 +922,18 @@ class AACOConfig:
 @dataclass
 class AACOTrainConfig:
     aco: AACOConfig
-    dataset_artifact_name: Path
+    initializer: InitializerConfig
     unmasker: UnmaskerConfig
     save_path: Path
+    train_dataset_bundle_path: Path | None = None
+    val_dataset_bundle_path: Path | None = None
+    dataset_artifact_name: Path | None = None
     classifier_bundle_path: Path | None = (
         None  # Path to pre-trained classifier bundle
     )
     seed: int = 42
     device: str = "cpu"
+    use_wandb: bool = False
     soft_budget_param: float | None = None
     hard_budget: int | None = None  # If set, use forced acquisition mode
     experiment_id: str | None = None
@@ -942,11 +946,15 @@ class AACOTrainConfig:
 class AACONNTrainConfig:
     """Config for AACO+NN (behavioral cloning) training."""
 
-    aaco_bundle_path: Path  # Path to trained AACO method bundle
-    dataset_artifact_name: Path  # Training dataset for rollout generation
     classifier_bundle_path: Path  # Path to pre-trained classifier bundle
+    initializer: InitializerConfig
     unmasker: UnmaskerConfig
     save_path: Path
+    aaco_bundle_path: Path | None = None  # Trained AACO method bundle
+    pretrained_model_bundle_path: Path | None = None
+    train_dataset_bundle_path: Path | None = None
+    val_dataset_bundle_path: Path | None = None
+    dataset_artifact_name: Path | None = None
     seed: int = 42
     device: str = "cpu"
     # Rollout generation
@@ -965,6 +973,8 @@ class AACONNTrainConfig:
     hard_budget: int | None = (
         None  # If set, train policy in forced acquisition mode
     )
+    soft_budget_param: float | None = None
+    use_wandb: bool = False
     smoke_test: bool = False
 
 

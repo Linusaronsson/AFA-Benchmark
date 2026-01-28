@@ -1,4 +1,12 @@
 soft_budget_params:
+  aaco:
+    default:
+      - [0.05, null]
+      - [0.01, null]
+  aaco_nn:
+    default:
+      - [0.05, null]
+      - [0.01, null]
   jafa:
     default:
       - [0.01, null]

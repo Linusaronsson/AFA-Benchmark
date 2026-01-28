@@ -1,4 +1,8 @@
-"""AACO+NN training script - trains a neural network policy via behavioral cloning."""
+"""
+AACO+NN training script.
+
+Trains a neural network policy via behavioral cloning.
+"""
 
 from __future__ import annotations
 
@@ -34,13 +38,28 @@ def _configure_smoke_test(cfg: AACONNTrainConfig) -> None:
         cfg.batch_size = min(cfg.batch_size, 32)
 
 
+def _resolve_aaco_bundle_path(cfg: AACONNTrainConfig) -> Path:
+    bundle_path = cfg.pretrained_model_bundle_path or cfg.aaco_bundle_path
+    assert bundle_path is not None, (
+        "Expected pretrained_model_bundle_path or aaco_bundle_path."
+    )
+    return Path(bundle_path)
+
+
+def _resolve_train_dataset_path(cfg: AACONNTrainConfig) -> Path:
+    dataset_path = cfg.train_dataset_bundle_path or cfg.dataset_artifact_name
+    assert dataset_path is not None, (
+        "Expected train_dataset_bundle_path or dataset_artifact_name."
+    )
+    return Path(dataset_path)
+
+
 def _load_aaco_method(
     cfg: AACONNTrainConfig, device: torch.device
 ) -> tuple[AACOAFAMethod, bool]:
-    logger.info(f"Loading AACO method from {cfg.aaco_bundle_path}...")
-    aaco_method, _aaco_manifest = load_bundle(
-        Path(cfg.aaco_bundle_path), device=device
-    )
+    aaco_bundle_path = _resolve_aaco_bundle_path(cfg)
+    logger.info(f"Loading AACO method from {aaco_bundle_path}...")
+    aaco_method, _aaco_manifest = load_bundle(aaco_bundle_path, device=device)
     assert isinstance(aaco_method, AACOAFAMethod)
     logger.info("Loaded AACO method")
     force_acquisition = cfg.hard_budget is not None
@@ -51,10 +70,9 @@ def _load_aaco_method(
 def _load_rollout_dataset(
     cfg: AACONNTrainConfig,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Size, str, int | None]:
-    logger.info(f"Loading dataset from {cfg.dataset_artifact_name}...")
-    dataset_obj, dataset_manifest = load_bundle(
-        Path(cfg.dataset_artifact_name)
-    )
+    dataset_bundle_path = _resolve_train_dataset_path(cfg)
+    logger.info(f"Loading dataset from {dataset_bundle_path}...")
+    dataset_obj, dataset_manifest = load_bundle(dataset_bundle_path)
     dataset_name = (
         dataset_manifest["class_name"].replace("Dataset", "").lower()
     )
@@ -117,6 +135,8 @@ def main(cfg: AACONNTrainConfig) -> None:
 
     _configure_smoke_test(cfg)
     aaco_method, force_acquisition = _load_aaco_method(cfg, device)
+    if cfg.soft_budget_param is not None:
+        aaco_method.set_cost_param(cfg.soft_budget_param)
     x_train, y_train, feature_shape, dataset_name, split = (
         _load_rollout_dataset(cfg)
     )
@@ -198,13 +218,14 @@ def main(cfg: AACONNTrainConfig) -> None:
         obj=aaco_nn_method,
         path=Path(cfg.save_path),
         metadata={
-            "aaco_bundle_path": str(cfg.aaco_bundle_path),
-            "dataset_artifact": cfg.dataset_artifact_name,
+            "aaco_bundle_path": str(_resolve_aaco_bundle_path(cfg)),
+            "dataset_artifact": str(_resolve_train_dataset_path(cfg)),
             "dataset_name": dataset_name,
             "classifier_bundle_path": str(cfg.classifier_bundle_path),
             "split_idx": split,
             "seed": cfg.seed,
             "hard_budget": cfg.hard_budget,
+            "soft_budget_param": cfg.soft_budget_param,
             "force_acquisition": force_acquisition,
             "max_acquisitions": rollout_max_acquisitions,
             "hidden_dims": list(cfg.hidden_dims),

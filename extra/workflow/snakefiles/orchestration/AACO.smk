@@ -1,616 +1,219 @@
 """
-Snakemake workflow for AACO and AACO+NN methods.
+AACO workflow using common pipeline rules.
 
-Prerequisite (train MLP classifiers first):
-    snakemake -s extra/workflow/snakefiles/orchestration/mlp.smk \
-        --configfile extra/workflow/conf/mlp_all.yaml -j 4
+Notes:
+    - AACO+NN treats AACO as its pretrained model. Ensure
+      method_options.yaml sets aaco_nn.pretrained_model_name: aaco
+      and pretrain_mapping.yaml includes an aaco entry.
 
-Configuration arguments (config file):
-  - dataset_path_prefix: Path prefix for dataset bundles (default: extra/data)
-  - dataset_instance_indices: List of split indices to run
-  - initializer: Initializer for evaluation (e.g. random)
-  - eval_dataset_split: Split to evaluate on (train/val/test)
-  - device: Default device (cpu/cuda)
-  - device_aaco: Device for AACO training (defaults to device)
-  - device_aaco_nn: Device for AACO+NN training (defaults to device)
-  - device_aaco_by_dataset: Per-dataset AACO device overrides
-  - device_aaco_nn_by_dataset: Per-dataset AACO+NN device overrides
-  - eval_device_by_method: Per-method eval device overrides
-  - use_wandb: Enable Weights & Biases logging
-  - smoke_test: Reduce epochs/samples for quick runs
-  - datasets: List of dataset names (required)
-  - unmaskers: Mapping with a default unmasker (required)
-  - hard_budgets: Mapping with a default hard budget list (required)
-  - soft_budget_params: Mapping with a default soft budget param list (required)
-  - train_aaco_nn: Whether to train AACO+NN
-  - soft_budget_eval: Whether to evaluate soft budgets
+Runtime filters (--config):
+    methods (list[str], required): Subset of methods from method_options.yaml
+    datasets (list[str], required): Subset of datasets to run
+    dataset_instance_indices (list[int], default=[0,1]): Subset of seeds
+    device (str, default='cpu'): Device for training
+    use_wandb (bool, default=False): Enable W&B logging
+    smoke_test (bool, default=False): Run smoke tests
+    initializer (str, default='cold'): Initialization strategy
+    eval_dataset_split (str, default='test'): Dataset split for evaluation
 
-Required files:
-  - Dataset bundles at:
-      {dataset_path_prefix}/{dataset}/{instance_idx}/train.bundle
-      {dataset_path_prefix}/{dataset}/{instance_idx}/val.bundle
-      {dataset_path_prefix}/{dataset}/{instance_idx}/test.bundle
-  - Trained classifiers from mlp.smk at:
-      extra/output/classifiers/masked_mlp_classifier/...
-  - Unmasker configs in extra/conf/components/unmaskers/
-  - Plotting expects evaluation CSVs to include train_hard_budget and
-    train_soft_budget_param metadata columns.
+Config files (--configfile):
+    method_options.yaml
+    pretrain_mapping.yaml
+    methods.yaml
+    classifier_names.yaml
+    eval_hard_budgets.yaml
+    soft_budget_params_*.yaml
+    unmaskers.yaml
 
-Usage examples:
-  - Tabular (local):
-      snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
-          --configfile extra/workflow/conf/AACO/tabular.yaml -j 4
-  - Alvis (tabular + MNIST/FashionMNIST):
-      snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
-          --configfile extra/workflow/conf/AACO/full_alvis.yaml \
-          --profile extra/workflow/profiles/alvis_rezvan
+Example:
+    snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
+        --configfile \
+            extra/workflow/conf/eval_hard_budgets_fast.yaml \
+            extra/workflow/conf/methods.yaml \
+            extra/workflow/conf/method_options.yaml \
+            extra/workflow/conf/pretrain_mapping.yaml \
+            extra/workflow/conf/soft_budget_params_fast.yaml \
+            extra/workflow/conf/unmaskers.yaml \
+            extra/workflow/conf/classifier_names.yaml \
+        --config methods='["aaco","aaco_nn"]' \
+        --cores 4
 """
+
 import os
-from datetime import datetime
+import sys
 
-# Configuration
-DATASET_PATH_PREFIX = config.get("dataset_path_prefix", "extra/data")
-DATASET_INSTANCE_INDICES = config.get("dataset_instance_indices", (0, 1))
-INITIALIZER = config.get("initializer", "random")
-EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")
-DEVICE = config.get("device", "cpu")
-DEVICE_AACO = config.get("device_aaco", DEVICE)
-DEVICE_AACO_NN = config.get("device_aaco_nn", DEVICE)
-# Per-dataset device overrides (for datasets that need GPU)
-DEVICE_AACO_BY_DATASET_RAW = config.get("device_aaco_by_dataset", {})
-DEVICE_AACO_NN_BY_DATASET_RAW = config.get("device_aaco_nn_by_dataset", {})
-EVAL_DEVICE_BY_METHOD = config.get(
-    "eval_device_by_method",
-    {"aaco": DEVICE_AACO, "aaco_nn": DEVICE_AACO_NN},
-)
-USE_WANDB = config.get("use_wandb", False)
-SMOKE_TEST = config.get("smoke_test", False)
+snakefile_dir = workflow.basedir
+workflow_dir = os.path.dirname(os.path.dirname(snakefile_dir))
+src_dir = os.path.join(workflow_dir, "src")
+sys.path.insert(0, src_dir)
 
-# Datasets to process
-DATASETS = config.get("datasets", None)
-if DATASETS is None:
-    raise ValueError("Expected datasets to be provided.")
+from config import load_config
 
-# Unmaskers per dataset
-UNMASKERS_RAW = config.get("unmaskers", None)
-if UNMASKERS_RAW is None:
-    raise ValueError("Expected unmaskers to be provided.")
-UNMASKERS = UNMASKERS_RAW | {
-    dataset: UNMASKERS_RAW["default"]
-    for dataset in DATASETS
-    if dataset not in UNMASKERS_RAW
-}
+_config = load_config(config)
 
-# Hard budgets for evaluation and hard-budget training
-HARD_BUDGETS_RAW = config.get("hard_budgets", None)
-if HARD_BUDGETS_RAW is None:
-    raise ValueError("Expected hard_budgets to be provided.")
-HARD_BUDGETS = HARD_BUDGETS_RAW | {
-    dataset: HARD_BUDGETS_RAW["default"]
-    for dataset in DATASETS
-    if dataset not in HARD_BUDGETS_RAW
-}
+NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
+DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]
+INITIALIZER = _config["INITIALIZER"]
+EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
+DEVICE = _config["DEVICE"]
+USE_WANDB = _config["USE_WANDB"]
+SMOKE_TEST = _config["SMOKE_TEST"]
+PRETRAIN_NAMES = _config["PRETRAIN_NAMES"]
+PRETRAIN_SCRIPT_NAMES = _config["PRETRAIN_SCRIPT_NAMES"]
+PRETRAIN_PARAMS = _config["PRETRAIN_PARAMS"]
+METHOD_OPTIONS = _config["METHOD_OPTIONS"]
+METHODS = _config["METHODS"]
+METHODS_WITH_PRETRAINING_STAGE = _config["METHODS_WITH_PRETRAINING_STAGE"]
+METHODS_WITHOUT_PRETRAINING_STAGE = _config[
+    "METHODS_WITHOUT_PRETRAINING_STAGE"
+]
+METHOD_TRAIN_SCRIPT_NAMES = _config["METHOD_TRAIN_SCRIPT_NAMES"]
+METHOD_TO_PRETRAINED_MODEL = _config["METHOD_TO_PRETRAINED_MODEL"]
+METHOD_SPECIFIC_PARAMS = _config["METHOD_SPECIFIC_PARAMS"]
+DATASETS = _config["DATASETS"]
+UNMASKERS = _config["UNMASKERS"]
+BUDGET_PARAMS = _config["BUDGET_PARAMS"]
+CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
+METHOD_SETS = _config["METHOD_SETS"]
 
-# Soft budget parameters for AACO training
-# Supports both "soft_budget_params" (new) and "cost_params" (legacy) config keys
-SOFT_BUDGET_PARAMS_RAW = config.get("soft_budget_params", config.get("cost_params", None))
-if SOFT_BUDGET_PARAMS_RAW is None:
-    raise ValueError("Expected soft_budget_params (or cost_params) to be provided.")
-SOFT_BUDGET_PARAMS = SOFT_BUDGET_PARAMS_RAW | {
-    dataset: SOFT_BUDGET_PARAMS_RAW["default"]
-    for dataset in DATASETS
-    if dataset not in SOFT_BUDGET_PARAMS_RAW
-}
+include: "../rules/training.smk"
+include: "../rules/classifier_training.smk"
+include: "../rules/evaluation.smk"
+include: "../rules/transformations.smk"
+include: "../rules/aggregation.smk"
+include: "../rules/visualization.smk"
 
-# Whether to also train AACO+NN
-TRAIN_AACO_NN = config.get("train_aaco_nn", False)
-# Whether to evaluate soft budgets (hard_budget=null with train_soft_budget_param metadata)
-SOFT_BUDGET_EVAL = config.get("soft_budget_eval", False)
-
-# Hard budget settings for training
-TRAIN_HARD_BUDGETS = {
-    dataset: (
-        (["null"] if SOFT_BUDGET_EVAL else []) + HARD_BUDGETS[dataset]
-    )
-    for dataset in DATASETS
-}
-
-# Methods to include in final output
-AACO_METHODS = ["aaco"]
-if TRAIN_AACO_NN:
-    AACO_METHODS.append("aaco_nn")
-
-
-def _eval_device(method: str) -> str:
-    return EVAL_DEVICE_BY_METHOD.get(method, DEVICE)
-
-
-def _device_aaco(dataset: str) -> str:
-    """Get device for AACO training, with per-dataset override."""
-    return DEVICE_AACO_BY_DATASET_RAW.get(dataset, DEVICE_AACO)
-
-
-def _device_aaco_nn(dataset: str) -> str:
-    """Get device for AACO+NN training, with per-dataset override."""
-    return DEVICE_AACO_NN_BY_DATASET_RAW.get(dataset, DEVICE_AACO_NN)
-
-
-def _slurm_extra_aaco(dataset: str) -> str:
-    """Get SLURM extra args for AACO training based on device."""
-    device = _device_aaco(dataset)
-    if device == "cuda":
-        return "--gres=gpu:T4:1"
-    return "--constraint=NOGPU"
-
-
-def _slurm_extra_aaco_nn(dataset: str) -> str:
-    """Get SLURM extra args for AACO+NN training based on device."""
-    device = _device_aaco_nn(dataset)
-    if device == "cuda":
-        return "--gres=gpu:T4:1"
-    return "--constraint=NOGPU"
-
-
-# ============================================================================
-# MAIN TARGETS
-# ============================================================================
 
 rule all:
     input:
-        "extra/output/plot_results/AACO",
-
-
-rule train_aaco_all:
-    input:
         [
             (
-                f"extra/output/trained_methods/aaco/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"train_seed-{dataset_instance_idx}+"
-                        f"train_hard_budget-{train_hard_budget}+"
-                        f"train_soft_budget_param-{train_soft_budget_param}.bundle"
+                f"extra/output/plot_results/eval_perf/"
+                f"method_set-{method_set}+classifier_type-builtin"
             )
-            for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for train_soft_budget_param in SOFT_BUDGET_PARAMS[dataset]
-            for train_hard_budget in TRAIN_HARD_BUDGETS[dataset]
+            for method_set in METHOD_SETS
+        ]
+        + [
+            (
+                f"extra/output/plot_results/eval_perf/"
+                f"method_set-{method_set}+classifier_type-external"
+            )
+            for method_set in METHOD_SETS
+        ]
+        + [
+            "extra/output/plot_results/time/all"
         ]
 
 
-rule train_aaco_nn_all:
+rule all_pretrain_model:
     input:
         [
             (
-                f"extra/output/trained_methods/aaco_nn/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"train_seed-{dataset_instance_idx}+"
-                        f"train_hard_budget-{train_hard_budget}+"
-                        f"train_soft_budget_param-{train_soft_budget_param}.bundle"
+                f"extra/output/pretrained_models/{pretrain_name}/"
+                f"dataset-{dataset}+"
+                f"instance_idx-{dataset_instance_idx}/"
+                f"pretrain_seed-{dataset_instance_idx}/"
+                "model.bundle"
             )
+            for pretrain_name in PRETRAIN_NAMES
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for train_soft_budget_param in SOFT_BUDGET_PARAMS[dataset]
-            for train_hard_budget in TRAIN_HARD_BUDGETS[dataset]
-        ] if TRAIN_AACO_NN else []
+        ]
 
 
-# ============================================================================
-# TRAINING RULES
-# ============================================================================
-# NOTE: MLP classifiers are assumed to be already trained via mlp.smk
-# The classifier path is specified as an input dependency to fail early if missing.
-
-rule train_aaco:
-    """Train AACO method with a given soft budget parameter."""
+rule all_train_method:
     input:
-        train=lambda wc: f"{DATASET_PATH_PREFIX}/{wc.dataset}/{wc.dataset_instance_idx}/train.bundle",
-        classifier=(
-            "extra/output/classifiers/masked_mlp_classifier/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "seed-{train_seed}.bundle"
-        ),
-    output:
-        directory(
-            "extra/output/trained_methods/aaco/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
-        ),
-    params:
-        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
-        device=lambda wildcards: _device_aaco(wildcards.dataset),
-    resources:
-        slurm_extra=lambda wildcards: _slurm_extra_aaco(wildcards.dataset),
-    shell:
-        """
-        python scripts/train/aaco.py \
-            dataset_artifact_name={input.train} \
-            classifier_bundle_path={input.classifier} \
-            save_path={output} \
-            soft_budget_param={wildcards.train_soft_budget_param} \
-            hard_budget={wildcards.train_hard_budget} \
-            components/unmaskers@unmasker={params.unmasker} \
-            device={params.device} \
-            seed={wildcards.train_seed} \
-            smoke_test={SMOKE_TEST}
-        """
-
-
-rule train_aaco_nn:
-    """Train AACO+NN (behavioral cloning from AACO)."""
-    input:
-        train=lambda wc: f"{DATASET_PATH_PREFIX}/{wc.dataset}/{wc.dataset_instance_idx}/train.bundle",
-        aaco_method=(
-            "extra/output/trained_methods/aaco/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
-        ),
-        classifier=(
-            "extra/output/classifiers/masked_mlp_classifier/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "seed-{train_seed}.bundle"
-        ),
-    output:
-        directory(
-            "extra/output/trained_methods/aaco_nn/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
-        ),
-    params:
-        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
-        device=lambda wildcards: _device_aaco_nn(wildcards.dataset),
-    resources:
-        slurm_extra=lambda wildcards: _slurm_extra_aaco_nn(wildcards.dataset),
-    shell:
-        """
-        python scripts/train/aaco_nn.py \
-            aaco_bundle_path={input.aaco_method} \
-            dataset_artifact_name={input.train} \
-            classifier_bundle_path={input.classifier} \
-            save_path={output} \
-            hard_budget={wildcards.train_hard_budget} \
-            components/unmaskers@unmasker={params.unmasker} \
-            device={params.device} \
-            seed={wildcards.train_seed} \
-            smoke_test={SMOKE_TEST}
-        """
-
-
-# ============================================================================
-# EVALUATION RULES
-# ============================================================================
-
-rule eval_aaco_method:
-    """Evaluate an AACO-based method."""
-    input:
-        dataset=lambda wc: f"{DATASET_PATH_PREFIX}/{wc.dataset}/{wc.dataset_instance_idx}/{EVAL_DATASET_SPLIT}.bundle",
-        method=(
-            "extra/output/trained_methods/{method}/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{eval_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
-        ),
-        classifier=(
-            "extra/output/classifiers/masked_mlp_classifier/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "seed-{train_seed}.bundle"
-        ),
-    output:
-        "extra/output/eval_results/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{eval_hard_budget}/"
-                        "eval_data.csv",
-    params:
-        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
-        eval_device=lambda wildcards: _eval_device(wildcards.method),
-    shell:
-        """
-        python scripts/eval/eval_afa_method.py \
-            method_bundle_path={input.method} \
-            components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={params.unmasker} \
-            dataset_bundle_path={input.dataset} \
-            save_path={output} \
-            classifier_bundle_path={input.classifier} \
-            seed={wildcards.eval_seed} \
-            device={params.eval_device} \
-            hard_budget={wildcards.eval_hard_budget} \
-            use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST}
-        """
-
-rule eval_aaco_method_soft:
-    """Evaluate an AACO-based method in soft budget mode."""
-    input:
-        dataset=lambda wc: f"{DATASET_PATH_PREFIX}/{wc.dataset}/{wc.dataset_instance_idx}/{EVAL_DATASET_SPLIT}.bundle",
-        method=(
-            "extra/output/trained_methods/{method}/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-null+"
-                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
-        ),
-        classifier=(
-            "extra/output/classifiers/masked_mlp_classifier/"
-                "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
-                    "seed-{train_seed}.bundle"
-        ),
-    output:
-        "extra/output/eval_results_soft/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-null/"
-                        "eval_data.csv",
-    params:
-        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
-        eval_device=lambda wildcards: _eval_device(wildcards.method),
-    shell:
-        """
-        python scripts/eval/eval_afa_method.py \
-            method_bundle_path={input.method} \
-            components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={params.unmasker} \
-            dataset_bundle_path={input.dataset} \
-            save_path={output} \
-            classifier_bundle_path={input.classifier} \
-            seed={wildcards.eval_seed} \
-            device={params.eval_device} \
-            hard_budget=null \
-            use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST}
-        """
-
-# ============================================================================
-# POST-PROCESSING RULES
-# ============================================================================
-
-rule count_selections:
-    """Convert prev_selections_performed list to selections_performed count."""
-    input:
-        "extra/output/eval_results/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{eval_hard_budget}/"
-                        "eval_data.csv",
-    output:
-        "extra/output/eval_results2/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{eval_hard_budget}/"
-                        "eval_data.csv",
-    shell:
-        """
-        python scripts/misc/transform_eval_data.py count_selections {input} {output}
-        """
-
-rule count_selections_soft:
-    """Convert prev_selections_performed list to selections_performed count."""
-    input:
-        "extra/output/eval_results_soft/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-null/"
-                        "eval_data.csv",
-    output:
-        "extra/output/eval_results_soft2/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-null/"
-                        "eval_data.csv",
-    shell:
-        """
-        python scripts/misc/transform_eval_data.py count_selections {input} {output}
-        """
-
-rule add_metadata_to_eval_data:
-    """Add training and evaluation metadata columns."""
-    input:
-        "extra/output/eval_results2/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{eval_hard_budget}/"
-                        "eval_data.csv",
-    output:
-        "extra/output/eval_results3/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{eval_hard_budget}/"
-                        "eval_data.csv",
-    shell:
-        """
-        python scripts/misc/transform_eval_data.py add_metadata {input} {output} \
-            --col afa_method={wildcards.method} \
-            --col dataset={wildcards.dataset} \
-            --col train_seed={wildcards.train_seed} \
-            --col train_soft_budget_param={wildcards.train_soft_budget_param} \
-            --col train_hard_budget={wildcards.eval_hard_budget} \
-            --col train_soft_budget_param=""
-        """
-
-rule add_metadata_to_eval_data_soft:
-    """Add training and evaluation metadata columns."""
-    input:
-        "extra/output/eval_results_soft2/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-null/"
-                        "eval_data.csv",
-    output:
-        "extra/output/eval_results_soft3/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-null/"
-                        "eval_data.csv",
-    shell:
-        """
-        python scripts/misc/transform_eval_data.py add_metadata {input} {output} \
-            --col afa_method={wildcards.method} \
-            --col dataset={wildcards.dataset} \
-            --col train_seed={wildcards.train_seed} \
-            --col train_soft_budget_param={wildcards.train_soft_budget_param} \
-            --col train_hard_budget="" \
-            --col train_soft_budget_param={wildcards.train_soft_budget_param}
-        """
-
-rule pivot_long_classifier:
-    """Pivot classifier predictions to tidy format."""
-    input:
-        "extra/output/eval_results3/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{eval_hard_budget}/"
-                        "eval_data.csv",
-    output:
-        "extra/output/eval_results4/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-{eval_hard_budget}/"
-                        "eval_data.csv",
-    shell:
-        """
-        python scripts/misc/transform_eval_data.py pivot_long_classifier {input} {output}
-        """
-
-rule pivot_long_classifier_soft:
-    """Pivot classifier predictions to tidy format."""
-    input:
-        "extra/output/eval_results_soft3/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-null/"
-                        "eval_data.csv",
-    output:
-        "extra/output/eval_results_soft4/{method}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "train_seed-{train_seed}+"
-                "train_soft_budget_param-{train_soft_budget_param}/"
-                    "eval_seed-{eval_seed}+"
-                    "eval_hard_budget-null/"
-                        "eval_data.csv",
-    shell:
-        """
-        python scripts/misc/transform_eval_data.py pivot_long_classifier {input} {output}
-        """
-
-# ============================================================================
-# MERGE AND PLOT
-# ============================================================================
-
-rule merge_eval:
-    """Merge all evaluation results into a single CSV."""
-    input:
-        (
-            [
-                (
-                    f"extra/output/eval_results4/{method}/"
-                        f"dataset-{dataset}+"
-                        f"instance_idx-{dataset_instance_idx}/"
-                            f"train_seed-{dataset_instance_idx}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{hard_budget}/"
-                                    f"eval_data.csv"
-                )
-                for method in AACO_METHODS
-                for dataset in DATASETS
-                for dataset_instance_idx in DATASET_INSTANCE_INDICES
-                for train_soft_budget_param in SOFT_BUDGET_PARAMS[dataset]
-                for hard_budget in HARD_BUDGETS[dataset]
-            ]
-            + (
-                [
-                    (
-                        f"extra/output/eval_results_soft4/{method}/"
-                            f"dataset-{dataset}+"
-                            f"instance_idx-{dataset_instance_idx}/"
-                                f"train_seed-{dataset_instance_idx}+"
-                                f"train_soft_budget_param-{train_soft_budget_param}/"
-                                    f"eval_seed-{dataset_instance_idx}+"
-                                    f"eval_hard_budget-null/"
-                                        f"eval_data.csv"
-                    )
-                    for method in AACO_METHODS
-                    for dataset in DATASETS
-                    for dataset_instance_idx in DATASET_INSTANCE_INDICES
-                    for train_soft_budget_param in SOFT_BUDGET_PARAMS[dataset]
-                ]
-                if SOFT_BUDGET_EVAL
-                else []
+        [
+            (
+                f"extra/output/trained_methods/{method}/"
+                f"dataset-{dataset}+"
+                f"instance_idx-{dataset_instance_idx}/"
+                f"pretrain_seed-{dataset_instance_idx}/"
+                f"train_seed-{dataset_instance_idx}+"
+                f"train_hard_budget-{train_hard_budget}+"
+                f"train_soft_budget_param-{train_soft_budget_param}/"
+                "method.bundle"
             )
-        )
-    output:
-        "extra/output/merged_eval_results/AACO.csv",
-    shell:
-        """
-            csvstack {input} > {output}
-        """
+            for method in METHODS_WITH_PRETRAINING_STAGE
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for (
+                train_hard_budget,
+                _eval_hard_budget,
+                train_soft_budget_param,
+                _eval_soft_budget_param,
+            ) in BUDGET_PARAMS[method][dataset]
+        ]
+        + [
+            (
+                f"extra/output/trained_methods/{method}/"
+                f"dataset-{dataset}+"
+                f"instance_idx-{dataset_instance_idx}/"
+                f"{NO_PRETRAIN_STR}/"
+                f"train_seed-{dataset_instance_idx}+"
+                f"train_hard_budget-{train_hard_budget}+"
+                f"train_soft_budget_param-{train_soft_budget_param}/"
+                "method.bundle"
+            )
+            for method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for (
+                train_hard_budget,
+                _eval_hard_budget,
+                train_soft_budget_param,
+                _eval_soft_budget_param,
+            ) in BUDGET_PARAMS[method][dataset]
+        ]
 
 
-rule plot:
-    """Generate plots from merged evaluation results."""
+rule all_eval_method:
     input:
-        "extra/output/merged_eval_results/AACO.csv",
-    output:
-        directory("extra/output/plot_results/AACO"),
-    shell:
-        """
-        python scripts/plotting/plot_eval.py {input} {output}
-        """
+        [
+            (
+                f"extra/output/eval_results/{method}/"
+                f"dataset-{dataset}+"
+                f"instance_idx-{dataset_instance_idx}/"
+                f"pretrain_seed-{dataset_instance_idx}/"
+                f"train_seed-{dataset_instance_idx}+"
+                f"train_hard_budget-{train_hard_budget}+"
+                f"train_soft_budget_param-{train_soft_budget_param}/"
+                f"eval_seed-{dataset_instance_idx}+"
+                f"eval_hard_budget-{eval_hard_budget}+"
+                f"eval_soft_budget_param-{eval_soft_budget_param}/"
+                "eval_data.csv"
+            )
+            for method in METHODS_WITH_PRETRAINING_STAGE
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for (
+                train_hard_budget,
+                eval_hard_budget,
+                train_soft_budget_param,
+                eval_soft_budget_param,
+            ) in BUDGET_PARAMS[method][dataset]
+        ]
+        + [
+            (
+                f"extra/output/eval_results/{method}/"
+                f"dataset-{dataset}+"
+                f"instance_idx-{dataset_instance_idx}/"
+                f"{NO_PRETRAIN_STR}/"
+                f"train_seed-{dataset_instance_idx}+"
+                f"train_hard_budget-{train_hard_budget}+"
+                f"train_soft_budget_param-{train_soft_budget_param}/"
+                f"eval_seed-{dataset_instance_idx}+"
+                f"eval_hard_budget-{eval_hard_budget}+"
+                f"eval_soft_budget_param-{eval_soft_budget_param}/"
+                "eval_data.csv"
+            )
+            for method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for (
+                train_hard_budget,
+                eval_hard_budget,
+                train_soft_budget_param,
+                eval_soft_budget_param,
+            ) in BUDGET_PARAMS[method][dataset]
+        ]

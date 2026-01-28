@@ -6,7 +6,9 @@ hydra:
 defaults:
   - hydra: custom
   - _self_
+  - components/initializers@initializer: ???
   - components/unmaskers@unmasker: ???
+  - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
@@ -14,9 +16,10 @@ defaults:
 # ============================================================================
 # Required paths (must be provided)
 # ============================================================================
-aaco_bundle_path: ???       # Trained AACO method to clone
-dataset_artifact_name: ???  # Training dataset for generating rollouts
-classifier_bundle_path: ??? # Pre-trained classifier for predictions
+pretrained_model_bundle_path: ???  # Trained AACO method to clone
+train_dataset_bundle_path: ???     # Training dataset for generating rollouts
+val_dataset_bundle_path: ???       # Unused, kept for common interface
+classifier_bundle_path: ???        # Pre-trained classifier for predictions
 save_path: ???
 
 # ============================================================================
@@ -64,7 +67,9 @@ val_split: 0.1
 #   - integer: Hard budget (policy always acquires up to budget)
 
 hard_budget: null
+soft_budget_param: null
 
 seed: 42
 device: "cpu"
+use_wandb: false
 smoke_test: false

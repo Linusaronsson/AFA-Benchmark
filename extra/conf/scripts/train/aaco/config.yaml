@@ -7,7 +7,9 @@ defaults:
   - hydra: custom
   - _self_
   - dataset@_global_: cube
+  - components/initializers@initializer: ???
   - components/unmaskers@unmasker: ???
+  - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
@@ -31,7 +33,8 @@ aco:
 # ============================================================================
 # Required paths (must be provided)
 # ============================================================================
-dataset_artifact_name: ???
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
 classifier_bundle_path: ???
 save_path: ???
 
@@ -39,16 +42,18 @@ save_path: ???
 # Budget settings
 # ============================================================================
 # soft_budget_param: Overrides aco.acquisition_cost if provided
-# hard_budget: If set, forces acquisition until budget is reached (null = soft budget)
+# hard_budget: If set, forces acquisition until budget is reached
+#   (null = soft budget)
 
-soft_budget_param: ???
-hard_budget: ???
+soft_budget_param: null
+hard_budget: null
 
 # ============================================================================
 # Other settings
 # ============================================================================
 seed: 42
 device: "cpu"
+use_wandb: false
 initializer_type: "aaco"
 unmasker_type: "one_based_index"
 smoke_test: false

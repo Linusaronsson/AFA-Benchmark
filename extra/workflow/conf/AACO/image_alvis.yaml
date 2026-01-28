@@ -10,17 +10,16 @@
 # Usage:
 #   snakemake -s extra/workflow/snakefiles/orchestration/AACO.smk \
 #       --configfile extra/workflow/conf/AACO/image_alvis.yaml \
+#       --configfile extra/workflow/conf/method_options.yaml \
+#       --configfile extra/workflow/conf/pretrain_mapping.yaml \
+#       --configfile extra/workflow/conf/classifier_names.yaml \
 #       --profile extra/workflow/profiles/alvis_rezvan
-
-dataset_path_prefix: extra/data
 dataset_instance_indices: [0, 1, 2, 3, 4]
 initializer: random
 eval_dataset_split: test
 
 # Run image workloads on GPU.
 device: cuda
-device_aaco: cuda
-device_aaco_nn: cuda
 use_wandb: false
 smoke_test: false
 
@@ -32,13 +31,24 @@ datasets:
 unmaskers:
   default: 224x224_to_7x7
 
+# Methods
+methods:
+  - aaco
+  - aaco_nn
+
 # Hard budgets for 224x224 images (49 patches)
-hard_budgets:
+eval_hard_budgets:
   default: [10, 20, 30]
 
 # Soft budget parameters
 soft_budget_params:
-  default: [0.0001, 0.001, 0.01]
-
-train_aaco_nn: true
-soft_budget_eval: true
+  aaco:
+    default:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+  aaco_nn:
+    default:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]

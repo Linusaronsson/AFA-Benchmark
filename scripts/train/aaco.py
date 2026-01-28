@@ -1,8 +1,8 @@
-import torch
-import hydra
 import logging
-
 from pathlib import Path
+
+import hydra
+import torch
 
 from afabench.common.utils import set_seed
 from afabench.afa_oracle import create_aaco_method
@@ -13,21 +13,21 @@ from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(
-    version_base=None,
-    config_path="../../extra/conf/scripts/train/aaco",
-    config_name="config",
-)
-def main(cfg: AACOTrainConfig):
+def run(cfg: AACOTrainConfig) -> None:
     logger.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
-    # Load dataset bundle
-    dataset_obj, dataset_manifest = load_bundle(
-        Path(cfg.dataset_artifact_name)
+    dataset_bundle_path = (
+        cfg.train_dataset_bundle_path or cfg.dataset_artifact_name
     )
+    assert dataset_bundle_path is not None, (
+        "Expected train_dataset_bundle_path or dataset_artifact_name."
+    )
+
+    # Load dataset bundle
+    dataset_obj, dataset_manifest = load_bundle(Path(dataset_bundle_path))
     dataset_name = dataset_manifest["class_name"].replace(
         "Dataset", ""
     ).lower()
@@ -49,8 +49,11 @@ def main(cfg: AACOTrainConfig):
     X_train = X_train.to(device)
     y_train = y_train.to(device)
 
-    logger.debug(f"X_train shape {
-                 X_train.shape}, y_train shape {y_train.shape}")
+    logger.debug(
+        "X_train shape %s, y_train shape %s",
+        X_train.shape,
+        y_train.shape,
+    )
     logger.debug(f"Feature shape: {feature_shape}")
 
     # Determine soft budget parameter
@@ -61,11 +64,14 @@ def main(cfg: AACOTrainConfig):
     )
     force_acquisition = cfg.hard_budget is not None
 
-    assert cfg.classifier_bundle_path is not None, "classifier_bundle_path must be provided. Train an MLP classifier first."
+    assert cfg.classifier_bundle_path is not None, (
+        "classifier_bundle_path must be provided. Train a classifier first."
+    )
     classifier_bundle_path = Path(cfg.classifier_bundle_path)
 
-    assert classifier_bundle_path.exists(), f"Classifier bundle not found at: {
-        classifier_bundle_path}"
+    assert classifier_bundle_path.exists(), (
+        f"Classifier bundle not found at: {classifier_bundle_path}"
+    )
 
     # Determine selection space from unmasker
     unmasker = get_afa_unmasker_from_config(cfg.unmasker)
@@ -88,15 +94,17 @@ def main(cfg: AACOTrainConfig):
     # Fit oracle on training data
     logger.info("Fitting AACO oracle on training data...")
     aaco_method.aaco_oracle.fit(X_train, y_train)
-    logger.info(f"AACO oracle fitted with classifier from {
-        classifier_bundle_path}")
+    logger.info(
+        "AACO oracle fitted with classifier from %s",
+        classifier_bundle_path,
+    )
 
     # Save
     save_bundle(
         obj=aaco_method,
         path=Path(cfg.save_path),
         metadata={
-            "dataset_artifact": cfg.dataset_artifact_name,
+            "dataset_artifact": str(dataset_bundle_path),
             "dataset_name": dataset_name,
             "split_idx": split,
             "seed": cfg.seed,
@@ -112,6 +120,15 @@ def main(cfg: AACOTrainConfig):
         },
     )
     logger.info(f"Saved AACO method to: {cfg.save_path}")
+
+
+@hydra.main(
+    version_base=None,
+    config_path="../../extra/conf/scripts/train/aaco",
+    config_name="config",
+)
+def main(cfg: AACOTrainConfig) -> None:
+    run(cfg)
 
 
 if __name__ == "__main__":

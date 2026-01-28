@@ -24,6 +24,10 @@ pretrain_mapping:
     pretrain_script_name: "kachuee2019"
     pretrain_params: ["pq_module.use_feature_mask=true"]
 
+  aaco:
+    pretrain_script_name: "aaco"
+    pretrain_params: []
+
   # Example: If you need a variant with specific parameters
   # pvae_custom:
   #   pretrain_script_name: "zannone2019"
