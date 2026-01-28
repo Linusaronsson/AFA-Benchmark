@@ -32,7 +32,7 @@ unmaskers:
 hard_budgets:
   default: [10]
 
-cost_params:
+soft_budget_params:
   default: [0.001]
 
 train_aaco_nn: true

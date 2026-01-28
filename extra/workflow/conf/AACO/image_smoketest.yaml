@@ -35,8 +35,8 @@ unmaskers:
 hard_budgets:
   default: [10]
 
-# Minimal cost params for testing
-cost_params:
+# Minimal soft budget params for testing
+soft_budget_params:
   default: [0.001]
 
 # Keep AACO+NN on for end-to-end coverage

@@ -42,7 +42,7 @@ hard_budgets:
   default: [5]
   mnist: [10]
 
-cost_params:
+soft_budget_params:
   default: [0.05]
   mnist: [0.001]
 

@@ -38,10 +38,10 @@ save_path: ???
 # ============================================================================
 # Budget settings
 # ============================================================================
-# cost_param: Overrides aco.acquisition_cost if provided
+# soft_budget_param: Overrides aco.acquisition_cost if provided
 # hard_budget: If set, forces acquisition until budget is reached (null = soft budget)
 
-cost_param: ???
+soft_budget_param: ???
 hard_budget: ???
 
 # ============================================================================

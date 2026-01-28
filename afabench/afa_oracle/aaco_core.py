@@ -272,7 +272,10 @@ class AACOOracle:
         mask_flat = mask_expanded.view(-1, feature_count)
 
         with torch.no_grad():
-            logits = self.classifier(X_flat, mask_flat)
+            flat_shape = torch.Size([feature_count])
+            logits = self.classifier(
+                X_flat, mask_flat, feature_shape=flat_shape
+            )
             probs = F.softmax(logits, dim=-1)
 
         probs = probs.view(n_masks, self.k_neighbors, -1)
@@ -376,7 +379,10 @@ class AACOOracle:
         mask_flat = mask_expanded.view(-1, feature_count)
 
         with torch.no_grad():
-            logits = self.classifier(X_flat, mask_flat)
+            flat_shape = torch.Size([feature_count])
+            logits = self.classifier(
+                X_flat, mask_flat, feature_shape=flat_shape
+            )
             probs = F.softmax(logits, dim=-1)
 
         probs = probs.view(len(new_features), self.k_neighbors, -1)
@@ -420,7 +426,10 @@ class AACOOracle:
         x_input = x_masked * mask + self.hide_val * (1 - mask)
 
         with torch.no_grad():
-            logits = self.classifier(x_input, mask)
+            feature_shape = torch.Size([x_input.shape[1]])
+            logits = self.classifier(
+                x_input, mask, feature_shape=feature_shape
+            )
             probs = F.softmax(logits, dim=-1)
 
         return probs.squeeze(0)

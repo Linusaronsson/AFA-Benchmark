@@ -60,7 +60,9 @@ class AACOAFAMethod(AFAMethod):
             )
             classifier = cast(AFAClassifier, cast(object, classifier))
             self.aaco_oracle.set_classifier(classifier)
-            logger.info(f"Loaded classifier from {self.classifier_bundle_path}")
+            logger.info(
+                f"Loaded classifier from {self.classifier_bundle_path}"
+            )
 
     def set_exclude_instance(self, exclude_instance: bool) -> None:
         """Set whether to exclude the query instance from KNN results."""
@@ -213,12 +215,6 @@ class AACOAFAMethod(AFAMethod):
     def set_cost_param(self, cost_param: float) -> None:
         """Set the acquisition cost (for soft budget mode)."""
         self.aaco_oracle.acquisition_cost = cost_param
-
-    @property
-    @override
-    def has_builtin_classifier(self) -> bool:
-        """AACO has a builtin classifier for predictions."""
-        return True
 
     @override
     def save(self, path: Path) -> None:

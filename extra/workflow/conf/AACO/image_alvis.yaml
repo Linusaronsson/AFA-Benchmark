@@ -36,8 +36,8 @@ unmaskers:
 hard_budgets:
   default: [10, 20, 30]
 
-# Cost parameters (soft budget)
-cost_params:
+# Soft budget parameters
+soft_budget_params:
   default: [0.0001, 0.001, 0.01]
 
 train_aaco_nn: true

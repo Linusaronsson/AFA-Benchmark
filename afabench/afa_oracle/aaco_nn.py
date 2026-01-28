@@ -587,8 +587,13 @@ class AACONNAFAMethod(AFAMethod):
         )
 
         # Get classifier predictions
+        classifier_shape = torch.Size([masked_features_flat.shape[1]])
         with torch.no_grad():
-            logits = self.classifier(masked_features_flat, feature_mask_flat)
+            logits = self.classifier(
+                masked_features_flat,
+                feature_mask_flat,
+                feature_shape=classifier_shape,
+            )
             probs = F.softmax(logits, dim=-1)
 
         # Reshape and return
@@ -605,12 +610,6 @@ class AACONNAFAMethod(AFAMethod):
     @override
     def set_cost_param(self, cost_param: float) -> None:
         """Set cost param (no-op for AACO+NN, budget is implicit in training)."""
-
-    @property
-    @override
-    def has_builtin_classifier(self) -> bool:
-        """AACO+NN has a builtin classifier for predictions."""
-        return True
 
     @override
     def save(self, path: Path) -> None:

@@ -53,10 +53,10 @@ def main(cfg: AACOTrainConfig):
                  X_train.shape}, y_train shape {y_train.shape}")
     logger.debug(f"Feature shape: {feature_shape}")
 
-    # Determine cost parameter
-    cost = (
-        cfg.cost_param
-        if cfg.cost_param is not None
+    # Determine soft budget parameter
+    soft_budget_param = (
+        cfg.soft_budget_param
+        if cfg.soft_budget_param is not None
         else cfg.aco.acquisition_cost
     )
     force_acquisition = cfg.hard_budget is not None
@@ -77,7 +77,7 @@ def main(cfg: AACOTrainConfig):
     aaco_method = create_aaco_method(
         dataset_name=dataset_name,
         k_neighbors=cfg.aco.k_neighbors,
-        acquisition_cost=cost,
+        acquisition_cost=soft_budget_param,
         hide_val=cfg.aco.hide_val,
         force_acquisition=force_acquisition,
         selection_size=selection_size,
@@ -100,7 +100,7 @@ def main(cfg: AACOTrainConfig):
             "dataset_name": dataset_name,
             "split_idx": split,
             "seed": cfg.seed,
-            "cost_param": cost,
+            "soft_budget_param": soft_budget_param,
             "hard_budget": cfg.hard_budget,
             "force_acquisition": force_acquisition,
             "selection_size": selection_size,

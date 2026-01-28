@@ -1,4 +1,8 @@
 soft_budget_params:
+  aaco:
+    default: [0.05, 0.01]
+  aaco_nn:
+    default: [0.05, 0.01]
   jafa:
     default: [0.01, 0.00001]
     afa_context_without_noise: [0.01, 0.0000000001]

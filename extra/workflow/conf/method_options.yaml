@@ -1,4 +1,8 @@
 method_options:
+  aaco:
+    train_script_name: "aaco"
+  aaco_nn:
+    train_script_name: "aaco_nn"
   jafa:
     pretrained_model_name: "jafa"
     train_script_name: "shim2018"

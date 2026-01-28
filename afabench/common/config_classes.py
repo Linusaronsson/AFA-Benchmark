@@ -906,7 +906,7 @@ class AACOTrainConfig:
     )
     seed: int = 42
     device: str = "cpu"
-    cost_param: float | None = None
+    soft_budget_param: float | None = None
     hard_budget: int | None = None  # If set, use forced acquisition mode
     experiment_id: str | None = None
     initializer_type: str = "aaco"

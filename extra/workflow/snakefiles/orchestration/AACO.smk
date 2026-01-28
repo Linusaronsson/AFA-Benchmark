@@ -21,7 +21,7 @@ Configuration arguments (config file):
   - datasets: List of dataset names (required)
   - unmaskers: Mapping with a default unmasker (required)
   - hard_budgets: Mapping with a default hard budget list (required)
-  - cost_params: Mapping with a default cost list (required)
+  - soft_budget_params: Mapping with a default soft budget param list (required)
   - train_aaco_nn: Whether to train AACO+NN
   - soft_budget_eval: Whether to evaluate soft budgets
 
@@ -33,6 +33,8 @@ Required files:
   - Trained classifiers from mlp.smk at:
       extra/output/classifiers/masked_mlp_classifier/...
   - Unmasker configs in extra/conf/components/unmaskers/
+  - Plotting expects evaluation CSVs to include train_hard_budget and
+    train_soft_budget_param metadata columns.
 
 Usage examples:
   - Tabular (local):
@@ -89,19 +91,20 @@ HARD_BUDGETS = HARD_BUDGETS_RAW | {
     if dataset not in HARD_BUDGETS_RAW
 }
 
-# Cost parameters (soft budget) for AACO training
-COST_PARAMS_RAW = config.get("cost_params", None)
-if COST_PARAMS_RAW is None:
-    raise ValueError("Expected cost_params to be provided.")
-COST_PARAMS = COST_PARAMS_RAW | {
-    dataset: COST_PARAMS_RAW["default"]
+# Soft budget parameters for AACO training
+# Supports both "soft_budget_params" (new) and "cost_params" (legacy) config keys
+SOFT_BUDGET_PARAMS_RAW = config.get("soft_budget_params", config.get("cost_params", None))
+if SOFT_BUDGET_PARAMS_RAW is None:
+    raise ValueError("Expected soft_budget_params (or cost_params) to be provided.")
+SOFT_BUDGET_PARAMS = SOFT_BUDGET_PARAMS_RAW | {
+    dataset: SOFT_BUDGET_PARAMS_RAW["default"]
     for dataset in DATASETS
-    if dataset not in COST_PARAMS_RAW
+    if dataset not in SOFT_BUDGET_PARAMS_RAW
 }
 
 # Whether to also train AACO+NN
 TRAIN_AACO_NN = config.get("train_aaco_nn", False)
-# Whether to evaluate soft budgets (hard_budget=null with cost_param metadata)
+# Whether to evaluate soft budgets (hard_budget=null with train_soft_budget_param metadata)
 SOFT_BUDGET_EVAL = config.get("soft_budget_eval", False)
 
 # Hard budget settings for training
@@ -166,11 +169,11 @@ rule train_aaco_all:
                     f"instance_idx-{dataset_instance_idx}/"
                         f"train_seed-{dataset_instance_idx}+"
                         f"train_hard_budget-{train_hard_budget}+"
-                        f"cost_param-{cost_param}.bundle"
+                        f"train_soft_budget_param-{train_soft_budget_param}.bundle"
             )
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for cost_param in COST_PARAMS[dataset]
+            for train_soft_budget_param in SOFT_BUDGET_PARAMS[dataset]
             for train_hard_budget in TRAIN_HARD_BUDGETS[dataset]
         ]
 
@@ -184,11 +187,11 @@ rule train_aaco_nn_all:
                     f"instance_idx-{dataset_instance_idx}/"
                         f"train_seed-{dataset_instance_idx}+"
                         f"train_hard_budget-{train_hard_budget}+"
-                        f"cost_param-{cost_param}.bundle"
+                        f"train_soft_budget_param-{train_soft_budget_param}.bundle"
             )
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for cost_param in COST_PARAMS[dataset]
+            for train_soft_budget_param in SOFT_BUDGET_PARAMS[dataset]
             for train_hard_budget in TRAIN_HARD_BUDGETS[dataset]
         ] if TRAIN_AACO_NN else []
 
@@ -200,7 +203,7 @@ rule train_aaco_nn_all:
 # The classifier path is specified as an input dependency to fail early if missing.
 
 rule train_aaco:
-    """Train AACO method with a given cost parameter."""
+    """Train AACO method with a given soft budget parameter."""
     input:
         train=lambda wc: f"{DATASET_PATH_PREFIX}/{wc.dataset}/{wc.dataset_instance_idx}/train.bundle",
         classifier=(
@@ -216,7 +219,7 @@ rule train_aaco:
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
-                    "cost_param-{cost_param}.bundle"
+                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
         ),
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
@@ -229,7 +232,7 @@ rule train_aaco:
             dataset_artifact_name={input.train} \
             classifier_bundle_path={input.classifier} \
             save_path={output} \
-            cost_param={wildcards.cost_param} \
+            soft_budget_param={wildcards.train_soft_budget_param} \
             hard_budget={wildcards.train_hard_budget} \
             components/unmaskers@unmasker={params.unmasker} \
             device={params.device} \
@@ -248,7 +251,7 @@ rule train_aaco_nn:
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
-                    "cost_param-{cost_param}.bundle"
+                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
         ),
         classifier=(
             "extra/output/classifiers/masked_mlp_classifier/"
@@ -263,7 +266,7 @@ rule train_aaco_nn:
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
-                    "cost_param-{cost_param}.bundle"
+                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
         ),
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
@@ -299,14 +302,20 @@ rule eval_aaco_method:
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{eval_hard_budget}+"
-                    "cost_param-{cost_param}.bundle"
+                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
+        ),
+        classifier=(
+            "extra/output/classifiers/masked_mlp_classifier/"
+                "dataset-{dataset}+"
+                "instance_idx-{dataset_instance_idx}/"
+                    "seed-{train_seed}.bundle"
         ),
     output:
         "extra/output/eval_results/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
@@ -321,7 +330,7 @@ rule eval_aaco_method:
             components/unmaskers@unmasker={params.unmasker} \
             dataset_bundle_path={input.dataset} \
             save_path={output} \
-            classifier_bundle_path=null \
+            classifier_bundle_path={input.classifier} \
             seed={wildcards.eval_seed} \
             device={params.eval_device} \
             hard_budget={wildcards.eval_hard_budget} \
@@ -339,14 +348,20 @@ rule eval_aaco_method_soft:
                 "instance_idx-{dataset_instance_idx}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-null+"
-                    "cost_param-{cost_param}.bundle"
+                    "train_soft_budget_param-{train_soft_budget_param}.bundle"
+        ),
+        classifier=(
+            "extra/output/classifiers/masked_mlp_classifier/"
+                "dataset-{dataset}+"
+                "instance_idx-{dataset_instance_idx}/"
+                    "seed-{train_seed}.bundle"
         ),
     output:
         "extra/output/eval_results_soft/{method}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-null/"
                         "eval_data.csv",
@@ -361,7 +376,7 @@ rule eval_aaco_method_soft:
             components/unmaskers@unmasker={params.unmasker} \
             dataset_bundle_path={input.dataset} \
             save_path={output} \
-            classifier_bundle_path=null \
+            classifier_bundle_path={input.classifier} \
             seed={wildcards.eval_seed} \
             device={params.eval_device} \
             hard_budget=null \
@@ -380,7 +395,7 @@ rule count_selections:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
@@ -389,7 +404,7 @@ rule count_selections:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
@@ -405,7 +420,7 @@ rule count_selections_soft:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-null/"
                         "eval_data.csv",
@@ -414,7 +429,7 @@ rule count_selections_soft:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-null/"
                         "eval_data.csv",
@@ -430,7 +445,7 @@ rule add_metadata_to_eval_data:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
@@ -439,7 +454,7 @@ rule add_metadata_to_eval_data:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
@@ -449,9 +464,9 @@ rule add_metadata_to_eval_data:
             --col afa_method={wildcards.method} \
             --col dataset={wildcards.dataset} \
             --col train_seed={wildcards.train_seed} \
-            --col cost_param={wildcards.cost_param} \
-            --col hard_budget={wildcards.eval_hard_budget} \
-            --col soft_budget_param=""
+            --col train_soft_budget_param={wildcards.train_soft_budget_param} \
+            --col train_hard_budget={wildcards.eval_hard_budget} \
+            --col train_soft_budget_param=""
         """
 
 rule add_metadata_to_eval_data_soft:
@@ -461,7 +476,7 @@ rule add_metadata_to_eval_data_soft:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-null/"
                         "eval_data.csv",
@@ -470,7 +485,7 @@ rule add_metadata_to_eval_data_soft:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-null/"
                         "eval_data.csv",
@@ -480,9 +495,9 @@ rule add_metadata_to_eval_data_soft:
             --col afa_method={wildcards.method} \
             --col dataset={wildcards.dataset} \
             --col train_seed={wildcards.train_seed} \
-            --col cost_param={wildcards.cost_param} \
-            --col hard_budget="" \
-            --col soft_budget_param={wildcards.cost_param}
+            --col train_soft_budget_param={wildcards.train_soft_budget_param} \
+            --col train_hard_budget="" \
+            --col train_soft_budget_param={wildcards.train_soft_budget_param}
         """
 
 rule pivot_long_classifier:
@@ -492,7 +507,7 @@ rule pivot_long_classifier:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
@@ -501,7 +516,7 @@ rule pivot_long_classifier:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-{eval_hard_budget}/"
                         "eval_data.csv",
@@ -517,7 +532,7 @@ rule pivot_long_classifier_soft:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-null/"
                         "eval_data.csv",
@@ -526,7 +541,7 @@ rule pivot_long_classifier_soft:
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "train_seed-{train_seed}+"
-                "cost_param-{cost_param}/"
+                "train_soft_budget_param-{train_soft_budget_param}/"
                     "eval_seed-{eval_seed}+"
                     "eval_hard_budget-null/"
                         "eval_data.csv",
@@ -549,7 +564,7 @@ rule merge_eval:
                         f"dataset-{dataset}+"
                         f"instance_idx-{dataset_instance_idx}/"
                             f"train_seed-{dataset_instance_idx}+"
-                            f"cost_param-{cost_param}/"
+                            f"train_soft_budget_param-{train_soft_budget_param}/"
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{hard_budget}/"
                                     f"eval_data.csv"
@@ -557,7 +572,7 @@ rule merge_eval:
                 for method in AACO_METHODS
                 for dataset in DATASETS
                 for dataset_instance_idx in DATASET_INSTANCE_INDICES
-                for cost_param in COST_PARAMS[dataset]
+                for train_soft_budget_param in SOFT_BUDGET_PARAMS[dataset]
                 for hard_budget in HARD_BUDGETS[dataset]
             ]
             + (
@@ -567,7 +582,7 @@ rule merge_eval:
                             f"dataset-{dataset}+"
                             f"instance_idx-{dataset_instance_idx}/"
                                 f"train_seed-{dataset_instance_idx}+"
-                                f"cost_param-{cost_param}/"
+                                f"train_soft_budget_param-{train_soft_budget_param}/"
                                     f"eval_seed-{dataset_instance_idx}+"
                                     f"eval_hard_budget-null/"
                                         f"eval_data.csv"
@@ -575,7 +590,7 @@ rule merge_eval:
                     for method in AACO_METHODS
                     for dataset in DATASETS
                     for dataset_instance_idx in DATASET_INSTANCE_INDICES
-                    for cost_param in COST_PARAMS[dataset]
+                    for train_soft_budget_param in SOFT_BUDGET_PARAMS[dataset]
                 ]
                 if SOFT_BUDGET_EVAL
                 else []

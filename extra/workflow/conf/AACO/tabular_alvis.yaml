@@ -76,9 +76,9 @@ hard_budgets:
   fashion_mnist: [10, 20, 30]
 
 # ============================================================================
-# Cost parameters (soft budget)
+# Soft budget parameters
 # ============================================================================
-cost_params:
+soft_budget_params:
   default: [0.01, 0.05, 0.1]
   # MNIST-style (784 features)
   mnist: [0.0001, 0.001, 0.01]
