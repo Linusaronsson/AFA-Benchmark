@@ -163,7 +163,7 @@ class Zannone2019RLTrainer(RLTrainer):
                 if self.typed_cfg.soft_budget_param is None
                 else self.typed_cfg.soft_budget_param
             )
-            * self.unnormalized_selection_costs.to(self.device),
+            * self.normalized_selection_costs.to(self.device),
             n_feature_dims=self._n_feature_dims,
         )
 
