@@ -47,11 +47,35 @@ soft_budget_params:
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
-    default:
-      - [0.05, null]
-      - [0.1, null] # good performance, observes 20%
-      - [0.15, null]
-      - [0.20, null]
+    cube:
+      - [0.05, null] # too small
+      - [0.06, null]
+      - [0.07, null]
+      - [0.08, null]
+      - [0.09, null]
+      - [0.1, null] # observes 20%
+      - [0.11, null]
+      - [0.12, null]
+      - [0.13, null]
+      - [0.14, null]
+      - [0.15, null] # too large
+    cube_without_noise:
+      - [0.05, null] # too small
+      - [0.07, null]
+      - [0.1, null] # observes 20%
+      - [0.15, null] # observes 30%
+      - [0.17, null]
+      - [0.2, null] # too large, but starts increasing at the end
+    afa_context:
+      - [0.03, null]
+      - [0.04, null]
+      - [0.05, null] # observes 10%
+      - [0.1, null] # too large
+    afa_context_without_noise:
+      - [0.05, null] # too small
+      - [0.1, null] # observes 2%
+      - [0.15, null] # too large
+
     # synthetic_mnist_without_noise:
       # - [0.01, null] # diverges
       # - [0.1, null] # good performance, observes 20%
