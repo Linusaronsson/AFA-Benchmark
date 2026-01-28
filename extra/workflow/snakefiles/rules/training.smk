@@ -9,8 +9,12 @@ Handles:
 
 rule pretrain_model:
     input:
+        # Datasets
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
+        # Classifier
+        "extra/output/trained_classifiers/"
+            "dataset-{dataset}.bundle"
     output:
         directory(
             "extra/output/pretrained_models/{pretrained_model_name}/"
@@ -38,6 +42,7 @@ rule pretrain_model:
         python scripts/pretrain/{params.script_name}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
+            classifier_bundle_path={input[2]} \
             save_path={output[0]} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \

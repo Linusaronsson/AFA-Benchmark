@@ -136,6 +136,9 @@ class Shim2018ClassifierConfig:
 class Shim2018PretrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_dataset_bundle_path: (
+        str | None
+    )  # not needed for this method, but pipeline passes it to us
     save_path: str
     device: str
 
@@ -193,6 +196,9 @@ class Zannone2019ClassifierConfig:
 class Zannone2019PretrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_dataset_bundle_path: (
+        str | None
+    )  # not needed for this method, but pipeline passes it to us
     save_path: str
     device: str
 
@@ -235,6 +241,9 @@ class Kachuee2019PQModuleConfig:
 class Kachuee2019PretrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_dataset_bundle_path: (
+        str | None
+    )  # not needed for this method, but pipeline passes it to us
     save_path: str
     unmasker: UnmaskerConfig  # kachuee2019 needs to know which unmasker we will use during training, since the unmasker determines the number of selections, which determines how many Q-values we output
     device: str
