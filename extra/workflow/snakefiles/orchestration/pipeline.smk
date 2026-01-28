@@ -117,7 +117,7 @@ rule all_train_method:
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (train_hard_budget, _eval_hard_budget, train_soft_budget_param, _eval_soft_budget _) in BUDGET_PARAMS[method][dataset]
+            for (train_hard_budget, _eval_hard_budget, train_soft_budget_param, _eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ] +
         [
             (

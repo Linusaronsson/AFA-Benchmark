@@ -71,7 +71,7 @@ rule train_method_with_pretrained_model:
                 f"instance_idx-{wildcards.dataset_instance_idx}/"
                     f"pretrain_seed-{wildcards.pretrain_seed}/"
                         "model.bundle"
-        )
+        ),
 
         # Classifier
         "extra/output/trained_classifiers/"

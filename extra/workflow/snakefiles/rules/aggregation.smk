@@ -223,6 +223,7 @@ rule merge_time:
                 train_hard_budget,
                 eval_hard_budget,
                 train_soft_budget_param,
+                eval_soft_budget_param
             ) in BUDGET_PARAMS[method][dataset]
         ]
     output:
