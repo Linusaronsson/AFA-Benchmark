@@ -263,6 +263,7 @@ def get_plot(
     )
 
     if use_line:
+        plot += geom_point()
         plot += geom_ribbon(
             aes(ymin="low_metric", ymax="high_metric"),
             alpha=0.1,
