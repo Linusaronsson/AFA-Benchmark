@@ -24,7 +24,7 @@ eval_dataset_split: test
 # Training settings
 device: cpu
 use_wandb: false
-smoke_test: true
+smoke_test: false
 
 # ============================================================================
 # Datasets
@@ -42,8 +42,8 @@ datasets:
   - diabetes
   - miniboone
   - physionet
-  - mnist
-  - fashion_mnist
+  # - mnist
+  # - fashion_mnist
 
 # ============================================================================
 # Methods
