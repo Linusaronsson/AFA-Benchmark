@@ -8,6 +8,11 @@ soft_budget_params:
       - [0.05, null]
       - [0.01, null]
   jafa:
+    default:
+      - [0.00001, null]
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
     cube:
       - [0.00001, null] # 50% observed
       - [0.0001, null] # 50% observed
@@ -32,6 +37,10 @@ soft_budget_params:
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
+    default:
+      - [0.05, null]
+      - [0.075, null]
+      - [0.1, null]
     cube:
       - [0.05, null] # 100% observed
       - [0.06, null] # 70% observed
