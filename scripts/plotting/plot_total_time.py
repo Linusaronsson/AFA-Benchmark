@@ -195,13 +195,13 @@ def main() -> None:
     averaged_plot.save(
         args.output_folder / "average_time.pdf",
         width=10,
-        height=10,
+        height=3,
         verbose=False,
     )
     dataset_plot.save(
         args.output_folder / "dataset_time.pdf",
-        width=10,
-        height=10,
+        width=20,
+        height=5,
         verbose=False,
     )
 
