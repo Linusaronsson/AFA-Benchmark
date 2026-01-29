@@ -454,7 +454,7 @@ def main() -> None:
     for dataset_set_name, dataset_set in DATASET_SETS.items():
         produce_plots_for_dataset_set(
             df=var_metric_df,
-            output_folder=args.output / dataset_set_name,
+            output_folder=args.output_folder / dataset_set_name,
             dataset_set=dataset_set,
         )
 

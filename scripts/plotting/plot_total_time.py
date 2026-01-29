@@ -18,8 +18,8 @@ import polars as pl
 from plotnine import (
     aes,
     coord_flip,
+    facet_wrap,
     geom_bar,
-    geom_errorbar,
     ggplot,
     labs,
     scale_fill_discrete,
@@ -40,6 +40,23 @@ METHOD_NAME_MAPPING = {
     "dime": "DIME",
     "aaco": "AACO",
     "aaco_nn": "AACO+NN",
+}
+
+DATASET_NAME_MAPPING = {
+    "cube": "Cube",
+    "afa_context": "AFAContext",
+    "synthetic_mnist": "Synthetic MNIST",
+    "cube_without_noise": "Cube (noiseless)",
+    "afa_context_without_noise": "AFAContext (noiseless)",
+    "synthetic_mnist_without_noise": "Synthetic MNIST (noiseless)",
+    "mnist": "MNIST",
+    "actg": "ACTG",
+    "bank_marketing": "Bank Marketing",
+    "ckd": "CKD",
+    "diabetes": "Diabetes",
+    "fashion_mnist": "FashionMNIST",
+    "miniboone": "MiniBooNE",
+    "physionet": "PhysioNet",
 }
 
 
@@ -113,50 +130,9 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def process_df(df: pl.DataFrame) -> tuple[pl.DataFrame, pl.DataFrame]:
-    df_long = df.unpivot(
-        on=["pretrain", "train", "eval"],
-        index=["afa_method", "dataset"],
-        variable_name="stage",
-        value_name="time",
-    )
-
-    # For the individual stages, we only care about average
-    df_stages = df_long.group_by(["afa_method", "stage"]).agg(
-        pl.col("time").fill_null(0).mean()
-    )
-
-    # For the total time, we also want std
-    df_total = (
-        df.with_columns(
-            total=pl.col("pretrain") + pl.col("train") + pl.col("eval")
-        )
-        .group_by(["afa_method"])
-        .agg(
-            total_mean=pl.col("total").mean(),
-            total_std=pl.col("total").std(),
-        )
-    )
-
-    return df_stages, df_total
-
-
-def create_plot(df_stages: pl.DataFrame, df_total: pl.DataFrame) -> p9.ggplot:
-    plot = (
-        ggplot()
-        + geom_bar(
-            data=df_stages,
-            mapping=aes(x="afa_method", y="time", fill="stage"),
-            stat="identity",
-        )
-        + geom_errorbar(
-            data=df_total,
-            mapping=aes(
-                x="afa_method",
-                ymin="total_mean - total_std",
-                ymax="total_mean + total_std",
-            ),
-        )
+def common_plot_operations(p: p9.ggplot) -> p9.ggplot:
+    return (
+        p
         + coord_flip()
         + labs(x="Policy", y="Time (s)", fill="Stage")
         + scale_x_discrete(labels=METHOD_NAME_MAPPING)
@@ -168,17 +144,66 @@ def create_plot(df_stages: pl.DataFrame, df_total: pl.DataFrame) -> p9.ggplot:
             }
         )
     )
-    return plot
+
+
+def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
+    # Apply name transforms
+    df = df.with_columns(
+        dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING),
+        afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
+    )
+    # One plot averaged over datasets
+    averaged_plot = ggplot(
+        df.group_by(["afa_method", "stage"]).mean()
+    ) + geom_bar(
+        aes(x="afa_method", y="time", fill="stage"),
+        stat="identity",
+    )
+    averaged_plot = common_plot_operations(averaged_plot)
+
+    # Another one faceted over datasets
+    dataset_plot = (
+        ggplot(df)
+        + geom_bar(
+            aes(x="afa_method", y="time", fill="stage"), stat="identity"
+        )
+        + facet_wrap("dataset", nrow=2, scales="free_x")
+    )
+    dataset_plot = common_plot_operations(dataset_plot)
+    return averaged_plot, dataset_plot
+
+
+def unpivot(df: pl.DataFrame) -> pl.DataFrame:
+    df_long = df.unpivot(
+        on=["pretrain", "train", "eval"],
+        index=["afa_method", "dataset"],
+        variable_name="stage",
+        value_name="time",
+    )
+    return df_long
 
 
 def main() -> None:
     args = parse_args()
     df = read_csv_safe(args.input) if args.input else get_mock_df()
-    df_stages, df_total = process_df(df)
-    plot = create_plot(df_stages, df_total)
+
+    df_long = unpivot(df)
+
+    averaged_plot, dataset_plot = get_plots(df=df_long)
 
     args.output_folder.mkdir(parents=True, exist_ok=True)
-    plot.save(args.output_folder / "total_time.pdf", verbose=False)
+    averaged_plot.save(
+        args.output_folder / "average_time.pdf",
+        width=10,
+        height=10,
+        verbose=False,
+    )
+    dataset_plot.save(
+        args.output_folder / "dataset_time.pdf",
+        width=10,
+        height=10,
+        verbose=False,
+    )
 
 
 if __name__ == "__main__":
