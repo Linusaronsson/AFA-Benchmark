@@ -7,12 +7,14 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.afa_generative.afa_methods import Ma2018AFAMethod
-from afabench.common.bundle import load_bundle, save_bundle
 from afabench.afa_discriminative.utils import afa_discriminative_training_prep
-from afabench.afa_rl.zannone2019.models import Zannone2019PretrainingModel
+from afabench.afa_generative.afa_methods import Ma2018AFAMethod
+from afabench.afa_rl.zannone2019.models import (
+    Zannone2019PretrainingModel,  # noqa: TC001
+)
+from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import Ma2018TrainingConfig
-from afabench.common.torch_bundle import TorchModelBundle
+from afabench.common.torch_bundle import TorchModelBundle  # noqa: TC001
 from afabench.common.utils import set_seed
 
 log = logging.getLogger(__name__)
@@ -23,18 +25,15 @@ log = logging.getLogger(__name__)
     config_path="../../extra/conf/scripts/train/ma2018",
     config_name="config",
 )
-def main(cfg: Ma2018TrainingConfig):
+def main(cfg: Ma2018TrainingConfig) -> None:
     log.debug(cfg)
-    print(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
-    train_dataset, _, _, _, class_weights = (
-        afa_discriminative_training_prep(
-            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-            initializer_cfg=cfg.initializer,
-            unmasker_cfg=cfg.unmasker,
-        )
+    train_dataset, _, _, _, class_weights = afa_discriminative_training_prep(
+        train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+        val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+        initializer_cfg=cfg.initializer,
+        unmasker_cfg=cfg.unmasker,
     )
     assert class_weights is not None
     class_weights = class_weights.to(device)
@@ -56,7 +55,7 @@ def main(cfg: Ma2018TrainingConfig):
         sampler=pretrained_model.partial_vae,
         predictor=pretrained_model.classifier,
         num_classes=num_classes,
-        classifier_bundle_path=Path(cfg.classifier_bundle_path),
+        classifier_bundle_path=None,
     )
 
     save_bundle(
@@ -67,10 +66,10 @@ def main(cfg: Ma2018TrainingConfig):
 
     log.info(f"Ma2018 method saved to: {cfg.save_path}")
 
-    gc.collect()  # Force Python GC
+    gc.collect()
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-        torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
 
 
 if __name__ == "__main__":
