@@ -8,76 +8,147 @@ soft_budget_params:
       - [0.05, null]
       - [0.01, null]
   jafa:
-    default:
-      - [0.00001, null]
-      - [0.0001, null]
-      - [0.001, null]
-      - [0.01, null]
+    default: [] # don't rely on defaults
     cube:
-      - [0.00001, null] # 50% observed
-      - [0.0001, null] # 50% observed
+      # - [0.00001, null] # 50% observed
+      # - [0.0001, null] # 50% observed
       - [0.001, null] # 50% observed
       - [0.01, null] # 20% observed
     cube_without_noise:
       - [0.00001, null] # 50% observed
-      - [0.0001, null] # 20% observed
+      # - [0.0001, null] # 20% observed
       - [0.001, null] # 20% observed
       - [0.01, null] # 15% observed
     afa_context_without_noise:
-      - [0.00001, null] # 70% observed
+      # - [0.00001, null] # 70% observed
       - [0.0001, null] # 50% observed
       - [0.001, null] # 40% observed
       - [0.01, null] # 20% observed
     afa_context:
-      - [0.00001, null] # 70% observed
-      - [0.0001, null] # 70% observed
+      # - [0.00001, null] # 70% observed
+      # - [0.0001, null] # 70% observed
       - [0.001, null] # 70% observed
+      - [0.005, null]
       - [0.01, null] # 0% observed
+    diabetes:
+      - [0.00001, null] # 30% observed
+      # - [0.0001, null] # 20% observed
+      - [0.001, null] # 20% observed
+      - [0.01, null] # 4% observed
+    bank_marketing:
+      # - [0.00001, null] # 50% observed
+      - [0.0001, null] # 50% observed
+      - [0.001, null] # 45% observed
+      - [0.01, null] # 20% observed
+    synthetic_mnist:
+      # - [0.00001, null] # 90% observed
+      # - [0.0001, null] # 90% observed
+      - [0.0005, null]
+      - [0.001, null] # 5% observed
+      - [0.01, null] # 4% observed
+    synthetic_mnist_without_noise:
+      # - [0.00001, null] # 90% observed
+      - [0.0001, null] # 70% observed
+      - [0.001, null] # 30% observed
+      - [0.01, null] # 5% observed
+    actg:
+      - [0.00001, null] # 35% observed
+      # - [0.0001, null] # 45% observed
+      - [0.001, null] # 25% observed
+      - [0.01, null] # 15% observed
+    physionet:
+      # - [0.00001, null] # 50% observed
+      - [0.0001, null] # 40% observed
+      - [0.001, null] # 20% observed
+      - [0.01, null] # 4% observed
+    ckd:
+      # - [0.00001, null] # 30% observed
+      - [0.0001, null] # 25% observed
+      - [0.001, null] # 15% observed
+      - [0.01, null] # 8% observed
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
-    default:
-      - [0.05, null]
-      - [0.075, null]
-      - [0.1, null]
+    default: [] # don't rely on defaults
     cube:
-      - [0.05, null] # 100% observed
-      - [0.06, null] # 70% observed
-      - [0.07, null] # 60% observed
+      # - [0.05, null] # 100% observed
+      # - [0.06, null] # 70% observed
+      # - [0.07, null] # 60% observed
       - [0.08, null] # 50% observed
-      - [0.09, null] # 35% observed
-      - [0.1, null] # 20% observed
+      # - [0.09, null] # 35% observed
+      # - [0.1, null] # 20% observed
       - [0.11, null] # 20% observed
-      - [0.12, null] # 14% observed
+      # - [0.12, null] # 14% observed
       - [0.13, null] # 12% observed
-      - [0.14, null] # 5% observed
-      - [0.15, null] # 0% observed
+      # - [0.14, null] # 5% observed
+      # - [0.15, null] # 0% observed
     cube_without_noise:
-      - [0.05, null] # 100% observed
-      - [0.07, null] # 80% observed
+      # - [0.05, null] # 100% observed
+      # - [0.07, null] # 80% observed
       - [0.1, null] # 20% observed
       - [0.15, null] # 30% observed
       - [0.17, null] # 20% observed
-      - [0.2, null] # 0% observed, but starts increasing at the end
+      # - [0.2, null] # 0% observed, but starts increasing at the end
     afa_context:
       - [0.03, null] # 40% observed
       - [0.04, null] # 20% observed
       - [0.05, null] # 10% observed
-      - [0.1, null] # 0% observed
+      # - [0.1, null] # 0% observed
     afa_context_without_noise:
-      - [0.05, null] # 100% observed
+      # - [0.05, null] # 100% observed
+      - [0.075, null]
       - [0.1, null] # 2% observed
-      - [0.15, null] # 0% observed
-
-    # synthetic_mnist_without_noise:
-      # - [0.01, null] # diverges
-      # - [0.1, null] # good performance, observes 20%
-      # - [0.5, null] # too large, collapses to stop action
-    # cube_without_noise:
-      # - [0.01, null] # too small, chooses all features
-      # - [0.1, null] # good performance, observes 50%
-      # - [0.5, null] # too large, collapses to stop action
+      # - [0.15, null] # 0% observed
+    miniboone:
+      - [0.05, null] # 20% observed
+      - [0.075, null] # 14% observed
+      - [0.1, null] # 9% observed
+    mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+      # - [0.05, null] # 0% observed
+      # - [0.075, null] # 0% observed
+      # - [0.1, null] # 0% observed
+    fashion_mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+      # - [0.05, null] # 0% observed
+      # - [0.075, null] # 0% observed
+      # - [0.1, null] # 0% observed
+    diabetes:
+      - [0.05, null] # 45% observed
+      - [0.075, null] # 30% observed
+      - [0.1, null] # 20% observed
+    bank_marketing:
+      # - [0.05, null] # 90% observed
+      - [0.075, null] # 75% observed
+      - [0.1, null] # 45% observed
+      - [0.125, null]
+    physionet:
+      - [0.05, null] # 45% observed
+      - [0.075, null] # 20% observed
+      - [0.1, null] # 13% observed
+    synthetic_mnist:
+      - [0.05, null] # 55% observed
+      - [0.075, null] # 30% observed
+      - [0.1, null] # 20% observed
+    synthetic_mnist_without_noise:
+      - [0.05, null] # 55% observed
+      - [0.075, null] # 30% observed
+      - [0.1, null] # 20% observed
+    actg:
+      # - [0.05, null] # 85% observed
+      - [0.075, null] # 60% observed
+      - [0.1, null] # 40% observed
+      - [0.125, null]
+    ckd:
+      # - [0.05, null] # 80% observed
+      - [0.075, null] # 60% observed
+      - [0.1, null] # 45% observed
+      - [0.125, null]
   odin_model_based: *odin
   random_dummy:
     default:
