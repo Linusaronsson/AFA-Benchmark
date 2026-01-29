@@ -1,3 +1,4 @@
+executor: slurm
 latency-wait: 30 # seconds
 
 default-resources:
