@@ -26,7 +26,7 @@ rule plot_time:
     input:
         "extra/output/merged_results/all.csv",
     output:
-        directory("extra/output/plot_results/time/all"),
+        directory("extra/output/plot_results/time/"),
     resources:
         shell_exec="bash"
     shell:

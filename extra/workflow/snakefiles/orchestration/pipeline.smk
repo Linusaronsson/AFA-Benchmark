@@ -88,7 +88,7 @@ rule all:
             f"extra/output/plot_results/eval_perf/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
         ] +
         [
-            "extra/output/plot_results/time/all"
+            "extra/output/plot_results/time/"
         ]
 
 

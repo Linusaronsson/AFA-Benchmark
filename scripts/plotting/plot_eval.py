@@ -22,13 +22,8 @@ from plotnine import (
 )
 from sklearn.metrics import accuracy_score, f1_score
 
-# Datasets not listed here will use accuracy
-DATASETS_WITH_F_SCORE = [
-    "cube_without_noise",
-    "synthetic_mnist_without_noise",
-    "cube",
-    "synthetic_mnist",
-]
+PLOT_WIDTH = 13
+PLOT_HEIGHT = 5
 
 METHOD_NAME_MAPPING = {
     # Dummy
@@ -50,9 +45,9 @@ DATASET_NAME_MAPPING = {
     "cube": "Cube",
     "afa_context": "AFAContext",
     "synthetic_mnist": "Synthetic MNIST",
-    "cube_without_noise": "Cube (noiseless)",
-    "afa_context_without_noise": "AFAContext (noiseless)",
-    "synthetic_mnist_without_noise": "Synthetic MNIST (noiseless)",
+    "cube_without_noise": "Noiseless Cube",
+    "afa_context_without_noise": "Noiseless AFAContext",
+    "synthetic_mnist_without_noise": "Noiseless Synthetic MNIST",
     "mnist": "MNIST",
     "actg": "ACTG",
     "bank_marketing": "Bank Marketing",
@@ -61,6 +56,21 @@ DATASET_NAME_MAPPING = {
     "fashion_mnist": "FashionMNIST",
     "miniboone": "MiniBooNE",
     "physionet": "PhysioNet",
+}
+DATASETS = DATASET_NAME_MAPPING.keys()
+
+# Datasets not listed here will use accuracy
+DATASETS_WITH_F_SCORE = [
+    "cube_without_noise",
+    "synthetic_mnist_without_noise",
+    "cube",
+    "synthetic_mnist",
+]
+
+
+DATASET_NAME_MAPPING_INCLUDING_METRIC = {
+    dataset: f"{name} ({'F1' if dataset in DATASETS_WITH_F_SCORE else 'Accuracy'})"
+    for dataset, name in DATASET_NAME_MAPPING.items()
 }
 
 DATASET_SETS = {
@@ -280,7 +290,9 @@ def get_plot(
     """Create a plot with metrics vs cost/budget."""
     # Apply name transforms
     df = df.with_columns(
-        dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING),
+        dataset=pl.col("dataset").replace(
+            DATASET_NAME_MAPPING_INCLUDING_METRIC
+        ),
         afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
     )
     plot = (
@@ -388,28 +400,22 @@ def add_metric_column(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def produce_plots_for_dataset_set(
-    df: pl.DataFrame, output_folder: Path, dataset_set: set[str]
-) -> None:
+    df: pl.DataFrame, dataset_set: set[str]
+) -> tuple[ggplot, ggplot, ggplot]:
     df = df.filter(pl.col("dataset").is_in(dataset_set))
     df_hard_budget = df.filter(pl.col("eval_hard_budget").is_null().not_())
     hard_budget_plot = get_hard_budget_plot(df_hard_budget)
-    hard_budget_plot.save(output_folder / "hard_budget.pdf")
 
     df_soft_budget = df.filter(pl.col("soft_budget_param").is_null().not_())
-    if df_soft_budget.is_empty():
-        print("No soft-budget data in input. Skipping.")
-    else:
-        for mode in ["2d_errors", "lines"]:
-            soft_budget_plot = get_soft_budget_plot(df_soft_budget, mode=mode)
-            soft_budget_plot.save(output_folder / f"soft_budget_{mode}.pdf")
+    soft_budget_plot_2d_errors = get_soft_budget_plot(
+        df_soft_budget, mode="2d_errors"
+    )
+    soft_budget_plot_lines = get_soft_budget_plot(df_soft_budget, mode="lines")
+
+    return hard_budget_plot, soft_budget_plot_2d_errors, soft_budget_plot_lines
 
 
-def main() -> None:
-    args = parse_args()
-    args.output_folder.mkdir(parents=True, exist_ok=True)
-
-    df = read_csv(args.input)
-
+def process_df(df: pl.DataFrame) -> pl.DataFrame:
     # Either train_soft_budget_param is set, or eval_soft_budget_param is set, but not both. This means that one of them must always be null
     assert (
         df["train_soft_budget_param"].is_null()
@@ -429,8 +435,8 @@ def main() -> None:
         & pl.col("predicted_class").is_not_null()
     )
     if df.is_empty():
-        print(f"No predictions available in {args.input}. Skipping.")
-        return
+        msg = "No predictions available in input."
+        raise ValueError(msg)
 
     metric_df = get_metrics(df)
 
@@ -450,12 +456,41 @@ def main() -> None:
         + pl.col("std_avg_accumulated_cost"),
     )
 
+    return var_metric_df
+
+
+def main() -> None:
+    args = parse_args()
+    args.output_folder.mkdir(parents=True, exist_ok=True)
+
+    df = read_csv(args.input)
+
+    df_processed = process_df(df)
+
     # One set of plots per dataset set
     for dataset_set_name, dataset_set in DATASET_SETS.items():
-        produce_plots_for_dataset_set(
-            df=var_metric_df,
-            output_folder=args.output_folder / dataset_set_name,
+        (
+            hard_budget_plot,
+            soft_budget_plot_2d_errors,
+            soft_budget_plot_lines,
+        ) = produce_plots_for_dataset_set(
+            df=df_processed,
             dataset_set=dataset_set,
+        )
+        subfolder = args.output_folder / dataset_set_name
+        subfolder.mkdir(parents=True, exist_ok=True)
+        hard_budget_plot.save(
+            subfolder / "hard_budget.pdf", width=PLOT_WIDTH, height=PLOT_HEIGHT
+        )
+        soft_budget_plot_2d_errors.save(
+            subfolder / "soft_budget_2d_errors.pdf",
+            width=PLOT_WIDTH,
+            height=PLOT_HEIGHT,
+        )
+        soft_budget_plot_lines.save(
+            subfolder / "soft_budget_lines.pdf",
+            width=PLOT_WIDTH,
+            height=PLOT_HEIGHT,
         )
 
 
