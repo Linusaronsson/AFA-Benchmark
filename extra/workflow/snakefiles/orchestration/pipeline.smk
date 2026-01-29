@@ -23,6 +23,12 @@ Config files (--configfile):
     Note: method_options.yaml can include eval_to_train_hard_budget_mapping to
     specify different budgets for training vs evaluation per method/dataset.
 
+    Note: method_options.yaml can include eval_batch_size to specify different
+    batch sizes for evaluation per method and dataset. Format:
+        eval_batch_size:
+          default: <batch_size>
+          <dataset_name>: <batch_size>
+
 Rules: all, all_pretrain_model, all_train_method, all_eval_method
 
 Note: Pretrain configs auto-filtered by selected methods. Keep docstring updated.
@@ -64,6 +70,7 @@ UNMASKERS = _config["UNMASKERS"]
 BUDGET_PARAMS = _config["BUDGET_PARAMS"]
 CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
 METHOD_SETS = _config["METHOD_SETS"]
+EVAL_BATCH_SIZES = _config["EVAL_BATCH_SIZES"]
 
 include: "../rules/training.smk"
 include: "../rules/classifier_training.smk"

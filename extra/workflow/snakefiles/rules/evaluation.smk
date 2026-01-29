@@ -46,6 +46,7 @@ rule eval_method:
                             "eval_time.txt",
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],
     resources:
         shell_exec="bash"
     shell:
@@ -62,6 +63,7 @@ rule eval_method:
             device={DEVICE} \
             hard_budget={wildcards.eval_hard_budget} \
             soft_budget_param={wildcards.eval_soft_budget_param} \
+            batch_size={params.eval_batch_size} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST}
         END_TIME=$(date +%s.%N)

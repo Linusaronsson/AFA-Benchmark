@@ -131,6 +131,30 @@ def load_config(config):
     if datasets is None:
         raise ValueError("Expected datasets to be provided.")
 
+    # Extract eval_batch_size from method_options
+    # Format: {method: {dataset: batch_size}}
+    eval_batch_sizes = {}
+    for method, options in method_options.items():
+        if method in methods:
+            batch_size_config = options.get("eval_batch_size")
+            if batch_size_config is None:
+                # If eval_batch_size is not specified, use batch size of 1 for all
+                eval_batch_sizes[method] = {dataset: 1 for dataset in datasets}
+            elif isinstance(batch_size_config, dict):
+                # Fill in missing datasets with the default batch size
+                # If no default is specified, use batch size of 1
+                default_batch_size = batch_size_config.get("default", 1)
+                eval_batch_sizes[method] = batch_size_config | {
+                    dataset: default_batch_size
+                    for dataset in datasets
+                    if dataset not in batch_size_config
+                }
+            else:
+                # If eval_batch_size is a scalar, use it for all datasets
+                eval_batch_sizes[method] = {
+                    dataset: batch_size_config for dataset in datasets
+                }
+
     # ========================================================================
     # Budget and Unmasker Configuration
     # ========================================================================
@@ -227,6 +251,7 @@ def load_config(config):
         "BUDGET_PARAMS": budget_params,
         "CLASSIFIER_NAMES": classifier_names,
         "METHOD_SETS": method_sets,
+        "EVAL_BATCH_SIZES": eval_batch_sizes,
     }
 
 
