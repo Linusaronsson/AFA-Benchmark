@@ -13,8 +13,8 @@ rule pretrain_model:
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
         # Classifier
-        "extra/output/trained_classifiers/"
-            "dataset-{dataset}.bundle"
+        ancient("extra/output/trained_classifiers/"
+            "dataset-{dataset}.bundle")
     output:
         directory(
             "extra/output/pretrained_models/{pretrained_model_name}/"
@@ -74,8 +74,8 @@ rule train_method_with_pretrained_model:
         ),
 
         # Classifier
-        "extra/output/trained_classifiers/"
-            "dataset-{dataset}.bundle"
+        ancient("extra/output/trained_classifiers/"
+            "dataset-{dataset}.bundle")
 
     output:
         directory(
@@ -134,8 +134,8 @@ rule train_method_without_pretrained_model:
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
 
         # Classifier
-        "extra/output/trained_classifiers/"
-            "dataset-{dataset}.bundle"
+        ancient("extra/output/trained_classifiers/"
+            "dataset-{dataset}.bundle")
     output:
         directory(
             "extra/output/trained_methods/{method}/"
