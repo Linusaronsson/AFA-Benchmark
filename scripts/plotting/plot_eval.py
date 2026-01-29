@@ -50,7 +50,14 @@ DATASET_NAME_MAPPING = {
     "cube_without_noise": "Cube (noiseless)",
     "afa_context_without_noise": "AFAContext (noiseless)",
     "synthetic_mnist_without_noise": "Synthetic MNIST (noiseless)",
-    "MNIST": "MNIST",
+    "mnist": "MNIST",
+    "actg": "ACTG",
+    "bank_marketing": "Bank Marketing",
+    "ckd": "CKD",
+    "diabetes": "Diabetes",
+    "fashion_mnist": "FashionMNIST",
+    "miniboone": "MiniBooNE",
+    "physionet": "PhysioNet",
 }
 
 
