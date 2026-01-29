@@ -141,7 +141,7 @@ def create_dummy_data() -> pl.DataFrame:  # noqa: C901
     )
 
 
-def get_metrics_at_stop_action(df: pl.DataFrame) -> pl.DataFrame:
+def get_metrics(df: pl.DataFrame) -> pl.DataFrame:
     return df.group_by(
         "afa_method",
         "dataset",
@@ -292,15 +292,27 @@ def get_hard_budget_plot(df: pl.DataFrame) -> p9.ggplot:
     )
 
 
-def get_soft_budget_plot(df: pl.DataFrame) -> p9.ggplot:
-    return get_plot(
-        df,
-        x_col="mean_avg_accumulated_cost",
-        x_label="Cost per episode",
-        x_error_min="low_avg_accumulated_cost",
-        x_error_max="high_avg_accumulated_cost",
-        use_line=False,
-    )
+def get_soft_budget_plot(df: pl.DataFrame, mode: str) -> p9.ggplot:
+    if mode == "2d_errors":
+        return get_plot(
+            df,
+            x_col="mean_avg_accumulated_cost",
+            x_label="Cost per episode",
+            x_error_min="low_avg_accumulated_cost",
+            x_error_max="high_avg_accumulated_cost",
+            use_line=False,
+        )
+    if mode == "lines":
+        return get_plot(
+            df,
+            x_col="mean_avg_accumulated_cost",
+            x_label="Cost per episode",
+            x_error_min=None,
+            x_error_max=None,
+            use_line=True,
+        )
+    msg = f"Expected either '2d_errors' or 'lines' as mode, got '{mode}'"
+    raise ValueError(msg)
 
 
 def parse_args() -> argparse.Namespace:
@@ -360,7 +372,7 @@ def main() -> None:
         print(f"No predictions available in {args.input}. Skipping.")
         return
 
-    metric_df = get_metrics_at_stop_action(df)
+    metric_df = get_metrics(df)
 
     # Variance of metrics across seeds
     var_metric_df = get_variance_of_metrics(metric_df)
@@ -392,8 +404,11 @@ def main() -> None:
     if df_soft_budget.is_empty():
         print(f"No soft-budget data in {args.input}. Skipping.")
     else:
-        soft_budget_plot = get_soft_budget_plot(df_soft_budget)
-        soft_budget_plot.save(args.output_folder / "soft_budget.pdf")
+        for mode in ["2d_errors", "lines"]:
+            soft_budget_plot = get_soft_budget_plot(df_soft_budget, mode=mode)
+            soft_budget_plot.save(
+                args.output_folder / f"soft_budget_{mode}.pdf"
+            )
 
 
 if __name__ == "__main__":
