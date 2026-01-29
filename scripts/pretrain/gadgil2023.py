@@ -26,3 +26,6 @@ def main(cfg: Gadgil2023PretrainingConfig | Gadgil2023Pretraining2DConfig) -> No
         pretrain_image(cast(Gadgil2023Pretraining2DConfig, cfg))
     else:
         pretrain_tabular(cast(Gadgil2023PretrainingConfig, cfg))
+
+if __name__ == "__main__":
+    main()

@@ -5,6 +5,8 @@ hydra:
 
 defaults:
   - hydra: custom
+  - /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
   - _self_
   - optional experiment@_global_: ???
   - override hydra/job_logging: colorlog

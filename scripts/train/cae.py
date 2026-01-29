@@ -26,3 +26,6 @@ def main(cfg: CAETrainingConfig | CAETraining2DConfig):
         train_image(cast(CAETraining2DConfig, cfg))
     else:
         train_tabular(cast(CAETrainingConfig, cfg))
+
+if __name__ == "__main__":
+    main()

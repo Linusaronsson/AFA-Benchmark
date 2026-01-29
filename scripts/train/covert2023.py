@@ -26,3 +26,6 @@ def main(cfg: Covert2023TrainingConfig | Covert2023Training2DConfig) -> None:
         train_image(cast(Covert2023Training2DConfig, cfg))
     else:
         train_tabular(cast(Covert2023TrainingConfig, cfg))
+
+if __name__ == "__main__":
+    main()

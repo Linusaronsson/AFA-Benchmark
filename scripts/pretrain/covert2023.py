@@ -35,3 +35,7 @@ def main(
         pretrain_image(cast("Covert2023Pretraining2DConfig", cfg))
     else:
         pretrain_tabular(cast("Covert2023PretrainingConfig", cfg))
+
+
+if __name__ == "__main__":
+    main()

@@ -462,6 +462,9 @@ class Covert2023PretrainingConfig:
     hidden_units: list[int]
     dropout: float
 
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+
     use_wandb: bool
     smoke_test: bool
 
@@ -487,6 +490,9 @@ class Covert2023Pretraining2DConfig:
 
     image_size: int
     patch_size: int
+
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
 
     use_wandb: bool
     smoke_test: bool
@@ -572,6 +578,9 @@ class Gadgil2023PretrainingConfig:
     hidden_units: list[int]
     dropout: float
 
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+
     use_wandb: bool
     smoke_test: bool
 
@@ -597,6 +606,9 @@ class Gadgil2023Pretraining2DConfig:
 
     image_size: int
     patch_size: int
+
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
 
     use_wandb: bool
     smoke_test: bool

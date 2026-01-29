@@ -26,3 +26,6 @@ def main(cfg: Gadgil2023TrainingConfig | Gadgil2023Training2DConfig) -> None:
         train_image(cast(Gadgil2023Training2DConfig, cfg))
     else:
         train_tabular(cast(Gadgil2023TrainingConfig, cfg))
+
+if __name__ == "__main__":
+    main()
