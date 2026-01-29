@@ -1,17 +1,17 @@
 eval_hard_budgets:
   default: [5, 10, 15]
-  # actg: []
-  afa_context: [3, 5, 10]
-  afa_context_without_noise: [3, 5, 10]
-  # bank_marketing: []
-  # ckd: []
+  actg: [3, 5, 10] # 20 features
+  afa_context: [3, 5, 10] # 33 features
+  afa_context_without_noise: [3, 5, 10] # 33 features
+  bank_marketing: [2, 4, 7] # 15 features
+  ckd: [2, 4, 7] # 20 features
   cube: [3, 5, 10]
   cube_without_noise: [3, 5, 10]
   diabetes: [5, 10, 15]
-  fashion_mnist: [10, 20, 30]
-  imagenette: [5, 10, 15]
-  miniboone: [5, 10, 15]
   mnist: [10, 20, 30]
-  physionet: [5, 10, 15]
-  # synthetic_mnist: []
-  synthetic_mnist_without_noise: [1, 2, 3]
+  fashion_mnist: [10, 20, 30]
+  imagenette: []
+  miniboone: [5, 10, 15] # 40 features
+  physionet: [5, 10, 15] # 40 features
+  synthetic_mnist: [1, 2, 3] # 7x7 patches
+  synthetic_mnist_without_noise: [1, 2, 3] # 7x7 patches
