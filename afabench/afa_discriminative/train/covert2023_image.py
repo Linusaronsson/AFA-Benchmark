@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 from typing import cast
 
-import hydra
 import torch
 from omegaconf import OmegaConf
 from torch import nn
@@ -15,26 +14,23 @@ from afabench.afa_discriminative.afa_methods import (
 )
 from afabench.afa_discriminative.models import (
     ConvNet,
+    GreedyAFAClassifier,
     ResNet18Backbone,
     resnet18,
 )
-from afabench.afa_discriminative.models import GreedyAFAClassifier
-from afabench.afa_discriminative.utils import MaskLayer2d, afa_discriminative_training_prep
-from afabench.common.config_classes import Covert2023Training2DConfig
+from afabench.afa_discriminative.utils import (
+    MaskLayer2d,
+    afa_discriminative_training_prep,
+)
 from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.config_classes import Covert2023Training2DConfig
 from afabench.common.utils import set_seed
 
 log = logging.getLogger(__name__)
 
 
-@hydra.main(
-    version_base=None,
-    config_path="../../extra/conf/scripts/train/covert2023",
-    config_name="config",
-)
-def main(cfg: Covert2023Training2DConfig):
+def train_image(cfg: Covert2023Training2DConfig) -> None:
     log.debug(cfg)
-    print(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
@@ -48,14 +44,14 @@ def main(cfg: Covert2023Training2DConfig):
         )
     )
     train_loader = DataLoader(
-        train_dataset, # pyright: ignore[reportArgumentType]
+        train_dataset,  # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
         shuffle=True,
         pin_memory=True,
         drop_last=True,
     )
     val_loader = DataLoader(
-        val_dataset, # pyright: ignore[reportArgumentType]
+        val_dataset,  # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
         shuffle=False,
         pin_memory=True,
@@ -70,7 +66,8 @@ def main(cfg: Covert2023Training2DConfig):
         map_location=device,
     )
     classifier_bundle = cast(
-        GreedyAFAClassifier, classifier_bundle,
+        "GreedyAFAClassifier",
+        cast("object", classifier_bundle),
     )
     predictor = classifier_bundle.predictor.to(device)
 
@@ -142,7 +139,3 @@ def main(cfg: Covert2023Training2DConfig):
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
-
-
-if __name__ == "__main__":
-    main()

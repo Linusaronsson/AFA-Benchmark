@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 from typing import cast
 
-import hydra
 import numpy as np
 import torch
 from omegaconf import OmegaConf
@@ -30,12 +29,7 @@ from afabench.static.utils import make_masked_collate
 log = logging.getLogger(__name__)
 
 
-@hydra.main(
-    version_base=None,
-    config_path="../../extra/conf/scripts/train/cae",
-    config_name="config",
-)
-def main(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
+def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
@@ -171,7 +165,3 @@ def main(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
         torch.cuda.synchronize()
-
-
-if __name__ == "__main__":
-    main()
