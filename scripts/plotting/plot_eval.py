@@ -16,6 +16,9 @@ from plotnine import (
     geom_ribbon,
     ggplot,
     labs,
+    scale_color_discrete,
+    scale_fill_discrete,
+    theme,
 )
 from sklearn.metrics import accuracy_score, f1_score
 
@@ -58,6 +61,27 @@ DATASET_NAME_MAPPING = {
     "fashion_mnist": "FashionMNIST",
     "miniboone": "MiniBooNE",
     "physionet": "PhysioNet",
+}
+
+DATASET_SETS = {
+    "set1": {
+        "cube",
+        "afa_context",
+        "mnist",
+        "actg",
+        "diabetes",
+        "bank_marketing",
+        "ckd",
+        "physionet",
+    },
+    "set2": {
+        "physionet",
+        "synthetic_mnist",
+        "cube_without_noise",
+        "afa_context_without_noise",
+        "synthetic_mnist_without_noise",
+        "miniboone",
+    },
 }
 
 
@@ -232,16 +256,16 @@ def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
-def apply_name_mappings(df: pl.DataFrame) -> pl.DataFrame:
-    """Apply display name mappings to methods and datasets."""
-    return df.with_columns(
-        afa_method=pl.col("afa_method").map_elements(
-            lambda x: METHOD_NAME_MAPPING.get(x, x), return_dtype=pl.String
-        ),
-        dataset=pl.col("dataset").map_elements(
-            lambda x: DATASET_NAME_MAPPING.get(x, x), return_dtype=pl.String
-        ),
-    )
+# def apply_name_mappings(df: pl.DataFrame) -> pl.DataFrame:
+#     """Apply display name mappings to methods and datasets."""
+#     return df.with_columns(
+#         afa_method=pl.col("afa_method").map_elements(
+#             lambda x: METHOD_NAME_MAPPING.get(x, x), return_dtype=pl.String
+#         ),
+#         dataset=pl.col("dataset").map_elements(
+#             lambda x: DATASET_NAME_MAPPING.get(x, x), return_dtype=pl.String
+#         ),
+#     )
 
 
 def get_plot(
@@ -254,6 +278,11 @@ def get_plot(
     use_line: bool = True,
 ) -> p9.ggplot:
     """Create a plot with metrics vs cost/budget."""
+    # Apply name transforms
+    df = df.with_columns(
+        dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING),
+        afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
+    )
     plot = (
         ggplot(
             df,
@@ -264,9 +293,15 @@ def get_plot(
                 fill="afa_method",
             ),
         )
-        + facet_wrap("dataset", scales="free", ncol=4)
+        + facet_wrap(
+            "dataset",
+            scales="free",
+            ncol=4,
+        )
         + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
-        + p9.theme(figure_size=(10, 8))
+        + theme(figure_size=(10, 8))
+        + scale_fill_discrete(labels=METHOD_NAME_MAPPING)
+        + scale_color_discrete(labels=METHOD_NAME_MAPPING)
     )
 
     if use_line:
@@ -352,6 +387,23 @@ def add_metric_column(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def produce_plots_for_dataset_set(
+    df: pl.DataFrame, output_folder: Path, dataset_set: set[str]
+) -> None:
+    df = df.filter(pl.col("dataset").is_in(dataset_set))
+    df_hard_budget = df.filter(pl.col("eval_hard_budget").is_null().not_())
+    hard_budget_plot = get_hard_budget_plot(df_hard_budget)
+    hard_budget_plot.save(output_folder / "hard_budget.pdf")
+
+    df_soft_budget = df.filter(pl.col("soft_budget_param").is_null().not_())
+    if df_soft_budget.is_empty():
+        print("No soft-budget data in input. Skipping.")
+    else:
+        for mode in ["2d_errors", "lines"]:
+            soft_budget_plot = get_soft_budget_plot(df_soft_budget, mode=mode)
+            soft_budget_plot.save(output_folder / f"soft_budget_{mode}.pdf")
+
+
 def main() -> None:
     args = parse_args()
     args.output_folder.mkdir(parents=True, exist_ok=True)
@@ -398,25 +450,13 @@ def main() -> None:
         + pl.col("std_avg_accumulated_cost"),
     )
 
-    var_metric_df = apply_name_mappings(var_metric_df)
-
-    df_hard_budget = var_metric_df.filter(
-        pl.col("eval_hard_budget").is_null().not_()
-    )
-    hard_budget_plot = get_hard_budget_plot(df_hard_budget)
-    hard_budget_plot.save(args.output_folder / "hard_budget.pdf")
-
-    df_soft_budget = var_metric_df.filter(
-        pl.col("soft_budget_param").is_null().not_()
-    )
-    if df_soft_budget.is_empty():
-        print(f"No soft-budget data in {args.input}. Skipping.")
-    else:
-        for mode in ["2d_errors", "lines"]:
-            soft_budget_plot = get_soft_budget_plot(df_soft_budget, mode=mode)
-            soft_budget_plot.save(
-                args.output_folder / f"soft_budget_{mode}.pdf"
-            )
+    # One set of plots per dataset set
+    for dataset_set_name, dataset_set in DATASET_SETS.items():
+        produce_plots_for_dataset_set(
+            df=var_metric_df,
+            output_folder=args.output / dataset_set_name,
+            dataset_set=dataset_set,
+        )
 
 
 if __name__ == "__main__":
