@@ -60,12 +60,7 @@ DATASET_NAME_MAPPING = {
 DATASETS = DATASET_NAME_MAPPING.keys()
 
 # Datasets not listed here will use accuracy
-DATASETS_WITH_F_SCORE = [
-    "cube_without_noise",
-    "synthetic_mnist_without_noise",
-    "cube",
-    "synthetic_mnist",
-]
+DATASETS_WITH_F_SCORE = ["physionet"]
 
 
 DATASET_NAME_MAPPING_INCLUDING_METRIC = {
