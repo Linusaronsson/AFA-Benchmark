@@ -34,26 +34,26 @@ soft_budget_params:
   odin_model_free: &odin
     cube:
       - [0.05, null] # 100% observed
-      - [0.06, null]
-      - [0.07, null]
-      - [0.08, null]
-      - [0.09, null]
+      - [0.06, null] # 70% observed
+      - [0.07, null] # 60% observed
+      - [0.08, null] # 50% observed
+      - [0.09, null] # 35% observed
       - [0.1, null] # 20% observed
-      - [0.11, null]
-      - [0.12, null]
-      - [0.13, null]
-      - [0.14, null]
+      - [0.11, null] # 20% observed
+      - [0.12, null] # 14% observed
+      - [0.13, null] # 12% observed
+      - [0.14, null] # 5% observed
       - [0.15, null] # 0% observed
     cube_without_noise:
       - [0.05, null] # 100% observed
-      - [0.07, null]
+      - [0.07, null] # 80% observed
       - [0.1, null] # 20% observed
       - [0.15, null] # 30% observed
-      - [0.17, null]
+      - [0.17, null] # 20% observed
       - [0.2, null] # 0% observed, but starts increasing at the end
     afa_context:
-      - [0.03, null]
-      - [0.04, null]
+      - [0.03, null] # 40% observed
+      - [0.04, null] # 20% observed
       - [0.05, null] # 10% observed
       - [0.1, null] # 0% observed
     afa_context_without_noise:
