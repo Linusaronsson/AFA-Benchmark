@@ -34,12 +34,12 @@ set-resources:
     runtime: 120
   # AACO+NN training - device controlled per-dataset in snakefile
   train_aaco_nn:
-    runtime: 240
+    runtime: 600 # ~8-9h estimated for MNIST/FashionMNIST (784 features)
   # Evaluation rules - FIXED rule names to match AACO.smk
   eval_aaco_method:
-    runtime: 120
+    runtime: 360 # ~1h48m measured for MNIST hard budget eval
   eval_aaco_method_soft:
-    runtime: 180
+    runtime: 420 # ~2h28m measured for MNIST soft budget eval
   # Post-processing rules
   count_selections:
     runtime: 30

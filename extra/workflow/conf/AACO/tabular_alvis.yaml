@@ -36,8 +36,8 @@ datasets:
   - physionet
   - miniboone
   - bank_marketing
-  # - mnist
-  # - fashion_mnist
+  - mnist
+  - fashion_mnist
 
 # ============================================================================
 # Unmaskers

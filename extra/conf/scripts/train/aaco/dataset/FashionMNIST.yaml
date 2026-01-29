@@ -6,7 +6,7 @@ aco:
   acquisition_cost: 0.05
   hide_val: 0.0
   evaluate_final_performance: true
-  eval_only_n_samples: 5000
+  eval_only_n_samples: null
 
 seed: 42
 device: "cuda"

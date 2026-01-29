@@ -13,7 +13,7 @@
 #       -j 4
 
 # Dataset instances to use (5 seeds for statistical significance)
-dataset_instance_indices: [0, 1, 2, 3, 4]
+dataset_instance_indices: [0, 1]
 
 # Initializer for evaluation (random = random single-feature initializer)
 initializer: random
@@ -24,7 +24,7 @@ eval_dataset_split: test
 # Training settings
 device: cpu
 use_wandb: false
-smoke_test: false
+smoke_test: true
 
 # ============================================================================
 # Datasets
@@ -68,22 +68,22 @@ unmaskers:
 # For tabular datasets, 5-15 is a common starting range
 
 eval_hard_budgets:
-  default: [5, 10, 15]
-  # Small tabular (16-24 features)
-  cube: [3, 5, 10]
-  cube_without_noise: [3, 5, 10]
-  bank_marketing: [3, 5, 10]
-  actg: [5, 10, 15]
-  ckd: [5, 10, 15]
-  # Medium tabular (33-50 features)
-  afa_context: [5, 10, 15]
-  afa_context_without_noise: [5, 10, 15]
-  diabetes: [5, 10, 20]
-  physionet: [5, 10, 20]
-  miniboone: [5, 15, 25]
-  # MNIST-style (784 features)
-  mnist: [10, 20, 30]
-  fashion_mnist: [10, 20, 30]
+  default: [5, 10]
+  # # Small tabular (16-24 features)
+  # cube: [3, 5, 10]
+  # cube_without_noise: [3, 5, 10]
+  # bank_marketing: [3, 5, 10]
+  # actg: [5, 10, 15]
+  # ckd: [5, 10, 15]
+  # # Medium tabular (33-50 features)
+  # afa_context: [5, 10, 15]
+  # afa_context_without_noise: [5, 10, 15]
+  # diabetes: [5, 10, 20]
+  # physionet: [5, 10, 20]
+  # miniboone: [5, 15, 25]
+  # # MNIST-style (784 features)
+  # mnist: [10, 20, 30]
+  # fashion_mnist: [10, 20, 30]
 
 # ============================================================================
 # Soft budget parameters
@@ -95,27 +95,27 @@ soft_budget_params:
   aaco:
     default:
       - [0.01, null]
-      - [0.05, null]
-      - [0.1, null]
+      # - [0.05, null]
+      # - [0.1, null]
     # MNIST-style (784 features)
-    mnist:
-      - [0.0001, null]
-      - [0.001, null]
-      - [0.01, null]
-    fashion_mnist:
-      - [0.0001, null]
-      - [0.001, null]
-      - [0.01, null]
+    # mnist:
+    #   - [0.0001, null]
+    #   - [0.001, null]
+    #   - [0.01, null]
+    # fashion_mnist:
+    #   - [0.0001, null]
+    #   - [0.001, null]
+    #   - [0.01, null]
   aaco_nn:
     default:
       - [0.01, null]
       - [0.05, null]
       - [0.1, null]
-    mnist:
-      - [0.0001, null]
-      - [0.001, null]
-      - [0.01, null]
-    fashion_mnist:
-      - [0.0001, null]
-      - [0.001, null]
-      - [0.01, null]
+    # mnist:
+    #   - [0.0001, null]
+    #   - [0.001, null]
+    #   - [0.01, null]
+    # fashion_mnist:
+    #   - [0.0001, null]
+    #   - [0.001, null]
+    #   - [0.01, null]
