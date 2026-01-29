@@ -9,3 +9,7 @@ datasets:
   - diabetes
   - miniboone
   - physionet
+  - synthetic_mnist
+  - synthetic_mnist_without_noise
+  - mnist
+  - fashion_mnist
