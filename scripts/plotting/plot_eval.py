@@ -265,7 +265,7 @@ def get_plot(
             ),
         )
         + facet_wrap("dataset", scales="free", ncol=4)
-        + labs(color="Method", fill="Method", x=x_label, y="Metric")
+        + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
         + p9.theme(figure_size=(10, 8))
     )
 
