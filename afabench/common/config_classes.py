@@ -424,15 +424,19 @@ class Ma2018TrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     pretrained_model_bundle_path: str
-    trained_classifier_bundle_path: str | None
+    classifier_bundle_path: str
     save_path: str
 
     hard_budget: int
+    soft_budget_param: float | None
     device: str
     seed: int
 
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
+
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(name="train_ma2018", node=Ma2018TrainingConfig)
@@ -442,6 +446,7 @@ cs.store(name="train_ma2018", node=Ma2018TrainingConfig)
 class Covert2023PretrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     save_path: str
 
     batch_size: int
@@ -456,6 +461,9 @@ class Covert2023PretrainingConfig:
 
     hidden_units: list[int]
     dropout: float
+
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
@@ -465,6 +473,7 @@ cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
 class Covert2023Pretraining2DConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     save_path: str
 
     batch_size: int
@@ -478,6 +487,9 @@ class Covert2023Pretraining2DConfig:
 
     image_size: int
     patch_size: int
+
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
@@ -487,11 +499,13 @@ cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
 class Covert2023TrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     pretrained_model_bundle_path: str
     save_path: str
     batch_size: int
     lr: float
     hard_budget: int
+    soft_budget_param: float | None
     nepochs: int
     patience: int
     activation: str
@@ -503,6 +517,9 @@ class Covert2023TrainingConfig:
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
 
+    use_wandb: bool
+    smoke_test: bool
+
 
 cs.store(name="train_covert2023", node=Covert2023TrainingConfig)
 
@@ -511,6 +528,7 @@ cs.store(name="train_covert2023", node=Covert2023TrainingConfig)
 class Covert2023Training2DConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     pretrained_model_bundle_path: str
     save_path: str
 
@@ -518,6 +536,7 @@ class Covert2023Training2DConfig:
     lr: float
     min_lr: float
     hard_budget: int
+    soft_budget_param: float | None
     nepochs: int
     patience: int
     device: str
@@ -525,6 +544,9 @@ class Covert2023Training2DConfig:
 
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
+
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(name="train_covert2023", node=Covert2023Training2DConfig)
@@ -534,6 +556,7 @@ cs.store(name="train_covert2023", node=Covert2023Training2DConfig)
 class Gadgil2023PretrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     save_path: str
 
     batch_size: int
@@ -549,6 +572,9 @@ class Gadgil2023PretrainingConfig:
     hidden_units: list[int]
     dropout: float
 
+    use_wandb: bool
+    smoke_test: bool
+
 
 cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
 
@@ -557,6 +583,7 @@ cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
 class Gadgil2023Pretraining2DConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     save_path: str
 
     batch_size: int
@@ -571,6 +598,9 @@ class Gadgil2023Pretraining2DConfig:
     image_size: int
     patch_size: int
 
+    use_wandb: bool
+    smoke_test: bool
+
 
 cs.store(name="pretrain_gadgil2023", node=Gadgil2023Pretraining2DConfig)
 
@@ -579,12 +609,14 @@ cs.store(name="pretrain_gadgil2023", node=Gadgil2023Pretraining2DConfig)
 class Gadgil2023TrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     pretrained_model_bundle_path: str
     save_path: str
 
     batch_size: int
     lr: float
     hard_budget: int
+    soft_budget_param: float | None
     nepochs: int
     patience: int
     activation: str
@@ -599,6 +631,9 @@ class Gadgil2023TrainingConfig:
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
 
+    use_wandb: bool
+    smoke_test: bool
+
 
 cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
 
@@ -607,6 +642,7 @@ cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
 class Gadgil2023Training2DConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     pretrained_model_bundle_path: str
     save_path: str
 
@@ -614,6 +650,7 @@ class Gadgil2023Training2DConfig:
     lr: float
     min_lr: float
     hard_budget: int
+    soft_budget_param: float | None
     nepochs: int
     patience: int
     eps: float
@@ -624,6 +661,9 @@ class Gadgil2023Training2DConfig:
 
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
+
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(name="train_gadgil2023", node=Gadgil2023Training2DConfig)
@@ -648,10 +688,12 @@ class StaticClassifierConfig:
 class CAETrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     save_path: str
 
     batch_size: int
     hard_budget: int
+    soft_budget_param: float | None
     device: str
     seed: int
 
@@ -660,6 +702,9 @@ class CAETrainingConfig:
 
     selector: StaticSelectorConfig
     classifier: StaticClassifierConfig
+
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(name="train_cae", node=CAETrainingConfig)
@@ -669,12 +714,14 @@ cs.store(name="train_cae", node=CAETrainingConfig)
 class CAETraining2DConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     save_path: str
 
     batch_size: int
     image_size: int
     patch_size: int
     hard_budget: int
+    soft_budget_param: float | None
     device: str
     seed: int
 
@@ -683,6 +730,9 @@ class CAETraining2DConfig:
 
     selector: StaticSelectorConfig
     classifier: StaticClassifierConfig
+
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(name="train_cae", node=CAETraining2DConfig)
@@ -692,10 +742,12 @@ cs.store(name="train_cae", node=CAETraining2DConfig)
 class PermutationTrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    classifier_bundle_path: str
     save_path: str
 
     batch_size: int
     hard_budget: int
+    soft_budget_param: float | None
     device: str
     seed: int
 
@@ -704,6 +756,9 @@ class PermutationTrainingConfig:
 
     selector: StaticSelectorConfig
     classifier: StaticClassifierConfig
+
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(name="train_permutation", node=PermutationTrainingConfig)
@@ -1017,8 +1072,8 @@ cs.store(
 
 @dataclass
 class TrainMaskedViTClassifierConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
+    train_dataset_path: str
+    val_dataset_path: str
     save_path: str
 
     batch_size: int
@@ -1038,6 +1093,9 @@ class TrainMaskedViTClassifierConfig:
     device: str
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
+
+    use_wandb: bool
+    smoke_test: bool
 
 
 cs.store(

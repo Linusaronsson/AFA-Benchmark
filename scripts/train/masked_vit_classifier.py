@@ -32,8 +32,8 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
 
     train_dataset, val_dataset, _, _, _ = (
         afa_discriminative_training_prep(
-            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            train_dataset_bundle_path=Path(cfg.train_dataset_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_path),
             initializer_cfg=cfg.initializer,
             unmasker_cfg=cfg.unmasker,
         )

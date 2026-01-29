@@ -13,9 +13,12 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-train_dataset_bundle_path: ???
-val_dataset_bundle_path: ???
+train_dataset_path: ???
+val_dataset_path: ???
 save_path: ???
 
 device: null
 seed: null
+
+use_wandb: false
+smoke_test: false
