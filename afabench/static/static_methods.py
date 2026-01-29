@@ -290,6 +290,17 @@ class StaticBaseMethod(AFAMethod):
         if not (counts == counts[0]).all():
             raise RuntimeError("mixed budgets in batch")
         b = int(counts[0].item())
+        if b == 0:
+            # uniform prior over classes
+            n_classes = next(iter(self.predictors.values()))(
+                torch.zeros((1, 1), device=self._device)
+            ).shape[-1]
+            probs = torch.full(
+                (masked_features.size(0), n_classes),
+                1.0 / n_classes,
+                device=self._device,
+            )
+            return probs
         cols = self.selected_history[b]
         x_sel = masked_features[:, cols].to(self._device)
         logits = self.predictors[b](x_sel)
