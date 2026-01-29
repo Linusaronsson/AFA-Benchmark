@@ -28,7 +28,7 @@ soft_budget_params:
       # - [0.00001, null] # 70% observed
       # - [0.0001, null] # 70% observed
       - [0.001, null] # 70% observed
-      - [0.005, null]
+      - [0.005, null] # 10% observed
       - [0.01, null] # 0% observed
     diabetes:
       - [0.00001, null] # 30% observed
@@ -43,7 +43,7 @@ soft_budget_params:
     synthetic_mnist:
       # - [0.00001, null] # 90% observed
       # - [0.0001, null] # 90% observed
-      - [0.0005, null]
+      - [0.0005, null] # 10 observed
       - [0.001, null] # 5% observed
       - [0.01, null] # 4% observed
     synthetic_mnist_without_noise:
