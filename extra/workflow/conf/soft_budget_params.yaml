@@ -8,73 +8,58 @@ soft_budget_params:
       - [0.05, null]
       - [0.01, null]
   jafa:
-    default:
-      - [0.01, null]
-      - [0.001, null]
-      - [0.0001, null]
-      - [0.00001, null]
-    # afa_context:
-    #   - [0.01, null]
-    #   - [0.001, null]
-    #   - [0.0000001, null]
-    #   - [0.0000000001, null]
-    # afa_context_without_noise:
-    #   - [0.01, null]
-    #   - [0.001, null]
-    #   - [0.0000001, null]
-    #   - [0.0000000001, null]
-    # diabetes:
-    #   - [0.01, null]
-    #   - [0.00001, null]
-    #   - [0.00000001, null]
-    #   - [0.00000000001, null]
-    #   - [0.0000000000001, null]
-    # miniboone:
-    #   - [0.01, null]
-    #   - [0.005, null]
-    #   - [0.001, null]
-    #   - [0.0001, null]
-    #   - [0.000001, null]
-    #   - [0.00000001, null]
-    #   - [0.0000000001, null]
-    # physionet:
-    #   - [0.01, null]
-    #   - [0.001, null]
-    #   - [0.0001, null]
-    #   - [0.00001, null]
-    #   - [0.000001, null]
+    cube:
+      - [0.00001, null] # 50% observed
+      - [0.0001, null] # 50% observed
+      - [0.001, null] # 50% observed
+      - [0.01, null] # 20% observed
+    cube_without_noise:
+      - [0.00001, null] # 50% observed
+      - [0.0001, null] # 20% observed
+      - [0.001, null] # 20% observed
+      - [0.01, null] # 15% observed
+    afa_context_without_noise:
+      - [0.00001, null] # 70% observed
+      - [0.0001, null] # 50% observed
+      - [0.001, null] # 40% observed
+      - [0.01, null] # 20% observed
+    afa_context:
+      - [0.00001, null] # 70% observed
+      - [0.0001, null] # 70% observed
+      - [0.001, null] # 70% observed
+      - [0.01, null] # 0% observed
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
   odin_model_free: &odin
     cube:
-      - [0.05, null] # too small
+      - [0.05, null] # 100% observed
       - [0.06, null]
       - [0.07, null]
       - [0.08, null]
       - [0.09, null]
-      - [0.1, null] # observes 20%
+      - [0.1, null] # 20% observed
       - [0.11, null]
       - [0.12, null]
       - [0.13, null]
       - [0.14, null]
-      - [0.15, null] # too large
+      - [0.15, null] # 0% observed
     cube_without_noise:
-      - [0.05, null] # too small
+      - [0.05, null] # 100% observed
       - [0.07, null]
-      - [0.1, null] # observes 20%
-      - [0.15, null] # observes 30%
+      - [0.1, null] # 20% observed
+      - [0.15, null] # 30% observed
       - [0.17, null]
-      - [0.2, null] # too large, but starts increasing at the end
+      - [0.2, null] # 0% observed, but starts increasing at the end
     afa_context:
       - [0.03, null]
       - [0.04, null]
-      - [0.05, null] # observes 10%
-      - [0.1, null] # too large
+      - [0.05, null] # 10% observed
+      - [0.1, null] # 0% observed
     afa_context_without_noise:
-      - [0.05, null] # too small
-      - [0.1, null] # observes 2%
-      - [0.15, null] # too large
+      - [0.05, null] # 100% observed
+      - [0.1, null] # 2% observed
+      - [0.15, null] # 0% observed
 
     # synthetic_mnist_without_noise:
       # - [0.01, null] # diverges
