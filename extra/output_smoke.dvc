@@ -1,6 +1,6 @@
 outs:
-- md5: ff1f4a4f091a1717d7ed46e59faac331.dir
-  size: 3717595029
-  nfiles: 16669
+- md5: d751713988987e9331980363e24189ce.dir
+  size: 0
+  nfiles: 0
   hash: md5
   path: output_smoke
