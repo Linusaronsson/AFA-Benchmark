@@ -15,3 +15,5 @@ set-resources:
     runtime: 600 # 10 hours
   train_method_without_pretrained_model:
     runtime: 600 # 10 hours
+  eval_method:
+    runtime: 600 # 10 hours
