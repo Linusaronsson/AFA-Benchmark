@@ -44,6 +44,7 @@ dependencies = [
 dev = [
   "csvkit>=2.1.0",
   "dvc>=3.66.1",
+  "ipdb>=0.13.13",
   "ipython>=8.36.0",
   "pre-commit>=4.3.0",
   "pytest-dependency>=0.6.0",
