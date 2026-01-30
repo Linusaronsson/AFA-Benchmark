@@ -67,13 +67,15 @@ soft_budget_params:
       - [0.001, null] # 15% observed
       - [0.01, null] # 8% observed
     mnist:
-      - [0.0001, null] # 90% observed
-      - [0.001, null] # 60% observed
-      - [0.01, null] # 0% observed
+      # - [0.0001, null] # 90% observed
+      # - [0.001, null] # 60% observed
+      - [0.005, null]
+      # - [0.01, null] # 0% observed
     fashion_mnist:
-      - [0.0001, null] # 90% observed
-      - [0.001, null] # 60% observed
-      - [0.01, null] # 0% observed
+      # - [0.0001, null] # 90% observed
+      # - [0.001, null] # 60% observed
+      - [0.005, null]
+      # - [0.01, null] # 0% observed
     miniboone:
       - [0.0001, null] # 50% observed
       - [0.001, null] # 40% observed
@@ -118,15 +120,15 @@ soft_budget_params:
       - [0.075, null] # 14% observed
       - [0.1, null] # 9% observed
     mnist:
-      - [0.0001, null] # 90% observed
-      - [0.001, null] # 80% observed
+      # - [0.0001, null] # 90% observed
+      # - [0.001, null] # 80% observed
       - [0.01, null] # 2% observed during training, 0% during eval
       # - [0.05, null] # 0% observed
       # - [0.075, null] # 0% observed
       # - [0.1, null] # 0% observed
     fashion_mnist:
-      - [0.0001, null] # 93% observed
-      - [0.001, null] # 90% observed
+      # - [0.0001, null] # 93% observed
+      # - [0.001, null] # 90% observed
       - [0.01, null] # 7% observed
       # - [0.05, null] # 0% observed
       # - [0.075, null] # 0% observed
