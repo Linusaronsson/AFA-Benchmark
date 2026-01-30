@@ -59,6 +59,11 @@ def main() -> None:
         null_values=["null"],
     )
 
+    # Change prev_selections_performed (a history of selections) to instead just be the number of selections performed, which is the same as the time step
+    df = df.with_columns(
+        n_selections_performed=pl.col("prev_selections_performed").len()
+    ).drop("prev_selections_performed")
+
     # Pivot long on classifier type
     df = df.rename(
         {
@@ -75,6 +80,7 @@ def main() -> None:
             "forced_stop",
             "eval_seed",
             "eval_hard_budget",
+            "n_selections_performed",
         ],
         variable_name="classifier",
         value_name="predicted_class",
