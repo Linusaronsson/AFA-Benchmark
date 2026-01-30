@@ -67,17 +67,17 @@ soft_budget_params:
       - [0.001, null] # 15% observed
       - [0.01, null] # 8% observed
     mnist:
-      - [0.0001, null]
-      - [0.001, null]
-      - [0.01, null]
+      - [0.0001, null] # 90% observed
+      - [0.001, null] # 60% observed
+      - [0.01, null] # 0% observed
     fashion_mnist:
-      - [0.0001, null]
-      - [0.001, null]
-      - [0.01, null]
+      - [0.0001, null] # 90% observed
+      - [0.001, null] # 60% observed
+      - [0.01, null] # 0% observed
     miniboone:
-      - [0.0001, null]
-      - [0.001, null]
-      - [0.01, null]
+      - [0.0001, null] # 50% observed
+      - [0.001, null] # 40% observed
+      - [0.01, null] # 5% observed
 
   ol_without_mask: &ol
     default: []
