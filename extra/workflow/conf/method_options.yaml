@@ -53,7 +53,7 @@ method_options:
     train_script_name: "random_dummy"
     eval_batch_size:
       default: 128
-    # Example:
+    # Example if a different budget should be used during training compared to evaluation for the hard budget case
     # eval_to_train_hard_budget_mapping:
     #   cube_without_noise:
     #     10: 5
@@ -61,3 +61,5 @@ method_options:
     train_script_name: "sequential_dummy"
     eval_batch_size:
       default: 128
+    # Example if max hard budget should be applied when training for soft budget
+    use_max_hard_budget_when_training_for_soft_budget: true

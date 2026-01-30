@@ -123,6 +123,10 @@ def load_config(config):
         if method in methods
     }
 
+    is_method_using_max_hard_budget_when_training_soft_budget = {
+        method: options.get("use_max_hard_budget_when_training_soft_budget", False) for method, options in method_options.items() if method in methods
+    }
+
     # ========================================================================
     # Dataset Configuration
     # ========================================================================
@@ -222,6 +226,7 @@ def load_config(config):
                 eval_hard_budgets[dataset],
                 soft_budget_params[method][dataset],
                 eval_to_train_hard_budget_mapping,
+                use_max_hard_budget_when_training_soft_budget=is_method_using_max_hard_budget_when_training_soft_budget[method]
             )
             for dataset in datasets
         }
@@ -275,6 +280,7 @@ def _create_budget_combinations(
     eval_hard_budgets,
     soft_budget_params,
     eval_to_train_hard_budget_mapping,
+    use_max_hard_budget_when_training_soft_budget: bool = False
 ):
     """
     Create budget parameter tuples for a method-dataset pair.
@@ -305,8 +311,9 @@ def _create_budget_combinations(
         eval_soft_budget_param = _normalize_nullable_param(
             soft_budget_tuple[1]
         )
+        train_hard_budget = max(eval_hard_budgets) if use_max_hard_budget_when_training_soft_budget else "null"
         result.append(
-            ("null", "null", train_soft_budget_param, eval_soft_budget_param)
+            (train_hard_budget, "null", train_soft_budget_param, eval_soft_budget_param)
         )
 
     return result
