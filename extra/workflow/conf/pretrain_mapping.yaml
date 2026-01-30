@@ -28,6 +28,14 @@ pretrain_mapping:
     pretrain_script_name: "aaco"
     pretrain_params: []
 
+  gdfs:
+    pretrain_script_name: "covert2023"
+    pretrain_params: []
+
+  dime:
+    pretrain_script_name: "gadgil2023"
+    pretrain_params: []
+
   # Example: If you need a variant with specific parameters
   # pvae_custom:
   #   pretrain_script_name: "zannone2019"

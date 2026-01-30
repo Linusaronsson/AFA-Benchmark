@@ -2,3 +2,4 @@ unmaskers:
   default: direct
   synthetic_mnist: 28x28_to_7x7
   synthetic_mnist_without_noise: 28x28_to_7x7
+  imagenette: 224x224_to_14x14

@@ -4,6 +4,22 @@ method_options:
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"
+  ma2018_builtin:
+    pretrained_model_name: "pvae"
+    train_script_name: "ma2018_builtin"
+  ma2018_external:
+    pretrained_model_name: "pvae"
+    train_script_name: "ma2018_external"
+  covert2023:
+    pretrained_model_name: "gdfs"
+    train_script_name: "covert2023"
+  gadgil2023:
+    pretrained_model_name: "dime"
+    train_script_name: "gadgil2023"
+  cae:
+    train_script_name: "cae"
+  permutation:
+    train_script_name: "permutation"
   jafa:
     pretrained_model_name: "jafa"
     train_script_name: "shim2018"
