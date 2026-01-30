@@ -1,4 +1,4 @@
-batch_size: 2
+batch_size: 128
 hard_budget: 5
 image_size: 224
 patch_size: 16
