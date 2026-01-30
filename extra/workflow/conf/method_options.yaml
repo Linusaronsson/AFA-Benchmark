@@ -62,4 +62,4 @@ method_options:
     eval_batch_size:
       default: 128
     # Example if max hard budget should be applied when training for soft budget
-    use_max_hard_budget_when_training_for_soft_budget: true
+    # use_max_hard_budget_when_training_for_soft_budget: true
