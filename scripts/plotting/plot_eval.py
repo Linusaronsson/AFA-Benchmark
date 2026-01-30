@@ -177,7 +177,7 @@ def create_dummy_data() -> pl.DataFrame:  # noqa: C901
     )
 
 
-def get_metrics(df: pl.DataFrame) -> pl.DataFrame:
+def get_metrics_at_stop_action(df: pl.DataFrame) -> pl.DataFrame:
     return df.group_by(
         "afa_method",
         "dataset",
@@ -223,6 +223,55 @@ def get_metrics(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def get_metrics_at_every_action(df: pl.DataFrame) -> pl.DataFrame:
+    return df.group_by(
+        "afa_method",
+        "dataset",
+        "train_seed",
+        "eval_seed",
+        "eval_hard_budget",
+        "soft_budget_param",
+        "n_selections_performed",
+    ).map_groups(
+        lambda group_df: pl.DataFrame(
+            {
+                "afa_method": [group_df["afa_method"].first()],
+                "dataset": [group_df["dataset"].first()],
+                "train_seed": [group_df["train_seed"].first()],
+                "eval_seed": [group_df["eval_seed"].first()],
+                "eval_hard_budget": [group_df["eval_hard_budget"].first()],
+                "soft_budget_param": [group_df["soft_budget_param"].first()],
+                "n_selections_performed": [
+                    group_df["n_selections_performed"].first()
+                ],
+                "accuracy": [
+                    accuracy_score(
+                        group_df["true_class"], group_df["predicted_class"]
+                    )
+                ],
+                "f_score": [
+                    f1_score(
+                        group_df["true_class"],
+                        group_df["predicted_class"],
+                        average="macro",
+                    )
+                ],
+            },
+            schema={
+                "afa_method": pl.String,
+                "dataset": pl.String,
+                "train_seed": pl.Int64,
+                "eval_seed": pl.Int64,
+                "eval_hard_budget": pl.Float64,
+                "soft_budget_param": pl.Float64,
+                "n_selections_performed": pl.Int64,
+                "accuracy": pl.Float64,
+                "f_score": pl.Float64,
+            },
+        )
+    )
+
+
 def read_csv(input_csv_path: Path) -> pl.DataFrame:
     return pl.read_csv(
         input_csv_path,
@@ -234,7 +283,7 @@ def read_csv(input_csv_path: Path) -> pl.DataFrame:
             "forced_stop": pl.Boolean,
             "eval_seed": pl.Int64,
             "eval_hard_budget": pl.Float64,
-            "selections_performed": pl.Int64,
+            "n_selections_performed": pl.Int64,
             "afa_method": pl.String,
             "dataset": pl.String,
             "train_seed": pl.Int64,
@@ -247,7 +296,7 @@ def read_csv(input_csv_path: Path) -> pl.DataFrame:
     )
 
 
-def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
+def get_variance_of_metrics_and_cost(df: pl.DataFrame) -> pl.DataFrame:
     df = df.group_by(
         "afa_method", "dataset", "eval_hard_budget", "soft_budget_param"
     ).agg(
@@ -257,6 +306,22 @@ def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
         std_f_score=pl.col("f_score").std(),
         mean_avg_accumulated_cost=pl.col("avg_accumulated_cost").mean(),
         std_avg_accumulated_cost=pl.col("avg_accumulated_cost").std(),
+    )
+    return df
+
+
+def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
+    df = df.group_by(
+        "afa_method",
+        "dataset",
+        "eval_hard_budget",
+        "soft_budget_param",
+        "n_selections_performed",
+    ).agg(
+        mean_accuracy=pl.col("accuracy").mean(),
+        std_accuracy=pl.col("accuracy").std(),
+        mean_f_score=pl.col("f_score").mean(),
+        std_f_score=pl.col("f_score").std(),
     )
     return df
 
@@ -333,11 +398,20 @@ def get_plot(
     return plot
 
 
-def get_hard_budget_plot(df: pl.DataFrame) -> p9.ggplot:
+def get_normal_hard_budget_plot(df: pl.DataFrame) -> p9.ggplot:
     return get_plot(
         df,
         x_col="eval_hard_budget",
         x_label="Hard budget",
+        use_line=True,
+    )
+
+
+def get_traj_hard_budget_plot(df: pl.DataFrame) -> p9.ggplot:
+    return get_plot(
+        df,
+        x_col="n_selections_performed",
+        x_label="Number of selections",
         use_line=True,
     )
 
@@ -394,24 +468,7 @@ def add_metric_column(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def produce_plots_for_dataset_set(
-    df: pl.DataFrame, dataset_set: set[str]
-) -> tuple[ggplot, ggplot, ggplot]:
-    df = df.filter(pl.col("dataset").is_in(dataset_set))
-    df_hard_budget = df.filter(pl.col("eval_hard_budget").is_null().not_())
-    hard_budget_plot = get_hard_budget_plot(df_hard_budget)
-
-    df_soft_budget = df.filter(pl.col("soft_budget_param").is_null().not_())
-    soft_budget_plot_2d_errors = get_soft_budget_plot(
-        df_soft_budget, mode="2d_errors"
-    )
-    soft_budget_plot_lines = get_soft_budget_plot(df_soft_budget, mode="lines")
-
-    return hard_budget_plot, soft_budget_plot_2d_errors, soft_budget_plot_lines
-
-
-def process_df(df: pl.DataFrame) -> pl.DataFrame:
-    # Either train_soft_budget_param is set, or eval_soft_budget_param is set, but not both. This means that one of them must always be null
+def assert_only_one_soft_budget_param_type(df: pl.DataFrame) -> pl.DataFrame:
     assert (
         df["train_soft_budget_param"].is_null()
         | df["eval_soft_budget_param"].is_null()
@@ -422,36 +479,78 @@ def process_df(df: pl.DataFrame) -> pl.DataFrame:
         soft_budget_param=pl.coalesce(
             "train_soft_budget_param", "eval_soft_budget_param"
         )
-    )
+    ).drop(["train_soft_budget_param", "eval_soft_budget_param"])
+    return df
 
-    # Only consider performance at stop action
-    df = df.filter(
+
+def process_df_only_stop_action(df: pl.DataFrame) -> pl.DataFrame:
+    df = assert_only_one_soft_budget_param_type(df)
+
+    df_only_stop_action = df.filter(
         (pl.col("action_performed") == 0)
         & pl.col("predicted_class").is_not_null()
     )
-    if df.is_empty():
-        msg = "No predictions available in input."
-        raise ValueError(msg)
 
-    metric_df = get_metrics(df)
-
-    # Variance of metrics across seeds
-    var_metric_df = get_variance_of_metrics(metric_df)
-
-    # Datasets use different metrics
-    var_metric_df = add_metric_column(var_metric_df)
-
-    # Add "low" and "high" versions of metrics to enable plotting of ranges
-    var_metric_df = var_metric_df.with_columns(
-        low_metric=pl.col("mean_metric") - pl.col("std_metric"),
-        high_metric=pl.col("mean_metric") + pl.col("std_metric"),
-        low_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
-        - pl.col("std_avg_accumulated_cost"),
-        high_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
-        + pl.col("std_avg_accumulated_cost"),
+    metric_df_only_stop_action = get_metrics_at_stop_action(
+        df_only_stop_action
     )
 
-    return var_metric_df
+    # Variance of metrics across seeds
+    var_metric_df_only_stop_action = get_variance_of_metrics_and_cost(
+        metric_df_only_stop_action
+    )
+
+    # Datasets use different metrics
+    var_metric_df_only_stop_action = add_metric_column(
+        var_metric_df_only_stop_action
+    )
+
+    # Add "low" and "high" versions of metrics to enable plotting of ranges
+    var_metric_df_only_stop_action = (
+        var_metric_df_only_stop_action.with_columns(
+            low_metric=pl.col("mean_metric") - pl.col("std_metric"),
+            high_metric=pl.col("mean_metric") + pl.col("std_metric"),
+            low_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
+            - pl.col("std_avg_accumulated_cost"),
+            high_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
+            + pl.col("std_avg_accumulated_cost"),
+        )
+    )
+
+    return var_metric_df_only_stop_action
+
+
+def filter_only_largest_budget(df: pl.DataFrame) -> pl.DataFrame:
+    """For each dataset, only keep the largest evaluation budget."""
+    return df.filter(
+        pl.col("eval_hard_budget")
+        == pl.col("eval_hard_budget").max().over("dataset")
+    )
+
+
+def process_df_every_action(df: pl.DataFrame) -> pl.DataFrame:
+    df = assert_only_one_soft_budget_param_type(df)
+
+    # When considering performance up to some budget, we only look at the case when the largest budget is used
+    df = filter_only_largest_budget(df)
+
+    metric_df_every_action = get_metrics_at_every_action(df)
+
+    # Variance of metrics across seeds
+    var_metric_df_every_action = get_variance_of_metrics(
+        metric_df_every_action
+    )
+
+    # Datasets use different metrics
+    var_metric_df_every_action = add_metric_column(var_metric_df_every_action)
+
+    # Add "low" and "high" versions of metrics to enable plotting of ranges
+    var_metric_df_every_action = var_metric_df_every_action.with_columns(
+        low_metric=pl.col("mean_metric") - pl.col("std_metric"),
+        high_metric=pl.col("mean_metric") + pl.col("std_metric"),
+    )
+
+    return var_metric_df_every_action
 
 
 def main() -> None:
@@ -460,22 +559,50 @@ def main() -> None:
 
     df = read_csv(args.input)
 
-    df_processed = process_df(df)
+    df_normal_hard_budget = process_df_only_stop_action(df)
+    df_traj_hard_budget = process_df_every_action(df)
 
     # One set of plots per dataset set
     for dataset_set_name, dataset_set in DATASET_SETS.items():
-        (
-            hard_budget_plot,
-            soft_budget_plot_2d_errors,
-            soft_budget_plot_lines,
-        ) = produce_plots_for_dataset_set(
-            df=df_processed,
-            dataset_set=dataset_set,
+        df_normal_hard_budget = df_normal_hard_budget.filter(
+            pl.col("dataset").is_in(dataset_set)
         )
+        df_traj_hard_budget = df_traj_hard_budget.filter(
+            pl.col("dataset").is_in(dataset_set)
+        )
+        df_normal_hard_budget = df_normal_hard_budget.filter(
+            pl.col("eval_hard_budget").is_null().not_()
+        )
+        df_traj_hard_budget = df_traj_hard_budget.filter(
+            pl.col("eval_hard_budget").is_null().not_()
+        )
+
+        normal_hard_budget_plot = get_normal_hard_budget_plot(
+            df_normal_hard_budget
+        )
+        traj_hard_budget_plot = get_traj_hard_budget_plot(df_traj_hard_budget)
+
+        df_soft_budget = df_normal_hard_budget.filter(
+            pl.col("soft_budget_param").is_null().not_()
+        )
+        soft_budget_plot_2d_errors = get_soft_budget_plot(
+            df_soft_budget, mode="2d_errors"
+        )
+        soft_budget_plot_lines = get_soft_budget_plot(
+            df_soft_budget, mode="lines"
+        )
+
         subfolder = args.output_folder / dataset_set_name
         subfolder.mkdir(parents=True, exist_ok=True)
-        hard_budget_plot.save(
-            subfolder / "hard_budget.pdf", width=PLOT_WIDTH, height=PLOT_HEIGHT
+        normal_hard_budget_plot.save(
+            subfolder / "hard_budget_normal.pdf",
+            width=PLOT_WIDTH,
+            height=PLOT_HEIGHT,
+        )
+        traj_hard_budget_plot.save(
+            subfolder / "hard_budget_traj.pdf",
+            width=PLOT_WIDTH,
+            height=PLOT_HEIGHT,
         )
         soft_budget_plot_2d_errors.save(
             subfolder / "soft_budget_2d_errors.pdf",
