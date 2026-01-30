@@ -1,5 +1,7 @@
 import argparse
+import ast
 from pathlib import Path
+import pdb
 
 import polars as pl
 
@@ -61,7 +63,11 @@ def main() -> None:
 
     # Change prev_selections_performed (a history of selections) to instead just be the number of selections performed, which is the same as the time step
     df = df.with_columns(
-        n_selections_performed=pl.col("prev_selections_performed").len()
+        n_selections_performed=pl.col(
+            "prev_selections_performed"
+        ).map_elements(
+            lambda x: len(ast.literal_eval(x)), return_dtype=pl.Int64
+        )
     ).drop("prev_selections_performed")
 
     # Pivot long on classifier type
