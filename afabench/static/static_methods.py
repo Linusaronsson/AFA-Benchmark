@@ -408,7 +408,13 @@ class StaticBaseMethod(AFAMethod):
             )
             preds[b] = model.to(device)
 
-        return cls(hist, preds, device).to(device)
+        return cls(
+            selected_history=hist,
+            predictors=preds,
+            image_size=image_size,
+            patch_size=patch_size,
+            device=device
+        ).to(device)
 
     def to(self, device):
         self._device = device
