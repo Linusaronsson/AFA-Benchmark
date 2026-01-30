@@ -152,7 +152,13 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
 
         predictors[num] = model
 
-    static_method = StaticBaseMethod(selected_history, predictors, device)
+    static_method = StaticBaseMethod(
+        selected_history=selected_history,
+        predictors=predictors,
+        image_size=image_size,
+        patch_size=patch_size,
+        device=device,
+    )
 
     save_bundle(
         obj=static_method,

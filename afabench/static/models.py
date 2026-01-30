@@ -122,6 +122,7 @@ class BaseModel(nn.Module):
                 break
 
         # Copy parameters from best model.
+        assert best_model is not None
         restore_parameters(model, best_model)
 
     def forward(self, x):

@@ -272,10 +272,14 @@ class StaticBaseMethod(AFAMethod):
         selected_history: dict[int, list[int]],
         predictors: dict[int, nn.Module],
         device: torch.device = torch.device("cpu"),
+        image_size: int | None = None,
+        patch_size: int | None = None,
     ):
         super().__init__()
         self.selected_history = selected_history
         self.predictors = {b: m.to(device) for b, m in predictors.items()}
+        self.image_size = image_size
+        self.patch_size = patch_size
         self._device = device
 
     @override
@@ -286,24 +290,50 @@ class StaticBaseMethod(AFAMethod):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
-        counts = feature_mask.sum(dim=1)
+        if masked_features.ndim == 4:
+            if self.patch_size is None:
+                raise RuntimeError("patch_size missing from method; retrain/save with patch_size")
+            fm = feature_mask
+            if fm.ndim == 4:
+                fm = fm.any(dim=1)
+            elif fm.ndim != 3:
+                raise RuntimeError(f"Unexpected image feature_mask shape: {feature_mask.shape}")
+
+            B, H, W = fm.shape
+            p = self.patch_size
+            if H % p != 0 or W % p != 0:
+                raise RuntimeError(f"Image size {(H,W)} not divisible by patch_size={p}")
+            gh, gw = H // p, W // p
+            patch_mask = fm.reshape(B, gh, p, gw, p).all(dim=(2, 4))
+            counts = patch_mask.reshape(B, -1).sum(dim=1)
+        else:
+            counts = feature_mask.sum(dim=1)
         if not (counts == counts[0]).all():
             raise RuntimeError("mixed budgets in batch")
         b = int(counts[0].item())
         if b == 0:
             # uniform prior over classes
-            n_classes = next(iter(self.predictors.values()))(
-                torch.zeros((1, 1), device=self._device)
-            ).shape[-1]
+            if masked_features.ndim == 4:
+                assert self.image_size is not None
+                n_classes = next(iter(self.predictors.values()))(
+                    torch.zeros((1, 3, self.image_size, self.image_size), device=self._device)
+                ).shape[-1]
+            else:
+                n_classes = next(iter(self.predictors.values()))(
+                    torch.zeros((1, 1), device=self._device)
+                ).shape[-1]
             probs = torch.full(
                 (masked_features.size(0), n_classes),
                 1.0 / n_classes,
                 device=self._device,
             )
             return probs
-        cols = self.selected_history[b]
-        x_sel = masked_features[:, cols].to(self._device)
-        logits = self.predictors[b](x_sel)
+        if masked_features.ndim == 4:
+            logits = self.predictors[b](masked_features.to(self._device))
+        else:
+            cols = self.selected_history[b]
+            x_sel = masked_features[:, cols].to(self._device)
+            logits = self.predictors[b](x_sel)
         return logits.softmax(dim=-1)
 
     @override
@@ -315,7 +345,12 @@ class StaticBaseMethod(AFAMethod):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
-        counts = feature_mask.sum(dim=1)
+        if selection_mask is not None:
+            # for image datasets
+            counts = selection_mask.sum(dim=1)
+        else:
+            # for tabular datasets
+            counts = feature_mask.sum(dim=1)
         if not (counts == counts[0]).all():
             raise RuntimeError("mixed budgets in batch")
         b = int(counts[0].item())
@@ -324,7 +359,10 @@ class StaticBaseMethod(AFAMethod):
                 (masked_features.size(0), 1), dtype=torch.long, device=self._device
             )
 
-        mask0 = feature_mask[0]
+        if selection_mask is not None:
+            mask0 = selection_mask[0]
+        else:
+            mask0 = feature_mask[0]
         for idx in self.selected_history[b + 1]:
             if mask0[idx] == 0:
                 choice = idx + 1
@@ -342,7 +380,12 @@ class StaticBaseMethod(AFAMethod):
     def save(self, path: Path):
         os.makedirs(path, exist_ok=True)
         torch.save(
-            {"selected_history": self.selected_history}, path / "selected.pt"
+            {
+                "selected_history": self.selected_history,
+                "image_size": self.image_size,
+                "patch_size": self.patch_size,
+            },
+            path / "selected.pt"
         )
         for b, mdl in self.predictors.items():
             torch.save(mdl, path / f"predictor_b{b}.pt")
@@ -353,6 +396,9 @@ class StaticBaseMethod(AFAMethod):
             path / "selected.pt", weights_only=False, map_location="cpu"
         )
         hist = data["selected_history"]
+        image_size = data.get("image_size", None)
+        patch_size = data.get("patch_size", None)
+
         preds = {}
         for b in hist.keys():
             model = torch.load(
