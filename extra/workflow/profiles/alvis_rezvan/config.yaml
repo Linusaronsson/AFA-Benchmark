@@ -24,22 +24,12 @@ set-resources:
   pretrain_model:
     runtime: 360 # 6 hours
   train_method_with_pretrained_model:
-    runtime: 360 # 6 hours
+    runtime: 600 # ~8-9h for AACO_NN on MNIST/FashionMNIST (784 features)
   train_method_without_pretrained_model:
-    runtime: 360 # 6 hours
-  # AACO training - device controlled per-dataset in snakefile
-  # Use GPU for datasets configured with device=cuda (e.g. imagenette,
-  # MNIST/FashionMNIST when enabled).
-  train_aaco:
-    runtime: 120
-  # AACO+NN training - device controlled per-dataset in snakefile
-  train_aaco_nn:
-    runtime: 600 # ~8-9h estimated for MNIST/FashionMNIST (784 features)
-  # Evaluation rules - FIXED rule names to match AACO.smk
-  eval_aaco_method:
-    runtime: 360 # ~1h48m measured for MNIST hard budget eval
-  eval_aaco_method_soft:
-    runtime: 420 # ~2h28m measured for MNIST soft budget eval
+    runtime: 600 # ~8-9h for AACO_NN on MNIST/FashionMNIST (784 features)
+  # Evaluation — the actual rule name in evaluation.smk is "eval_method"
+  eval_method:
+    runtime: 420 # ~2h28m measured for MNIST soft budget eval (worst case)
   # Post-processing rules
   count_selections:
     runtime: 30
