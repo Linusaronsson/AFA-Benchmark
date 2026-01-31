@@ -1128,7 +1128,8 @@ class Gadgil2023AFAMethod(AFAMethod):
     ) -> AFAAction:
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
-            pred = self.predict(masked_features, feature_mask)
+            # pred = self.predict(masked_features, feature_mask)
+            pred = self.predictor(x_masked)
             entropy = get_entropy(pred).unsqueeze(1)
             pred_cmi = self.value_network(x_masked).sigmoid() * entropy
             pred_cmi -= 1e6 * feature_mask
