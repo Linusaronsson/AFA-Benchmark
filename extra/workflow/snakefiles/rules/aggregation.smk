@@ -23,7 +23,7 @@ rule merge_eval_perf:
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
+                                    f"eval_data.parquet"
             )
             for method in METHOD_SETS[wc.method_set] if method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
@@ -47,7 +47,7 @@ rule merge_eval_perf:
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
+                                    f"eval_data.parquet"
             )
             for method in METHOD_SETS[wc.method_set] if method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
@@ -62,18 +62,18 @@ rule merge_eval_perf:
     resources:
         shell_exec="bash"
     output:
-        "extra/output/merged_results/eval_perf/method_set-{method_set}+all.csv",
+        "extra/output/merged_results/eval_perf/method_set-{method_set}+all.parquet",
     shell:
         """
-            csvstack {input} > {output}
+            python scripts/misc/merge_dataframes {input} --output {output}
         """
 
 rule split_by_classifier_type:
     input:
-        "extra/output/merged_results/eval_perf/method_set-{method_set}+all.csv"
+        "extra/output/merged_results/eval_perf/method_set-{method_set}+all.parquet"
     output:
-        "extra/output/merged_results/eval_perf/method_set-{method_set}+classifier_type-builtin.csv",
-        "extra/output/merged_results/eval_perf/method_set-{method_set}+classifier_type-external.csv"
+        "extra/output/merged_results/eval_perf/method_set-{method_set}+classifier_type-builtin.parquet",
+        "extra/output/merged_results/eval_perf/method_set-{method_set}+classifier_type-external.parquet"
     resources:
         shell_exec="bash"
     shell:
@@ -239,10 +239,10 @@ rule merge_time:
             ) in BUDGET_PARAMS[method][dataset]
         ]
     output:
-        "extra/output/merged_results/all.csv",
+        "extra/output/merged_results/all.parquet",
     resources:
         shell_exec="bash"
     shell:
         """
-        csvstack {input} > {output}
+        python scripts/misc/merge_dataframes.py {input} --output {output}
         """

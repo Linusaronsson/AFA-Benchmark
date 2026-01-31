@@ -83,18 +83,10 @@ def get_mock_df() -> pl.DataFrame:
     return df
 
 
-def read_csv_safe(path: Path) -> pl.DataFrame:
+def read_parquet_safe(path: Path) -> pl.DataFrame:
     """Read CSV file with appropriate data types."""
-    df = pl.read_csv(
+    df = pl.read_parquet(
         path,
-        schema={
-            "afa_method": pl.String,
-            "dataset": pl.String,
-            "time_pretrain": pl.Float64,
-            "time_train": pl.Float64,
-            "time_eval": pl.Float64,
-        },
-        null_values=["null"],
     )
 
     # Treat null times as 0
@@ -122,7 +114,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-i",
         "--input",
-        help="Input CSV file with timing data. If not provided, uses mock data.",
+        help="Input parquet file with timing data. If not provided, uses mock data.",
         default=None,
     )
 
@@ -185,7 +177,7 @@ def unpivot(df: pl.DataFrame) -> pl.DataFrame:
 
 def main() -> None:
     args = parse_args()
-    df = read_csv_safe(args.input) if args.input else get_mock_df()
+    df = read_parquet_safe(args.input) if args.input else get_mock_df()
 
     df_long = unpivot(df)
 

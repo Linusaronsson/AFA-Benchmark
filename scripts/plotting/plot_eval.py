@@ -272,27 +272,9 @@ def get_metrics_at_every_action(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def read_csv(input_csv_path: Path) -> pl.DataFrame:
-    return pl.read_csv(
+def read_parquet(input_csv_path: Path) -> pl.DataFrame:
+    return pl.read_parquet(
         input_csv_path,
-        schema_overrides={
-            "action_performed": pl.Int64,
-            "true_class": pl.Int64,
-            "accumulated_cost": pl.Float64,
-            "idx": pl.Int64,
-            "forced_stop": pl.Boolean,
-            "eval_seed": pl.Int64,
-            "eval_hard_budget": pl.Float64,
-            "n_selections_performed": pl.Int64,
-            "afa_method": pl.String,
-            "dataset": pl.String,
-            "train_seed": pl.Int64,
-            "train_hard_budget": pl.Float64,
-            "train_soft_budget_param": pl.Float64,
-            "eval_soft_budget_param": pl.Float64,
-            "predicted_class": pl.Int64,
-        },
-        null_values=["", "null", "nan", "NaN"],
     )
 
 
@@ -557,7 +539,7 @@ def main() -> None:
     args = parse_args()
     args.output_folder.mkdir(parents=True, exist_ok=True)
 
-    df = read_csv(args.input)
+    df = read_parquet(args.input)
 
     df_normal_hard_budget = process_df_only_stop_action(df)
     df_traj_hard_budget = process_df_every_action(df)

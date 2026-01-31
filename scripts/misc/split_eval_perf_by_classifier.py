@@ -4,9 +4,9 @@ from pathlib import Path
 import polars as pl
 
 
-def _write_csv(df: pl.DataFrame, path: Path) -> None:
+def _write_parquet(df: pl.DataFrame, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    df.write_csv(path)
+    df.write_parquet(path)
 
 
 def main() -> None:
@@ -18,16 +18,16 @@ def main() -> None:
     parser.add_argument("--output_external", type=Path, required=True)
     args = parser.parse_args()
 
-    df = pl.read_csv(args.input_path, null_values=["null"])
+    df = pl.read_parquet(args.input_path)
     if "classifier" not in df.columns:
-        msg = "Expected 'classifier' column in eval performance CSV."
+        msg = "Expected 'classifier' column in eval performance dataframe."
         raise ValueError(msg)
 
     builtin = df.filter(pl.col("classifier") == "builtin").drop("classifier")
     external = df.filter(pl.col("classifier") == "external").drop("classifier")
 
-    _write_csv(builtin, args.output_builtin)
-    _write_csv(external, args.output_external)
+    _write_parquet(builtin, args.output_builtin)
+    _write_parquet(external, args.output_external)
 
 
 if __name__ == "__main__":

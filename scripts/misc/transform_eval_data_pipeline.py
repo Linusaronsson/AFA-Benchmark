@@ -1,7 +1,6 @@
 import argparse
 import ast
 from pathlib import Path
-import pdb
 
 import polars as pl
 
@@ -48,15 +47,15 @@ def main() -> None:
         args.input_path,
         schema={
             "prev_selections_performed": pl.String,
-            "action_performed": pl.Int64,
-            "builtin_predicted_class": pl.Int64,
-            "external_predicted_class": pl.Int64,
-            "true_class": pl.Int64,
-            "accumulated_cost": pl.Float64,
-            "idx": pl.Int64,
+            "action_performed": pl.UInt8,
+            "builtin_predicted_class": pl.UInt8,
+            "external_predicted_class": pl.UInt8,
+            "true_class": pl.UInt8,
+            "accumulated_cost": pl.Float16,
+            "idx": pl.UInt8,
             "forced_stop": pl.Boolean,
-            "eval_seed": pl.Int64,
-            "eval_hard_budget": pl.Float64,
+            "eval_seed": pl.UInt8,
+            "eval_hard_budget": pl.Float16,
         },
         null_values=["null"],
     )
@@ -66,7 +65,7 @@ def main() -> None:
         n_selections_performed=pl.col(
             "prev_selections_performed"
         ).map_elements(
-            lambda x: len(ast.literal_eval(x)), return_dtype=pl.Int64
+            lambda x: len(ast.literal_eval(x)), return_dtype=pl.UInt8
         )
     ).drop("prev_selections_performed")
 
@@ -96,9 +95,9 @@ def main() -> None:
     df = df.with_columns(
         afa_method=pl.lit(args.method, dtype=pl.String),
         dataset=pl.lit(args.dataset, dtype=pl.String),
-        train_seed=pl.lit(parse_nullable(args.train_seed), dtype=pl.Int64),
+        train_seed=pl.lit(parse_nullable(args.train_seed), dtype=pl.UInt8),
         train_hard_budget=pl.lit(
-            parse_nullable(args.train_hard_budget), dtype=pl.Float64
+            parse_nullable(args.train_hard_budget), dtype=pl.Float16
         ),
         train_soft_budget_param=pl.lit(
             parse_nullable(args.train_soft_budget_param), dtype=pl.Float64
@@ -108,7 +107,7 @@ def main() -> None:
         ),
     )
 
-    df.write_csv(args.output_path)
+    df.write_parquet(args.output_path)
 
 
 if __name__ == "__main__":

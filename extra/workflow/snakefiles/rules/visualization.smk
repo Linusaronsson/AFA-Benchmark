@@ -10,7 +10,7 @@ Generates plots from aggregated results:
 rule plot_eval:
     """Generate evaluation performance plots."""
     input:
-        "extra/output/merged_results/eval_perf/{method_set}+classifier_type-{classifier_type}.csv",
+        "extra/output/merged_results/eval_perf/{method_set}+classifier_type-{classifier_type}.parquet",
     output:
         directory("extra/output/plot_results/eval_perf/{method_set}+classifier_type-{classifier_type}"),
     resources:
@@ -24,7 +24,7 @@ rule plot_eval:
 rule plot_time:
     """Generate timing analysis plots."""
     input:
-        "extra/output/merged_results/all.csv",
+        "extra/output/merged_results/all.parquet",
     output:
         directory("extra/output/plot_results/time/"),
     resources:
