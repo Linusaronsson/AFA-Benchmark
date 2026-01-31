@@ -75,6 +75,7 @@ UNMASKERS = _config["UNMASKERS"]
 BUDGET_PARAMS = _config["BUDGET_PARAMS"]
 CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
 METHOD_SETS = _config["METHOD_SETS"]
+EVAL_BATCH_SIZES = _config["EVAL_BATCH_SIZES"]
 
 include: "../rules/training.smk"
 include: "../rules/classifier_training.smk"
