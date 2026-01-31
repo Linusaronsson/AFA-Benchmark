@@ -2,7 +2,7 @@ batch_size: 128
 lr: 0.00001
 min_lr: 0.00000001
 hard_budget: 15
-nepochs: 100
+nepochs: 20
 patience: 3
 
 # pretrained_model_bundle_path: "extra/result/covert2023/pretrain/imagenette/0.bundle"

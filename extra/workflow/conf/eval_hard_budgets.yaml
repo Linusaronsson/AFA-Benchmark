@@ -10,7 +10,7 @@ eval_hard_budgets:
   diabetes: [5, 10, 15]
   mnist: [10, 20, 30]
   fashion_mnist: [10, 20, 30]
-  imagenette: []
+  imagenette: [5, 10, 15]
   miniboone: [5, 10, 15] # 40 features
   physionet: [5, 10, 15] # 40 features
   synthetic_mnist: [1, 2, 3] # 7x7 patches
