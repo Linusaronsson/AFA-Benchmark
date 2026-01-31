@@ -17,7 +17,7 @@ def main() -> None:
         description="Transform evaluation data in a single pipeline"
     )
     parser.add_argument("--input_path", type=Path, help="Input CSV path")
-    parser.add_argument("--output_path", type=Path, help="Output CSV path")
+    parser.add_argument("--output_path", type=Path, help="Output parquet path")
     parser.add_argument("--method", type=str, help="AFA method name")
     parser.add_argument("--dataset", type=str, help="Dataset name")
     parser.add_argument(
@@ -47,15 +47,15 @@ def main() -> None:
         args.input_path,
         schema={
             "prev_selections_performed": pl.String,
-            "action_performed": pl.UInt8,
-            "builtin_predicted_class": pl.UInt8,
-            "external_predicted_class": pl.UInt8,
-            "true_class": pl.UInt8,
-            "accumulated_cost": pl.Float16,
-            "idx": pl.UInt8,
+            "action_performed": pl.UInt64,
+            "builtin_predicted_class": pl.UInt64,
+            "external_predicted_class": pl.UInt64,
+            "true_class": pl.UInt64,
+            "accumulated_cost": pl.Float64,
+            "idx": pl.UInt64,
             "forced_stop": pl.Boolean,
-            "eval_seed": pl.UInt8,
-            "eval_hard_budget": pl.Float16,
+            "eval_seed": pl.UInt64,
+            "eval_hard_budget": pl.Float64,
         },
         null_values=["null"],
     )
@@ -95,9 +95,9 @@ def main() -> None:
     df = df.with_columns(
         afa_method=pl.lit(args.method, dtype=pl.String),
         dataset=pl.lit(args.dataset, dtype=pl.String),
-        train_seed=pl.lit(parse_nullable(args.train_seed), dtype=pl.UInt8),
+        train_seed=pl.lit(parse_nullable(args.train_seed), dtype=pl.UInt64),
         train_hard_budget=pl.lit(
-            parse_nullable(args.train_hard_budget), dtype=pl.Float16
+            parse_nullable(args.train_hard_budget), dtype=pl.Float64
         ),
         train_soft_budget_param=pl.lit(
             parse_nullable(args.train_soft_budget_param), dtype=pl.Float64
