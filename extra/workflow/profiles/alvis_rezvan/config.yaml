@@ -22,14 +22,14 @@ set-resources:
     runtime: 120
     slurm_extra: "--gres=gpu:T4:1"
   pretrain_model:
-    runtime: 360 # 6 hours
+    runtime: 1440 # 24h
   train_method_with_pretrained_model:
-    runtime: 600 # ~8-9h for AACO_NN on MNIST/FashionMNIST (784 features)
+    runtime: 1440 # 24h for AACO_NN on MNIST/FashionMNIST (784 features)
   train_method_without_pretrained_model:
-    runtime: 600 # ~8-9h for AACO_NN on MNIST/FashionMNIST (784 features)
+    runtime: 1440 # 24h for AACO_NN on MNIST/FashionMNIST (784 features)
   # Evaluation — the actual rule name in evaluation.smk is "eval_method"
   eval_method:
-    runtime: 420 # ~2h28m measured for MNIST soft budget eval (worst case)
+    runtime: 720 # ~2h28m measured for MNIST soft budget eval (worst case)
   # Post-processing rules
   count_selections:
     runtime: 30
