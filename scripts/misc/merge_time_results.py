@@ -1,6 +1,7 @@
 import argparse
-import csv
 from pathlib import Path
+
+import polars as pl
 
 
 def _read_time(path: Path | None) -> str:
@@ -32,19 +33,8 @@ def main() -> None:
         "time_eval": _read_time(args.time_eval_path),
     }
 
-    with output_path.open("w", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=[
-                "afa_method",
-                "dataset",
-                "time_pretrain",
-                "time_train",
-                "time_eval",
-            ],
-        )
-        writer.writeheader()
-        writer.writerow(row)
+    # Write as a one-row Polars DataFrame in Parquet format
+    pl.DataFrame([row]).write_parquet(str(output_path))
 
 
 if __name__ == "__main__":

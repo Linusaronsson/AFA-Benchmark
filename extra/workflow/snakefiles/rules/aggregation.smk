@@ -65,7 +65,7 @@ rule merge_eval_perf:
         "extra/output/merged_results/eval_perf/method_set-{method_set}+all.parquet",
     shell:
         """
-            python scripts/misc/merge_dataframes {input} --output {output}
+            python scripts/misc/merge_dataframes.py {input} --output {output}
         """
 
 rule split_by_classifier_type:
@@ -125,7 +125,7 @@ rule time_df_with_pretrain:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "combined_time.csv"
+                            "combined_time.parquet"
     resources:
         shell_exec="bash"
     shell:
@@ -173,7 +173,7 @@ rule time_df_without_pretrain:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "combined_time.csv"
+                            "combined_time.parquet"
     resources:
         shell_exec="bash"
     shell:
@@ -202,7 +202,7 @@ rule merge_time:
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"combined_time.csv"
+                                    f"combined_time.parquet"
             )
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
@@ -226,7 +226,7 @@ rule merge_time:
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"combined_time.csv"
+                                    f"combined_time.parquet"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
