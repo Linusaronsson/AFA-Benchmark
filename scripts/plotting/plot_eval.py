@@ -541,30 +541,24 @@ def main() -> None:
 
     df = read_parquet(args.input)
 
-    df_normal_hard_budget = process_df_only_stop_action(df)
-    df_traj_hard_budget = process_df_every_action(df)
+    df_stop_action = process_df_only_stop_action(df)
+    df_traj = process_df_every_action(df)
 
     # One set of plots per dataset set
     for dataset_set_name, dataset_set in DATASET_SETS.items():
-        df_normal_hard_budget = df_normal_hard_budget.filter(
+        df_stop_action = df_stop_action.filter(
             pl.col("dataset").is_in(dataset_set)
         )
-        df_traj_hard_budget = df_traj_hard_budget.filter(
-            pl.col("dataset").is_in(dataset_set)
-        )
-        df_normal_hard_budget = df_normal_hard_budget.filter(
+        df_traj = df_traj.filter(pl.col("dataset").is_in(dataset_set))
+        df_stop_action = df_stop_action.filter(
             pl.col("eval_hard_budget").is_null().not_()
         )
-        df_traj_hard_budget = df_traj_hard_budget.filter(
-            pl.col("eval_hard_budget").is_null().not_()
-        )
+        df_traj = df_traj.filter(pl.col("eval_hard_budget").is_null().not_())
 
-        normal_hard_budget_plot = get_normal_hard_budget_plot(
-            df_normal_hard_budget
-        )
-        traj_hard_budget_plot = get_traj_hard_budget_plot(df_traj_hard_budget)
+        normal_hard_budget_plot = get_normal_hard_budget_plot(df_stop_action)
+        traj_hard_budget_plot = get_traj_hard_budget_plot(df_traj)
 
-        df_soft_budget = df_normal_hard_budget.filter(
+        df_soft_budget = df_stop_action.filter(
             pl.col("soft_budget_param").is_null().not_()
         )
         soft_budget_plot_2d_errors = get_soft_budget_plot(
