@@ -31,6 +31,8 @@ class Shim2018ActionValueModule(nn.Module):
         num_cells: tuple[int, ...],
         dropout: float,
         n_feature_dims: int,
+        *,
+        allow_stop_action: bool = True,
     ):
         super().__init__()
         self.embedder = embedder
@@ -39,6 +41,7 @@ class Shim2018ActionValueModule(nn.Module):
         self.num_cells = num_cells
         self.dropout = dropout
         self.n_feature_dims = n_feature_dims
+        self.allow_stop_action = allow_stop_action
 
         self.net = MLP(
             in_features=self.embedding_size,
@@ -77,6 +80,11 @@ class Shim2018ActionValueModule(nn.Module):
 
         # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
         qvalues[~action_mask] = float("-inf")
+
+        # When trained in a hard budget context, the agent never learns anything about the stop action (0). This becomes a problem during evaluation when it **is** allowed to choose the stop action. Hence, we prevent it from choosing the stop action here. Note that this is not a problem when the agent is trained in a soft budget setting where it collects information about the stop action as well.
+        if not self.allow_stop_action:
+            qvalues[..., 0] = float("-inf")
+
         return qvalues
 
 
@@ -92,6 +100,8 @@ class Shim2018Agent(Agent):
         module_device: torch.device,  # device to place nn.Modules on
         n_feature_dims: int,  # how many dimensions the feature shape needs. Used to flatten the features before they are passed to the embedder
         n_batches: int,  # total number of batches expected during training, needed for eps annealing
+        *,
+        allow_stop_action: bool = True,
     ):
         self.cfg = cfg
         self.embedder = embedder
@@ -100,6 +110,7 @@ class Shim2018Agent(Agent):
         self.action_mask_key = action_mask_key
         self.module_device = module_device
         self.n_feature_dims = n_feature_dims
+        self.allow_stop_action = allow_stop_action
 
         self.action_value_module = Shim2018ActionValueModule(
             embedder=self.embedder,
@@ -108,6 +119,7 @@ class Shim2018Agent(Agent):
             num_cells=tuple(self.cfg.action_value_num_cells),
             dropout=self.cfg.action_value_dropout,
             n_feature_dims=self.n_feature_dims,
+            allow_stop_action=self.allow_stop_action,
         ).to(self.module_device)
 
         self.action_value_tdmodule = TensorDictModule(

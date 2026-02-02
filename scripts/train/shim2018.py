@@ -128,6 +128,7 @@ class Shim2018RLTrainer(RLTrainer):
 
     @override
     def _get_agent(self) -> Agent:
+        is_hard_budget_mode = self.typed_cfg.soft_budget_param is None
         return Shim2018Agent(
             cfg=self.typed_cfg.agent,
             embedder=self.pretrained_model.embedder,
@@ -137,6 +138,7 @@ class Shim2018RLTrainer(RLTrainer):
             module_device=self.device,
             n_feature_dims=len(self.train_dataset.feature_shape),
             n_batches=self.typed_cfg.rl_training_loop.n_batches,
+            allow_stop_action=is_hard_budget_mode,
         )
 
     @override
