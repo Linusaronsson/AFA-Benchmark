@@ -52,6 +52,7 @@ dev = [
   "ruff>=0.11.8",
   "snakemake>=9.12.0",
   "snakemake-executor-plugin-slurm>=1.8.0",
+  "visidata>=3.3",
 ]
 
 [build-system]
