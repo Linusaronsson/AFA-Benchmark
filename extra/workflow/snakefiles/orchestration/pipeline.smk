@@ -87,6 +87,13 @@ rule all:
         [
             f"extra/output/plot_results/eval_perf/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
         ] +
+        # The next two sets of plots should be identical, but include them both just in case
+        [
+            f"extra/output/plot_results/eval_actions/method_set-{method_set}+classifier_type-builtin" for method_set in METHOD_SETS
+        ] +
+        [
+            f"extra/output/plot_results/eval_actions/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
+        ] +
         [
             "extra/output/plot_results/time/"
         ]
