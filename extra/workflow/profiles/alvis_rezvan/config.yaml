@@ -24,12 +24,12 @@ set-resources:
   pretrain_model:
     runtime: 1440 # 24h
   train_method_with_pretrained_model:
-    runtime: 1440 # 24h for AACO_NN on MNIST/FashionMNIST (784 features)
+    runtime: 2880 # 48h — 24h was insufficient for aaco_nn on MNIST/FashionMNIST high budgets
   train_method_without_pretrained_model:
-    runtime: 1440 # 24h for AACO_NN on MNIST/FashionMNIST (784 features)
+    runtime: 1440 # 24h
   # Evaluation — the actual rule name in evaluation.smk is "eval_method"
   eval_method:
-    runtime: 720 # ~2h28m measured for MNIST soft budget eval (worst case)
+    runtime: 1440 # 24h — 12h was insufficient for aaco eval on MNIST/FashionMNIST budget=30
   # Post-processing rules
   count_selections:
     runtime: 30
