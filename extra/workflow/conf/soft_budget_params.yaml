@@ -52,6 +52,7 @@ soft_budget_params:
       - [0.001, null] # 30% observed
       - [0.01, null] # 5% observed
     actg:
+      - [0.000001, null]
       - [0.00001, null] # 35% observed
       # - [0.0001, null] # 45% observed
       - [0.001, null] # 25% observed
@@ -69,12 +70,18 @@ soft_budget_params:
     mnist:
       # - [0.0001, null] # 90% observed
       # - [0.001, null] # 60% observed
-      - [0.005, null]
+      - [0.002, null]
+      - [0.003, null]
+      - [0.004, null]
+      # - [0.005, null] # 0% observed
       # - [0.01, null] # 0% observed
     fashion_mnist:
       # - [0.0001, null] # 90% observed
       # - [0.001, null] # 60% observed
-      - [0.005, null]
+      - [0.002, null]
+      - [0.003, null]
+      - [0.004, null]
+      # - [0.005, null] # 0% observed
       # - [0.01, null] # 0% observed
     miniboone:
       - [0.0001, null] # 50% observed
@@ -131,9 +138,11 @@ soft_budget_params:
     fashion_mnist:
       # - [0.0001, null] # 93% observed
       # - [0.001, null] # 90% observed
-      - [0.01, null] # 7% observed
       - [0.015, null]
-      - [0.02, null]
+      - [0.013, null]
+      - [0.01, null] # 7% observed
+      - [0.015, null] # 2% observed
+      - [0.02, null] # 1% observed
       # - [0.05, null] # 0% observed
       # - [0.075, null] # 0% observed
       # - [0.1, null] # 0% observed
