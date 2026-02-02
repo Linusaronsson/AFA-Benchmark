@@ -466,8 +466,6 @@ def assert_only_one_soft_budget_param_type(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def process_df_only_stop_action(df: pl.DataFrame) -> pl.DataFrame:
-    df = assert_only_one_soft_budget_param_type(df)
-
     df_only_stop_action = df.filter(
         (pl.col("action_performed") == 0)
         & pl.col("predicted_class").is_not_null()
@@ -511,8 +509,6 @@ def filter_only_largest_budget(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def process_df_every_action(df: pl.DataFrame) -> pl.DataFrame:
-    df = assert_only_one_soft_budget_param_type(df)
-
     # When considering performance up to some budget, we only look at the case when the largest budget is used
     df = filter_only_largest_budget(df)
 
@@ -541,6 +537,7 @@ def main() -> None:
 
     df = read_parquet(args.input)
 
+    df = assert_only_one_soft_budget_param_type(df)
     df_stop_action = process_df_only_stop_action(df)
     df_traj = process_df_every_action(df)
 
@@ -550,22 +547,26 @@ def main() -> None:
             pl.col("dataset").is_in(dataset_set)
         )
         df_traj = df_traj.filter(pl.col("dataset").is_in(dataset_set))
-        df_stop_action = df_stop_action.filter(
+        df_stop_action_hard_budget = df_stop_action.filter(
             pl.col("eval_hard_budget").is_null().not_()
         )
-        df_traj = df_traj.filter(pl.col("eval_hard_budget").is_null().not_())
+        df_traj_hard_budget = df_traj.filter(
+            pl.col("eval_hard_budget").is_null().not_()
+        )
 
-        normal_hard_budget_plot = get_normal_hard_budget_plot(df_stop_action)
-        traj_hard_budget_plot = get_traj_hard_budget_plot(df_traj)
+        normal_hard_budget_plot = get_normal_hard_budget_plot(
+            df_stop_action_hard_budget
+        )
+        traj_hard_budget_plot = get_traj_hard_budget_plot(df_traj_hard_budget)
 
-        df_soft_budget = df_stop_action.filter(
+        df_stop_action_soft_budget = df_stop_action.filter(
             pl.col("soft_budget_param").is_null().not_()
         )
         soft_budget_plot_2d_errors = get_soft_budget_plot(
-            df_soft_budget, mode="2d_errors"
+            df_stop_action_soft_budget, mode="2d_errors"
         )
         soft_budget_plot_lines = get_soft_budget_plot(
-            df_soft_budget, mode="lines"
+            df_stop_action_soft_budget, mode="lines"
         )
 
         subfolder = args.output_folder / dataset_set_name
