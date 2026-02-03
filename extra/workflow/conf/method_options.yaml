@@ -23,24 +23,24 @@ method_options:
   jafa:
     pretrained_model_name: "jafa"
     train_script_name: "shim2018"
+    eval_batch_size:
+      default: 16
+  odin_model_based:
+    pretrained_model_name: "pvae"
+    train_script_name: "zannone2019"
+    method_specific_params:
+      - "additional_generation_fraction=1.0"
     eval_batch_size: &rl_eval_batch_size
       default: 128
       mnist: 16
       fashion_mnist: 16
       synthetic_mnist: 16
       synthetic_mnist_without_noise: 16
-  odin_model_based:
-    pretrained_model_name: "pvae"
-    train_script_name: "zannone2019"
-    method_specific_params:
-      - "additional_generation_fraction=1.0"
-    eval_batch_size: *rl_eval_batch_size
   odin_model_free:
     pretrained_model_name: "pvae"
     train_script_name: "zannone2019"
     method_specific_params:
       - "additional_generation_fraction=0.0"
-    eval_batch_size:
     eval_batch_size: *rl_eval_batch_size
   ol_without_mask:
     pretrained_model_name: "ol_without_mask"
