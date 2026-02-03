@@ -138,7 +138,7 @@ class Shim2018RLTrainer(RLTrainer):
             module_device=self.device,
             n_feature_dims=len(self.train_dataset.feature_shape),
             n_batches=self.typed_cfg.rl_training_loop.n_batches,
-            allow_stop_action=is_hard_budget_mode,
+            allow_stop_action=not is_hard_budget_mode,
         )
 
     @override
