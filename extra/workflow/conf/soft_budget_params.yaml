@@ -14,7 +14,7 @@ soft_budget_params:
       # - [0.0001, null] # 50% observed
       # - [0.001, null] # 50% observed
       - [0.005, null] # 90% observed
-      - [0.0075, null]
+      - [0.0075, null] # 25% observed
       - [0.01, null] # 20% observed
     cube_without_noise:
       - [0.00001, null] # 50% observed
@@ -30,7 +30,7 @@ soft_budget_params:
       # - [0.00001, null] # 70% observed
       # - [0.0001, null] # 70% observed
       # - [0.001, null] # 70% observed
-      - [0.002, null] # 90% observed
+      - [0.002, null] # 40% observed
       - [0.004, null]
       - [0.005, null] # 10% observed
       # - [0.01, null] # 0% observed
@@ -71,13 +71,13 @@ soft_budget_params:
       - [0.0001, null] # 25% observed
       # - [0.001, null] # 15% observed
       - [0.01, null] # 8% observed
-    mnist:
+    mnist: []
       # - [0.0001, null] # 90% observed
       # - [0.001, null] # 60% observed
       # - [0.002, null] # 90% observed
       # - [0.003, null] # 90% observed
       # - [0.004, null] # 90% observed
-      - [0.0045, null]
+      # - [0.0045, null] # 0% observed
       # - [0.005, null] # 0% observed
       # - [0.01, null] # 0% observed
     fashion_mnist: []
