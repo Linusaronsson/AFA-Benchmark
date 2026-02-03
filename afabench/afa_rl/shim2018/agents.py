@@ -82,7 +82,8 @@ class Shim2018ActionValueModule(nn.Module):
         qvalues[~action_mask] = float("-inf")
 
         # When trained in a hard budget context, the agent never learns anything about the stop action (0). This becomes a problem during evaluation when it **is** allowed to choose the stop action. Hence, we prevent it from choosing the stop action here. Note that this is not a problem when the agent is trained in a soft budget setting where it collects information about the stop action as well.
-        if not self.allow_stop_action:
+        # Using hasattr only because we don't want to retrain soft budget methods
+        if hasattr(self, "allow_stop_action") and not self.allow_stop_action:
             qvalues[..., 0] = float("-inf")
 
         return qvalues
