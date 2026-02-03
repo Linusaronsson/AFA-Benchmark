@@ -1,0 +1,12 @@
+# All datasets except synthetic and noiseless ones
+datasets:
+  - actg
+  - afa_context
+  - bank_marketing
+  - ckd
+  - cube
+  - diabetes
+  - miniboone
+  - physionet
+  - mnist
+  - fashion_mnist
