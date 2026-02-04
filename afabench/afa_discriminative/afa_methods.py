@@ -507,6 +507,16 @@ class Covert2023AFAMethod(AFAMethod):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
+        with torch.no_grad():
+            if self.modality == "tabular":
+                x_masked_pred = torch.cat([masked_features, feature_mask], dim=1)
+                pred = self.predictor(x_masked_pred)
+            else:
+                pred = self.predictor(masked_features)
+
+            entropy = get_entropy(pred)
+            stop_mask = entropy < self.lambda_threshold
+
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
             logits = self.selector(x_masked).flatten(1)
@@ -526,8 +536,8 @@ class Covert2023AFAMethod(AFAMethod):
         else:
             scores = logits
         best_scores, best_idx = scores.max(dim=1)
-        lam = self.lambda_threshold
-        stop_mask = best_scores < lam
+
+        # stop_mask = best_scores < lam
         # all masked
         stop_mask = stop_mask | (best_scores < -1e5)
 
@@ -1092,6 +1102,7 @@ class Gadgil2023AFAMethod(AFAMethod):
     def _flat_mask_to_patch_mask(
         self, feature_mask: torch.Tensor
     ) -> torch.Tensor:
+        # need to check, ph, pw, which comes first?
         assert feature_mask.dim() == 4
         B, C, H, W = feature_mask.shape
         ps = self.patch_size
