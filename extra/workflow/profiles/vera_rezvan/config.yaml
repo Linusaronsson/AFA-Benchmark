@@ -1,0 +1,24 @@
+executor: slurm
+jobs: 50
+latency-wait: 30 # seconds
+retries: 2
+
+default-resources:
+  slurm_partition: vera
+  slurm_account: C3SE2026-1-12
+  runtime: 120 # minutes
+  cpus_per_task: 1
+  mem_mb: 4000
+
+set-resources:
+  pretrain_model:
+    runtime: 6000 # 100 hours
+  train_method_with_pretrained_model:
+    runtime: 6000 # 100 hours
+    mem_mb: 32000
+  train_method_without_pretrained_model:
+    runtime: 6000 # 100 hours
+    mem_mb: 16000
+  eval_method:
+    runtime: 6000 # 100 hours
+    mem_mb: 16000
