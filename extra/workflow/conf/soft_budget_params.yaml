@@ -26,6 +26,11 @@ soft_budget_params:
       - [0.0001, null] # 50% observed
       - [0.001, null] # 40% observed
       - [0.01, null] # 20% observed
+      - [0.012, null]
+      - [0.014, null]
+      - [0.016, null]
+      - [0.018, null]
+      - [0.02, null]
     afa_context:
       # - [0.00001, null] # 70% observed
       # - [0.0001, null] # 70% observed
