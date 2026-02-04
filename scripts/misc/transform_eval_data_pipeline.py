@@ -65,7 +65,7 @@ def main() -> None:
         n_selections_performed=pl.col(
             "prev_selections_performed"
         ).map_elements(
-            lambda x: len(ast.literal_eval(x)), return_dtype=pl.UInt8
+            lambda x: len(ast.literal_eval(x)), return_dtype=pl.UInt64
         )
     ).drop("prev_selections_performed")
 
