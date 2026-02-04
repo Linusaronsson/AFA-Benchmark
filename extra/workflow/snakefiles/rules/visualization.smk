@@ -37,7 +37,7 @@ rule plot_eval_actions:
 rule plot_time:
     """Generate timing analysis plots."""
     input:
-        "extra/output/merged_results/all.parquet",
+        "extra/output/merged_results/time/all.parquet",
     output:
         directory("extra/output/plot_results/time/"),
     resources:

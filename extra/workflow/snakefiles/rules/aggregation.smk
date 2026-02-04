@@ -239,7 +239,7 @@ rule merge_time:
             ) in BUDGET_PARAMS[method][dataset]
         ]
     output:
-        "extra/output/merged_results/all.parquet",
+        "extra/output/merged_results/time/all.parquet",
     resources:
         shell_exec="bash"
     shell:
