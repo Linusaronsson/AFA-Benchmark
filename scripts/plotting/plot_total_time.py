@@ -87,6 +87,13 @@ def read_parquet_safe(path: Path) -> pl.DataFrame:
     """Read CSV file with appropriate data types."""
     df = pl.read_parquet(
         path,
+        schema={
+            "afa_method": pl.String,
+            "dataset": pl.String,
+            "time_pretrain": pl.Float64,
+            "time_train": pl.Float64,
+            "time_eval": pl.Float64,
+        },
     )
 
     # Treat null times as 0

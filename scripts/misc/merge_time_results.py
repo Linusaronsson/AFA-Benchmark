@@ -4,10 +4,10 @@ from pathlib import Path
 import polars as pl
 
 
-def _read_time(path: Path | None) -> str:
+def _read_time(path: Path | None) -> float | None:
     if path is None:
-        return "null"
-    return path.read_text().strip()
+        return None
+    return float(path.read_text().strip())
 
 
 def main() -> None:
@@ -34,7 +34,16 @@ def main() -> None:
     }
 
     # Write as a one-row Polars DataFrame in Parquet format
-    pl.DataFrame([row]).write_parquet(str(output_path))
+    pl.DataFrame(
+        [row],
+        schema={
+            "afa_method": pl.String,
+            "dataset": pl.String,
+            "time_pretrain": pl.Float64,
+            "time_train": pl.Float64,
+            "time_eval": pl.Float64,
+        },
+    ).write_parquet(str(output_path))
 
 
 if __name__ == "__main__":
