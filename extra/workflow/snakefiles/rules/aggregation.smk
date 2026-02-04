@@ -13,7 +13,7 @@ rule merge_eval_perf:
     input: lambda wc:
         [
             (
-                f"extra/output/eval_results_transformed/{EVAL_DATASET_SPLIT}/{method}/"
+                f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"
@@ -37,7 +37,7 @@ rule merge_eval_perf:
         ] +
         [
             (
-                f"extra/output/eval_results_transformed/{EVAL_DATASET_SPLIT}/{method}/"
+                f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -62,7 +62,7 @@ rule merge_eval_perf:
     resources:
         shell_exec="bash"
     output:
-        f"extra/output/merged_results/{EVAL_DATASET_SPLIT}/eval_perf/method_set-{{method_set}}+all.parquet",
+        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/eval_perf/method_set-{{method_set}}+all.parquet",
     shell:
         """
             python scripts/misc/merge_dataframes.py {input} --output {output}
@@ -70,10 +70,10 @@ rule merge_eval_perf:
 
 rule split_by_classifier_type:
     input:
-        f"extra/output/merged_results/{EVAL_DATASET_SPLIT}/eval_perf/method_set-{{method_set}}+all.parquet"
+        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/eval_perf/method_set-{{method_set}}+all.parquet"
     output:
-        f"extra/output/merged_results/{EVAL_DATASET_SPLIT}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
-        f"extra/output/merged_results/{EVAL_DATASET_SPLIT}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
+        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
+        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
     resources:
         shell_exec="bash"
     shell:
@@ -103,7 +103,7 @@ rule time_df_with_pretrain:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "train_time.txt",
-        f"extra/output/eval_time_results/{EVAL_DATASET_SPLIT}/{{method}}/"
+        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -115,7 +115,7 @@ rule time_df_with_pretrain:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_time.txt"
     output:
-        f"extra/output/combined_time_results/{EVAL_DATASET_SPLIT}/{{method}}/"
+        f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -151,7 +151,7 @@ rule time_df_without_pretrain:
                     "train_hard_budget-{train_hard_budget}+"
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "train_time.txt",
-        f"extra/output/eval_time_results/{EVAL_DATASET_SPLIT}/{{method}}/"
+        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 f"{NO_PRETRAIN_STR}/"
@@ -163,7 +163,7 @@ rule time_df_without_pretrain:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_time.txt"
     output:
-        f"extra/output/combined_time_results/{EVAL_DATASET_SPLIT}/{{method}}/"
+        f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 f"{NO_PRETRAIN_STR}/"
@@ -192,7 +192,7 @@ rule merge_time:
     input:
         [
             (
-                f"extra/output/combined_time_results/{EVAL_DATASET_SPLIT}/{method}/"
+                f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"
@@ -216,7 +216,7 @@ rule merge_time:
         ] +
         [
             (
-                f"extra/output/combined_time_results/{EVAL_DATASET_SPLIT}/{method}/"
+                f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -239,7 +239,7 @@ rule merge_time:
             ) in BUDGET_PARAMS[method][dataset]
         ]
     output:
-        f"extra/output/merged_results/{EVAL_DATASET_SPLIT}/time/all.parquet",
+        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/time/all.parquet",
     resources:
         shell_exec="bash"
     shell:

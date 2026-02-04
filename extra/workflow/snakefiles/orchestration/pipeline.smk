@@ -82,20 +82,20 @@ include: "../rules/visualization.smk"
 rule all:
     input:
         [
-            f"extra/output/plot_results/{EVAL_DATASET_SPLIT}/eval_perf/method_set-{method_set}+classifier_type-builtin" for method_set in METHOD_SETS
+            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_perf/method_set-{method_set}+classifier_type-builtin" for method_set in METHOD_SETS
         ] +
         [
-            f"extra/output/plot_results/{EVAL_DATASET_SPLIT}/eval_perf/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
+            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_perf/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
         ] +
         # The next two sets of plots should be identical, but include them both just in case
         [
-            f"extra/output/plot_results/{EVAL_DATASET_SPLIT}/eval_actions/method_set-{method_set}+classifier_type-builtin" for method_set in METHOD_SETS
+            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_actions/method_set-{method_set}+classifier_type-builtin" for method_set in METHOD_SETS
         ] +
         [
-            f"extra/output/plot_results/{EVAL_DATASET_SPLIT}/eval_actions/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
+            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_actions/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
         ] +
         [
-            f"extra/output/plot_results/{EVAL_DATASET_SPLIT}/time/"
+            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/time/"
         ]
 
 
@@ -154,7 +154,7 @@ rule all_eval_method:
     input:
         [
             (
-                f"extra/output/eval_results/{EVAL_DATASET_SPLIT}/{method}/"
+                f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -173,7 +173,7 @@ rule all_eval_method:
         ] +
         [
             (
-                f"extra/output/eval_results/{method}/"
+                f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"

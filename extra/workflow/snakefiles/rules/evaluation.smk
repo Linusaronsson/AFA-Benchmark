@@ -22,7 +22,7 @@ rule eval_method:
             "dataset-{dataset}.bundle"
 
     output:
-        f"extra/output/eval_results/{EVAL_DATASET_SPLIT}/{{method}}/"
+        f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "{pretrain_folder}"
@@ -33,7 +33,7 @@ rule eval_method:
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_data.csv",
-        f"extra/output/eval_time_results/{EVAL_DATASET_SPLIT}/{{method}}/"
+        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "{pretrain_folder}"
