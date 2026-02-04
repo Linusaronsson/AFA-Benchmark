@@ -16,6 +16,7 @@ from afabench.afa_discriminative.afa_methods import (
 from afabench.afa_discriminative.models import (
     ConvNet,
     GreedyAFAClassifier,
+    Predictor,
     ResNet18Backbone,
     resnet18,
 )
@@ -60,7 +61,7 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:
     )
 
     base = resnet18(pretrained=True)
-    backbone, expansion = ResNet18Backbone(base)
+    _, expansion = ResNet18Backbone(base)
     classifier_bundle, _ = load_bundle(
         Path(cfg.pretrained_model_bundle_path),
         map_location=device,
@@ -69,7 +70,13 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:
         "GreedyAFAClassifier",
         cast("object", classifier_bundle),
     )
-    predictor = classifier_bundle.predictor.to(device)
+    predictor = classifier_bundle.predictor
+    predictor = cast(
+        "Predictor",
+        cast("object", predictor),
+    )
+    predictor = predictor.to(device)
+    shared_backbone = predictor.backbone
 
     arch = classifier_bundle.architecture
     image_size = arch["image_size"]
@@ -81,7 +88,7 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:
     n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
     assert n_selections == n_patches
 
-    value_network = ConvNet(backbone, expansion).to(device)
+    value_network = ConvNet(shared_backbone, expansion).to(device)
 
     mask_layer = MaskLayer2d(
         mask_width=mask_width, patch_size=patch_size, append=False
