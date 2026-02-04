@@ -12,7 +12,7 @@ rule plot_eval_perf:
     input:
         f"extra/output/merged_results/{EVAL_DATASET_SPLIT}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
     output:
-        directory(f"extra/output/plot_results/{EVAL_DATASET_SPLIT}eval_perf/{{method_set}}+classifier_type-{{classifier_type}}"),
+        directory(f"extra/output/plot_results/{EVAL_DATASET_SPLIT}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}"),
     resources:
         shell_exec="bash"
     shell:
