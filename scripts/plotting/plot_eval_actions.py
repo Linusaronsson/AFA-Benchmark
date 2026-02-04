@@ -161,6 +161,16 @@ def filter_only_largest_budget(dataframe: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def filter_only_smallest_soft_budget_parameter(
+    dataframe: pl.DataFrame,
+) -> pl.DataFrame:
+    """For each dataset and method, only keep the smallest soft budget parameter."""
+    return dataframe.filter(
+        pl.col("soft_budget_param")
+        == pl.col("soft_budget_param").min().over(["afa_method", "dataset"])
+    )
+
+
 def normalize_heatmap_by_timestep(
     df_method: pl.DataFrame,
     max_action: int,
@@ -209,7 +219,10 @@ def format_heatmap_axes(
 
 
 def create_action_heatmap(
-    dataframe: pl.DataFrame, dataset: str, output_folder: Path
+    dataframe: pl.DataFrame,
+    dataset: str,
+    output_folder: Path,
+    extra_title: str,
 ) -> None:
     """
     Create action heatmaps for all methods in a dataset.
@@ -249,7 +262,11 @@ def create_action_heatmap(
         format_heatmap_axes(ax, max_action, max_time, method)
 
     dataset_name = DATASET_NAME_MAPPING.get(dataset, dataset)
-    fig.suptitle(f"{dataset_name} - Action Heatmaps", fontsize=14, y=0.98)
+    fig.suptitle(
+        f"Action Heatmaps - {dataset_name} - {extra_title}",
+        fontsize=14,
+        y=0.98,
+    )
     plt.subplots_adjust(
         left=0.08, right=0.92, top=0.84, bottom=0.1, wspace=0.3
     )
@@ -259,20 +276,40 @@ def create_action_heatmap(
     plt.close(fig)
 
 
+def produce_plots(
+    df: pl.DataFrame, output_folder: Path, extra_title: str
+) -> None:
+    for keys_tuple, dataset_df in tqdm(
+        df.group_by("dataset"), desc="Creating action heatmaps"
+    ):
+        dataset_name = keys_tuple[0]
+        create_action_heatmap(
+            dataset_df, dataset_name, output_folder, extra_title=extra_title
+        )
+
+
 def main() -> None:
     args = parse_args()
     args.output_folder.mkdir(parents=True, exist_ok=True)
 
     evaluation_df = read_parquet(args.input)
     evaluation_df = assert_only_one_soft_budget_param_type(evaluation_df)
-    evaluation_df = filter_only_largest_budget(evaluation_df)
+    evaluation_df_hard_budget = filter_only_largest_budget(evaluation_df)
+    evaluation_df_soft_budget = filter_only_smallest_soft_budget_parameter(
+        evaluation_df
+    )
 
-    # One plot per dataset
-    for keys_tuple, dataset_df in tqdm(
-        evaluation_df.group_by("dataset"), desc="Creating action heatmaps"
+    for folder, df, desc in zip(
+        [
+            args.output_folder / "hard_budget",
+            args.output_folder / "soft_budget",
+        ],
+        [evaluation_df_hard_budget, evaluation_df_soft_budget],
+        ["Largest hard budget", "Smallest soft budget parameter"],
+        strict=True,
     ):
-        dataset_name = keys_tuple[0]
-        create_action_heatmap(dataset_df, dataset_name, args.output_folder)
+        folder.mkdir(parents=True, exist_ok=True)
+        produce_plots(df=df, output_folder=folder, extra_title=desc)
 
 
 if __name__ == "__main__":
