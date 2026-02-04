@@ -559,14 +559,14 @@ def main() -> None:
 
     # One set of plots per dataset set
     for dataset_set_name, dataset_set in DATASET_SETS.items():
-        df_stop_action = df_stop_action.filter(
+        df_stop_action_filtered = df_stop_action.filter(
             pl.col("dataset").is_in(dataset_set)
         )
-        df_traj = df_traj.filter(pl.col("dataset").is_in(dataset_set))
-        df_stop_action_hard_budget = df_stop_action.filter(
+        df_traj_filtered = df_traj.filter(pl.col("dataset").is_in(dataset_set))
+        df_stop_action_hard_budget = df_stop_action_filtered.filter(
             pl.col("eval_hard_budget").is_null().not_()
         )
-        df_traj_hard_budget = df_traj.filter(
+        df_traj_hard_budget = df_traj_filtered.filter(
             pl.col("eval_hard_budget").is_null().not_()
         )
 
@@ -575,7 +575,7 @@ def main() -> None:
         )
         traj_hard_budget_plot = get_traj_hard_budget_plot(df_traj_hard_budget)
 
-        df_stop_action_soft_budget = df_stop_action.filter(
+        df_stop_action_soft_budget = df_stop_action_filtered.filter(
             pl.col("soft_budget_param").is_null().not_()
         )
         soft_budget_plot_2d_errors = get_soft_budget_plot(
