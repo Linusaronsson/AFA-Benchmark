@@ -10,9 +10,9 @@ Generates plots from aggregated results:
 rule plot_eval_perf:
     """Generate evaluation performance plots."""
     input:
-        "extra/output/merged_results/eval_perf/{method_set}+classifier_type-{classifier_type}.parquet",
+        f"extra/output/merged_results/{EVAL_DATASET_SPLIT}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
     output:
-        directory("extra/output/plot_results/eval_perf/{method_set}+classifier_type-{classifier_type}"),
+        directory(f"extra/output/plot_results/{EVAL_DATASET_SPLIT}eval_perf/{{method_set}}+classifier_type-{{classifier_type}}"),
     resources:
         shell_exec="bash"
     shell:
@@ -23,9 +23,9 @@ rule plot_eval_perf:
 # This rule probably does not need to use both types of classifiers, since the actions are the same (they come from the same original evaluation dataframe).
 rule plot_eval_actions:
     input:
-        "extra/output/merged_results/eval_perf/{method_set}+classifier_type-{classifier_type}.parquet",
+        f"extra/output/merged_results/{EVAL_DATASET_SPLIT}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
     output:
-        directory("extra/output/plot_results/eval_actions/{method_set}+classifier_type-{classifier_type}"),
+        directory(f"extra/output/plot_results/{EVAL_DATASET_SPLIT}/eval_actions/{{method_set}}+classifier_type-{{classifier_type}}"),
     resources:
         shell_exec="bash"
     shell:
@@ -37,9 +37,9 @@ rule plot_eval_actions:
 rule plot_time:
     """Generate timing analysis plots."""
     input:
-        "extra/output/merged_results/time/all.parquet",
+        f"extra/output/merged_results/{EVAL_DATASET_SPLIT}/time/all.parquet",
     output:
-        directory("extra/output/plot_results/time/"),
+        directory(f"extra/output/plot_results/{EVAL_DATASET_SPLIT}/time/"),
     resources:
         shell_exec="bash"
     shell:

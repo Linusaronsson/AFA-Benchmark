@@ -34,7 +34,7 @@ def load_config(config):
     initializer = config.get("initializer", "cold")
     eval_dataset_split = config.get(
         "eval_dataset_split", "test"
-    )  # switch to val while developing
+    )  # switch to val while developing, and train if debugging
     device = config.get("device", "cpu")
     use_wandb = config.get("use_wandb", False)
     smoke_test = config.get("smoke_test", False)
