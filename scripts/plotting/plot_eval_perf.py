@@ -264,7 +264,7 @@ def get_metrics_at_every_action(df: pl.DataFrame) -> pl.DataFrame:
                 "eval_seed": pl.Int64,
                 "eval_hard_budget": pl.Float64,
                 "soft_budget_param": pl.Float64,
-                "n_selections_performed": pl.Int64,
+                "n_selections_performed": pl.UInt64,
                 "accuracy": pl.Float64,
                 "f_score": pl.Float64,
             },
@@ -275,6 +275,22 @@ def get_metrics_at_every_action(df: pl.DataFrame) -> pl.DataFrame:
 def read_parquet(input_csv_path: Path) -> pl.DataFrame:
     return pl.read_parquet(
         input_csv_path,
+        schema={
+            "action_performed": pl.UInt64,
+            "true_class": pl.UInt64,
+            "accumulated_cost": pl.Float64,
+            "forced_stop": pl.Boolean,
+            "eval_seed": pl.UInt64,
+            "eval_hard_budget": pl.Float64,
+            "n_selections_performed": pl.UInt64,
+            "predicted_class": pl.UInt64,
+            "afa_method": pl.String,
+            "dataset": pl.String,
+            "train_seed": pl.UInt64,
+            "train_hard_budget": pl.Float64,
+            "train_soft_budget_param": pl.Float64,
+            "eval_soft_budget_param": pl.Float64,
+        },
     )
 
 
