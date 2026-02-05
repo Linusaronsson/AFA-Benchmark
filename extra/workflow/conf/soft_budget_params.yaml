@@ -386,6 +386,10 @@ soft_budget_params:
       - [null, 0.05]  # 8% observed
       - [null, 0.06]  # 4% observed
       - [null, 0.07]  # 2.5% observed
+  cae:
+    default: []
+  permutation:
+    default: []
   random_dummy:
     default:
       - [0.3, null]
