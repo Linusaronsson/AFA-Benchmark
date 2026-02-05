@@ -305,6 +305,13 @@ def _create_budget_combinations(
     soft budget params are extracted from the tuple: [train_soft_budget_param, eval_soft_budget_param]
     """
     result = []
+    mapped_train_budgets = [
+        _get_train_hard_budget_from_eval(
+            method, dataset, eval_budget, eval_to_train_hard_budget_mapping
+        )
+        for eval_budget in eval_hard_budgets
+    ]
+    max_train_hard_budget = max(mapped_train_budgets) if mapped_train_budgets else "null"
 
     # Hard budget combinations
     for eval_budget in eval_hard_budgets:
@@ -323,7 +330,7 @@ def _create_budget_combinations(
             soft_budget_tuple[1]
         )
         train_hard_budget = (
-            max(eval_hard_budgets)
+            max_train_hard_budget
             if use_max_hard_budget_when_training_soft_budget
             else "null"
         )
