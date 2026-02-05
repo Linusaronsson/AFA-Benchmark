@@ -172,7 +172,7 @@ def create_dummy_data() -> pl.DataFrame:  # noqa: C901
             "dataset": pl.String,
             "train_seed": pl.UInt64,
             "train_hard_budget": pl.Float64,
-            "predicted_class": pl.Int64,
+            "predicted_class": pl.UInt64,
         },
     )
 
