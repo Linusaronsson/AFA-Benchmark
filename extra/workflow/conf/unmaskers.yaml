@@ -3,3 +3,4 @@ unmaskers:
   synthetic_mnist: 28x28_to_7x7
   synthetic_mnist_without_noise: 28x28_to_7x7
   imagenette: 224x224_to_14x14
+  afa_context_v2_without_noise: afa_context_5_contexts

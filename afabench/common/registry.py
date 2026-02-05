@@ -44,6 +44,7 @@ REGISTERED_CLASSES = {
     # AFA Unmasker Classes
     "DirectUnmasker": "afabench.common.unmaskers.DirectUnmasker",
     "ImagePatchUnmasker": "afabench.common.unmaskers.ImagePatchUnmasker",
+    "AFAContextUnmasker": "afabench.common.unmaskers.AFAContextUnmasker",
     # AFA Initializer Classes
     "ZeroInitializer": "afabench.common.initializers.ZeroInitializer",
     "FixedRandomInitializer": "afabench.common.initializers.FixedRandomInitializer",
