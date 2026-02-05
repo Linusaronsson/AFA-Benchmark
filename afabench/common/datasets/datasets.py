@@ -370,13 +370,9 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     @override
     def get_feature_acquisition_costs(self) -> torch.Tensor:
-        block1_costs = torch.ones(
-            (self.n_cube_features // 2,), dtype=torch.float32
-        )
-        block2_costs = self.cost_scaling * torch.ones(
-            (self.n_cube_features // 2,)
-        )
-        combined_costs = torch.cat([block1_costs, block2_costs])
+        block1_costs = torch.ones((self.n_cube_features,), dtype=torch.float32)
+        block2_costs = self.cost_scaling * torch.ones((self.n_cube_features,))
+        combined_costs = torch.cat([block1_costs, block2_costs], dim=-1)
 
         # Normalize so the average feature cost is still 1.0
         combined_costs = (
