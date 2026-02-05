@@ -7,15 +7,27 @@ method_options:
   ma2018_builtin:
     pretrained_model_name: "pvae"
     train_script_name: "ma2018_builtin"
+    use_max_hard_budget_when_training_soft_budget: true
+    eval_batch_size:
+      default: 8
   ma2018_external:
     pretrained_model_name: "pvae"
     train_script_name: "ma2018_external"
+    use_max_hard_budget_when_training_soft_budget: true
+    eval_batch_size:
+      default: 8
   covert2023:
     pretrained_model_name: "gdfs"
     train_script_name: "covert2023"
+    use_max_hard_budget_when_training_soft_budget: true
+    eval_batch_size:
+      default: 128
   gadgil2023:
     pretrained_model_name: "dime"
     train_script_name: "gadgil2023"
+    use_max_hard_budget_when_training_soft_budget: true
+    eval_batch_size:
+      default: 128
   cae:
     train_script_name: "cae"
   permutation:

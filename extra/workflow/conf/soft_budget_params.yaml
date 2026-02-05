@@ -202,6 +202,155 @@ soft_budget_params:
       - [0.1, null] # 45% observed
       - [0.125, null] # 30% observed
   odin_model_based: *odin
+  ma2018_builtin:
+    default: []
+  ma2018_external:
+    default: []
+    cube:
+      - [null, 0.005]  # 50% observed
+      - [null, 0.01]  # 40% observed
+      - [null, 0.05]  # 15% observed
+    cube_without_noise:
+      - [null, 0.0001]  # 50% observed
+      - [null, 0.01]  # 25% observed
+      - [null, 0.2]  # 15% observed
+    afa_context:
+      - [null, 0.008]  # 50% observed
+      - [null, 0.01]  # 33% observed
+      - [null, 0.012]  # 15% observed
+    afa_context_without_noise:
+      - [null, 0.01]  # 50% observed
+      - [null, 0.03]  # 33% observed
+      - [null, 0.032]  # 15% observed
+    bank_marketing:
+      - [null, 0.002]  # 50% observed
+      - [null, 0.005]  # 30% observed
+      - [null, 0.015]  # 10% observed
+    actg:
+      - [null, 0.0006]  # 50% observed
+      - [null, 0.002]  # 30% observed
+      - [null, 0.01]  # 10% observed
+    ckd:
+      - [null, 0.00001]  # 50% observed
+      - [null, 0.0005]  # 30% observed
+      - [null, 0.05]  # 10% observed
+    diabetes:
+      - [null, 0.0002]  # 50% observed
+      - [null, 0.0007]  # 30% observed
+      - [null, 0.005]  # 10% observed
+    physionet:
+      - [null, 0.0008]  # 50% observed
+      - [null, 0.002]  # 30% observed
+      - [null, 0.007]  # 10% observed
+    miniboone:
+      - [null, 0.0005]  # 50% observed
+      - [null, 0.01]  # 20% observed
+      - [null, 0.1]  # 10% observed
+  covert2023:
+    default: []
+    cube:
+      - [null, 0.7]  # 50% observed
+      - [null, 1.1]  # 30% observed
+      - [null, 1.5]  # 10% observed
+    cube_without_noise:
+      - [null, 0.001]  # 40% observed
+      - [null, 0.01]  # 25% observed
+      - [null, 0.3]  # 10% observed
+    afa_context:
+      - [null, 1.6]  # 50% observed
+      - [null, 1.8]  # 30% observed
+      - [null, 1.95]  # 10% observed
+    afa_context_without_noise:
+      - [null, 0.9]  # 50% observed
+      - [null, 1.3]  # 30% observed
+      - [null, 1.7]  # 10% observed
+    bank_marketing:
+      - [null, 0.4]  # 45% observed
+      - [null, 0.5]  # 33% observed
+      - [null, 0.6]  # 15% observed
+    actg:
+      - [null, 0.2]  # 50% observed
+      - [null, 0.4]  # 30% observed
+      - [null, 0.5]  # 15% observed
+    ckd:
+      - [null, 0.0001]  # 40% observed
+      - [null, 0.0005]  # 30% observed
+      - [null, 0.1]  # 10% observed
+    diabetes:
+      - [null, 0.1]  # 50% observed
+      - [null, 0.2]  # 30% observed
+      - [null, 0.6]  # 10% observed
+    physionet:
+      - [null, 0.4]  # 50% observed
+      - [null, 0.5]  # 30% observed
+      - [null, 0.6]  # 15% observed
+    miniboone:
+      - [null, 0.01] # 50% observed
+      - [null, 0.08] # 30% observed
+      - [null, 0.3]  # 10% observed
+    mnist:
+      - [null, 0.01] # 10% observed
+      - [null, 0.2] # 3% observed
+      - [null, 0.7] # 1% observed
+    fashion_mnist:
+      - [null, 0.1] # 7.6% observed
+      - [null, 0.7] # 3% observed
+      - [null, 0.9] # 1% observed
+  gadgil2023:
+    default: []
+    cube:
+      - [null, 0.001]  # 45% observed
+      - [null, 0.005]  # 20% observed
+      - [null, 0.02]  # 10% observed
+    cube_without_noise:
+      - [null, 0.00001]  # 50% observed
+      - [null, 0.0001]  # 35% observed
+      - [null, 0.01]  # 10% observed
+    afa_context:
+      - [null, 0.000002]  # 45% observed
+      - [null, 0.00003]  # 30% observed
+      # - [null, 0.0005]  # 20% observed
+      - [null, 0.005]  # 10% observed
+    afa_context_without_noise:
+      - [null, 0.00003]  # 50% observed
+      # - [null, 0.0001]  # 40% observed
+      - [null, 0.001]  # 20% observed
+      - [null, 0.01]  # 10% observed
+    bank_marketing:
+      - [null, 0.0001]  # 40% observed
+      - [null, 0.001]  # 20% observed
+      - [null, 0.01]  # 10% observed
+    actg:
+      - [null, 0.0005]  # 50% observed
+      - [null, 0.002]  # 30% observed
+      - [null, 0.02]  # 10% observed
+    ckd:
+      - [null, 0.00003]  # 50% observed
+      - [null, 0.001]  # 30% observed
+      - [null, 0.05]  # 10% observed
+    diabetes:
+      - [null, 0.000005]  # 50% observed
+      - [null, 0.00005]  # 33% observed
+      - [null, 0.0005]  # 10% observed
+    physionet:
+      - [null, 0.0002]  # 50% observed
+      - [null, 0.001] # 30% observed
+      - [null, 0.007] # 10% observed
+    miniboone:
+      - [null, 0.00002]  # 50% observed
+      - [null, 0.0002]  # 30% observed
+      - [null, 0.002]  # 10% observed
+    mnist:
+      - [null, 0.0000000000000001]  # 7.8% observed
+      # - [null, 0.0000000000001]  # 6% observed
+      - [null, 0.00000000001]  # 5% observed
+      # - [null, 0.000001]  # 2% observed
+      - [null, 0.0001]  # 1% observed
+    fashion_mnist:
+      - [null, 0.000000001] # 8.4% observed
+      # - [null, 0.00000001] # 7% observed
+      - [null, 0.0000001] # 5.5% observed
+      - [null, 0.00001]  # 2.5% observed
   random_dummy:
     default:
       - [0.3, null]
