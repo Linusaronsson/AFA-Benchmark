@@ -27,13 +27,20 @@ class AFAContextUnmasker(AFAUnmasker):
 
     @override
     def get_selection_costs(self, feature_costs: torch.Tensor) -> torch.Tensor:
-        # TODO
-        return feature_costs
+        assert feature_costs.ndim == 1
+        selection_costs = torch.full(
+            (self.get_n_selections(feature_costs.shape),), float("nan")
+        )
+        selection_costs[0] = feature_costs[: self.n_contexts].sum()
+        selection_costs[1:] = feature_costs[self.n_contexts :]
+        return selection_costs
 
     @override
     def get_n_selections(self, feature_shape: torch.Size) -> int:
-        # TODO
-        return feature_shape.numel()
+        assert len(feature_shape) == 1
+        n_features = feature_shape.numel()
+        # All context features are grouped into one selection, remaining features are left alone
+        return 1 + (n_features - self.n_contexts)
 
     @override
     def unmask(
@@ -46,36 +53,19 @@ class AFAContextUnmasker(AFAUnmasker):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        # TODO
-        assert feature_shape is not None, "feature_shape must be provided"
-        assert afa_selection.shape[-1] == 1, (
-            "AFASelection must have shape [..., 1]"
+        assert masked_features.ndim == 2, (
+            f"Expected a single batch dimension and a single feature dimension, instead got {masked_features.ndim} dimensions."
         )
+        batch_size = masked_features.shape[0]
+        new_feature_mask = feature_mask.clone()
 
-        # Get batch shape by removing the last dimension (which is 1)
-        batch_shape = afa_selection.shape[:-1]
+        for sample_idx in range(batch_size):
+            selection_idx = int(afa_selection[sample_idx])
+            if selection_idx == 0:
+                new_feature_mask[sample_idx, : self.n_contexts] = True
+            else:
+                new_feature_mask[
+                    sample_idx, (selection_idx - 1) + self.n_contexts
+                ] = True
 
-        # Flatten batch dimensions for processing
-        afa_selection_flat = afa_selection.view(-1, 1)
-        feature_mask_flat = feature_mask.view(-1, *feature_shape)
-
-        feature_indices = afa_selection_flat.squeeze(1)
-
-        new_feature_mask_flat = feature_mask_flat.clone()
-
-        # Only unmask features where selection >= 0 (selection < 0 is ignored)
-        valid_selections = afa_selection_flat.squeeze(1) >= 0
-        if valid_selections.any():
-            valid_feature_indices = feature_indices[valid_selections]
-            valid_batch_indices = torch.arange(
-                feature_mask_flat.size(0), device=feature_mask.device
-            )[valid_selections]
-
-            # Convert feature_indices to n-dimensional indices using unravel_index
-            multi_indices = torch.unravel_index(
-                valid_feature_indices, feature_shape
-            )
-            new_feature_mask_flat[valid_batch_indices, *multi_indices] = True
-
-        # Reshape back to original batch shape + feature shape
-        return new_feature_mask_flat.view(batch_shape + feature_shape)
+        return new_feature_mask
