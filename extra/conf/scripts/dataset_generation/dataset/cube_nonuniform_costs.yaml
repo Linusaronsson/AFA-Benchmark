@@ -1,0 +1,7 @@
+class_name: "CubeNonUniformCostsDataset"
+kwargs:
+  n_samples: 1000
+  informative_feature_std: 0.3
+  non_informative_feature_mean: 0.5
+  non_informative_feature_std: 0.3
+  cost_scaling: 2.0

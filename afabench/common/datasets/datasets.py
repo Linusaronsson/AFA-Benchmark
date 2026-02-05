@@ -195,6 +195,203 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 
 @final
+class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    A modified version of CUBE that has two blocks of features which both contain informative features, but the blocks have different feature costs.
+
+    This dataset can be used to verify whether an AFA method cares about feature costs.
+    """
+
+    @classmethod
+    @override
+    def accepts_seed(cls) -> bool:
+        return True
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size([20])
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([8])
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        return default_create_subset(self, indices)
+
+    def __init__(
+        self,
+        seed: int = 123,
+        n_samples: int = 20000,
+        non_informative_feature_mean: float = 0.5,
+        informative_feature_std: float = 0.1,
+        non_informative_feature_std: float = 0.3,
+        cost_scaling: float = 2.0,
+    ):
+        super().__init__()
+        self.seed = seed
+        self.n_samples = n_samples
+        self.non_informative_feature_mean = non_informative_feature_mean
+        self.non_informative_feature_std = non_informative_feature_std
+        self.informative_feature_std = informative_feature_std
+        self.cost_scaling = cost_scaling
+
+        # Constants
+        self.n_cube_features = 10  # Number of cube features in each block
+        self.n_blocks = 2
+        # self.n_dummy_features = (
+        #     self.feature_shape[0] - self.n_cube_features
+        # )  # Remaining features are dummy features
+
+        self.rng = torch.Generator()
+        self.rng.manual_seed(self.seed)
+
+        # Draw labels
+        y_int = torch.randint(
+            0,
+            self.label_shape[0],
+            (self.n_samples,),
+            dtype=torch.int64,
+            generator=self.rng,
+        )
+        # Binary codes for labels
+        binary_codes = torch.stack(
+            [
+                torch.tensor([int(b) for b in format(i, "03b")])
+                for i in range(self.label_shape[0])
+            ],
+            dim=0,
+        ).flip(-1)
+
+        # Initialize feature blocks
+        x_block1 = torch.normal(
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
+            size=(self.n_samples, self.n_cube_features),
+            generator=self.rng,
+        )
+
+        x_block2 = torch.normal(
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
+            size=(self.n_samples, self.n_cube_features),
+            generator=self.rng,
+        )
+
+        # Insert informative signals, in both blocks
+        for i in range(self.n_samples):
+            lbl = int(y_int[i].item())
+            mu_bin = binary_codes[lbl]
+
+            # Cube features: 3 bumps
+            idxs = [(lbl + j) for j in range(3)]
+            x_block1[i, idxs] = (
+                torch.normal(
+                    mean=0.0,
+                    std=self.informative_feature_std,
+                    size=(3,),
+                    generator=self.rng,
+                )
+                + mu_bin
+            )
+            x_block2[i, idxs] = (
+                torch.normal(
+                    mean=0.0,
+                    std=self.informative_feature_std,
+                    size=(3,),
+                    generator=self.rng,
+                )
+                + mu_bin
+            )
+
+        # Concatenate all features
+        self.features = torch.cat([x_block1, x_block2], dim=1)
+        assert self.features.shape[1] == self.feature_shape[0]
+
+        # Labels
+        self.labels = y_int
+        self.labels = torch.nn.functional.one_hot(
+            self.labels, num_classes=self.label_shape[0]
+        ).float()
+        assert self.labels.shape[1] == self.label_shape[0]
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "config": {
+                    "n_samples": self.n_samples,
+                    "seed": self.seed,
+                    "non_informative_feature_mean": self.non_informative_feature_mean,
+                    "non_informative_feature_std": self.non_informative_feature_std,
+                    "informative_feature_std": self.informative_feature_std,
+                    "cost_scaling": self.cost_scaling,
+                },
+            },
+            path / "dataset.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path / "dataset.pt")
+        # Create instance without calling __init__
+        obj = cls.__new__(cls)
+        obj.seed = data["config"]["seed"]
+        obj.n_samples = data["config"]["n_samples"]
+        obj.non_informative_feature_mean = data["config"][
+            "non_informative_feature_mean"
+        ]
+        obj.non_informative_feature_std = data["config"][
+            "non_informative_feature_std"
+        ]
+        obj.informative_feature_std = data["config"]["informative_feature_std"]
+        obj.cost_scaling = data["config"]["cost_scaling"]
+        obj.n_cube_features = 10
+        obj.n_blocks = 2
+        obj.rng = torch.Generator()
+        obj.features = data["features"]
+        obj.labels = data["labels"]
+        return obj
+
+    @override
+    def get_feature_acquisition_costs(self) -> torch.Tensor:
+        block1_costs = torch.ones(
+            (self.n_cube_features // 2,), dtype=torch.float32
+        )
+        block2_costs = self.cost_scaling * torch.ones(
+            (self.n_cube_features // 2,)
+        )
+        combined_costs = torch.cat([block1_costs, block2_costs])
+
+        # Normalize so the average feature cost is still 1.0
+        combined_costs = (
+            self.n_features * combined_costs / combined_costs.sum()
+        )
+        return combined_costs
+
+    @property
+    def n_features(self) -> int:
+        return self.n_cube_features * self.n_blocks
+
+
+@final
 class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
     A hybrid dataset combining context-based feature selection and the Cube dataset.

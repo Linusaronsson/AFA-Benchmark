@@ -20,6 +20,7 @@ REGISTERED_CLASSES = {
     "OptimalCubeAFAMethod": "afabench.common.afa_methods.OptimalCubeAFAMethod",
     # AFA Dataset Classes
     "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
+    "CubeNonUniformCostsDataset": "afabench.common.datasets.datasets.CubeNonUniformCostsDataset",
     "AFAContextDataset": "afabench.common.datasets.datasets.AFAContextDataset",
     "MNISTDataset": "afabench.common.datasets.datasets.MNISTDataset",
     "SyntheticMNISTDataset": "afabench.common.datasets.datasets.SyntheticMNISTDataset",

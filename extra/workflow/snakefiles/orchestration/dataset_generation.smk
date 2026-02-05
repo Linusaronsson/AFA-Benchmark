@@ -11,6 +11,7 @@ DATASETS = config.get("datasets", [
     "ckd",
     "cube",
     "cube_without_noise",
+    "cube_nonuniform_costs",
     "diabetes",
     "imagenette",
     "miniboone",
