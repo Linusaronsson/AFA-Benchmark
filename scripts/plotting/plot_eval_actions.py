@@ -131,6 +131,14 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Output folder where plots will be saved",
     )
+    parser.add_argument(
+        "--separate-plots",
+        action="store_true",
+        help=(
+            "Create separate plots for each method/dataset/budget "
+            "combination instead of combined plots."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -288,28 +296,151 @@ def produce_plots(
         )
 
 
+def produce_separate_plots(
+    df: pl.DataFrame,
+    output_folder: Path,
+    budget_type: str,
+) -> None:
+    """
+    Create separate plots for each method/dataset/budget combination.
+
+    Args:
+        df: Input dataframe
+        output_folder: Output folder for plots
+        budget_type: Type of budget ("hard_budget" or "soft_budget")
+    """
+    # Group by dataset and budget (and method for soft budget)
+    if budget_type == "hard_budget":
+        group_cols = ["dataset", "eval_hard_budget"]
+    else:
+        group_cols = ["dataset", "afa_method", "soft_budget_param"]
+
+    for group_keys, group_df in tqdm(
+        df.group_by(group_cols),
+        desc=f"Creating separate {budget_type} plots",
+    ):
+        if budget_type == "hard_budget":
+            dataset_name, hard_budget = group_keys
+            extra_title = f"Hard Budget: {hard_budget}"
+            filename_suffix = f"_{hard_budget}"
+            methods = sorted(group_df["afa_method"].unique())
+            method_filename = ""
+        else:
+            dataset_name, method_name, soft_budget_param = group_keys
+            extra_title = f"Soft Budget Param: {soft_budget_param}"
+            filename_suffix = f"_{soft_budget_param}"
+            methods = [method_name]
+            method_filename = f"_{method_name.replace('/', '_')}"
+
+        # Create subdirectory for this dataset
+        dataset_output_folder = output_folder / dataset_name
+        dataset_output_folder.mkdir(parents=True, exist_ok=True)
+
+        # Create the heatmap plot
+        fig, axes = plt.subplots(
+            1,
+            len(methods),
+            figsize=(5 * len(methods), 4),
+            squeeze=False,
+        )
+        axes = axes[0]
+
+        for idx, method in enumerate(methods):
+            ax = axes[idx]
+            df_method = group_df.filter(pl.col("afa_method") == method)
+
+            max_action = cast("int", df_method["action_performed"].max())
+            max_time = cast("int", df_method["n_selections_performed"].max())
+
+            heatmap = normalize_heatmap_by_timestep(
+                df_method, max_action, max_time
+            )
+
+            ax.imshow(
+                heatmap,
+                cmap="Blues",
+                aspect="auto",
+                origin="lower",
+                vmin=0.0,
+                vmax=1.0,
+            )
+
+            format_heatmap_axes(ax, max_action, max_time, method)
+
+        dataset_display_name = DATASET_NAME_MAPPING.get(
+            dataset_name, dataset_name
+        )
+        fig.suptitle(
+            f"Action Heatmaps - {dataset_display_name} - {extra_title}",
+            fontsize=14,
+            y=0.98,
+        )
+        plt.subplots_adjust(
+            left=0.08, right=0.92, top=0.84, bottom=0.1, wspace=0.3
+        )
+
+        output_path = (
+            dataset_output_folder
+            / f"{dataset_name}{method_filename}_action_heatmap{filename_suffix}.pdf"
+        )
+        fig.savefig(output_path, bbox_inches="tight", dpi=300)
+        plt.close(fig)
+
+
 def main() -> None:
     args = parse_args()
     args.output_folder.mkdir(parents=True, exist_ok=True)
 
     evaluation_df = read_parquet(args.input)
     evaluation_df = assert_only_one_soft_budget_param_type(evaluation_df)
-    evaluation_df_hard_budget = filter_only_largest_budget(evaluation_df)
-    evaluation_df_soft_budget = filter_only_smallest_soft_budget_parameter(
-        evaluation_df
-    )
 
-    for folder, df, desc in zip(
-        [
-            args.output_folder / "hard_budget",
-            args.output_folder / "soft_budget",
-        ],
-        [evaluation_df_hard_budget, evaluation_df_soft_budget],
-        ["Largest hard budget", "Smallest soft budget parameter"],
-        strict=True,
-    ):
-        folder.mkdir(parents=True, exist_ok=True)
-        produce_plots(df=df, output_folder=folder, extra_title=desc)
+    if args.separate_plots:
+        # Mode 2: Create separate plots for each budget combination
+        # No filtering - use all data
+        hard_budget_folder = args.output_folder / "hard_budget"
+        soft_budget_folder = args.output_folder / "soft_budget"
+
+        hard_budget_folder.mkdir(parents=True, exist_ok=True)
+        soft_budget_folder.mkdir(parents=True, exist_ok=True)
+
+        # Filter by hard budget (all combinations)
+        evaluation_df_hard_budget = evaluation_df.filter(
+            pl.col("eval_hard_budget").is_not_null()
+        )
+        # Filter by soft budget (all combinations)
+        evaluation_df_soft_budget = evaluation_df.filter(
+            pl.col("soft_budget_param").is_not_null()
+        )
+
+        produce_separate_plots(
+            df=evaluation_df_hard_budget,
+            output_folder=hard_budget_folder,
+            budget_type="hard_budget",
+        )
+        produce_separate_plots(
+            df=evaluation_df_soft_budget,
+            output_folder=soft_budget_folder,
+            budget_type="soft_budget",
+        )
+    else:
+        # Mode 1: Default behavior - combined plots per dataset
+        # Apply filtering to only keep largest/smallest budgets
+        evaluation_df_hard_budget = filter_only_largest_budget(evaluation_df)
+        evaluation_df_soft_budget = filter_only_smallest_soft_budget_parameter(
+            evaluation_df
+        )
+
+        for folder, df, desc in zip(
+            [
+                args.output_folder / "hard_budget",
+                args.output_folder / "soft_budget",
+            ],
+            [evaluation_df_hard_budget, evaluation_df_soft_budget],
+            ["Largest hard budget", "Smallest soft budget parameter"],
+            strict=True,
+        ):
+            folder.mkdir(parents=True, exist_ok=True)
+            produce_plots(df=df, output_folder=folder, extra_title=desc)
 
 
 if __name__ == "__main__":
