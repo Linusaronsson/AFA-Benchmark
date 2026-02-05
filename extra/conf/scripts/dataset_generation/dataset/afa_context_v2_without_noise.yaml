@@ -1,0 +1,10 @@
+# Same as afa_context_without_noise, except use_cheap_context_features=true and n_contexts=5
+class_name: "AFAContextDataset"
+kwargs:
+  n_samples: 1000
+  context_feature_std: 0.0
+  informative_feature_std: 0.0
+  non_informative_feature_mean: 0.5
+  non_informative_feature_std: 0.0
+  use_cheap_context_features: true
+  n_contexts: 5

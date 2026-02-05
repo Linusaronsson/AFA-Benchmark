@@ -549,6 +549,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "non_informative_feature_mean": self.non_informative_feature_mean,
                     "non_informative_feature_std": self.non_informative_feature_std,
                     "n_contexts": self.n_contexts,
+                    "use_cheap_context_features": self.use_cheap_context_features,
                 },
             },
             path / "dataset.pt",
@@ -572,6 +573,9 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         ]
         obj.non_informative_feature_std = data["config"][
             "non_informative_feature_std"
+        ]
+        obj.use_cheap_context_features = data["config"][
+            "use_cheap_context_features"
         ]
         obj.rng = torch.Generator()
         obj.features = data["features"]

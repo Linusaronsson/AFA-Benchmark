@@ -37,6 +37,10 @@ soft_budget_params:
       - [0.016, null]
       - [0.018, null]
       - [0.02, null]
+    afa_context_v2_without_noise:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
     afa_context:
       # - [0.00001, null] # 70% observed
       # - [0.0001, null] # 70% observed
@@ -141,6 +145,13 @@ soft_budget_params:
       # - [0.05, null] # 100% observed
       - [0.075, null] # 10% observed during training, 0% during eval
       - [0.1, null] # 2% observed
+      # - [0.15, null] # 0% observed
+    afa_context_v2_without_noise:
+      - [0.02, null]
+      - [0.05, null]
+      - [0.075, null]
+      - [0.1, null]
+      - [0.2, null]
       # - [0.15, null] # 0% observed
     miniboone:
       - [0.05, null] # 20% observed
