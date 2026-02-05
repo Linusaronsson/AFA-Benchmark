@@ -410,7 +410,11 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @property
     @override
     def feature_shape(self) -> torch.Size:
-        return torch.Size([33])
+        return torch.Size((self.n_features,))
+
+    @property
+    def n_features(self) -> int:
+        return self.n_contexts + self.n_contexts * self.block_size
 
     @property
     @override
@@ -429,14 +433,18 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         informative_feature_std: float = 0.1,
         non_informative_feature_mean: float = 0.5,
         non_informative_feature_std: float = 0.3,
+        n_contexts: int = 3,
+        *,
+        use_cheap_context_features: bool = False,
     ):
         self.n_samples = n_samples
         self.seed = seed
-        self.n_contexts = 3
+        self.n_contexts = n_contexts
         self.context_feature_std = context_feature_std
         self.informative_feature_std = informative_feature_std
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
+        self.use_cheap_context_features = use_cheap_context_features
 
         # self.n_features = self.n_contexts + self.n_contexts * self.block_size
 
@@ -540,6 +548,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "informative_feature_std": self.informative_feature_std,
                     "non_informative_feature_mean": self.non_informative_feature_mean,
                     "non_informative_feature_std": self.non_informative_feature_std,
+                    "n_contexts": self.n_contexts,
                 },
             },
             path / "dataset.pt",
@@ -553,7 +562,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj = cls.__new__(cls)
         obj.n_samples = data["config"]["n_samples"]
         obj.seed = data["config"]["seed"]
-        obj.n_contexts = 3
+        obj.n_contexts = data["config"]["n_contexts"]
         obj.context_feature_std = data["config"].get(
             "context_feature_std", 0.1
         )
@@ -568,6 +577,20 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.features = data["features"]
         obj.labels = data["labels"]
         return obj
+
+    @override
+    def get_feature_acquisition_costs(self) -> torch.Tensor:
+        context_feature_cost_scaling = (
+            1 / self.n_contexts if self.use_cheap_context_features else 1
+        )
+        context_feature_costs = context_feature_cost_scaling * torch.ones(
+            self.n_contexts
+        )
+        remaining_feature_costs = torch.ones(self.n_features - self.n_contexts)
+        all_feature_costs = torch.cat(
+            [context_feature_costs, remaining_feature_costs], dim=-1
+        )
+        return all_feature_costs
 
 
 @final
