@@ -98,6 +98,16 @@ rule all:
             f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/time/"
         ]
 
+rule all_train_classifier:
+    input:
+        [
+            (
+                "extra/output/trained_classifiers/"
+                    f"dataset-{dataset}.bundle"
+            )
+            for dataset in DATASETS
+        ]
+
 
 rule all_pretrain_model:
     input:
