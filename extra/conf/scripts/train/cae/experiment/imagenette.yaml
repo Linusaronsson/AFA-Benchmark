@@ -5,7 +5,7 @@ patch_size: 16
 
 selector:
   lr: 0.00001
-  nepochs: 100
+  nepochs: 50
   num_cells: [128, 128]
   patience: 3
 

@@ -215,8 +215,16 @@ soft_budget_params:
   odin_model_based: *odin
   ma2018_builtin:
     default: []
+    cube_nonuniform_costs:
+      - [null, 0.22]  # 45% observed
+      - [null, 0.24]  # 25% observed
+      - [null, 0.25]  # 15% observed
   ma2018_external:
     default: []
+    cube_nonuniform_costs:
+      - [null, 0.01]  # 50% observed
+      - [null, 0.1]  # 30% observed
+      - [null, 0.17]  # 15% observed
     cube:
       - [null, 0.005]  # 50% observed
       - [null, 0.01]  # 40% observed
@@ -259,6 +267,10 @@ soft_budget_params:
       - [null, 0.1]  # 10% observed
   covert2023:
     default: []
+    cube_nonuniform_costs:
+      - [null, 0.7]  # 50% observed
+      - [null, 1.3]  # 30% observed
+      - [null, 1.7]  # 15% observed
     cube:
       - [null, 0.7]  # 50% observed
       - [null, 1.1]  # 30% observed
@@ -307,8 +319,16 @@ soft_budget_params:
       - [null, 0.1] # 7.6% observed
       - [null, 0.7] # 3% observed
       - [null, 0.9] # 1% observed
+    imagenette:
+      - [null, 1.0]  # 8.7% observed
+      - [null, 1.5]  # 2.5% observed
+      - [null, 1.9]  # 1% observed
   gadgil2023:
     default: []
+    cube_nonuniform_costs:
+      - [null, 0.02]  # 40% observed
+      - [null, 0.05]  # 25% observed
+      - [null, 0.07]  # 15% observed
     cube:
       - [null, 0.001]  # 45% observed
       - [null, 0.005]  # 20% observed
@@ -362,6 +382,10 @@ soft_budget_params:
       # - [null, 0.00000001] # 7% observed
       - [null, 0.0000001] # 5.5% observed
       - [null, 0.00001]  # 2.5% observed
+    imagenette:
+      - [null, 0.05]  # 8% observed
+      - [null, 0.06]  # 4% observed
+      - [null, 0.07]  # 2.5% observed
   random_dummy:
     default:
       - [0.3, null]
