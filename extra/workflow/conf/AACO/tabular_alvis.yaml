@@ -36,8 +36,9 @@ datasets:
   - physionet
   - miniboone
   - bank_marketing
-  - mnist
-  - fashion_mnist
+  - cube_nonuniform_costs
+  # - mnist
+  # - fashion_mnist
 
 # ============================================================================
 # Unmaskers
@@ -60,6 +61,7 @@ eval_hard_budgets:
   # Small tabular (16-24 features)
   cube: [3, 5, 10]
   cube_without_noise: [3, 5, 10]
+  cube_nonuniform_costs: [2, 4, 7] # Factor of 2/3 reduction from 3/5/10 due to nonuniform costs
   bank_marketing: [3, 5, 10]
   actg: [5, 10, 15]
   ckd: [5, 10, 15]
@@ -70,8 +72,8 @@ eval_hard_budgets:
   physionet: [5, 10, 20]
   miniboone: [5, 15, 25]
   # MNIST-style (784 features)
-  mnist: [10, 20, 30]
-  fashion_mnist: [10, 20, 30]
+  # mnist: [10, 20, 30]
+  # fashion_mnist: [10, 20, 30]
 
 # ============================================================================
 # Soft budget parameters
