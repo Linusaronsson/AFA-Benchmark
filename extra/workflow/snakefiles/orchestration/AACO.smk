@@ -5,6 +5,8 @@ Notes:
     - AACO+NN treats AACO as its pretrained model. Ensure
       method_options.yaml sets aaco_nn.pretrained_model_name: aaco
       and pretrain_mapping.yaml includes an aaco entry.
+    - Outputs are nested under eval_split-{eval_dataset_split}/
+      to match the shared evaluation/plotting rules.
 
 Runtime filters (--config):
     methods (list[str], required): Subset of methods from method_options.yaml
@@ -89,20 +91,34 @@ rule all:
     input:
         [
             (
-                f"extra/output/plot_results/eval_perf/"
-                f"method_set-{method_set}+classifier_type-builtin"
+                f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/"
+                f"eval_perf/method_set-{method_set}+classifier_type-builtin"
             )
             for method_set in METHOD_SETS
         ]
         + [
             (
-                f"extra/output/plot_results/eval_perf/"
-                f"method_set-{method_set}+classifier_type-external"
+                f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/"
+                f"eval_perf/method_set-{method_set}+classifier_type-external"
             )
             for method_set in METHOD_SETS
         ]
         + [
-            "extra/output/plot_results/time/all"
+            (
+                f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/"
+                f"eval_actions/method_set-{method_set}+classifier_type-builtin"
+            )
+            for method_set in METHOD_SETS
+        ]
+        + [
+            (
+                f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/"
+                f"eval_actions/method_set-{method_set}+classifier_type-external"
+            )
+            for method_set in METHOD_SETS
+        ]
+        + [
+            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/time/"
         ]
 
 
@@ -172,7 +188,7 @@ rule all_eval_method:
     input:
         [
             (
-                f"extra/output/eval_results/{method}/"
+                f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
                 f"dataset-{dataset}+"
                 f"instance_idx-{dataset_instance_idx}/"
                 f"pretrain_seed-{dataset_instance_idx}/"
@@ -196,7 +212,7 @@ rule all_eval_method:
         ]
         + [
             (
-                f"extra/output/eval_results/{method}/"
+                f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
                 f"dataset-{dataset}+"
                 f"instance_idx-{dataset_instance_idx}/"
                 f"{NO_PRETRAIN_STR}/"
