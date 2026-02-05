@@ -1,0 +1,4 @@
+# same as cube
+batch_size: 128
+epochs: 2000
+dropout: 0.1
