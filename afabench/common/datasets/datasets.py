@@ -75,9 +75,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Constants
         self.n_cube_features = 10  # Number of cube features
-        self.n_dummy_features = (
-            self.feature_shape[0] - self.n_cube_features
-        )  # Remaining features are dummy features
+        self.n_dummy_features = 10  # Remaining features are dummy features
 
         self.rng = torch.Generator()
         self.rng.manual_seed(self.seed)
@@ -187,7 +185,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         ]
         obj.informative_feature_std = data["config"]["informative_feature_std"]
         obj.n_cube_features = 10
-        obj.n_dummy_features = 90
+        obj.n_dummy_features = 10
         obj.rng = torch.Generator()
         obj.features = data["features"]
         obj.labels = data["labels"]
