@@ -1,8 +1,8 @@
 method_options:
   aaco:
     train_script_name: "aaco"
-    hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette, afa_context_v2, afa_context_v2_without_noise]
-    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette, afa_context_v2, afa_context_v2_without_noise]
+    hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"
