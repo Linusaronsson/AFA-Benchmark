@@ -563,7 +563,10 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj = cls.__new__(cls)
         obj.n_samples = data["config"]["n_samples"]
         obj.seed = data["config"]["seed"]
-        obj.n_contexts = data["config"]["n_contexts"]
+        if "n_contexts" in data["config"]:
+            obj.n_contexts = data["config"]["n_contexts"]
+        else:  # backwards-compatible path
+            obj.n_contexts = 3
         obj.context_feature_std = data["config"].get(
             "context_feature_std", 0.1
         )
