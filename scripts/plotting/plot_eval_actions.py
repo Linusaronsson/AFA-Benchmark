@@ -131,14 +131,6 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Output folder where plots will be saved",
     )
-    parser.add_argument(
-        "--separate-plots",
-        action="store_true",
-        help=(
-            "Create separate plots for each method/dataset/budget "
-            "combination instead of combined plots."
-        ),
-    )
     return parser.parse_args()
 
 
@@ -394,53 +386,31 @@ def main() -> None:
     evaluation_df = read_parquet(args.input)
     evaluation_df = assert_only_one_soft_budget_param_type(evaluation_df)
 
-    if args.separate_plots:
-        # Mode 2: Create separate plots for each budget combination
-        # No filtering - use all data
-        hard_budget_folder = args.output_folder / "hard_budget"
-        soft_budget_folder = args.output_folder / "soft_budget"
+    hard_budget_folder = args.output_folder / "hard_budget"
+    soft_budget_folder = args.output_folder / "soft_budget"
 
-        hard_budget_folder.mkdir(parents=True, exist_ok=True)
-        soft_budget_folder.mkdir(parents=True, exist_ok=True)
+    hard_budget_folder.mkdir(parents=True, exist_ok=True)
+    soft_budget_folder.mkdir(parents=True, exist_ok=True)
 
-        # Filter by hard budget (all combinations)
-        evaluation_df_hard_budget = evaluation_df.filter(
-            pl.col("eval_hard_budget").is_not_null()
-        )
-        # Filter by soft budget (all combinations)
-        evaluation_df_soft_budget = evaluation_df.filter(
-            pl.col("soft_budget_param").is_not_null()
-        )
+    # Filter by hard budget (all combinations)
+    evaluation_df_hard_budget = evaluation_df.filter(
+        pl.col("eval_hard_budget").is_not_null()
+    )
+    # Filter by soft budget (all combinations)
+    evaluation_df_soft_budget = evaluation_df.filter(
+        pl.col("soft_budget_param").is_not_null()
+    )
 
-        produce_separate_plots(
-            df=evaluation_df_hard_budget,
-            output_folder=hard_budget_folder,
-            budget_type="hard_budget",
-        )
-        produce_separate_plots(
-            df=evaluation_df_soft_budget,
-            output_folder=soft_budget_folder,
-            budget_type="soft_budget",
-        )
-    else:
-        # Mode 1: Default behavior - combined plots per dataset
-        # Apply filtering to only keep largest/smallest budgets
-        evaluation_df_hard_budget = filter_only_largest_budget(evaluation_df)
-        evaluation_df_soft_budget = filter_only_smallest_soft_budget_parameter(
-            evaluation_df
-        )
-
-        for folder, df, desc in zip(
-            [
-                args.output_folder / "hard_budget",
-                args.output_folder / "soft_budget",
-            ],
-            [evaluation_df_hard_budget, evaluation_df_soft_budget],
-            ["Largest hard budget", "Smallest soft budget parameter"],
-            strict=True,
-        ):
-            folder.mkdir(parents=True, exist_ok=True)
-            produce_plots(df=df, output_folder=folder, extra_title=desc)
+    produce_separate_plots(
+        df=evaluation_df_hard_budget,
+        output_folder=hard_budget_folder,
+        budget_type="hard_budget",
+    )
+    produce_separate_plots(
+        df=evaluation_df_soft_budget,
+        output_folder=soft_budget_folder,
+        budget_type="soft_budget",
+    )
 
 
 if __name__ == "__main__":
