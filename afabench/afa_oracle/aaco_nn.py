@@ -7,6 +7,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
+from tqdm.auto import tqdm
 
 from afabench.afa_oracle.afa_methods import AACOAFAMethod
 from afabench.afa_oracle.utils import (
@@ -170,7 +171,11 @@ def generate_aaco_rollouts(
 
     initializer = RandomInitializer(num_initial_features=1)
 
-    for i in range(n_samples):
+    for i in tqdm(
+        range(n_samples),
+        desc="Generating AACO rollouts",
+        unit="sample",
+    ):
         x_flat = features[i].to(device)
         (
             x_view,
@@ -236,11 +241,6 @@ def generate_aaco_rollouts(
                 device=device,
             )
             n_acquired = int(selection_mask.sum().item())
-
-        if (i + 1) % 1000 == 0:
-            logger.info(
-                f"  Generated rollouts for {i + 1}/{n_samples} samples"
-            )
 
     # Stack into tensors
     all_masked_features = torch.stack(all_masked_features)
