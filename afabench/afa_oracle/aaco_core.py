@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from afabench.common.utils import get_class_frequencies
 from afabench.afa_oracle.mask_generator import random_mask_generator
 from afabench.afa_oracle.utils import (
+    ensure_probabilities,
     get_patch_dimensions,
     uses_patch_selection,
 )
@@ -143,6 +144,7 @@ class AACOOracle:
         feature_shape: torch.Size | None = None,
         selection_size: int | None = None,
         selection_costs: torch.Tensor | None = None,
+        selection_mask: torch.Tensor | None = None,
     ) -> int | None:
         """
         Select the next feature to acquire.
@@ -157,6 +159,9 @@ class AACOOracle:
             exclude_instance: Whether to exclude instance_idx from KNN results.
             selection_costs: Optional per-selection costs. If provided, this
                              overrides the default unit-cost penalty.
+            selection_mask: Optional mask of previously performed selections.
+                            When provided, this determines which selections
+                            are considered already acquired.
 
         Returns:
             Index of next feature to acquire (0-indexed), or None if should stop.
@@ -176,15 +181,16 @@ class AACOOracle:
         use_patch_selection = uses_patch_selection(
             selection_size, feature_shape
         )
-        mask_curr = observed_mask.float().unsqueeze(0)
+        device = self.device
+        observed_feature_mask = observed_mask.to(device).bool()
+        observed_feature_mask_row = observed_feature_mask.float().unsqueeze(0)
 
         # Get nearest neighbors based on currently observed features
-        device = self.device
         x_query = x_observed.unsqueeze(0).to(device)
         idx_nn = get_knn(
             self.X_train,
             x_query,
-            mask_curr.T.to(device),
+            observed_feature_mask_row.T.to(device),
             self.k_neighbors,
             instance_idx,
             exclude_instance=exclude_instance,
@@ -196,16 +202,7 @@ class AACOOracle:
                 selection_size, feature_shape
             )
             mask_width = int(selection_size**0.5)
-
-            observed_mask_2d = observed_mask.view(n_channels, height, width)
-            fm = observed_mask_2d.view(
-                n_channels,
-                mask_width,
-                patch_h,
-                mask_width,
-                patch_w,
-            )
-            patch_mask_curr = fm.any(dim=(0, 2, 4)).view(1, -1).float()
+            selection_dim = selection_size
 
             patch_mask_generator = self._patch_mask_generators.get(
                 selection_size
@@ -217,45 +214,83 @@ class AACOOracle:
                 self._patch_mask_generators[selection_size] = (
                     patch_mask_generator
                 )
-            new_masks = patch_mask_generator(patch_mask_curr).to(device)
-            mask_patch = torch.maximum(
-                new_masks, patch_mask_curr.repeat(new_masks.shape[0], 1)
+        else:
+            selection_dim = feature_count
+            assert self.mask_generator is not None
+
+        if selection_mask is not None:
+            current_selection_mask = selection_mask.to(device).bool().view(-1)
+            assert len(current_selection_mask) == selection_dim, (
+                "selection_mask has incompatible selection dimension."
             )
         else:
-            #  Generate candidate masks for Monte Carlo approximation
-            assert self.mask_generator is not None
-            new_masks = self.mask_generator(mask_curr).to(device)
-            mask_patch = torch.maximum(
+            if use_patch_selection:
+                observed_mask_2d = observed_feature_mask.view(
+                    n_channels, height, width
+                )
+                fm = observed_mask_2d.view(
+                    n_channels,
+                    mask_width,
+                    patch_h,
+                    mask_width,
+                    patch_w,
+                )
+                current_selection_mask = fm.any(dim=(0, 2, 4)).view(-1).bool()
+            else:
+                current_selection_mask = observed_feature_mask.clone()
+        current_selection_mask_row = current_selection_mask.float().unsqueeze(0)
+
+        if use_patch_selection:
+            new_masks = patch_mask_generator(current_selection_mask_row).to(
+                device
+            )
+            candidate_selection_masks = torch.maximum(
                 new_masks,
-                mask_curr.repeat(new_masks.shape[0], 1).to(device),
+                current_selection_mask_row.repeat(new_masks.shape[0], 1),
+            )
+        else:
+            # Generate candidate masks for Monte Carlo approximation.
+            new_masks = self.mask_generator(current_selection_mask_row).to(
+                device
+            )
+            candidate_selection_masks = torch.maximum(
+                new_masks,
+                current_selection_mask_row.repeat(new_masks.shape[0], 1).to(
+                    device
+                ),
             )
 
         if not force_acquisition:
-            # Include current mask as option (allows stopping)
-            if use_patch_selection:
-                mask_patch[0] = patch_mask_curr
-            else:
-                mask_patch[0] = mask_curr
+            # Include current selection mask as option (allows stopping).
+            candidate_selection_masks[0] = current_selection_mask_row
         # else: don't include current mask - must acquire something
-        mask_patch = mask_patch.unique(dim=0)
+        candidate_selection_masks = candidate_selection_masks.unique(dim=0)
 
-        # Compute expected loss for each candidate mask
-        n_masks = mask_patch.shape[0]
-        X_nn = self.X_train[idx_nn]  # k x d
-        y_nn = self.y_train[idx_nn]  # k x n_classes
-
-        if use_patch_selection:
-            mask_4d = mask_patch.view(n_masks, 1, mask_width, mask_width)
+        def _selection_to_feature_mask(
+            selection_masks: torch.Tensor,
+        ) -> torch.Tensor:
+            if not use_patch_selection:
+                return selection_masks.bool()
+            mask_4d = selection_masks.view(-1, 1, mask_width, mask_width)
             mask_4d = F.interpolate(
                 mask_4d.float(),
                 scale_factor=(patch_h, patch_w),
                 mode="nearest-exact",
             )
             if n_channels > 1:
-                mask_4d = mask_4d.expand(n_masks, n_channels, height, width)
-            mask_feature = mask_4d.reshape(n_masks, -1)
-        else:
-            mask_feature = mask_patch
+                mask_4d = mask_4d.expand(-1, n_channels, height, width)
+            return mask_4d.reshape(-1, feature_count).bool()
+
+        # Candidate feature masks always include currently observed features.
+        candidate_feature_masks = _selection_to_feature_mask(
+            candidate_selection_masks
+        ) | observed_feature_mask.unsqueeze(0)
+        mask_feature = candidate_feature_masks.float()
+
+        # Compute expected loss for each candidate mask.
+        n_masks = candidate_selection_masks.shape[0]
+        X_nn = self.X_train[idx_nn]  # k x d
+        y_nn = self.y_train[idx_nn]  # k x n_classes
 
         # Prepare masked inputs for classifier
         X_masked = X_nn.unsqueeze(0).repeat(n_masks, 1, 1)  # n_masks x k x d
@@ -277,7 +312,7 @@ class AACOOracle:
             logits = self.classifier(
                 X_flat, mask_flat, feature_shape=flat_shape
             )
-            probs = F.softmax(logits, dim=-1)
+            probs = ensure_probabilities(logits)
 
         probs = probs.view(n_masks, self.k_neighbors, -1)
 
@@ -297,52 +332,34 @@ class AACOOracle:
         # Add acquisition cost penalty.
         if selection_costs is not None:
             selection_costs = selection_costs.to(device)
-            if use_patch_selection:
-                current_selection_mask = patch_mask_curr.squeeze(0).bool()
-                candidate_selection_masks = mask_patch.bool()
-            else:
-                current_selection_mask = mask_curr.squeeze(0).bool()
-                candidate_selection_masks = mask_feature.bool()
             new_selection_mask = (
-                candidate_selection_masks
+                candidate_selection_masks.bool()
                 & ~current_selection_mask.unsqueeze(0)
             )
             acquisition_penalty = (
                 new_selection_mask.float() * selection_costs.unsqueeze(0)
             ).sum(dim=1)
         else:
-            if use_patch_selection:
-                acquisition_penalty = (
-                    mask_patch.sum(dim=1) - patch_mask_curr.sum()
-                )
-            else:
-                acquisition_penalty = mask_feature.sum(dim=1) - mask_curr.sum()
+            acquisition_penalty = (
+                candidate_selection_masks.sum(dim=1)
+                - current_selection_mask_row.sum()
+            )
         costs = expected_losses + self.acquisition_cost * acquisition_penalty
 
         # Select best mask
         best_idx = costs.argmin().item()
-        best_mask = mask_patch[best_idx]
+        best_selection_mask = candidate_selection_masks[best_idx].bool()
 
-        # Find the new feature(s) to acquire
-        if use_patch_selection:
-            new_features = (
-                best_mask.bool() & ~patch_mask_curr.squeeze(0).bool()
-            ).nonzero(as_tuple=True)[0]
-        else:
-            new_features = (
-                best_mask.bool() & ~observed_mask.to(device)
-            ).nonzero(as_tuple=True)[0]
+        # Find the new selection(s) to acquire.
+        new_features = (
+            best_selection_mask & ~current_selection_mask
+        ).nonzero(as_tuple=True)[0]
 
         if len(new_features) == 0:
             if force_acquisition:
-                if use_patch_selection:
-                    unobserved = (~patch_mask_curr.squeeze(0).bool()).nonzero(
-                        as_tuple=True
-                    )[0]
-                else:
-                    unobserved = (~observed_mask.to(device)).nonzero(
-                        as_tuple=True
-                    )[0]
+                unobserved = (~current_selection_mask).nonzero(
+                    as_tuple=True
+                )[0]
                 if len(unobserved) > 0:
                     return int(unobserved[0].item())
             # Best action is to stop (only possible if force_acquisition=False)
@@ -353,32 +370,22 @@ class AACOOracle:
 
         # Tie-break: select the single feature in the chosen subset
         # that most reduces expected loss when added alone.
-        if use_patch_selection:
-            ordering_masks = patch_mask_curr.repeat(len(new_features), 1)
-        else:
-            ordering_masks = mask_curr.repeat(len(new_features), 1)
-        ordering_masks[
-            torch.arange(len(new_features), device=ordering_masks.device),
+        ordering_selection_masks = current_selection_mask_row.repeat(
+            len(new_features), 1
+        )
+        ordering_selection_masks[
+            torch.arange(
+                len(new_features), device=ordering_selection_masks.device
+            ),
             new_features,
         ] = 1
 
-        if use_patch_selection:
-            ordering_masks_4d = ordering_masks.view(
-                len(new_features), 1, mask_width, mask_width
-            )
-            ordering_masks_4d = F.interpolate(
-                ordering_masks_4d.float(),
-                scale_factor=(patch_h, patch_w),
-                mode="nearest-exact",
-            )
-            if n_channels > 1:
-                ordering_masks_4d = ordering_masks_4d.expand(
-                    len(new_features), n_channels, height, width
-                )
-            ordering_masks = ordering_masks_4d.reshape(len(new_features), -1)
+        ordering_feature_masks = _selection_to_feature_mask(
+            ordering_selection_masks
+        ) | observed_feature_mask.unsqueeze(0)
 
         X_masked_ordering = X_nn.unsqueeze(0).repeat(len(new_features), 1, 1)
-        mask_expanded = ordering_masks.unsqueeze(1).repeat(
+        mask_expanded = ordering_feature_masks.float().unsqueeze(1).repeat(
             1, self.k_neighbors, 1
         )
         X_masked_ordering = X_masked_ordering * mask_expanded + (
@@ -393,7 +400,7 @@ class AACOOracle:
             logits = self.classifier(
                 X_flat, mask_flat, feature_shape=flat_shape
             )
-            probs = F.softmax(logits, dim=-1)
+            probs = ensure_probabilities(logits)
 
         probs = probs.view(len(new_features), self.k_neighbors, -1)
         y_nn_expanded = y_nn.unsqueeze(0).repeat(len(new_features), 1, 1)
@@ -516,7 +523,7 @@ class AACOOracle:
             logits = self.classifier(
                 X_flat, mask_flat, feature_shape=flat_shape
             )
-            probs = F.softmax(logits, dim=-1)
+            probs = ensure_probabilities(logits)
         probs = probs.view(n_masks, self.k_neighbors, -1)
 
         y_nn_expanded = y_nn.unsqueeze(0).repeat(n_masks, 1, 1)
@@ -564,6 +571,6 @@ class AACOOracle:
             logits = self.classifier(
                 x_input, mask, feature_shape=feature_shape
             )
-            probs = F.softmax(logits, dim=-1)
+            probs = ensure_probabilities(logits)
 
         return probs.squeeze(0)

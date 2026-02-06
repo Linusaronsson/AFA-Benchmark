@@ -22,6 +22,9 @@ from afabench.afa_oracle import (
 )
 from afabench.afa_oracle.afa_methods import AACOAFAMethod
 from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.initializers.utils import (
+    get_afa_initializer_from_config,
+)
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import set_seed
 
@@ -140,6 +143,8 @@ def main(cfg: AACONNTrainConfig) -> None:
     x_train, y_train, feature_shape, dataset_name, split = (
         _load_rollout_dataset(cfg)
     )
+    initializer = get_afa_initializer_from_config(cfg.initializer)
+    initializer.set_seed(cfg.seed)
     unmasker = get_afa_unmasker_from_config(cfg.unmasker)
     selection_size = unmasker.get_n_selections(feature_shape=feature_shape)
     x_train, y_train, n_features, n_classes = _prepare_rollout_data(
@@ -156,6 +161,7 @@ def main(cfg: AACONNTrainConfig) -> None:
         labels=y_train,
         feature_shape=feature_shape,
         unmasker=unmasker,
+        initializer=initializer,
         max_acquisitions=rollout_max_acquisitions,
         device=device,
     )

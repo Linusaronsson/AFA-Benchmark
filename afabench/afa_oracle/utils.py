@@ -1,6 +1,7 @@
 """Shared utilities for AACO methods."""
 
 import torch
+import torch.nn.functional as F
 
 
 def uses_patch_selection(
@@ -172,3 +173,26 @@ def flatten_for_aaco(
     mask_flat = feature_mask.view(-1, n_features)
 
     return features_flat, mask_flat, batch_shape
+
+
+def ensure_probabilities(outputs: torch.Tensor) -> torch.Tensor:
+    """
+    Convert classifier outputs to probabilities, avoiding double-softmax.
+
+    If outputs already look like probabilities (non-negative and summing to
+    one across classes), they are returned as-is (clamped for log safety).
+    Otherwise, softmax is applied.
+    """
+    if outputs.ndim == 0 or outputs.shape[-1] == 0:
+        return outputs
+
+    sums = outputs.sum(dim=-1)
+    ones = torch.ones_like(sums)
+    looks_like_probs = (
+        torch.all(outputs >= -1e-6)
+        and torch.all(outputs <= 1.0 + 1e-6)
+        and torch.allclose(sums, ones, atol=1e-4, rtol=1e-4)
+    )
+    if looks_like_probs:
+        return outputs.clamp_min(1e-10)
+    return F.softmax(outputs, dim=-1)

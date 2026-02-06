@@ -148,30 +148,22 @@ class AACOAFAMethod(AFAMethod):
         """Set whether to exclude the query instance from KNN results."""
         self._exclude_instance = exclude_instance
 
-    @override
-    def act(
+    def act_for_instances(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
+        instance_indices: torch.Tensor | None = None,
     ) -> AFAAction:
         """
-        Select next feature to acquire using AACO.
+        AACO action selection with optional global training-set indices.
 
-        Args:
-            masked_features: Currently observed features (unobserved = 0)
-            feature_mask: Boolean mask of observed features
-            selection_mask: Which selections have been made (unused for DirectUnmasker)
-            label: True label (unused, AACO doesn't cheat)
-            feature_shape: Shape of features excluding batch dim
-
-        Returns:
-            AFAAction tensor with shape (*batch, 1):
-            - 0 = stop acquiring
-            - 1 to N = 1-indexed feature to acquire (for DirectUnmasker)
+        `instance_indices` is used when excluding self-neighbors in KNN. This
+        is mainly needed for rollout generation on the training set.
         """
+        del label  # Unused, kept for signature parity
         with torch.no_grad():
             original_device = masked_features.device
             masked_features = masked_features.to(self._device)
@@ -184,6 +176,12 @@ class AACOAFAMethod(AFAMethod):
             n_features = masked_features.shape[-1]
 
             batch_size = masked_features.shape[0]
+            if instance_indices is not None:
+                instance_indices = instance_indices.view(-1).to(self._device)
+                assert len(instance_indices) == batch_size, (
+                    "instance_indices must match batch size."
+                )
+
             selections = []
             selection_size = (
                 selection_mask.shape[-1]
@@ -226,6 +224,11 @@ class AACOAFAMethod(AFAMethod):
             for i in range(batch_size):
                 x_obs = masked_features[i]
                 obs_mask = feature_mask[i].bool()
+                oracle_instance_idx = (
+                    int(instance_indices[i].item())
+                    if instance_indices is not None
+                    else i
+                )
 
                 if (
                     use_selection_space
@@ -238,7 +241,7 @@ class AACOAFAMethod(AFAMethod):
                         selection_mask=selection_mask_flat[i],
                         selection_to_feature_mask=selection_to_feature_mask,
                         selection_costs=oracle_selection_costs,
-                        instance_idx=i,
+                        instance_idx=oracle_instance_idx,
                         force_acquisition=self.force_acquisition,
                         exclude_instance=self._exclude_instance,
                     )
@@ -252,12 +255,15 @@ class AACOAFAMethod(AFAMethod):
                 next_feature = self.aaco_oracle.select_next_feature(
                     x_obs,
                     obs_mask,
-                    instance_idx=i,
+                    instance_idx=oracle_instance_idx,
                     force_acquisition=self.force_acquisition,
                     exclude_instance=self._exclude_instance,
                     feature_shape=feature_shape,
                     selection_size=selection_size,
                     selection_costs=oracle_selection_costs,
+                    selection_mask=selection_mask_flat[i]
+                    if selection_mask_flat is not None
+                    else None,
                 )
                 if next_feature is None:
                     selections.append(0)
@@ -270,6 +276,39 @@ class AACOAFAMethod(AFAMethod):
 
             # Reshape to match batch shape
             return selection_tensor.view(*batch_shape, 1)
+
+    @override
+    def act(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        selection_mask: SelectionMask | None = None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> AFAAction:
+        """
+        Select next feature to acquire using AACO.
+
+        Args:
+            masked_features: Currently observed features (unobserved = 0)
+            feature_mask: Boolean mask of observed features
+            selection_mask: Which selections have been made (unused for DirectUnmasker)
+            label: True label (unused, AACO doesn't cheat)
+            feature_shape: Shape of features excluding batch dim
+
+        Returns:
+            AFAAction tensor with shape (*batch, 1):
+            - 0 = stop acquiring
+            - 1 to N = 1-indexed feature to acquire (for DirectUnmasker)
+        """
+        return self.act_for_instances(
+            masked_features=masked_features,
+            feature_mask=feature_mask,
+            selection_mask=selection_mask,
+            label=label,
+            feature_shape=feature_shape,
+            instance_indices=None,
+        )
 
     @override
     def predict(

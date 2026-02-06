@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Self, cast, final, override
 
 import torch
-import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset, random_split
 from tqdm.auto import tqdm
@@ -12,6 +11,7 @@ from tqdm.auto import tqdm
 from afabench.afa_oracle.afa_methods import AACOAFAMethod
 from afabench.afa_oracle.utils import (
     compute_patch_selection_mask,
+    ensure_probabilities,
     flatten_for_aaco,
     uses_patch_selection,
 )
@@ -19,6 +19,7 @@ from afabench.common.bundle import load_bundle
 from afabench.common.custom_types import (
     AFAAction,
     AFAClassifier,
+    AFAInitializer,
     AFAMethod,
     AFAUnmasker,
     FeatureMask,
@@ -51,7 +52,7 @@ def _init_rollout_state(
     x_flat: torch.Tensor,
     feature_shape: torch.Size,
     selection_size: int,
-    initializer: RandomInitializer,
+    initializer: AFAInitializer,
     device: torch.device,
 ) -> tuple[
     torch.Tensor,
@@ -123,6 +124,7 @@ def generate_aaco_rollouts(
     labels: torch.Tensor,
     feature_shape: torch.Size | None = None,
     unmasker: AFAUnmasker | None = None,
+    initializer: AFAInitializer | None = None,
     max_acquisitions: int | None = None,
     device: torch.device | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -138,6 +140,7 @@ def generate_aaco_rollouts(
         labels: Training labels (N x n_classes), one-hot encoded
         feature_shape: Shape of features excluding batch dim
         unmasker: Unmasker to apply selections
+        initializer: Initializer used for rollout start states
         max_acquisitions: Maximum acquisitions per sample (None = until oracle stops)
         device: Device to use
 
@@ -169,7 +172,8 @@ def generate_aaco_rollouts(
 
     logger.info(f"Generating rollouts for {n_samples} samples...")
 
-    initializer = RandomInitializer(num_initial_features=1)
+    if initializer is None:
+        initializer = RandomInitializer(num_initial_features=1)
 
     for i in tqdm(
         range(n_samples),
@@ -191,7 +195,8 @@ def generate_aaco_rollouts(
             initializer,
             device,
         )
-        n_acquired = int(selection_mask.sum().item())
+        # Budget counts performed actions, not initializer-provided features.
+        n_acquired = 0
         while True:
             # Check budget limit
             if max_acquisitions is not None and n_acquired >= max_acquisitions:
@@ -208,11 +213,12 @@ def generate_aaco_rollouts(
             all_feature_masks.append(feature_mask_flat.clone())
 
             # Get AACO's action
-            action = aaco_method.act(
+            action = aaco_method.act_for_instances(
                 masked_features=masked_features_flat.unsqueeze(0),
                 feature_mask=feature_mask_flat.float().unsqueeze(0),
                 selection_mask=selection_mask.unsqueeze(0),
                 feature_shape=feature_shape,
+                instance_indices=torch.tensor([i], device=device),
             )
             action_val = action.item()
 
@@ -240,7 +246,7 @@ def generate_aaco_rollouts(
                 feature_shape=feature_shape,
                 device=device,
             )
-            n_acquired = int(selection_mask.sum().item())
+            n_acquired += 1
 
     # Stack into tensors
     all_masked_features = torch.stack(all_masked_features)
@@ -594,7 +600,7 @@ class AACONNAFAMethod(AFAMethod):
                 feature_mask_flat,
                 feature_shape=classifier_shape,
             )
-            probs = F.softmax(logits, dim=-1)
+            probs = ensure_probabilities(logits)
 
         # Reshape and return
         n_classes = probs.shape[-1]
