@@ -6,6 +6,8 @@ method_options:
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
   ma2018_builtin:
     pretrained_model_name: "pvae"
     train_script_name: "ma2018_builtin"
