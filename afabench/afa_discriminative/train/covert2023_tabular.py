@@ -59,11 +59,12 @@ def train_tabular(cfg: Covert2023TrainingConfig) -> None:
     )
     predictor = classifier_bundle.predictor.to(device)
     n_selections = unmasker.get_n_selections(torch.Size([d_in]))
-    assert n_selections == d_in
+    # assert n_selections == d_in
 
     selector = MLP(
         in_features=d_in * 2,
-        out_features=d_in,
+        # out_features=d_in,
+        out_features=n_selections,
         num_cells=cfg.hidden_units,
         activation_class=getattr(nn, cfg.activation),
         dropout=cfg.dropout,
@@ -79,6 +80,8 @@ def train_tabular(cfg: Covert2023TrainingConfig) -> None:
         unmasker=unmasker,
     ).to(device)
 
+    feature_costs = train_dataset.get_feature_acquisition_costs()
+
     gdfs.fit(
         train_loader,
         val_loader,
@@ -88,7 +91,7 @@ def train_tabular(cfg: Covert2023TrainingConfig) -> None:
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         patience=cfg.patience,
         verbose=True,
-        feature_costs=train_dataset.get_feature_acquisition_costs().to(device),
+        feature_costs=feature_costs.to(device),
     )
 
     # Build final method
@@ -102,6 +105,8 @@ def train_tabular(cfg: Covert2023TrainingConfig) -> None:
         modality="tabular",
         d_in=d_in,
         d_out=d_out,
+        selection_costs=unmasker.get_selection_costs(feature_costs),
+        n_selections=n_selections,
     )
     save_bundle(
         obj=afa_method,

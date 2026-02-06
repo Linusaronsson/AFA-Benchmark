@@ -29,11 +29,13 @@ def main(cfg: Ma2018TrainingConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
-    train_dataset, _, _, _, class_weights = afa_discriminative_training_prep(
-        train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-        val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-        initializer_cfg=cfg.initializer,
-        unmasker_cfg=cfg.unmasker,
+    train_dataset, _, _, unmasker, class_weights = (
+        afa_discriminative_training_prep(
+            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            initializer_cfg=cfg.initializer,
+            unmasker_cfg=cfg.unmasker,
+        )
     )
     assert class_weights is not None
     class_weights = class_weights.to(device)
@@ -50,12 +52,16 @@ def main(cfg: Ma2018TrainingConfig) -> None:
     pretrained_model = cast(
         "Zannone2019PretrainingModel", torch_model_bundle.model
     )
+    feature_costs = train_dataset.get_feature_acquisition_costs()
+    selection_costs = unmasker.get_selection_costs(feature_costs)
 
     afa_method: Ma2018AFAMethod = Ma2018AFAMethod(
         sampler=pretrained_model.partial_vae,
         predictor=pretrained_model.classifier,
         num_classes=num_classes,
         classifier_bundle_path=Path(cfg.classifier_bundle_path),
+        selection_costs=selection_costs,
+        n_contexts=getattr(unmasker, "n_contexts", None),
     )
 
     save_bundle(

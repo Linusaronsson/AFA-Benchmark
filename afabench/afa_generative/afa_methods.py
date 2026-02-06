@@ -24,7 +24,8 @@ class Ma2018AFAMethod(AFAMethod):
         num_classes,
         device=torch.device("cpu"),
         lambda_threshold: float | None = None,
-        feature_costs: torch.Tensor | None = None,
+        selection_costs: torch.Tensor | None = None,
+        n_contexts: int | None = None,
         num_mc_samples: int = 128,
         classifier_bundle_path: Path | None = None,
     ):
@@ -37,7 +38,8 @@ class Ma2018AFAMethod(AFAMethod):
             self.lambda_threshold: float = -math.inf
         else:
             self.lambda_threshold = lambda_threshold
-        self._feature_costs = feature_costs
+        self._selection_costs = selection_costs
+        self.n_contexts = n_contexts
         self.num_mc_samples = num_mc_samples
         self.classifier = None
         if classifier_bundle_path is not None:
@@ -136,27 +138,45 @@ class Ma2018AFAMethod(AFAMethod):
             [x_filled, zeros_label.unsqueeze(0).expand(S, B, -1)],
             dim=-1
         )
-        feature_indices = torch.eye(
-            F, device=device, dtype=torch.bool
-        )
+        if selection_mask is not None:
+            n_sel = selection_mask.shape[1]
+        else:
+            # direct unmasker fallback
+            n_sel = F
+        if n_sel == F:
+            add_masks = torch.eye(F, device=device, dtype=torch.bool)
+        else:
+            if self.n_contexts is None:
+                raise ValueError("n_contexts must be set when using context selection.")
+            expected = 1 + (F - self.n_contexts)
+            if n_sel != expected:
+                raise ValueError(f"Got n_sel={n_sel}, expected {expected} for n_contexts={self.n_contexts}.")
+            add_masks = torch.zeros(n_sel, F, device=device, dtype=torch.bool)
+            add_masks[0, : self.n_contexts] = True
+            rem = F - self.n_contexts
+            add_masks[1:, self.n_contexts:] = torch.eye(rem, device=device, dtype=torch.bool)
+
+        # feature_indices = torch.eye(
+        #     F, device=device, dtype=torch.bool
+        # )
         mask_features_all = feature_mask.bool().unsqueeze(
             1
-        ) | feature_indices.unsqueeze(0)
-        mask_features_flat = mask_features_all.reshape(B * F, F).to(feature_mask.dtype)
-        mask_label_all = zeros_mask.unsqueeze(1).expand(B, F, -1)
-        mask_label_flat = mask_label_all.reshape(B * F, self.num_classes)
-        # (B*F, (F+num_classes))
+        ) | add_masks.unsqueeze(0)
+        mask_features_flat = mask_features_all.reshape(B * n_sel, F).to(feature_mask.dtype)
+        mask_label_all = zeros_mask.unsqueeze(1).expand(B, n_sel, -1)
+        mask_label_flat = mask_label_all.reshape(B * n_sel, self.num_classes)
+        # (B*n_sel, (F+num_classes))
         mask_tests = torch.cat([mask_features_flat, mask_label_flat], dim=1)
-        # (S*B*F, (F+num_classes))
-        mask_tests_rep = mask_tests.unsqueeze(0).expand(S, -1, -1).reshape(S * B * F, F + self.num_classes)
-        x_rep = x_full.unsqueeze(2).expand(S, B, F, F + self.num_classes)
-        x_rep = x_rep.reshape(S * B * F, F + self.num_classes)
+        # (S*B*n_sel, (F+num_classes))
+        mask_tests_rep = mask_tests.unsqueeze(0).expand(S, -1, -1).reshape(S * B * n_sel, F + self.num_classes)
+        x_rep = x_full.unsqueeze(2).expand(S, B, n_sel, F + self.num_classes)
+        x_rep = x_rep.reshape(S * B * n_sel, F + self.num_classes)
         x_masks = x_rep * mask_tests_rep
         with torch.no_grad():
             if self.classifier is None:
                 _, _, _, z_all, _ = self.sampler(x_masks, mask_tests_rep)
                 logits_all = self.predictor(z_all)
-                preds_all = self._logits_to_probs(logits_all).view(S, B * F, -1)
+                preds_all = self._logits_to_probs(logits_all).view(S, B * n_sel, -1)
             else:
                 x_masks_raw = x_masks[:, :F]
                 mask_tests_raw = mask_tests_rep[:, :F]
@@ -165,30 +185,35 @@ class Ma2018AFAMethod(AFAMethod):
                     feature_mask=mask_tests_raw,
                     feature_shape=feature_shape,
                 )
-                preds_all = preds_flat.view(S, B * F, -1)
+                preds_all = preds_flat.view(S, B * n_sel, -1)
 
         # S: num_mc_samples
-        S, BF, C = preds_all.shape
+        S, Bn, C = preds_all.shape
         # 1/n Σ p(y|x_s, x_i^j)
         base_probs_flat = (
             base_probs.unsqueeze(1)
-            .expand(B, F, C)
-            .reshape(1, B * F, C)
-            .expand(S, B * F, C)
+            .expand(B, n_sel, C)
+            .reshape(1, B * n_sel, C)
+            .expand(S, B * n_sel, C)
         )
         # mean_preds = preds_all.mean(dim=0)
-        # KL(p_s || mean), (S, B*F)
+        # KL(p_s || mean), (S, B*n_sel)
         kl_all = (
             preds_all
             * ((preds_all + 1e-6).log() - (base_probs_flat + 1e-6).log())
         ).sum(dim=-1)
         kl_mean_flat = kl_all.mean(dim=0)
 
-        scores = kl_mean_flat.view(B, F)
+        scores = kl_mean_flat.view(B, n_sel)
         # avoid choosing the already masked features
-        scores = scores.masked_fill(feature_mask.bool(), float("-inf"))
-        if self._feature_costs is not None:
-            costs = self._feature_costs.to(self._device)
+        if selection_mask is not None:
+            assert scores.shape == selection_mask.shape
+            scores = scores.masked_fill(selection_mask.bool(), float("-inf"))
+        else:
+            assert scores.shape == feature_mask.shape
+            scores = scores.masked_fill(feature_mask.bool(), float("-inf"))
+        if self._selection_costs is not None:
+            costs = self._selection_costs.to(self._device)
             costs = torch.clamp(costs, min=1e-12)
             scores = scores / costs.unsqueeze(0)
         best_scores, best_idx = scores.max(dim=1)
@@ -207,10 +232,14 @@ class Ma2018AFAMethod(AFAMethod):
         sampler = checkpoint["sampler"]
         predictor = checkpoint["predictor"]
         num_classes = checkpoint["num_classes"]
+        n_contexts = checkpoint.get("n_contexts", None)
         lambda_threshold = checkpoint.get("lambda_threshold", None)
+        selection_costs = checkpoint.get("selection_costs", None)
         feature_costs = checkpoint.get("feature_costs", None)
-        if feature_costs is not None:
-            feature_costs = feature_costs.to(device)
+        if selection_costs is not None:
+            selection_costs = selection_costs.to(device)
+        elif feature_costs is not None:
+            selection_costs = feature_costs.to(device)
 
         method = cls(
             sampler=sampler,
@@ -218,7 +247,8 @@ class Ma2018AFAMethod(AFAMethod):
             num_classes=num_classes,
             device=device,
             lambda_threshold=lambda_threshold,
-            feature_costs=feature_costs,
+            selection_costs=selection_costs,
+            n_contexts=n_contexts,
         )
         classifier = checkpoint.get("classifier", None)
         if classifier is not None:
@@ -236,11 +266,12 @@ class Ma2018AFAMethod(AFAMethod):
                 "classifier": self.classifier,
                 "num_classes": self.num_classes,
                 "lambda_threshold": float(self.lambda_threshold),
-                "feature_costs": (
-                    self._feature_costs.detach().cpu()
-                    if self._feature_costs is not None
+                "selection_costs": (
+                    self._selection_costs.detach().cpu()
+                    if self._selection_costs is not None
                     else None
                 ),
+                "n_contexts": self.n_contexts,
             },
             str(path / "model.pt"),
         )

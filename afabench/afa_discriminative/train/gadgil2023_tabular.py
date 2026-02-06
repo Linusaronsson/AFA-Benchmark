@@ -59,11 +59,11 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
     )
     predictor = classifier_bundle.predictor.to(device)
     n_selections = unmasker.get_n_selections(torch.Size([d_in]))
-    assert n_selections == d_in
+    # assert n_selections == d_in
 
     value_network = MLP(
         in_features=d_in * 2,
-        out_features=d_in,
+        out_features=n_selections,
         num_cells=cfg.hidden_units,
         activation_class=getattr(nn, cfg.activation),
         dropout=cfg.dropout,
@@ -89,6 +89,7 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         initializer=initializer,
         unmasker=unmasker,
     ).to(device)
+    feature_costs = train_dataset.get_feature_acquisition_costs()
     greedy_cmi_estimator.fit(
         train_loader,
         val_loader,
@@ -102,7 +103,7 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         eps_decay=cfg.eps_decay,
         eps_steps=cfg.eps_steps,
         patience=cfg.patience,
-        feature_costs=train_dataset.get_feature_acquisition_costs().to(device),
+        feature_costs=feature_costs.to(device),
     )
 
     afa_method = Gadgil2023AFAMethod(
@@ -115,6 +116,8 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         modality="tabular",
         d_in=d_in,
         d_out=d_out,
+        n_selections=n_selections,
+        selection_costs=unmasker.get_selection_costs(feature_costs),
     )
 
     save_bundle(

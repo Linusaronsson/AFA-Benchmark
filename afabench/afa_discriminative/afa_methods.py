@@ -25,6 +25,7 @@ from afabench.afa_discriminative.utils import (
     make_onehot,
     restore_parameters,
     patch_soft_to_feature_soft,
+    selection_soft_to_feature_soft,
 )
 from afabench.common.custom_types import (
     AFAInitializer,
@@ -36,6 +37,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
+from afabench.common.unmaskers import AFAContextUnmasker
 
 
 class GreedyDynamicSelection(nn.Module):
@@ -128,7 +130,8 @@ class GreedyDynamicSelection(nn.Module):
             mask_size = x.shape[1]
         if feature_costs is None:
             feature_costs = torch.ones(mask_size, device=device)
-        log_cost = torch.log(feature_costs)
+        selection_costs = unmasker.get_selection_costs(feature_costs)
+        log_cost = torch.log(selection_costs)
         # feature_shape = torch.Size([mask_size])
         # Pixel-evel feature masks
         x0, _ = next(iter(val_loader))
@@ -137,12 +140,6 @@ class GreedyDynamicSelection(nn.Module):
         feature_shape = torch.Size(list(x0.shape[1:]))
 
         n_selections = unmasker.get_n_selections(feature_shape)
-        msg = (
-            f"Expected patch-level selection space to equal mask_size. "
-            f"Got unmasker selection size={n_selections}, "
-            f"mask_size={mask_size}."
-        )
-        assert n_selections == mask_size, msg
 
         # For tracking best models with zero temperature.
         best_val = None
@@ -186,9 +183,8 @@ class GreedyDynamicSelection(nn.Module):
                     x = x_batch.to(device)
                     y = self._to_class_indices(y_batch).to(device)
 
-                    # TODO: currently allow double selection
                     m_sel = torch.zeros(
-                        len(x), mask_size, dtype=x.dtype, device=device
+                        len(x), n_selections, dtype=x.dtype, device=device
                     )
                     # Pixel level mask for image data
                     init_mask_bool = initializer.initialize(
@@ -215,8 +211,16 @@ class GreedyDynamicSelection(nn.Module):
 
                         # Get selections.
                         # soft = selector_layer(logits, temp)
-                        soft_patch = selector_layer(logits_cost, temp)
-                        soft_feat = patch_soft_to_feature_soft(soft_patch, x)
+                        soft = selector_layer(logits_cost, temp)
+                        if len(x.shape) == 4:
+                            soft_feat = patch_soft_to_feature_soft(soft, x)
+                        else:
+                            if isinstance(unmasker, AFAContextUnmasker):
+                                soft_feat = selection_soft_to_feature_soft(
+                                    soft, mask_size=mask_size, n_contexts=unmasker.n_contexts
+                                )
+                            else:
+                                soft_feat = soft
                         m_soft_feat = torch.maximum(m_feat, soft_feat)
 
                         # Evaluate predictor model.
@@ -240,8 +244,6 @@ class GreedyDynamicSelection(nn.Module):
                             m_sel,
                             make_onehot(dist),
                         )
-                        # TODO: need to check if this work for image data
-                        # TODO: also need to check the feature_shape
                         m_feat = unmasker.unmask(
                             masked_features=x_masked,
                             feature_mask=m_feat.bool(),
@@ -271,7 +273,7 @@ class GreedyDynamicSelection(nn.Module):
                         y = self._to_class_indices(y_batch).to(device)
 
                         m_sel = torch.zeros(
-                            len(x), mask_size, dtype=x.dtype, device=device
+                            len(x), n_selections, dtype=x.dtype, device=device
                         )
                         init_mask_bool = initializer.initialize(
                             features=x,
@@ -293,15 +295,21 @@ class GreedyDynamicSelection(nn.Module):
                             # Get selections, ensure no repeats.
                             # logits = logits - 1e6 * m
                             if argmax:
-                                soft_patch = selector_layer(
+                                soft = selector_layer(
                                     logits_cost, temp, deterministic=True
                                 )
                             else:
-                                soft_patch = selector_layer(logits_cost, temp)
-                            soft_feat = patch_soft_to_feature_soft(soft_patch, x)
+                                soft = selector_layer(logits_cost, temp)
+                            if len(x.shape) == 4:
+                                soft_feat = patch_soft_to_feature_soft(soft, x)
+                            else:
+                                if isinstance(unmasker, AFAContextUnmasker):
+                                    soft_feat = selection_soft_to_feature_soft(soft, mask_size, unmasker.n_contexts)
+                                else:
+                                    soft_feat = soft
                             m_soft_feat = torch.maximum(m_feat, soft_feat)
-                            m_sel = torch.max(m_sel, make_onehot(soft_patch))
-                            sel_idx = torch.argmax(soft_patch, dim=1, keepdim=True)
+                            m_sel = torch.max(m_sel, make_onehot(soft))
+                            sel_idx = torch.argmax(soft, dim=1, keepdim=True)
                             afa_selection = sel_idx.to(torch.long)
                             m_feat = unmasker.unmask(
                                 masked_features=x_masked,
@@ -389,47 +397,6 @@ class GreedyDynamicSelection(nn.Module):
         restore_parameters(selector, best_zerotemp_selector)
         restore_parameters(predictor, best_zerotemp_predictor)
 
-    @override
-    def forward(
-        self,
-        x: torch.Tensor,
-        max_features: int,
-        argmax: bool = True,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Make predictions using selected features."""
-        # Setup.
-        selector = self.selector
-        predictor = self.predictor
-        mask_layer = self.mask_layer
-        selector_layer = self.selector_layer
-        device = next(predictor.parameters()).device
-
-        # Determine mask size.
-        if mask_layer.mask_size is not None:
-            mask_size = int(self.mask_layer.mask_size)  # pyright: ignore[reportArgumentType]
-        else:
-            # Must be tabular (1d data).
-            assert len(x.shape) == 2
-            mask_size = x.shape[1]
-        m = torch.zeros(len(x), mask_size, device=device)
-
-        for _ in range(max_features):
-            # Evaluate selector model.
-            x_masked = mask_layer(x, m)
-            logits = selector(x_masked).flatten(1)
-
-            # Update selections, ensure no repeats.
-            logits = logits - 1e6 * m
-            if argmax:
-                m = torch.max(m, make_onehot(logits))
-            else:
-                m = torch.max(m, make_onehot(selector_layer(logits, 1e-6)))
-
-        # Make predictions.
-        x_masked = mask_layer(x, m)
-        pred = predictor(x_masked)
-        return pred, x_masked, m
-
 
 class Covert2023AFAMethod(AFAMethod):
     def __init__(
@@ -438,7 +405,7 @@ class Covert2023AFAMethod(AFAMethod):
         predictor: nn.Module,
         device: torch.device,
         lambda_threshold: float | None = None,
-        feature_costs: torch.Tensor | None = None,
+        selection_costs: torch.Tensor | None = None,
         selector_hidden_layers: list[int] = [128, 128],
         predictor_hidden_layers: list[int] = [128, 128],
         dropout: float = 0.3,
@@ -446,6 +413,7 @@ class Covert2023AFAMethod(AFAMethod):
         n_patches: int | None = None,
         d_in: int | None = None,
         d_out: int | None = None,
+        n_selections: int | None = None,
     ):
         super().__init__()
 
@@ -457,7 +425,7 @@ class Covert2023AFAMethod(AFAMethod):
             self.lambda_threshold: float = -math.inf
         else:
             self.lambda_threshold = lambda_threshold
-        self._feature_costs: torch.Tensor | None = feature_costs
+        self._selection_costs: torch.Tensor | None = selection_costs
         self.selector_hidden_layers = selector_hidden_layers
         self.predictor_hidden_layers = predictor_hidden_layers
         self.dropout = dropout
@@ -466,6 +434,7 @@ class Covert2023AFAMethod(AFAMethod):
         self.n_patches: int | None = n_patches
         self.d_in: int | None = d_in
         self.d_out: int | None = d_out
+        self.n_selections: int | None = n_selections
         self.image_size: int | None = None
         self.patch_size: int | None = None
         self.mask_width: int | None = None
@@ -520,7 +489,17 @@ class Covert2023AFAMethod(AFAMethod):
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
             logits = self.selector(x_masked).flatten(1)
-            logits = logits - 1e6 * feature_mask
+            # TODO: currently assume that if we use AFAContextUnmasker, then we have not None selection mask
+            if selection_mask is not None:
+                assert logits.shape == selection_mask.shape, (
+                    f"selection_mask shape {selection_mask.shape} incompatible with logits {logits.shape}"
+                )
+                logits = logits - 1e6 * selection_mask.float()
+            else:
+                assert logits.shape == feature_mask.shape, (
+                    f"feature_mask shape {feature_mask.shape} incompatible with logits {logits.shape}"
+                )
+                logits = logits - 1e6 * feature_mask
         else:
             logits = self.selector(masked_features)
             assert logits.dim() == 2, (
@@ -529,8 +508,8 @@ class Covert2023AFAMethod(AFAMethod):
             patch_mask = self._flat_mask_to_patch_mask(feature_mask).float()
             logits = logits - 1e6 * patch_mask
 
-        if self._feature_costs is not None:
-            costs = self._feature_costs.to(self._device)
+        if self._selection_costs is not None:
+            costs = self._selection_costs.to(self._device)
             costs = torch.clamp(costs, min=1e-12)
             scores = logits / costs.unsqueeze(0)
         else:
@@ -546,8 +525,6 @@ class Covert2023AFAMethod(AFAMethod):
         # 0 = stop
         selections = selections.masked_fill(stop_mask, 0)
         return selections
-        # next_feature_idx = logits.argmax(dim=1)
-        # return next_feature_idx
 
     @classmethod
     @override
@@ -555,13 +532,19 @@ class Covert2023AFAMethod(AFAMethod):
         checkpoint = torch.load(path / "model.pt", weights_only=False, map_location=device)
         arch = checkpoint["architecture"]
         lambda_threshold = checkpoint.get("lambda_threshold", None)
+        selection_costs = checkpoint.get("selection_costs", None)
         feature_costs = checkpoint.get("feature_costs", None)
-        if feature_costs is not None:
-            feature_costs = feature_costs.to(device)
+        if selection_costs is not None:
+            selection_costs = selection_costs.to(device)
+        elif feature_costs is not None:
+            selection_costs = feature_costs.to(device)
         # tabular
         if arch["type"] == "mlp":
             d_in = arch["d_in"]
             d_out = arch["d_out"]
+            n_selections = arch.get("n_selections", None)
+            if n_selections is None:
+                n_selections = d_in
             selector_hidden_layers = arch["selector_hidden_layers"]
             predictor_hidden_layers = arch["predictor_hidden_layers"]
             dropout = arch["dropout"]
@@ -574,7 +557,7 @@ class Covert2023AFAMethod(AFAMethod):
             )
             selector = MLP(
                 in_features=d_in * 2,
-                out_features=d_in,
+                out_features=n_selections,
                 num_cells=selector_hidden_layers,
                 activation_class=nn.ReLU,
                 dropout=dropout,
@@ -585,13 +568,14 @@ class Covert2023AFAMethod(AFAMethod):
                 predictor=predictor,
                 device=device,
                 lambda_threshold=lambda_threshold,
-                feature_costs=feature_costs,
+                selection_costs=selection_costs,
                 selector_hidden_layers=selector_hidden_layers,
                 predictor_hidden_layers=predictor_hidden_layers,
                 dropout=dropout,
                 modality="tabular",
                 d_in=d_in,
                 d_out=d_out,
+                n_selections=n_selections,
             )
             model.selector.load_state_dict(checkpoint["selector_state_dict"])
             model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
@@ -611,7 +595,7 @@ class Covert2023AFAMethod(AFAMethod):
                 predictor=predictor,
                 device=device,
                 lambda_threshold=lambda_threshold,
-                feature_costs=feature_costs,
+                selection_costs=selection_costs,
                 modality="image",
                 n_patches=int(arch["mask_width"]) ** 2,
                 d_out=d_out,
@@ -637,13 +621,13 @@ class Covert2023AFAMethod(AFAMethod):
                 "type": "mlp",
                 "d_in": self.d_in,
                 "d_out": self.d_out,
+                "n_selections": self.n_selections,
                 "selector_hidden_layers": self.selector_hidden_layers,
                 "predictor_hidden_layers": self.predictor_hidden_layers,
                 "dropout": self.dropout,
                 "model_type": "tabular",
             }
         else:
-            # TODO: pass self.predictor.fc.out_features as d_out here
             arch = {
                 "type": "resnet18",
                 "backbone": "resnet18",
@@ -658,7 +642,7 @@ class Covert2023AFAMethod(AFAMethod):
             "predictor_state_dict": self.predictor.state_dict(),
             "architecture": arch,
             "lambda_threshold": float(self.lambda_threshold),
-            "feature_costs": self._feature_costs.detach().cpu() if self._feature_costs is not None else None
+            "selection_costs": self._selection_costs.detach().cpu() if self._selection_costs is not None else None
         }
         torch.save(payload, Path(path) / "model.pt")
 
@@ -766,18 +750,14 @@ class CMIEstimator(nn.Module):
             feature_costs = torch.ones(mask_size).to(device)
         elif isinstance(feature_costs, np.ndarray):
             feature_costs = torch.tensor(feature_costs).to(device)
+        selection_costs = unmasker.get_selection_costs(feature_costs).to(device)
+        selection_costs = torch.clamp(selection_costs, min=1e-12)
         # feature_shape = torch.Size([mask_size])
         x0, _ = next(iter(val_loader))
         x0 = x0.to(device)
         feature_shape = torch.Size(list(x0.shape[1:]))
 
         n_selections = unmasker.get_n_selections(feature_shape)
-        msg = (
-            f"Expected patch-level selection space to equal mask_size. "
-            f"Got unmasker selection size={n_selections}, "
-            f"mask_size={mask_size}."
-        )
-        assert n_selections == mask_size, msg
 
         opt = optim.Adam(
             set(
@@ -813,7 +793,7 @@ class CMIEstimator(nn.Module):
                 y = self._to_class_indices(y_batch).to(device)
 
                 m_sel = torch.zeros(
-                    len(x), mask_size, dtype=x.dtype, device=device
+                    len(x), n_selections, dtype=x.dtype, device=device
                 )
                 init_mask_bool = initializer.initialize(
                     features=x,
@@ -861,18 +841,17 @@ class CMIEstimator(nn.Module):
                     else:
                         pred_cmi = value_network(x_masked)
 
-                    best = torch.argmax(pred_cmi / feature_costs, dim=1)
+                    best = torch.argmax(pred_cmi / selection_costs, dim=1)
                     rng = np.random.default_rng()
                     random = torch.tensor(
-                        rng.choice(mask_size, size=len(x)),
+                        rng.choice(n_selections, size=len(x)),
                         device=x.device,
                     )
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
-                    # TODO: need to verify if this work for unmasking using image patch index
                     afa_selection = actions.to(torch.long)
                     afa_selection = afa_selection.unsqueeze(1)
-                    m_sel = torch.max(m_sel, ind_to_onehot(actions, mask_size))
+                    m_sel = torch.max(m_sel, ind_to_onehot(actions, n_selections))
 
                     # Predictor loss.
                     m_feat = unmasker.unmask(
@@ -930,7 +909,7 @@ class CMIEstimator(nn.Module):
                     x = x_batch.to(device)
                     y = self._to_class_indices(y_batch).to(device)
                     m_sel = torch.zeros(
-                        len(x), mask_size, dtype=x.dtype, device=device
+                        len(x), n_selections, dtype=x.dtype, device=device
                     )
 
                     # Setup.
@@ -968,10 +947,10 @@ class CMIEstimator(nn.Module):
                         # Select next feature, ensure no repeats.
                         pred_cmi -= 1e6 * m_sel
                         best_feature_index = torch.argmax(
-                            pred_cmi / feature_costs, dim=1
+                            pred_cmi / selection_costs, dim=1
                         )
                         m_sel = torch.max(
-                            m_sel, ind_to_onehot(best_feature_index, mask_size)
+                            m_sel, ind_to_onehot(best_feature_index, n_selections)
                         )
                         afa_selection = best_feature_index.to(torch.long)
                         afa_selection = afa_selection.unsqueeze(1)
@@ -1068,7 +1047,7 @@ class Gadgil2023AFAMethod(AFAMethod):
         predictor: nn.Module,
         device: torch.device,
         lambda_threshold: float | None = None,
-        feature_costs: torch.Tensor | None = None,
+        selection_costs: torch.Tensor | None = None,
         value_network_hidden_layers: list[int] = [128, 128],
         predictor_hidden_layers: list[int] = [128, 128],
         dropout: float = 0.3,
@@ -1076,6 +1055,7 @@ class Gadgil2023AFAMethod(AFAMethod):
         n_patches: int | None = None,
         d_in: int | None = None,
         d_out: int | None = None,
+        n_selections: int | None = None,
     ):
         super().__init__()
 
@@ -1087,7 +1067,7 @@ class Gadgil2023AFAMethod(AFAMethod):
             self.lambda_threshold: float = -math.inf
         else:
             self.lambda_threshold = lambda_threshold
-        self._feature_costs: torch.Tensor | None = feature_costs
+        self._selection_costs: torch.Tensor | None = selection_costs
         self.value_network_hidden_layers = value_network_hidden_layers
         self.predictor_hidden_layers = predictor_hidden_layers
         self.dropout = dropout
@@ -1095,6 +1075,7 @@ class Gadgil2023AFAMethod(AFAMethod):
         self.n_patches: int | None = n_patches
         self.d_in: int | None = d_in
         self.d_out: int | None = d_out
+        self.n_selections: int | None = n_selections
         self.image_size: int | None = None
         self.patch_size: int | None = None
         self.mask_width: int | None = None
@@ -1143,7 +1124,16 @@ class Gadgil2023AFAMethod(AFAMethod):
             pred = self.predictor(x_masked)
             entropy = get_entropy(pred).unsqueeze(1)
             pred_cmi = self.value_network(x_masked).sigmoid() * entropy
-            pred_cmi -= 1e6 * feature_mask
+            if selection_mask is not None:
+                assert pred_cmi.shape == selection_mask.shape, (
+                    f"selection_mask shape {selection_mask.shape} incompatible with pred_cmi {pred_cmi.shape}"
+                )
+                pred_cmi -= 1e6 * selection_mask.float()
+            else:
+                assert pred_cmi.shape == feature_mask.shape, (
+                    f"feature_mask shape {feature_mask.shape} incompatible with pred_cmi {pred_cmi.shape}"
+                )
+                pred_cmi -= 1e6 * feature_mask
         else:
             pred = self.predictor(masked_features)
             entropy = get_entropy(pred).unsqueeze(1)
@@ -1151,8 +1141,8 @@ class Gadgil2023AFAMethod(AFAMethod):
             patch_mask = self._flat_mask_to_patch_mask(feature_mask).float()
             pred_cmi = pred_cmi - 1e6 * patch_mask
 
-        if self._feature_costs is not None:
-            costs = self._feature_costs.to(self._device)
+        if self._selection_costs is not None:
+            costs = self._selection_costs.to(self._device)
             costs = torch.clamp(costs, min=1e-12)
             scores = pred_cmi / costs.unsqueeze(0)
         else:
@@ -1166,8 +1156,6 @@ class Gadgil2023AFAMethod(AFAMethod):
         stop_mask = stop_mask.unsqueeze(-1)
         selections = selections.masked_fill(stop_mask, 0)
         return selections
-        # next_feature_idx = torch.argmax(pred_cmi, dim=1)
-        # return next_feature_idx
 
     @classmethod
     @override
@@ -1175,12 +1163,18 @@ class Gadgil2023AFAMethod(AFAMethod):
         checkpoint = torch.load(path / "model.pt", weights_only=False, map_location=device)
         arch = checkpoint["architecture"]
         lambda_threshold = checkpoint.get("lambda_threshold", None)
+        selection_costs = checkpoint.get("selection_costs", None)
         feature_costs = checkpoint.get("feature_costs", None)
-        if feature_costs is not None:
-            feature_costs = feature_costs.to(device)
+        if selection_costs is not None:
+            selection_costs = selection_costs.to(device)
+        elif feature_costs is not None:
+            selection_costs = feature_costs.to(device)
         if arch["type"] == "mlp":
             d_in = arch["d_in"]
             d_out = arch["d_out"]
+            n_selections = arch.get("n_selections", None)
+            if n_selections is None:
+                n_selections = d_in
             value_network_hidden_layers = arch["value_network_hidden_layers"]
             predictor_hidden_layers = arch["predictor_hidden_layers"]
             dropout = arch["dropout"]
@@ -1193,39 +1187,25 @@ class Gadgil2023AFAMethod(AFAMethod):
             )
             value_network = MLP(
                 in_features=d_in * 2,
-                out_features=d_in,
+                out_features=n_selections,
                 num_cells=value_network_hidden_layers,
                 activation_class=nn.ReLU,
                 dropout=dropout,
             )
-            # Tie weights
-            # value_network.hidden[0] = predictor.hidden[0]
-            # value_network.hidden[1] = predictor.hidden[1]
-            # TODO: check if weight tying is needed for evaluation
-            # pred_linears = [m for m in predictor if isinstance(m, nn.Linear)]
-            # value_linears = [
-            #     m for m in value_network if isinstance(m, nn.Linear)
-            # ]
-
-            # assert len(value_network_hidden_layers) == len(
-            #     predictor_hidden_layers
-            # )
-            # for i in range(len(value_network_hidden_layers)):
-            #     value_linears[i].weight = pred_linears[i].weight
-            #     value_linears[i].bias = pred_linears[i].bias
 
             model = cls(
                 value_network=value_network,
                 predictor=predictor,
                 device=device,
                 lambda_threshold=lambda_threshold,
-                feature_costs=feature_costs,
+                selection_costs=selection_costs,
                 value_network_hidden_layers=value_network_hidden_layers,
                 predictor_hidden_layers=predictor_hidden_layers,
                 dropout=dropout,
                 modality="tabular",
                 d_in=d_in,
                 d_out=d_out,
+                n_selections=n_selections,
             )
             model.value_network.load_state_dict(
                 checkpoint["value_network_state_dict"]
@@ -1247,7 +1227,7 @@ class Gadgil2023AFAMethod(AFAMethod):
                 predictor=predictor,
                 device=device,
                 lambda_threshold=lambda_threshold,
-                feature_costs=feature_costs,
+                selection_costs=selection_costs,
                 modality="image",
                 n_patches=int(arch["mask_width"]) ** 2,
                 d_out=d_out,
@@ -1274,6 +1254,7 @@ class Gadgil2023AFAMethod(AFAMethod):
                 "type": "mlp",
                 "d_in": self.d_in,
                 "d_out": self.d_out,
+                "n_selections": self.n_selections,
                 "value_network_hidden_layers": self.value_network_hidden_layers,
                 "predictor_hidden_layers": self.predictor_hidden_layers,
                 "dropout": self.dropout,
@@ -1294,7 +1275,7 @@ class Gadgil2023AFAMethod(AFAMethod):
             "predictor_state_dict": self.predictor.state_dict(),
             "architecture": arch,
             "lambda_threshold": float(self.lambda_threshold),
-            "feature_costs": self._feature_costs.detach().cpu() if self._feature_costs is not None else None
+            "selection_costs": self._selection_costs.detach().cpu() if self._selection_costs is not None else None
         }
         torch.save(payload, Path(path) / "model.pt")
 

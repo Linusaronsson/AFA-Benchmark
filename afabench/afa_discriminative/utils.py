@@ -88,27 +88,41 @@ def patch_soft_to_feature_soft(
     Convert soft patch mask (B, mask_size) into soft feature mask in x space.
 
     """
-    if len(x.shape) == 4:
-        B, C, H, W = x.shape
-        mask_size = soft_patch.shape[1]
-        mask_width = int(mask_size ** 0.5)
-        m = soft_patch.view(B, 1, mask_width, mask_width)
-        patch_size_h = H // mask_width
-        patch_size_w = W // mask_width
-        m = F.interpolate(m, scale_factor=(patch_size_h, patch_size_w), mode="nearest")
-        return m.expand(B, C, H, W)
-
-    assert len(x.shape) == 2
-    B, D = x.shape
+    # if len(x.shape) == 4:
+    B, C, H, W = x.shape
     mask_size = soft_patch.shape[1]
+    mask_width = int(mask_size ** 0.5)
+    m = soft_patch.view(B, 1, mask_width, mask_width)
+    patch_size_h = H // mask_width
+    patch_size_w = W // mask_width
+    m = F.interpolate(m, scale_factor=(patch_size_h, patch_size_w), mode="nearest")
+    return m.expand(B, C, H, W)
 
-    if D == mask_size:
-        return soft_patch
+    # assert len(x.shape) == 2
+    # B, D = x.shape
+    # mask_size = soft_patch.shape[1]
 
-    # In case we use patch mask for tabular data
-    assert D % mask_size == 0
-    patch_len = D // mask_size
-    return soft_patch.repeat_interleave(patch_len, dim=1)
+    # if D == mask_size:
+    #     return soft_patch
+
+    # # In case we use patch mask for tabular data
+    # assert D % mask_size == 0
+    # patch_len = D // mask_size
+    # return soft_patch.repeat_interleave(patch_len, dim=1)
+
+
+def selection_soft_to_feature_soft(
+    soft_sel: torch.Tensor,  # [B, n_selections]
+    mask_size: int,
+    n_contexts: int,
+) -> torch.Tensor:
+    out = torch.zeros(
+        soft_sel.shape[0], mask_size, device=soft_sel.device, dtype=soft_sel.dtype
+    )
+    out[:, :n_contexts] = soft_sel[:, [0]]
+    if mask_size > n_contexts:
+        out[:, n_contexts:] = soft_sel[:, 1:]
+    return out
 
 
 class MaskLayer(nn.Module):
