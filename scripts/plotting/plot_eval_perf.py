@@ -71,21 +71,20 @@ DATASET_NAME_MAPPING_INCLUDING_METRIC = {
 DATASET_SETS = {
     "set1": {
         "cube",
-        "afa_context",
+        "cube_nonuniform_costs",
+        "afa_context_v2",
+        "afa_context_v2_without_noise",
         "mnist",
-        "actg",
-        "diabetes",
-        "bank_marketing",
-        "ckd",
+        "imagenette",
+        "miniboone",
         "physionet",
     },
     "set2": {
-        "physionet",
-        "synthetic_mnist",
-        "cube_without_noise",
-        "afa_context_without_noise",
-        "synthetic_mnist_without_noise",
-        "miniboone",
+        "actg",
+        "bank_marketing",
+        "ckd",
+        "diabetes",
+        "fashion_mnist",
     },
 }
 
