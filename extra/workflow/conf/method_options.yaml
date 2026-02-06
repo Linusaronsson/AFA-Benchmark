@@ -73,36 +73,44 @@ method_options:
     train_script_name: "shim2018"
     eval_batch_size: &rl_eval_batch_size
       default: 128
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
   odin_model_based:
     pretrained_model_name: "pvae"
     train_script_name: "zannone2019"
     method_specific_params:
       - "additional_generation_fraction=1.0"
     eval_batch_size: *rl_eval_batch_size
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
   odin_model_free:
     pretrained_model_name: "pvae"
     train_script_name: "zannone2019"
     method_specific_params:
       - "additional_generation_fraction=0.0"
     eval_batch_size: *rl_eval_batch_size
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
   ol_without_mask:
     pretrained_model_name: "ol_without_mask"
     train_script_name: "kachuee2019"
     eval_batch_size: *rl_eval_batch_size
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
   ol_with_mask:
     pretrained_model_name: "ol_with_mask"
     train_script_name: "kachuee2019"
     eval_batch_size: *rl_eval_batch_size
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
   random_dummy:
     train_script_name: "random_dummy"
     eval_batch_size: &dummy_eval_batch_size
       default: 128
-    # Example if a different budget should be used during training compared to evaluation for the hard budget case
-    # eval_to_train_hard_budget_mapping:
-    #   cube_without_noise:
-    #     10: 5
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
   sequential_dummy:
     train_script_name: "sequential_dummy"
     eval_batch_size: *dummy_eval_batch_size
-    # Example if max hard budget should be applied when training for soft budget
-    # use_max_hard_budget_when_training_for_soft_budget: true
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
