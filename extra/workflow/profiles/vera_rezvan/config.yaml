@@ -13,12 +13,16 @@ default-resources:
 set-resources:
   pretrain_model:
     runtime: 6000 # 100 hours
+    cpus_per_task: 4
   train_method_with_pretrained_model:
     runtime: 6000 # 100 hours
     mem_mb: 32000
+    cpus_per_task: 4
   train_method_without_pretrained_model:
     runtime: 6000 # 100 hours
     mem_mb: 16000
+    cpus_per_task: 4
   eval_method:
     runtime: 6000 # 100 hours
     mem_mb: 16000
+    cpus_per_task: 4
