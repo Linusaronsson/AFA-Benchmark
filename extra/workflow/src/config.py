@@ -168,7 +168,7 @@ def load_config(config):
             batch_size_config = options.get("eval_batch_size")
             if batch_size_config is None:
                 # If eval_batch_size is not specified, use batch size of 1 for all
-                eval_batch_sizes[method] = {dataset: 1 for dataset in datasets}
+                eval_batch_sizes[method] = dict.fromkeys(datasets, 1)
             elif isinstance(batch_size_config, dict):
                 # Fill in missing datasets with the default batch size
                 # If no default is specified, use batch size of 1
@@ -180,9 +180,7 @@ def load_config(config):
                 }
             else:
                 # If eval_batch_size is a scalar, use it for all datasets
-                eval_batch_sizes[method] = {
-                    dataset: batch_size_config for dataset in datasets
-                }
+                eval_batch_sizes[method] = dict.fromkeys(datasets, batch_size_config)
 
     # ========================================================================
     # Budget and Unmasker Configuration
@@ -264,6 +262,15 @@ def load_config(config):
         for method in methods
     }
 
+    # Compute which datasets are actually used for each method
+    # (not fully ignored by both hard and soft budgets)
+    datasets_used_per_method = _compute_datasets_used_per_method(
+        methods,
+        datasets,
+        hard_budget_ignored_datasets,
+        soft_budget_ignored_datasets,
+    )
+
     return {
         "NO_PRETRAIN_STR": NO_PRETRAIN_STR,
         "DATASET_INSTANCE_INDICES": dataset_instance_indices,
@@ -290,6 +297,7 @@ def load_config(config):
         "EVAL_BATCH_SIZES": eval_batch_sizes,
         "HARD_BUDGET_IGNORED_DATASETS": hard_budget_ignored_datasets,
         "SOFT_BUDGET_IGNORED_DATASETS": soft_budget_ignored_datasets,
+        "DATASETS_USED_PER_METHOD": datasets_used_per_method,
     }
 
 
@@ -410,3 +418,41 @@ def _get_train_hard_budget_from_eval(
 
     # Default: use the eval budget for training (same budget)
     return eval_budget
+
+
+def _compute_datasets_used_per_method(
+    methods,
+    datasets,
+    hard_budget_ignored_datasets,
+    soft_budget_ignored_datasets,
+):
+    """
+    Compute which datasets are actually used for each method.
+
+    A dataset is used by a method if it's not ignored by both hard and soft
+    budgets. If a method ignores all budget types for a dataset, that dataset
+    is considered unused for that method.
+
+    Args:
+        methods: List of method names
+        datasets: List of dataset names
+        hard_budget_ignored_datasets: Dict mapping method -> list of ignored datasets
+        soft_budget_ignored_datasets: Dict mapping method -> list of ignored datasets
+
+    Returns:
+        Dict mapping method -> list of datasets used by that method
+    """
+    datasets_used = {}
+    for method in methods:
+        hard_ignored = set(hard_budget_ignored_datasets.get(method, []))
+        soft_ignored = set(soft_budget_ignored_datasets.get(method, []))
+
+        # A dataset is used if it's not ignored by both hard and soft budgets
+        used_datasets = [
+            dataset
+            for dataset in datasets
+            if not (dataset in hard_ignored and dataset in soft_ignored)
+        ]
+        datasets_used[method] = used_datasets
+
+    return datasets_used

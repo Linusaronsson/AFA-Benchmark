@@ -78,6 +78,7 @@ BUDGET_PARAMS = _config["BUDGET_PARAMS"]
 CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
 METHOD_SETS = _config["METHOD_SETS"]
 EVAL_BATCH_SIZES = _config["EVAL_BATCH_SIZES"]
+DATASETS_USED_PER_METHOD = _config["DATASETS_USED_PER_METHOD"]
 
 include: "../rules/training.smk"
 include: "../rules/classifier_training.smk"
@@ -133,7 +134,8 @@ rule all_pretrain_model:
                 "model.bundle"
             )
             for pretrain_name in PRETRAIN_NAMES
-            for dataset in DATASETS
+            for method in METHODS_WITH_PRETRAINING_STAGE
+            for dataset in DATASETS_USED_PER_METHOD[method]
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
         ]
 
