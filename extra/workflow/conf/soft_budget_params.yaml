@@ -3,10 +3,12 @@ soft_budget_params:
     default:
       - [0.05, null]
       - [0.01, null]
+      - [0.1, null]
   aaco_nn:
     default:
       - [0.05, null]
       - [0.01, null]
+      - [0.1, null]
   jafa:
     default: [] # don't rely on defaults
     cube:
