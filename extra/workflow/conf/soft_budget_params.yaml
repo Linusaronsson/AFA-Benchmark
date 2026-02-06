@@ -22,21 +22,21 @@ soft_budget_params:
       - [0.001, null] # 20% observed
       - [0.01, null] # 15% observed
     cube_nonuniform_costs:
-      - [0.001, null]
-      - [0.005, null]
-      - [0.0075, null]
-      - [0.01, null]
-      - [0.02, null]
+      - [0.001, null] # 25% observed
+      - [0.005, null] # 35% observed
+      - [0.0075, null] # 30% observed
+      - [0.01, null] # 27% observed
+      - [0.02, null] # 20% observed
     afa_context_without_noise:
       # - [0.00001, null] # 70% observed
       - [0.0001, null] # 50% observed
       - [0.001, null] # 40% observed
-      - [0.01, null] # 20% observed
-      - [0.012, null]
-      - [0.014, null]
-      - [0.016, null]
-      - [0.018, null]
-      - [0.02, null]
+      # - [0.01, null] # 20% observed
+      # - [0.012, null] # 22% observed
+      # - [0.014, null] # 18% observed
+      # - [0.016, null] # 23% observed
+      # - [0.018, null] # 20% observed
+      - [0.02, null] # 20% observed
     afa_context_v2_without_noise:
       - [0.0001, null]
       - [0.001, null]
@@ -46,7 +46,7 @@ soft_budget_params:
       # - [0.0001, null] # 70% observed
       # - [0.001, null] # 70% observed
       - [0.002, null] # 40% observed
-      - [0.004, null]
+      - [0.004, null] # 15% observed
       - [0.005, null] # 10% observed
       # - [0.01, null] # 0% observed
     diabetes:
@@ -133,9 +133,9 @@ soft_budget_params:
       - [0.17, null] # 20% observed
       # - [0.2, null] # 0% observed, but starts increasing at the end
     cube_nonuniform_costs:
-      - [0.08, null]
-      - [0.11, null]
-      - [0.13, null]
+      - [0.08, null] # 85% observed
+      - [0.11, null] # 50% observed
+      - [0.13, null] # 40% observed
     afa_context:
       - [0.03, null] # 40% observed
       - [0.04, null] # 20% observed
@@ -162,7 +162,7 @@ soft_budget_params:
       # - [0.001, null] # 80% observed
       - [0.004, null] # 20% observed
       - [0.006, null] # 15% observed
-      - [0.008, null]
+      - [0.008, null] # 5% observed
       # - [0.01, null] # 2% observed during training, 0% during eval
       # - [0.05, null] # 0% observed
       # - [0.075, null] # 0% observed
@@ -172,7 +172,7 @@ soft_budget_params:
       # - [0.001, null] # 90% observed
         - [0.004, null] # 20% observed
         - [0.006, null] # 15% observed
-        - [0.008, null]
+        - [0.008, null] # 10% observed
       # - [0.015, null]
       # - [0.013, null]
       # - [0.01, null] # 7% observed
