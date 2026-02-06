@@ -1,7 +1,6 @@
-# All datasets except synthetic and noiseless ones
 datasets:
   - actg
-  - afa_context
+  - afa_context # switch out to v2, also add noiseless variant
   - bank_marketing
   - ckd
   - cube
@@ -10,3 +9,4 @@ datasets:
   - physionet
   - mnist
   - fashion_mnist
+  - imagenette
