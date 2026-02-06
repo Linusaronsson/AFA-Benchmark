@@ -162,8 +162,7 @@ class AACOOracle:
             Index of next feature to acquire (0-indexed), or None if should stop.
 
         Note:
-            This method assumes at least one feature is already observed.
-            Initial feature selection should be handled by an AFAInitializer.
+            Supports o = ∅ (no observed features), consistent with AACO.
         """
         assert self.classifier is not None, (
             "Oracle must have a classifier set. Call set_classifier() first."
@@ -178,11 +177,6 @@ class AACOOracle:
             selection_size, feature_shape
         )
         mask_curr = observed_mask.float().unsqueeze(0)
-
-        assert observed_mask.any(), (
-            "No features observed. Use an AFAInitializer (e.g., "
-            "RandomInitializer) to select the initial feature."
-        )
 
         # Get nearest neighbors based on currently observed features
         device = self.device
@@ -446,10 +440,6 @@ class AACOOracle:
         selection_mask = selection_mask.to(device).bool()
         selection_to_feature_mask = selection_to_feature_mask.to(device).bool()
 
-        assert observed_mask.any(), (
-            "No features observed. Use an AFAInitializer (e.g., "
-            "RandomInitializer) to select the initial feature."
-        )
         assert selection_to_feature_mask.shape[1] == observed_mask.numel(), (
             "selection_to_feature_mask has incompatible feature dimension."
         )

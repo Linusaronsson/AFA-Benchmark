@@ -58,7 +58,7 @@ class AACOAFAMethod(AFAMethod):
         )
     )
     _selection_size: int | None = None  # None = feature-level selections
-    _exclude_instance: bool = True
+    _exclude_instance: bool = False
     _selection_to_feature_mask_cache: dict[tuple[int, ...], torch.Tensor] = (
         field(default_factory=dict, init=False, repr=False)
     )
@@ -226,17 +226,6 @@ class AACOAFAMethod(AFAMethod):
             for i in range(batch_size):
                 x_obs = masked_features[i]
                 obs_mask = feature_mask[i].bool()
-
-                # Check if no features observed (should use initializer first)
-                if not obs_mask.any():
-                    # This shouldn't happen if using an AFAInitializer
-                    # But handle gracefully by stopping
-                    logger.warning(
-                        "AACO select() called with no features observed. "
-                        "Use an AFAInitializer for initial feature selection."
-                    )
-                    selections.append(0)
-                    continue
 
                 if (
                     use_selection_space

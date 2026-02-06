@@ -127,3 +127,52 @@ def test_context_selection_space_stop_maps_to_zero_action() -> None:
     )
 
     assert int(action.item()) == 0
+
+
+def test_no_observation_selection_space_path_maps_to_actions() -> None:
+    oracle = DummyOracle(next_selection=7)
+    method = AACOAFAMethod(
+        aaco_oracle=cast("AACOOracle", cast("object", oracle)),
+        dataset_name="afacontextv2",
+        unmasker_class_name="AFAContextUnmasker",
+        unmasker_kwargs={"n_contexts": 5},
+        _selection_size=51,
+    )
+
+    masked_features = torch.zeros((1, 55), dtype=torch.float32)
+    feature_mask = torch.zeros((1, 55), dtype=torch.bool)
+    selection_mask = torch.ones((1, 51), dtype=torch.bool)
+    selection_mask[0, 7] = False
+
+    action = method.act(
+        masked_features=masked_features,
+        feature_mask=feature_mask,
+        selection_mask=selection_mask,
+        feature_shape=torch.Size([55]),
+    )
+
+    assert int(action.item()) == 8
+
+
+def test_no_observation_selection_space_path_maps_stop() -> None:
+    oracle = DummyOracle(next_selection=None)
+    method = AACOAFAMethod(
+        aaco_oracle=cast("AACOOracle", cast("object", oracle)),
+        dataset_name="afacontextv2",
+        unmasker_class_name="AFAContextUnmasker",
+        unmasker_kwargs={"n_contexts": 5},
+        _selection_size=51,
+    )
+
+    masked_features = torch.zeros((1, 55), dtype=torch.float32)
+    feature_mask = torch.zeros((1, 55), dtype=torch.bool)
+    selection_mask = torch.zeros((1, 51), dtype=torch.bool)
+
+    action = method.act(
+        masked_features=masked_features,
+        feature_mask=feature_mask,
+        selection_mask=selection_mask,
+        feature_shape=torch.Size([55]),
+    )
+
+    assert int(action.item()) == 0
