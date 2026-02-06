@@ -15,6 +15,7 @@ method_options:
         2: 20
         4: 20
         7: 20
+    hard_budget_ignored_datasets: [mnist, fashion_mnist]
   ma2018_external:
     pretrained_model_name: "pvae"
     train_script_name: "ma2018_external"

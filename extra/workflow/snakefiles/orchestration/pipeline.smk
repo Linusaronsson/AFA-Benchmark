@@ -29,6 +29,11 @@ Config files (--configfile):
           default: <batch_size>
           <dataset_name>: <batch_size>
 
+    Note: method_options.yaml can include hard_budget_ignored_datasets to skip
+    hard budget training/evaluation for specific datasets per method. Format:
+        hard_budget_ignored_datasets: [dataset1, dataset2, ...]
+    When set, hard budget combinations are excluded for those datasets.
+
 Rules: all, all_pretrain_model, all_train_method, all_eval_method
 
 Note: Pretrain configs auto-filtered by selected methods. Keep docstring updated.
@@ -71,6 +76,7 @@ BUDGET_PARAMS = _config["BUDGET_PARAMS"]
 CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
 METHOD_SETS = _config["METHOD_SETS"]
 EVAL_BATCH_SIZES = _config["EVAL_BATCH_SIZES"]
+HARD_BUDGET_IGNORED_DATASETS = _config["HARD_BUDGET_IGNORED_DATASETS"]
 
 include: "../rules/training.smk"
 include: "../rules/classifier_training.smk"

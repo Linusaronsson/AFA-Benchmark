@@ -136,6 +136,14 @@ def load_config(config):
         if method in methods
     }
 
+    # Extract hard_budget_ignored_datasets from method_options
+    # Format: {method: [dataset1, dataset2, ...]}
+    hard_budget_ignored_datasets = {
+        method: options.get("hard_budget_ignored_datasets", [])
+        for method, options in method_options.items()
+        if method in methods
+    }
+
     # ========================================================================
     # Dataset Configuration
     # ========================================================================
@@ -238,6 +246,8 @@ def load_config(config):
                 use_max_hard_budget_when_training_soft_budget=is_method_using_max_hard_budget_when_training_soft_budget[
                     method
                 ],
+                ignore_hard_budgets=dataset
+                in hard_budget_ignored_datasets[method],
             )
             for dataset in datasets
         }
@@ -268,6 +278,7 @@ def load_config(config):
         "CLASSIFIER_NAMES": classifier_names,
         "METHOD_SETS": method_sets,
         "EVAL_BATCH_SIZES": eval_batch_sizes,
+        "HARD_BUDGET_IGNORED_DATASETS": hard_budget_ignored_datasets,
     }
 
 
@@ -292,6 +303,7 @@ def _create_budget_combinations(
     soft_budget_params,
     eval_to_train_hard_budget_mapping,
     use_max_hard_budget_when_training_soft_budget: bool = False,
+    ignore_hard_budgets: bool = False,
 ):
     """
     Create budget parameter tuples for a method-dataset pair.
@@ -303,6 +315,8 @@ def _create_budget_combinations(
 
     For soft budgets: hard budgets are "null",
     soft budget params are extracted from the tuple: [train_soft_budget_param, eval_soft_budget_param]
+
+    If ignore_hard_budgets is True, hard budget combinations are skipped.
     """
     result = []
     mapped_train_budgets = [
@@ -313,12 +327,13 @@ def _create_budget_combinations(
     ]
     max_train_hard_budget = max(mapped_train_budgets) if mapped_train_budgets else "null"
 
-    # Hard budget combinations
-    for eval_budget in eval_hard_budgets:
-        train_budget = _get_train_hard_budget_from_eval(
-            method, dataset, eval_budget, eval_to_train_hard_budget_mapping
-        )
-        result.append((train_budget, eval_budget, "null", "null"))
+    # Hard budget combinations (skip if ignore_hard_budgets is True)
+    if not ignore_hard_budgets:
+        for eval_budget in eval_hard_budgets:
+            train_budget = _get_train_hard_budget_from_eval(
+                method, dataset, eval_budget, eval_to_train_hard_budget_mapping
+            )
+            result.append((train_budget, eval_budget, "null", "null"))
 
     # Soft budget combinations
     for soft_budget_tuple in soft_budget_params:
