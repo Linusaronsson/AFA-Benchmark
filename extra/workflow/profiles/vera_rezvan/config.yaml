@@ -1,7 +1,6 @@
 executor: slurm
 jobs: 50
 latency-wait: 30 # seconds
-retries: 2
 
 default-resources:
   slurm_partition: vera
