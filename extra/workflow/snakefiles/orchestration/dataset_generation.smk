@@ -3,6 +3,7 @@ DATASETS = config.get("datasets", [
     "afa_context",
     "afa_context_without_noise",
     "afa_context_v2_without_noise",
+    "afa_context_v2"
     # "fashion_mnist", # unexpected keyword argument 'load_subdirs'
     # "mnist", # unexpected keyword argument 'load_subdirs'
     "synthetic_mnist",
