@@ -27,6 +27,7 @@ method_options:
         2: 20
         4: 20
         7: 20
+    hard_budget_ignored_datasets: [mnist, fashion_mnist]
   covert2023:
     pretrained_model_name: "gdfs"
     train_script_name: "covert2023"
