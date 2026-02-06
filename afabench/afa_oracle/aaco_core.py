@@ -4,7 +4,10 @@ import torch.nn.functional as F
 
 from afabench.common.utils import get_class_frequencies
 from afabench.afa_oracle.mask_generator import random_mask_generator
-from afabench.afa_oracle.utils import get_patch_dimensions, uses_patch_selection
+from afabench.afa_oracle.utils import (
+    get_patch_dimensions,
+    uses_patch_selection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +42,7 @@ def get_knn(
     # Process in batches to avoid OOM on large datasets
     dist_squared_chunks = []
     for i in range(0, N, batch_size):
-        X_batch = X_train[i: i + batch_size]
+        X_batch = X_train[i : i + batch_size]
         X_batch_squared = X_batch**2
         X_batch_X_query = X_batch * X_query
 
@@ -139,6 +142,7 @@ class AACOOracle:
         exclude_instance: bool = True,
         feature_shape: torch.Size | None = None,
         selection_size: int | None = None,
+        selection_costs: torch.Tensor | None = None,
     ) -> int | None:
         """
         Select the next feature to acquire.
@@ -151,6 +155,8 @@ class AACOOracle:
             force_acquisition: If True, must return a feature (hard budget mode).
                                If False, can return None to indicate stopping (soft budget).
             exclude_instance: Whether to exclude instance_idx from KNN results.
+            selection_costs: Optional per-selection costs. If provided, this
+                             overrides the default unit-cost penalty.
 
         Returns:
             Index of next feature to acquire (0-indexed), or None if should stop.
@@ -169,7 +175,8 @@ class AACOOracle:
 
         feature_count = len(x_observed)
         use_patch_selection = uses_patch_selection(
-            selection_size, feature_shape)
+            selection_size, feature_shape
+        )
         mask_curr = observed_mask.float().unsqueeze(0)
 
         assert observed_mask.any(), (
@@ -282,9 +289,7 @@ class AACOOracle:
 
         # Compute weighted cross-entropy loss
         y_nn_expanded = y_nn.unsqueeze(0).repeat(n_masks, 1, 1)
-        losses = -torch.sum(
-            y_nn_expanded * torch.log(probs + 1e-10), dim=-1
-        )
+        losses = -torch.sum(y_nn_expanded * torch.log(probs + 1e-10), dim=-1)
 
         # Weight by class weights if available
         if self.class_weights is not None:
@@ -295,15 +300,30 @@ class AACOOracle:
         # Average over neighbors
         expected_losses = losses.mean(dim=1)
 
-        # Add acquisition cost penalty
-        if use_patch_selection:
-            n_new_features = mask_patch.sum(dim=1) - patch_mask_curr.sum()
+        # Add acquisition cost penalty.
+        if selection_costs is not None:
+            selection_costs = selection_costs.to(device)
+            if use_patch_selection:
+                current_selection_mask = patch_mask_curr.squeeze(0).bool()
+                candidate_selection_masks = mask_patch.bool()
+            else:
+                current_selection_mask = mask_curr.squeeze(0).bool()
+                candidate_selection_masks = mask_feature.bool()
+            new_selection_mask = (
+                candidate_selection_masks
+                & ~current_selection_mask.unsqueeze(0)
+            )
+            acquisition_penalty = (
+                new_selection_mask.float() * selection_costs.unsqueeze(0)
+            ).sum(dim=1)
         else:
-            n_new_features = mask_feature.sum(dim=1) - mask_curr.sum()
-        costs = (
-            expected_losses
-            + self.acquisition_cost * n_new_features.to(device)
-        )
+            if use_patch_selection:
+                acquisition_penalty = (
+                    mask_patch.sum(dim=1) - patch_mask_curr.sum()
+                )
+            else:
+                acquisition_penalty = mask_feature.sum(dim=1) - mask_curr.sum()
+        costs = expected_losses + self.acquisition_cost * acquisition_penalty
 
         # Select best mask
         best_idx = costs.argmin().item()
@@ -312,13 +332,11 @@ class AACOOracle:
         # Find the new feature(s) to acquire
         if use_patch_selection:
             new_features = (
-                best_mask.bool()
-                & ~patch_mask_curr.squeeze(0).bool()
+                best_mask.bool() & ~patch_mask_curr.squeeze(0).bool()
             ).nonzero(as_tuple=True)[0]
         else:
             new_features = (
-                best_mask.bool()
-                & ~observed_mask.to(device)
+                best_mask.bool() & ~observed_mask.to(device)
             ).nonzero(as_tuple=True)[0]
 
         if len(new_features) == 0:
@@ -328,9 +346,9 @@ class AACOOracle:
                         as_tuple=True
                     )[0]
                 else:
-                    unobserved = (
-                        ~observed_mask.to(device)
-                    ).nonzero(as_tuple=True)[0]
+                    unobserved = (~observed_mask.to(device)).nonzero(
+                        as_tuple=True
+                    )[0]
                 if len(unobserved) > 0:
                     return int(unobserved[0].item())
             # Best action is to stop (only possible if force_acquisition=False)
@@ -363,9 +381,7 @@ class AACOOracle:
                 ordering_masks_4d = ordering_masks_4d.expand(
                     len(new_features), n_channels, height, width
                 )
-            ordering_masks = ordering_masks_4d.reshape(
-                len(new_features), -1
-            )
+            ordering_masks = ordering_masks_4d.reshape(len(new_features), -1)
 
         X_masked_ordering = X_nn.unsqueeze(0).repeat(len(new_features), 1, 1)
         mask_expanded = ordering_masks.unsqueeze(1).repeat(
@@ -387,9 +403,7 @@ class AACOOracle:
 
         probs = probs.view(len(new_features), self.k_neighbors, -1)
         y_nn_expanded = y_nn.unsqueeze(0).repeat(len(new_features), 1, 1)
-        losses = -torch.sum(
-            y_nn_expanded * torch.log(probs + 1e-10), dim=-1
-        )
+        losses = -torch.sum(y_nn_expanded * torch.log(probs + 1e-10), dim=-1)
 
         if self.class_weights is not None:
             class_indices = y_nn.argmax(dim=-1)
@@ -399,6 +413,136 @@ class AACOOracle:
         avg_loss = losses.mean(dim=1)
         best_feature_idx = avg_loss.argmin().item()
         return int(new_features[best_feature_idx].item())
+
+    def select_next_selection(
+        self,
+        x_observed: torch.Tensor,
+        observed_mask: torch.Tensor,
+        selection_mask: torch.Tensor,
+        selection_to_feature_mask: torch.Tensor,
+        selection_costs: torch.Tensor | None = None,
+        instance_idx: int = 0,
+        force_acquisition: bool = False,
+        exclude_instance: bool = True,
+    ) -> int | None:
+        """
+        Select the next **selection** (not feature) to acquire.
+
+        This is used for unmaskers where selections are not equivalent to
+        individual features (e.g. grouped context selections).
+        """
+        assert self.classifier is not None, (
+            "Oracle must have a classifier set. Call set_classifier() first."
+        )
+        assert self.X_train is not None and self.y_train is not None, (
+            "Oracle must be fitted first. Call fit() first."
+        )
+        assert selection_to_feature_mask.ndim == 2, (
+            "selection_to_feature_mask must be 2D: (n_selections, n_features)"
+        )
+
+        device = self.device
+        observed_mask = observed_mask.to(device).bool()
+        selection_mask = selection_mask.to(device).bool()
+        selection_to_feature_mask = selection_to_feature_mask.to(device).bool()
+
+        assert observed_mask.any(), (
+            "No features observed. Use an AFAInitializer (e.g., "
+            "RandomInitializer) to select the initial feature."
+        )
+        assert selection_to_feature_mask.shape[1] == observed_mask.numel(), (
+            "selection_to_feature_mask has incompatible feature dimension."
+        )
+
+        available_selection_indices = (~selection_mask).nonzero(as_tuple=True)[
+            0
+        ]
+        if len(available_selection_indices) == 0:
+            return None
+
+        candidate_selection_masks = selection_to_feature_mask[
+            available_selection_indices
+        ]
+        base_feature_mask = observed_mask.unsqueeze(0)
+        candidate_feature_masks = (
+            base_feature_mask | candidate_selection_masks
+        ).float()
+
+        candidate_indices = available_selection_indices.clone()
+        if selection_costs is not None:
+            selection_costs = selection_costs.to(device)
+            candidate_costs = selection_costs[candidate_indices]
+        else:
+            newly_observed = (
+                candidate_feature_masks.bool() & ~base_feature_mask
+            )
+            candidate_costs = newly_observed.float().sum(dim=1)
+
+        if not force_acquisition:
+            candidate_feature_masks = torch.cat(
+                [base_feature_mask.float(), candidate_feature_masks], dim=0
+            )
+            candidate_costs = torch.cat(
+                [torch.zeros(1, device=device), candidate_costs], dim=0
+            )
+            candidate_indices = torch.cat(
+                [
+                    torch.tensor([-1], device=device, dtype=torch.long),
+                    candidate_indices,
+                ],
+                dim=0,
+            )
+
+        # Get nearest neighbors based on currently observed features.
+        x_query = x_observed.unsqueeze(0).to(device)
+        idx_nn = get_knn(
+            self.X_train,
+            x_query,
+            observed_mask.float().unsqueeze(-1),
+            self.k_neighbors,
+            instance_idx,
+            exclude_instance=exclude_instance,
+        ).squeeze()
+        if idx_nn.ndim == 0:
+            idx_nn = idx_nn.unsqueeze(0)
+
+        n_masks = candidate_feature_masks.shape[0]
+        feature_count = observed_mask.numel()
+        X_nn = self.X_train[idx_nn]
+        y_nn = self.y_train[idx_nn]
+
+        X_masked = X_nn.unsqueeze(0).repeat(n_masks, 1, 1)
+        mask_expanded = candidate_feature_masks.unsqueeze(1).repeat(
+            1, self.k_neighbors, 1
+        )
+        X_masked = X_masked * mask_expanded + self.hide_val * (
+            1 - mask_expanded
+        )
+
+        X_flat = X_masked.view(-1, feature_count)
+        mask_flat = mask_expanded.view(-1, feature_count)
+        with torch.no_grad():
+            flat_shape = torch.Size([feature_count])
+            logits = self.classifier(
+                X_flat, mask_flat, feature_shape=flat_shape
+            )
+            probs = F.softmax(logits, dim=-1)
+        probs = probs.view(n_masks, self.k_neighbors, -1)
+
+        y_nn_expanded = y_nn.unsqueeze(0).repeat(n_masks, 1, 1)
+        losses = -torch.sum(y_nn_expanded * torch.log(probs + 1e-10), dim=-1)
+        if self.class_weights is not None:
+            class_indices = y_nn.argmax(dim=-1)
+            weights = self.class_weights[class_indices]
+            losses = losses * weights.unsqueeze(0)
+        expected_losses = losses.mean(dim=1)
+
+        costs = expected_losses + self.acquisition_cost * candidate_costs
+        best_candidate_idx = costs.argmin().item()
+        selected = int(candidate_indices[best_candidate_idx].item())
+        if selected < 0:
+            return None
+        return selected
 
     def predict_with_mask(
         self,

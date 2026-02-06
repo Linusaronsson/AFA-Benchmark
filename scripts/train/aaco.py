@@ -1,8 +1,10 @@
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 import torch
+from omegaconf import OmegaConf
 
 from afabench.common.utils import set_seed
 from afabench.afa_oracle import create_aaco_method
@@ -28,9 +30,9 @@ def run(cfg: AACOTrainConfig) -> None:
 
     # Load dataset bundle
     dataset_obj, dataset_manifest = load_bundle(Path(dataset_bundle_path))
-    dataset_name = dataset_manifest["class_name"].replace(
-        "Dataset", ""
-    ).lower()
+    dataset_name = (
+        dataset_manifest["class_name"].replace("Dataset", "").lower()
+    )
     split = dataset_manifest["metadata"].get("split_idx", None)
 
     logger.info(f"Dataset: {dataset_manifest['class_name']}, Split: {split}")
@@ -78,6 +80,18 @@ def run(cfg: AACOTrainConfig) -> None:
     selection_size = unmasker.get_n_selections(
         feature_shape=dataset_obj.feature_shape
     )
+    selection_costs = unmasker.get_selection_costs(
+        feature_costs=dataset_obj.get_feature_acquisition_costs()
+    ).to(device)
+    if cfg.unmasker.kwargs is None:
+        unmasker_kwargs: dict[str, Any] = {}
+    elif OmegaConf.is_config(cfg.unmasker.kwargs):
+        unmasker_kwargs = cast(
+            "dict[str, Any]",
+            OmegaConf.to_container(cfg.unmasker.kwargs, resolve=True),
+        )
+    else:
+        unmasker_kwargs = dict(cfg.unmasker.kwargs)
 
     # Create AACO method (classifier will be loaded in __post_init__)
     aaco_method = create_aaco_method(
@@ -87,6 +101,9 @@ def run(cfg: AACOTrainConfig) -> None:
         hide_val=cfg.aco.hide_val,
         force_acquisition=force_acquisition,
         selection_size=selection_size,
+        unmasker_class_name=cfg.unmasker.class_name,
+        unmasker_kwargs=unmasker_kwargs,
+        selection_costs=selection_costs,
         classifier_bundle_path=classifier_bundle_path,
         device=device,
     )
