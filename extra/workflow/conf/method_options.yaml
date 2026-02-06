@@ -1,13 +1,13 @@
 method_options:
   aaco:
     train_script_name: "aaco"
-    hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette]
+    hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"
-    hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette]
+    hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   ma2018_builtin:
     pretrained_model_name: "pvae"
     train_script_name: "ma2018_builtin"
