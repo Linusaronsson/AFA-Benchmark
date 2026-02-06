@@ -144,6 +144,14 @@ def load_config(config):
         if method in methods
     }
 
+    # Extract soft_budget_ignored_datasets from method_options
+    # Format: {method: [dataset1, dataset2, ...]}
+    soft_budget_ignored_datasets = {
+        method: options.get("soft_budget_ignored_datasets", [])
+        for method, options in method_options.items()
+        if method in methods
+    }
+
     # ========================================================================
     # Dataset Configuration
     # ========================================================================
@@ -248,6 +256,8 @@ def load_config(config):
                 ],
                 ignore_hard_budgets=dataset
                 in hard_budget_ignored_datasets[method],
+                ignore_soft_budgets=dataset
+                in soft_budget_ignored_datasets[method],
             )
             for dataset in datasets
         }
@@ -279,6 +289,7 @@ def load_config(config):
         "METHOD_SETS": method_sets,
         "EVAL_BATCH_SIZES": eval_batch_sizes,
         "HARD_BUDGET_IGNORED_DATASETS": hard_budget_ignored_datasets,
+        "SOFT_BUDGET_IGNORED_DATASETS": soft_budget_ignored_datasets,
     }
 
 
@@ -304,6 +315,7 @@ def _create_budget_combinations(
     eval_to_train_hard_budget_mapping,
     use_max_hard_budget_when_training_soft_budget: bool = False,
     ignore_hard_budgets: bool = False,
+    ignore_soft_budgets: bool = False,
 ):
     """
     Create budget parameter tuples for a method-dataset pair.
@@ -317,6 +329,7 @@ def _create_budget_combinations(
     soft budget params are extracted from the tuple: [train_soft_budget_param, eval_soft_budget_param]
 
     If ignore_hard_budgets is True, hard budget combinations are skipped.
+    If ignore_soft_budgets is True, soft budget combinations are skipped.
     """
     result = []
     mapped_train_budgets = [
@@ -325,7 +338,9 @@ def _create_budget_combinations(
         )
         for eval_budget in eval_hard_budgets
     ]
-    max_train_hard_budget = max(mapped_train_budgets) if mapped_train_budgets else "null"
+    max_train_hard_budget = (
+        max(mapped_train_budgets) if mapped_train_budgets else "null"
+    )
 
     # Hard budget combinations (skip if ignore_hard_budgets is True)
     if not ignore_hard_budgets:
@@ -335,28 +350,29 @@ def _create_budget_combinations(
             )
             result.append((train_budget, eval_budget, "null", "null"))
 
-    # Soft budget combinations
-    for soft_budget_tuple in soft_budget_params:
-        # soft_budget_tuple is [train_soft_budget_param, eval_soft_budget_param]
-        train_soft_budget_param = _normalize_nullable_param(
-            soft_budget_tuple[0]
-        )
-        eval_soft_budget_param = _normalize_nullable_param(
-            soft_budget_tuple[1]
-        )
-        train_hard_budget = (
-            max_train_hard_budget
-            if use_max_hard_budget_when_training_soft_budget
-            else "null"
-        )
-        result.append(
-            (
-                train_hard_budget,
-                "null",
-                train_soft_budget_param,
-                eval_soft_budget_param,
+    # Soft budget combinations (skip if ignore_soft_budgets is True)
+    if not ignore_soft_budgets:
+        for soft_budget_tuple in soft_budget_params:
+            # soft_budget_tuple is [train_soft_budget_param, eval_soft_budget_param]
+            train_soft_budget_param = _normalize_nullable_param(
+                soft_budget_tuple[0]
             )
-        )
+            eval_soft_budget_param = _normalize_nullable_param(
+                soft_budget_tuple[1]
+            )
+            train_hard_budget = (
+                max_train_hard_budget
+                if use_max_hard_budget_when_training_soft_budget
+                else "null"
+            )
+            result.append(
+                (
+                    train_hard_budget,
+                    "null",
+                    train_soft_budget_param,
+                    eval_soft_budget_param,
+                )
+            )
 
     return result
 

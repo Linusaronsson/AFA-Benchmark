@@ -34,6 +34,11 @@ Config files (--configfile):
         hard_budget_ignored_datasets: [dataset1, dataset2, ...]
     When set, hard budget combinations are excluded for those datasets.
 
+    Note: method_options.yaml can include soft_budget_ignored_datasets to skip
+    soft budget training/evaluation for specific datasets per method. Format:
+        soft_budget_ignored_datasets: [dataset1, dataset2, ...]
+    When set, soft budget combinations are excluded for those datasets.
+
 Rules: all, all_pretrain_model, all_train_method, all_eval_method
 
 Note: Pretrain configs auto-filtered by selected methods. Keep docstring updated.
@@ -77,6 +82,7 @@ CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
 METHOD_SETS = _config["METHOD_SETS"]
 EVAL_BATCH_SIZES = _config["EVAL_BATCH_SIZES"]
 HARD_BUDGET_IGNORED_DATASETS = _config["HARD_BUDGET_IGNORED_DATASETS"]
+SOFT_BUDGET_IGNORED_DATASETS = _config["SOFT_BUDGET_IGNORED_DATASETS"]
 
 include: "../rules/training.smk"
 include: "../rules/classifier_training.smk"
