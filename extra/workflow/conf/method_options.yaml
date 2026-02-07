@@ -19,7 +19,8 @@ method_options:
         2: 20
         4: 20
         7: 20
-    hard_budget_ignored_datasets: [mnist, fashion_mnist]
+    hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   ma2018_external:
     pretrained_model_name: "pvae"
     train_script_name: "ma2018_external"
@@ -31,7 +32,8 @@ method_options:
         2: 20
         4: 20
         7: 20
-    hard_budget_ignored_datasets: [mnist, fashion_mnist]
+    hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   covert2023:
     pretrained_model_name: "gdfs"
     train_script_name: "covert2023"
@@ -68,6 +70,7 @@ method_options:
         2: 20
         4: 20
         7: 20
+    hard_budget_ignored_datasets: [imagenette]
   jafa:
     pretrained_model_name: "jafa"
     train_script_name: "shim2018"
