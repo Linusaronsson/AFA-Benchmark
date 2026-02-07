@@ -23,8 +23,8 @@ METHOD_NAME_MAPPING = {
     "cae": "CAE-S",
     "permutation": "PT-S",
     # Greedy
-    "covert2023": "DIME-DM",
-    "gadgil2023": "GDFS-DM",
+    "covert2023": "GDFS-DM",
+    "gadgil2023": "DIME-DM",
     "ma2018_builtin": "EDDI-GM+builtin",
     "ma2018_external": "EDDI-GM+external",
 }
