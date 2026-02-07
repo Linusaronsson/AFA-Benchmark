@@ -130,7 +130,7 @@ class GreedyDynamicSelection(nn.Module):
             mask_size = x.shape[1]
         if feature_costs is None:
             feature_costs = torch.ones(mask_size, device=device)
-        selection_costs = unmasker.get_selection_costs(feature_costs)
+        selection_costs = unmasker.get_selection_costs(feature_costs).to(device)
         log_cost = torch.log(selection_costs)
         # feature_shape = torch.Size([mask_size])
         # Pixel-evel feature masks
