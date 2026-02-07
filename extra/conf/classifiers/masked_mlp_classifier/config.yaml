@@ -23,7 +23,7 @@ save_path: ???
 # ============================================================================
 # Tuned for small tabular datasets (600 samples, 20-33 features)
 #
-# epochs: 100 with early stopping via ModelCheckpoint (monitors val_loss)
+# epochs: 100 with checkpointing (not early stopping) via ModelCheckpoint (monitors val_loss)
 # batch_size: 64 - smaller batches work better for small datasets
 # lr: 1e-3 - standard starting point for Adam/AdamW
 # num_cells: [128, 128] - sufficient capacity for simple tabular data
