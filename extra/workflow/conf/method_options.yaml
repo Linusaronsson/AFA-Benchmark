@@ -88,7 +88,7 @@ method_options:
       - "additional_generation_fraction=1.0"
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette, mnist] # mnist needs more tuning
+    soft_budget_ignored_datasets: [imagenette]
   odin_model_free:
     pretrained_model_name: "pvae"
     train_script_name: "zannone2019"

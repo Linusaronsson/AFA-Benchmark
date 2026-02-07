@@ -71,6 +71,12 @@ soft_budget_params:
       - [0.0001, null] # 85% observed
       - [0.001, null] # 60% observed
       - [0.01, null] # 10% observed
+      - [0.05, null]
+    afa_context_v2:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+      - [0.05, null]
     afa_context:
       # - [0.00001, null] # 70% observed
       # - [0.0001, null] # 70% observed
@@ -112,6 +118,7 @@ soft_budget_params:
       - [0.001, null] # 20% observed
       - [0.01, null] # 4% observed
     ckd:
+      - [0.000001, null]
       - [0.00001, null] # 30% observed
       - [0.0001, null] # 25% observed
       # - [0.001, null] # 15% observed
@@ -176,6 +183,10 @@ soft_budget_params:
       - [0.075, null] # 10% observed during training, 0% during eval
       - [0.1, null] # 2% observed
       # - [0.15, null] # 0% observed
+    afa_context_v2:
+      - [0.01, null]
+      - [0.02, null]
+      - [0.05, null]
     afa_context_v2_without_noise:
       - [0.01, null]
       - [0.02, null] # 30% observed
@@ -184,6 +195,7 @@ soft_budget_params:
       # - [0.1, null] # 0.5% observed
       # - [0.2, null] # 0.2% observed
     miniboone:
+      - [0.01, null]
       - [0.05, null] # 20% observed
       - [0.075, null] # 14% observed
       - [0.1, null] # 9% observed
@@ -242,6 +254,7 @@ soft_budget_params:
       - [0.075, null] # 60% observed
       - [0.1, null] # 45% observed
       - [0.125, null] # 30% observed
+      - [0.2, null] # 30% observed
   odin_model_based: *odin
   ma2018_builtin:
     default: []
