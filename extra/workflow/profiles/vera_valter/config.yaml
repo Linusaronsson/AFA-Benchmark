@@ -16,10 +16,10 @@ set-resources:
   train_method_without_pretrained_model:
     runtime: 6000 # 100 hours
 
-  # Although the merged eval dataframes "only" take up less than 1Gb, opening them can use a lot more RAM. On Vera, each cpu core gives 12 Gb of RAM, so this should give 72 Gb to the rules below
+  # Although the merged eval dataframes "only" take up less than 1Gb, opening them can use a lot more
   split_by_classifier_type:
-    cpus_per_task: 6
+    cpus_per_task: 10
   plot_eval_perf:
-    cpus_per_task: 6
+    cpus_per_task: 10
   plot_eval_actions:
-    cpus_per_task: 6
+    cpus_per_task: 10
