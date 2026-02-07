@@ -230,20 +230,23 @@ def create_action_heatmap(
     """
     Create action heatmaps for all methods in a dataset.
 
-    One figure per dataset with subplots for each method.
+    One figure per dataset with subplots for each method in a 4-column layout.
     X-axis: time (n_selections_performed)
     Y-axis: action index
     """
     methods = sorted(dataframe["afa_method"].unique())
     num_methods = len(methods)
+    num_cols = 4
+    num_rows = (num_methods + num_cols - 1) // num_cols
 
     fig, axes = plt.subplots(
-        1, num_methods, figsize=(5 * num_methods, 4), squeeze=False
+        num_rows, num_cols, figsize=(5 * num_cols, 4 * num_rows), squeeze=False
     )
-    axes = axes[0]
 
     for idx, method in enumerate(methods):
-        ax = axes[idx]
+        row = idx // num_cols
+        col = idx % num_cols
+        ax = axes[row, col]
         df_method = dataframe.filter(pl.col("afa_method") == method)
 
         max_action = cast("int", df_method["action_performed"].max())
@@ -263,6 +266,12 @@ def create_action_heatmap(
         )
 
         format_heatmap_axes(ax, max_action, max_time, method)
+
+    # Hide any unused subplots
+    for idx in range(num_methods, num_rows * num_cols):
+        row = idx // num_cols
+        col = idx % num_cols
+        axes[row, col].set_visible(False)
 
     dataset_name = DATASET_NAME_MAPPING.get(dataset, dataset)
     fig.suptitle(
@@ -331,17 +340,22 @@ def produce_separate_plots(
         dataset_output_folder = output_folder / dataset_name
         dataset_output_folder.mkdir(parents=True, exist_ok=True)
 
-        # Create the heatmap plot
+        # Create the heatmap plot with 4 columns
+        num_methods = len(methods)
+        num_cols = 4
+        num_rows = (num_methods + num_cols - 1) // num_cols
+
         fig, axes = plt.subplots(
-            1,
-            len(methods),
-            figsize=(5 * len(methods), 4),
+            num_rows,
+            num_cols,
+            figsize=(5 * num_cols, 4 * num_rows),
             squeeze=False,
         )
-        axes = axes[0]
 
         for idx, method in enumerate(methods):
-            ax = axes[idx]
+            row = idx // num_cols
+            col = idx % num_cols
+            ax = axes[row, col]
             df_method = group_df.filter(pl.col("afa_method") == method)
 
             max_action = cast("int", df_method["action_performed"].max())
@@ -361,6 +375,12 @@ def produce_separate_plots(
             )
 
             format_heatmap_axes(ax, max_action, max_time, method)
+
+        # Hide any unused subplots
+        for idx in range(num_methods, num_rows * num_cols):
+            row = idx // num_cols
+            col = idx % num_cols
+            axes[row, col].set_visible(False)
 
         dataset_display_name = DATASET_NAME_MAPPING.get(
             dataset_name, dataset_name
