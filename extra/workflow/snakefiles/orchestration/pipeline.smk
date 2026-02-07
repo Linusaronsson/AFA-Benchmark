@@ -38,7 +38,7 @@ Config files (--configfile):
     soft budget training/evaluation for specific datasets per method. Format:
      soft_budget_ignored_datasets: [dataset1, dataset2, ...]
      When set, soft budget combinations are excluded for those datasets.
-     
+
      Note: Pretraining is skipped for datasets ignored by BOTH hard and soft
      budgets (i.e., a dataset is pretrained only if at least one budget type
      is used for that dataset/method combination).
@@ -106,10 +106,7 @@ rule all:
         ] +
         # The next two sets of plots should be identical, but include them both just in case
         [
-            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_actions/method_set-{method_set}+classifier_type-builtin" for method_set in METHOD_SETS
-        ] +
-        [
-            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_actions/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
+            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_actions/method_set-all+classifier_type-external"
         ] +
         [
             f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/time/"
