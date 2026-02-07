@@ -27,7 +27,7 @@ PLOT_HEIGHT = 5
 
 METHOD_NAME_MAPPING = {
     # Dummy
-    "random_dummy": "Random dummy",
+    "random_dummy": "Random",
     "sequential_dummy": "Sequential dummy",
     # RL
     "jafa": "JAFA",
@@ -39,6 +39,14 @@ METHOD_NAME_MAPPING = {
     "dime": "DIME",
     "aaco": "AACO",
     "aaco_nn": "AACO+NN",
+    # Static
+    "cae": "CAE",
+    "permutation": "Permutation",
+    # Greedy
+    "covert2023": "DIME",
+    "gadgil2023": "GDFS",
+    "ma2018_builtin": "EDDI (builtin)",
+    "ma2018_external": "EDDI (external)",
 }
 
 DATASET_NAME_MAPPING = {
@@ -59,6 +67,7 @@ DATASET_NAME_MAPPING = {
     "fashion_mnist": "FashionMNIST",
     "miniboone": "MiniBooNE",
     "physionet": "PhysioNet",
+    "imagenette": "Imagenette",
 }
 DATASETS = DATASET_NAME_MAPPING.keys()
 
