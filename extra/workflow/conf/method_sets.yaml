@@ -7,24 +7,28 @@ method_sets:
   dummy:
     - random_dummy
     - sequential_dummy
-  odin_variants:
+  odin:
     - odin_model_free
     - odin_model_based
-  ol_variants:
+  ol:
     - ol_without_mask
     - ol_with_mask
-  aaco_variants:
+  aaco:
     - aaco
     - aaco_nn
+  static:
+    - cae
+    - permutation
+  eddi:
+    - ma2018_builtin
+    - ma2018_external
   # A subset of methods, as the main result
   main:
     - jafa
     - odin_model_based
     - ol_with_mask
     - covert2023
-    - ma2018_builtin
     - ma2018_external
     - gadgil2023
     - cae
-    - permutation
     - aaco
