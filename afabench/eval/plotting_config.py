@@ -12,29 +12,27 @@ METHOD_NAME_MAPPING = {
     "random_dummy": "Random",
     "sequential_dummy": "Sequential dummy",
     # RL
-    "jafa": "JAFA",
-    "odin_model_based": "ODIN-MB",
-    "odin_model_free": "ODIN-MF",
-    "ol_without_mask": "OL",
-    "ol_with_mask": "OL+mask",
-    "eddi": "EDDI",
-    "dime": "DIME",
+    "jafa": "JAFA-MFRL",
+    "odin_model_based": "ODIN-MBRL",
+    "odin_model_free": "ODIN-MFRL",
+    "ol_without_mask": "OL-MFRL",
+    "ol_with_mask": "OL-MFRL+mask",
     "aaco": "AACO",
     "aaco_nn": "AACO+NN",
     # Static
-    "cae": "CAE",
-    "permutation": "Permutation",
+    "cae": "CAE-S",
+    "permutation": "PT-S",
     # Greedy
-    "covert2023": "DIME",
-    "gadgil2023": "GDFS",
-    "ma2018_builtin": "EDDI-builtin",
-    "ma2018_external": "EDDI-external",
+    "covert2023": "DIME-DM",
+    "gadgil2023": "GDFS-DM",
+    "ma2018_builtin": "EDDI-GM+builtin",
+    "ma2018_external": "EDDI-GM+external",
 }
 
 # Dataset display names mapping
 DATASET_NAME_MAPPING = {
     "cube": "CUBE",
-    "cube_nonuniform_costs": "Cube (non-uniform costs)",
+    "cube_nonuniform_costs": "CUBE-NUC",
     "afa_context": "AFAContext",
     "afa_context_v2": "CUBE-NM",
     "afa_context_v2_without_noise": "CUBE-NM-noiseless",
