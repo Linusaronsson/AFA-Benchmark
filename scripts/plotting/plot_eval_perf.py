@@ -22,82 +22,20 @@ from plotnine import (
 )
 from sklearn.metrics import accuracy_score, f1_score
 
-PLOT_WIDTH = 13
-PLOT_HEIGHT = 5
+from afabench.eval.plotting_config import (
+    DATASET_NAME_MAPPING,
+    DATASET_SETS,
+    DATASETS_WITH_F_SCORE,
+    METHOD_NAME_MAPPING,
+    PLOT_HEIGHT,
+    PLOT_WIDTH,
+)
 
-METHOD_NAME_MAPPING = {
-    # Dummy
-    "random_dummy": "Random",
-    "sequential_dummy": "Sequential dummy",
-    # RL
-    "jafa": "JAFA",
-    "odin_model_based": "ODIN-MB",
-    "odin_model_free": "ODIN-MF",
-    "ol_without_mask": "OL",
-    "ol_with_mask": "OL+mask",
-    "eddi": "EDDI",
-    "dime": "DIME",
-    "aaco": "AACO",
-    "aaco_nn": "AACO+NN",
-    # Static
-    "cae": "CAE",
-    "permutation": "Permutation",
-    # Greedy
-    "covert2023": "DIME",
-    "gadgil2023": "GDFS",
-    "ma2018_builtin": "EDDI (builtin)",
-    "ma2018_external": "EDDI (external)",
-}
-
-DATASET_NAME_MAPPING = {
-    "cube": "Cube",
-    "cube_nonuniform_costs": "Cube (non-uniform costs)",
-    "afa_context": "AFAContext",
-    "afa_context_v2": "Cube-NM",
-    "afa_context_v2_without_noise": "Noiseless Cube-NM",
-    "synthetic_mnist": "Synthetic MNIST",
-    "cube_without_noise": "Noiseless Cube",
-    "afa_context_without_noise": "Noiseless AFAContext",
-    "synthetic_mnist_without_noise": "Noiseless Synthetic MNIST",
-    "mnist": "MNIST",
-    "actg": "ACTG",
-    "bank_marketing": "Bank Marketing",
-    "ckd": "CKD",
-    "diabetes": "Diabetes",
-    "fashion_mnist": "FashionMNIST",
-    "miniboone": "MiniBooNE",
-    "physionet": "PhysioNet",
-    "imagenette": "Imagenette",
-}
 DATASETS = DATASET_NAME_MAPPING.keys()
-
-# Datasets **not** listed here will use accuracy
-DATASETS_WITH_F_SCORE = ["physionet", "bank_marketing"]
-
 
 DATASET_NAME_MAPPING_INCLUDING_METRIC = {
     dataset: f"{name} ({'F1' if dataset in DATASETS_WITH_F_SCORE else 'Accuracy'})"
     for dataset, name in DATASET_NAME_MAPPING.items()
-}
-
-DATASET_SETS = {
-    "set1": {
-        "cube",
-        "cube_nonuniform_costs",
-        "afa_context_v2",
-        "afa_context_v2_without_noise",
-        "mnist",
-        "imagenette",
-        "miniboone",
-        "physionet",
-    },
-    "set2": {
-        "actg",
-        "bank_marketing",
-        "ckd",
-        "diabetes",
-        "fashion_mnist",
-    },
 }
 
 

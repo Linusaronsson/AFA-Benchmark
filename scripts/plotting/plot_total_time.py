@@ -26,50 +26,10 @@ from plotnine import (
     scale_x_discrete,
 )
 
-METHOD_NAME_MAPPING = {
-    # Dummy
-    "random_dummy": "Random",
-    "sequential_dummy": "Sequential dummy",
-    # RL
-    "jafa": "JAFA",
-    "odin_model_based": "ODIN-MB",
-    "odin_model_free": "ODIN-MF",
-    "ol_without_mask": "OL",
-    "ol_with_mask": "OL+mask",
-    "eddi": "EDDI",
-    "dime": "DIME",
-    "aaco": "AACO",
-    "aaco_nn": "AACO+NN",
-    # Static
-    "cae": "CAE",
-    "permutation": "Permutation",
-    # Greedy
-    "covert2023": "DIME",
-    "gadgil2023": "GDFS",
-    "ma2018_builtin": "EDDI (builtin)",
-    "ma2018_external": "EDDI (external)",
-}
-
-DATASET_NAME_MAPPING = {
-    "cube": "Cube",
-    "cube_nonuniform_costs": "Cube (non-uniform costs)",
-    "afa_context": "AFAContext",
-    "afa_context_v2": "Cube-NM",
-    "afa_context_v2_without_noise": "Noiseless Cube-NM",
-    "synthetic_mnist": "Synthetic MNIST",
-    "cube_without_noise": "Cube (noiseless)",
-    "afa_context_without_noise": "AFAContext (noiseless)",
-    "synthetic_mnist_without_noise": "Synthetic MNIST (noiseless)",
-    "mnist": "MNIST",
-    "actg": "ACTG",
-    "bank_marketing": "Bank Marketing",
-    "ckd": "CKD",
-    "diabetes": "Diabetes",
-    "fashion_mnist": "FashionMNIST",
-    "miniboone": "MiniBooNE",
-    "physionet": "PhysioNet",
-    "imagenette": "Imagenette",
-}
+from afabench.eval.plotting_config import (
+    DATASET_NAME_MAPPING,
+    METHOD_NAME_MAPPING,
+)
 
 
 def get_mock_df() -> pl.DataFrame:
