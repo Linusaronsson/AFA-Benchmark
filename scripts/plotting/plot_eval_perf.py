@@ -16,13 +16,14 @@ from plotnine import (
     geom_ribbon,
     ggplot,
     labs,
-    scale_color_discrete,
-    scale_fill_discrete,
+    scale_color_brewer,
+    scale_fill_brewer,
     theme,
 )
 from sklearn.metrics import accuracy_score, f1_score
 
 from afabench.eval.plotting_config import (
+    COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
     DATASET_SETS,
     DATASETS_WITH_F_SCORE,
@@ -319,8 +320,8 @@ def get_plot(
         )
         + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
         + theme(figure_size=(10, 8))
-        + scale_fill_discrete(labels=METHOD_NAME_MAPPING)
-        + scale_color_discrete(labels=METHOD_NAME_MAPPING)
+        + scale_color_brewer(type="qual", palette=COLOR_PALETTE_NAME)
+        + scale_fill_brewer(type="qual", palette=COLOR_PALETTE_NAME)
     )
 
     if use_line:

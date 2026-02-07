@@ -76,3 +76,14 @@ DATASET_SETS = {
         "fashion_mnist",
     },
 }
+
+# Default color palette for discrete visualization
+# Using RColorBrewer 'Dark2' palette (color-blind friendly, 8 colors)
+# Available options:
+#   - 'Dark2' (default): Dark, color-blind friendly, 8 colors
+#   - 'Set2': Medium saturation, color-blind friendly, 8 colors
+#   - 'Set1': Bold, saturated, 9 colors
+#   - 'Accent': Accent colors, 8 colors
+#   - 'Paired': Paired colors, 12 colors
+#   - 'Set3': Pastel, 12 colors
+COLOR_PALETTE_NAME = "Dark2"
