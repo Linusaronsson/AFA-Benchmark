@@ -45,10 +45,9 @@ def get_mock_df() -> pl.DataFrame:
         {
             "afa_method": [r[0] for r in rows],
             "dataset": [r[1] for r in rows],
-            "seed": [r[2] for r in rows],
-            "time_pretrain": rng.integers(1, 11, size=len(rows)).tolist(),
-            "time_train": rng.integers(1, 11, size=len(rows)).tolist(),
-            "time_eval": rng.integers(1, 11, size=len(rows)).tolist(),
+            "pretrain": rng.integers(1, 11, size=len(rows)).tolist(),
+            "train": rng.integers(1, 11, size=len(rows)).tolist(),
+            "eval": rng.integers(1, 11, size=len(rows)).tolist(),
         }
     )
 
@@ -117,22 +116,51 @@ def common_plot_operations(p: p9.ggplot) -> p9.ggplot:
     )
 
 
+def filter_common_datasets(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Filter dataframe to only include datasets present in all methods.
+
+    This ensures that the averaging plot is fair - methods that only train on
+    a subset of datasets won't be penalized by missing data from larger datasets.
+    """
+    # Get the set of datasets for each method
+    datasets_per_method = df.group_by("afa_method").agg(
+        pl.col("dataset").unique().sort()
+    )
+
+    # Convert to sets and find intersection
+    method_dataset_sets = [
+        set(row["dataset"])
+        for row in datasets_per_method.iter_rows(named=True)
+    ]
+
+    # Find datasets that appear in all methods
+    common_datasets = set.intersection(*method_dataset_sets)
+
+    # Filter the dataframe to only include common datasets
+    return df.filter(pl.col("dataset").is_in(list(common_datasets)))
+
+
 def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
     # Apply name transforms
     df = df.with_columns(
         dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING),
         afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
     )
-    # One plot averaged over datasets
+
+    # For averaging plot, only use datasets present in all methods
+    df_common = filter_common_datasets(df)
+
+    # One plot averaged over datasets (using only common datasets)
     averaged_plot = ggplot(
-        df.group_by(["afa_method", "stage"]).mean()
+        df_common.group_by(["afa_method", "stage"]).mean()
     ) + geom_bar(
         aes(x="afa_method", y="time", fill="stage"),
         stat="identity",
     )
     averaged_plot = common_plot_operations(averaged_plot)
 
-    # Another one faceted over datasets
+    # Another one faceted over datasets (showing all datasets)
     dataset_plot = (
         ggplot(df)
         + geom_bar(
