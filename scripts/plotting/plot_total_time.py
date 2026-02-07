@@ -44,7 +44,10 @@ METHOD_NAME_MAPPING = {
 
 DATASET_NAME_MAPPING = {
     "cube": "Cube",
+    "cube_nonuniform_costs": "Cube (non-uniform costs)",
     "afa_context": "AFAContext",
+    "afa_context_v2": "Cube-NM",
+    "afa_context_v2_without_noise": "Noiseless Cube-NM",
     "synthetic_mnist": "Synthetic MNIST",
     "cube_without_noise": "Cube (noiseless)",
     "afa_context_without_noise": "AFAContext (noiseless)",
