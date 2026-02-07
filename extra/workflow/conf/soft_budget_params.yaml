@@ -12,6 +12,14 @@ soft_budget_params:
       - [0.1, null]
       - [0.3, null]
       - [0.5, null]
+    mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
+    fashion_mnist:
+      - [0.0001, null]
+      - [0.001, null]
+      - [0.01, null]
   aaco_nn:
     default:
       - [0.05, null]
