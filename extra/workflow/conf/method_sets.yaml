@@ -2,9 +2,7 @@
 method_sets:
   rl:
     - jafa
-    - odin_model_free
     - odin_model_based
-    - ol_without_mask
     - ol_with_mask
   dummy:
     - random_dummy
@@ -15,8 +13,18 @@ method_sets:
   ol_variants:
     - ol_without_mask
     - ol_with_mask
+  aaco_variants:
+    - aaco
+    - aaco_nn
   # A subset of methods, as the main result
-  selection:
+  main:
     - jafa
     - odin_model_based
-    - ol_without_mask
+    - ol_with_mask
+    - covert2023
+    - ma2018_builtin
+    - ma2018_external
+    - gadgil2023
+    - cae
+    - permutation
+    - aaco
