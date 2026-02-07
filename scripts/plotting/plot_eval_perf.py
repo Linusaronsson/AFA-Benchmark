@@ -524,6 +524,9 @@ def filter_only_largest_budget(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def process_df_every_action(df: pl.DataFrame) -> pl.DataFrame:
+    # Just like in process_df_only_stop_action, filter out null predictions
+    df = df.filter(pl.col("predicted_class").is_not_null())
+
     # When considering performance up to some budget, we only look at the case when the largest budget is used
     df = filter_only_largest_budget(df)
 
