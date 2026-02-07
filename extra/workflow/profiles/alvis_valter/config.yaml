@@ -1,5 +1,6 @@
 executor: slurm
 latency-wait: 30 # seconds
+retries: 2 # since OL has a tendency to stop working on GPU
 
 default-resources:
   runtime: 120 # minutes
