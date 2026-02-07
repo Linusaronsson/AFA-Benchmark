@@ -558,54 +558,60 @@ def main() -> None:
 
     # One set of plots per dataset set
     for dataset_set_name, dataset_set in DATASET_SETS.items():
+        subfolder = args.output_folder / dataset_set_name
+        subfolder.mkdir(parents=True, exist_ok=True)
+
         df_stop_action_filtered = df_stop_action.filter(
             pl.col("dataset").is_in(dataset_set)
         )
-        df_traj_filtered = df_traj.filter(pl.col("dataset").is_in(dataset_set))
+
         df_stop_action_hard_budget = df_stop_action_filtered.filter(
             pl.col("eval_hard_budget").is_null().not_()
         )
+        if not df_stop_action_hard_budget.is_empty():
+            normal_hard_budget_plot = get_normal_hard_budget_plot(
+                df_stop_action_hard_budget
+            )
+            normal_hard_budget_plot.save(
+                subfolder / "hard_budget_normal.pdf",
+                width=PLOT_WIDTH,
+                height=PLOT_HEIGHT,
+            )
+
+        df_traj_filtered = df_traj.filter(pl.col("dataset").is_in(dataset_set))
         df_traj_hard_budget = df_traj_filtered.filter(
             pl.col("eval_hard_budget").is_null().not_()
         )
-
-        normal_hard_budget_plot = get_normal_hard_budget_plot(
-            df_stop_action_hard_budget
-        )
-        traj_hard_budget_plot = get_traj_hard_budget_plot(df_traj_hard_budget)
+        if not df_traj_hard_budget.is_empty():
+            traj_hard_budget_plot = get_traj_hard_budget_plot(
+                df_traj_hard_budget
+            )
+            traj_hard_budget_plot.save(
+                subfolder / "hard_budget_traj.pdf",
+                width=PLOT_WIDTH,
+                height=PLOT_HEIGHT,
+            )
 
         df_stop_action_soft_budget = df_stop_action_filtered.filter(
             pl.col("soft_budget_param").is_null().not_()
         )
-        soft_budget_plot_2d_errors = get_soft_budget_plot(
-            df_stop_action_soft_budget, mode="2d_errors"
-        )
-        soft_budget_plot_lines = get_soft_budget_plot(
-            df_stop_action_soft_budget, mode="lines"
-        )
-
-        subfolder = args.output_folder / dataset_set_name
-        subfolder.mkdir(parents=True, exist_ok=True)
-        normal_hard_budget_plot.save(
-            subfolder / "hard_budget_normal.pdf",
-            width=PLOT_WIDTH,
-            height=PLOT_HEIGHT,
-        )
-        traj_hard_budget_plot.save(
-            subfolder / "hard_budget_traj.pdf",
-            width=PLOT_WIDTH,
-            height=PLOT_HEIGHT,
-        )
-        soft_budget_plot_2d_errors.save(
-            subfolder / "soft_budget_2d_errors.pdf",
-            width=PLOT_WIDTH,
-            height=PLOT_HEIGHT,
-        )
-        soft_budget_plot_lines.save(
-            subfolder / "soft_budget_lines.pdf",
-            width=PLOT_WIDTH,
-            height=PLOT_HEIGHT,
-        )
+        if not df_stop_action_soft_budget.is_empty():
+            soft_budget_plot_2d_errors = get_soft_budget_plot(
+                df_stop_action_soft_budget, mode="2d_errors"
+            )
+            soft_budget_plot_lines = get_soft_budget_plot(
+                df_stop_action_soft_budget, mode="lines"
+            )
+            soft_budget_plot_2d_errors.save(
+                subfolder / "soft_budget_2d_errors.pdf",
+                width=PLOT_WIDTH,
+                height=PLOT_HEIGHT,
+            )
+            soft_budget_plot_lines.save(
+                subfolder / "soft_budget_lines.pdf",
+                width=PLOT_WIDTH,
+                height=PLOT_HEIGHT,
+            )
 
 
 if __name__ == "__main__":
