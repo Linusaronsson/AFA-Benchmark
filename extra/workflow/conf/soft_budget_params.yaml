@@ -5,13 +5,13 @@ soft_budget_params:
       - [0.01, null]
       - [0.1, null]
     afa_context_v2:
-      - [1.5, null]
-      - [2, null]
-      - [2.5, null]
+      - [0.1, null]
+      - [0.3, null]
+      - [0.5, null]
     afa_context_v2_without_noise:
-      - [1.5, null]
-      - [2, null]
-      - [2.5, null]
+      - [0.1, null]
+      - [0.3, null]
+      - [0.5, null]
   aaco_nn:
     default:
       - [0.05, null]
