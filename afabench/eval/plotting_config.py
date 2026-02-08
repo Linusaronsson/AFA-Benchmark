@@ -73,6 +73,21 @@ DATASET_SETS = {
         "cube_nonuniform_costs",
         "afa_context_v2",
     },
+    "all": {
+        "cube",
+        "afa_context_v2_without_noise",
+        "miniboone",
+        "bank_marketing",
+        "diabetes",
+        "physionet",
+        "actg",
+        "fashion_mnist",
+        "imagenette",
+        "ckd",
+        "mnist",
+        "cube_nonuniform_costs",
+        "afa_context_v2",
+    },
 }
 
 # Default color palette for discrete visualization
