@@ -58,20 +58,20 @@ DATASETS_WITH_F_SCORE = ["physionet", "bank_marketing"]
 DATASET_SETS = {
     "set1": {
         "cube",
-        "cube_nonuniform_costs",
-        "afa_context_v2",
         "afa_context_v2_without_noise",
-        "mnist",
-        "imagenette",
         "miniboone",
+        "bank_marketing",
+        "diabetes",
         "physionet",
+        "actg",
+        "mnist",
     },
     "set2": {
-        "actg",
-        "bank_marketing",
+        "imagenette",
         "ckd",
-        "diabetes",
         "fashion_mnist",
+        "cube_nonuniform_costs",
+        "afa_context_v2",
     },
 }
 
