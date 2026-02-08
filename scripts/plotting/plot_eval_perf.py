@@ -32,6 +32,29 @@ from afabench.eval.plotting_config import (
     PLOT_WIDTH,
 )
 
+EXCLUSION_MAPPING = {
+    # If these methods are the **only** ones present,
+    frozenset(
+        [
+            "jafa",
+            "odin_model_based",
+            "ol_with_mask",
+            "covert2023",
+            "ma2018_external",
+            "gadgil2023",
+            "cae",
+            "aaco",
+        ]
+    ): {
+        # Then exclude this method
+        "odin_model_based": [
+            # On these datasets
+            "diabetes",
+            "miniboone",
+        ]
+    }
+}
+
 DATASETS = DATASET_NAME_MAPPING.keys()
 
 DATASET_NAME_MAPPING_INCLUDING_METRIC = {
@@ -271,6 +294,51 @@ def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
         mean_f_score=pl.col("f_score").mean(),
         std_f_score=pl.col("f_score").std(),
     )
+    return df
+
+
+def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Apply exclusion mappings to filter out methods under specific conditions.
+
+    For each dataset in the dataframe, check if the set of methods present
+    matches a key in EXCLUSION_MAPPING. If it does, exclude the specified
+    methods from the specified datasets.
+
+    Args:
+        df: Input dataframe with 'afa_method' and 'dataset' columns
+
+    Returns:
+        Filtered dataframe with exclusions applied
+    """
+    # Get unique datasets in the dataframe
+    unique_datasets = df["dataset"].unique().to_list()
+
+    for dataset in unique_datasets:
+        # Get methods present for this dataset
+        methods_in_dataset = frozenset(
+            df.filter(pl.col("dataset") == dataset)["afa_method"]
+            .unique()
+            .to_list()
+        )
+
+        # Check if this set of methods matches any exclusion condition
+        if methods_in_dataset in EXCLUSION_MAPPING:
+            exclusions = EXCLUSION_MAPPING[methods_in_dataset]
+
+            # Apply exclusions for this dataset
+            for (
+                method_to_exclude,
+                datasets_to_exclude_from,
+            ) in exclusions.items():
+                if dataset in datasets_to_exclude_from:
+                    df = df.filter(
+                        ~(
+                            (pl.col("afa_method") == method_to_exclude)
+                            & (pl.col("dataset") == dataset)
+                        )
+                    )
+
     return df
 
 
@@ -615,6 +683,9 @@ def main() -> None:
         df_stop_action_hard_budget = df_stop_action_filtered.filter(
             pl.col("eval_hard_budget").is_null().not_()
         )
+        df_stop_action_hard_budget = apply_exclusions(
+            df_stop_action_hard_budget
+        )
         if not df_stop_action_hard_budget.is_empty():
             # Calculate figure dimensions based on number of unique datasets
             num_datasets = df_stop_action_hard_budget["dataset"].n_unique()
@@ -636,6 +707,7 @@ def main() -> None:
         df_traj_hard_budget = df_traj_filtered.filter(
             pl.col("eval_hard_budget").is_null().not_()
         )
+        df_traj_hard_budget = apply_exclusions(df_traj_hard_budget)
         if not df_traj_hard_budget.is_empty():
             # Calculate figure dimensions based on number of unique datasets
             num_datasets = df_traj_hard_budget["dataset"].n_unique()
@@ -655,6 +727,9 @@ def main() -> None:
 
         df_stop_action_soft_budget = df_stop_action_filtered.filter(
             pl.col("soft_budget_param").is_null().not_()
+        )
+        df_stop_action_soft_budget = apply_exclusions(
+            df_stop_action_soft_budget
         )
         if not df_stop_action_soft_budget.is_empty():
             # Calculate figure dimensions based on number of unique datasets
