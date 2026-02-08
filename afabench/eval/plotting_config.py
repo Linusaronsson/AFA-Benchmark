@@ -26,7 +26,7 @@ METHOD_NAME_MAPPING = {
     "covert2023": "GDFS-DM",
     "gadgil2023": "DIME-DM",
     "ma2018_builtin": "EDDI-GM+builtin",
-    "ma2018_external": "EDDI-GM+external",
+    "ma2018_external": "EDDI-GM",
 }
 
 # Dataset display names mapping
