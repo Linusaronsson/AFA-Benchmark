@@ -16,7 +16,7 @@ METHOD_NAME_MAPPING = {
     # RL
     "jafa": "JAFA-MFRL",
     "ol_with_mask": "OL-MFRL",
-    "ol_without_mask": "OL-MFRL+no_mask",
+    "ol_without_mask": "OL-MFRL+no-mask",
     "odin_model_based": "ODIN-MBRL",
     "odin_model_free": "ODIN-MFRL",
     # Oracle-based
