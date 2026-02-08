@@ -32,6 +32,8 @@ from afabench.eval.plotting_config import (
     PLOT_WIDTH,
 )
 
+SUBPLOT_HEIGHT = 3.0
+
 EXCLUSION_MAPPING = {
     # Exclude method from dataset by default, except when methods set matches
     # Structure: (method, dataset) -> frozenset of allowed method combinations
@@ -694,7 +696,7 @@ def main() -> None:
             # Calculate figure dimensions based on number of unique datasets
             num_datasets = df_stop_action_hard_budget["dataset"].n_unique()
             fig_width, fig_height = calculate_figure_dimensions(
-                num_datasets, subplot_height=4.0
+                num_datasets, subplot_height=SUBPLOT_HEIGHT
             )
             normal_hard_budget_plot = get_normal_hard_budget_plot(
                 df_stop_action_hard_budget,
@@ -716,7 +718,7 @@ def main() -> None:
             # Calculate figure dimensions based on number of unique datasets
             num_datasets = df_traj_hard_budget["dataset"].n_unique()
             fig_width, fig_height = calculate_figure_dimensions(
-                num_datasets, subplot_height=4.0
+                num_datasets, subplot_height=SUBPLOT_HEIGHT
             )
             traj_hard_budget_plot = get_traj_hard_budget_plot(
                 df_traj_hard_budget,
@@ -739,7 +741,7 @@ def main() -> None:
             # Calculate figure dimensions based on number of unique datasets
             num_datasets = df_stop_action_soft_budget["dataset"].n_unique()
             fig_width, fig_height = calculate_figure_dimensions(
-                num_datasets, subplot_height=3.0
+                num_datasets, subplot_height=SUBPLOT_HEIGHT
             )
             soft_budget_plot_2d_errors = get_soft_budget_plot(
                 df_stop_action_soft_budget,
