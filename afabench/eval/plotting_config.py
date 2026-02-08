@@ -8,25 +8,26 @@ PLOT_HEIGHT = 5
 
 # Method display names mapping
 METHOD_NAME_MAPPING = {
-    # Dummy
-    "random_dummy": "Random",
-    "sequential_dummy": "Sequential dummy",
+    # Greedy
+    "ma2018_external": "EDDI-GM",
+    "ma2018_builtin": "EDDI-GM+builtin",
+    "covert2023": "GDFS-DM",
+    "gadgil2023": "DIME-DM",
     # RL
     "jafa": "JAFA-MFRL",
+    "ol_with_mask": "OL-MFRL",
+    "ol_without_mask": "OL-MFRL+no_mask",
     "odin_model_based": "ODIN-MBRL",
     "odin_model_free": "ODIN-MFRL",
-    "ol_without_mask": "OL-MFRL+no_mask",
-    "ol_with_mask": "OL-MFRL",
+    # Oracle-based
     "aaco": "AACO",
     "aaco_nn": "AACO+NN",
     # Static
-    "cae": "CAE-S",
     "permutation": "PT-S",
-    # Greedy
-    "covert2023": "GDFS-DM",
-    "gadgil2023": "DIME-DM",
-    "ma2018_builtin": "EDDI-GM+builtin",
-    "ma2018_external": "EDDI-GM",
+    "cae": "CAE-S",
+    # Dummy
+    "random_dummy": "Random",
+    "sequential_dummy": "Sequential dummy",
 }
 
 # Dataset display names mapping

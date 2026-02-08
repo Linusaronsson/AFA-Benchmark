@@ -286,6 +286,41 @@ def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
 #     )
 
 
+def set_method_order(
+    df: pl.DataFrame,
+    method_order: list[str] | None = None,
+) -> pl.DataFrame:
+    """
+    Set the order of methods for consistent legend ordering in plots.
+
+    Sorts the dataframe by the specified method order. This ensures that
+    when plotnine creates legends and colors, they follow the desired order.
+
+    Args:
+        df: Input dataframe
+        method_order: List of method names in desired legend order.
+                     If None, uses the order from METHOD_NAME_MAPPING.
+
+    Returns:
+        DataFrame sorted by method order with afa_method as categorical.
+    """
+    if method_order is None:
+        # Use the order from METHOD_NAME_MAPPING
+        method_order = list(METHOD_NAME_MAPPING.keys())
+
+    # Cast to categorical type for consistent ordering
+    return df.with_columns(
+        afa_method=pl.col("afa_method").cast(pl.Categorical)
+    ).sort(
+        pl.col("afa_method").map_elements(
+            lambda x: method_order.index(x)
+            if x in method_order
+            else len(method_order),
+            return_dtype=pl.UInt32,
+        )
+    )
+
+
 def get_plot(
     df: pl.DataFrame,
     x_col: str,
@@ -294,18 +329,22 @@ def get_plot(
     x_error_max: str | None = None,
     *,
     use_line: bool = True,
+    method_order: list[str] | None = None,
 ) -> p9.ggplot:
     """Create a plot with metrics vs cost/budget."""
     # Apply name transforms
-    df = df.with_columns(
+    processed_df = df.with_columns(
         dataset=pl.col("dataset").replace(
             DATASET_NAME_MAPPING_INCLUDING_METRIC
         ),
         afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
     )
+
+    # Set method order for consistent legend
+    processed_df = set_method_order(processed_df, method_order)
     plot = (
         ggplot(
-            df,
+            processed_df,
             aes(
                 x=x_col,
                 y="mean_metric",
@@ -346,25 +385,37 @@ def get_plot(
     return plot
 
 
-def get_normal_hard_budget_plot(df: pl.DataFrame) -> p9.ggplot:
+def get_normal_hard_budget_plot(
+    df: pl.DataFrame,
+    method_order: list[str] | None = None,
+) -> p9.ggplot:
     return get_plot(
         df,
         x_col="eval_hard_budget",
         x_label="Hard budget",
         use_line=True,
+        method_order=method_order,
     )
 
 
-def get_traj_hard_budget_plot(df: pl.DataFrame) -> p9.ggplot:
+def get_traj_hard_budget_plot(
+    df: pl.DataFrame,
+    method_order: list[str] | None = None,
+) -> p9.ggplot:
     return get_plot(
         df,
         x_col="n_selections_performed",
         x_label="Number of selections",
         use_line=True,
+        method_order=method_order,
     )
 
 
-def get_soft_budget_plot(df: pl.DataFrame, mode: str) -> p9.ggplot:
+def get_soft_budget_plot(
+    df: pl.DataFrame,
+    mode: str,
+    method_order: list[str] | None = None,
+) -> p9.ggplot:
     if mode == "2d_errors":
         return get_plot(
             df,
@@ -373,6 +424,7 @@ def get_soft_budget_plot(df: pl.DataFrame, mode: str) -> p9.ggplot:
             x_error_min="low_avg_accumulated_cost",
             x_error_max="high_avg_accumulated_cost",
             use_line=False,
+            method_order=method_order,
         )
     if mode == "lines":
         return get_plot(
@@ -382,6 +434,7 @@ def get_soft_budget_plot(df: pl.DataFrame, mode: str) -> p9.ggplot:
             x_error_min=None,
             x_error_max=None,
             use_line=True,
+            method_order=method_order,
         )
     msg = f"Expected either '2d_errors' or 'lines' as mode, got '{mode}'"
     raise ValueError(msg)
