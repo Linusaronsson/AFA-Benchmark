@@ -183,9 +183,12 @@ def format_heatmap_axes(
     ax.set_ylabel("Action index")
     ax.set_xticks(np.arange(0, int(max_time) + 1, max(1, int(max_time) // 5)))
     max_action_int = int(max_action)
-    ax.set_yticks(
-        np.arange(0, max_action_int + 1, max(1, (max_action_int + 1) // 10))
+    y_ticks = np.arange(
+        0, max_action_int + 1, max(1, (max_action_int + 1) // 10)
     )
+    ax.set_yticks(y_ticks)
+    # Increment y tick labels by 1 to show action numbers (1, 2, 3...) instead of (0, 1, 2...)
+    ax.set_yticklabels(y_ticks + 1)
 
 
 def create_action_heatmap(
