@@ -14,7 +14,7 @@ soft_budget_params:
       - [0.5, null]
     afa_context_v2_without_noise:
       - [1.0, null]
-      - [2.05, null]
+      - [1.8, null]
       - [2.2, null]
     mnist:
       - [0.0001, null]
