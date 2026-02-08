@@ -115,7 +115,7 @@ def common_plot_operations(p: p9.ggplot) -> p9.ggplot:
                 "train": "Training",
                 "eval": "Evaluation",
             },
-            breaks=["eval", "train", "pretrain"],
+            breaks=["pretrain", "train", "eval"],
         )
     )
 
