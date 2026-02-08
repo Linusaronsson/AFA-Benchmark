@@ -15,8 +15,8 @@ METHOD_NAME_MAPPING = {
     "jafa": "JAFA-MFRL",
     "odin_model_based": "ODIN-MBRL",
     "odin_model_free": "ODIN-MFRL",
-    "ol_without_mask": "OL-MFRL",
-    "ol_with_mask": "OL-MFRL+mask",
+    "ol_without_mask": "OL-MFRL+no_mask",
+    "ol_with_mask": "OL-MFRL",
     "aaco": "AACO",
     "aaco_nn": "AACO+NN",
     # Static
