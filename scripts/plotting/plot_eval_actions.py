@@ -149,14 +149,16 @@ def normalize_heatmap_by_timestep(
 
     Heatmap shape: [num_actions, num_timesteps]
     Values normalized by number of samples at each timestep.
+    Excludes action 0.
     """
-    heatmap = np.zeros((int(max_action) + 1, int(max_time) + 1))  # type: ignore[arg-type]
+    heatmap = np.zeros((int(max_action), int(max_time) + 1))  # type: ignore[arg-type]
 
     for row in df_method.iter_rows(named=True):
         action = int(row["action_performed"])
         time_step = int(row["n_selections_performed"])
-        # if 0 <= action <= int(max_action) and 0 <= time_step <= int(max_time):
-        heatmap[action, time_step] += 1
+        # Skip action 0
+        if action > 0:
+            heatmap[action - 1, time_step] += 1
 
     time_counts = np.bincount(
         df_method["n_selections_performed"].cast(pl.Int64).to_numpy(),
@@ -199,10 +201,16 @@ def create_action_heatmap(
     X-axis: time (n_selections_performed)
     Y-axis: action index
     """
+    # Filter out action 0
+    dataframe = dataframe.filter(pl.col("action_performed") != 0)
     methods = sorted(dataframe["afa_method"].unique())
     num_methods = len(methods)
     num_cols = 4
     num_rows = (num_methods + num_cols - 1) // num_cols
+
+    # Calculate global max_action and max_time across all methods
+    global_max_action = cast("int", dataframe["action_performed"].max())
+    global_max_time = cast("int", dataframe["n_selections_performed"].max())
 
     fig, axes = plt.subplots(
         num_rows, num_cols, figsize=(5 * num_cols, 4 * num_rows), squeeze=False
@@ -214,11 +222,8 @@ def create_action_heatmap(
         ax = axes[row, col]
         df_method = dataframe.filter(pl.col("afa_method") == method)
 
-        max_action = cast("int", df_method["action_performed"].max())
-        max_time = cast("int", df_method["n_selections_performed"].max())
-
         heatmap = normalize_heatmap_by_timestep(
-            df_method, max_action, max_time
+            df_method, global_max_action, global_max_time
         )
 
         ax.imshow(
@@ -230,7 +235,7 @@ def create_action_heatmap(
             vmax=1.0,
         )
 
-        format_heatmap_axes(ax, max_action, max_time, method)
+        format_heatmap_axes(ax, global_max_action, global_max_time, method)
 
     # Hide any unused subplots
     for idx in range(num_methods, num_rows * num_cols):
@@ -278,6 +283,8 @@ def produce_separate_plots(
         output_folder: Output folder for plots
         budget_type: Type of budget ("hard_budget" or "soft_budget")
     """
+    # Filter out action 0
+    filtered_df = df.filter(pl.col("action_performed") != 0)
     # Group by dataset and budget (and method for soft budget)
     if budget_type == "hard_budget":
         group_cols = ["dataset", "eval_hard_budget"]
@@ -285,7 +292,7 @@ def produce_separate_plots(
         group_cols = ["dataset", "afa_method", "soft_budget_param"]
 
     for group_keys, group_df in tqdm(
-        df.group_by(group_cols),
+        filtered_df.group_by(group_cols),
         desc=f"Creating separate {budget_type} plots",
     ):
         if budget_type == "hard_budget":
@@ -310,6 +317,10 @@ def produce_separate_plots(
         num_cols = 4
         num_rows = (num_methods + num_cols - 1) // num_cols
 
+        # Calculate global max_action and max_time across all methods in group
+        global_max_action = cast("int", group_df["action_performed"].max())
+        global_max_time = cast("int", group_df["n_selections_performed"].max())
+
         fig, axes = plt.subplots(
             num_rows,
             num_cols,
@@ -323,11 +334,8 @@ def produce_separate_plots(
             ax = axes[row, col]
             df_method = group_df.filter(pl.col("afa_method") == method)
 
-            max_action = cast("int", df_method["action_performed"].max())
-            max_time = cast("int", df_method["n_selections_performed"].max())
-
             heatmap = normalize_heatmap_by_timestep(
-                df_method, max_action, max_time
+                df_method, global_max_action, global_max_time
             )
 
             ax.imshow(
@@ -339,7 +347,7 @@ def produce_separate_plots(
                 vmax=1.0,
             )
 
-            format_heatmap_axes(ax, max_action, max_time, method)
+            format_heatmap_axes(ax, global_max_action, global_max_time, method)
 
         # Hide any unused subplots
         for idx in range(num_methods, num_rows * num_cols):
