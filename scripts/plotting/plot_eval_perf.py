@@ -32,7 +32,7 @@ from afabench.eval.plotting_config import (
     PLOT_WIDTH,
 )
 
-SUBPLOT_HEIGHT = 3.0
+SUBPLOT_HEIGHT = 2.0
 
 EXCLUSION_MAPPING = {
     # Exclude method from dataset by default, except when methods set matches
