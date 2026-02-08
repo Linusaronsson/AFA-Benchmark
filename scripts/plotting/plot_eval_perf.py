@@ -48,7 +48,9 @@ EXCLUSION_MAPPING = {
     ),
 }
 
-METHOD_SET_MAIN = frozenset(
+# When we plot AACO with other methods on miniboone in the soft-budget case, it becomes unreadable
+#
+METHOD_SET_MAIN_WITHOUT_AACO = frozenset(
     [
         "jafa",
         "odin_model_based",
@@ -57,20 +59,17 @@ METHOD_SET_MAIN = frozenset(
         "ma2018_external",
         "gadgil2023",
         "cae",
-        "aaco",
     ]
 )
 
 Y_RANGE_OVERRIDE = {
-    "hard_budget": {
-        METHOD_SET_MAIN: {"miniboone": (0.85, 1.0)},
-    },
+    "hard_budget": {},
     "hard_budget_traj": {},
     "soft_budget_lines": {
-        METHOD_SET_MAIN: {"miniboone": (0.85, 1.0)},
+        ("aaco", METHOD_SET_MAIN_WITHOUT_AACO): {"miniboone": (0.85, 1.0)},
     },
     "soft_budget_2d_errors": {
-        METHOD_SET_MAIN: {"miniboone": (0.85, 1.0)},
+        ("aaco", METHOD_SET_MAIN_WITHOUT_AACO): {"miniboone": (0.85, 1.0)},
     },
 }
 
@@ -388,21 +387,27 @@ def apply_y_range_override(
     independently set based on the Y_RANGE_OVERRIDE configuration.
 
     Note: This function returns a custom plot object that applies
-    overrides when .draw() or .save() is called.
+     overrides when .draw() or .save() is called.
 
     Structure of Y_RANGE_OVERRIDE:
         {
             mode: {
-                frozenset(methods): {
+                key: {
                     dataset: (y_min, y_max)
                 }
             }
         }
+        where key can be:
+        - frozenset(methods): applies if data is subset of methods
+        - (method, frozenset(methods)): applies if method AND any from frozenset present
 
     Example:
         Y_RANGE_OVERRIDE = {
             "hard_budget": {
                 frozenset(["jafa", "odin_model_based"]): {
+                    "miniboone": (0.85, 1.0)
+                },
+                ("aaco", frozenset(["jafa", "odin_model_based"])): {
                     "miniboone": (0.85, 1.0)
                 }
             }
@@ -448,11 +453,13 @@ def _get_applicable_overrides(
     """
     Determine which method set's overrides apply based on data.
 
-    Checks if a frozenset of methods is present in the data. If all methods
-    in a frozenset are present, that set's overrides are applied.
+    Supports two key formats:
+    1. frozenset: Override applies if data methods are subset of the frozenset
+    2. tuple: (method, frozenset) - Override applies if method AND at least
+       one method from frozenset are both present in data
 
     Args:
-        mode_overrides: Dictionary mapping frozensets of methods to dicts of
+        mode_overrides: Dictionary mapping method sets to dicts of
             dataset -> (y_min, y_max) tuples
         df: The dataframe used to create the plot (for method detection)
 
@@ -464,11 +471,21 @@ def _get_applicable_overrides(
 
     methods_in_data = frozenset(df["afa_method"].unique().to_list())
 
-    # Find a method set that is a subset of the data
-    # (i.e., all methods in the set are present in the data)
-    for method_set, dataset_overrides in mode_overrides.items():
-        if method_set.issubset(methods_in_data):
-            return dataset_overrides
+    # Find a method set that matches the data
+    for method_key, dataset_overrides in mode_overrides.items():
+        # Handle tuple format: (method, frozenset)
+        if isinstance(method_key, tuple) and len(method_key) == 2:
+            required_method, method_set = method_key
+            # Check if required_method and at least one from method_set are present
+            if (
+                required_method in methods_in_data
+                and method_set & methods_in_data
+            ):
+                return dataset_overrides
+        # Handle frozenset format
+        elif isinstance(method_key, frozenset):
+            if methods_in_data.issubset(method_key):
+                return dataset_overrides
 
     return None
 
@@ -483,8 +500,8 @@ def _apply_overrides_to_figure(
 
     Args:
         fig: The matplotlib Figure object
-        mode_overrides: Dictionary mapping frozensets of methods to dicts of
-            dataset -> (y_min, y_max) tuples
+        mode_overrides: Dictionary mapping method sets (frozensets or tuples) to
+            dicts of dataset -> (y_min, y_max) tuples
         df: The dataframe used to create the plot (for method detection)
     """
     # Extract facet labels (StripText) from the figure
