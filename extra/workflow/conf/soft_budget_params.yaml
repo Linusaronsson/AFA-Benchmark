@@ -7,7 +7,7 @@ soft_budget_params:
     cube:
       - [0.1, null]
       - [0.3, null]
-      - [0.5, null]
+      - [1.2, null]
     afa_context_v2:
       - [0.1, null]
       - [0.3, null]
@@ -32,7 +32,7 @@ soft_budget_params:
     cube:
       - [0.1, null]
       - [0.3, null]
-      - [0.5, null]
+      - [1.7, null]
     afa_context_v2:
       - [0.1, null]
       - [0.3, null]
