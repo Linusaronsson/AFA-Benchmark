@@ -70,10 +70,7 @@ def load_config(config):
     if methods is None:
         raise ValueError("Expected methods to be provided.")
 
-    # If no "all" method set is configured, containing all methods, create one. This ensure that we always produce a plot that contains all methods, even when the user forgets
     method_sets = config.get("method_sets", {})
-    if "all" not in method_sets:
-        method_sets["all"] = methods
     # Filter out methods that have not been enabled by the "methods" option
     # and remove empty method_sets
     filtered_method_sets = {}
