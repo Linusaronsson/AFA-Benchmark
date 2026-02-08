@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import plotnine as p9
@@ -45,6 +46,32 @@ EXCLUSION_MAPPING = {
     ("odin_model_based", "miniboone"): frozenset(
         [frozenset(["odin_model_based", "odin_model_free"])]
     ),
+}
+
+METHOD_SET_MAIN = frozenset(
+    [
+        "jafa",
+        "odin_model_based",
+        "ol_with_mask",
+        "covert2023",
+        "ma2018_external",
+        "gadgil2023",
+        "cae",
+        "aaco",
+    ]
+)
+
+Y_RANGE_OVERRIDE = {
+    "hard_budget": {
+        METHOD_SET_MAIN: {"miniboone": (0.85, 1.0)},
+    },
+    "hard_budget_traj": {},
+    "soft_budget_lines": {
+        METHOD_SET_MAIN: {"miniboone": (0.85, 1.0)},
+    },
+    "soft_budget_2d_errors": {
+        METHOD_SET_MAIN: {"miniboone": (0.85, 1.0)},
+    },
 }
 
 DATASETS = DATASET_NAME_MAPPING.keys()
@@ -348,6 +375,140 @@ def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
+def apply_y_range_override(
+    plot: p9.ggplot,
+    mode: str,
+    df: pl.DataFrame | None = None,
+) -> p9.ggplot:
+    """
+    Apply y-axis range overrides to faceted plot subplots.
+
+    This function modifies the y-axis limits of individual facet subplots
+    without changing the underlying data. Each subplot's y-axis is
+    independently set based on the Y_RANGE_OVERRIDE configuration.
+
+    Note: This function returns a custom plot object that applies
+    overrides when .draw() or .save() is called.
+
+    Structure of Y_RANGE_OVERRIDE:
+        {
+            mode: {
+                frozenset(methods): {
+                    dataset: (y_min, y_max)
+                }
+            }
+        }
+
+    Example:
+        Y_RANGE_OVERRIDE = {
+            "hard_budget": {
+                frozenset(["jafa", "odin_model_based"]): {
+                    "miniboone": (0.85, 1.0)
+                }
+            }
+        }
+
+    Args:
+        plot: The plotnine ggplot object with faceted subplots
+        mode: The plot mode ("hard_budget", "hard_budget_traj",
+              "soft_budget_lines", or "soft_budget_2d_errors")
+        df: The dataframe used to create the plot (needed to detect methods)
+
+    Returns:
+        A wrapped plot object that applies y-range overrides when drawn/saved
+    """
+    # Check if this mode has any overrides
+    if mode not in Y_RANGE_OVERRIDE:
+        return plot
+
+    # Get the overrides for this mode
+    mode_overrides = Y_RANGE_OVERRIDE[mode]
+    if not mode_overrides:
+        return plot
+
+    # Wrap the draw method to apply overrides after drawing
+    original_draw = plot.draw
+
+    def draw_with_overrides(
+        show: bool = False,  # noqa: FBT002
+    ) -> matplotlib.figure.Figure:  # noqa: F821
+        fig = original_draw(show=show)
+        _apply_overrides_to_figure(fig, mode_overrides, df)
+        return fig
+
+    plot.draw = draw_with_overrides  # type: ignore[assignment]
+
+    return plot
+
+
+def _get_applicable_overrides(
+    mode_overrides: dict[Any, Any],  # type: ignore[type-arg]
+    df: pl.DataFrame | None = None,
+) -> dict[Any, Any] | None:
+    """
+    Determine which method set's overrides apply based on data.
+
+    Checks if a frozenset of methods is present in the data. If all methods
+    in a frozenset are present, that set's overrides are applied.
+
+    Args:
+        mode_overrides: Dictionary mapping frozensets of methods to dicts of
+            dataset -> (y_min, y_max) tuples
+        df: The dataframe used to create the plot (for method detection)
+
+    Returns:
+        The applicable overrides dict, or None if no overrides apply
+    """
+    if df is None or "afa_method" not in df.columns:
+        return None
+
+    methods_in_data = frozenset(df["afa_method"].unique().to_list())
+
+    # Find a method set that is a subset of the data
+    # (i.e., all methods in the set are present in the data)
+    for method_set, dataset_overrides in mode_overrides.items():
+        if method_set.issubset(methods_in_data):
+            return dataset_overrides
+
+    return None
+
+
+def _apply_overrides_to_figure(
+    fig: matplotlib.figure.Figure,  # noqa: F821
+    mode_overrides: dict[Any, Any],  # type: ignore[type-arg]
+    df: pl.DataFrame | None = None,
+) -> None:
+    """
+    Apply y-axis range overrides to a matplotlib figure's axes.
+
+    Args:
+        fig: The matplotlib Figure object
+        mode_overrides: Dictionary mapping frozensets of methods to dicts of
+            dataset -> (y_min, y_max) tuples
+        df: The dataframe used to create the plot (for method detection)
+    """
+    # Extract facet labels (StripText) from the figure
+    strip_texts = []
+    for artist in fig.get_children():
+        if type(artist).__name__ == "StripText":
+            label = artist.get_text()
+            if label:
+                strip_texts.append(label)
+
+    # Determine which method set applies
+    applicable_overrides = _get_applicable_overrides(mode_overrides, df)
+
+    # Apply overrides to axes
+    if applicable_overrides:
+        axes_list = fig.axes
+        for i, ax in enumerate(axes_list):
+            if i < len(strip_texts):
+                facet_label = strip_texts[i]
+                if facet_label in applicable_overrides:
+                    y_min, y_max = applicable_overrides[facet_label]
+                    ax.set_ylim(y_min, y_max)
+
+
 # def apply_name_mappings(df: pl.DataFrame) -> pl.DataFrame:
 #     """Apply display name mappings to methods and datasets."""
 #     return df.with_columns(
@@ -371,6 +532,7 @@ def get_plot(
     method_order: list[str] | None = None,
     figure_width: float | None = None,
     figure_height: float | None = None,
+    mode: str | None = None,
 ) -> p9.ggplot:
     """
     Create a plot with metrics vs cost/budget.
@@ -385,6 +547,9 @@ def get_plot(
         method_order: List of method names in desired legend order
         figure_width: Figure width in inches (default: PLOT_WIDTH)
         figure_height: Figure height in inches (default: PLOT_HEIGHT)
+        mode: Plot mode for y-range overrides
+              ("hard_budget", "hard_budget_traj", "soft_budget_lines",
+               or "soft_budget_2d_errors")
     """
     # Apply name transforms
     processed_df = df.with_columns(
@@ -460,6 +625,10 @@ def get_plot(
                 height=0,
             )
 
+    # Apply y-range overrides to subplot axes after plot is created
+    if mode is not None:
+        plot = apply_y_range_override(plot, mode, df)
+
     return plot
 
 
@@ -477,6 +646,7 @@ def get_normal_hard_budget_plot(
         method_order=method_order,
         figure_width=figure_width,
         figure_height=figure_height,
+        mode="hard_budget",
     )
 
 
@@ -494,6 +664,7 @@ def get_traj_hard_budget_plot(
         method_order=method_order,
         figure_width=figure_width,
         figure_height=figure_height,
+        mode="hard_budget_traj",
     )
 
 
@@ -515,6 +686,7 @@ def get_soft_budget_plot(
             method_order=method_order,
             figure_width=figure_width,
             figure_height=figure_height,
+            mode="soft_budget_2d_errors",
         )
     if mode == "lines":
         return get_plot(
@@ -527,6 +699,7 @@ def get_soft_budget_plot(
             method_order=method_order,
             figure_width=figure_width,
             figure_height=figure_height,
+            mode="soft_budget_lines",
         )
     msg = f"Expected either '2d_errors' or 'lines' as mode, got '{mode}'"
     raise ValueError(msg)
