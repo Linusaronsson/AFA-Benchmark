@@ -115,7 +115,7 @@ def common_plot_operations(p: p9.ggplot) -> p9.ggplot:
                 "train": "Training",
                 "eval": "Evaluation",
             },
-            breaks=["pretrain", "train", "eval"],
+            breaks=["eval", "train", "pretrain"],
         )
     )
 
@@ -158,6 +158,8 @@ def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
     # Get the display method order based on METHOD_NAME_MAPPING order
     # After name transformation, values are already display names
     method_order = [METHOD_NAME_MAPPING.get(m, m) for m in METHOD_NAME_MAPPING]
+    # Reverse the order to match the desired display
+    method_order = method_order[::-1]
 
     # Filter to only methods present in the data
     available_methods = set(df["afa_method"].unique().to_list())
@@ -200,8 +202,8 @@ def unpivot(df: pl.DataFrame) -> pl.DataFrame:
         value_name="time",
     )
     # Convert stage to categorical with correct order for stacking
-    # This ensures bars are stacked as: pretrain (bottom), train, eval (top)
-    stage_order = ["pretrain", "train", "eval"]
+    # This ensures bars are stacked as: eval (bottom), train, pretrain (top)
+    stage_order = ["eval", "train", "pretrain"]
     df_long = df_long.with_columns(pl.col("stage").cast(pl.Enum(stage_order)))
     return df_long
 
