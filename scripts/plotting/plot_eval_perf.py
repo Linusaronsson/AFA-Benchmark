@@ -461,7 +461,7 @@ def get_soft_budget_plot(
 def calculate_figure_dimensions(
     num_datasets: int,
     ncol: int = 4,
-    subplot_height: float = 4.0,
+    subplot_height: float = 3.0,
 ) -> tuple[float, float]:
     """
     Calculate figure dimensions based on number of subplots.
