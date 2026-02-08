@@ -159,7 +159,7 @@ def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
     # After name transformation, values are already display names
     method_order = [METHOD_NAME_MAPPING.get(m, m) for m in METHOD_NAME_MAPPING]
     # Reverse the order to match the desired display
-    method_order = method_order[::-1]
+    method_order.reverse()
 
     # Filter to only methods present in the data
     available_methods = set(df["afa_method"].unique().to_list())
