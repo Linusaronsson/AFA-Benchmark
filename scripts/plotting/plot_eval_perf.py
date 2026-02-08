@@ -739,7 +739,7 @@ def main() -> None:
             # Calculate figure dimensions based on number of unique datasets
             num_datasets = df_stop_action_soft_budget["dataset"].n_unique()
             fig_width, fig_height = calculate_figure_dimensions(
-                num_datasets, subplot_height=4.0
+                num_datasets, subplot_height=3.0
             )
             soft_budget_plot_2d_errors = get_soft_budget_plot(
                 df_stop_action_soft_budget,
