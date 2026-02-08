@@ -692,7 +692,7 @@ def get_soft_budget_plot(
         return get_plot(
             df,
             x_col="mean_avg_accumulated_cost",
-            x_label="Cost per episode",
+            x_label="Average cost accumulated per episode",
             x_error_min=None,
             x_error_max=None,
             use_line=True,
