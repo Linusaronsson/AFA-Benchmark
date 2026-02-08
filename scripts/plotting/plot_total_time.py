@@ -22,11 +22,12 @@ from plotnine import (
     geom_bar,
     ggplot,
     labs,
-    scale_fill_discrete,
+    scale_fill_brewer,
     scale_x_discrete,
 )
 
 from afabench.eval.plotting_config import (
+    COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
     METHOD_NAME_MAPPING,
 )
@@ -105,13 +106,16 @@ def common_plot_operations(p: p9.ggplot) -> p9.ggplot:
         p
         + coord_flip()
         + labs(x="Policy", y="Time (s)", fill="Stage")
-        + scale_x_discrete(labels=METHOD_NAME_MAPPING)
-        + scale_fill_discrete(
+        + scale_x_discrete()
+        + scale_fill_brewer(
+            type="qual",
+            palette=COLOR_PALETTE_NAME,
             labels={
                 "pretrain": "Pretraining",
                 "train": "Training",
                 "eval": "Evaluation",
-            }
+            },
+            breaks=["pretrain", "train", "eval"],
         )
     )
 
@@ -151,6 +155,22 @@ def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
     # For averaging plot, only use datasets present in all methods
     df_common = filter_common_datasets(df)
 
+    # Get the display method order based on METHOD_NAME_MAPPING order
+    # After name transformation, values are already display names
+    method_order = [METHOD_NAME_MAPPING.get(m, m) for m in METHOD_NAME_MAPPING]
+
+    # Filter to only methods present in the data
+    available_methods = set(df["afa_method"].unique().to_list())
+    method_order_filtered = [m for m in method_order if m in available_methods]
+
+    # Cast to Enum with the correct order
+    df_common = df_common.with_columns(
+        afa_method=pl.col("afa_method").cast(pl.Enum(method_order_filtered))
+    )
+    df = df.with_columns(
+        afa_method=pl.col("afa_method").cast(pl.Enum(method_order_filtered))
+    )
+
     # One plot averaged over datasets (using only common datasets)
     averaged_plot = ggplot(
         df_common.group_by(["afa_method", "stage"]).mean()
@@ -179,6 +199,10 @@ def unpivot(df: pl.DataFrame) -> pl.DataFrame:
         variable_name="stage",
         value_name="time",
     )
+    # Convert stage to categorical with correct order for stacking
+    # This ensures bars are stacked as: pretrain (bottom), train, eval (top)
+    stage_order = ["pretrain", "train", "eval"]
+    df_long = df_long.with_columns(pl.col("stage").cast(pl.Enum(stage_order)))
     return df_long
 
 
