@@ -286,41 +286,6 @@ def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
 #     )
 
 
-def set_method_order(
-    df: pl.DataFrame,
-    method_order: list[str] | None = None,
-) -> pl.DataFrame:
-    """
-    Set the order of methods for consistent legend ordering in plots.
-
-    Sorts the dataframe by the specified method order. This ensures that
-    when plotnine creates legends and colors, they follow the desired order.
-
-    Args:
-        df: Input dataframe
-        method_order: List of method names in desired legend order.
-                     If None, uses the order from METHOD_NAME_MAPPING.
-
-    Returns:
-        DataFrame sorted by method order with afa_method as categorical.
-    """
-    if method_order is None:
-        # Use the order from METHOD_NAME_MAPPING
-        method_order = list(METHOD_NAME_MAPPING.keys())
-
-    # Cast to categorical type for consistent ordering
-    return df.with_columns(
-        afa_method=pl.col("afa_method").cast(pl.Categorical)
-    ).sort(
-        pl.col("afa_method").map_elements(
-            lambda x: method_order.index(x)
-            if x in method_order
-            else len(method_order),
-            return_dtype=pl.UInt32,
-        )
-    )
-
-
 def get_plot(
     df: pl.DataFrame,
     x_col: str,
@@ -355,8 +320,17 @@ def get_plot(
         afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
     )
 
-    # Set method order for consistent legend
-    processed_df = set_method_order(processed_df, method_order)
+    # Get method order for legend
+    if method_order is None:
+        method_order = list(METHOD_NAME_MAPPING.keys())
+
+    # Get display names in order, filtering to only methods in the data
+    available_methods = processed_df["afa_method"].unique().to_list()
+    ordered_display_names = [
+        METHOD_NAME_MAPPING.get(orig, orig)
+        for orig in method_order
+        if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
+    ]
 
     # Use provided dimensions or defaults
     if figure_width is None:
@@ -381,8 +355,16 @@ def get_plot(
         )
         + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
         + theme(figure_size=(figure_width, figure_height))
-        + scale_color_brewer(type="qual", palette=COLOR_PALETTE_NAME)
-        + scale_fill_brewer(type="qual", palette=COLOR_PALETTE_NAME)
+        + scale_color_brewer(
+            type="qual",
+            palette=COLOR_PALETTE_NAME,
+            breaks=ordered_display_names,
+        )
+        + scale_fill_brewer(
+            type="qual",
+            palette=COLOR_PALETTE_NAME,
+            breaks=ordered_display_names,
+        )
     )
 
     if use_line:
