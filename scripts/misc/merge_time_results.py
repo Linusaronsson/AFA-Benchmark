@@ -7,7 +7,9 @@ import polars as pl
 def _read_time(path: Path | None) -> float | None:
     if path is None:
         return None
-    return float(path.read_text().strip())
+    # Some locales use ',' - replace it with '.'
+    path_txt = path.read_text().replace(",", ".")
+    return float(path_txt.strip())
 
 
 def main() -> None:
