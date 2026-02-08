@@ -22,6 +22,12 @@ method_sets:
   eddi:
     - ma2018_builtin
     - ma2018_external
+  # Methods that we compare heatmaps on CUBE-NM for
+  cube_nm_comparison:
+    - ol_with_mask
+    - jafa
+    - aaco
+    - covert2023
   # A subset of methods, as the main result
   main:
     - jafa
