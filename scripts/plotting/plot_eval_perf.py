@@ -330,8 +330,23 @@ def get_plot(
     *,
     use_line: bool = True,
     method_order: list[str] | None = None,
+    figure_width: float | None = None,
+    figure_height: float | None = None,
 ) -> p9.ggplot:
-    """Create a plot with metrics vs cost/budget."""
+    """
+    Create a plot with metrics vs cost/budget.
+
+    Args:
+        df: Input dataframe
+        x_col: Column name for x-axis
+        x_label: Label for x-axis
+        x_error_min: Column name for x-axis error minimum
+        x_error_max: Column name for x-axis error maximum
+        use_line: Whether to use line plot (True) or point plot (False)
+        method_order: List of method names in desired legend order
+        figure_width: Figure width in inches (default: PLOT_WIDTH)
+        figure_height: Figure height in inches (default: PLOT_HEIGHT)
+    """
     # Apply name transforms
     processed_df = df.with_columns(
         dataset=pl.col("dataset").replace(
@@ -342,6 +357,13 @@ def get_plot(
 
     # Set method order for consistent legend
     processed_df = set_method_order(processed_df, method_order)
+
+    # Use provided dimensions or defaults
+    if figure_width is None:
+        figure_width = PLOT_WIDTH
+    if figure_height is None:
+        figure_height = PLOT_HEIGHT
+
     plot = (
         ggplot(
             processed_df,
@@ -358,7 +380,7 @@ def get_plot(
             ncol=4,
         )
         + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
-        + theme(figure_size=(10, 8))
+        + theme(figure_size=(figure_width, figure_height))
         + scale_color_brewer(type="qual", palette=COLOR_PALETTE_NAME)
         + scale_fill_brewer(type="qual", palette=COLOR_PALETTE_NAME)
     )
@@ -388,6 +410,8 @@ def get_plot(
 def get_normal_hard_budget_plot(
     df: pl.DataFrame,
     method_order: list[str] | None = None,
+    figure_width: float | None = None,
+    figure_height: float | None = None,
 ) -> p9.ggplot:
     return get_plot(
         df,
@@ -395,12 +419,16 @@ def get_normal_hard_budget_plot(
         x_label="Hard budget",
         use_line=True,
         method_order=method_order,
+        figure_width=figure_width,
+        figure_height=figure_height,
     )
 
 
 def get_traj_hard_budget_plot(
     df: pl.DataFrame,
     method_order: list[str] | None = None,
+    figure_width: float | None = None,
+    figure_height: float | None = None,
 ) -> p9.ggplot:
     return get_plot(
         df,
@@ -408,6 +436,8 @@ def get_traj_hard_budget_plot(
         x_label="Number of selections",
         use_line=True,
         method_order=method_order,
+        figure_width=figure_width,
+        figure_height=figure_height,
     )
 
 
@@ -415,6 +445,8 @@ def get_soft_budget_plot(
     df: pl.DataFrame,
     mode: str,
     method_order: list[str] | None = None,
+    figure_width: float | None = None,
+    figure_height: float | None = None,
 ) -> p9.ggplot:
     if mode == "2d_errors":
         return get_plot(
@@ -425,6 +457,8 @@ def get_soft_budget_plot(
             x_error_max="high_avg_accumulated_cost",
             use_line=False,
             method_order=method_order,
+            figure_width=figure_width,
+            figure_height=figure_height,
         )
     if mode == "lines":
         return get_plot(
@@ -435,9 +469,33 @@ def get_soft_budget_plot(
             x_error_max=None,
             use_line=True,
             method_order=method_order,
+            figure_width=figure_width,
+            figure_height=figure_height,
         )
     msg = f"Expected either '2d_errors' or 'lines' as mode, got '{mode}'"
     raise ValueError(msg)
+
+
+def calculate_figure_dimensions(
+    num_datasets: int,
+    ncol: int = 4,
+    subplot_height: float = 4.0,
+) -> tuple[float, float]:
+    """
+    Calculate figure dimensions based on number of subplots.
+
+    Args:
+        num_datasets: Number of datasets (subplots)
+        ncol: Number of columns in facet layout
+        subplot_height: Height of each individual subplot in inches
+
+    Returns:
+        Tuple of (width, height) for the figure
+    """
+    num_rows = (num_datasets + ncol - 1) // ncol
+    figure_width = PLOT_WIDTH
+    figure_height = subplot_height * num_rows
+    return figure_width, figure_height
 
 
 def parse_args() -> argparse.Namespace:
@@ -576,13 +634,20 @@ def main() -> None:
             pl.col("eval_hard_budget").is_null().not_()
         )
         if not df_stop_action_hard_budget.is_empty():
+            # Calculate figure dimensions based on number of unique datasets
+            num_datasets = df_stop_action_hard_budget["dataset"].n_unique()
+            fig_width, fig_height = calculate_figure_dimensions(
+                num_datasets, subplot_height=4.0
+            )
             normal_hard_budget_plot = get_normal_hard_budget_plot(
-                df_stop_action_hard_budget
+                df_stop_action_hard_budget,
+                figure_width=fig_width,
+                figure_height=fig_height,
             )
             normal_hard_budget_plot.save(
                 subfolder / "hard_budget_normal.pdf",
-                width=PLOT_WIDTH,
-                height=PLOT_HEIGHT,
+                width=fig_width,
+                height=fig_height,
             )
 
         df_traj_filtered = df_traj.filter(pl.col("dataset").is_in(dataset_set))
@@ -590,34 +655,52 @@ def main() -> None:
             pl.col("eval_hard_budget").is_null().not_()
         )
         if not df_traj_hard_budget.is_empty():
+            # Calculate figure dimensions based on number of unique datasets
+            num_datasets = df_traj_hard_budget["dataset"].n_unique()
+            fig_width, fig_height = calculate_figure_dimensions(
+                num_datasets, subplot_height=4.0
+            )
             traj_hard_budget_plot = get_traj_hard_budget_plot(
-                df_traj_hard_budget
+                df_traj_hard_budget,
+                figure_width=fig_width,
+                figure_height=fig_height,
             )
             traj_hard_budget_plot.save(
                 subfolder / "hard_budget_traj.pdf",
-                width=PLOT_WIDTH,
-                height=PLOT_HEIGHT,
+                width=fig_width,
+                height=fig_height,
             )
 
         df_stop_action_soft_budget = df_stop_action_filtered.filter(
             pl.col("soft_budget_param").is_null().not_()
         )
         if not df_stop_action_soft_budget.is_empty():
+            # Calculate figure dimensions based on number of unique datasets
+            num_datasets = df_stop_action_soft_budget["dataset"].n_unique()
+            fig_width, fig_height = calculate_figure_dimensions(
+                num_datasets, subplot_height=4.0
+            )
             soft_budget_plot_2d_errors = get_soft_budget_plot(
-                df_stop_action_soft_budget, mode="2d_errors"
+                df_stop_action_soft_budget,
+                mode="2d_errors",
+                figure_width=fig_width,
+                figure_height=fig_height,
             )
             soft_budget_plot_lines = get_soft_budget_plot(
-                df_stop_action_soft_budget, mode="lines"
+                df_stop_action_soft_budget,
+                mode="lines",
+                figure_width=fig_width,
+                figure_height=fig_height,
             )
             soft_budget_plot_2d_errors.save(
                 subfolder / "soft_budget_2d_errors.pdf",
-                width=PLOT_WIDTH,
-                height=PLOT_HEIGHT,
+                width=fig_width,
+                height=fig_height,
             )
             soft_budget_plot_lines.save(
                 subfolder / "soft_budget_lines.pdf",
-                width=PLOT_WIDTH,
-                height=PLOT_HEIGHT,
+                width=fig_width,
+                height=fig_height,
             )
 
 
