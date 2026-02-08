@@ -33,26 +33,16 @@ from afabench.eval.plotting_config import (
 )
 
 EXCLUSION_MAPPING = {
-    # If these methods are the **only** ones present,
-    frozenset(
-        [
-            "jafa",
-            "odin_model_based",
-            "ol_with_mask",
-            "covert2023",
-            "ma2018_external",
-            "gadgil2023",
-            "cae",
-            "aaco",
-        ]
-    ): {
-        # Then exclude this method
-        "odin_model_based": [
-            # On these datasets
-            "diabetes",
-            "miniboone",
-        ]
-    }
+    # Exclude method from dataset by default, except when methods set matches
+    # Structure: (method, dataset) -> frozenset of allowed method combinations
+    # If the set of methods in the dataset matches one of the frozensets,
+    # the method is NOT excluded. Otherwise, it IS excluded.
+    ("odin_model_based", "diabetes"): frozenset(
+        [frozenset(["odin_model_based", "odin_model_free"])]
+    ),
+    ("odin_model_based", "miniboone"): frozenset(
+        [frozenset(["odin_model_based", "odin_model_free"])]
+    ),
 }
 
 DATASETS = DATASET_NAME_MAPPING.keys()
@@ -301,9 +291,19 @@ def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
     """
     Apply exclusion mappings to filter out methods under specific conditions.
 
-    For each dataset in the dataframe, check if the set of methods present
-    matches a key in EXCLUSION_MAPPING. If it does, exclude the specified
-    methods from the specified datasets.
+    By default, excludes a method from a dataset. Only includes it if the set
+    of methods present in the dataset matches one of the allowed combinations.
+
+    Structure of EXCLUSION_MAPPING:
+        (method, dataset) -> frozenset([frozenset(allowed_combinations)])
+
+    Example:
+        ("odin_model_based", "diabetes") -> frozenset([
+            frozenset(["odin_model_based", "odin_model_free"])
+        ])
+
+    This means: Exclude odin_model_based from diabetes, EXCEPT when the
+    only methods present are odin_model_based and odin_model_free.
 
     Args:
         df: Input dataframe with 'afa_method' and 'dataset' columns
@@ -311,33 +311,37 @@ def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
     Returns:
         Filtered dataframe with exclusions applied
     """
-    # Get unique datasets in the dataframe
-    unique_datasets = df["dataset"].unique().to_list()
+    # Get unique combinations of method and dataset in the input
+    method_dataset_pairs = (
+        df.select(["afa_method", "dataset"]).unique().to_dicts()
+    )
 
-    for dataset in unique_datasets:
-        # Get methods present for this dataset
-        methods_in_dataset = frozenset(
-            df.filter(pl.col("dataset") == dataset)["afa_method"]
-            .unique()
-            .to_list()
-        )
+    # Check each (method, dataset) pair and filter if needed
+    for pair in method_dataset_pairs:
+        method = pair["afa_method"]
+        dataset = pair["dataset"]
+        key = (method, dataset)
 
-        # Check if this set of methods matches any exclusion condition
-        if methods_in_dataset in EXCLUSION_MAPPING:
-            exclusions = EXCLUSION_MAPPING[methods_in_dataset]
+        # Check if this method-dataset pair has exclusion rules
+        if key in EXCLUSION_MAPPING:
+            # Get the set of methods present for this dataset
+            methods_in_dataset = frozenset(
+                df.filter(pl.col("dataset") == dataset)["afa_method"]
+                .unique()
+                .to_list()
+            )
 
-            # Apply exclusions for this dataset
-            for (
-                method_to_exclude,
-                datasets_to_exclude_from,
-            ) in exclusions.items():
-                if dataset in datasets_to_exclude_from:
-                    df = df.filter(
-                        ~(
-                            (pl.col("afa_method") == method_to_exclude)
-                            & (pl.col("dataset") == dataset)
-                        )
+            # Get the allowed method combinations for this exclusion rule
+            allowed_combinations = EXCLUSION_MAPPING[key]
+
+            # Only exclude if methods_in_dataset doesn't match any allowed combo
+            if methods_in_dataset not in allowed_combinations:
+                df = df.filter(
+                    ~(
+                        (pl.col("afa_method") == method)
+                        & (pl.col("dataset") == dataset)
                     )
+                )
 
     return df
 
