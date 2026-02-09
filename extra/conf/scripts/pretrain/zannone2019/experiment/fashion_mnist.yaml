@@ -1,0 +1,4 @@
+defaults:
+  - override /components/masking_probabilities@_global_: complex
+classifier:
+  num_cells: [128, 128] # zannone2019 paper does not say what this should be, so we use the same num_cells as the "common" classifier
