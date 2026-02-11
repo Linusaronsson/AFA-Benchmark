@@ -23,8 +23,6 @@ rule dataset_generation:
             "generate_image_dataset.py"
             if wildcards.dataset
             in [
-                "mnist",
-                "fashion_mnist",
                 "imagenette",
             ]
             else "generate_dataset.py"
