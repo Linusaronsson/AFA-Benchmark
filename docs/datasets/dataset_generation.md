@@ -1,1 +1,0 @@
-Each dataset can be split into train/val/test in different ways. We call one such split an "instance" of the dataset. Additionally, for synthetic datasets, we can use a different seed when generating the data.
