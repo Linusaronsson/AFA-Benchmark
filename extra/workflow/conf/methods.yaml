@@ -5,7 +5,7 @@ methods:
   - odin_model_based
   - ol_without_mask
   - ol_with_mask
-  - random_dummy
+  # - random_dummy
   # - sequential_dummy
   - covert2023
   - ma2018_builtin
