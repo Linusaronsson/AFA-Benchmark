@@ -1,24 +1,5 @@
-# Load configuration with defaults
-DATASETS = config.get("datasets", [
-    "afa_context",
-    "afa_context_without_noise",
-    "afa_context_v2_without_noise",
-    "afa_context_v2",
-    # "fashion_mnist", # unexpected keyword argument 'load_subdirs'
-    # "mnist", # unexpected keyword argument 'load_subdirs'
-    "synthetic_mnist",
-    "synthetic_mnist_without_noise",
-    "actg",
-    "bank_marketing",
-    "ckd",
-    "cube",
-    "cube_without_noise",
-    "cube_nonuniform_costs",
-    "diabetes",
-    "imagenette",
-    "miniboone",
-    "physionet",
-])
+# List of datasets *has* to be provided
+DATASETS = config["datasets"]
 
 DATASET_INSTANCE_INDICES = config.get("dataset_instance_indices", list(range(5)))
 
@@ -37,6 +18,7 @@ rule dataset_generation:
         instance_indices_str=lambda wildcards: "["
         + ",".join(str(i) for i in DATASET_INSTANCE_INDICES)
         + "]",
+        # We have two different scripts for data generation. Images behave a bit differently.
         dataset_generation_script=lambda wildcards: (
             "generate_image_dataset.py"
             if wildcards.dataset
