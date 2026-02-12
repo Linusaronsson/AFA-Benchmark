@@ -128,16 +128,21 @@ class GreedyDynamicSelection(nn.Module):
             x, _ = next(iter(val_loader))
             assert len(x.shape) == 2
             mask_size = x.shape[1]
-        if feature_costs is None:
-            feature_costs = torch.ones(mask_size, device=device)
-        selection_costs = unmasker.get_selection_costs(feature_costs).to(device)
-        log_cost = torch.log(selection_costs)
-        # feature_shape = torch.Size([mask_size])
-        # Pixel-evel feature masks
+
         x0, _ = next(iter(val_loader))
         x0 = x0.to(device)
-        # TODO: we currently assume feature shape=data shape -> pixel mask for image data
         feature_shape = torch.Size(list(x0.shape[1:]))
+
+        if feature_costs is None:
+            if len(feature_shape) == 3:
+                C, H, W = feature_shape
+                feature_costs = torch.ones((C, H, W), device=device)
+            else:
+                feature_costs = torch.ones(mask_size, device=device)
+        elif isinstance(feature_costs, np.ndarray):
+            feature_costs = torch.tensor(feature_costs, device=device)
+        selection_costs = unmasker.get_selection_costs(feature_costs).to(device)
+        log_cost = torch.log(selection_costs)
 
         n_selections = unmasker.get_n_selections(feature_shape)
 
@@ -746,16 +751,20 @@ class CMIEstimator(nn.Module):
             assert len(x.shape) == 2
             mask_size = x.shape[1]
 
+        x0, _ = next(iter(val_loader))
+        x0 = x0.to(device)
+        feature_shape = torch.Size(list(x0.shape[1:]))
+
         if feature_costs is None:
-            feature_costs = torch.ones(mask_size).to(device)
+            if len(feature_shape) == 3:
+                C, H, W = feature_shape
+                feature_costs = torch.ones((C, H, W), device=device)
+            else:
+                feature_costs = torch.ones(mask_size).to(device)
         elif isinstance(feature_costs, np.ndarray):
             feature_costs = torch.tensor(feature_costs).to(device)
         selection_costs = unmasker.get_selection_costs(feature_costs).to(device)
         selection_costs = torch.clamp(selection_costs, min=1e-12)
-        # feature_shape = torch.Size([mask_size])
-        x0, _ = next(iter(val_loader))
-        x0 = x0.to(device)
-        feature_shape = torch.Size(list(x0.shape[1:]))
 
         n_selections = unmasker.get_n_selections(feature_shape)
 
