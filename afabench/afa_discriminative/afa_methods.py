@@ -842,9 +842,9 @@ class CMIEstimator(nn.Module):
                         pred_cmi = value_network(x_masked)
 
                     best = torch.argmax(pred_cmi / selection_costs, dim=1)
-                    rng = np.random.default_rng()
+                    # rng = np.random.default_rng()
                     random = torch.tensor(
-                        rng.choice(n_selections, size=len(x)),
+                        np.random.choice(n_selections, size=len(x)),
                         device=x.device,
                     )
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()

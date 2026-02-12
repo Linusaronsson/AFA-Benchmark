@@ -6,7 +6,6 @@ from typing import Any
 import torch
 from omegaconf import OmegaConf
 from torch import nn
-from torchmetrics import Accuracy
 from torchrl.modules import MLP
 
 from afabench.afa_discriminative.datasets import prepare_datasets
@@ -83,8 +82,6 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
         lr=cfg.lr,
         nepochs=cfg.nepochs,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
-        val_loss_fn=Accuracy(task="multiclass", num_classes=d_out).to(device),
-        val_loss_mode="max",
         patience=cfg.patience,
         verbose=True,
         min_mask=cfg.min_masking_probability,

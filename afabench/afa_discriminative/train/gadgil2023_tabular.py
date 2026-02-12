@@ -6,7 +6,6 @@ from typing import cast
 import torch
 from omegaconf import OmegaConf
 from torch import nn
-from torchmetrics import Accuracy
 from torchrl.modules import MLP
 
 from afabench.afa_discriminative.afa_methods import (
@@ -20,6 +19,7 @@ from afabench.afa_discriminative.models import (
 from afabench.afa_discriminative.utils import (
     MaskLayer,
     afa_discriminative_training_prep,
+    tie_first_k_linears_by_module,
 )
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import Gadgil2023TrainingConfig
@@ -69,16 +69,17 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         dropout=cfg.dropout,
     ).to(device)
 
-    pred_linears = [m for m in predictor.modules() if isinstance(m, nn.Linear)]
-    value_linears = [
-        m for m in value_network.modules() if isinstance(m, nn.Linear)
-    ]
+    # pred_linears = [m for m in predictor.modules() if isinstance(m, nn.Linear)]
+    # value_linears = [
+    #     m for m in value_network.modules() if isinstance(m, nn.Linear)
+    # ]
+    # msg = "Mismatch in number of linear layers."
+    # assert len(pred_linears) == len(value_linears), msg
+    # for i in range(len(cfg.hidden_units)):
+    #     value_linears[i].weight = pred_linears[i].weight
+    #     value_linears[i].bias = pred_linears[i].bias
 
-    msg = "Mismatch in number of linear layers."
-    assert len(pred_linears) == len(value_linears), msg
-    for i in range(len(cfg.hidden_units)):
-        value_linears[i].weight = pred_linears[i].weight
-        value_linears[i].bias = pred_linears[i].bias
+    tie_first_k_linears_by_module(predictor, value_network, k=2)
 
     mask_layer = MaskLayer(append=True)
 
@@ -98,8 +99,8 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         max_features=cfg.hard_budget,
         eps=cfg.eps,
         loss_fn=nn.CrossEntropyLoss(reduction="none", weight=class_weights),
-        val_loss_fn=Accuracy(task="multiclass", num_classes=d_out).to(device),
-        val_loss_mode="max",
+        val_loss_fn=None,
+        val_loss_mode=None,
         eps_decay=cfg.eps_decay,
         eps_steps=cfg.eps_steps,
         patience=cfg.patience,

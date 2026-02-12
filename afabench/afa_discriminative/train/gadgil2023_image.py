@@ -7,7 +7,6 @@ import torch
 from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
-from torchmetrics import Accuracy
 
 from afabench.afa_discriminative.afa_methods import (
     CMIEstimator,
@@ -120,8 +119,8 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:
         max_features=cfg.hard_budget,
         eps=cfg.eps,
         loss_fn=nn.CrossEntropyLoss(reduction="none"),
-        val_loss_fn=Accuracy(task="multiclass", num_classes=d_out).to(device),
-        val_loss_mode="max",
+        val_loss_fn=None,
+        val_loss_mode=None,
         eps_decay=cfg.eps_decay,
         eps_steps=cfg.eps_steps,
         patience=cfg.patience,

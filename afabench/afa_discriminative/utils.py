@@ -125,6 +125,30 @@ def selection_soft_to_feature_soft(
     return out
 
 
+def tie_first_k_linears_by_module(
+    predictor: nn.Module,
+    value_network: nn.Module,
+    k: int = 2
+) -> None:
+    pred_linears = [m for m in predictor.modules() if isinstance(m, nn.Linear)]
+    val_linears  = [m for m in value_network.modules() if isinstance(m, nn.Linear)]
+    if len(pred_linears) < k or len(val_linears) < k:
+        raise ValueError(
+            f"Need at least {k} Linear layers in each model. "
+            f"Got predictor={len(pred_linears)}, value_network={len(val_linears)}"
+        )
+    for i in range(k):
+        _replace_module(value_network, val_linears[i], pred_linears[i])
+
+
+def _replace_module(root: nn.Module, old: nn.Module, new: nn.Module) -> None:
+    for name, child in root.named_children():
+        if child is old:
+            setattr(root, name, new)
+            return
+        _replace_module(child, old, new)
+
+
 class MaskLayer(nn.Module):
     """
     Mask layer for tabular data.

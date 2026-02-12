@@ -7,7 +7,6 @@ import torch
 from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
-from torchmetrics import Accuracy
 
 from afabench.afa_discriminative.models import (
     GreedyAFAClassifier,
@@ -83,8 +82,6 @@ def pretrain_image(cfg: Gadgil2023Pretraining2DConfig) -> None:
         lr=cfg.lr,
         nepochs=cfg.nepochs,
         loss_fn=nn.CrossEntropyLoss(),
-        val_loss_fn=Accuracy(task="multiclass", num_classes=d_out).to(device),
-        val_loss_mode="max",
         patience=cfg.patience,
         verbose=True,
         min_mask=cfg.min_masking_probability,
