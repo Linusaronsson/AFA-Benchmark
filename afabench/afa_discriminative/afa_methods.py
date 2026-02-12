@@ -136,11 +136,11 @@ class GreedyDynamicSelection(nn.Module):
         if feature_costs is None:
             if len(feature_shape) == 3:
                 C, H, W = feature_shape
-                feature_costs = torch.ones((C, H, W), device=device)
+                feature_costs = torch.ones((C, H, W), device="cpu")
             else:
-                feature_costs = torch.ones(mask_size, device=device)
+                feature_costs = torch.ones(mask_size, device="cpu")
         elif isinstance(feature_costs, np.ndarray):
-            feature_costs = torch.tensor(feature_costs, device=device)
+            feature_costs = torch.tensor(feature_costs, device="cpu")
         selection_costs = unmasker.get_selection_costs(feature_costs).to(device)
         log_cost = torch.log(selection_costs)
 
@@ -758,11 +758,11 @@ class CMIEstimator(nn.Module):
         if feature_costs is None:
             if len(feature_shape) == 3:
                 C, H, W = feature_shape
-                feature_costs = torch.ones((C, H, W), device=device)
+                feature_costs = torch.ones((C, H, W), device="cpu")
             else:
-                feature_costs = torch.ones(mask_size).to(device)
+                feature_costs = torch.ones(mask_size, device="cpu")
         elif isinstance(feature_costs, np.ndarray):
-            feature_costs = torch.tensor(feature_costs).to(device)
+            feature_costs = torch.tensor(feature_costs).to("cpu")
         selection_costs = unmasker.get_selection_costs(feature_costs).to(device)
         selection_costs = torch.clamp(selection_costs, min=1e-12)
 
