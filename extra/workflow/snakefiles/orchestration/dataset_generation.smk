@@ -18,7 +18,10 @@ rule dataset_generation:
         instance_indices_str=lambda wildcards: "["
         + ",".join(str(i) for i in DATASET_INSTANCE_INDICES)
         + "]",
-        # We have two different scripts for data generation. Images behave a bit differently.
+        # Image datasets use a separate generation script because they are
+        # defined by external files + transforms. We save only split indices
+        # and config (not image tensors) to avoid large artifacts and freezing
+        # augmentation behaviour.
         dataset_generation_script=lambda wildcards: (
             "generate_image_dataset.py"
             if wildcards.dataset
