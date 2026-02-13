@@ -20,7 +20,12 @@ rule all:
 
 rule all_generate_dataset:
     input:
-        expand("extra/output/datasets/{dataset}", dataset=DATASETS),
+        [
+            f"extra/output/datasets/{dataset}/{dataset_instance_idx}/{split}.bundle"
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for split in ["train", "val", "test"]
+        ]
 
 rule all_train_classifier:
     input:
