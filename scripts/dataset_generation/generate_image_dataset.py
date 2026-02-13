@@ -31,8 +31,17 @@ def generate_and_save_image_split(
     # Create TRAIN pool dataset with the specific seed
     train_kwargs = dict(dataset_kwargs)
     train_kwargs["load_subdirs"] = ("train",)
+    train_kwargs["split_role"] = "train"
 
-    train_pool = dataset_class(**train_kwargs)
+    val_kwargs = dict(dataset_kwargs)
+    val_kwargs["load_subdirs"] = ("train",)
+    val_kwargs["split_role"] = "val"
+
+    test_kwargs = dict(dataset_kwargs)
+    test_kwargs["load_subdirs"] = ("val",)
+    test_kwargs["split_role"] = "test"
+
+    train_pool = dataset_class(**val_kwargs)
 
     # Calculate split sizes
     # Split ONLY into train/val from the official train pool
@@ -53,12 +62,10 @@ def generate_and_save_image_split(
     # Create subset datasets using the original dataset
     train_dataset = dataset_class(**train_kwargs)
     train_dataset.indices = train_indices_t  # pyright: ignore[reportAttributeAccessIssue]
-    val_dataset = dataset_class(**train_kwargs)
+    val_dataset = dataset_class(**val_kwargs)
     val_dataset.indices = val_indices_t  # pyright: ignore[reportAttributeAccessIssue]
 
     # Load official val/ as the fixed test set
-    test_kwargs = dict(dataset_kwargs)
-    test_kwargs["load_subdirs"] = ("val",)
     test_dataset = dataset_class(**test_kwargs)
 
     # Create dataset directory
@@ -77,17 +84,20 @@ def generate_and_save_image_split(
     save_bundle(
         obj=train_dataset,
         path=train_path,
-        metadata=base_metadata | {"split": "train"},
+        metadata=base_metadata
+        | {"split": "train", "effective_dataset_kwargs": train_kwargs},
     )
     save_bundle(
         obj=val_dataset,
         path=val_path,
-        metadata=base_metadata | {"split": "val"},
+        metadata=base_metadata
+        | {"split": "val", "effective_dataset_kwargs": val_kwargs},
     )
     save_bundle(
         obj=test_dataset,
         path=test_path,
-        metadata=base_metadata | {"split": "test"},
+        metadata=base_metadata
+        | {"split": "test", "effective_dataset_kwargs": test_kwargs},
     )
 
 

@@ -1487,6 +1487,15 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         )
         self.indices = torch.arange(len(self.samples), dtype=torch.long)
 
+    def _resolve_index(self, i: int) -> int:
+        if self.indices.ndim != 1:
+            msg = f"indices must be 1D, got shape {tuple(self.indices.shape)}"
+            raise ValueError(msg)
+        if i < 0 or i >= int(self.indices.numel()):
+            msg = f"Index {i} out of range for dataset of length {len(self)}"
+            raise IndexError(msg)
+        return int(self.indices[i].item())
+
     def _train_transform(self) -> transforms.Compose:
         return transforms.Compose(
             [
@@ -1494,7 +1503,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 transforms.Normalize(
-                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                    (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
                 ),
             ]
         )
@@ -1506,7 +1515,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 transforms.CenterCrop(self.image_size),
                 transforms.ToTensor(),
                 transforms.Normalize(
-                    (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+                    (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
                 ),
             ]
         )
@@ -1549,12 +1558,13 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return root
 
     @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+    def __getitem__(self, i: int) -> tuple[Tensor, Tensor]:
         assert (  # noqa: PT018
             self.samples is not None
             and self.targets is not None
             and self.transform is not None
         ), "Dataset not properly initialized"
+        idx = self._resolve_index(i)
         path = self.samples[idx]
         y = self.targets[idx]
         with Image.open(path) as img:
@@ -1572,7 +1582,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     @override
     def __len__(self) -> int:
-        return len(self.samples)
+        return int(self.indices.numel())
 
     @override
     def get_all_data(self) -> tuple[Tensor, Tensor]:
@@ -1608,16 +1618,12 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         data = torch.load(path / "dataset.pt")
         cfg = data["config"]
         idx = data["indices"]
+        if not isinstance(idx, Tensor):
+            idx = torch.tensor(idx, dtype=torch.long)
+        idx = idx.to(dtype=torch.long)
         if "split_role" not in cfg or cfg["split_role"] is None:
-            stem = Path(path).stem.lower()
-            if "train" in stem:
-                cfg["split_role"] = "train"
-            elif "val" in stem:
-                cfg["split_role"] = "val"
-            elif "test" in stem:
-                cfg["split_role"] = "test"
-            else:
-                cfg["split_role"] = "val"
+            msg = "Split role not initialized!"
+            raise ValueError(msg)
 
         # Create instance without calling __init__
         obj = cls.__new__(cls)
@@ -1648,9 +1654,17 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         )
 
         # Apply subset filtering
-        obj.samples = [all_samples[i] for i in idx.tolist()]
-        obj.targets = all_targets[idx]
+        obj.samples = all_samples
+        obj.targets = all_targets
         obj.indices = idx
+        n = len(obj.samples)
+        if int(obj.indices.numel()) > 0 and (
+            int(obj.indices.min().item()) < 0
+            or int(obj.indices.max().item()) >= n
+        ):
+            msg = f"Loaded indices out of bounds: valid [0, {n - 1}]"
+            raise ValueError(msg)
+
         return obj
 
 
