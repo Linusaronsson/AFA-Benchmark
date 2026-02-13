@@ -1,12 +1,3 @@
-# List of datasets *has* to be provided
-DATASETS = config["datasets"]
-
-DATASET_INSTANCE_INDICES = config.get("dataset_instance_indices", list(range(5)))
-
-
-rule all:
-    input:
-        expand("extra/output/datasets/{dataset}", dataset=DATASETS),
 
 
 # Generate instances for a single type of dataset
