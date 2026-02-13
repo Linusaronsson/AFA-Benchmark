@@ -15,10 +15,12 @@ from afabench.afa_rl.common.utils import mask_data
 models_dir = "./models/pretrained_resnet_models"
 model_name = {
     "resnet18": "resnet18-5c106cde.pth",
+    "resnet50": "resnet50-19c8e357.pth",
 }
 
 model_urls = {
     "resnet18": "https://download.pytorch.org/models/resnet18-5c106cde.pth",
+    "resnet50": "https://download.pytorch.org/models/resnet50-19c8e357.pth",
 }
 
 
@@ -57,6 +59,22 @@ def resnet18(pretrained=False, **kwargs):
 
             state_dict = load_state_dict_from_url(
                 model_urls["resnet18"],
+                weights_only=False,
+            )
+        model.load_state_dict(state_dict)
+    return model
+
+
+def resnet50(pretrained=False, **kwargs):
+    model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
+    if pretrained:
+        try:
+            ckpt_path = os.path.join(models_dir, model_name["resnet50"])
+            state_dict = torch.load(ckpt_path, map_location="cpu")
+        except FileNotFoundError:
+            from torch.hub import load_state_dict_from_url
+            state_dict = load_state_dict_from_url(
+                model_urls["resnet50"],
                 weights_only=False,
             )
         model.load_state_dict(state_dict)
@@ -475,7 +493,7 @@ class Predictor(nn.Module):
         super(Predictor, self).__init__()
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
-        self.conv = nn.Conv2d(512, 256, kernel_size=3)
+        self.conv = nn.Conv2d(512 * expansion, 256, kernel_size=3)
         self.bn = nn.BatchNorm2d(256)
         self.relu = nn.ReLU(inplace=True)
         self.fc = nn.Linear(256 * expansion, num_classes)
@@ -543,9 +561,15 @@ def build_resnet18_predictor(arch: dict[str, Any]) -> nn.Module:
     backbone, expansion = ResNet18Backbone(base)
     return Predictor(backbone, expansion, num_classes=int(arch["d_out"]))
 
+def build_resnet50_predictor(arch: dict[str, Any]) -> nn.Module:
+    base = resnet50(pretrained=bool(arch.get("pretrained", True)))
+    backbone, expansion = ResNet18Backbone(base)
+    return Predictor(backbone, expansion, num_classes=int(arch["d_out"]))
+
 _BUILDERS: dict[str, Callable[[dict[str, Any]], nn.Module]] = {
     "mlp": build_mlp,
     "resnet18": build_resnet18_predictor,
+    "resnet50": build_resnet50_predictor,
 }
 
 

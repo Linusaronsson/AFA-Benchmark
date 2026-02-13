@@ -487,6 +487,7 @@ class Covert2023Pretraining2DConfig:
     patience: int
     min_masking_probability: float
     max_masking_probability: float
+    backbone_type: str
 
     image_size: int
     patch_size: int
@@ -547,6 +548,7 @@ class Covert2023Training2DConfig:
     patience: int
     device: str
     seed: int
+    backbone_type: str
 
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -603,6 +605,7 @@ class Gadgil2023Pretraining2DConfig:
     patience: int
     min_masking_probability: float
     max_masking_probability: float
+    backbone_type: str
 
     image_size: int
     patch_size: int
@@ -670,6 +673,7 @@ class Gadgil2023Training2DConfig:
     eps_steps: int
     device: str
     seed: int
+    backbone_type: str
 
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
@@ -736,6 +740,7 @@ class CAETraining2DConfig:
     soft_budget_param: float | None
     device: str
     seed: int
+    backbone_type: str
 
     initializer: InitializerConfig
     unmasker: UnmaskerConfig

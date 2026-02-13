@@ -13,6 +13,7 @@ from afabench.afa_discriminative.models import (
     Predictor,
     ResNet18Backbone,
     resnet18,
+    resnet50,
 )
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import CAETraining2DConfig
@@ -65,7 +66,13 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
     )
     mask_width = image_size // patch_size
 
-    base = resnet18(pretrained=True)
+    if cfg.backbone_type == "resnet18":
+        base = resnet18(pretrained=True)
+    elif cfg.backbone_type == "resnet50":
+        base = resnet50(pretrained=True)
+    else:
+        msg = f"Unsupported backbone type: {cfg.backbone_type}"
+        raise ValueError(msg)
     backbone, expansion = ResNet18Backbone(base)
     model = Predictor(backbone, expansion, num_classes=d_out).to(device)
     selector_layer = ConcreteMask2d(
@@ -141,7 +148,10 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
             collate_fn=make_masked_collate(patch_mask),
         )
 
-        base = resnet18(pretrained=True)
+        if cfg.backbone_type == "resnet18":
+            base = resnet18(pretrained=True)
+        else:
+            base = resnet50(pretrained=True)
         backbone, expansion = ResNet18Backbone(base)
         model = Predictor(backbone, expansion, num_classes=d_out).to(device)
         predictor = BaseModel(model).to(device)

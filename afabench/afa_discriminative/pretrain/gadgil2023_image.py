@@ -14,6 +14,7 @@ from afabench.afa_discriminative.models import (
     Predictor,
     ResNet18Backbone,
     resnet18,
+    resnet50,
 )
 from afabench.afa_discriminative.utils import MaskLayer2d
 from afabench.common.bundle import (
@@ -54,7 +55,13 @@ def pretrain_image(cfg: Gadgil2023Pretraining2DConfig) -> None:
         pin_memory=True,
     )
 
-    base = resnet18(pretrained=True)
+    if cfg.backbone_type == "resnet18":
+        base = resnet18(pretrained=True)
+    elif cfg.backbone_type == "resnet50":
+        base = resnet50(pretrained=True)
+    else:
+        msg = f"Unsupported backbone type: {cfg.backbone_type}"
+        raise ValueError(msg)
     backbone, expansion = ResNet18Backbone(base)
     predictor = Predictor(backbone, expansion, num_classes=d_out).to(device)
 
@@ -65,8 +72,8 @@ def pretrain_image(cfg: Gadgil2023Pretraining2DConfig) -> None:
     )
     mask_width = image_size // patch_size
     architecture: dict[str, Any] = {
-        "type": "resnet18",
-        "backbone": "resnet18",
+        "type": cfg.backbone_type,
+        "backbone": cfg.backbone_type,
         "image_size": image_size,
         "patch_size": patch_size,
         "mask_width": mask_width,

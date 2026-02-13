@@ -14,6 +14,4 @@ classifier:
   nepochs: 50
   num_cells: [128, 128]
 
-# train_dataset_bundle_path: "extra/data/datasets/imagenette/0/train.bundle"
-# val_dataset_bundle_path: "extra/data/datasets/imagenette/0/val.bundle"
-# save_path: "extra/result/cae/train/imagenette/0.bundle"
+backbone_type: resnet50

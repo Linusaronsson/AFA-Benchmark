@@ -7,3 +7,4 @@ patience: 3
 eps: 0.05
 eps_decay: 0.2
 eps_steps: 10
+backbone_type: resnet50

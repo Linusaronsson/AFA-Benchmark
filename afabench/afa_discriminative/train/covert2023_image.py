@@ -17,6 +17,7 @@ from afabench.afa_discriminative.models import (
     GreedyAFAClassifier,
     ResNet18Backbone,
     resnet18,
+    resnet50,
 )
 from afabench.afa_discriminative.utils import (
     MaskLayer2d,
@@ -61,7 +62,13 @@ def train_image(cfg: Covert2023Training2DConfig) -> None:
     )
     d_out = train_dataset.label_shape[0]
 
-    base = resnet18(pretrained=True)
+    if cfg.backbone_type == "resnet18":
+        base = resnet18(pretrained=True)
+    elif cfg.backbone_type == "resnet50":
+        base = resnet50(pretrained=True)
+    else:
+        msg = f"Unsupported backbone type: {cfg.backbone_type}"
+        raise ValueError(msg)
     backbone, expansion = ResNet18Backbone(base)
 
     classifier_bundle, _ = load_bundle(
@@ -125,6 +132,7 @@ def train_image(cfg: Covert2023Training2DConfig) -> None:
         modality="image",
         n_patches=n_patches,
         d_out=d_out,
+        backbone_type=cfg.backbone_type,
     )
     afa_method.image_size = image_size
     afa_method.patch_size = patch_size

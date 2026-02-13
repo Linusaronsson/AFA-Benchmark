@@ -18,6 +18,7 @@ from afabench.afa_discriminative.models import (
     Predictor,
     ResNet18Backbone,
     resnet18,
+    resnet50,
 )
 from afabench.afa_discriminative.utils import (
     MaskLayer2d,
@@ -30,7 +31,7 @@ from afabench.common.utils import set_seed
 log = logging.getLogger(__name__)
 
 
-def train_image(cfg: Gadgil2023Training2DConfig) -> None:
+def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -62,7 +63,13 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:
         pin_memory=True,
     )
 
-    base = resnet18(pretrained=True)
+    if cfg.backbone_type == "resnet18":
+        base = resnet18(pretrained=True)
+    elif cfg.backbone_type == "resnet50":
+        base = resnet50(pretrained=True)
+    else:
+        msg = f"Unsupported backbone type: {cfg.backbone_type}"
+        raise ValueError(msg)
     _, expansion = ResNet18Backbone(base)
     classifier_bundle, _ = load_bundle(
         Path(cfg.pretrained_model_bundle_path),
@@ -137,6 +144,7 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:
         modality="image",
         n_patches=n_patches,
         d_out=d_out,
+        backbone_type=cfg.backbone_type,
     )
     afa_method.image_size = image_size
     afa_method.patch_size = patch_size

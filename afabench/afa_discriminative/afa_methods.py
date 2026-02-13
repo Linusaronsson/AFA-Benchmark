@@ -15,6 +15,7 @@ from afabench.afa_discriminative.models import (
     Predictor,
     ResNet18Backbone,
     resnet18,
+    resnet50,
 )
 from afabench.afa_discriminative.utils import (
     ConcreteSelector,
@@ -419,6 +420,7 @@ class Covert2023AFAMethod(AFAMethod):
         d_in: int | None = None,
         d_out: int | None = None,
         n_selections: int | None = None,
+        backbone_type: str = "resnet50",
     ):
         super().__init__()
 
@@ -443,6 +445,7 @@ class Covert2023AFAMethod(AFAMethod):
         self.image_size: int | None = None
         self.patch_size: int | None = None
         self.mask_width: int | None = None
+        self.backbone_type: str = backbone_type
 
     def _flat_mask_to_patch_mask(
         self, feature_mask: torch.Tensor
@@ -588,12 +591,15 @@ class Covert2023AFAMethod(AFAMethod):
             model.predictor.eval()
             return model.to(device)
 
-        elif arch["type"] == "resnet18":
+        elif arch["type"] in ("resnet18", "resnet50"):
             d_out = arch["d_out"]
-            base = resnet18(pretrained=False)
+            if arch["type"] == "resnet18":
+                base = resnet18(pretrained=False)
+            else:
+                base = resnet50(pretrained=False)
             backbone_net, expansion = ResNet18Backbone(base)
             predictor = Predictor(backbone_net, expansion, d_out)
-            selector = ConvNet(backbone_net, 1, 0.5)
+            selector = ConvNet(backbone_net, expansion, 0.5)
 
             model = cls(
                 selector=selector,
@@ -604,6 +610,7 @@ class Covert2023AFAMethod(AFAMethod):
                 modality="image",
                 n_patches=int(arch["mask_width"]) ** 2,
                 d_out=d_out,
+                backbone_type=str(arch["type"]),
             )
 
             model.mask_width = int(arch["mask_width"])
@@ -633,9 +640,10 @@ class Covert2023AFAMethod(AFAMethod):
                 "model_type": "tabular",
             }
         else:
+            backbone_type = self.backbone_type
             arch = {
-                "type": "resnet18",
-                "backbone": "resnet18",
+                "type": backbone_type,
+                "backbone": backbone_type,
                 "image_size": getattr(self, "image_size", 224),
                 "patch_size": getattr(self, "patch_size", 16),
                 "mask_width": getattr(self, "mask_width", 14),
@@ -1065,6 +1073,7 @@ class Gadgil2023AFAMethod(AFAMethod):
         d_in: int | None = None,
         d_out: int | None = None,
         n_selections: int | None = None,
+        backbone_type: str = "resnet50",
     ):
         super().__init__()
 
@@ -1088,6 +1097,7 @@ class Gadgil2023AFAMethod(AFAMethod):
         self.image_size: int | None = None
         self.patch_size: int | None = None
         self.mask_width: int | None = None
+        self.backbone_type: str = backbone_type
 
     def _flat_mask_to_patch_mask(
         self, feature_mask: torch.Tensor
@@ -1224,12 +1234,15 @@ class Gadgil2023AFAMethod(AFAMethod):
             model.predictor.eval()
             return model.to(device)
 
-        elif arch["type"] == "resnet18":
+        elif arch["type"] in ("resnet18", "resnet50"):
             d_out = arch["d_out"]
-            base = resnet18(pretrained=False)
+            if arch["type"] == "resnet18":
+                base = resnet18(pretrained=False)
+            else:
+                base = resnet50(pretrained=False)
             backbone_net, expansion = ResNet18Backbone(base)
             predictor = Predictor(backbone_net, expansion, d_out)
-            value_network = ConvNet(backbone_net, 1, 0.5)
+            value_network = ConvNet(backbone_net, expansion, 0.5)
 
             model = cls(
                 value_network=value_network,
@@ -1240,6 +1253,7 @@ class Gadgil2023AFAMethod(AFAMethod):
                 modality="image",
                 n_patches=int(arch["mask_width"]) ** 2,
                 d_out=d_out,
+                backbone_type=str(arch["type"]),
             )
             model.mask_width = int(arch["mask_width"])
             model.patch_size = int(arch["patch_size"])
@@ -1270,9 +1284,10 @@ class Gadgil2023AFAMethod(AFAMethod):
                 "model_type": "tabular",
             }
         else:
+            backbone_type = self.backbone_type
             arch = {
-                "type": "resnet18",
-                "backbone": "resnet18",
+                "type": backbone_type,
+                "backbone": backbone_type,
                 "image_size": getattr(self, "image_size", 224),
                 "patch_size": getattr(self, "patch_size", 16),
                 "mask_width": getattr(self, "mask_width", 14),
