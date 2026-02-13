@@ -496,7 +496,7 @@ class Predictor(nn.Module):
         self.conv = nn.Conv2d(512 * expansion, 256, kernel_size=3)
         self.bn = nn.BatchNorm2d(256)
         self.relu = nn.ReLU(inplace=True)
-        self.fc = nn.Linear(256 * expansion, num_classes)
+        self.fc = nn.Linear(256, num_classes)
         self.backbone = backbone
 
     def forward(self, x):
