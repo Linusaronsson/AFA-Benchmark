@@ -32,6 +32,7 @@ REGISTERED_CLASSES = {
     "CKDDataset": "afabench.common.datasets.datasets.CKDDataset",
     "ACTG175Dataset": "afabench.common.datasets.datasets.ACTG175Dataset",
     "ImagenetteDataset": "afabench.common.datasets.datasets.ImagenetteDataset",
+    "DummyDataset": "afabench.common.datasets.datasets.DummyDataset",
     # AFA Classifier Classes
     "RandomDummyAFAClassifier": "afabench.common.classifiers.RandomDummyAFAClassifier",
     "UniformDummyAFAClassifier": "afabench.common.classifiers.UniformDummyAFAClassifier",
@@ -69,29 +70,3 @@ def get_class(class_name: str) -> type:
     )
     module = __import__(module_name, fromlist=[class_name_in_module])
     return getattr(module, class_name_in_module)
-
-
-# Backward compatibility functions - these delegate to the unified get_class function
-# def get_afa_method_class(class_name: str) -> type[AFAMethod]:
-#     """Return a reference to an AFAMethod class, given the class name."""
-#     return get_class(class_name)
-
-
-# def get_afa_dataset_class(class_name: str) -> type[AFADataset]:
-#     """Return a reference to an AFADataset class, given the class name."""
-#     return get_class(class_name)
-
-
-# def get_afa_classifier_class(class_name: str) -> type[AFAClassifier]:
-#     """Return a reference to an AFAClassifier class, given the class name."""
-#     return get_class(class_name)
-
-
-# def get_afa_unmasker_class(class_name: str) -> type[AFAUnmasker]:
-#     """Return a reference to an AFAUnmasker class, given the class name."""
-#     return get_class(class_name)
-
-
-# def get_afa_initializer_class(class_name: str) -> type[AFAInitializer]:
-#     """Return a reference to an AFAInitializer class, given the class name."""
-#     return get_class(class_name)

@@ -1,0 +1,3 @@
+class_name: "DummyDataset"
+kwargs:
+  n_samples: 10

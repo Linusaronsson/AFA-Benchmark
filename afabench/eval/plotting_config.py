@@ -50,6 +50,7 @@ DATASET_NAME_MAPPING = {
     "miniboone": "MiniBooNE",
     "physionet": "PhysioNet",
     "imagenette": "Imagenette",
+    "dummy": "The Dummy Dataset",
 }
 
 # Datasets that use F1 score instead of accuracy
@@ -88,6 +89,7 @@ DATASET_SETS = {
         "mnist",
         "cube_nonuniform_costs",
         "afa_context_v2",
+        "dummy",
     },
 }
 

@@ -1,4 +1,5 @@
 import tarfile
+from torch.nn import functional as F
 import urllib.request
 from collections.abc import Callable, Sequence
 from pathlib import Path
@@ -30,6 +31,75 @@ def _z_normalize(features_df: pd.DataFrame) -> pd.DataFrame:
     stds = stds.replace(0, 1.0)
     return (features_df - means) / stds
 
+@final
+class DummyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    @classmethod
+    @override
+    def accepts_seed(cls) -> bool:
+        return False
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size([5])
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([3])
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        return default_create_subset(self, indices)
+
+    def __init__(
+        self,
+        n_samples: int
+    ):
+        super().__init__()
+        self.n_samples = n_samples
+
+        self.features = torch.randn(n_samples, 5)
+        self.labels = F.one_hot(
+            torch.randint(low=0, high=3, size=(self.n_samples,)),
+            num_classes=3
+        ).float()
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "config": {
+                    "n_samples": self.n_samples,
+                }
+            },
+            path / "dataset.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path / "dataset.pt")
+        # Create instance without calling __init__
+        obj = cls.__new__(cls)
+        obj.n_samples = data["config"]["n_samples"]
+        obj.features = data["features"]
+        obj.labels = data["labels"]
+        return obj
 
 @final
 class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
