@@ -35,6 +35,10 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
+    if cfg.smoke_test:
+        cfg.selector.nepochs = 1
+        cfg.selector.patience = 1
+        cfg.classifier.nepochs = 1
 
     train_dataset, _ = load_bundle(Path(cfg.train_dataset_bundle_path))
     train_dataset = cast("AFADataset", cast("object", train_dataset))

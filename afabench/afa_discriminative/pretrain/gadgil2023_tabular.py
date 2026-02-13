@@ -32,6 +32,9 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
+    if cfg.smoke_test:
+        cfg.nepochs = 1
+        cfg.patience = 1
 
     train_dataset, train_manifest = load_bundle(
         Path(cfg.train_dataset_bundle_path)

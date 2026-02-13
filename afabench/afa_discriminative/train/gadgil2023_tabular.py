@@ -33,6 +33,9 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
+    if cfg.smoke_test:
+        cfg.nepochs = 1
+        cfg.patience = 1
 
     train_dataset, val_dataset, initializer, unmasker, class_weights = (
         afa_discriminative_training_prep(

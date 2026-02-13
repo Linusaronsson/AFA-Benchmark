@@ -35,6 +35,10 @@ def main(cfg: PermutationTrainingConfig):
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
+    if cfg.smoke_test:
+        cfg.selector.nepochs = 1
+        cfg.selector.patience = 1
+        cfg.classifier.nepochs = 1
 
     train_dataset, val_dataset, _, _, class_weights = (
         afa_discriminative_training_prep(

@@ -32,6 +32,9 @@ def pretrain_image(cfg: Covert2023Pretraining2DConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
+    if cfg.smoke_test:
+        cfg.nepochs = 1
+        cfg.patience = 1
 
     train_dataset, _ = load_bundle(Path(cfg.train_dataset_bundle_path))
     train_dataset = cast("AFADataset", cast("object", train_dataset))

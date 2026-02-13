@@ -35,6 +35,9 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
+    if cfg.smoke_test:
+        cfg.nepochs = 1
+        cfg.patience = 1
 
     train_dataset, val_dataset, initializer, unmasker, _ = (
         afa_discriminative_training_prep(
