@@ -10,15 +10,14 @@ default-resources:
   slurm_extra: "--gres=gpu:T4:1"
 
 set-resources:
+  train_classifier:
+    runtime: 1440
   pretrain_model:
     runtime: 600
   train_method_with_pretrained_model:
-    runtime: 600
-  train_method_with_foreign_pretrained_model:
-    runtime: 10
+    runtime: 1440
+    # slurm_extra: "--gres=gpu:A40:1"
   train_method_without_pretrained_model:
     runtime: 600
-  eval_method_hard:
-    runtime: 1440
-  eval_method_soft:
+  eval_method:
     runtime: 1440
