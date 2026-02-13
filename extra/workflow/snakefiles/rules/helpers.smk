@@ -11,9 +11,13 @@ rule all:
             f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_perf/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
         ] +
         # The next two sets of plots should be identical, but include them both just in case
-        [
-            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_actions/method_set-{HEATMAP_METHOD_SET}+classifier_type-external"
-        ] +
+        (
+            [
+                f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/eval_actions/method_set-{HEATMAP_METHOD_SET}+classifier_type-external"
+            ]
+            if HEATMAP_METHOD_SET in METHOD_SETS
+            else []
+        ) +
         [
             f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/time/"
         ]
