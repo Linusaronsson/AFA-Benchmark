@@ -29,6 +29,9 @@ intelligently decide which tests to order next based on previous results, aiming
 for accurate diagnosis with minimal cost.
 
 ## Installation
+
+[uv](https://docs.astral.sh/uv/getting-started/installation/) is the only external dependency.
+
 ```bash
 # Clone repository
 git clone https://github.com/Linusaronsson/AFA-Benchmark.git
@@ -70,18 +73,23 @@ uv sync
 - `afabench`: Main package.
 - `docs`: Documentation.
 - `extra`: Saved methods, data, logs and so on, non-source code files.
-    - `conf`: This is where all the configuration files are. Each configuration file
+    - `conf`: This is where all the **script** configuration files are. Each configuration file
       corresponds to a class in `config_classes.py`.
     - `data`: Where miscellaneous files for datasets (e.g., CSVs, custom generated costs, etc.) are stored.
     - `workflow`: Snakemake workflows for running the full pipeline.
-    - `output`: Main entry point for saving and loading bundles.
-- `scripts/`:
-  - `dataset_generation/generate_dataset.py`: A script that generates datasets
-    individually. Generates a dataset artifact.
-  - `evaluation/eval_afa_method.py`: Evaluates a single method on a single dataset split (hard or soft budget).
-  - `pretrain/`: Pretraining scripts for methods that require pretraining.
-  - `train/`: Training scripts for methods.
-- `test`: Unit tests.
+    - `output`: Folder where outputs from the snakemake pipeline are stored.
+- `scripts/`: Folder of scripts, many of which are called from the snakemake pipeline.
+- `test`: Tests.
+  - `src`: Tests related to library code in `afabench`.
+  - `scripts`: Tests related to specific scripts in `scripts`.
+
+## Tutorials
+
+Learn more in our tutorials:
+  - [Pipeline explanation](docs/tutorials/pipeline_explanation.md)
+  - [Adding a new dataset](docs/tutorials/add_dataset.md)
+  - [Adding a new method](docs/tutorials/add_method.md)
+
 
 ## Citation
 If you use this benchmark in your research, please cite,
@@ -96,6 +104,3 @@ If you use this benchmark in your research, please cite,
       url={https://arxiv.org/abs/2508.14734},
 }
 ```
-## License
-
-## Acknowledgments
