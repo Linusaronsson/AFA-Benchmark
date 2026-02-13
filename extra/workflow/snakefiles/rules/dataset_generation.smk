@@ -4,8 +4,11 @@
 # Use same seeds as instance indices
 rule dataset_generation:
     output:
-        directory("extra/output/datasets/{dataset}"),
+        [
+            directory(f"extra/output/datasets/{{dataset}}/{dataset_instance_idx}/{split}.bundle") for dataset_instance_idx in DATASET_INSTANCE_INDICES for split in ["train", "val", "test"]
+        ]
     params:
+        save_path=lambda wc: f"extra/output/datasets/{wc.dataset}",
         instance_indices_str=lambda wildcards: "["
         + ",".join(str(i) for i in DATASET_INSTANCE_INDICES)
         + "]",
@@ -27,5 +30,5 @@ rule dataset_generation:
             dataset={wildcards.dataset} \
             instance_indices={params.instance_indices_str} \
             seeds={params.instance_indices_str} \
-            save_path={output}
+            save_path={params.save_path}
         """
