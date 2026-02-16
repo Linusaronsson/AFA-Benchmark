@@ -1,8 +1,18 @@
 # Adding a New Method
 
-In this tutorial we will assume that your method requires a pretraining stage. Our method will be called `Example` and will output random actions, similarly to `RandomDummy` which is already implemented.
+## Overview
 
-## Pretraining a model
+To add a new Active Feature Acquisition (AFA) method to the benchmark, you need to:
+1. Create a training script that implements your method
+2. (Optional) Create a pretraining script if your method requires pre-trained models
+3. Add configuration classes and YAML files for Hydra
+4. Register your method with the pipeline
+
+This tutorial assumes your method requires a pretraining stage. Our example method will be called `Example` and will output random actions. You can reference the `RandomDummyAFAMethod` implementation in the codebase to understand the AFA method interface.
+
+## Step-by-Step Guide
+
+### 1. Pretraining a model
 
 Create a pretraining script at `scripts/pretrain/example.py`:
 ```python
@@ -101,17 +111,18 @@ use_wandb: false
 smoke_test: false
 ```
 
-The pipeline has its own concept of what a "pretrained model" is, which you should add to `extra/workflow/conf/pretrain_mapping.yaml`:
+The pipeline has its own concept of what a "pretrained model" is, so you should update `extra/workflow/conf/pretrain_mapping.yaml`:
 ```yaml
 pretrain_mapping:
     example_model:
         pretrain_script_name: "example"
         pretrain_params: []
+    # other models...
 ```
 
 This defines a pretrained model called `example_model`, which your method will later depend on. The `pretrain_script_name` refers to files in `scripts/pretrain/`.
 
-## Training a method
+### 2. Training a method
 
 You cannot yet run the pretraining stage, since the pipeline works backwards from which *methods* need to be trained.
 
@@ -159,7 +170,7 @@ def main(cfg: ExampleTrainConfig) -> None:
             cfg=cast(
                 "dict[str,Any]", OmegaConf.to_container(cfg, resolve=True)
             ),
-            job_type="pretraining",
+            job_type="training",
             tags=["example"],
         )
     else:
@@ -176,33 +187,20 @@ def main(cfg: ExampleTrainConfig) -> None:
 
     assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
 
-    afa_method = RandomDummyAFAMethod(
-        device=torch.device("cpu"),
-        n_classes=train_dataset.label_shape.numel(),
-        prob_select_0=0.0
-        if cfg.soft_budget_param is None
-        else cfg.soft_budget_param,
-    )
-
     # Create initializer
     initializer = get_afa_initializer_from_config(cfg.initializer)
 
     # Create unmasker
     unmasker = get_afa_unmasker_from_config(cfg.unmasker)
 
-    # Check that everything works together by doing some evaluation
-    eval_afa_method(
-        afa_action_fn=afa_method.act,
-        afa_unmask_fn=unmasker.unmask,
-        n_selection_choices=unmasker.get_n_selections(
-            train_dataset.feature_shape
-        ),
-        afa_initialize_fn=initializer.initialize,
-        dataset=train_dataset,
-        external_afa_predict_fn=None,
-        builtin_afa_predict_fn=afa_method.predict,
-        only_n_samples=100,
-        batch_size=10,
+    # Usually, this is where training would happen
+
+    afa_method = RandomDummyAFAMethod(
+        device=torch.device(cfg.device),
+        n_classes=train_dataset.label_shape.numel(),
+        prob_select_0=0.0
+        if cfg.soft_budget_param is None
+        else cfg.soft_budget_param,
     )
 
     # Save method as a bundle
@@ -292,9 +290,18 @@ So far, we have only created scripts that work individually, but these scripts w
 
 Next, add your method options to `extra/workflow/conf/method_options.yaml`.
 ```yaml
+example_method:
+  pretrained_model_name: "example_model"
+  train_script_name: "example"
+  eval_batch_size:
+    default: 128
+  hard_budget_ignored_datasets: [imagenette]
+  soft_budget_ignored_datasets: [imagenette]
 ```
 
-## Configuring soft budgets
+This assumes that the method supports training on all datasets except Imagenette (which uses image patches).
+
+### 3. Configuring soft budgets
 
 We need to define reasonable soft-budget parameters for our method, which we do in `extra/workflow/conf/soft_budget_params.yaml`. For this method, the soft-budget parameter corresponds to the probability of choosing the stop action. For simplicity, let us define values that are reused across all datasets:
 ```yaml
@@ -309,7 +316,7 @@ soft_budget_params:
 
 This declaration ensures that soft-budget parameters are only passed to the method during training, not during evaluation.
 
-## Visualization options
+### 4. Visualization options
 
 Choose how the method should be displayed in plots by adding an entry to `METHOD_NAME_MAPPING` in `afabench/eval/plotting_config.py`. For example, we may add
 ```python
@@ -322,10 +329,10 @@ method_sets:
     main:
         # other methods...
         - example_method
-        # more methods...
+         # more methods...
 ```
 
-## Running the pipeline
+### 5. Running the pipeline
 
 Let us run the pipeline locally using 8 cores, with only the new method and two datasets:
 ```shell
