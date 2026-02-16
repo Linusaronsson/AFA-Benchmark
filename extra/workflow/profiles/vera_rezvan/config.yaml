@@ -1,5 +1,5 @@
 executor: slurm
-jobs: 50
+jobs: 9001
 latency-wait: 30 # seconds
 
 default-resources:
