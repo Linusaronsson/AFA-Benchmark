@@ -336,7 +336,6 @@ method_sets:
 
 Let us run the pipeline locally using 8 cores, with only the new method and two datasets:
 ```shell
-(
 uv run snakemake \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
     all \
@@ -360,5 +359,4 @@ uv run snakemake \
       device=cpu \
     --jobs 8 \
     --keep-going
-)
 ```

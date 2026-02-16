@@ -4,29 +4,27 @@ The pipeline uses [Snakemake](https://snakemake.readthedocs.io/) for workflow or
 
 The whole pipeline is executable with the following command:
 ```shell
-(
 WANDB_PROJECT=afabench \
-  uv run snakemake
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk
-    all
-    --configfile
-      extra/workflow/conf/eval_hard_budgets.yaml
-      extra/workflow/conf/methods.yaml
-      extra/workflow/conf/method_sets.yaml
-      extra/workflow/conf/method_options.yaml
-      extra/workflow/conf/pretrain_mapping.yaml
-      extra/workflow/conf/soft_budget_params.yaml
-      extra/workflow/conf/unmaskers.yaml
-      extra/workflow/conf/classifier_names.yaml
-      extra/workflow/conf/datasets_main.yaml
-    --config
-      eval_dataset_split=val
-      dataset_instance_indices=[0,1]
-      smoke_test=false
-      use_wandb=true
-      device=cpu
+  uv run snakemake \
+    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    all \
+    --configfile \
+      extra/workflow/conf/eval_hard_budgets.yaml \
+      extra/workflow/conf/methods.yaml \
+      extra/workflow/conf/method_sets.yaml \
+      extra/workflow/conf/method_options.yaml \
+      extra/workflow/conf/pretrain_mapping.yaml \
+      extra/workflow/conf/soft_budget_params.yaml \
+      extra/workflow/conf/unmaskers.yaml \
+      extra/workflow/conf/classifier_names.yaml \
+      extra/workflow/conf/datasets_main.yaml \
+    --config \
+      eval_dataset_split=val \
+      dataset_instance_indices=[0,1] \
+      smoke_test=false \
+      use_wandb=true \
+      device=cpu \
     --jobs 8
-)
 ```
 
 This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](docs/tutorials/slurm_integration.md).
