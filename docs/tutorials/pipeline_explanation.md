@@ -20,7 +20,7 @@ WANDB_PROJECT=afabench \
       extra/workflow/conf/datasets_main.yaml \
     --config \
       eval_dataset_split=val \
-      dataset_instance_indices=[0,1] \
+      "dataset_instance_indices=[0,1]" \
       smoke_test=false \
       use_wandb=true \
       device=cpu \

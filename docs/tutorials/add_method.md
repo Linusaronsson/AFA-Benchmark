@@ -350,10 +350,10 @@ uv run snakemake \
       extra/workflow/conf/classifier_names.yaml \
       extra/workflow/conf/datasets_main.yaml \
     --config \
-      methods=[example_method] \
-      datasets=[cube, actg] \
+      "methods=[example_method]" \
+      "datasets=[cube, actg]" \
       eval_dataset_split=val \
-      dataset_instance_indices=[0,1] \
+      "dataset_instance_indices=[0,1]" \
       smoke_test=true \
       use_wandb=false \
       device=cpu \

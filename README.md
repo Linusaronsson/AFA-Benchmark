@@ -40,7 +40,7 @@ WANDB_PROJECT=afabench uv run snakemake \
       extra/workflow/conf/datasets_main.yaml \
     --config \
       eval_dataset_split=test \
-      dataset_instance_indices=[0,1,2,3,4] \
+      "dataset_instance_indices=[0,1,2,3,4]" \
       smoke_test=false \
       use_wandb=true \
       device=cpu \
