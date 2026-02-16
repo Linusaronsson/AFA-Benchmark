@@ -154,9 +154,3 @@ DATASET_SETS = {
 ```
 
 If your dataset is not in any set, the pipeline will still generate and train on it, but plots won't be generated for it. Adding it to the `"all"` set is typically sufficient.
-
-## See Also
-
-- [Bundle Format](../bundle_format.md) - Details about dataset serialization
-- [Pipeline Explanation](./pipeline_explanation.md) - How the full pipeline works
-- [Terminology](../terminology.md) - Common terms and concepts
