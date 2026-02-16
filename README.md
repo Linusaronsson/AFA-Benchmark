@@ -8,7 +8,49 @@ Compare state-of-the-art algorithms for sequential feature selection in
 scenarios where acquiring features is costly. Includes implementations of
 multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 
+## Installation
+
+[uv](https://docs.astral.sh/uv/getting-started/installation/) is the only external dependency.
+
+```bash
+# Clone repository
+git clone https://github.com/Linusaronsson/AFA-Benchmark.git
+cd AFA-Benchmark
+
+# Install dependencies with uv
+uv sync
+```
+
+## Quickstart
+
+Running all scripts locally on 8 cores:
+```shell
+WANDB_PROJECT=afabench uv run snakemake \
+    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    all \
+    --configfile \
+      extra/workflow/conf/eval_hard_budgets.yaml \
+      extra/workflow/conf/methods.yaml \
+      extra/workflow/conf/method_sets.yaml \
+      extra/workflow/conf/method_options.yaml \
+      extra/workflow/conf/pretrain_mapping.yaml \
+      extra/workflow/conf/soft_budget_params.yaml \
+      extra/workflow/conf/unmaskers.yaml \
+      extra/workflow/conf/classifier_names.yaml \
+      extra/workflow/conf/datasets_main.yaml \
+    --config \
+      eval_dataset_split=test \
+      dataset_instance_indices=[0,1,2,3,4] \
+      smoke_test=false \
+      use_wandb=true \
+      device=cpu \
+    --jobs 8
+```
+
+See the [pipeline explanation](docs/tutorials/pipeline_explanation.md) tutorial for details on how this pipeline works and how to customize it.
+
 ## Features
+
 - Easily readable and reproducible configuration using
   [hydra](https://hydra.cc/) and [snakemake](https://snakemake.readthedocs.io/en/stable/).
 - Modular design: rerun specific parts of the pipeline as needed.
@@ -28,18 +70,6 @@ multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 intelligently decide which tests to order next based on previous results, aiming
 for accurate diagnosis with minimal cost.
 
-## Installation
-
-[uv](https://docs.astral.sh/uv/getting-started/installation/) is the only external dependency.
-
-```bash
-# Clone repository
-git clone https://github.com/Linusaronsson/AFA-Benchmark.git
-cd AFA-Benchmark
-
-# Install dependencies with uv
-uv sync
-```
 ## Implemented Methods
 |    Method     |                                                                            Paper                                                                             |             Strategy             |  Greedy?   |
 | :-----------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------: | :--------: |
