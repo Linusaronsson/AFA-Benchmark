@@ -29,6 +29,9 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
+    if cfg.smoke_test:
+        cfg.epochs = 1
+        cfg.patience = 1
 
     train_dataset, val_dataset, _, _, _ = (
         afa_discriminative_training_prep(
