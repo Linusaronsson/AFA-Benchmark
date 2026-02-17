@@ -100,3 +100,33 @@ missingness_initializers:
     kwargs:
       mechanism: mnar_self
       p: 0.3
+
+  # ============================================================================
+  # Partially blocked variants (acquirable_fraction < 1.0)
+  # These model scenarios where some missing features can never be obtained.
+  # ============================================================================
+  mar_p03_acq05:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mar
+      p: 0.3
+      p_obs: 0.3
+      acquirable_fraction: 0.5
+
+  mnar_logistic_p03_acq05:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mnar_logistic
+      p: 0.3
+      p_params: 0.3
+      acquirable_fraction: 0.5
+
+  mnar_quantile_p03_acq05:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mnar_quantiles
+      p: 0.3
+      q: 0.25
+      p_params: 0.3
+      cut: both
+      acquirable_fraction: 0.5

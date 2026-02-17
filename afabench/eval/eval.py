@@ -1,5 +1,5 @@
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import pandas as pd
 import torch
@@ -126,6 +126,7 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     selection_budget: float | None = None,
     selection_costs: Sequence[float] | None = None,
+    initial_selection_mask: SelectionMask | None = None,
 ) -> pd.DataFrame:
     """
     Evaluate a single batch.
@@ -149,6 +150,7 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
         builtin_afa_predict_fn (AFAPredictFn): A builtin classifier, if such exists.
         selection_budget (float|None): Total accumulated selection cost to allow per sample. If None, allow unlimited selections. Defaults to None.
         selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
+        initial_selection_mask (SelectionMask|None): Pre-initialized selection mask marking features as already forbidden (True=forbidden). If None, starts with all features acquirable.
 
     Returns:
         pd.DataFrame: DataFrame with one row per sample and timestep, containing columns:
@@ -165,11 +167,14 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
     features = features.clone()
     feature_mask = initial_feature_mask.clone()
     masked_features = initial_masked_features.clone()
-    selection_mask = torch.zeros(
-        (features.shape[0], n_selection_choices),
-        device=features.device,
-        dtype=torch.bool,
-    )
+    if initial_selection_mask is not None:
+        selection_mask = initial_selection_mask.clone()
+    else:
+        selection_mask = torch.zeros(
+            (features.shape[0], n_selection_choices),
+            device=features.device,
+            dtype=torch.bool,
+        )
 
     # Track which selections have been made per sample (0-based indices)
     selections_performed = [[] for _ in range(features.shape[0])]
@@ -315,6 +320,8 @@ def eval_afa_method(
     selection_budget: int | None = None,
     batch_size: int = 1,
     selection_costs: Sequence[float] | None = None,
+    forbidden_mask_fn: Callable[[FeatureMask, torch.Size], SelectionMask]
+    | None = None,
 ) -> pd.DataFrame:
     """
     Evaluate an AFA method with support for early stopping and batched processing.
@@ -332,6 +339,7 @@ def eval_afa_method(
         selection_budget (int|None): How many AFA selections to allow per sample. If None, allow unlimited selections. Defaults to None.
         batch_size (int): Batch size for processing samples. Defaults to 1.
         selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
+        forbidden_mask_fn (Callable|None): If provided, called with (observed_mask, feature_shape) to produce an initial SelectionMask marking never-acquirable features as forbidden.
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
@@ -376,6 +384,13 @@ def eval_afa_method(
             0.0  # Assuming zero masking
         )
 
+        # Compute forbidden selection mask if a function is provided
+        batch_initial_selection_mask = None
+        if forbidden_mask_fn is not None:
+            batch_initial_selection_mask = forbidden_mask_fn(
+                batch_initial_feature_mask, dataset.feature_shape
+            ).to(device)
+
         batches_df.append(
             process_batch(
                 afa_action_fn=afa_action_fn,
@@ -390,6 +405,7 @@ def eval_afa_method(
                 builtin_afa_predict_fn=builtin_afa_predict_fn,
                 selection_budget=selection_budget,
                 selection_costs=selection_costs,
+                initial_selection_mask=batch_initial_selection_mask,
             )
         )
     # Concatenate all batch DataFrames

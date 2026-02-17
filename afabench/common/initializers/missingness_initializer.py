@@ -15,6 +15,7 @@ from afabench.common.custom_types import (
     FeatureMask,
     Features,
     Label,
+    SelectionMask,
 )
 
 
@@ -57,6 +58,7 @@ class MissingnessInitializer(AFAInitializer):
         cut: str = "both",
         exclude_inputs: bool = True,
         mcar: bool = False,
+        acquirable_fraction: float = 1.0,
     ):
         """
         Initialize the missingness initializer.
@@ -72,6 +74,9 @@ class MissingnessInitializer(AFAInitializer):
             exclude_inputs: (MNAR logistic only) Whether to exclude logistic
                 model inputs from MNAR missingness.
             mcar: (MNAR quantiles only) Whether to add MCAR on top.
+            acquirable_fraction: Fraction of missing features that are
+                acquirable (the rest become never-acquirable). Must be
+                in [0, 1]. Defaults to 1.0 (all missing features acquirable).
         """
         if mechanism not in self.SUPPORTED_MECHANISMS:
             msg = (
@@ -88,6 +93,7 @@ class MissingnessInitializer(AFAInitializer):
         self.cut = cut
         self.exclude_inputs = exclude_inputs
         self.mcar = mcar
+        self.acquirable_fraction = acquirable_fraction
         self.seed: int | None = None
 
     @override
@@ -167,3 +173,68 @@ class MissingnessInitializer(AFAInitializer):
             mask = torch.from_numpy(mask)
 
         return mask.bool()
+
+    def get_forbidden_selection_mask(
+        self,
+        observed_mask: FeatureMask,
+        feature_shape: torch.Size,
+    ) -> SelectionMask:
+        """
+        Compute a selection mask that marks never-acquirable features as forbidden.
+
+        Among the missing features (observed_mask=False), randomly marks
+        ``(1 - acquirable_fraction)`` of them as forbidden (True in selection mask).
+        Already-observed features are never forbidden.
+
+        This assumes a flat (1D) selection space matching the number of
+        features, which is the common case for tabular data with per-feature
+        unmaskers.
+
+        Args:
+            observed_mask: Boolean mask where True=observed. Shape: (*batch, *feature_shape).
+            feature_shape: Shape of the features excluding the batch dimension.
+
+        Returns:
+            SelectionMask where True means the feature is forbidden (cannot be acquired).
+            Shape: (*batch, n_features) where n_features = prod(feature_shape).
+        """
+        batch_shape = observed_mask.shape[: -len(feature_shape)]
+        n_features = int(torch.prod(torch.tensor(feature_shape)).item())
+        flat_observed = observed_mask.reshape(*batch_shape, n_features)
+
+        # Start with nothing forbidden
+        forbidden = torch.zeros_like(flat_observed, dtype=torch.bool)
+
+        if self.acquirable_fraction >= 1.0:
+            return forbidden
+
+        # For each sample, among missing features, randomly forbid some
+        missing = ~flat_observed  # True where missing
+        rng = torch.Generator(device=observed_mask.device)
+        if self.seed is not None:
+            rng.manual_seed(
+                self.seed + 9999
+            )  # offset to avoid seed collision with mask generation
+
+        # Work on flattened batch
+        flat_missing = missing.reshape(-1, n_features)
+        flat_forbidden = forbidden.reshape(-1, n_features)
+        batch_size = flat_missing.shape[0]
+
+        for i in range(batch_size):
+            missing_indices = torch.where(flat_missing[i])[0]
+            n_missing = len(missing_indices)
+            if n_missing == 0:
+                continue
+            n_to_block = int(
+                round(n_missing * (1.0 - self.acquirable_fraction))
+            )
+            if n_to_block == 0:
+                continue
+            perm = torch.randperm(
+                n_missing, generator=rng, device=observed_mask.device
+            )
+            blocked_indices = missing_indices[perm[:n_to_block]]
+            flat_forbidden[i, blocked_indices] = True
+
+        return flat_forbidden.reshape(*batch_shape, n_features)
