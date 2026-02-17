@@ -663,117 +663,243 @@ def process_df_every_action(df: pl.DataFrame) -> pl.DataFrame | None:
     return var_metric_df_every_action
 
 
-def produce_stop_action_plots(
-    df_stop_action: pl.DataFrame,
-    dataset_set: set[str],
-    subfolder: Path,
-) -> None:
-    df_stop_action_filtered = df_stop_action.filter(
-        pl.col("dataset").is_in(dataset_set)
-    )
+class EvaluationPlotter:
+    """Load, process, and generate evaluation performance plots."""
 
-    df_stop_action_hard_budget = df_stop_action_filtered.filter(
-        pl.col("eval_hard_budget").is_null().not_()
-    )
-    df_stop_action_hard_budget = apply_exclusions(df_stop_action_hard_budget)
-    if not df_stop_action_hard_budget.is_empty():
-        # Calculate figure dimensions based on number of unique datasets
-        num_datasets = df_stop_action_hard_budget["dataset"].n_unique()
-        fig_width, fig_height = calculate_figure_dimensions(
-            num_datasets, subplot_height=SUBPLOT_HEIGHT
-        )
-        normal_hard_budget_plot = get_normal_hard_budget_plot(
-            df_stop_action_hard_budget,
-            figure_width=fig_width,
-            figure_height=fig_height,
-        )
-        normal_hard_budget_plot.save(
-            subfolder / "hard_budget_normal.pdf",
-            width=fig_width,
-            height=fig_height,
-        )
-    df_stop_action_soft_budget = df_stop_action_filtered.filter(
-        pl.col("soft_budget_param").is_null().not_()
-    )
-    df_stop_action_soft_budget = apply_exclusions(df_stop_action_soft_budget)
-    if not df_stop_action_soft_budget.is_empty():
-        # Calculate figure dimensions based on number of unique datasets
-        num_datasets = df_stop_action_soft_budget["dataset"].n_unique()
-        fig_width, fig_height = calculate_figure_dimensions(
-            num_datasets, subplot_height=SUBPLOT_HEIGHT
-        )
-        soft_budget_plot_2d_errors = get_soft_budget_plot(
-            df_stop_action_soft_budget,
-            mode="2d_errors",
-            figure_width=fig_width,
-            figure_height=fig_height,
-        )
-        soft_budget_plot_lines = get_soft_budget_plot(
-            df_stop_action_soft_budget,
-            mode="lines",
-            figure_width=fig_width,
-            figure_height=fig_height,
-        )
-        soft_budget_plot_2d_errors.save(
-            subfolder / "soft_budget_2d_errors.pdf",
-            width=fig_width,
-            height=fig_height,
-        )
-        soft_budget_plot_lines.save(
-            subfolder / "soft_budget_lines.pdf",
-            width=fig_width,
-            height=fig_height,
+    input_path: Path
+    output_folder: Path
+    df: pl.DataFrame
+    df_stop_action: pl.DataFrame | None
+    df_traj: pl.DataFrame | None
+
+    def __init__(
+        self,
+        input_path: Path,
+        output_folder: Path,
+    ) -> None:
+        """
+        Initialize EvaluationPlotter with input and output paths.
+
+        Args:
+            input_path: Path to input parquet file
+            output_folder: Root output directory for plots
+        """
+        self.input_path = input_path
+        self.output_folder = output_folder
+        self.df = pl.DataFrame()
+        self.df_stop_action = None
+        self.df_traj = None
+
+    def load_input_file(self) -> None:
+        """Load the input parquet file."""
+        self.df = read_parquet(self.input_path)
+
+    def validate_soft_budget_params(self) -> None:
+        """Validate and consolidate soft budget parameters."""
+        self.df = assert_only_one_soft_budget_param_type(self.df)
+
+    def prepare_stop_action_data(self) -> None:
+        """Process dataframe for stop action analysis."""
+        df_only_stop_action = self.df.filter(
+            (pl.col("action_performed") == 0)
+            & pl.col("predicted_class").is_not_null()
         )
 
+        if df_only_stop_action.is_empty():
+            self.df_stop_action = None
+            return
 
-def produce_trajectory_plots(
-    df_traj: pl.DataFrame,
-    dataset_set: set[str],
-    subfolder: Path,
-) -> None:
-    df_traj_filtered = df_traj.filter(pl.col("dataset").is_in(dataset_set))
-    df_traj_hard_budget = df_traj_filtered.filter(
-        pl.col("eval_hard_budget").is_null().not_()
-    )
-    df_traj_hard_budget = apply_exclusions(df_traj_hard_budget)
-    if not df_traj_hard_budget.is_empty():
-        # Calculate figure dimensions based on number of unique datasets
-        num_datasets = df_traj_hard_budget["dataset"].n_unique()
-        fig_width, fig_height = calculate_figure_dimensions(
-            num_datasets, subplot_height=SUBPLOT_HEIGHT
+        metric_df_only_stop_action = get_metrics_at_stop_action(
+            df_only_stop_action
         )
-        traj_hard_budget_plot = get_traj_hard_budget_plot(
-            df_traj_hard_budget,
-            figure_width=fig_width,
-            figure_height=fig_height,
+
+        # Variance of metrics across seeds
+        var_metric_df_only_stop_action = get_variance_of_metrics_and_cost(
+            metric_df_only_stop_action
         )
-        traj_hard_budget_plot.save(
-            subfolder / "hard_budget_traj.pdf",
-            width=fig_width,
-            height=fig_height,
+
+        # Datasets use different metrics
+        var_metric_df_only_stop_action = add_metric_column(
+            var_metric_df_only_stop_action
         )
+
+        # Add "low" and "high" versions of metrics
+        var_metric_df_only_stop_action = (
+            var_metric_df_only_stop_action.with_columns(
+                low_metric=pl.col("mean_metric") - pl.col("std_metric"),
+                high_metric=pl.col("mean_metric") + pl.col("std_metric"),
+                low_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
+                - pl.col("std_avg_accumulated_cost"),
+                high_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
+                + pl.col("std_avg_accumulated_cost"),
+            )
+        )
+
+        self.df_stop_action = var_metric_df_only_stop_action
+
+    def prepare_trajectory_data(self) -> None:
+        """Process dataframe for trajectory analysis."""
+        # Filter out null predictions
+        df_filtered = self.df.filter(pl.col("predicted_class").is_not_null())
+
+        if df_filtered.is_empty():
+            self.df_traj = None
+            return
+
+        # Only look at largest budget per dataset
+        df_filtered = df_filtered.filter(
+            pl.col("eval_hard_budget")
+            == pl.col("eval_hard_budget").max().over("dataset")
+        )
+
+        metric_df_every_action = get_metrics_at_every_action(df_filtered)
+
+        # Variance of metrics across seeds
+        var_metric_df_every_action = get_variance_of_metrics(
+            metric_df_every_action
+        )
+
+        # Datasets use different metrics
+        var_metric_df_every_action = add_metric_column(
+            var_metric_df_every_action
+        )
+
+        # Add "low" and "high" versions of metrics
+        var_metric_df_every_action = var_metric_df_every_action.with_columns(
+            low_metric=pl.col("mean_metric") - pl.col("std_metric"),
+            high_metric=pl.col("mean_metric") + pl.col("std_metric"),
+        )
+
+        self.df_traj = var_metric_df_every_action
+
+    def load_and_process(self) -> None:
+        """Load input file and prepare all data for plotting."""
+        self.load_input_file()
+        self.validate_soft_budget_params()
+        self.prepare_stop_action_data()
+        self.prepare_trajectory_data()
+
+    def produce_stop_action_plots(
+        self,
+        dataset_set: set[str],
+        subfolder: Path,
+    ) -> None:
+        """Generate stop action plots (hard and soft budget)."""
+        if self.df_stop_action is None:
+            return
+
+        df_stop_action_filtered = self.df_stop_action.filter(
+            pl.col("dataset").is_in(dataset_set)
+        )
+
+        df_stop_action_hard_budget = df_stop_action_filtered.filter(
+            pl.col("eval_hard_budget").is_null().not_()
+        )
+        df_stop_action_hard_budget = apply_exclusions(
+            df_stop_action_hard_budget
+        )
+        if not df_stop_action_hard_budget.is_empty():
+            # Calculate figure dimensions based on number of unique datasets
+            num_datasets = df_stop_action_hard_budget["dataset"].n_unique()
+            fig_width, fig_height = calculate_figure_dimensions(
+                num_datasets, subplot_height=SUBPLOT_HEIGHT
+            )
+            normal_hard_budget_plot = get_normal_hard_budget_plot(
+                df_stop_action_hard_budget,
+                figure_width=fig_width,
+                figure_height=fig_height,
+            )
+            normal_hard_budget_plot.save(
+                subfolder / "hard_budget_normal.pdf",
+                width=fig_width,
+                height=fig_height,
+            )
+        df_stop_action_soft_budget = df_stop_action_filtered.filter(
+            pl.col("soft_budget_param").is_null().not_()
+        )
+        df_stop_action_soft_budget = apply_exclusions(
+            df_stop_action_soft_budget
+        )
+        if not df_stop_action_soft_budget.is_empty():
+            # Calculate figure dimensions based on number of unique datasets
+            num_datasets = df_stop_action_soft_budget["dataset"].n_unique()
+            fig_width, fig_height = calculate_figure_dimensions(
+                num_datasets, subplot_height=SUBPLOT_HEIGHT
+            )
+            soft_budget_plot_2d_errors = get_soft_budget_plot(
+                df_stop_action_soft_budget,
+                mode="2d_errors",
+                figure_width=fig_width,
+                figure_height=fig_height,
+            )
+            soft_budget_plot_lines = get_soft_budget_plot(
+                df_stop_action_soft_budget,
+                mode="lines",
+                figure_width=fig_width,
+                figure_height=fig_height,
+            )
+            soft_budget_plot_2d_errors.save(
+                subfolder / "soft_budget_2d_errors.pdf",
+                width=fig_width,
+                height=fig_height,
+            )
+            soft_budget_plot_lines.save(
+                subfolder / "soft_budget_lines.pdf",
+                width=fig_width,
+                height=fig_height,
+            )
+
+    def produce_trajectory_plots(
+        self,
+        dataset_set: set[str],
+        subfolder: Path,
+    ) -> None:
+        """Generate trajectory plots (hard budget)."""
+        if self.df_traj is None:
+            return
+
+        df_traj_filtered = self.df_traj.filter(
+            pl.col("dataset").is_in(dataset_set)
+        )
+        df_traj_hard_budget = df_traj_filtered.filter(
+            pl.col("eval_hard_budget").is_null().not_()
+        )
+        df_traj_hard_budget = apply_exclusions(df_traj_hard_budget)
+        if not df_traj_hard_budget.is_empty():
+            # Calculate figure dimensions based on number of unique datasets
+            num_datasets = df_traj_hard_budget["dataset"].n_unique()
+            fig_width, fig_height = calculate_figure_dimensions(
+                num_datasets, subplot_height=SUBPLOT_HEIGHT
+            )
+            traj_hard_budget_plot = get_traj_hard_budget_plot(
+                df_traj_hard_budget,
+                figure_width=fig_width,
+                figure_height=fig_height,
+            )
+            traj_hard_budget_plot.save(
+                subfolder / "hard_budget_traj.pdf",
+                width=fig_width,
+                height=fig_height,
+            )
+
+    def generate_all_plots(self) -> None:
+        """Generate all plots for each dataset set."""
+        # One set of plots per dataset set
+        for dataset_set_name, dataset_set in DATASET_SETS.items():
+            subfolder = self.output_folder / dataset_set_name
+            subfolder.mkdir(parents=True, exist_ok=True)
+
+            self.produce_stop_action_plots(dataset_set, subfolder)
+            self.produce_trajectory_plots(dataset_set, subfolder)
 
 
 def main() -> None:
     args = parse_args()
     args.output_folder.mkdir(parents=True, exist_ok=True)
 
-    df = read_parquet(args.input)
-
-    df = assert_only_one_soft_budget_param_type(df)
-    df_stop_action = process_df_only_stop_action_and_valid_prediction(df)
-    df_traj = process_df_every_action(df)
-
-    # One set of plots per dataset set
-    for dataset_set_name, dataset_set in DATASET_SETS.items():
-        subfolder = args.output_folder / dataset_set_name
-        subfolder.mkdir(parents=True, exist_ok=True)
-
-        if df_stop_action is not None:
-            produce_stop_action_plots(df_stop_action, dataset_set, subfolder)
-
-        if df_traj is not None:
-            produce_trajectory_plots(df_traj, dataset_set, subfolder)
+    plotter = EvaluationPlotter(args.input, args.output_folder)
+    plotter.load_and_process()
+    plotter.generate_all_plots()
 
 
 if __name__ == "__main__":
