@@ -23,7 +23,7 @@ uv sync
 
 ## Quickstart
 
-Running all scripts locally on 8 cores:
+Running the pipeline locally on 8 cores:
 ```shell
 WANDB_PROJECT=afabench uv run snakemake \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
