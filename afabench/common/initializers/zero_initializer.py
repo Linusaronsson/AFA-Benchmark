@@ -29,9 +29,9 @@ class ZeroInitializer(AFAInitializer):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        assert feature_shape is not None, (
-            "feature_shape must be provided for ZeroInitializer"
-        )
+        assert (
+            feature_shape is not None
+        ), "feature_shape must be provided for ZeroInitializer"
         # We can figure out the batch shape by subtracting the feature shape
         batch_shape = features.shape[: -len(feature_shape)]
 

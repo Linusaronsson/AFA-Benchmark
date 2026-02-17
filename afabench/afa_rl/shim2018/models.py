@@ -92,12 +92,12 @@ class ReadProcessEncoder(nn.Module):
             output: a tensor of shape (batch_size, output_size)
 
         """
-        assert input_set.ndim == 3, (
-            f"Expected input_set to have shape (batch_size, set_size, element_size), instead got {input_set.shape}"
-        )
-        assert lengths.ndim == 1, (
-            f"Expected lengths to have shape (batch_size,), instead got {lengths.shape}"
-        )
+        assert (
+            input_set.ndim == 3
+        ), f"Expected input_set to have shape (batch_size, set_size, element_size), instead got {input_set.shape}"
+        assert (
+            lengths.ndim == 1
+        ), f"Expected lengths to have shape (batch_size,), instead got {lengths.shape}"
 
         # We want to support empty sets as well, but these have to be handled separately, look at the end of the function
         original_batch_size = input_set.shape[0]
@@ -178,12 +178,12 @@ class Shim2018Embedder(Embedder):
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
     ) -> Embedding:
         # We currently assume a single batch dimension and single feature dimension
-        assert masked_features.shape == feature_mask.shape, (
-            "masked_features and feature_mask must have the same shape"
-        )
-        assert masked_features.dim() == 2, (
-            "masked_features and feature_mask must have 2 dimensions (batch_size, n_features)"
-        )
+        assert (
+            masked_features.shape == feature_mask.shape
+        ), "masked_features and feature_mask must have the same shape"
+        assert (
+            masked_features.dim() == 2
+        ), "masked_features and feature_mask must have 2 dimensions (batch_size, n_features)"
         feature_set, lengths = get_feature_set(
             masked_features, feature_mask
         )  # (batch_size, n_features, state_size)
@@ -255,9 +255,9 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
             logits: the output of the classifier
 
         """
-        assert masked_features.ndim == 2, (
-            f"Expected a single batch dimension and single feature dimension, got {masked_features.ndim}"
-        )
+        assert (
+            masked_features.ndim == 2
+        ), f"Expected a single batch dimension and single feature dimension, got {masked_features.ndim}"
 
         embedding = self.embedder(masked_features, feature_mask)
         logits = self.classifier(embedding)
@@ -269,12 +269,12 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        assert features.ndim == 2, (
-            f"Expected a single batch dimension and single feature dimension, got {features.ndim}"
-        )
-        assert label.ndim == 2, (
-            f"Expected a single batch dimension and single feature dimension, got {label.ndim}"
-        )
+        assert (
+            features.ndim == 2
+        ), f"Expected a single batch dimension and single feature dimension, got {features.ndim}"
+        assert (
+            label.ndim == 2
+        ), f"Expected a single batch dimension and single feature dimension, got {label.ndim}"
 
         masking_probability = self.min_masking_probability + torch.rand(
             1
@@ -314,12 +314,12 @@ class LitShim2018EmbedderClassifier(pl.LightningModule):
     ) -> None:
         feature_values, y = batch
 
-        assert feature_values.ndim == 2, (
-            f"Expected a single batch dimension and single feature dimension, got {feature_values.ndim}"
-        )
-        assert y.ndim == 2, (
-            f"Expected a single batch dimension and single feature dimension, got {y.ndim}"
-        )
+        assert (
+            feature_values.ndim == 2
+        ), f"Expected a single batch dimension and single feature dimension, got {feature_values.ndim}"
+        assert (
+            y.ndim == 2
+        ), f"Expected a single batch dimension and single feature dimension, got {y.ndim}"
 
         # Mask features with minimum probability -> see many features (observations)
         feature_mask_many_observations = (

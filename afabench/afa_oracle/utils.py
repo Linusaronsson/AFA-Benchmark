@@ -49,9 +49,9 @@ def get_patch_dimensions(
         height, width = feature_shape
 
     mask_width = int(selection_size**0.5)
-    assert mask_width * mask_width == selection_size, (
-        f"Patch selection size must be a square number, got {selection_size}."
-    )
+    assert (
+        mask_width * mask_width == selection_size
+    ), f"Patch selection size must be a square number, got {selection_size}."
     assert height % mask_width == 0, (
         f"Patch grid must evenly divide image height, got "
         f"height={height}, mask_width={mask_width}."

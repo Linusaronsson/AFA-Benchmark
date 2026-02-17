@@ -14,15 +14,17 @@ from afabench.common.unmaskers import ImagePatchUnmasker
 
 
 @pytest.fixture
-def basic_image_fixture() -> tuple[
-    Features,
-    FeatureMask,
-    MaskedFeatures,
-    AFAAction,
-    SelectionMask,
-    torch.Size,
-    dict[str, Any],
-]:
+def basic_image_fixture() -> (
+    tuple[
+        Features,
+        FeatureMask,
+        MaskedFeatures,
+        AFAAction,
+        SelectionMask,
+        torch.Size,
+        dict[str, Any],
+    ]
+):
     """Provide basic test data for ImagePatchUnmasker."""
     batch_size = 2
     image_side_length = 8

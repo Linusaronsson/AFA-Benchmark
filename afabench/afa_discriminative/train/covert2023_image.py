@@ -102,9 +102,9 @@ def train_image(cfg: Covert2023Training2DConfig) -> None:
                 x0.to(device), torch.zeros(len(x0), n_patches, device=device)
             )
         )
-    assert logits0.shape[1] == n_patches, (
-        f"Selector outputs {logits0.shape[1]} != n_patches {n_patches}"
-    )
+    assert (
+        logits0.shape[1] == n_patches
+    ), f"Selector outputs {logits0.shape[1]} != n_patches {n_patches}"
 
     gdfs = GreedyDynamicSelection(
         selector=selector,

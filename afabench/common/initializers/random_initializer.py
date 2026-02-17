@@ -32,9 +32,9 @@ class RandomInitializer(AFAInitializer):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        assert feature_shape is not None, (
-            "feature_shape must be provided for DynamicRandomInitializer"
-        )
+        assert (
+            feature_shape is not None
+        ), "feature_shape must be provided for DynamicRandomInitializer"
         # We can figure out the batch shape by subtracting the feature shape
         batch_shape = features.shape[: -len(feature_shape)]
         batch_size = int(torch.prod(torch.tensor(batch_shape)))

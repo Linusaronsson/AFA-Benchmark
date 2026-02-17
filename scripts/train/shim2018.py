@@ -172,9 +172,9 @@ class Shim2018RLTrainer(RLTrainer):
             flat_feature_mask = td["next", "feature_mask"].flatten(
                 start_dim=-n_feature_dims
             )
-            assert flat_masked_features.ndim == td["next", "label"].ndim, (
-                "Label should be 1D"
-            )
+            assert (
+                flat_masked_features.ndim == td["next", "label"].ndim
+            ), "Label should be 1D"
 
             # Flatten batch dims
             flat_masked_features = flat_masked_features.flatten(end_dim=-2)

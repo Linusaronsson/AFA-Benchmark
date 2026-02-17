@@ -138,9 +138,9 @@ class RLTrainer(ABC):
             dataset_bundle_path,
         )
         dataset = cast("AFADataset", cast("object", dataset))
-        assert len(dataset.label_shape) == 1, (
-            "Expected 1D label shape (n_classes). Instead got {train_dataset.label_shape}"
-        )
+        assert (
+            len(dataset.label_shape) == 1
+        ), "Expected 1D label shape (n_classes). Instead got {train_dataset.label_shape}"
         return dataset
 
     def _calculate_class_weights(self) -> None:

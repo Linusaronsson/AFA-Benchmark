@@ -93,9 +93,9 @@ def test_single_afa_step(
 
     # Expected: both samples selected action 3, which unmaskes features 4-5
     expected_action = torch.tensor([[3], [3]], dtype=torch.int64)
-    assert torch.allclose(action, expected_action), (
-        f"Expected action {expected_action.tolist()}, but got {action.tolist()}"
-    )
+    assert torch.allclose(
+        action, expected_action
+    ), f"Expected action {expected_action.tolist()}, but got {action.tolist()}"
 
     expected_masked_features = torch.tensor(
         [[1, 2, 0, 0, 5, 6], [0, 0, 9, 10, 11, 12]],
@@ -153,9 +153,9 @@ def test_single_afa_step_stop_selection(
 
     # Expected: sample 0 stops (action 0), sample 1 selects action 3
     expected_action = torch.tensor([[0], [3]], dtype=torch.int64)
-    assert torch.allclose(action, expected_action), (
-        f"Expected action {expected_action.tolist()}, but got {action.tolist()}"
-    )
+    assert torch.allclose(
+        action, expected_action
+    ), f"Expected action {expected_action.tolist()}, but got {action.tolist()}"
 
     expected_masked_features = torch.tensor(
         [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 11, 12]],

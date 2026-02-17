@@ -61,9 +61,9 @@ def get_post_process_batch_callback(
             flat_masked_features = td["next", "masked_features"].flatten(
                 start_dim=-n_feature_dims
             )
-            assert flat_masked_features.ndim == td["next", "label"].ndim, (
-                "Label should be 1D"
-            )
+            assert (
+                flat_masked_features.ndim == td["next", "label"].ndim
+            ), "Label should be 1D"
 
             # Flatten batch dims
             flat_masked_features = flat_masked_features.flatten(end_dim=-2)

@@ -96,18 +96,18 @@ class PointNet(nn.Module):
                 Shape: (batch_size, feature_map_size)
 
         """
-        assert masked_features.ndim == 2, (
-            f"Expected masked_features to have 2 dimensions, but got {masked_features.ndim}"
-        )
-        assert feature_mask.ndim == 2, (
-            f"Expected feature_mask to have 2 dimensions, but got {feature_mask.ndim}"
-        )
-        assert masked_features.shape[1] == self.n_features, (
-            f"Expected masked_features to have {self.n_features} features, but got {masked_features.shape[1]}"
-        )
-        assert feature_mask.shape[1] == self.n_features, (
-            f"Expected feature_mask to have {self.n_features} features, but got {feature_mask.shape[1]}"
-        )
+        assert (
+            masked_features.ndim == 2
+        ), f"Expected masked_features to have 2 dimensions, but got {masked_features.ndim}"
+        assert (
+            feature_mask.ndim == 2
+        ), f"Expected feature_mask to have 2 dimensions, but got {feature_mask.ndim}"
+        assert (
+            masked_features.shape[1] == self.n_features
+        ), f"Expected masked_features to have {self.n_features} features, but got {masked_features.shape[1]}"
+        assert (
+            feature_mask.shape[1] == self.n_features
+        ), f"Expected feature_mask to have {self.n_features} features, but got {feature_mask.shape[1]}"
 
         # Identity is a learnable embedding according to EDDI paper
         identity = self.embedding_net(
@@ -285,12 +285,12 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         features: Features = batch[0]
         label: Label = batch[1]
 
-        assert features.ndim == 2, (
-            f"Expected a single batch dimension and single feature dimension, got {features.ndim}"
-        )
-        assert label.ndim == 2, (
-            f"Expected a single batch dimension and single label dimension, got {label.ndim}"
-        )
+        assert (
+            features.ndim == 2
+        ), f"Expected a single batch dimension and single feature dimension, got {features.ndim}"
+        assert (
+            label.ndim == 2
+        ), f"Expected a single batch dimension and single label dimension, got {label.ndim}"
 
         # According to the paper, labels are appended to the features. "Augmented" = features + labels
         augmented_features = torch.cat(
@@ -520,12 +520,12 @@ class Zannone2019PretrainingModel(pl.LightningModule):
         mu: Tensor,
         logvar: Tensor,
     ) -> tuple[Tensor, Tensor, Tensor]:
-        assert estimated_features.ndim == 2, (
-            f"Expected estimated_features to have 2 dimensions, but got {estimated_features.ndim}"
-        )
-        assert features.ndim == 2, (
-            f"Expected features to have 2 dimensions, but got {features.ndim}"
-        )
+        assert (
+            estimated_features.ndim == 2
+        ), f"Expected estimated_features to have 2 dimensions, but got {estimated_features.ndim}"
+        assert (
+            features.ndim == 2
+        ), f"Expected features to have 2 dimensions, but got {features.ndim}"
 
         feature_recon_loss = (
             ((estimated_features - features) ** 2).sum(dim=1).mean(dim=0)

@@ -7,6 +7,9 @@ from afabench.common.initializers.least_informative_initializer import (
     LeastInformativeInitializer,
 )
 from afabench.common.initializers.manual_initializer import ManualInitializer
+from afabench.common.initializers.missingness_initializer import (
+    MissingnessInitializer,
+)
 from afabench.common.initializers.mutual_information_initializer import (
     MutualInformationInitializer,
 )
@@ -51,6 +54,11 @@ def get_afa_initializer_from_config(
     if initializer_config.class_name == "RandomInitializer":
         cls = get_class(initializer_config.class_name)
         assert cls is RandomInitializer
+        return cls(**initializer_config.kwargs)
+
+    if initializer_config.class_name == "MissingnessInitializer":
+        cls = get_class(initializer_config.class_name)
+        assert cls is MissingnessInitializer
         return cls(**initializer_config.kwargs)
 
     msg = f"Unknown initializer: {initializer_config.class_name}"

@@ -58,9 +58,9 @@ def get_shim2018_reward_fn(
                 ),
                 new_feature_mask[done_mask].flatten(start_dim=-n_feature_dims),
             )
-            assert logits.ndim == 2, (
-                f"Expected logits to have 1 batch dimension and 1 label dimension, got {logits.ndim}"
-            )
+            assert (
+                logits.ndim == 2
+            ), f"Expected logits to have 1 batch dimension and 1 label dimension, got {logits.ndim}"
             ce_loss = F.cross_entropy(
                 logits,
                 label[done_mask].float(),

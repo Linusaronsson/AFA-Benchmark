@@ -67,9 +67,9 @@ def pretrain_image(cfg: Gadgil2023Pretraining2DConfig) -> None:
 
     image_size = cfg.image_size
     patch_size = cfg.patch_size
-    assert image_size % patch_size == 0, (
-        "image_size must be divisible by patch_size"
-    )
+    assert (
+        image_size % patch_size == 0
+    ), "image_size must be divisible by patch_size"
     mask_width = image_size // patch_size
     architecture: dict[str, Any] = {
         "type": cfg.backbone_type,

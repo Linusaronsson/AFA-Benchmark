@@ -1,0 +1,102 @@
+# Missingness initializer configurations for AFA-under-missingness experiments.
+#
+# These initializers apply realistic missingness patterns (MAR/MNAR) from the
+# malearn library (Stempfle et al.) to create warm-start masks for evaluation.
+#
+# Usage: Reference these by name in experiment configs, e.g.:
+#   initializer: mar_p03
+#
+# Missingness mechanisms:
+#   - MAR (Missing at Random): missingness depends on observed features
+#   - MNAR logistic: missingness depends on (possibly missing) feature values
+#   - MNAR self: each feature's missingness depends on its own value
+#   - MNAR quantiles: missingness at extreme quantiles of feature values
+
+missingness_initializers:
+  # ============================================================================
+  # MAR initializers — varying missingness proportion
+  # ============================================================================
+  mar_p01:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mar
+      p: 0.1
+      p_obs: 0.3
+
+  mar_p02:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mar
+      p: 0.2
+      p_obs: 0.3
+
+  mar_p03:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mar
+      p: 0.3
+      p_obs: 0.3
+
+  mar_p05:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mar
+      p: 0.5
+      p_obs: 0.3
+
+  # ============================================================================
+  # MAR initializers — varying proportion of always-observed features
+  # ============================================================================
+  mar_p03_pobs01:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mar
+      p: 0.3
+      p_obs: 0.1
+
+  mar_p03_pobs05:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mar
+      p: 0.3
+      p_obs: 0.5
+
+  # ============================================================================
+  # MNAR quantile initializers — matching Stempfle et al. Section 6.3
+  # ============================================================================
+  mnar_quantile_p05:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mnar_quantiles
+      p: 0.5
+      q: 0.25
+      p_params: 0.3
+      cut: both
+
+  mnar_quantile_p03:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mnar_quantiles
+      p: 0.3
+      q: 0.25
+      p_params: 0.3
+      cut: both
+
+  # ============================================================================
+  # MNAR logistic initializers
+  # ============================================================================
+  mnar_logistic_p03:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mnar_logistic
+      p: 0.3
+      p_params: 0.3
+
+  # ============================================================================
+  # MNAR self-masking initializers
+  # ============================================================================
+  mnar_self_p03:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mnar_self
+      p: 0.3

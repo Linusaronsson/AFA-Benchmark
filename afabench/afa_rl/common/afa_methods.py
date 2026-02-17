@@ -94,9 +94,9 @@ class RLAFAMethod(AFAMethod):
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
 
-        assert selection_mask is not None, (
-            "RLAFAMethod requires selection_mask"
-        )
+        assert (
+            selection_mask is not None
+        ), "RLAFAMethod requires selection_mask"
         td = get_td_from_masked_features(
             masked_features, feature_mask, selection_mask
         )

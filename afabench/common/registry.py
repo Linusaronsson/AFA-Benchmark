@@ -18,6 +18,7 @@ REGISTERED_CLASSES = {
     "SequentialDummyAFAMethod": "afabench.common.afa_methods.SequentialDummyAFAMethod",
     "RandomDummyAFAMethod": "afabench.common.afa_methods.RandomDummyAFAMethod",
     "OptimalCubeAFAMethod": "afabench.common.afa_methods.OptimalCubeAFAMethod",
+    "StopBaselineMethod": "afabench.common.stop_baseline_method.StopBaselineMethod",
     # AFA Dataset Classes
     "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
     "CubeNonUniformCostsDataset": "afabench.common.datasets.datasets.CubeNonUniformCostsDataset",
@@ -53,6 +54,7 @@ REGISTERED_CLASSES = {
     "MutualInformationInitializer": "afabench.common.initializers.MutualInformationInitializer",
     "LeastInformativeInitializer": "afabench.common.initializers.LeastInformativeInitializer",
     "RandomInitializer": "afabench.common.initializers.RandomInitializer",
+    "MissingnessInitializer": "afabench.common.initializers.MissingnessInitializer",
     # General PyTorch Model Bundle
     "TorchModelBundle": "afabench.common.torch_bundle.TorchModelBundle",
 }

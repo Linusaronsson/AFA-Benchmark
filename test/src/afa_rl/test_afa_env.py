@@ -333,9 +333,9 @@ def test_stop_due_to_hard_budget() -> None:
     td = env.step(td)
     td = td["next"]
 
-    assert not td["done"].any(), (
-        "Environment should not terminate after first selection"
-    )
+    assert not td[
+        "done"
+    ].any(), "Environment should not terminate after first selection"
 
     # Second selection - should not terminate due to hard budget
     td["action"] = torch.tensor(
@@ -344,9 +344,9 @@ def test_stop_due_to_hard_budget() -> None:
     td = env.step(td)
     td = td["next"]
 
-    assert not td["done"].any(), (
-        "Environment should not terminate when budget is reached, only if it is exceeded."
-    )
+    assert not td[
+        "done"
+    ].any(), "Environment should not terminate when budget is reached, only if it is exceeded."
 
     # Third selection - should terminate due to hard budget
     td["action"] = torch.tensor(
@@ -355,9 +355,9 @@ def test_stop_due_to_hard_budget() -> None:
     td = env.step(td)
     td = td["next"]
 
-    assert td["done"].all(), (
-        "Environment should terminate after exceeding hard budget"
-    )
+    assert td[
+        "done"
+    ].all(), "Environment should terminate after exceeding hard budget"
 
 
 def test_stop_due_to_no_more_actions() -> None:
@@ -406,9 +406,9 @@ def test_stop_due_to_no_more_actions() -> None:
     td = env.step(td)
     td = td["next"]
 
-    assert not td["done"].any(), (
-        "Environment should not terminate after first selection"
-    )
+    assert not td[
+        "done"
+    ].any(), "Environment should not terminate after first selection"
 
     # Second selection - should terminate because no more selection actions available
     td["action"] = torch.tensor(
@@ -417,9 +417,9 @@ def test_stop_due_to_no_more_actions() -> None:
     td = env.step(td)
     td = td["next"]
 
-    assert td["done"].all(), (
-        "Environment should auto-terminate when no more selection actions are available"
-    )
+    assert td[
+        "done"
+    ].all(), "Environment should auto-terminate when no more selection actions are available"
 
 
 def test_stop_due_to_stop_action() -> None:
@@ -468,18 +468,18 @@ def test_stop_due_to_stop_action() -> None:
     td = env.step(td)
     td = td["next"]
 
-    assert not td["done"].any(), (
-        "Environment should not terminate after first selection"
-    )
+    assert not td[
+        "done"
+    ].any(), "Environment should not terminate after first selection"
 
     # Choose stop action (action 0) - should terminate
     td["action"] = torch.tensor([0, 0], dtype=torch.int64)  # Stop action
     td = env.step(td)
     td = td["next"]
 
-    assert td["done"].all(), (
-        "Environment should terminate when stop action is chosen"
-    )
+    assert td[
+        "done"
+    ].all(), "Environment should terminate when stop action is chosen"
 
 
 def test_per_sample_termination_hard_budget() -> None:
@@ -531,9 +531,9 @@ def test_per_sample_termination_hard_budget() -> None:
 
     # Only samples 2 and 3 should be done (they chose stop)
     expected_done = torch.tensor([[False], [True], [True]], dtype=torch.bool)
-    assert torch.equal(td["done"], expected_done), (
-        f"Expected done={expected_done}, got {td['done']}"
-    )
+    assert torch.equal(
+        td["done"], expected_done
+    ), f"Expected done={expected_done}, got {td['done']}"
 
     # Second step: Sample 1 makes another selection (reaches hard budget)
     td["action"] = torch.tensor([2, 0, 0], dtype=torch.int64)
@@ -541,9 +541,9 @@ def test_per_sample_termination_hard_budget() -> None:
     td = td["next"]
 
     # Now all samples should be done
-    assert td["done"].all(), (
-        "All samples should be done - sample 1 reached hard budget, others already stopped"
-    )
+    assert td[
+        "done"
+    ].all(), "All samples should be done - sample 1 reached hard budget, others already stopped"
 
 
 def test_per_sample_termination_no_more_actions() -> None:
@@ -595,9 +595,9 @@ def test_per_sample_termination_no_more_actions() -> None:
 
     # No samples should be done yet
     expected_done = torch.tensor([[False], [False], [False]], dtype=torch.bool)
-    assert torch.equal(td["done"], expected_done), (
-        f"Expected done={expected_done}, got {td['done']}"
-    )
+    assert torch.equal(
+        td["done"], expected_done
+    ), f"Expected done={expected_done}, got {td['done']}"
 
     # Step 2: Sample 1 stops, sample 2 makes second selection (should auto-terminate), sample 3 makes second selection (should auto-terminate)
     td["action"] = torch.tensor([0, 2, 2], dtype=torch.int64)
@@ -606,9 +606,9 @@ def test_per_sample_termination_no_more_actions() -> None:
 
     # Sample 1 should be done (chose stop), samples 2 and 3 should be done (exhausted all selections)
     expected_done = torch.tensor([[True], [True], [True]], dtype=torch.bool)
-    assert torch.equal(td["done"], expected_done), (
-        f"Expected done={expected_done}, got {td['done']}"
-    )
+    assert torch.equal(
+        td["done"], expected_done
+    ), f"Expected done={expected_done}, got {td['done']}"
 
 
 def test_per_sample_termination_stop_action() -> None:
@@ -658,9 +658,9 @@ def test_per_sample_termination_stop_action() -> None:
 
     # Only sample 1 should be done
     expected_done = torch.tensor([[True], [False], [False]], dtype=torch.bool)
-    assert torch.equal(td["done"], expected_done), (
-        f"Expected done={expected_done}, got {td['done']}"
-    )
+    assert torch.equal(
+        td["done"], expected_done
+    ), f"Expected done={expected_done}, got {td['done']}"
 
     # Step 2: All remaining samples make selections
     td["action"] = torch.tensor([0, 3, 1], dtype=torch.int64)
@@ -669,9 +669,9 @@ def test_per_sample_termination_stop_action() -> None:
 
     # Still only sample 1 should be done
     expected_done = torch.tensor([[True], [False], [False]], dtype=torch.bool)
-    assert torch.equal(td["done"], expected_done), (
-        f"Expected done={expected_done}, got {td['done']}"
-    )
+    assert torch.equal(
+        td["done"], expected_done
+    ), f"Expected done={expected_done}, got {td['done']}"
 
     # Step 3: Sample 2 chooses stop, sample 3 makes selection
     td["action"] = torch.tensor([0, 0, 4], dtype=torch.int64)
@@ -680,9 +680,9 @@ def test_per_sample_termination_stop_action() -> None:
 
     # Samples 1 and 2 should be done
     expected_done = torch.tensor([[True], [True], [False]], dtype=torch.bool)
-    assert torch.equal(td["done"], expected_done), (
-        f"Expected done={expected_done}, got {td['done']}"
-    )
+    assert torch.equal(
+        td["done"], expected_done
+    ), f"Expected done={expected_done}, got {td['done']}"
 
     # Step 4: Sample 3 chooses stop
     td["action"] = torch.tensor([0, 0, 0], dtype=torch.int64)
@@ -831,9 +831,7 @@ def test_mask_consistency() -> None:
         # Where we have masked values, we should have feature mask True
         # (but not necessarily the other way around, as features could be 0.0)
         valid_masked_positions = masked_values_exist <= feature_mask_positions
-        assert valid_masked_positions.all(), (
-            "Masked features should only have non-zero values where feature mask is True"
-        )
+        assert valid_masked_positions.all(), "Masked features should only have non-zero values where feature mask is True"
 
 
 def test_reward_integration() -> None:
@@ -879,9 +877,9 @@ def test_reward_integration() -> None:
     td = td["next"]
 
     expected_reward = torch.tensor([[-0.1], [-0.1]], dtype=torch.float32)
-    assert torch.allclose(td["reward"], expected_reward), (
-        f"Expected reward {expected_reward}, got {td['reward']}"
-    )
+    assert torch.allclose(
+        td["reward"], expected_reward
+    ), f"Expected reward {expected_reward}, got {td['reward']}"
 
     # Test reward for stop action (should be reward_for_stop)
     td["action"] = torch.tensor([0, 0], dtype=torch.int64)
@@ -889,19 +887,19 @@ def test_reward_integration() -> None:
     td = td["next"]
 
     expected_reward_stop = torch.tensor([[1.0], [1.0]], dtype=torch.float32)
-    assert torch.allclose(td["reward"], expected_reward_stop), (
-        f"Expected stop reward {expected_reward_stop}, got {td['reward']}"
-    )
+    assert torch.allclose(
+        td["reward"], expected_reward_stop
+    ), f"Expected stop reward {expected_reward_stop}, got {td['reward']}"
 
     # Check reward shape consistency
-    assert td["reward"].shape == (td.batch_size[0], 1), (
-        f"Reward shape should be {(td.batch_size[0], 1)}, got {td['reward'].shape}"
-    )
+    assert (
+        td["reward"].shape == (td.batch_size[0], 1)
+    ), f"Reward shape should be {(td.batch_size[0], 1)}, got {td['reward'].shape}"
 
     # Check reward device consistency
-    assert td["reward"].device == td["features"].device, (
-        "Reward device should match other tensors"
-    )
+    assert (
+        td["reward"].device == td["features"].device
+    ), "Reward device should match other tensors"
 
 
 def test_state_immutability() -> None:
@@ -958,14 +956,14 @@ def test_state_immutability() -> None:
     for key, original_value in original_tensors.items():
         if key != "action":  # We explicitly set action, so skip it
             current_value = td[key]
-            assert torch.equal(current_value, original_value), (
-                f"Original tensordict key '{key}' was modified during step"
-            )
+            assert torch.equal(
+                current_value, original_value
+            ), f"Original tensordict key '{key}' was modified during step"
 
     # Check that the action we set is still the same
-    assert torch.equal(td["action"], original_action), (
-        "Original action tensor was modified"
-    )
+    assert torch.equal(
+        td["action"], original_action
+    ), "Original action tensor was modified"
 
     # The result should be a new tensordict
     result_state = result_td["next"]
@@ -1012,20 +1010,22 @@ def test_different_batch_sizes() -> None:
     )
 
     td_single = env_single.reset()
-    assert td_single.batch_size == torch.Size([1]), (
-        "Single batch size should be [1]"
-    )
+    assert td_single.batch_size == torch.Size(
+        [1]
+    ), "Single batch size should be [1]"
 
     td_single["action"] = torch.tensor([1], dtype=torch.int64)
     td_single = env_single.step(td_single)
     td_single = td_single["next"]
 
-    assert td_single["done"].shape == (1, 1), (
-        "Done shape should match batch size"
-    )
-    assert td_single["reward"].shape == (1, 1), (
-        "Reward shape should match batch size"
-    )
+    assert td_single["done"].shape == (
+        1,
+        1,
+    ), "Done shape should match batch size"
+    assert td_single["reward"].shape == (
+        1,
+        1,
+    ), "Reward shape should match batch size"
 
     # Test with larger batch size (4)
     env_large = AFAEnv(
@@ -1047,23 +1047,26 @@ def test_different_batch_sizes() -> None:
     )
 
     td_large = env_large.reset()
-    assert td_large.batch_size == torch.Size([4]), (
-        "Large batch size should be [4]"
-    )
+    assert td_large.batch_size == torch.Size(
+        [4]
+    ), "Large batch size should be [4]"
 
     td_large["action"] = torch.tensor([1, 2, 3, 4], dtype=torch.int64)
     td_large = env_large.step(td_large)
     td_large = td_large["next"]
 
-    assert td_large["done"].shape == (4, 1), (
-        "Done shape should match batch size"
-    )
-    assert td_large["reward"].shape == (4, 1), (
-        "Reward shape should match batch size"
-    )
-    assert td_large["feature_mask"].shape == (4, 4), (
-        "Feature mask should match batch and features"
-    )
+    assert td_large["done"].shape == (
+        4,
+        1,
+    ), "Done shape should match batch size"
+    assert td_large["reward"].shape == (
+        4,
+        1,
+    ), "Reward shape should match batch size"
+    assert td_large["feature_mask"].shape == (
+        4,
+        4,
+    ), "Feature mask should match batch and features"
 
 
 def test_environment_reset_behavior() -> None:
@@ -1130,12 +1133,12 @@ def test_environment_reset_behavior() -> None:
     td2 = env.reset()
 
     # Second reset should give same initial state as first
-    assert torch.equal(td1["features"], td2["features"]), (
-        "Features should be the same after reset"
-    )
-    assert torch.equal(td1["label"], td2["label"]), (
-        "Labels should be the same after reset"
-    )
+    assert torch.equal(
+        td1["features"], td2["features"]
+    ), "Features should be the same after reset"
+    assert torch.equal(
+        td1["label"], td2["label"]
+    ), "Labels should be the same after reset"
     assert torch.equal(
         td2["feature_mask"], torch.zeros((2, 4), dtype=torch.bool)
     ), "Feature mask should be reset to all False"
@@ -1150,12 +1153,12 @@ def test_environment_reset_behavior() -> None:
     td3 = env.reset()
     td4 = env.reset()
 
-    assert torch.equal(td3["features"], td4["features"]), (
-        "Multiple resets should be consistent"
-    )
-    assert torch.equal(td3["feature_mask"], td4["feature_mask"]), (
-        "Reset state should be consistent"
-    )
+    assert torch.equal(
+        td3["features"], td4["features"]
+    ), "Multiple resets should be consistent"
+    assert torch.equal(
+        td3["feature_mask"], td4["feature_mask"]
+    ), "Reset state should be consistent"
 
 
 def test_tensordict_structure_validation() -> None:
@@ -1204,52 +1207,59 @@ def test_tensordict_structure_validation() -> None:
         "performed_selection_mask",
         "masked_features",
     }
-    assert set(td.keys()) >= expected_keys, (
-        f"Missing keys: {expected_keys - set(td.keys())}"
-    )
+    assert (
+        set(td.keys()) >= expected_keys
+    ), f"Missing keys: {expected_keys - set(td.keys())}"
 
     # Check tensor dtypes
     assert td["features"].dtype == torch.float32, "Features should be float32"
     assert td["label"].dtype == torch.int64, "Labels should be int64"
-    assert td["feature_mask"].dtype == torch.bool, (
-        "Feature mask should be bool"
-    )
-    assert td["performed_action_mask"].dtype == torch.bool, (
-        "Performed action mask should be bool"
-    )
-    assert td["allowed_action_mask"].dtype == torch.bool, (
-        "Allowed action mask should be bool"
-    )
-    assert td["performed_selection_mask"].dtype == torch.bool, (
-        "Performed selection mask should be bool"
-    )
-    assert td["masked_features"].dtype == torch.float32, (
-        "Masked features should be float32"
-    )
+    assert (
+        td["feature_mask"].dtype == torch.bool
+    ), "Feature mask should be bool"
+    assert (
+        td["performed_action_mask"].dtype == torch.bool
+    ), "Performed action mask should be bool"
+    assert (
+        td["allowed_action_mask"].dtype == torch.bool
+    ), "Allowed action mask should be bool"
+    assert (
+        td["performed_selection_mask"].dtype == torch.bool
+    ), "Performed selection mask should be bool"
+    assert (
+        td["masked_features"].dtype == torch.float32
+    ), "Masked features should be float32"
 
     # Check tensor shapes
     batch_size = td.batch_size[0]
-    assert td["features"].shape == (batch_size, 4), (
-        f"Features shape should be ({batch_size}, 4)"
-    )
-    assert td["label"].shape == (batch_size, 2), (
-        f"Label shape should be ({batch_size}, 2)"
-    )
-    assert td["feature_mask"].shape == (batch_size, 4), (
-        f"Feature mask shape should be ({batch_size}, 4)"
-    )
-    assert td["performed_action_mask"].shape == (batch_size, 5), (
-        f"Performed action mask shape should be ({batch_size}, 5)"
-    )
-    assert td["allowed_action_mask"].shape == (batch_size, 5), (
-        f"Allowed action mask shape should be ({batch_size}, 5)"
-    )
-    assert td["performed_selection_mask"].shape == (batch_size, 4), (
-        f"Performed selection mask shape should be ({batch_size}, 4)"
-    )
-    assert td["masked_features"].shape == (batch_size, 4), (
-        f"Masked features shape should be ({batch_size}, 4)"
-    )
+    assert td["features"].shape == (
+        batch_size,
+        4,
+    ), f"Features shape should be ({batch_size}, 4)"
+    assert td["label"].shape == (
+        batch_size,
+        2,
+    ), f"Label shape should be ({batch_size}, 2)"
+    assert td["feature_mask"].shape == (
+        batch_size,
+        4,
+    ), f"Feature mask shape should be ({batch_size}, 4)"
+    assert td["performed_action_mask"].shape == (
+        batch_size,
+        5,
+    ), f"Performed action mask shape should be ({batch_size}, 5)"
+    assert td["allowed_action_mask"].shape == (
+        batch_size,
+        5,
+    ), f"Allowed action mask shape should be ({batch_size}, 5)"
+    assert td["performed_selection_mask"].shape == (
+        batch_size,
+        4,
+    ), f"Performed selection mask shape should be ({batch_size}, 4)"
+    assert td["masked_features"].shape == (
+        batch_size,
+        4,
+    ), f"Masked features shape should be ({batch_size}, 4)"
 
     # Perform a step and check result structure
     td["action"] = torch.tensor([1, 2], dtype=torch.int64)
@@ -1262,27 +1272,29 @@ def test_tensordict_structure_validation() -> None:
 
     # Check that next state has additional keys
     additional_keys = {"done", "reward"}
-    assert set(next_td.keys()) >= expected_keys | additional_keys, (
-        f"Next state missing keys: {(expected_keys | additional_keys) - set(next_td.keys())}"
-    )
+    assert (
+        set(next_td.keys()) >= expected_keys | additional_keys
+    ), f"Next state missing keys: {(expected_keys | additional_keys) - set(next_td.keys())}"
 
     # Check new tensor types and shapes
     assert next_td["done"].dtype == torch.bool, "Done should be bool"
     assert next_td["reward"].dtype == torch.float32, "Reward should be float32"
-    assert next_td["done"].shape == (batch_size, 1), (
-        f"Done shape should be ({batch_size}, 1)"
-    )
-    assert next_td["reward"].shape == (batch_size, 1), (
-        f"Reward shape should be ({batch_size}, 1)"
-    )
+    assert next_td["done"].shape == (
+        batch_size,
+        1,
+    ), f"Done shape should be ({batch_size}, 1)"
+    assert next_td["reward"].shape == (
+        batch_size,
+        1,
+    ), f"Reward shape should be ({batch_size}, 1)"
 
     # Check device consistency
     device = td["features"].device
     for key, tensor in next_td.items():
         if isinstance(tensor, torch.Tensor):
-            assert tensor.device == device, (
-                f"Tensor '{key}' should be on device {device}"
-            )
+            assert (
+                tensor.device == device
+            ), f"Tensor '{key}' should be on device {device}"
 
 
 def test_allow_stop_action_true() -> None:
@@ -1327,9 +1339,9 @@ def test_allow_stop_action_true() -> None:
     td = env.reset()
 
     # Check that stop action (index 0) is allowed
-    assert td["allowed_action_mask"][:, 0].all(), (
-        "Stop action should be allowed when allow_stop_action=True"
-    )
+    assert td["allowed_action_mask"][
+        :, 0
+    ].all(), "Stop action should be allowed when allow_stop_action=True"
 
     # Take a non-stop action
     action_td = td.clone()
@@ -1339,9 +1351,11 @@ def test_allow_stop_action_true() -> None:
     td_next = env.step(action_td)
 
     # Check that stop action is still allowed after step
-    assert td_next["allowed_action_mask"][:, 0].all(), (
-        "Stop action should remain allowed after step when allow_stop_action=True"
-    )
+    assert td_next[
+        "allowed_action_mask"
+    ][
+        :, 0
+    ].all(), "Stop action should remain allowed after step when allow_stop_action=True"
 
 
 def test_force_hard_budget_false_default() -> None:
@@ -1386,9 +1400,9 @@ def test_force_hard_budget_false_default() -> None:
     td = env.reset()
 
     # Check that stop action (index 0) is allowed
-    assert td["allowed_action_mask"][:, 0].all(), (
-        "Stop action should be allowed when force_hard_budget=False (default)"
-    )
+    assert (
+        td["allowed_action_mask"][:, 0].all()
+    ), "Stop action should be allowed when force_hard_budget=False (default)"
 
     # Take a non-stop action
     action_td = td.clone()
@@ -1398,9 +1412,11 @@ def test_force_hard_budget_false_default() -> None:
     td_next = env.step(action_td)
 
     # Check that stop action is still allowed after step
-    assert td_next["allowed_action_mask"][:, 0].all(), (
-        "Stop action should remain allowed after step when force_hard_budget=False"
-    )
+    assert td_next[
+        "allowed_action_mask"
+    ][
+        :, 0
+    ].all(), "Stop action should remain allowed after step when force_hard_budget=False"
 
 
 def test_force_hard_budget_true() -> None:
@@ -1446,9 +1462,9 @@ def test_force_hard_budget_true() -> None:
     td = env.reset()
 
     # Check that stop action (index 0) is not allowed
-    assert not td["allowed_action_mask"][:, 0].any(), (
-        "Stop action should not be allowed when force_hard_budget=True"
-    )
+    assert not td["allowed_action_mask"][
+        :, 0
+    ].any(), "Stop action should not be allowed when force_hard_budget=True"
 
     # Take a non-stop action
     action_td = td.clone()
@@ -1458,9 +1474,11 @@ def test_force_hard_budget_true() -> None:
     td_next = env.step(action_td)
 
     # Check that stop action is still not allowed after step
-    assert not td_next["allowed_action_mask"][:, 0].any(), (
-        "Stop action should remain disallowed after step when force_hard_budget=True"
-    )
+    assert not td_next[
+        "allowed_action_mask"
+    ][
+        :, 0
+    ].any(), "Stop action should remain disallowed after step when force_hard_budget=True"
 
 
 def test_force_hard_budget_true_consistency_across_steps() -> None:
@@ -1507,9 +1525,9 @@ def test_force_hard_budget_true_consistency_across_steps() -> None:
     # Take multiple steps and ensure stop action stays disabled
     for i in range(3):  # Take 3 steps (up to hard_budget)
         # Verify stop action is disabled
-        assert not td["allowed_action_mask"][:, 0].any(), (
-            f"Stop action should be disabled at step {i}"
-        )
+        assert not td["allowed_action_mask"][
+            :, 0
+        ].any(), f"Stop action should be disabled at step {i}"
 
         # Find an available non-stop action
         available_actions = torch.nonzero(
@@ -1570,9 +1588,11 @@ def test_force_hard_budget_false_consistency_across_steps() -> None:
     # Take multiple steps and ensure stop action stays enabled
     for i in range(3):  # Take 3 steps (up to hard_budget)
         # Verify stop action is enabled
-        assert td["allowed_action_mask"][:, 0].all(), (
-            f"Stop action should be enabled at step {i} when force_hard_budget=False"
-        )
+        assert td[
+            "allowed_action_mask"
+        ][
+            :, 0
+        ].all(), f"Stop action should be enabled at step {i} when force_hard_budget=False"
 
         # Find an available non-stop action
         available_actions = torch.nonzero(
@@ -1627,13 +1647,13 @@ def test_force_hard_budget_with_different_settings() -> None:
         seed=123,
     )
 
-    assert env1.allow_stop_action, (
-        "allow_stop_action should be True when hard_budget=None"
-    )
+    assert (
+        env1.allow_stop_action
+    ), "allow_stop_action should be True when hard_budget=None"
     td1 = env1.reset()
-    assert td1["allowed_action_mask"][:, 0].all(), (
-        "Stop action should be allowed when hard_budget=None"
-    )
+    assert td1["allowed_action_mask"][
+        :, 0
+    ].all(), "Stop action should be allowed when hard_budget=None"
 
     # Test case 2: hard_budget=1 with force_hard_budget=False should allow stop action
     env2 = AFAEnv(
@@ -1655,13 +1675,13 @@ def test_force_hard_budget_with_different_settings() -> None:
         seed=123,
     )
 
-    assert env2.allow_stop_action, (
-        "allow_stop_action should be True when force_hard_budget=False"
-    )
+    assert (
+        env2.allow_stop_action
+    ), "allow_stop_action should be True when force_hard_budget=False"
     td2 = env2.reset()
-    assert td2["allowed_action_mask"][:, 0].all(), (
-        "Stop action should be allowed when force_hard_budget=False"
-    )
+    assert td2["allowed_action_mask"][
+        :, 0
+    ].all(), "Stop action should be allowed when force_hard_budget=False"
 
     # Test case 3: hard_budget=1 with force_hard_budget=True should not allow stop action
     env3 = AFAEnv(
@@ -1683,13 +1703,13 @@ def test_force_hard_budget_with_different_settings() -> None:
         seed=123,
     )
 
-    assert not env3.allow_stop_action, (
-        "allow_stop_action should be False when force_hard_budget=True"
-    )
+    assert (
+        not env3.allow_stop_action
+    ), "allow_stop_action should be False when force_hard_budget=True"
     td3 = env3.reset()
-    assert not td3["allowed_action_mask"][:, 0].any(), (
-        "Stop action should not be allowed when force_hard_budget=True"
-    )
+    assert not td3["allowed_action_mask"][
+        :, 0
+    ].any(), "Stop action should not be allowed when force_hard_budget=True"
 
 
 def test_force_hard_budget_comprehensive() -> None:
@@ -1829,9 +1849,9 @@ def test_initializer_application() -> None:
         ],
         dtype=torch.bool,
     )
-    assert torch.equal(td["feature_mask"], expected_feature_mask), (
-        f"Expected feature_mask={expected_feature_mask}, got {td['feature_mask']}"
-    )
+    assert torch.equal(
+        td["feature_mask"], expected_feature_mask
+    ), f"Expected feature_mask={expected_feature_mask}, got {td['feature_mask']}"
 
     # Check that masked_features shows the correct initial values
     expected_masked_features = torch.zeros((2, 8), dtype=torch.float32)
@@ -1840,9 +1860,9 @@ def test_initializer_application() -> None:
     # Sample 2: features at indices 1, 3, 5 should be 10.0, 12.0, 14.0
     expected_masked_features[1, [1, 3, 5]] = torch.tensor([10.0, 12.0, 14.0])
 
-    assert torch.allclose(td["masked_features"], expected_masked_features), (
-        f"Expected masked_features={expected_masked_features}, got {td['masked_features']}"
-    )
+    assert torch.allclose(
+        td["masked_features"], expected_masked_features
+    ), f"Expected masked_features={expected_masked_features}, got {td['masked_features']}"
 
     # Verify that performed_selection_mask reflects the initialized features
     # Since ManualInitializer directly sets features (not through selections),
@@ -1869,9 +1889,9 @@ def test_initializer_application() -> None:
         True  # Feature at index 3 (action 4-1)
     )
 
-    assert torch.equal(td["feature_mask"], expected_feature_mask_after_step), (
-        "Feature mask should include both initialized and selected features"
-    )
+    assert torch.equal(
+        td["feature_mask"], expected_feature_mask_after_step
+    ), "Feature mask should include both initialized and selected features"
 
     # Check that performed_selection_mask now reflects the actual selections made
     expected_performed_selection_mask_after_step = torch.zeros(

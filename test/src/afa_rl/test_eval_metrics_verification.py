@@ -281,9 +281,9 @@ def test_poor_policy_reward_calculation(test_env: AFAEnv) -> None:
     predict_fn = DummyPredictFn(8)
     metrics = get_eval_metrics(td_evals, predict_fn)
 
-    assert abs(metrics["reward_sum"] - expected_reward_per_agent) < 1e-6, (
-        f"Poor policy should get 0 reward, got {metrics['reward_sum']}"
-    )
+    assert (
+        abs(metrics["reward_sum"] - expected_reward_per_agent) < 1e-6
+    ), f"Poor policy should get 0 reward, got {metrics['reward_sum']}"
     print("✅ Poor policy correctly returns 0.0 reward per episode!")
 
 
@@ -389,9 +389,9 @@ def test_range_based_reward_function() -> None:
     )
 
     # Feature 6 is in range 5-8, so should get reward 2.0
-    assert torch.allclose(reward, torch.tensor([[2.0], [2.0]])), (
-        f"Expected reward 2.0, got {reward}"
-    )
+    assert torch.allclose(
+        reward, torch.tensor([[2.0], [2.0]])
+    ), f"Expected reward 2.0, got {reward}"
 
     # Test selecting feature outside range
     selection_mask_new_outside = selection_mask_old.clone()
@@ -411,9 +411,9 @@ def test_range_based_reward_function() -> None:
     )
 
     # Feature 2 is outside range, so should get 0 reward
-    assert torch.allclose(reward_outside, torch.tensor([[0.0], [0.0]])), (
-        f"Expected reward 0.0, got {reward_outside}"
-    )
+    assert torch.allclose(
+        reward_outside, torch.tensor([[0.0], [0.0]])
+    ), f"Expected reward 0.0, got {reward_outside}"
 
 
 def test_eval_metrics_manual_calculation() -> None:

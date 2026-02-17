@@ -34,16 +34,16 @@ class FixedRandomInitializer(AFAInitializer):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        assert feature_shape is not None, (
-            "feature_shape must be provided for FixedRandomInitializer"
-        )
+        assert (
+            feature_shape is not None
+        ), "feature_shape must be provided for FixedRandomInitializer"
         # We can figure out the batch shape by subtracting the feature shape
         batch_shape = features.shape[: -len(feature_shape)]
         # Select once and cache
         if self._cached_mask is None:
-            assert feature_shape is not None, (
-                "feature_shape must be provided for FixedRandomInitializer"
-            )
+            assert (
+                feature_shape is not None
+            ), "feature_shape must be provided for FixedRandomInitializer"
             num_features = feature_shape.numel()
             num_features_to_unmask = self.num_initial_features
             assert 0 <= num_features_to_unmask <= num_features, (

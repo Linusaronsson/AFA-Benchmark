@@ -12,14 +12,16 @@ from afabench.common.unmaskers import DirectUnmasker
 
 
 @pytest.fixture
-def basic_fixture() -> tuple[
-    Features,
-    FeatureMask,
-    MaskedFeatures,
-    AFAAction,
-    SelectionMask,
-    torch.Size,
-]:
+def basic_fixture() -> (
+    tuple[
+        Features,
+        FeatureMask,
+        MaskedFeatures,
+        AFAAction,
+        SelectionMask,
+        torch.Size,
+    ]
+):
     """Provide basic test data for DirectUnmasker."""
     batch_size = 2
     feature_shape = torch.Size([3, 3])

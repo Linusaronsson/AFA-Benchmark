@@ -65,9 +65,9 @@ def test_dynamic_random_arbitrary_batch_shape() -> None:
         if not torch.equal(mask_flat[0], mask_flat[i]):
             different_found = True
             break
-    assert different_found, (
-        "All batch elements have identical masks, expected different"
-    )
+    assert (
+        different_found
+    ), "All batch elements have identical masks, expected different"
 
 
 def test_dynamic_random_consistency() -> None:

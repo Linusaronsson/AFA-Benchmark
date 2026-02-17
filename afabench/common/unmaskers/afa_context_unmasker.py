@@ -53,9 +53,9 @@ class AFAContextUnmasker(AFAUnmasker):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        assert masked_features.ndim == 2, (
-            f"Expected a single batch dimension and a single feature dimension, instead got {masked_features.ndim} dimensions."
-        )
+        assert (
+            masked_features.ndim == 2
+        ), f"Expected a single batch dimension and a single feature dimension, instead got {masked_features.ndim} dimensions."
         batch_size = masked_features.shape[0]
         new_feature_mask = feature_mask.clone()
 

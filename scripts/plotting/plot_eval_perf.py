@@ -575,9 +575,7 @@ def assert_only_one_soft_budget_param_type(df: pl.DataFrame) -> pl.DataFrame:
     assert (
         df["train_soft_budget_param"].is_null()
         | df["eval_soft_budget_param"].is_null()
-    ).all(), (
-        "Both train_soft_budget_param and eval_soft_budget_param cannot be set. Choose one."
-    )
+    ).all(), "Both train_soft_budget_param and eval_soft_budget_param cannot be set. Choose one."
     df = df.with_columns(
         soft_budget_param=pl.coalesce(
             "train_soft_budget_param", "eval_soft_budget_param"

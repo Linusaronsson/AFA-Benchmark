@@ -419,9 +419,9 @@ def get_eval_metrics(
 ) -> dict[str, Any]:
     """Return a dictionary of metrics from a list of tensordicts collected from a torchrl environment."""
     # Assumption: td has batch size (n_agents, episode_len)
-    assert eval_tds[0].batch_dims == 2, (
-        "Expected eval_tds to have batch dims (n_agents, episode_len)"
-    )
+    assert (
+        eval_tds[0].batch_dims == 2
+    ), "Expected eval_tds to have batch dims (n_agents, episode_len)"
     eval_metrics = {}
     eval_metrics["reward_sum"] = 0.0
     eval_metrics["actions"] = []

@@ -109,9 +109,9 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
                 x0.to(device), torch.zeros(len(x0), n_patches, device=device)
             )
         )
-    assert logits0.shape[1] == n_patches, (
-        f"Value Network outputs {logits0.shape[1]} != n_patches {n_patches}"
-    )
+    assert (
+        logits0.shape[1] == n_patches
+    ), f"Value Network outputs {logits0.shape[1]} != n_patches {n_patches}"
 
     greedy_cmi_estimator = CMIEstimator(
         value_network=value_network,
