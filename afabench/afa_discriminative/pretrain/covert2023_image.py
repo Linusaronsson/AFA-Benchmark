@@ -68,9 +68,9 @@ def pretrain_image(cfg: Covert2023Pretraining2DConfig) -> None:
     # default 224x224 image, 14x14 mask grid (16 patch size)
     image_size = cfg.image_size
     patch_size = cfg.patch_size
-    assert (
-        image_size % patch_size == 0
-    ), "image_size must be divisible by patch_size"
+    assert image_size % patch_size == 0, (
+        "image_size must be divisible by patch_size"
+    )
     mask_width = image_size // patch_size
     architecture: dict[str, Any] = {
         "type": cfg.backbone_type,

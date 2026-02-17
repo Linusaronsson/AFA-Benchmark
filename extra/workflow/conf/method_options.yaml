@@ -120,3 +120,8 @@ method_options:
     eval_batch_size: *dummy_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
+  stop_baseline:
+    train_script_name: "stop_baseline"
+    eval_batch_size: *dummy_eval_batch_size
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]

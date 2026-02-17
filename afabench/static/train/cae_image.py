@@ -61,9 +61,9 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
     )
     image_size = cfg.image_size
     patch_size = cfg.patch_size
-    assert (
-        image_size % patch_size == 0
-    ), "image_size must be divisible by patch_size"
+    assert image_size % patch_size == 0, (
+        "image_size must be divisible by patch_size"
+    )
     mask_width = image_size // patch_size
 
     if cfg.backbone_type == "resnet18":

@@ -222,13 +222,13 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
         )
         # Key assumption: predictions are logits/probabilities for classes
         if active_builtin_prediction is not None:
-            assert (
-                active_builtin_prediction.shape[-1] > 1
-            ), "Expected builtin prediction to have class dimension"
+            assert active_builtin_prediction.shape[-1] > 1, (
+                "Expected builtin prediction to have class dimension"
+            )
         if active_external_prediction is not None:
-            assert (
-                active_external_prediction.shape[-1] > 1
-            ), "Expected external prediction to have class dimension"
+            assert active_external_prediction.shape[-1] > 1, (
+                "Expected external prediction to have class dimension"
+            )
 
         # Check budget and override actions if they would exceed it
         if selection_budget is not None:
@@ -419,7 +419,7 @@ def eval_afa_method(
         "true_class",
         "forced_stop",
     }
-    assert expected_columns.issubset(
-        set(df_batches.columns)
-    ), f"Expected columns {expected_columns}, but got {set(df_batches.columns)}"
+    assert expected_columns.issubset(set(df_batches.columns)), (
+        f"Expected columns {expected_columns}, but got {set(df_batches.columns)}"
+    )
     return df_batches

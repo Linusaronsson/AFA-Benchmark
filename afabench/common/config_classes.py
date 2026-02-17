@@ -840,6 +840,28 @@ class SequentialDummyTrainConfig:
 
 cs.store(name="train_sequential_dummy", node=SequentialDummyTrainConfig)
 
+# stop_baseline
+
+
+@dataclass
+class StopBaselineTrainConfig:
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    classifier_bundle_path: str
+    save_path: str
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+    hard_budget: int | None
+    soft_budget_param: float | None
+
+    device: str
+    seed: int | None
+    use_wandb: bool = False
+    smoke_test: bool = False
+
+
+cs.store(name="train_stop_baseline", node=StopBaselineTrainConfig)
+
 # optimalcube
 
 
@@ -1118,6 +1140,38 @@ class TrainMaskedViTClassifierConfig:
 cs.store(
     name="train_masked_vit_classifier", node=TrainMaskedViTClassifierConfig
 )
+
+
+@dataclass
+class TrainMALearnClassifierConfig:
+    train_dataset_path: str
+    val_dataset_path: str
+    save_path: str
+
+    # MA model selection
+    model_name: str  # one of: malasso, madt, marf, magbt
+    alpha: float
+    beta: float
+    max_depth: int
+    n_estimators: int
+    learning_rate: float
+    subsample: float
+    n_jobs: int | None
+
+    # Synthetic masking used for MA training
+    min_masking_probability: float
+    max_masking_probability: float
+
+    initializer: InitializerConfig  # follows pipeline interface
+    unmasker: UnmaskerConfig  # follows pipeline interface
+
+    seed: int
+    device: str
+    use_wandb: bool = False
+    smoke_test: bool = False
+
+
+cs.store(name="train_malearn_classifier", node=TrainMALearnClassifierConfig)
 
 
 # --- EVALUATION ---

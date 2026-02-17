@@ -91,9 +91,9 @@ def validate_class_version(version: str) -> bool:
 
 def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
     """Save a bundle to disk. `path` is required to end with the `.bundle` extension to make it clear that this is a bundle."""
-    assert (
-        path.suffix == ".bundle"
-    ), "Bundle path must end with .bundle extension"
+    assert path.suffix == ".bundle", (
+        "Bundle path must end with .bundle extension"
+    )
 
     # Create parent directory if it doesn't exist
     path.mkdir(parents=True, exist_ok=True)
@@ -141,9 +141,9 @@ def load_bundle(
     Returns:
         A tuple of the loaded object and the manifest dictionary.
     """
-    assert (
-        path.suffix == ".bundle"
-    ), "Bundle path must end with .bundle extension"
+    assert path.suffix == ".bundle", (
+        "Bundle path must end with .bundle extension"
+    )
 
     with (path / "manifest.json").open("r") as f:
         manifest = json.load(f)

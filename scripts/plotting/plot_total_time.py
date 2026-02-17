@@ -155,15 +155,19 @@ def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
     # For averaging plot, only use datasets present in all methods
     df_common = filter_common_datasets(df)
 
-    # Get the display method order based on METHOD_NAME_MAPPING order
-    # After name transformation, values are already display names
+    # Get display method order based on METHOD_NAME_MAPPING order.
+    # After name transformation, values are already display names.
     method_order = [METHOD_NAME_MAPPING.get(m, m) for m in METHOD_NAME_MAPPING]
-    # Reverse the order to match the desired display
+    # Reverse the order to match the desired display.
     method_order.reverse()
 
-    # Filter to only methods present in the data
+    # Filter to only mapped methods present in the data.
     available_methods = set(df["afa_method"].unique().to_list())
     method_order_filtered = [m for m in method_order if m in available_methods]
+    # Include methods that are present in data but not in METHOD_NAME_MAPPING.
+    # This avoids enum-cast failures when new/experimental methods appear.
+    unknown_methods = sorted(available_methods - set(method_order_filtered))
+    method_order_filtered.extend(unknown_methods)
 
     # Cast to Enum with the correct order
     df_common = df_common.with_columns(

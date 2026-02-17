@@ -1,14 +1,7 @@
-import torch
+from typing import ClassVar, cast, final, override
+
 import numpy as np
-
-from typing import final, override
-
-from malearn.data.utils import (
-    MAR_mask,
-    MNAR_mask_logistic,
-    MNAR_mask_quantiles,
-    MNAR_self_mask_logistic,
-)
+import torch
 
 from afabench.common.custom_types import (
     AFAInitializer,
@@ -16,6 +9,12 @@ from afabench.common.custom_types import (
     Features,
     Label,
     SelectionMask,
+)
+from afabench.missing_values.masking import (
+    MAR_mask,
+    MNAR_mask_logistic,
+    MNAR_mask_quantiles,
+    MNAR_self_mask_logistic,
 )
 
 
@@ -41,7 +40,7 @@ class MissingnessInitializer(AFAInitializer):
         - 'mnar_quantiles': MNAR with quantile censorship
     """
 
-    SUPPORTED_MECHANISMS = {
+    SUPPORTED_MECHANISMS: ClassVar[set[str]] = {
         "mar",
         "mnar_logistic",
         "mnar_self",
@@ -56,6 +55,7 @@ class MissingnessInitializer(AFAInitializer):
         p_params: float = 0.3,
         q: float = 0.25,
         cut: str = "both",
+        *,
         exclude_inputs: bool = True,
         mcar: bool = False,
         acquirable_fraction: float = 1.0,
@@ -84,6 +84,12 @@ class MissingnessInitializer(AFAInitializer):
                 f"Supported: {self.SUPPORTED_MECHANISMS}"
             )
             raise ValueError(msg)
+        if not (0.0 <= acquirable_fraction <= 1.0):
+            msg = (
+                "acquirable_fraction must be in [0, 1], got "
+                f"{acquirable_fraction}."
+            )
+            raise ValueError(msg)
 
         self.mechanism = mechanism
         self.p = p
@@ -107,9 +113,9 @@ class MissingnessInitializer(AFAInitializer):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        assert (
-            feature_shape is not None
-        ), "feature_shape must be provided for MissingnessInitializer"
+        assert feature_shape is not None, (
+            "feature_shape must be provided for MissingnessInitializer"
+        )
 
         # Flatten features to 2D (n, d) for the mask generation functions
         batch_shape = features.shape[: -len(feature_shape)]
@@ -127,36 +133,36 @@ class MissingnessInitializer(AFAInitializer):
         # Reshape back to original batch + feature shape
         return observed_mask.reshape(batch_shape + feature_shape)
 
-    def _generate_mask(self, X: torch.Tensor) -> torch.BoolTensor:
+    def _generate_mask(self, x: torch.Tensor) -> torch.BoolTensor:
         """
         Generate a missingness mask using the configured mechanism.
 
         Args:
-            X: 2D tensor of shape (n, d).
+            x: 2D tensor of shape (n, d).
 
         Returns:
             Boolean tensor where True means missing (malearn convention).
         """
         # Use float64 for numerical stability in logistic fitting
-        X_double = X.double()
+        x_double = x.double()
 
         if self.mechanism == "mar":
             mask = MAR_mask(
-                X_double, p=self.p, p_obs=self.p_obs, seed=self.seed
+                x_double, p=self.p, p_obs=self.p_obs, seed=self.seed
             )
         elif self.mechanism == "mnar_logistic":
             mask = MNAR_mask_logistic(
-                X_double,
+                x_double,
                 p=self.p,
                 p_params=self.p_params,
                 exclude_inputs=self.exclude_inputs,
                 seed=self.seed,
             )
         elif self.mechanism == "mnar_self":
-            mask = MNAR_self_mask_logistic(X_double, p=self.p, seed=self.seed)
+            mask = MNAR_self_mask_logistic(x_double, p=self.p, seed=self.seed)
         elif self.mechanism == "mnar_quantiles":
             mask = MNAR_mask_quantiles(
-                X_double,
+                x_double,
                 p=self.p,
                 q=self.q,
                 p_params=self.p_params,
@@ -172,7 +178,7 @@ class MissingnessInitializer(AFAInitializer):
         if isinstance(mask, np.ndarray):
             mask = torch.from_numpy(mask)
 
-        return mask.bool()
+        return cast("torch.BoolTensor", mask.bool())
 
     def get_forbidden_selection_mask(
         self,
@@ -226,9 +232,7 @@ class MissingnessInitializer(AFAInitializer):
             n_missing = len(missing_indices)
             if n_missing == 0:
                 continue
-            n_to_block = int(
-                round(n_missing * (1.0 - self.acquirable_fraction))
-            )
+            n_to_block = round(n_missing * (1.0 - self.acquirable_fraction))
             if n_to_block == 0:
                 continue
             perm = torch.randperm(

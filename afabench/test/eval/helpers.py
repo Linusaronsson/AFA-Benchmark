@@ -20,9 +20,9 @@ def assert_where_selections_there_cost(
 ) -> None:
     """Assert that wherever "prev_selections_performed" in the dataframe is equal to `selections`, "accumulated_cost" has to be equal to `cost`."""
     rows = df[df["prev_selections_performed"].apply(lambda x: x == selections)]
-    assert (
-        len(rows) == 1
-    ), f"While evaluating dataframe \n{df}\n, expected exactly one row to contain prev_selections_performed={selections}, instead got \n{rows}\n"
+    assert len(rows) == 1, (
+        f"While evaluating dataframe \n{df}\n, expected exactly one row to contain prev_selections_performed={selections}, instead got \n{rows}\n"
+    )
     row = rows.iloc[0]
     assert row["accumulated_cost"] == cost
 
@@ -32,9 +32,9 @@ def assert_where_selections_there_action(
 ) -> None:
     """Assert that wherever "prev_selections_performed" in the dataframe is equal to `selections`, "action_performed" has to be equal to `action`."""
     rows = df[df["prev_selections_performed"].apply(lambda x: x == selections)]
-    assert (
-        len(rows) == 1
-    ), f"While evaluating dataframe \n{df}\n, expected exactly one row to contain prev_selections_performed={selections}, instead got \n{rows}\n"
+    assert len(rows) == 1, (
+        f"While evaluating dataframe \n{df}\n, expected exactly one row to contain prev_selections_performed={selections}, instead got \n{rows}\n"
+    )
     row = rows.iloc[0]
     assert row["action_performed"] == action
 
@@ -50,9 +50,9 @@ def get_deterministic_afa_action_fn(actions: Sequence[int]) -> AFAActionFn:
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
     ) -> AFAAction:
-        assert (
-            masked_features.ndim == 2
-        ), "assuming single batch dimension and single feature dimension"
+        assert masked_features.ndim == 2, (
+            "assuming single batch dimension and single feature dimension"
+        )
         batch_size = masked_features.shape[0]
         nonlocal action_idx
         action_tensor = (
@@ -85,9 +85,9 @@ def get_batched_deterministic_afa_action_fn(
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
     ) -> AFAAction:
-        assert (
-            masked_features.ndim == 2
-        ), "assuming single batch dimension and single feature dimension"
+        assert masked_features.ndim == 2, (
+            "assuming single batch dimension and single feature dimension"
+        )
         batch_size = masked_features.shape[0]
         nonlocal action_idx, active_indices
 
@@ -148,9 +148,9 @@ def assert_terminated_after_n_steps(
         forced: if set, checks that the "forced_stop" column is set to the specified value. Can be used to distinguish between cases where an episode stops due to a method voluntarily choosing to stop, or being forced to stop due to exceeding the budget.
     """
     sample_rows = df[df["idx"] == idx]
-    assert (
-        len(sample_rows) == n_steps
-    ), f"Expected {n_steps} rows for sample {idx}, but got {len(sample_rows)}. "
+    assert len(sample_rows) == n_steps, (
+        f"Expected {n_steps} rows for sample {idx}, but got {len(sample_rows)}. "
+    )
     # There should be a single row where the action = 0 (stop action)
     for _, row in sample_rows.iterrows():
         if len(row["prev_selections_performed"]) == n_steps - 1:

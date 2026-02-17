@@ -46,9 +46,9 @@ class DirectUnmasker(AFAUnmasker):
         afa_selection < 0 (e.g., -1 from stop action) is ignored.
         """
         assert feature_shape is not None, "feature_shape must be provided"
-        assert (
-            afa_selection.shape[-1] == 1
-        ), "AFASelection must have shape [..., 1]"
+        assert afa_selection.shape[-1] == 1, (
+            "AFASelection must have shape [..., 1]"
+        )
 
         # Get batch shape by removing the last dimension (which is 1)
         batch_shape = afa_selection.shape[:-1]

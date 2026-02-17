@@ -1,0 +1,52 @@
+# Smoke-test comparison config: AFA policies vs MA no-acquisition baseline.
+#
+# Example:
+#   snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+#     --configfile extra/workflow/conf/ma_vs_afa_tabular_smoketest.yaml \
+#     --configfile extra/workflow/conf/method_options.yaml \
+#     --configfile extra/workflow/conf/pretrain_mapping.yaml \
+#     --configfile extra/workflow/conf/classifier_names_malearn.yaml \
+#     -j 4
+
+dataset_instance_indices: [0, 1]
+initializer: missingness
+eval_dataset_split: val
+device: cpu
+use_wandb: false
+smoke_test: true
+
+datasets:
+  - cube_without_noise
+  - afa_context_without_noise
+
+methods:
+  - stop_baseline
+  - ma2018_external
+  - jafa
+  - aaco
+
+method_sets:
+  ma_vs_afa:
+    - stop_baseline
+    - ma2018_external
+    - jafa
+    - aaco
+
+unmaskers:
+  default: direct
+
+eval_hard_budgets:
+  default: [5]
+
+soft_budget_params:
+  stop_baseline:
+    default: []
+  ma2018_external:
+    default:
+      - [0.01, null]
+  jafa:
+    default:
+      - [0.01, null]
+  aaco:
+    default:
+      - [0.01, null]

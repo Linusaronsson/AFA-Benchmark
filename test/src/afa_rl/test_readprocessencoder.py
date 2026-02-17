@@ -44,6 +44,6 @@ def test_is_permutation_invariant() -> None:
     output_2 = encoder(input_set_2, length_2)
 
     # Check that the outputs are equal
-    assert torch.allclose(
-        output_1, output_2
-    ), "The outputs are not equal for the same input data with different permutations."
+    assert torch.allclose(output_1, output_2), (
+        "The outputs are not equal for the same input data with different permutations."
+    )

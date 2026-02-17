@@ -42,9 +42,9 @@ def test_dataset_roundtrip(dataset_name: str, kwargs: dict[str, Any]) -> None:
         loaded_features, loaded_labels = loaded.get_all_data()
 
     # Compare tensors
-    assert torch.allclose(
-        orig_features, loaded_features
-    ), f"{dataset_name}: Features mismatch after save/load"
-    assert torch.allclose(
-        orig_labels, loaded_labels
-    ), f"{dataset_name}: Labels mismatch after save/load"
+    assert torch.allclose(orig_features, loaded_features), (
+        f"{dataset_name}: Features mismatch after save/load"
+    )
+    assert torch.allclose(orig_labels, loaded_labels), (
+        f"{dataset_name}: Labels mismatch after save/load"
+    )

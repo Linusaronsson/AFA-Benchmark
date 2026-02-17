@@ -125,9 +125,9 @@ def test_get_image_feature_set() -> None:
     result = get_image_feature_set(masked_image, feature_mask, image_shape)
 
     # The order of rows matters because of how nonzero works (row-major)
-    assert torch.equal(
-        result, expected
-    ), f"\nExpected:\n{expected}\nGot:\n{result}"
+    assert torch.equal(result, expected), (
+        f"\nExpected:\n{expected}\nGot:\n{result}"
+    )
 
 
 def test_get_2d_identity() -> None:
@@ -171,9 +171,9 @@ def test_get_2d_identity() -> None:
     result = get_2d_identity(feature_mask, image_shape)
 
     # The order of rows matters because of how nonzero works (row-major)
-    assert torch.equal(
-        result, expected
-    ), f"\nExpected:\n{expected}\nGot:\n{result}"
+    assert torch.equal(result, expected), (
+        f"\nExpected:\n{expected}\nGot:\n{result}"
+    )
 
 
 def test_resample_invalid_actions() -> None:

@@ -116,9 +116,9 @@ class TestRLAndDummyPipeline:
         # Verify dataset was created
         dataset_dir = Path(f"extra/output/datasets/{dataset}")
         assert dataset_dir.exists(), f"Dataset {dataset} directory not created"
-        assert (
-            dataset_dir / "0"
-        ).exists(), f"Dataset {dataset} instance 0 not created"
+        assert (dataset_dir / "0").exists(), (
+            f"Dataset {dataset} instance 0 not created"
+        )
 
     @pytest.mark.dependency(scope="session")
     def test_pretrain_model(
@@ -181,7 +181,9 @@ class TestRLAndDummyPipeline:
             / pretrain_name
             / f"dataset-{dataset}+instance_idx-0"
         )
-        assert pretrained_dir.exists(), f"Pretrained model directory for {pretrain_name} on {dataset} not created"
+        assert pretrained_dir.exists(), (
+            f"Pretrained model directory for {pretrain_name} on {dataset} not created"
+        )
 
     @pytest.mark.dependency(scope="session")
     def test_train_method(
@@ -257,9 +259,9 @@ class TestRLAndDummyPipeline:
             / method
             / f"dataset-{dataset}+instance_idx-0"
         )
-        assert (
-            trained_dir.exists()
-        ), f"Trained method directory for {method} on {dataset} not created"
+        assert trained_dir.exists(), (
+            f"Trained method directory for {method} on {dataset} not created"
+        )
 
     @pytest.mark.dependency(scope="session")
     def test_eval_method(
@@ -329,7 +331,9 @@ class TestRLAndDummyPipeline:
             / method
             / f"dataset-{dataset}+instance_idx-0"
         )
-        assert eval_dir.exists(), f"Evaluation results directory for {method} on {dataset} not created"
+        assert eval_dir.exists(), (
+            f"Evaluation results directory for {method} on {dataset} not created"
+        )
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:

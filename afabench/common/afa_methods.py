@@ -59,9 +59,9 @@ class RandomDummyAFAMethod(AFAMethod):
 
         If no available selections remain, outputs 0 even if prob_select_0 would not have triggered.
         """
-        assert (
-            selection_mask is not None
-        ), "RandomDummyAFAMethod requires selection_mask to be provided"
+        assert selection_mask is not None, (
+            "RandomDummyAFAMethod requires selection_mask to be provided"
+        )
         # RandomDummyAFAMethod works with any feature shape since it only uses selection_mask
         original_device = masked_features.device
         masked_features = masked_features.to(self._device)
@@ -200,9 +200,9 @@ class SequentialDummyAFAMethod(AFAMethod):
     ) -> AFAAction:
         # Requires the selection mask to be given so that we don't
         # repeat selections and know which selection to perform next
-        assert (
-            selection_mask is not None
-        ), "SequentialDummyAFAMethod requires selection_mask to be provided"
+        assert selection_mask is not None, (
+            "SequentialDummyAFAMethod requires selection_mask to be provided"
+        )
         original_device = masked_features.device
 
         masked_features = masked_features.to(self._device)
@@ -647,9 +647,9 @@ class OptimalCubeAFAMethod(AFAMethod):
         """Chooses to observe an optimal feature for the cube dataset, or a random unobserved feature if all optimal ones are chosen."""
         original_device = masked_features.device
 
-        assert (
-            label is not None
-        ), "OptimalCubeAFAMethod assumes that label is available"
+        assert label is not None, (
+            "OptimalCubeAFAMethod assumes that label is available"
+        )
 
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)

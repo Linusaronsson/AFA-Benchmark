@@ -7,6 +7,8 @@ method_sets:
   dummy:
     - random_dummy
     - sequential_dummy
+  no_acquisition:
+    - stop_baseline
   odin:
     - odin_model_free
     - odin_model_based

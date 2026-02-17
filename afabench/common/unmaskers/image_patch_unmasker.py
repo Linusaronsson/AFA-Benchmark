@@ -19,9 +19,9 @@ class ImagePatchUnmasker(AFAUnmasker):
     def __init__(
         self, image_side_length: int, patch_size: int, n_channels: int
     ):
-        assert (
-            image_side_length % patch_size == 0
-        ), "Image side length must be divisible by patch size"
+        assert image_side_length % patch_size == 0, (
+            "Image side length must be divisible by patch size"
+        )
         self.image_side_length = image_side_length
         self.patch_size = patch_size
         self.n_channels = n_channels
@@ -132,9 +132,9 @@ class ImagePatchUnmasker(AFAUnmasker):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        assert (
-            afa_selection.shape[-1] == 1
-        ), "AFASelection must have shape [..., 1]"
+        assert afa_selection.shape[-1] == 1, (
+            "AFASelection must have shape [..., 1]"
+        )
 
         # Get batch shape by removing the last dimension (which is 1)
         batch_shape = afa_selection.shape[:-1]

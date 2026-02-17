@@ -1,0 +1,28 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - hydra: custom
+  - /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
+  - _self_
+  - optional experiment@_global_: ???
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+classifier_bundle_path: ???
+save_path: ???
+
+# Not used by StopBaselineMethod directly, but passed by pipeline
+hard_budget: null
+soft_budget_param: null
+
+device: cpu
+seed: 42
+use_wandb: false
+smoke_test: false

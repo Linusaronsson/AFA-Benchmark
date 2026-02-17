@@ -86,9 +86,9 @@ def assert_predictions(
     else:
         raise ValueError
     predictions = df.filter(pl.col("idx") == idx).sort("time")[prediction_col]
-    assert (
-        predictions == expected_predictions
-    ).all(), f"Expected {predictions.to_list()} and {expected_predictions} to be equal."
+    assert (predictions == expected_predictions).all(), (
+        f"Expected {predictions.to_list()} and {expected_predictions} to be equal."
+    )
 
 
 def test_expected_length() -> None:

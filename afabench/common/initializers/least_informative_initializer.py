@@ -37,13 +37,13 @@ class LeastInformativeInitializer(AFAInitializer):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
-        assert (
-            features is not None
-        ), f"{self.__class__.__name__} requires features"
+        assert features is not None, (
+            f"{self.__class__.__name__} requires features"
+        )
         assert label is not None, f"{self.__class__.__name__} requires label"
-        assert (
-            feature_shape is not None
-        ), "feature_shape must be provided for LeastInformativeInitializer"
+        assert feature_shape is not None, (
+            "feature_shape must be provided for LeastInformativeInitializer"
+        )
 
         num_features = feature_shape.numel()
         num_features_to_unmask = self.num_initial_features

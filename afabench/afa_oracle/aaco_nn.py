@@ -159,9 +159,9 @@ def generate_aaco_rollouts(
     if feature_shape is None:
         feature_shape = torch.Size([n_features])
 
-    assert (
-        unmasker is not None
-    ), "AACO+NN rollouts require an unmasker to apply selections."
+    assert unmasker is not None, (
+        "AACO+NN rollouts require an unmasker to apply selections."
+    )
 
     selection_size = unmasker.get_n_selections(feature_shape=feature_shape)
 
@@ -660,9 +660,9 @@ class AACONNAFAMethod(AFAMethod):
 
         # Load classifier from saved bundle path
         classifier_bundle_path = state.get("classifier_bundle_path")
-        assert (
-            classifier_bundle_path is not None
-        ), "AACO+NN loading requires classifier_bundle_path in saved state."
+        assert classifier_bundle_path is not None, (
+            "AACO+NN loading requires classifier_bundle_path in saved state."
+        )
 
         classifier_bundle_path = Path(classifier_bundle_path)
         classifier, _ = load_bundle(classifier_bundle_path, device=device)

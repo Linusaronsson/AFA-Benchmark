@@ -1,0 +1,42 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - hydra: custom
+  - /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
+  - _self_
+  - optional experiment@_global_: ???
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+# Required paths
+train_dataset_path: ???
+val_dataset_path: ???
+save_path: ???
+
+# MA model configuration
+# One of: malasso, madt, marf, magbt
+model_name: "marf"
+
+# Shared MA hyperparameters
+alpha: 1.0
+beta: 1.0
+max_depth: 8
+n_estimators: 200
+learning_rate: 0.1
+subsample: 1.0
+n_jobs: 1
+
+# Random synthetic mask generation used during MA training
+min_masking_probability: 0.0
+max_masking_probability: 0.9
+
+# Runtime settings
+seed: 42
+device: "cpu"
+use_wandb: false
+smoke_test: false

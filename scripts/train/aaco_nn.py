@@ -43,17 +43,17 @@ def _configure_smoke_test(cfg: AACONNTrainConfig) -> None:
 
 def _resolve_aaco_bundle_path(cfg: AACONNTrainConfig) -> Path:
     bundle_path = cfg.pretrained_model_bundle_path or cfg.aaco_bundle_path
-    assert (
-        bundle_path is not None
-    ), "Expected pretrained_model_bundle_path or aaco_bundle_path."
+    assert bundle_path is not None, (
+        "Expected pretrained_model_bundle_path or aaco_bundle_path."
+    )
     return Path(bundle_path)
 
 
 def _resolve_train_dataset_path(cfg: AACONNTrainConfig) -> Path:
     dataset_path = cfg.train_dataset_bundle_path or cfg.dataset_artifact_name
-    assert (
-        dataset_path is not None
-    ), "Expected train_dataset_bundle_path or dataset_artifact_name."
+    assert dataset_path is not None, (
+        "Expected train_dataset_bundle_path or dataset_artifact_name."
+    )
     return Path(dataset_path)
 
 

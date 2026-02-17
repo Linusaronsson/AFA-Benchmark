@@ -178,6 +178,16 @@ def main(cfg: EvalConfig) -> None:
         selection_costs.mean().item(),
     )
 
+    forbidden_mask_fn = None
+    maybe_forbidden_mask_fn = getattr(
+        initializer, "get_forbidden_selection_mask", None
+    )
+    if callable(maybe_forbidden_mask_fn):
+        forbidden_mask_fn = maybe_forbidden_mask_fn
+        log.info(
+            "Using initializer-provided forbidden selection mask function."
+        )
+
     df_eval = eval_afa_method(
         afa_action_fn=afa_method.act,
         afa_unmask_fn=unmasker.unmask,
@@ -197,6 +207,7 @@ def main(cfg: EvalConfig) -> None:
         selection_budget=cfg.hard_budget,
         batch_size=cfg.batch_size,
         selection_costs=selection_costs.tolist(),
+        forbidden_mask_fn=forbidden_mask_fn,
     )
 
     # Add eval_seed and eval_hard_budget to dataframe

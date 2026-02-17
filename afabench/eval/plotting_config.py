@@ -28,6 +28,7 @@ METHOD_NAME_MAPPING = {
     # Dummy
     "random_dummy": "Random",
     "sequential_dummy": "Sequential dummy",
+    "stop_baseline": "No acquisition",
 }
 
 # Dataset display names mapping
@@ -59,6 +60,9 @@ DATASETS_WITH_F_SCORE = ["physionet", "bank_marketing"]
 DATASET_SETS = {
     "set1": {
         "cube",
+        "cube_without_noise",
+        "afa_context",
+        "afa_context_without_noise",
         "afa_context_v2_without_noise",
         "miniboone",
         "bank_marketing",
@@ -76,6 +80,9 @@ DATASET_SETS = {
     },
     "all": {
         "cube",
+        "cube_without_noise",
+        "afa_context",
+        "afa_context_without_noise",
         "afa_context_v2_without_noise",
         "miniboone",
         "bank_marketing",

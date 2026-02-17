@@ -83,9 +83,9 @@ def test_mask_convention(
     mask = init.initialize(features=features, feature_shape=feature_shape)
     # With p=0.5, roughly half should be observed (True)
     frac_observed = mask.float().mean().item()
-    assert (
-        0.3 < frac_observed < 0.7
-    ), f"Expected ~50% observed, got {frac_observed:.2%}"
+    assert 0.3 < frac_observed < 0.7, (
+        f"Expected ~50% observed, got {frac_observed:.2%}"
+    )
 
 
 @pytest.mark.parametrize("p", [0.1, 0.3, 0.5])
@@ -93,15 +93,21 @@ def test_approximate_missingness_proportion(
     p: float,
     tabular_features: tuple[Features, torch.Size],
 ) -> None:
-    """Approximately p fraction of features should be missing."""
+    """Overall missingness should match MAR mechanism expectations."""
     features, feature_shape = tabular_features
-    init = MissingnessInitializer(mechanism="mar", p=p)
+    p_obs = 0.3
+    init = MissingnessInitializer(mechanism="mar", p=p, p_obs=p_obs)
     init.set_seed(42)
     mask = init.initialize(features=features, feature_shape=feature_shape)
     frac_missing = 1.0 - mask.float().mean().item()
-    assert (
-        abs(frac_missing - p) < 0.15
-    ), f"Expected ~{p:.0%} missing, got {frac_missing:.2%}"
+    # For MAR, p is applied only to the non-always-observed variables.
+    n_features = feature_shape.numel()
+    n_obs = max(int(p_obs * n_features), 1)
+    expected_missing = p * (n_features - n_obs) / n_features
+    assert abs(frac_missing - expected_missing) < 0.1, (
+        f"Expected ~{expected_missing:.2%} missing under MAR, "
+        f"got {frac_missing:.2%}"
+    )
 
 
 def test_feature_shape_required() -> None:
@@ -131,9 +137,9 @@ def test_forbidden_selection_mask_fraction_half(
 
     # Forbidden features must be a subset of missing features
     flat_observed = observed_mask.reshape(features.shape[0], -1)
-    assert (
-        forbidden & flat_observed
-    ).sum() == 0, "Observed features should never be forbidden"
+    assert (forbidden & flat_observed).sum() == 0, (
+        "Observed features should never be forbidden"
+    )
 
     # Check approximate fraction
     flat_missing = ~flat_observed
@@ -141,9 +147,9 @@ def test_forbidden_selection_mask_fraction_half(
     n_forbidden = forbidden.sum().item()
     if n_missing > 0:
         frac_forbidden = n_forbidden / n_missing
-        assert (
-            0.3 < frac_forbidden < 0.7
-        ), f"Expected ~50% of missing features forbidden, got {frac_forbidden:.2%}"
+        assert 0.3 < frac_forbidden < 0.7, (
+            f"Expected ~50% of missing features forbidden, got {frac_forbidden:.2%}"
+        )
 
 
 def test_forbidden_selection_mask_fraction_one(
@@ -177,9 +183,9 @@ def test_forbidden_selection_mask_fraction_zero(
     forbidden = init.get_forbidden_selection_mask(observed_mask, feature_shape)
 
     flat_missing = ~observed_mask.reshape(features.shape[0], -1)
-    assert torch.equal(
-        forbidden, flat_missing
-    ), "All missing features should be forbidden when acquirable_fraction=0"
+    assert torch.equal(forbidden, flat_missing), (
+        "All missing features should be forbidden when acquirable_fraction=0"
+    )
 
 
 def test_forbidden_mask_seed_determinism(

@@ -101,9 +101,9 @@ def test_merge_dataframes_basic_concatenation(tmp_path: Path) -> None:
 
     # Verify row count
     expected_rows = len(df1) + len(df2)
-    assert (
-        len(merged_df) == expected_rows
-    ), f"Expected {expected_rows} rows in output, got {len(merged_df)}"
+    assert len(merged_df) == expected_rows, (
+        f"Expected {expected_rows} rows in output, got {len(merged_df)}"
+    )
 
     # Verify column count
     expected_cols = len(df1.columns)
@@ -164,19 +164,19 @@ def test_merge_dataframes_with_missing_columns(tmp_path: Path) -> None:
 
     # Verify all columns from file1 are present
     for col in df1.columns:
-        assert (
-            col in merged_df.columns
-        ), f"Column {col} from file1 missing from output"
+        assert col in merged_df.columns, (
+            f"Column {col} from file1 missing from output"
+        )
 
     # Verify the missing column is present in output (filled with nulls)
-    assert (
-        "classifier" in merged_df.columns
-    ), "Missing column 'classifier' not added to output"
+    assert "classifier" in merged_df.columns, (
+        "Missing column 'classifier' not added to output"
+    )
 
     # Verify total row count
-    assert (
-        len(merged_df) == 80
-    ), f"Expected 80 rows (50+30), got {len(merged_df)}"
+    assert len(merged_df) == 80, (
+        f"Expected 80 rows (50+30), got {len(merged_df)}"
+    )
 
 
 def test_merge_dataframes_large_string_normalization(tmp_path: Path) -> None:
@@ -269,9 +269,9 @@ def test_merge_dataframes_single_file(tmp_path: Path) -> None:
     input_df = pl.read_parquet(file1)
     output_df = pl.read_parquet(output)
 
-    assert len(input_df) == len(
-        output_df
-    ), f"Row count mismatch: {len(input_df)} vs {len(output_df)}"
+    assert len(input_df) == len(output_df), (
+        f"Row count mismatch: {len(input_df)} vs {len(output_df)}"
+    )
     assert len(input_df.columns) == len(output_df.columns), (
         f"Column count mismatch: {len(input_df.columns)} "
         f"vs {len(output_df.columns)}"

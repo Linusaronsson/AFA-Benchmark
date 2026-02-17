@@ -264,18 +264,18 @@ def test_synthetic_mnist_left_half_is_noise(
     std_variance = np.var(stds)
 
     # The variance in means and stds should be small for noise
-    assert (
-        mean_variance < 0.01
-    ), f"Left half means vary too much across classes: {mean_variance}"
-    assert (
-        std_variance < 0.01
-    ), f"Left half stds vary too much across classes: {std_variance}"
+    assert mean_variance < 0.01, (
+        f"Left half means vary too much across classes: {mean_variance}"
+    )
+    assert std_variance < 0.01, (
+        f"Left half stds vary too much across classes: {std_variance}"
+    )
 
     # All means should be close to 0 (noise centered at 0)
     for i, mean_val in enumerate(means):
-        assert (
-            abs(mean_val) < 0.1
-        ), f"Class {i} left half mean {mean_val} too far from 0"
+        assert abs(mean_val) < 0.1, (
+            f"Class {i} left half mean {mean_val} too far from 0"
+        )
 
 
 def test_synthetic_mnist_right_half_has_patterns(
@@ -304,15 +304,15 @@ def test_synthetic_mnist_right_half_has_patterns(
     mean_variance = np.var(means)
 
     # The variance in means and stds should be larger for patterns
-    assert (
-        mean_variance > 0.001
-    ), f"Right half means don't vary enough across classes: {mean_variance}"
+    assert mean_variance > 0.001, (
+        f"Right half means don't vary enough across classes: {mean_variance}"
+    )
 
     # At least some classes should have higher means due to patterns
     max_mean = max(means)
-    assert (
-        max_mean > 0.15
-    ), f"No class has significantly elevated mean in right half: {max_mean}"
+    assert max_mean > 0.15, (
+        f"No class has significantly elevated mean in right half: {max_mean}"
+    )
 
 
 def test_synthetic_mnist_pattern_intensity_effect() -> None:
@@ -336,9 +336,9 @@ def test_synthetic_mnist_pattern_intensity_effect() -> None:
     mean_high = torch.mean(right_half_high).item()
 
     # Higher pattern intensity should result in higher mean values
-    assert (
-        mean_high > mean_low
-    ), f"Higher pattern intensity should give higher mean: {mean_high} vs {mean_low}"
+    assert mean_high > mean_low, (
+        f"Higher pattern intensity should give higher mean: {mean_high} vs {mean_low}"
+    )
 
 
 def test_synthetic_mnist_left_right_split() -> None:
@@ -389,9 +389,9 @@ def test_synthetic_mnist_noise_properties() -> None:
     measured_std = torch.std(left_half).item()
 
     # The measured std will be smaller due to clamping, but should be reasonable
-    assert (
-        measured_std > 0.05
-    ), f"Measured noise std {measured_std} too small, suggests no noise"
-    assert (
-        measured_std < noise_std * 1.2
-    ), f"Measured noise std {measured_std} unexpectedly higher than input {noise_std}"
+    assert measured_std > 0.05, (
+        f"Measured noise std {measured_std} too small, suggests no noise"
+    )
+    assert measured_std < noise_std * 1.2, (
+        f"Measured noise std {measured_std} unexpectedly higher than input {noise_std}"
+    )

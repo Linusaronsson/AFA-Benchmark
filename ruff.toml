@@ -15,6 +15,8 @@ exclude = [
   "afabench/afa_oracle/aaco_core.py",
   "afabench/afa_oracle/afa_methods.py",
   "afabench/afa_oracle/mask_generator.py",
+  "afabench/missing_values/malearn",
+  "afabench/missing_values/masking.py",
   # "afabench/afa_rl/callbacks.py",
   # "afabench/afa_rl/custom_types.py",
   # "afabench/afa_rl/datasets.py",
@@ -36,7 +38,7 @@ exclude = [
   "afabench/static/models.py",
   "afabench/static/static_methods.py",
   "afabench/static/utils.py",
-  # "scripts/eval/eval_afa_method.py",
+  "scripts/eval/eval_afa_method.py",
   "scripts/misc/calculate_evaluation_time.py",
   "scripts/misc/calculate_training_time.py",
   "scripts/misc/download_result_plots.py",
@@ -56,6 +58,7 @@ exclude = [
   "scripts/train/gadgil2023.py",
   "scripts/train/kachuee2019_old.py",
   "scripts/train/ma2018.py",
+  "scripts/train/malearn_classifier.py",
   # "scripts/train/masked_mlp_classifier.py",
   "scripts/train/masked_vit_classifier.py",
   "scripts/train/optimalcube.py",
@@ -73,6 +76,7 @@ exclude = [
   # "test/common/initializers/individual/test_manual_initializer.py",
   # "test/common/initializers/individual/test_mutual_information_initializer.py",
   # "test/common/initializers/individual/test_zero_initializer.py",
+  "test/src/missing_values",
   "test/common/test_artifact_system.py",
   "extra/workflow/src/config.py"
 ]
