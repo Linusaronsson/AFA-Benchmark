@@ -19,8 +19,11 @@ from afabench.common.custom_types import (
     AFAInitializer,
     AFAMethod,
     AFAUnmasker,
+    FeatureMask,
+    SelectionMask,
 )
 from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.unmaskers import AFAContextUnmasker
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
     set_seed,
@@ -28,6 +31,70 @@ from afabench.common.utils import (
 from afabench.eval.eval import eval_afa_method
 
 log = logging.getLogger(__name__)
+
+
+def _adapt_forbidden_mask_to_selection_space(
+    forbidden_mask: SelectionMask,
+    *,
+    n_selection_choices: int,
+    feature_shape: torch.Size,
+    unmasker: AFAUnmasker,
+) -> SelectionMask:
+    """
+    Ensure forbidden mask is expressed in selection space.
+
+    MissingnessInitializer returns feature-level masks by default. For grouped
+    unmaskers (e.g. AFAContextUnmasker), convert to selection-level masks.
+    """
+    if forbidden_mask.shape[-1] == n_selection_choices:
+        return forbidden_mask
+
+    n_features = int(torch.prod(torch.tensor(feature_shape)).item())
+    if forbidden_mask.shape[-1] != n_features:
+        msg = (
+            "Initializer forbidden mask has incompatible shape. "
+            f"Expected trailing dim {n_selection_choices} (selection space) or "
+            f"{n_features} (feature space), got {forbidden_mask.shape[-1]}."
+        )
+        raise ValueError(msg)
+
+    # Feature-space -> selection-space conversion for context grouped selections.
+    if isinstance(unmasker, AFAContextUnmasker):
+        n_contexts = unmasker.n_contexts
+        expected_n_selections = 1 + (n_features - n_contexts)
+        if n_selection_choices != expected_n_selections:
+            msg = (
+                "Unexpected selection-space size for AFAContextUnmasker. "
+                f"Expected {expected_n_selections}, got {n_selection_choices}."
+            )
+            raise ValueError(msg)
+
+        flat_forbidden = forbidden_mask.reshape(-1, n_features)
+        sel_forbidden = torch.zeros(
+            (flat_forbidden.shape[0], n_selection_choices),
+            dtype=torch.bool,
+            device=forbidden_mask.device,
+        )
+        # Selection 0 corresponds to acquiring all context features at once.
+        sel_forbidden[:, 0] = flat_forbidden[:, :n_contexts].any(dim=1)
+        sel_forbidden[:, 1:] = flat_forbidden[:, n_contexts:]
+        batch_shape = forbidden_mask.shape[:-1]
+        return sel_forbidden.reshape(*batch_shape, n_selection_choices)
+
+    # For non-grouped unmaskers, this mismatch is usually all-false masks from
+    # initializers that only define feature-level forbidden masks.
+    if forbidden_mask.any():
+        msg = (
+            "Cannot convert feature-level forbidden mask to selection space for "
+            f"unmasker {type(unmasker).__name__}."
+        )
+        raise ValueError(msg)
+
+    return torch.zeros(
+        (*forbidden_mask.shape[:-1], n_selection_choices),
+        dtype=torch.bool,
+        device=forbidden_mask.device,
+    )
 
 
 def load(
@@ -178,12 +245,28 @@ def main(cfg: EvalConfig) -> None:
         selection_costs.mean().item(),
     )
 
+    n_selection_choices = unmasker.get_n_selections(
+        feature_shape=dataset.feature_shape
+    )
+
     forbidden_mask_fn = None
     maybe_forbidden_mask_fn = getattr(
         initializer, "get_forbidden_selection_mask", None
     )
     if callable(maybe_forbidden_mask_fn):
-        forbidden_mask_fn = maybe_forbidden_mask_fn
+
+        def forbidden_mask_fn(
+            observed_mask: FeatureMask,
+            feature_shape: torch.Size,
+        ) -> SelectionMask:
+            raw_mask = maybe_forbidden_mask_fn(observed_mask, feature_shape)
+            return _adapt_forbidden_mask_to_selection_space(
+                raw_mask,
+                n_selection_choices=n_selection_choices,
+                feature_shape=feature_shape,
+                unmasker=unmasker,
+            )
+
         log.info(
             "Using initializer-provided forbidden selection mask function."
         )
@@ -191,9 +274,7 @@ def main(cfg: EvalConfig) -> None:
     df_eval = eval_afa_method(
         afa_action_fn=afa_method.act,
         afa_unmask_fn=unmasker.unmask,
-        n_selection_choices=unmasker.get_n_selections(
-            feature_shape=dataset.feature_shape
-        ),
+        n_selection_choices=n_selection_choices,
         afa_initialize_fn=initializer.initialize,
         dataset=dataset,
         external_afa_predict_fn=external_classifier.__call__

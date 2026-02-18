@@ -9,6 +9,11 @@ Runtime filters (--config, select subsets to run):
     initializer (str, default='cold'): Initialization strategy
     eval_dataset_split (str, default='val'): Dataset split for evaluation
 
+Output namespacing:
+    - All initializer-dependent artifacts are stored under
+      `initializer-<initializer>` to allow side-by-side comparisons
+      (for example `cold` vs `missingness`) without overwriting.
+
 Config files (--configfile):
     Fixed definitions:
         method_options.yaml,
@@ -61,6 +66,7 @@ _config = load_config(config)
 NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
 DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]
 INITIALIZER = _config["INITIALIZER"]
+INITIALIZER_TAG = f"initializer-{INITIALIZER}"
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
 DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]

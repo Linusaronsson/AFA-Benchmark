@@ -168,6 +168,11 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
     feature_mask = initial_feature_mask.clone()
     masked_features = initial_masked_features.clone()
     if initial_selection_mask is not None:
+        assert initial_selection_mask.shape[-1] == n_selection_choices, (
+            "initial_selection_mask must be in selection space. "
+            f"Expected trailing dim {n_selection_choices}, got "
+            f"{initial_selection_mask.shape[-1]}."
+        )
         selection_mask = initial_selection_mask.clone()
     else:
         selection_mask = torch.zeros(

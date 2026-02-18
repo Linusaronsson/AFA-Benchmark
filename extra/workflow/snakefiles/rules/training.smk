@@ -13,18 +13,18 @@ rule pretrain_model:
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
         # Classifier
-        ancient("extra/output/trained_classifiers/"
+        ancient(f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
             "dataset-{dataset}.bundle")
     output:
         directory(
-            "extra/output/pretrained_models/{pretrained_model_name}/"
+            f"extra/output/pretrained_models/{INITIALIZER_TAG}/{{pretrained_model_name}}/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "pretrain_seed-{pretrain_seed}/"
                         "model.bundle"
         ),
 
-        "extra/output/pretrained_models/{pretrained_model_name}/"
+        f"extra/output/pretrained_models/{INITIALIZER_TAG}/{{pretrained_model_name}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -66,7 +66,7 @@ rule train_method_with_pretrained_model:
 
         # Pretrained model
         lambda wildcards: (
-            f"extra/output/pretrained_models/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
+            f"extra/output/pretrained_models/{INITIALIZER_TAG}/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
                 f"dataset-{wildcards.dataset}+"
                 f"instance_idx-{wildcards.dataset_instance_idx}/"
                     f"pretrain_seed-{wildcards.pretrain_seed}/"
@@ -74,12 +74,12 @@ rule train_method_with_pretrained_model:
         ),
 
         # Classifier
-        ancient("extra/output/trained_classifiers/"
+        ancient(f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
             "dataset-{dataset}.bundle")
 
     output:
         directory(
-            "extra/output/trained_methods/{method}/"
+            f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     "pretrain_seed-{pretrain_seed}/"
@@ -88,7 +88,7 @@ rule train_method_with_pretrained_model:
                         "train_soft_budget_param-{train_soft_budget_param}/"
                             "method.bundle"
         ),
-        "extra/output/trained_methods/{method}/"
+        f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -134,11 +134,11 @@ rule train_method_without_pretrained_model:
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
 
         # Classifier
-        ancient("extra/output/trained_classifiers/"
+        ancient(f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
             "dataset-{dataset}.bundle")
     output:
         directory(
-            "extra/output/trained_methods/{method}/"
+            f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
                 "dataset-{dataset}+"
                 "instance_idx-{dataset_instance_idx}/"
                     f"{NO_PRETRAIN_STR}/"
@@ -147,7 +147,7 @@ rule train_method_without_pretrained_model:
                         "train_soft_budget_param-{train_soft_budget_param}/"
                             "method.bundle"
         ),
-        "extra/output/trained_methods/{method}/"
+        f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 f"{NO_PRETRAIN_STR}/"

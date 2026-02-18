@@ -21,7 +21,7 @@ rule train_classifier:
         "extra/output/datasets/{dataset}/0/val.bundle"
     output:
         directory(
-            f"extra/output/trained_classifiers/"
+            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
                 "dataset-{dataset}.bundle"
         )
     params:

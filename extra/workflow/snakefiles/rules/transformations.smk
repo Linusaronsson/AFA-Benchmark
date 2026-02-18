@@ -19,7 +19,7 @@ rule transform_eval_data:
     4. Pivot classifier columns to tidy data format
     """
     input:
-        "extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
+        f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "{pretrain_folder}"
@@ -31,7 +31,7 @@ rule transform_eval_data:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_data.csv",
     output:
-        "extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{method}/"
+        f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "{pretrain_folder}"
@@ -51,6 +51,7 @@ rule transform_eval_data:
             --output_path {output} \
             --method {wildcards.method} \
             --dataset {wildcards.dataset} \
+            --initializer {INITIALIZER} \
             --train_seed {wildcards.train_seed} \
             --train_hard_budget {wildcards.train_hard_budget} \
             --train_soft_budget_param {wildcards.train_soft_budget_param} \

@@ -58,6 +58,10 @@ DATASETS_WITH_F_SCORE = ["physionet", "bank_marketing"]
 
 # Dataset groupings for organized plotting
 DATASET_SETS = {
+    "context_v2_pair": {
+        "afa_context_v2",
+        "afa_context_v2_without_noise",
+    },
     "set1": {
         "cube",
         "cube_without_noise",

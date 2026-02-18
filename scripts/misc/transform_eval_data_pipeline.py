@@ -21,6 +21,11 @@ def main() -> None:
     parser.add_argument("--method", type=str, help="AFA method name")
     parser.add_argument("--dataset", type=str, help="Dataset name")
     parser.add_argument(
+        "--initializer",
+        type=str,
+        help="Initializer name used for this run.",
+    )
+    parser.add_argument(
         "--train_seed",
         type=str,
         help="Training seed. `null` if not applicable.",
@@ -95,6 +100,7 @@ def main() -> None:
     df = df.with_columns(
         afa_method=pl.lit(args.method, dtype=pl.String),
         dataset=pl.lit(args.dataset, dtype=pl.String),
+        initializer=pl.lit(args.initializer, dtype=pl.String),
         train_seed=pl.lit(parse_nullable(args.train_seed), dtype=pl.UInt64),
         train_hard_budget=pl.lit(
             parse_nullable(args.train_hard_budget), dtype=pl.Float64

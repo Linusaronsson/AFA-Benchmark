@@ -9,7 +9,7 @@ rule eval_method:
     input:
         f"extra/output/datasets/{{dataset}}/{{dataset_instance_idx}}/{EVAL_DATASET_SPLIT}.bundle",
 
-        "extra/output/trained_methods/{method}/"
+        f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "{pretrain_folder}"
@@ -18,11 +18,11 @@ rule eval_method:
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "method.bundle",
 
-        f"extra/output/trained_classifiers/"
+        f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
             "dataset-{dataset}.bundle"
 
     output:
-        f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{{method}}/"
+        f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "{pretrain_folder}"
@@ -33,7 +33,7 @@ rule eval_method:
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_data.csv",
-        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{{method}}/"
+        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "{pretrain_folder}"
