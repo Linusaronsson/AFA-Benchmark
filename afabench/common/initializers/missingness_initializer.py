@@ -1,3 +1,4 @@
+import math
 from typing import ClassVar, cast, final, override
 
 import numpy as np
@@ -46,6 +47,7 @@ class MissingnessInitializer(AFAInitializer):
         "mnar_self",
         "mnar_quantiles",
     }
+    _FORBIDDEN_MASK_SEED_OFFSET: ClassVar[int] = 9999
 
     def __init__(
         self,
@@ -119,8 +121,8 @@ class MissingnessInitializer(AFAInitializer):
 
         # Flatten features to 2D (n, d) for the mask generation functions
         batch_shape = features.shape[: -len(feature_shape)]
-        batch_size = int(torch.prod(torch.tensor(batch_shape)).item())
-        n_features = int(torch.prod(torch.tensor(feature_shape)).item())
+        batch_size = math.prod(batch_shape)
+        n_features = math.prod(feature_shape)
 
         flat_features = features.reshape(batch_size, n_features)
 
@@ -174,10 +176,8 @@ class MissingnessInitializer(AFAInitializer):
             msg = f"Unknown mechanism: {self.mechanism}"
             raise ValueError(msg)
 
-        # Ensure output is a bool tensor
         if isinstance(mask, np.ndarray):
             mask = torch.from_numpy(mask)
-
         return cast("torch.BoolTensor", mask.bool())
 
     def get_forbidden_selection_mask(
@@ -205,7 +205,7 @@ class MissingnessInitializer(AFAInitializer):
             Shape: (*batch, n_features) where n_features = prod(feature_shape).
         """
         batch_shape = observed_mask.shape[: -len(feature_shape)]
-        n_features = int(torch.prod(torch.tensor(feature_shape)).item())
+        n_features = math.prod(feature_shape)
         flat_observed = observed_mask.reshape(*batch_shape, n_features)
 
         # Start with nothing forbidden
@@ -218,9 +218,7 @@ class MissingnessInitializer(AFAInitializer):
         missing = ~flat_observed  # True where missing
         rng = torch.Generator(device=observed_mask.device)
         if self.seed is not None:
-            rng.manual_seed(
-                self.seed + 9999
-            )  # offset to avoid seed collision with mask generation
+            rng.manual_seed(self.seed + self._FORBIDDEN_MASK_SEED_OFFSET)
 
         # Work on flattened batch
         flat_missing = missing.reshape(-1, n_features)

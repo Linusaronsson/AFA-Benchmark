@@ -1436,6 +1436,7 @@ class FICODataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         "https://github.com/deburky/boosting-scorecards/raw/main/"
         "heloc_dataset_v1.csv",
     )
+    _OPENML_IDS: ClassVar[tuple[int, ...]] = (45554, 45026)
 
     @override
     def create_subset(self, indices: Sequence[int]) -> Self:
@@ -1487,7 +1488,7 @@ class FICODataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         assert target_series is not None, (
             "Failed to extract target from FICO dataset."
         )
-        target_series.astype(np.int64)
+        target_series = target_series.astype(np.int64)
 
         features_df = features_df.apply(pd.to_numeric, errors="coerce")
         features_df = features_df.fillna(features_df.mean())
@@ -1543,7 +1544,7 @@ class FICODataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return None
 
     def _download_from_openml(self, output_path: Path) -> str | None:
-        openml_ids = (45554, 45026)
+        openml_ids = self._OPENML_IDS
         last_error = "unknown error"
         data_home = str(Path(self.path).parent / ".sklearn")
         for data_id in openml_ids:
@@ -1712,7 +1713,7 @@ class PharyngitisDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             if column_series.dtype == "object":
                 encoder = LabelEncoder()
                 observed = column_series.notna()
-                if bool(observed.any()):
+                if observed.any():
                     features_df.loc[observed, col] = encoder.fit_transform(
                         column_series.loc[observed].astype(str)
                     )

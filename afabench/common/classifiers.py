@@ -303,6 +303,11 @@ class WrappedMaskedViTClassifier(AFAClassifier):
         return self
 
 
+def _to_numpy(tensor: torch.Tensor, n_feature_dims: int) -> np.ndarray:
+    """Flatten trailing feature dims and convert a tensor to a numpy array."""
+    return tensor.detach().to("cpu").flatten(start_dim=-n_feature_dims).numpy()
+
+
 @final
 class WrappedMALearnClassifier(AFAClassifier):
     """A sklearn-based MA classifier wrapped for the AFA classifier protocol."""
@@ -362,28 +367,18 @@ class WrappedMALearnClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        label: Label | None = None,
+        _label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
-        del label
         original_device = masked_features.device
         if feature_shape is None:
             msg = "feature_shape is required for WrappedMALearnClassifier."
             raise ValueError(msg)
 
         n_feature_dims = len(feature_shape)
-        masked_features_flat = (
-            masked_features.detach()
-            .to("cpu")
-            .flatten(start_dim=-n_feature_dims)
-            .numpy()
-        )
-        feature_mask_flat = (
-            feature_mask.detach()
-            .to("cpu")
-            .flatten(start_dim=-n_feature_dims)
-            .numpy()
-            .astype(bool)
+        masked_features_flat = _to_numpy(masked_features, n_feature_dims)
+        feature_mask_flat = _to_numpy(feature_mask, n_feature_dims).astype(
+            bool
         )
 
         X = masked_features_flat.copy()

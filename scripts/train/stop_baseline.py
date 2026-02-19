@@ -26,15 +26,16 @@ def main(cfg: StopBaselineTrainConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
 
+    device = torch.device(cfg.device)
     classifier, _classifier_manifest = load_bundle(
         Path(cfg.classifier_bundle_path),
-        device=torch.device(cfg.device),
+        device=device,
     )
     classifier = cast("AFAClassifier", cast("object", classifier))
 
     method = StopBaselineMethod(
         afa_classifier=classifier,
-        device=torch.device(cfg.device),
+        device=device,
     )
 
     save_bundle(

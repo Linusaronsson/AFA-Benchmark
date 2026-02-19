@@ -1,11 +1,15 @@
-import torch
 import pandas as pd
+import torch
+
+
+def _safe_divide(numerator: float, denominator: float) -> float:
+    return numerator / denominator if denominator > 0 else 0.0
 
 
 def compute_missingness_reliance(
     eval_df: pd.DataFrame,
     initial_missing_mask: torch.BoolTensor,
-    n_selection_choices: int,
+    _n_selection_choices: int,
 ) -> dict[str, float]:
     """
     Compute missingness reliance metrics from AFA evaluation results.
@@ -77,16 +81,12 @@ def compute_missingness_reliance(
             missing_count / len(selections) if selections else 0.0
         )
 
-    missingness_reliance = (
-        relied_on_missing / n_samples if n_samples > 0 else 0.0
+    missingness_reliance = _safe_divide(relied_on_missing, n_samples)
+    mean_missing_acquisitions = _safe_divide(
+        total_missing_acquisitions, n_samples
     )
-    mean_missing_acquisitions = (
-        total_missing_acquisitions / n_samples if n_samples > 0 else 0.0
-    )
-    mean_fraction = (
-        sum(fraction_missing_per_sample) / len(fraction_missing_per_sample)
-        if fraction_missing_per_sample
-        else 0.0
+    mean_fraction = _safe_divide(
+        sum(fraction_missing_per_sample), len(fraction_missing_per_sample)
     )
 
     return {

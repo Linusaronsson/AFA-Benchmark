@@ -21,6 +21,9 @@ __all__ = [
     "MNAR_self_mask_logistic",
 ]
 
+_BRACKET_WIDTH_INIT = 50.0
+_BRACKET_ADAPT_STEPS = 8
+
 
 def _get_random_state(seed: int | None) -> np.random.RandomState:
     return np.random.RandomState(seed)
@@ -123,13 +126,13 @@ def _fit_intercepts(
             return target_logit - float(logits.item())
 
         mean_logit = float(logits.mean().item())
-        width = 50.0
+        width = _BRACKET_WIDTH_INIT
 
         def f(intercept: float) -> float:
             return torch.sigmoid(logits + intercept).mean().item() - p_clamped
 
         # Adapt bracket around the empirical center.
-        for _ in range(8):
+        for _ in range(_BRACKET_ADAPT_STEPS):
             a = target_logit - mean_logit - width
             b = target_logit - mean_logit + width
             fa = f(a)
@@ -180,7 +183,7 @@ def MAR_mask(  # noqa: N802
 
     d_obs = max(int(p_obs * d), 1)
     idxs_obs = random_state.choice(d, d_obs, replace=False)
-    idxs_nas = np.array([i for i in range(d) if i not in idxs_obs])
+    idxs_nas = np.setdiff1d(np.arange(d), idxs_obs)
 
     coeffs = _pick_coeffs(
         tensor_x, idxs_obs=idxs_obs, idxs_nas=idxs_nas, generator=generator
@@ -216,7 +219,7 @@ def MNAR_mask_logistic(  # noqa: N802
     if exclude_inputs:
         d_params = max(int(p_params * d), 1)
         idxs_params = random_state.choice(d, d_params, replace=False)
-        idxs_nas = np.array([i for i in range(d) if i not in idxs_params])
+        idxs_nas = np.setdiff1d(np.arange(d), idxs_params)
     else:
         idxs_params = np.arange(d)
         idxs_nas = np.arange(d)

@@ -25,6 +25,17 @@ if TYPE_CHECKING:
     from afabench.common.custom_types import AFADataset
 
 
+def _to_numpy_data(
+    X_t: torch.Tensor,
+    y_t: torch.Tensor,
+    n_feature_dims: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Convert feature/label tensors to flat numpy arrays for sklearn."""
+    X = X_t.detach().flatten(start_dim=-n_feature_dims).cpu().numpy()
+    y = y_t.detach().argmax(dim=-1).cpu().numpy().astype(int)
+    return X, y
+
+
 def _sample_missingness_mask(
     rng: np.random.Generator,
     n_samples: int,
@@ -126,15 +137,8 @@ def main(cfg: TrainMALearnClassifierConfig) -> None:
     feature_shape = train_dataset.feature_shape
     n_feature_dims = len(feature_shape)
 
-    X_train_t, y_train_t = train_dataset.get_all_data()
-    X_train = (
-        X_train_t.detach().flatten(start_dim=-n_feature_dims).cpu().numpy()
-    )
-    y_train = y_train_t.detach().argmax(dim=-1).cpu().numpy().astype(int)
-
-    X_val_t, y_val_t = val_dataset.get_all_data()
-    X_val = X_val_t.detach().flatten(start_dim=-n_feature_dims).cpu().numpy()
-    y_val = y_val_t.detach().argmax(dim=-1).cpu().numpy().astype(int)
+    X_train, y_train = _to_numpy_data(*train_dataset.get_all_data(), n_feature_dims)
+    X_val, y_val = _to_numpy_data(*val_dataset.get_all_data(), n_feature_dims)
 
     rng = np.random.default_rng(cfg.seed)
 

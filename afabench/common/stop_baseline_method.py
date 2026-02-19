@@ -1,9 +1,8 @@
-import torch
-
 from pathlib import Path
 from typing import Self, final, override
 
-from afabench.common.registry import get_class
+import torch
+
 from afabench.common.custom_types import (
     AFAAction,
     AFAClassifier,
@@ -13,6 +12,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
+from afabench.common.registry import get_class
 
 
 @final
@@ -38,12 +38,8 @@ class StopBaselineMethod(AFAMethod):
         afa_classifier: AFAClassifier,
         device: torch.device | None = None,
     ):
-        if device is None:
-            self._device = afa_classifier.device
-            self.afa_classifier = afa_classifier
-        else:
-            self._device = device
-            self.afa_classifier = afa_classifier.to(device)
+        self._device = device or afa_classifier.device
+        self.afa_classifier = afa_classifier.to(self._device)
 
     @property
     @override
@@ -59,7 +55,7 @@ class StopBaselineMethod(AFAMethod):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
-        """Always return 0 (stop action) immediately."""
+        """Return 0 (stop action) immediately."""
         batch_size = masked_features.shape[0]
         return torch.zeros(
             (batch_size, 1), dtype=torch.long, device=masked_features.device

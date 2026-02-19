@@ -14,6 +14,8 @@ from afabench.eval.plotting_config import (
     METHOD_NAME_MAPPING,
 )
 
+SUBPLOT_HEIGHT = 2.8
+
 INITIALIZER_NAME_MAPPING = {
     "missingness": "Missingness",
     "missingness_all_observed": "All observed",
@@ -149,10 +151,12 @@ def _aggregate_across_seeds(data: pl.DataFrame) -> pl.DataFrame:
             std_metric=pl.col("metric").std(),
             n_runs=pl.len(),
         )
-        .with_columns(std_metric=pl.col("std_metric").fill_null(0.0))
         .with_columns(
-            low_metric=pl.col("mean_metric") - pl.col("std_metric"),
-            high_metric=pl.col("mean_metric") + pl.col("std_metric"),
+            std_metric=pl.col("std_metric").fill_null(0.0),
+            low_metric=pl.col("mean_metric")
+            - pl.col("std_metric").fill_null(0.0),
+            high_metric=pl.col("mean_metric")
+            + pl.col("std_metric").fill_null(0.0),
         )
     )
 
@@ -190,7 +194,7 @@ def _make_plot(summary_data: pl.DataFrame) -> p9.ggplot:
 
     n_datasets = max(plot_data["dataset"].n_unique(), 1)
     n_rows = (n_datasets + 1) // 2
-    figure_height = 2.8 * n_rows
+    figure_height = SUBPLOT_HEIGHT * n_rows
 
     return (
         p9.ggplot(
@@ -267,7 +271,10 @@ def main() -> None:
     plot.save(
         args.output_dir / "initializer_comparison.pdf",
         width=11.0,
-        height=max(3.0, 2.8 * ((summary_data["dataset"].n_unique() + 1) // 2)),
+        height=max(
+            3.0,
+            SUBPLOT_HEIGHT * ((summary_data["dataset"].n_unique() + 1) // 2),
+        ),
     )
     summary_data.write_csv(args.output_dir / "initializer_comparison.csv")
 
