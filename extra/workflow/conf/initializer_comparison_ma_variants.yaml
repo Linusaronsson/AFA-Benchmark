@@ -1,0 +1,33 @@
+# Compare missingness vs all-observed for MA classifier variants
+# represented as separate stop-baseline methods.
+
+eval_dataset_split: test
+
+initializers:
+  - missingness
+  - missingness_all_observed
+
+method_sets:
+  ma_probe_variants:
+    - stop_baseline_marf
+    - stop_baseline_madt
+    - stop_baseline_magbt
+    - stop_baseline_malasso
+
+classifier_types:
+  - external
+
+# Optional: materialize upstream pipeline outputs inside this workflow.
+# This enables a single-command run for both initializers.
+pipeline_configfiles:
+  - extra/workflow/conf/method_options.yaml
+  - extra/workflow/conf/method_options_malearn_variants.yaml
+  - extra/workflow/conf/pretrain_mapping.yaml
+  - extra/workflow/conf/unmaskers.yaml
+  - extra/workflow/conf/classifier_names.yaml
+  - extra/workflow/conf/ma_probe_stop_variants_fico_pharyngitis.yaml
+
+# Can be overridden via CLI: --config pipeline_cores=8
+pipeline_cores: 8
+pipeline_rerun_incomplete: true
+pipeline_extra_config: ""

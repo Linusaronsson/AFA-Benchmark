@@ -32,6 +32,8 @@ REGISTERED_CLASSES = {
     "BankMarketingDataset": "afabench.common.datasets.datasets.BankMarketingDataset",
     "CKDDataset": "afabench.common.datasets.datasets.CKDDataset",
     "ACTG175Dataset": "afabench.common.datasets.datasets.ACTG175Dataset",
+    "FICODataset": "afabench.common.datasets.datasets.FICODataset",
+    "PharyngitisDataset": "afabench.common.datasets.datasets.PharyngitisDataset",
     "ImagenetteDataset": "afabench.common.datasets.datasets.ImagenetteDataset",
     # AFA Classifier Classes
     "RandomDummyAFAClassifier": "afabench.common.classifiers.RandomDummyAFAClassifier",

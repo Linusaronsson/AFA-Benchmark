@@ -1,0 +1,67 @@
+# Additional method options for MA classifier variants behind StopBaseline.
+# Include this file after method_options.yaml to extend method_options.
+
+method_options:
+  stop_baseline_marf:
+    train_script_name: "stop_baseline"
+    eval_batch_size:
+      default: 128
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+    classifier:
+      script_name: "malearn_classifier"
+      script_params:
+        - "model_name=marf"
+        - "n_estimators=200"
+        - "max_depth=8"
+        - "alpha=1.0"
+        - "min_masking_probability=0.0"
+        - "max_masking_probability=0.9"
+
+  stop_baseline_madt:
+    train_script_name: "stop_baseline"
+    eval_batch_size:
+      default: 128
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+    classifier:
+      script_name: "malearn_classifier"
+      script_params:
+        - "model_name=madt"
+        - "max_depth=8"
+        - "alpha=1.0"
+        - "min_masking_probability=0.0"
+        - "max_masking_probability=0.9"
+
+  stop_baseline_magbt:
+    train_script_name: "stop_baseline"
+    eval_batch_size:
+      default: 128
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+    classifier:
+      script_name: "malearn_classifier"
+      script_params:
+        - "model_name=magbt"
+        - "n_estimators=200"
+        - "max_depth=8"
+        - "alpha=1.0"
+        - "learning_rate=0.1"
+        - "subsample=1.0"
+        - "min_masking_probability=0.0"
+        - "max_masking_probability=0.9"
+
+  stop_baseline_malasso:
+    train_script_name: "stop_baseline"
+    eval_batch_size:
+      default: 128
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+    classifier:
+      script_name: "malearn_classifier"
+      script_params:
+        - "model_name=malasso"
+        - "alpha=1.0"
+        - "beta=1.0"
+        - "min_masking_probability=0.0"
+        - "max_masking_probability=0.9"

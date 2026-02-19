@@ -1,0 +1,13 @@
+classifier_names:
+  default:
+    script_name: "malearn_classifier"
+    script_params:
+      - "model_name=marf"
+      - "n_estimators=200"
+      - "max_depth=8"
+      - "alpha=1.0"
+      - "min_masking_probability=0.0"
+      - "max_masking_probability=0.9"
+  imagenette:
+    script_name: "masked_vit_classifier"
+    script_params: []

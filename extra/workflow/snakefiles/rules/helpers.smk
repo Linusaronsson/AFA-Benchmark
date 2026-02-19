@@ -39,6 +39,15 @@ rule all_train_classifier:
                     f"dataset-{dataset}.bundle"
             )
             for dataset in DATASETS
+        ] +
+        [
+            (
+                f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+                    f"method-{method}+dataset-{dataset}.bundle"
+            )
+            for method in METHODS
+            if method in METHOD_CLASSIFIER_SCRIPT_NAMES
+            for dataset in DATASETS
         ]
 
 

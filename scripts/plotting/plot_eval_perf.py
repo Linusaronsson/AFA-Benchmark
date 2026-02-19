@@ -238,25 +238,31 @@ def get_metrics_at_every_action(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def read_parquet(input_csv_path: Path) -> pl.DataFrame:
-    return pl.read_parquet(
-        input_csv_path,
-        schema={
-            "action_performed": pl.UInt64,
-            "true_class": pl.UInt64,
-            "accumulated_cost": pl.Float64,
-            "forced_stop": pl.Boolean,
-            "eval_seed": pl.UInt64,
-            "eval_hard_budget": pl.Float64,
-            "n_selections_performed": pl.UInt64,
-            "predicted_class": pl.UInt64,
-            "afa_method": pl.String,
-            "dataset": pl.String,
-            "train_seed": pl.UInt64,
-            "train_hard_budget": pl.Float64,
-            "train_soft_budget_param": pl.Float64,
-            "eval_soft_budget_param": pl.Float64,
-        },
-    )
+    df = pl.read_parquet(input_csv_path)
+    dtypes = {
+        "action_performed": pl.UInt64,
+        "true_class": pl.UInt64,
+        "accumulated_cost": pl.Float64,
+        "forced_stop": pl.Boolean,
+        "eval_seed": pl.UInt64,
+        "eval_hard_budget": pl.Float64,
+        "n_selections_performed": pl.UInt64,
+        "predicted_class": pl.UInt64,
+        "afa_method": pl.String,
+        "dataset": pl.String,
+        "train_seed": pl.UInt64,
+        "train_hard_budget": pl.Float64,
+        "train_soft_budget_param": pl.Float64,
+        "eval_soft_budget_param": pl.Float64,
+    }
+    casts = [
+        pl.col(name).cast(dtype, strict=False)
+        for name, dtype in dtypes.items()
+        if name in df.columns
+    ]
+    if casts:
+        df = df.with_columns(casts)
+    return df
 
 
 def get_variance_of_metrics_and_cost(df: pl.DataFrame) -> pl.DataFrame:

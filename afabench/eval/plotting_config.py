@@ -29,6 +29,10 @@ METHOD_NAME_MAPPING = {
     "random_dummy": "Random",
     "sequential_dummy": "Sequential dummy",
     "stop_baseline": "No acquisition",
+    "stop_baseline_marf": "No acquisition (MARF)",
+    "stop_baseline_madt": "No acquisition (MADT)",
+    "stop_baseline_magbt": "No acquisition (MAGBT)",
+    "stop_baseline_malasso": "No acquisition (MALasso)",
 }
 
 # Dataset display names mapping
@@ -47,8 +51,10 @@ DATASET_NAME_MAPPING = {
     "bank_marketing": "BankMarketing",
     "ckd": "CKD",
     "diabetes": "Diabetes",
+    "fico": "FICO",
     "fashion_mnist": "FashionMNIST",
     "miniboone": "MiniBooNE",
+    "pharyngitis": "Pharyngitis",
     "physionet": "PhysioNet",
     "imagenette": "Imagenette",
 }
@@ -81,6 +87,8 @@ DATASET_SETS = {
         "mnist",
         "cube_nonuniform_costs",
         "afa_context_v2",
+        "fico",
+        "pharyngitis",
     },
     "all": {
         "cube",
@@ -94,11 +102,13 @@ DATASET_SETS = {
         "physionet",
         "actg",
         "fashion_mnist",
+        "fico",
         "imagenette",
         "ckd",
         "mnist",
         "cube_nonuniform_costs",
         "afa_context_v2",
+        "pharyngitis",
     },
 }
 

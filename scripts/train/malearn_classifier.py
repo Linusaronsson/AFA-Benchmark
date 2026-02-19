@@ -10,6 +10,7 @@ from omegaconf import OmegaConf
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.classifiers import WrappedMALearnClassifier
 from afabench.common.config_classes import TrainMALearnClassifierConfig
+from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.utils import set_seed
 from afabench.missing_values.malearn import (
     MADTClassifier,
@@ -41,10 +42,34 @@ def _sample_missingness_mask(
     )
 
 
+def _sample_missingness_mask_from_initializer(
+    cfg: TrainMALearnClassifierConfig,
+    x: np.ndarray,
+) -> np.ndarray | None:
+    if cfg.initializer.class_name != "MissingnessInitializer":
+        return None
+
+    initializer = get_afa_initializer_from_config(cfg.initializer)
+    initializer.set_seed(cfg.seed)
+
+    x_t = torch.tensor(x, dtype=torch.float32)
+    observed_mask = initializer.initialize(
+        features=x_t,
+        feature_shape=torch.Size([x.shape[1]]),
+    )
+    # MA-learn convention: M=1 means missing.
+    return (~observed_mask.bool()).cpu().numpy().astype(np.int8)
+
+
 def _build_model(
     cfg: TrainMALearnClassifierConfig,
 ) -> object:
     model_name = cfg.model_name.lower()
+    n_estimators = cfg.n_estimators
+    max_depth = cfg.max_depth
+    if cfg.smoke_test:
+        n_estimators = min(n_estimators, 32)
+        max_depth = min(max_depth, 6)
 
     if model_name == "malasso":
         return MALassoClassifier(
@@ -55,15 +80,15 @@ def _build_model(
 
     if model_name == "madt":
         return MADTClassifier(
-            max_depth=cfg.max_depth,
+            max_depth=max_depth,
             alpha=cfg.alpha,
             random_state=cfg.seed,
         )
 
     if model_name == "marf":
         return MARFClassifier(
-            n_estimators=cfg.n_estimators,
-            max_depth=cfg.max_depth,
+            n_estimators=n_estimators,
+            max_depth=max_depth,
             alpha=cfg.alpha,
             random_state=cfg.seed,
             n_jobs=cfg.n_jobs,
@@ -71,8 +96,8 @@ def _build_model(
 
     if model_name == "magbt":
         return MAGBTClassifier(
-            n_estimators=cfg.n_estimators,
-            max_depth=cfg.max_depth,
+            n_estimators=n_estimators,
+            max_depth=max_depth,
             alpha=cfg.alpha,
             learning_rate=cfg.learning_rate,
             subsample=cfg.subsample,
@@ -122,20 +147,33 @@ def main(cfg: TrainMALearnClassifierConfig) -> None:
         X_train = X_train[smoke_idx]
         y_train = y_train[smoke_idx]
 
-    M_train = _sample_missingness_mask(
-        rng=rng,
-        n_samples=X_train.shape[0],
-        n_features=X_train.shape[1],
-        min_probability=cfg.min_masking_probability,
-        max_probability=cfg.max_masking_probability,
-    )
+    M_train = _sample_missingness_mask_from_initializer(cfg, X_train)
+    M_val = _sample_missingness_mask_from_initializer(cfg, X_val)
+    if M_train is not None and M_val is not None:
+        log.info(
+            "Using MissingnessInitializer masks for MA training/evaluation."
+        )
+    else:
+        M_train = _sample_missingness_mask(
+            rng=rng,
+            n_samples=X_train.shape[0],
+            n_features=X_train.shape[1],
+            min_probability=cfg.min_masking_probability,
+            max_probability=cfg.max_masking_probability,
+        )
 
-    M_val = _sample_missingness_mask(
-        rng=rng,
-        n_samples=X_val.shape[0],
-        n_features=X_val.shape[1],
-        min_probability=cfg.min_masking_probability,
-        max_probability=cfg.max_masking_probability,
+        M_val = _sample_missingness_mask(
+            rng=rng,
+            n_samples=X_val.shape[0],
+            n_features=X_val.shape[1],
+            min_probability=cfg.min_masking_probability,
+            max_probability=cfg.max_masking_probability,
+        )
+
+    log.info(
+        "Mask prevalence: train=%.4f, val=%.4f",
+        float(M_train.mean()),
+        float(M_val.mean()),
     )
 
     model = _build_model(cfg)

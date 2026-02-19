@@ -1,0 +1,24 @@
+# Compare merged evaluation results across initializers.
+#
+# This expects that pipeline.smk has already produced:
+# extra/output/merged_results/eval_split-<split>/initializer-<initializer>/
+#   eval_perf/method_set-<method_set>+classifier_type-<classifier>.parquet
+#
+# Example:
+# uv run snakemake \
+#   -s extra/workflow/snakefiles/orchestration/initializer_comparison.smk \
+#   --configfile extra/workflow/conf/initializer_comparison_ma_probe.yaml \
+#   --cores 1
+
+eval_dataset_split: val
+
+initializers:
+  - missingness
+  - missingness_all_observed
+
+method_sets:
+  ma_probe:
+    - stop_baseline
+
+classifier_types:
+  - external

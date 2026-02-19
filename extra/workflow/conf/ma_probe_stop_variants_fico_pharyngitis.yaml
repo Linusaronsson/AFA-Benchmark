@@ -1,0 +1,40 @@
+# Runtime config for stop-baseline MA classifier variants on FICO + Pharyngitis.
+
+methods:
+  - stop_baseline_marf
+  - stop_baseline_madt
+  - stop_baseline_magbt
+  - stop_baseline_malasso
+
+method_sets:
+  ma_probe_variants:
+    - stop_baseline_marf
+    - stop_baseline_madt
+    - stop_baseline_magbt
+    - stop_baseline_malasso
+
+datasets:
+  - fico
+  - pharyngitis
+
+dataset_instance_indices:
+  - 0
+  - 1
+
+eval_hard_budgets:
+  default: [5]
+
+soft_budget_params:
+  stop_baseline_marf:
+    default: []
+  stop_baseline_madt:
+    default: []
+  stop_baseline_magbt:
+    default: []
+  stop_baseline_malasso:
+    default: []
+
+eval_dataset_split: test
+device: cpu
+use_wandb: false
+smoke_test: false

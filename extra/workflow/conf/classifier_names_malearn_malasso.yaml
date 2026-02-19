@@ -1,0 +1,12 @@
+classifier_names:
+  default:
+    script_name: "malearn_classifier"
+    script_params:
+      - "model_name=malasso"
+      - "alpha=1.0"
+      - "beta=1.0"
+      - "min_masking_probability=0.0"
+      - "max_masking_probability=0.9"
+  imagenette:
+    script_name: "masked_vit_classifier"
+    script_params: []

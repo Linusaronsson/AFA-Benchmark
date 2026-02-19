@@ -103,6 +103,27 @@ def load_config(config):
         if method in methods and "train_script_name" in options
     }
 
+    # Optional method-specific classifier training config.
+    # Format in method_options:
+    #   classifier:
+    #     script_name: "malearn_classifier"
+    #     script_params: ["model_name=marf", ...]
+    method_classifier_script_names = {}
+    method_classifier_script_params = {}
+    for method, options in method_options.items():
+        if method not in methods:
+            continue
+        classifier_cfg = options.get("classifier", None)
+        if not isinstance(classifier_cfg, dict):
+            continue
+        script_name = classifier_cfg.get("script_name", None)
+        if script_name is None:
+            continue
+        method_classifier_script_names[method] = script_name
+        method_classifier_script_params[method] = " ".join(
+            classifier_cfg.get("script_params", [])
+        )
+
     # Build mapping from method to pretrained model name
     method_to_pretrained_model = {
         method: options["pretrained_model_name"]
@@ -284,6 +305,8 @@ def load_config(config):
         "METHODS_WITH_PRETRAINING_STAGE": methods_with_pretraining_stage,
         "METHODS_WITHOUT_PRETRAINING_STAGE": methods_without_pretraining_stage,
         "METHOD_TRAIN_SCRIPT_NAMES": method_train_script_names,
+        "METHOD_CLASSIFIER_SCRIPT_NAMES": method_classifier_script_names,
+        "METHOD_CLASSIFIER_SCRIPT_PARAMS": method_classifier_script_params,
         "METHOD_TO_PRETRAINED_MODEL": method_to_pretrained_model,
         "METHOD_SPECIFIC_PARAMS": method_specific_params,
         "DATASETS": datasets,

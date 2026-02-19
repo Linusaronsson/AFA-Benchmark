@@ -5,6 +5,18 @@ Handles evaluation of trained methods on test/validation datasets.
 """
 
 
+def _classifier_bundle_for_method(method: str, dataset: str) -> str:
+    if method in METHOD_CLASSIFIER_SCRIPT_NAMES:
+        return (
+            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+            f"method-{method}+dataset-{dataset}.bundle"
+        )
+    return (
+        f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+        f"dataset-{dataset}.bundle"
+    )
+
+
 rule eval_method:
     input:
         f"extra/output/datasets/{{dataset}}/{{dataset_instance_idx}}/{EVAL_DATASET_SPLIT}.bundle",
@@ -18,8 +30,9 @@ rule eval_method:
                     "train_soft_budget_param-{train_soft_budget_param}/"
                         "method.bundle",
 
-        f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            "dataset-{dataset}.bundle"
+        lambda wildcards: _classifier_bundle_for_method(
+            wildcards.method, wildcards.dataset
+        )
 
     output:
         f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"

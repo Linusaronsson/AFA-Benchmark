@@ -3,11 +3,14 @@ import urllib.request
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import ClassVar, Self, cast, final, override
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 
+import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
+from sklearn.datasets import fetch_openml
 from sklearn.preprocessing import LabelEncoder
 from torch import Tensor
 from torch.utils.data import Dataset
@@ -19,7 +22,9 @@ from afabench.common.custom_types import AFADataset
 from afabench.common.datasets.utils import default_create_subset
 
 
-def _z_normalize(features_df: pd.DataFrame) -> pd.DataFrame:
+def _z_normalize(
+    features_df: pd.DataFrame | pd.Series,
+) -> pd.DataFrame | pd.Series:
     """
     Apply feature-wise Z-normalization using population statistics.
 
@@ -1378,6 +1383,357 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         df_data = features_df.copy()
         df_data["target"] = target_series.to_numpy()
         df_data.to_csv(self.path, index=False)
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {"path": self.path},
+            },
+            path / "dataset.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path / "dataset.pt")
+        obj = cls.__new__(cls)
+        obj.path = data["config"]["path"]
+        obj.features = data["features"]
+        obj.labels = data["labels"]
+        obj.feature_names = data["feature_names"]
+        obj.n_features = obj.features.shape[1]
+        return obj
+
+
+@final
+class FICODataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    FICO HELOC credit-risk dataset used in MA-learn experiments.
+
+    Missing values are encoded as {-7, -8, -9} in the raw data.
+    """
+
+    # Public mirrors for HELoC challenge data.
+    DOWNLOAD_URLS: ClassVar[tuple[str, ...]] = (
+        "https://raw.githubusercontent.com/deburky/"
+        "boosting-scorecards/main/heloc_dataset_v1.csv",
+        "https://github.com/deburky/boosting-scorecards/raw/main/"
+        "heloc_dataset_v1.csv",
+    )
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        return default_create_subset(self, indices)
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size([getattr(self, "n_features", 23)])
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([2])
+
+    @classmethod
+    @override
+    def accepts_seed(cls) -> bool:
+        return False
+
+    def __init__(self, path: str = "extra/data/misc/fico.csv"):
+        super().__init__()
+        self.path = path
+
+        if not Path(self.path).exists():
+            self._fetch_and_save()
+
+        df_data = pd.read_csv(self.path)
+        target_col = "RiskPerformance"
+        if target_col not in df_data.columns:
+            msg = (
+                f"Expected target column '{target_col}' in FICO data at "
+                f"{self.path}, got columns={list(df_data.columns)}."
+            )
+            raise ValueError(msg)
+
+        # In the original challenge data, these values represent missingness.
+        df_data = df_data.replace([-7, -8, -9], np.nan)
+        features_df = df_data.drop(columns=[target_col]).copy()
+        assert df_data is not None, (
+            "Failed to load FICO dataset after download."
+        )
+        assert features_df is not None, (
+            "Failed to extract features from FICO dataset."
+        )
+        target_series = LabelEncoder().fit_transform(
+            df_data[target_col].astype(str).str.strip()
+        )
+        assert target_series is not None, (
+            "Failed to extract target from FICO dataset."
+        )
+        target_series.astype(np.int64)
+
+        features_df = features_df.apply(pd.to_numeric, errors="coerce")
+        features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
+
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(target_series, dtype=torch.long),
+            num_classes=self.label_shape[0],
+        ).float()
+        self.n_features = self.features.shape[1]
+        self.feature_names = features_df.columns.tolist()
+
+    def _fetch_and_save(self) -> None:
+        output_path = Path(self.path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        errors: list[str] = []
+        for url in self.DOWNLOAD_URLS:
+            error = self._download_candidate(url, output_path)
+            if error is None:
+                return
+            errors.append(f"{url}: {error}")
+
+        openml_error = self._download_from_openml(output_path)
+        if openml_error is None:
+            return
+        errors.append(f"openml: {openml_error}")
+
+        msg = (
+            "Failed to download FICO data automatically. Please download "
+            "'heloc_dataset_v1.csv' manually and place it at "
+            f"{self.path}. Errors: {' | '.join(errors)}"
+        )
+        raise FileNotFoundError(msg)
+
+    @staticmethod
+    def _is_valid_download(path: Path) -> bool:
+        try:
+            df_data = pd.read_csv(path)
+        except (OSError, pd.errors.ParserError):
+            return False
+        return "RiskPerformance" in df_data.columns
+
+    def _download_candidate(self, url: str, output_path: Path) -> str | None:
+        try:
+            urllib.request.urlretrieve(url, output_path)  # noqa: S310
+        except (OSError, URLError, HTTPError, ValueError) as exc:
+            return str(exc)
+
+        if not self._is_valid_download(output_path):
+            return "Downloaded file is not a valid FICO HELOC dataset."
+        return None
+
+    def _download_from_openml(self, output_path: Path) -> str | None:
+        openml_ids = (45554, 45026)
+        last_error = "unknown error"
+        data_home = str(Path(self.path).parent / ".sklearn")
+        for data_id in openml_ids:
+            try:
+                raw_features, raw_target = cast(
+                    "tuple[object, object]",
+                    fetch_openml(
+                        data_id=data_id,
+                        as_frame=True,
+                        data_home=data_home,
+                        parser="auto",
+                        return_X_y=True,
+                    ),
+                )
+            except (OSError, URLError, HTTPError, ValueError) as exc:
+                last_error = f"data_id={data_id}: {exc}"
+                continue
+
+            if isinstance(raw_features, pd.DataFrame):
+                features = raw_features
+            else:
+                features = pd.DataFrame(raw_features)
+
+            if isinstance(raw_target, pd.DataFrame):
+                if raw_target.shape[1] != 1:
+                    last_error = (
+                        f"data_id={data_id}: target has "
+                        f"{raw_target.shape[1]} columns"
+                    )
+                    continue
+                target_series = raw_target.iloc[:, 0]
+            elif isinstance(raw_target, pd.Series):
+                target_series = raw_target
+            else:
+                target_series = pd.Series(raw_target)
+            target_series = target_series.rename("RiskPerformance")
+
+            downloaded = features.copy()
+            downloaded["RiskPerformance"] = target_series.to_numpy()
+            downloaded.to_csv(output_path, index=False)
+            if self._is_valid_download(output_path):
+                return None
+            last_error = f"data_id={data_id}: downloaded but failed validation"
+
+        return last_error
+
+    @override
+    def __getitem__(self, idx: int):
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self):
+        return len(self.features)
+
+    @override
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_names": self.feature_names,
+                "config": {"path": self.path},
+            },
+            path / "dataset.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path / "dataset.pt")
+        obj = cls.__new__(cls)
+        obj.path = data["config"]["path"]
+        obj.features = data["features"]
+        obj.labels = data["labels"]
+        obj.feature_names = data["feature_names"]
+        obj.n_features = obj.features.shape[1]
+        return obj
+
+
+@final
+class PharyngitisDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    Pharyngitis RADT dataset used in MA-learn experiments.
+
+    Expected columns follow the naming in the original supplementary dataset.
+    """
+
+    FEATURE_COLUMNS: ClassVar[tuple[str, ...]] = (
+        "age_y",
+        "temperature",
+        "swollenadp",
+        "pain",
+        "tender",
+        "tonsillarswelling",
+        "exudate",
+        "sudden",
+        "cough",
+        "rhinorrhea",
+        "conjunctivitis",
+        "headache",
+        "erythema",
+        "petechiae",
+        "abdopain",
+        "diarrhea",
+        "nauseavomit",
+        "scarlet",
+    )
+    TARGET_COLUMN: ClassVar[str] = "radt"
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        return default_create_subset(self, indices)
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size([getattr(self, "n_features", 18)])
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([2])
+
+    @classmethod
+    @override
+    def accepts_seed(cls) -> bool:
+        return False
+
+    def __init__(self, path: str = "extra/data/misc/pharyngitis.xls") -> None:
+        super().__init__()
+        self.path = path
+        data_path = Path(self.path)
+        if not data_path.exists():
+            msg = (
+                "Pharyngitis dataset file not found. Please download the "
+                "supplementary 'minimal dataset' from Miyagi (PLOS ONE) and "
+                f"place it at {self.path}."
+            )
+            raise FileNotFoundError(msg)
+
+        df_data = pd.read_excel(data_path)
+        if "number" in df_data.columns:
+            df_data = df_data.drop(columns=["number"])
+
+        missing_columns = [
+            col
+            for col in (*self.FEATURE_COLUMNS, self.TARGET_COLUMN)
+            if col not in df_data.columns
+        ]
+        if missing_columns:
+            msg = (
+                "Pharyngitis dataset is missing required columns: "
+                f"{missing_columns}. Found columns={list(df_data.columns)}."
+            )
+            raise ValueError(msg)
+
+        features_df = df_data[list(self.FEATURE_COLUMNS)].copy()
+        target_series = cast("pd.Series", df_data[self.TARGET_COLUMN])
+
+        for col in features_df.columns:
+            column_series = cast("pd.Series", features_df[col])
+            if column_series.dtype == "object":
+                encoder = LabelEncoder()
+                observed = column_series.notna()
+                if bool(observed.any()):
+                    features_df.loc[observed, col] = encoder.fit_transform(
+                        column_series.loc[observed].astype(str)
+                    )
+
+        features_df = features_df.apply(pd.to_numeric, errors="coerce")
+        features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
+
+        target_values = target_series.astype(str).str.strip()
+        target_encoded = np.asarray(
+            LabelEncoder().fit_transform(target_values),
+            dtype=np.int64,
+        )
+
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(target_encoded, dtype=torch.long),
+            num_classes=self.label_shape[0],
+        ).float()
+        self.n_features = self.features.shape[1]
+        self.feature_names = features_df.columns.tolist()
 
     @override
     def __getitem__(self, idx: int):

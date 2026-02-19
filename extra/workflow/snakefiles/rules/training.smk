@@ -7,6 +7,18 @@ Handles:
 """
 
 
+def _classifier_bundle_for_method(method: str, dataset: str) -> str:
+    if method in METHOD_CLASSIFIER_SCRIPT_NAMES:
+        return (
+            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+            f"method-{method}+dataset-{dataset}.bundle"
+        )
+    return (
+        f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+        f"dataset-{dataset}.bundle"
+    )
+
+
 rule pretrain_model:
     input:
         # Datasets
@@ -74,8 +86,10 @@ rule train_method_with_pretrained_model:
         ),
 
         # Classifier
-        ancient(f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            "dataset-{dataset}.bundle")
+        ancient(
+            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+            "dataset-{dataset}.bundle"
+        )
 
     output:
         directory(
@@ -134,8 +148,11 @@ rule train_method_without_pretrained_model:
         "extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
 
         # Classifier
-        ancient(f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            "dataset-{dataset}.bundle")
+        ancient(
+            lambda wildcards: _classifier_bundle_for_method(
+                wildcards.method, wildcards.dataset
+            )
+        )
     output:
         directory(
             f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"

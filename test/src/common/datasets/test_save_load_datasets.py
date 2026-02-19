@@ -15,11 +15,25 @@ DATASETS_TO_TEST = [
     ("DiabetesDataset", {"root": "extra/data/misc/diabetes.csv"}),
     ("MiniBooNEDataset", {"root": "extra/data/misc/miniboone.csv"}),
     ("PhysionetDataset", {"root": "extra/data/misc/physionet.csv"}),
+    ("FICODataset", {"path": "extra/data/misc/fico.csv"}),
+    (
+        "PharyngitisDataset",
+        {"path": "extra/data/misc/pharyngitis.xls"},
+    ),
     # No {(Fashion)MNISTDataset, ImagenetteDataset} because of image data and large size
     ("BankMarketingDataset", {"path": "extra/data/misc/bank-marketing.csv"}),
     ("CKDDataset", {"path": "extra/data/misc/chronic_kidney_disease.csv"}),
     ("ACTG175Dataset", {"path": "extra/data/misc/actg.csv"}),
 ]
+
+# Datasets that require manually placing local files in extra/data/misc.
+# Other datasets with path/root arguments are expected to auto-fetch.
+MANUAL_LOCAL_ONLY_DATASETS = {
+    "DiabetesDataset",
+    "MiniBooNEDataset",
+    "PhysionetDataset",
+    "PharyngitisDataset",
+}
 
 
 @pytest.mark.parametrize(("dataset_name", "kwargs"), DATASETS_TO_TEST)
@@ -27,12 +41,21 @@ def test_dataset_roundtrip(dataset_name: str, kwargs: dict[str, Any]) -> None:
     """Verify that every dataset class can save and reload itself losslessly."""
     dataset_class = get_class(dataset_name)
 
+    local_data_path = kwargs.get("path") or kwargs.get("root")
+    if (
+        dataset_name in MANUAL_LOCAL_ONLY_DATASETS
+        and local_data_path is not None
+        and not Path(local_data_path).exists()
+    ):
+        pytest.skip(f"Missing dataset file: {local_data_path}")
+
     # Instantiate dataset
     dataset = dataset_class(**kwargs)
     orig_features, orig_labels = dataset.get_all_data()
 
     with tempfile.TemporaryDirectory() as tmp:
-        save_path = Path(tmp) / "data.pt"
+        save_path = Path(tmp) / "data.bundle"
+        save_path.mkdir(parents=True, exist_ok=True)
 
         # Save
         dataset.save(save_path)

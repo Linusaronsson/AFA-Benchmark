@@ -34,10 +34,12 @@ _DATASET_KEY_ALIASES = {
     "CKDDataset": "ckd",
     "CubeDataset": "cube",
     "DiabetesDataset": "diabetes",
+    "FICODataset": "fico",
     "FashionMNISTDataset": "fashion_mnist",
     "ImagenetteDataset": "imagenette",
     "MiniBooNEDataset": "miniboone",
     "MNISTDataset": "mnist",
+    "PharyngitisDataset": "pharyngitis",
     "PhysionetDataset": "physionet",
     "SyntheticMNISTDataset": "synthetic_mnist",
 }
