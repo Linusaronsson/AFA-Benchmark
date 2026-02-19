@@ -39,7 +39,7 @@ method_options:
     train_script_name: "covert2023"
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
-      default: 128
+      default: 32
     eval_to_train_hard_budget_mapping:
       cube_nonuniform_costs:
         2: 20
@@ -50,7 +50,7 @@ method_options:
     train_script_name: "gadgil2023"
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
-      default: 128
+      default: 32
     eval_to_train_hard_budget_mapping:
       cube_nonuniform_costs:
         2: 20
