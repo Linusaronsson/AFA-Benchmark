@@ -55,7 +55,7 @@ EVAL_BATCH_SIZES = _config["EVAL_BATCH_SIZES"]
 HARD_BUDGET_IGNORED_DATASETS = _config["HARD_BUDGET_IGNORED_DATASETS"]
 SOFT_BUDGET_IGNORED_DATASETS = _config["SOFT_BUDGET_IGNORED_DATASETS"]
 DATASETS_USED_PER_METHOD = _config["DATASETS_USED_PER_METHOD"]
-HEATMAP_METHOD_SET = "cube_nm_comparison"
+HEATMAP_METHOD_SET = "heatmap_comparison"
 
 # NOTE: exclude training rules!
 # include: "../rules/training.smk"
