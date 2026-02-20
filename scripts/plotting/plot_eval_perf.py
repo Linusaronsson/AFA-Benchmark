@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -563,6 +564,16 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Output folder where plots will be saved",
     )
+    parser.add_argument(
+        "--formats",
+        nargs="+",
+        default=["pdf"],
+        metavar="FORMAT",
+        help=(
+            "Output format(s) for plots (e.g. pdf svg png). "
+            "Multiple formats produce one file per format. Default: pdf"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -682,6 +693,7 @@ class EvaluationPlotter:
         self,
         input_path: Path,
         output_folder: Path,
+        formats: Sequence[str] = ("pdf",),
     ) -> None:
         """
         Initialize EvaluationPlotter with input and output paths.
@@ -689,9 +701,11 @@ class EvaluationPlotter:
         Args:
             input_path: Path to input parquet file
             output_folder: Root output directory for plots
+            formats: Output formats (e.g. ("pdf", "svg")). Default: ("pdf",)
         """
         self.input_path = input_path
         self.output_folder = output_folder
+        self.formats = formats
         self.df = pl.DataFrame()
         self.df_stop_action = None
         self.df_traj = None
@@ -815,11 +829,12 @@ class EvaluationPlotter:
                 figure_width=fig_width,
                 figure_height=fig_height,
             )
-            normal_hard_budget_plot.save(
-                subfolder / "hard_budget_normal.pdf",
-                width=fig_width,
-                height=fig_height,
-            )
+            for fmt in self.formats:
+                normal_hard_budget_plot.save(
+                    subfolder / f"hard_budget_normal.{fmt}",
+                    width=fig_width,
+                    height=fig_height,
+                )
         df_stop_action_soft_budget = df_stop_action_filtered.filter(
             pl.col("soft_budget_param").is_null().not_()
         )
@@ -844,16 +859,17 @@ class EvaluationPlotter:
                 figure_width=fig_width,
                 figure_height=fig_height,
             )
-            soft_budget_plot_2d_errors.save(
-                subfolder / "soft_budget_2d_errors.pdf",
-                width=fig_width,
-                height=fig_height,
-            )
-            soft_budget_plot_lines.save(
-                subfolder / "soft_budget_lines.pdf",
-                width=fig_width,
-                height=fig_height,
-            )
+            for fmt in self.formats:
+                soft_budget_plot_2d_errors.save(
+                    subfolder / f"soft_budget_2d_errors.{fmt}",
+                    width=fig_width,
+                    height=fig_height,
+                )
+                soft_budget_plot_lines.save(
+                    subfolder / f"soft_budget_lines.{fmt}",
+                    width=fig_width,
+                    height=fig_height,
+                )
 
     def produce_trajectory_plots(
         self,
@@ -882,11 +898,12 @@ class EvaluationPlotter:
                 figure_width=fig_width,
                 figure_height=fig_height,
             )
-            traj_hard_budget_plot.save(
-                subfolder / "hard_budget_traj.pdf",
-                width=fig_width,
-                height=fig_height,
-            )
+            for fmt in self.formats:
+                traj_hard_budget_plot.save(
+                    subfolder / f"hard_budget_traj.{fmt}",
+                    width=fig_width,
+                    height=fig_height,
+                )
 
     def generate_all_plots(self) -> None:
         """Generate all plots for each dataset set."""
@@ -903,7 +920,7 @@ def main() -> None:
     args = parse_args()
     args.output_folder.mkdir(parents=True, exist_ok=True)
 
-    plotter = EvaluationPlotter(args.input, args.output_folder)
+    plotter = EvaluationPlotter(args.input, args.output_folder, args.formats)
     plotter.load_and_process()
     plotter.generate_all_plots()
 

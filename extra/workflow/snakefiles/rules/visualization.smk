@@ -17,7 +17,7 @@ rule plot_eval_perf:
         shell_exec="bash"
     shell:
         """
-        python scripts/plotting/plot_eval_perf.py {input} {output}
+        python scripts/plotting/plot_eval_perf.py {input} {output} --formats pdf svg
         """
 
 # This rule probably does not need to use both types of classifiers, since the actions are the same (they come from the same original evaluation dataframe).
@@ -30,7 +30,7 @@ rule plot_eval_actions:
         shell_exec="bash"
     shell:
         """
-        python scripts/plotting/plot_eval_actions.py {input} {output}
+        python scripts/plotting/plot_eval_actions.py {input} {output} --formats pdf svg
         """
 
 
@@ -44,5 +44,5 @@ rule plot_time:
         shell_exec="bash"
     shell:
         """
-        python scripts/plotting/plot_total_time.py -i {input} {output}
+        python scripts/plotting/plot_total_time.py -i {input} {output} --formats pdf svg
         """

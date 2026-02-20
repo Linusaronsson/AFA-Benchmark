@@ -96,6 +96,16 @@ def parse_args() -> argparse.Namespace:
         help="Input parquet file with timing data. If not provided, uses mock data.",
         default=None,
     )
+    parser.add_argument(
+        "--formats",
+        nargs="+",
+        default=["pdf"],
+        metavar="FORMAT",
+        help=(
+            "Output format(s) for plots (e.g. pdf svg png). "
+            "Multiple formats produce one file per format. Default: pdf"
+        ),
+    )
 
     args = parser.parse_args()
     return args
@@ -221,18 +231,19 @@ def main() -> None:
     averaged_plot, dataset_plot = get_plots(df=df_long)
 
     args.output_folder.mkdir(parents=True, exist_ok=True)
-    averaged_plot.save(
-        args.output_folder / "average_time.pdf",
-        width=10,
-        height=3,
-        verbose=False,
-    )
-    dataset_plot.save(
-        args.output_folder / "dataset_time.pdf",
-        width=20,
-        height=5,
-        verbose=False,
-    )
+    for fmt in args.formats:
+        averaged_plot.save(
+            args.output_folder / f"average_time.{fmt}",
+            width=10,
+            height=3,
+            verbose=False,
+        )
+        dataset_plot.save(
+            args.output_folder / f"dataset_time.{fmt}",
+            width=20,
+            height=5,
+            verbose=False,
+        )
 
 
 if __name__ == "__main__":

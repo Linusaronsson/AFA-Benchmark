@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -99,6 +100,16 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         help="Output folder where plots will be saved",
     )
+    parser.add_argument(
+        "--formats",
+        nargs="+",
+        default=["pdf"],
+        metavar="FORMAT",
+        help=(
+            "Output format(s) for plots (e.g. pdf svg png). "
+            "Multiple formats produce one file per format. Default: pdf"
+        ),
+    )
     return parser.parse_args()
 
 
@@ -196,6 +207,7 @@ def create_action_heatmap(
     dataset: str,
     output_folder: Path,
     extra_title: str,
+    formats: Sequence[str] = ("pdf",),
 ) -> None:
     """
     Create action heatmaps for all methods in a dataset.
@@ -256,20 +268,28 @@ def create_action_heatmap(
         left=0.08, right=0.92, top=0.84, bottom=0.1, wspace=0.3
     )
 
-    output_path = output_folder / f"{dataset}_action_heatmap.pdf"
-    fig.savefig(output_path, bbox_inches="tight", dpi=300)
+    for fmt in formats:
+        output_path = output_folder / f"{dataset}_action_heatmap.{fmt}"
+        fig.savefig(output_path, bbox_inches="tight", dpi=300)
     plt.close(fig)
 
 
 def produce_plots(
-    df: pl.DataFrame, output_folder: Path, extra_title: str
+    df: pl.DataFrame,
+    output_folder: Path,
+    extra_title: str,
+    formats: Sequence[str] = ("pdf",),
 ) -> None:
     for keys_tuple, dataset_df in tqdm(
         df.group_by("dataset"), desc="Creating action heatmaps"
     ):
         dataset_name = keys_tuple[0]
         create_action_heatmap(
-            dataset_df, dataset_name, output_folder, extra_title=extra_title
+            dataset_df,
+            dataset_name,
+            output_folder,
+            extra_title=extra_title,
+            formats=formats,
         )
 
 
@@ -277,6 +297,7 @@ def produce_separate_plots(
     df: pl.DataFrame,
     output_folder: Path,
     budget_type: str,
+    formats: Sequence[str] = ("pdf",),
 ) -> None:
     """
     Create separate plots for each method/dataset/budget combination.
@@ -285,6 +306,7 @@ def produce_separate_plots(
         df: Input dataframe
         output_folder: Output folder for plots
         budget_type: Type of budget ("hard_budget" or "soft_budget")
+        formats: Output formats (e.g. ("pdf", "svg")). Default: ("pdf",)
     """
     # Filter out action 0
     filtered_df = df.filter(pl.col("action_performed") != 0)
@@ -370,11 +392,12 @@ def produce_separate_plots(
             left=0.08, right=0.92, top=0.84, bottom=0.1, wspace=0.3
         )
 
-        output_path = (
-            dataset_output_folder
-            / f"{dataset_name}{method_filename}_action_heatmap{filename_suffix}.pdf"
-        )
-        fig.savefig(output_path, bbox_inches="tight", dpi=300)
+        for fmt in formats:
+            output_path = (
+                dataset_output_folder
+                / f"{dataset_name}{method_filename}_action_heatmap{filename_suffix}.{fmt}"
+            )
+            fig.savefig(output_path, bbox_inches="tight", dpi=300)
         plt.close(fig)
 
 
@@ -404,11 +427,13 @@ def main() -> None:
         df=evaluation_df_hard_budget,
         output_folder=hard_budget_folder,
         budget_type="hard_budget",
+        formats=args.formats,
     )
     produce_separate_plots(
         df=evaluation_df_soft_budget,
         output_folder=soft_budget_folder,
         budget_type="soft_budget",
+        formats=args.formats,
     )
 
 
