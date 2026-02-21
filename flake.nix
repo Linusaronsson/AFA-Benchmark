@@ -7,7 +7,10 @@
     { self, nixpkgs }:
     let
       system = "x86_64-linux";
-      pkgs = import nixpkgs { inherit system; config.allowUnfree = true; };
+      pkgs = import nixpkgs {
+        inherit system;
+        config.allowUnfree = true;
+      };
     in
     {
       devShells.${system}.default = pkgs.mkShell {
@@ -21,6 +24,9 @@
           nextflow
           nf-test
         ];
+        shellHook = ''
+          unset PYTHONPATH
+        '';
       };
     };
 }
