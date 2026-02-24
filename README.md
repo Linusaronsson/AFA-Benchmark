@@ -23,7 +23,8 @@ uv sync
 
 ## Quickstart
 
-Running the pipeline locally on 8 cores:
+To run the pipeline locally with 8 cores, execute the following command at the repo root. It should produce plots at `extra/output/plot_results/`.
+
 ```shell
 WANDB_PROJECT=afabench uv run snakemake \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
