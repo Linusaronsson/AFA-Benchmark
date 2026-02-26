@@ -69,7 +69,7 @@ See the [pipeline explanation](docs/tutorials/pipeline_explanation.md) tutorial 
 
 **Example**: Medical diagnosis where each test costs money and time. AFA methods
 intelligently decide which tests to order next based on previous results, aiming
-for accurate diagnosis with minimal cost.
+for accurate diagnosis with minimal cost. See the following survey for details: [AFA Survey](https://arxiv.org/abs/2502.11067) 
 
 ## Implemented Methods
 |    Method     |                                                                            Paper                                                                             |             Strategy             |  Greedy?   |
