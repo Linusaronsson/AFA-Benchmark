@@ -16,6 +16,7 @@ from scipy import optimize
 
 __all__ = [
     "MAR_mask",
+    "MCAR_mask",
     "MNAR_mask_logistic",
     "MNAR_mask_quantiles",
     "MNAR_self_mask_logistic",
@@ -166,6 +167,24 @@ def _fit_intercepts(
         logits = features.mv(coeffs[:, idx])
         intercepts[idx] = _solve_intercept(logits)
     return intercepts
+
+
+def MCAR_mask(  # noqa: N802
+    x: torch.Tensor | np.ndarray,
+    p: float,
+    seed: int | None = None,
+) -> torch.BoolTensor | np.ndarray:
+    tensor_x, as_torch = _to_tensor(x)
+    n, d = tensor_x.shape
+    generator = _get_torch_generator(seed, tensor_x.device)
+    mask = torch.rand(
+        n,
+        d,
+        generator=generator,
+        device=tensor_x.device,
+        dtype=tensor_x.dtype,
+    ) < p
+    return _to_original_type(mask, as_torch)
 
 
 def MAR_mask(  # noqa: N802

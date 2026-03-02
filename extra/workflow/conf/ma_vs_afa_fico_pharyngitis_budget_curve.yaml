@@ -1,0 +1,44 @@
+# AACO-on-MA comparison on MA-learn datasets with multiple hard budgets.
+#
+# Goal:
+# - Evaluate AACO from MA-style warm starts over multiple hard budgets.
+#
+# Example:
+#   snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+#     --configfile extra/workflow/conf/ma_vs_afa_fico_pharyngitis_budget_curve.yaml \
+#     --configfile extra/workflow/conf/method_options.yaml \
+#     --configfile extra/workflow/conf/pretrain_mapping.yaml \
+#     --configfile extra/workflow/conf/classifier_names_malearn.yaml \
+#     -j 4
+#
+# Notes:
+# - Use classifier_type=external plots to evaluate with the MA classifier.
+# - Set smoke_test=true via --config smoke_test=true for quick checks.
+
+dataset_instance_indices: [0]
+initializer: missingness
+eval_dataset_split: val
+device: cpu
+use_wandb: false
+smoke_test: false
+
+datasets:
+  - pharyngitis
+
+methods:
+  - aaco
+
+method_sets:
+  aaco_only:
+    - aaco
+
+unmaskers:
+  default: direct
+
+eval_hard_budgets:
+  default: [1, 2, 3, 5, 8]
+
+soft_budget_params:
+  aaco:
+    default:
+      - [0.01, null]

@@ -51,7 +51,7 @@ rule transform_eval_data:
             --output_path {output} \
             --method {wildcards.method} \
             --dataset {wildcards.dataset} \
-            --initializer {INITIALIZER} \
+            --initializer {INITIALIZER_TAG} \
             --train_seed {wildcards.train_seed} \
             --train_hard_budget {wildcards.train_hard_budget} \
             --train_soft_budget_param {wildcards.train_soft_budget_param} \

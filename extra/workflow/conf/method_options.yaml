@@ -3,6 +3,30 @@ method_options:
     train_script_name: "aaco"
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
+  aaco_full:
+    train_script_name: "aaco"
+    method_specific_params:
+      - "train_missing_mode=full"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+  aaco_zero_fill:
+    train_script_name: "aaco"
+    method_specific_params:
+      - "train_missing_mode=zero_fill"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+  aaco_impute_mean:
+    train_script_name: "aaco"
+    method_specific_params:
+      - "train_missing_mode=impute_mean"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+  aaco_mask_aware:
+    train_script_name: "aaco"
+    method_specific_params:
+      - "train_missing_mode=mask_aware"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"

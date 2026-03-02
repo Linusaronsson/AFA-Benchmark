@@ -1030,6 +1030,8 @@ class AACOTrainConfig:
     use_wandb: bool = False
     soft_budget_param: float | None = None
     hard_budget: int | None = None  # If set, use forced acquisition mode
+    # One of: full, zero_fill, impute_mean, mask_aware
+    train_missing_mode: str = "full"
     experiment_id: str | None = None
     initializer_type: str = "aaco"
     unmasker_type: str = "one_based_index"

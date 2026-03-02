@@ -6,13 +6,16 @@ Runtime filters (--config, select subsets to run):
     device (str, default='cpu'): Device for training
     use_wandb (bool, default=False): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
-    initializer (str, default='cold'): Initialization strategy
+    initializer (str, default='cold'): Legacy initializer for both train/eval
+    train_initializer (str, optional): Initializer for train/pretrain stages
+    eval_initializer (str, optional): Initializer used during evaluation
     eval_dataset_split (str, default='val'): Dataset split for evaluation
 
 Output namespacing:
-    - All initializer-dependent artifacts are stored under
-      `initializer-<initializer>` to allow side-by-side comparisons
-      (for example `cold` vs `missingness`) without overwriting.
+    - Training artifacts are namespaced by
+      `initializer-<train_initializer>`.
+    - Evaluation and plots are namespaced by
+      `train_initializer-<train_initializer>+eval_initializer-<eval_initializer>`.
 
 Config files (--configfile):
     Fixed definitions:
@@ -66,7 +69,13 @@ _config = load_config(config)
 NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
 DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]
 INITIALIZER = _config["INITIALIZER"]
-INITIALIZER_TAG = f"initializer-{INITIALIZER}"
+TRAIN_INITIALIZER = _config["TRAIN_INITIALIZER"]
+EVAL_INITIALIZER = _config["EVAL_INITIALIZER"]
+TRAIN_INITIALIZER_TAG = f"initializer-{TRAIN_INITIALIZER}"
+INITIALIZER_TAG = (
+    f"train_initializer-{TRAIN_INITIALIZER}+"
+    f"eval_initializer-{EVAL_INITIALIZER}"
+)
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
 DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]
@@ -81,6 +90,9 @@ METHODS_WITHOUT_PRETRAINING_STAGE = _config["METHODS_WITHOUT_PRETRAINING_STAGE"]
 METHOD_TRAIN_SCRIPT_NAMES = _config["METHOD_TRAIN_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_NAMES = _config["METHOD_CLASSIFIER_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_PARAMS = _config["METHOD_CLASSIFIER_SCRIPT_PARAMS"]
+METHOD_TO_CLASSIFIER_BUNDLE_METHOD = _config[
+    "METHOD_TO_CLASSIFIER_BUNDLE_METHOD"
+]
 METHOD_TO_PRETRAINED_MODEL = _config["METHOD_TO_PRETRAINED_MODEL"]
 METHOD_SPECIFIC_PARAMS = _config["METHOD_SPECIFIC_PARAMS"]
 DATASETS = _config["DATASETS"]

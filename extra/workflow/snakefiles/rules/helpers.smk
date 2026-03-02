@@ -35,14 +35,14 @@ rule all_train_classifier:
     input:
         [
             (
-                f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+                f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
                     f"dataset-{dataset}.bundle"
             )
             for dataset in DATASETS
         ] +
         [
             (
-                f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+                f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
                     f"method-{method}+dataset-{dataset}.bundle"
             )
             for method in METHODS
@@ -55,7 +55,7 @@ rule all_pretrain_model:
     input:
         [
             (
-                f"extra/output/pretrained_models/{INITIALIZER_TAG}/{pretrain_name}/"
+                f"extra/output/pretrained_models/{TRAIN_INITIALIZER_TAG}/{pretrain_name}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -72,7 +72,7 @@ rule all_train_method:
     input:
         [
             (
-                f"extra/output/trained_methods/{INITIALIZER_TAG}/{method}/"
+                f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -88,7 +88,7 @@ rule all_train_method:
         ] +
         [
             (
-                f"extra/output/trained_methods/{INITIALIZER_TAG}/{method}/"
+                f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"

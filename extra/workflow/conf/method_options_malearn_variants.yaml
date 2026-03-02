@@ -65,3 +65,27 @@ method_options:
         - "beta=1.0"
         - "min_masking_probability=0.0"
         - "max_masking_probability=0.9"
+
+  aaco_marf:
+    train_script_name: "aaco"
+    classifier_bundle_method: "stop_baseline_marf"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+
+  aaco_madt:
+    train_script_name: "aaco"
+    classifier_bundle_method: "stop_baseline_madt"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+
+  aaco_magbt:
+    train_script_name: "aaco"
+    classifier_bundle_method: "stop_baseline_magbt"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+
+  aaco_malasso:
+    train_script_name: "aaco"
+    classifier_bundle_method: "stop_baseline_malasso"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]

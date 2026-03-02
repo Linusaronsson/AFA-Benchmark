@@ -367,7 +367,7 @@ class WrappedMALearnClassifier(AFAClassifier):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        _label: Label | None = None,
+        label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
         original_device = masked_features.device

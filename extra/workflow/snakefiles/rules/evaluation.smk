@@ -6,13 +6,16 @@ Handles evaluation of trained methods on test/validation datasets.
 
 
 def _classifier_bundle_for_method(method: str, dataset: str) -> str:
-    if method in METHOD_CLASSIFIER_SCRIPT_NAMES:
+    classifier_method = METHOD_TO_CLASSIFIER_BUNDLE_METHOD.get(
+        method, method
+    )
+    if classifier_method in METHOD_CLASSIFIER_SCRIPT_NAMES:
         return (
-            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            f"method-{method}+dataset-{dataset}.bundle"
+            f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
+            f"method-{classifier_method}+dataset-{dataset}.bundle"
         )
     return (
-        f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+        f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
         f"dataset-{dataset}.bundle"
     )
 
@@ -21,7 +24,7 @@ rule eval_method:
     input:
         f"extra/output/datasets/{{dataset}}/{{dataset_instance_idx}}/{EVAL_DATASET_SPLIT}.bundle",
 
-        f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
+        f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "{pretrain_folder}"
@@ -67,7 +70,7 @@ rule eval_method:
         START_TIME=$(date +%s.%N)
         python scripts/eval/eval_afa_method.py \
             method_bundle_path={input[1]} \
-            components/initializers@initializer={INITIALIZER} \
+            components/initializers@initializer={EVAL_INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
             dataset_bundle_path={input[0]} \
             save_path={output[0]} \

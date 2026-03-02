@@ -7,11 +7,13 @@ outputs.
 
 Runtime filters (--config):
     methods, method_sets, datasets, dataset_instance_indices, initializer,
-    eval_dataset_split.
+    train_initializer, eval_initializer, eval_dataset_split.
 
 Output namespacing:
-    - Initializer-dependent artifacts are expected under
-      `initializer-<initializer>` paths.
+    - Training artifacts are expected under
+      `initializer-<train_initializer>` paths.
+    - Evaluation/plot artifacts are expected under
+      `train_initializer-<train_initializer>+eval_initializer-<eval_initializer>`.
 """
 
 import os
@@ -31,7 +33,13 @@ _config = load_config(config)
 NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
 DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]
 INITIALIZER = _config["INITIALIZER"]
-INITIALIZER_TAG = f"initializer-{INITIALIZER}"
+TRAIN_INITIALIZER = _config["TRAIN_INITIALIZER"]
+EVAL_INITIALIZER = _config["EVAL_INITIALIZER"]
+TRAIN_INITIALIZER_TAG = f"initializer-{TRAIN_INITIALIZER}"
+INITIALIZER_TAG = (
+    f"train_initializer-{TRAIN_INITIALIZER}+"
+    f"eval_initializer-{EVAL_INITIALIZER}"
+)
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
 DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]
@@ -85,7 +93,7 @@ rule all_train_classifier:
     input:
         [
             (
-                f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+                f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
                     f"dataset-{dataset}.bundle"
             )
             for dataset in DATASETS
@@ -96,7 +104,7 @@ rule all_pretrain_model:
     input:
         [
             (
-                f"extra/output/pretrained_models/{INITIALIZER_TAG}/{pretrain_name}/"
+                f"extra/output/pretrained_models/{TRAIN_INITIALIZER_TAG}/{pretrain_name}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -113,7 +121,7 @@ rule all_train_method:
     input:
         [
             (
-                f"extra/output/trained_methods/{INITIALIZER_TAG}/{method}/"
+                f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -129,7 +137,7 @@ rule all_train_method:
         ] +
         [
             (
-                f"extra/output/trained_methods/{INITIALIZER_TAG}/{method}/"
+                f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"

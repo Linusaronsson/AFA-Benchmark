@@ -33,6 +33,14 @@ METHOD_NAME_MAPPING = {
     "stop_baseline_madt": "No acquisition (MADT)",
     "stop_baseline_magbt": "No acquisition (MAGBT)",
     "stop_baseline_malasso": "No acquisition (MALasso)",
+    "aaco_marf": "AACO (MARF)",
+    "aaco_madt": "AACO (MADT)",
+    "aaco_magbt": "AACO (MAGBT)",
+    "aaco_malasso": "AACO (MALasso)",
+    "aaco_full": "AACO (full train)",
+    "aaco_zero_fill": "AACO (zero-fill train)",
+    "aaco_impute_mean": "AACO (mean-impute train)",
+    "aaco_mask_aware": "AACO (mask-aware train)",
 }
 
 # Dataset display names mapping

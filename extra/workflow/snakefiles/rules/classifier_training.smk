@@ -35,7 +35,7 @@ rule train_classifier:
         "extra/output/datasets/{dataset}/0/val.bundle"
     output:
         directory(
-            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+            f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
                 "dataset-{dataset}.bundle"
         )
     params:
@@ -54,7 +54,7 @@ rule train_classifier:
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
             save_path={output} \
-            components/initializers@initializer={INITIALIZER} \
+            components/initializers@initializer={TRAIN_INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
             device={DEVICE} \
             seed=0 \
@@ -71,7 +71,7 @@ rule train_classifier_for_method:
         "extra/output/datasets/{dataset}/0/val.bundle"
     output:
         directory(
-            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
+            f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
             "method-{method}+dataset-{dataset}.bundle"
         )
     params:
@@ -90,7 +90,7 @@ rule train_classifier_for_method:
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
             save_path={output} \
-            components/initializers@initializer={INITIALIZER} \
+            components/initializers@initializer={TRAIN_INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
             device={DEVICE} \
             seed=0 \

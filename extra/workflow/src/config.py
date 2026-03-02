@@ -32,6 +32,8 @@ def load_config(config):
 
     dataset_instance_indices = config.get("dataset_instance_indices", (0, 1))
     initializer = config.get("initializer", "cold")
+    train_initializer = config.get("train_initializer", initializer)
+    eval_initializer = config.get("eval_initializer", initializer)
     eval_dataset_split = config.get(
         "eval_dataset_split", "test"
     )  # switch to val while developing, and train if debugging
@@ -110,9 +112,17 @@ def load_config(config):
     #     script_params: ["model_name=marf", ...]
     method_classifier_script_names = {}
     method_classifier_script_params = {}
+    method_to_classifier_bundle_method = {}
     for method, options in method_options.items():
         if method not in methods:
             continue
+        classifier_bundle_method = options.get(
+            "classifier_bundle_method", None
+        )
+        if isinstance(classifier_bundle_method, str):
+            method_to_classifier_bundle_method[method] = (
+                classifier_bundle_method
+            )
         classifier_cfg = options.get("classifier", None)
         if not isinstance(classifier_cfg, dict):
             continue
@@ -293,6 +303,8 @@ def load_config(config):
         "NO_PRETRAIN_STR": NO_PRETRAIN_STR,
         "DATASET_INSTANCE_INDICES": dataset_instance_indices,
         "INITIALIZER": initializer,
+        "TRAIN_INITIALIZER": train_initializer,
+        "EVAL_INITIALIZER": eval_initializer,
         "EVAL_DATASET_SPLIT": eval_dataset_split,
         "DEVICE": device,
         "USE_WANDB": use_wandb,
@@ -307,6 +319,9 @@ def load_config(config):
         "METHOD_TRAIN_SCRIPT_NAMES": method_train_script_names,
         "METHOD_CLASSIFIER_SCRIPT_NAMES": method_classifier_script_names,
         "METHOD_CLASSIFIER_SCRIPT_PARAMS": method_classifier_script_params,
+        "METHOD_TO_CLASSIFIER_BUNDLE_METHOD": (
+            method_to_classifier_bundle_method
+        ),
         "METHOD_TO_PRETRAINED_MODEL": method_to_pretrained_model,
         "METHOD_SPECIFIC_PARAMS": method_specific_params,
         "DATASETS": datasets,

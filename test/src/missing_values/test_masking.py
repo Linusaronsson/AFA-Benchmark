@@ -4,10 +4,27 @@ import torch
 
 from afabench.missing_values.masking import (
     MAR_mask,
+    MCAR_mask,
     MNAR_mask_logistic,
     MNAR_mask_quantiles,
     MNAR_self_mask_logistic,
 )
+
+
+@pytest.mark.parametrize("as_torch", [False, True])
+def test_mcar_mask_single_sample_no_nan_or_crash(as_torch: bool) -> None:
+    x_np = np.array([[0.2, -1.0, 0.3, 0.7, -0.5]], dtype=np.float32)
+    x = torch.from_numpy(x_np) if as_torch else x_np
+
+    mask = MCAR_mask(x=x, p=0.3, seed=1)
+
+    if as_torch:
+        assert isinstance(mask, torch.Tensor)
+        assert mask.dtype == torch.bool
+    else:
+        assert isinstance(mask, np.ndarray)
+        assert mask.dtype == np.bool_
+    assert mask.shape == x_np.shape
 
 
 @pytest.mark.parametrize("as_torch", [False, True])

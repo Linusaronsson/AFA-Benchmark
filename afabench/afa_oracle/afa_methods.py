@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Self, cast, final, override
 
@@ -12,9 +12,9 @@ from afabench.afa_oracle.utils import (
 )
 from afabench.common.bundle import load_bundle
 from afabench.common.custom_types import (
+    AFAAction,
     AFAClassifier,
     AFAMethod,
-    AFAAction,
     AFAUnmasker,
     FeatureMask,
     Label,
@@ -404,6 +404,9 @@ class AACOAFAMethod(AFAMethod):
             "y_train": self.aaco_oracle.y_train.cpu()
             if self.aaco_oracle.y_train is not None
             else None,
+            "train_observed_mask": self.aaco_oracle.train_observed_mask.cpu()
+            if self.aaco_oracle.train_observed_mask is not None
+            else None,
         }
         torch.save(oracle_state, path / f"aaco_oracle_{self.dataset_name}.pt")
         logger.info(f"Saved AACO method to {path}")
@@ -441,6 +444,7 @@ class AACOAFAMethod(AFAMethod):
             aaco_oracle.fit(
                 oracle_state["X_train"].to(device),
                 oracle_state["y_train"].to(device),
+                observed_mask=oracle_state.get("train_observed_mask"),
             )
 
         # Get classifier path from saved state

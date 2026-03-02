@@ -89,13 +89,13 @@ rule time_df_with_pretrain:
     """Combine pretrain, train, and eval time measurements into a single dataframe."""
     input:
         lambda wildcards: (
-            f"extra/output/pretrained_models/{INITIALIZER_TAG}/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
+            f"extra/output/pretrained_models/{TRAIN_INITIALIZER_TAG}/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
                 f"dataset-{wildcards.dataset}+"
                 f"instance_idx-{wildcards.dataset_instance_idx}/"
                     f"pretrain_seed-{wildcards.pretrain_seed}/"
                         "pretrain_time.txt"
         ),
-        f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
+        f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 "pretrain_seed-{pretrain_seed}/"
@@ -143,7 +143,7 @@ rule time_df_with_pretrain:
 rule time_df_without_pretrain:
     """Combine train and eval time measurements, with pretrain time set to null."""
     input:
-        f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
+        f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"
                 f"{NO_PRETRAIN_STR}/"

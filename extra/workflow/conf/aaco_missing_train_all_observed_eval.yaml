@@ -1,0 +1,60 @@
+# AACO: train with missingness, evaluate from all-observed (warm) starts.
+#
+# Primary use:
+#   1) Compare train-time strategies: full vs zero_fill vs impute_mean vs mask_aware.
+#   2) Swap train missingness mechanism via --config train_initializer=<name>.
+#
+# Example mechanisms available in extra/conf/components/initializers:
+#   - mar_p03
+#   - mcar_p03
+#   - mnar_logistic_p03
+#
+# Example run:
+#   snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+#     --configfile \
+#       extra/workflow/conf/aaco_missing_train_all_observed_eval.yaml \
+#       extra/workflow/conf/method_options.yaml \
+#       extra/workflow/conf/pretrain_mapping.yaml \
+#       extra/workflow/conf/classifier_names.yaml \
+#     --config train_initializer=mar_p03 eval_initializer=warm -j 4
+
+dataset_instance_indices: [0]
+train_initializer: mar_p03
+eval_initializer: warm
+eval_dataset_split: val
+device: cpu
+use_wandb: false
+smoke_test: false
+
+datasets:
+  - pharyngitis
+  - fico
+
+methods:
+  - aaco_full
+  - aaco_zero_fill
+  - aaco_impute_mean
+  - aaco_mask_aware
+
+method_sets:
+  aaco_missing_train_strategies:
+    - aaco_full
+    - aaco_zero_fill
+    - aaco_impute_mean
+    - aaco_mask_aware
+
+unmaskers:
+  default: direct
+
+eval_hard_budgets:
+  default: [0, 1, 2, 3, 5, 8]
+
+soft_budget_params:
+  aaco_full:
+    default: []
+  aaco_zero_fill:
+    default: []
+  aaco_impute_mean:
+    default: []
+  aaco_mask_aware:
+    default: []

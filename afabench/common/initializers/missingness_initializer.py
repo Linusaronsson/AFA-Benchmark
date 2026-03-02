@@ -13,6 +13,7 @@ from afabench.common.custom_types import (
 )
 from afabench.missing_values.masking import (
     MAR_mask,
+    MCAR_mask,
     MNAR_mask_logistic,
     MNAR_mask_quantiles,
     MNAR_self_mask_logistic,
@@ -35,6 +36,7 @@ class MissingnessInitializer(AFAInitializer):
     True=observed. This initializer inverts the mask accordingly.
 
     Supported mechanisms:
+        - 'mcar': Missing Completely at Random
         - 'mar': Missing at Random via logistic masking model
         - 'mnar_logistic': Missing Not at Random via logistic model
         - 'mnar_self': MNAR with self-masking logistic model
@@ -42,6 +44,7 @@ class MissingnessInitializer(AFAInitializer):
     """
 
     SUPPORTED_MECHANISMS: ClassVar[set[str]] = {
+        "mcar",
         "mar",
         "mnar_logistic",
         "mnar_self",
@@ -66,7 +69,8 @@ class MissingnessInitializer(AFAInitializer):
         Initialize the missingness initializer.
 
         Args:
-            mechanism: One of 'mar', 'mnar_logistic', 'mnar_self', 'mnar_quantiles'.
+            mechanism: One of 'mcar', 'mar', 'mnar_logistic',
+                'mnar_self', 'mnar_quantiles'.
             p: Proportion of missing values to generate.
             p_obs: (MAR only) Proportion of variables with no missing values.
             p_params: (MNAR logistic/quantiles) Proportion of variables used
@@ -148,7 +152,9 @@ class MissingnessInitializer(AFAInitializer):
         # Use float64 for numerical stability in logistic fitting
         x_double = x.double()
 
-        if self.mechanism == "mar":
+        if self.mechanism == "mcar":
+            mask = MCAR_mask(x_double, p=self.p, seed=self.seed)
+        elif self.mechanism == "mar":
             mask = MAR_mask(
                 x_double, p=self.p, p_obs=self.p_obs, seed=self.seed
             )

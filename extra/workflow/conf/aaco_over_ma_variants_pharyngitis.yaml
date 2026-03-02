@@ -1,0 +1,67 @@
+# Compare MA no-acquisition baselines against AACO on top of each MA variant.
+#
+# The methods are paired by classifier family:
+# - stop_baseline_<variant>: MA model only (flat over hard budgets).
+# - aaco_<variant>: AACO policy + same MA external classifier.
+#
+# Recommended to run with:
+#   extra/workflow/conf/method_options.yaml
+#   extra/workflow/conf/method_options_malearn_variants.yaml
+#   extra/workflow/conf/pretrain_mapping.yaml
+#   extra/workflow/conf/classifier_names.yaml
+
+dataset_instance_indices: [0]
+initializer: missingness
+eval_dataset_split: val
+device: cpu
+use_wandb: false
+smoke_test: false
+
+datasets:
+  - pharyngitis
+  # - fico  # Enable when compute budget allows.
+
+methods:
+  - stop_baseline_marf
+  - stop_baseline_madt
+  - stop_baseline_magbt
+  - stop_baseline_malasso
+  - aaco_marf
+  - aaco_madt
+  - aaco_magbt
+  - aaco_malasso
+
+method_sets:
+  aaco_over_ma_variants:
+    - stop_baseline_marf
+    - stop_baseline_madt
+    - stop_baseline_magbt
+    - stop_baseline_malasso
+    - aaco_marf
+    - aaco_madt
+    - aaco_magbt
+    - aaco_malasso
+
+unmaskers:
+  default: direct
+
+eval_hard_budgets:
+  default: [0, 1, 2, 3, 5, 8]
+
+soft_budget_params:
+  stop_baseline_marf:
+    default: []
+  stop_baseline_madt:
+    default: []
+  stop_baseline_magbt:
+    default: []
+  stop_baseline_malasso:
+    default: []
+  aaco_marf:
+    default: []
+  aaco_madt:
+    default: []
+  aaco_magbt:
+    default: []
+  aaco_malasso:
+    default: []

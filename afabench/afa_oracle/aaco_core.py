@@ -2,13 +2,13 @@ import torch
 import logging
 import torch.nn.functional as F
 
-from afabench.common.utils import get_class_frequencies
 from afabench.afa_oracle.mask_generator import random_mask_generator
 from afabench.afa_oracle.utils import (
     ensure_probabilities,
     get_patch_dimensions,
     uses_patch_selection,
 )
+from afabench.common.utils import get_class_frequencies
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ def get_knn(
     instance_idx: int = 0,
     exclude_instance: bool = True,
     batch_size: int = 1000,
+    train_observed_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """
     K-NN implementation from the AACO paper.
@@ -35,26 +36,50 @@ def get_knn(
         instance_idx: Index of current instance (for exclusion)
         exclude_instance: Whether to exclude the query instance from results
         batch_size: Number of training samples to process at once (for memory)
+        train_observed_mask: Optional training observed mask (N x d). If
+            provided, distances are computed over shared observed dimensions.
     """
     N = X_train.shape[0]
-    X_query_squared = X_query**2
-    query_term = torch.matmul(X_query_squared, masks)  # 1 x R, computed once
+    masks = masks.to(X_train.device)
 
-    # Process in batches to avoid OOM on large datasets
-    dist_squared_chunks = []
-    for i in range(0, N, batch_size):
-        X_batch = X_train[i : i + batch_size]
-        X_batch_squared = X_batch**2
-        X_batch_X_query = X_batch * X_query
+    if train_observed_mask is None:
+        X_query_squared = X_query**2
+        query_term = torch.matmul(X_query_squared, masks)  # 1 x R
 
-        dist_batch = (
-            torch.matmul(X_batch_squared, masks)
-            - 2.0 * torch.matmul(X_batch_X_query, masks)
-            + query_term
-        )
-        dist_squared_chunks.append(dist_batch)
+        # Process in batches to avoid OOM on large datasets
+        dist_squared_chunks = []
+        for i in range(0, N, batch_size):
+            X_batch = X_train[i : i + batch_size]
+            X_batch_squared = X_batch**2
+            X_batch_X_query = X_batch * X_query
 
-    dist_squared = torch.cat(dist_squared_chunks, dim=0)
+            dist_batch = (
+                torch.matmul(X_batch_squared, masks)
+                - 2.0 * torch.matmul(X_batch_X_query, masks)
+                + query_term
+            )
+            dist_squared_chunks.append(dist_batch)
+        dist_squared = torch.cat(dist_squared_chunks, dim=0)
+    else:
+        shared_mask = masks.bool()
+        train_observed_mask = train_observed_mask.to(X_train.device).bool()
+
+        dist_squared_chunks = []
+        for i in range(0, N, batch_size):
+            X_batch = X_train[i : i + batch_size]
+            observed_batch = train_observed_mask[i : i + batch_size]
+
+            squared_diff = (X_batch - X_query).pow(2)
+            shared = observed_batch.unsqueeze(-1) & shared_mask.unsqueeze(0)
+            shared_counts = shared.sum(dim=1)
+
+            weighted_dist = (
+                squared_diff.unsqueeze(-1) * shared.float()
+            ).sum(dim=1)
+            dist_batch = weighted_dist / shared_counts.clamp_min(1).float()
+            dist_batch = dist_batch.masked_fill(shared_counts == 0, float("inf"))
+            dist_squared_chunks.append(dist_batch)
+        dist_squared = torch.cat(dist_squared_chunks, dim=0)
 
     k = num_neighbors + int(exclude_instance)
     idx_topk = torch.topk(dist_squared, k, dim=0, largest=False)[1]
@@ -95,19 +120,40 @@ class AACOOracle:
         self._patch_mask_generators: dict[int, random_mask_generator] = {}
         self.X_train: torch.Tensor | None = None
         self.y_train: torch.Tensor | None = None
+        self.train_observed_mask: torch.Tensor | None = None
         self.device = device or torch.device("cpu")
         self.class_weights: torch.Tensor | None = None
 
-    def fit(self, X_train: torch.Tensor, y_train: torch.Tensor):
+    def fit(
+        self,
+        X_train: torch.Tensor,
+        y_train: torch.Tensor,
+        observed_mask: torch.Tensor | None = None,
+    ):
         """
         Fit the oracle on training data.
 
         Args:
             X_train: Training features (N x d)
             y_train: Training labels (N x n_classes), one-hot encoded
+            observed_mask: Optional mask (N x d) where True means observed in
+                retrospective training data. If None, assume fully observed.
         """
         self.X_train = X_train.to(self.device)
         self.y_train = y_train.to(self.device)
+        if observed_mask is None:
+            self.train_observed_mask = None
+        else:
+            observed_mask = observed_mask.to(self.device).bool()
+            if observed_mask.shape != self.X_train.shape:
+                msg = (
+                    "observed_mask must have the same shape as X_train. "
+                    f"Got {observed_mask.shape} and {self.X_train.shape}."
+                )
+                raise ValueError(msg)
+            self.train_observed_mask = (
+                None if bool(observed_mask.all().item()) else observed_mask
+            )
 
         train_class_probabilities = get_class_frequencies(self.y_train)
         self.class_weights = len(train_class_probabilities) / (
@@ -132,7 +178,24 @@ class AACOOracle:
             self.y_train = self.y_train.to(device)
         if self.class_weights is not None:
             self.class_weights = self.class_weights.to(device)
+        if self.train_observed_mask is not None:
+            self.train_observed_mask = self.train_observed_mask.to(device)
         return self
+
+    def _get_neighbor_observed_mask(
+        self,
+        idx_nn: torch.Tensor,
+        feature_count: int,
+    ) -> torch.Tensor:
+        if idx_nn.ndim == 0:
+            idx_nn = idx_nn.unsqueeze(0)
+        if self.train_observed_mask is None:
+            return torch.ones(
+                (idx_nn.numel(), feature_count),
+                dtype=torch.bool,
+                device=self.device,
+            )
+        return self.train_observed_mask[idx_nn].bool()
 
     def select_next_feature(
         self,
@@ -194,7 +257,10 @@ class AACOOracle:
             self.k_neighbors,
             instance_idx,
             exclude_instance=exclude_instance,
+            train_observed_mask=self.train_observed_mask,
         ).squeeze()
+        if idx_nn.ndim == 0:
+            idx_nn = idx_nn.unsqueeze(0)
 
         if use_patch_selection:
             assert feature_shape and selection_size is not None
@@ -223,21 +289,20 @@ class AACOOracle:
             assert len(current_selection_mask) == selection_dim, (
                 "selection_mask has incompatible selection dimension."
             )
+        elif use_patch_selection:
+            observed_mask_2d = observed_feature_mask.view(
+                n_channels, height, width
+            )
+            fm = observed_mask_2d.view(
+                n_channels,
+                mask_width,
+                patch_h,
+                mask_width,
+                patch_w,
+            )
+            current_selection_mask = fm.any(dim=(0, 2, 4)).view(-1).bool()
         else:
-            if use_patch_selection:
-                observed_mask_2d = observed_feature_mask.view(
-                    n_channels, height, width
-                )
-                fm = observed_mask_2d.view(
-                    n_channels,
-                    mask_width,
-                    patch_h,
-                    mask_width,
-                    patch_w,
-                )
-                current_selection_mask = fm.any(dim=(0, 2, 4)).view(-1).bool()
-            else:
-                current_selection_mask = observed_feature_mask.clone()
+            current_selection_mask = observed_feature_mask.clone()
         current_selection_mask_row = current_selection_mask.float().unsqueeze(0)
 
         if use_patch_selection:
@@ -285,18 +350,21 @@ class AACOOracle:
         candidate_feature_masks = _selection_to_feature_mask(
             candidate_selection_masks
         ) | observed_feature_mask.unsqueeze(0)
-        mask_feature = candidate_feature_masks.float()
 
         # Compute expected loss for each candidate mask.
         n_masks = candidate_selection_masks.shape[0]
         X_nn = self.X_train[idx_nn]  # k x d
         y_nn = self.y_train[idx_nn]  # k x n_classes
+        nn_observed_mask = self._get_neighbor_observed_mask(
+            idx_nn, feature_count
+        )  # k x d
 
         # Prepare masked inputs for classifier
         X_masked = X_nn.unsqueeze(0).repeat(n_masks, 1, 1)  # n_masks x k x d
-        mask_expanded = mask_feature.unsqueeze(1).repeat(
-            1, self.k_neighbors, 1
-        )
+        mask_expanded = (
+            candidate_feature_masks.bool().unsqueeze(1)
+            & nn_observed_mask.unsqueeze(0)
+        ).float()
 
         # Apply masking
         X_masked = X_masked * mask_expanded + self.hide_val * (
@@ -385,9 +453,10 @@ class AACOOracle:
         ) | observed_feature_mask.unsqueeze(0)
 
         X_masked_ordering = X_nn.unsqueeze(0).repeat(len(new_features), 1, 1)
-        mask_expanded = ordering_feature_masks.float().unsqueeze(1).repeat(
-            1, self.k_neighbors, 1
-        )
+        mask_expanded = (
+            ordering_feature_masks.bool().unsqueeze(1)
+            & nn_observed_mask.unsqueeze(0)
+        ).float()
         X_masked_ordering = X_masked_ordering * mask_expanded + (
             self.hide_val * (1 - mask_expanded)
         )
@@ -499,6 +568,7 @@ class AACOOracle:
             self.k_neighbors,
             instance_idx,
             exclude_instance=exclude_instance,
+            train_observed_mask=self.train_observed_mask,
         ).squeeze()
         if idx_nn.ndim == 0:
             idx_nn = idx_nn.unsqueeze(0)
@@ -507,11 +577,15 @@ class AACOOracle:
         feature_count = observed_mask.numel()
         X_nn = self.X_train[idx_nn]
         y_nn = self.y_train[idx_nn]
+        nn_observed_mask = self._get_neighbor_observed_mask(
+            idx_nn, feature_count
+        )
 
         X_masked = X_nn.unsqueeze(0).repeat(n_masks, 1, 1)
-        mask_expanded = candidate_feature_masks.unsqueeze(1).repeat(
-            1, self.k_neighbors, 1
-        )
+        mask_expanded = (
+            candidate_feature_masks.bool().unsqueeze(1)
+            & nn_observed_mask.unsqueeze(0)
+        ).float()
         X_masked = X_masked * mask_expanded + self.hide_val * (
             1 - mask_expanded
         )

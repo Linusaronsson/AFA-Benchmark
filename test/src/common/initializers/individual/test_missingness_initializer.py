@@ -18,7 +18,7 @@ def tabular_features() -> tuple[Features, torch.Size]:
 
 @pytest.mark.parametrize(
     "mechanism",
-    ["mar", "mnar_logistic", "mnar_self", "mnar_quantiles"],
+    ["mcar", "mar", "mnar_logistic", "mnar_self", "mnar_quantiles"],
 )
 def test_shape_and_dtype(
     mechanism: str,
