@@ -439,6 +439,28 @@ class AFAInitializer(Protocol):
         """
         ...
 
+    def get_training_forbidden_mask(
+        self,
+        observed_mask: FeatureMask,
+    ) -> FeatureMask:
+        """
+        Return mask of features permanently unavailable during training.
+
+        When training AFA methods on incomplete data, this mask indicates
+        which features should never be visible or selectable. The training
+        loop should start from a cold state and block these features.
+
+        Args:
+            observed_mask: Boolean mask from ``initialize()`` where
+                True=observed. Shape: ``(*batch, *feature_shape)``.
+
+        Returns:
+            Boolean mask where True=forbidden (permanently unavailable).
+                Same shape as ``observed_mask``.
+                Default: all False (nothing forbidden).
+        """
+        return torch.zeros_like(observed_mask, dtype=torch.bool)
+
 
 class AFAInitializeFn(Protocol):
     def __call__(

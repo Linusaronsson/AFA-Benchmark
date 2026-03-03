@@ -186,6 +186,20 @@ class MissingnessInitializer(AFAInitializer):
             mask = torch.from_numpy(mask)
         return cast("torch.BoolTensor", mask.bool())
 
+    @override
+    def get_training_forbidden_mask(
+        self,
+        observed_mask: FeatureMask,
+    ) -> FeatureMask:
+        """
+        Return mask where missing features are permanently forbidden.
+
+        For training under incomplete data: features the initializer
+        marks as missing (observed_mask=False) should never be visible
+        or selectable during training.
+        """
+        return ~observed_mask
+
     def get_forbidden_selection_mask(
         self,
         observed_mask: FeatureMask,
