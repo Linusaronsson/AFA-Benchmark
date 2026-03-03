@@ -1,0 +1,54 @@
+# CMI methods: train with missingness, evaluate from cold start (standard AFA).
+#
+# Swap train missingness mechanism via --config train_initializer=<name>.
+#
+# Example:
+#   snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+#     --configfile \
+#       extra/workflow/conf/cmi_missing_train_all_observed_eval.yaml \
+#       extra/workflow/conf/method_options.yaml \
+#       extra/workflow/conf/pretrain_mapping.yaml \
+#       extra/workflow/conf/classifier_names.yaml \
+#     --config train_initializer=mar_p03 -j 4 all
+
+dataset_instance_indices: [0, 1, 2]
+train_initializer: cold        # override per run
+eval_initializer: cold         # standard AFA eval (all features queryable)
+eval_dataset_split: val
+device: cpu
+use_wandb: false
+smoke_test: false
+
+datasets:
+  - fico
+  - pharyngitis
+  - diabetes
+  - actg
+
+methods:
+  - gadgil2023    # DIME
+  - ma2018_external  # EDDI (external classifier)
+  - covert2023    # GDFS
+
+method_sets:
+  cmi_missing_train:
+    - gadgil2023
+    - ma2018_external
+    - covert2023
+
+unmaskers:
+  default: direct
+
+eval_hard_budgets:
+  default: [3, 5, 8, 10, 15]
+  actg: [3, 5, 10]
+  fico: [3, 5, 8]         # fico has ~20 features
+  pharyngitis: [3, 5, 8]  # pharyngitis has ~20 features
+
+soft_budget_params:
+  gadgil2023:
+    default: []
+  ma2018_external:
+    default: []
+  covert2023:
+    default: []

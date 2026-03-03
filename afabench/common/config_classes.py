@@ -1205,6 +1205,8 @@ class EvalConfig:
     # Whether to log to wandb
     use_wandb: bool = False
     smoke_test: bool = False
+    # Whether to log per-feature CMI scores (DIME only)
+    log_cmi: bool = False
 
 
 cs.store(name="eval", node=EvalConfig)

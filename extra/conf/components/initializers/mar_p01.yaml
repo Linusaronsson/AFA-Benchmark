@@ -1,0 +1,5 @@
+class_name: "MissingnessInitializer"
+kwargs:
+  mechanism: mar
+  p: 0.1
+  p_obs: 0.3

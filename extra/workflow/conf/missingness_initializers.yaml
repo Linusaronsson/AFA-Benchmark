@@ -16,11 +16,23 @@ missingness_initializers:
   # ============================================================================
   # MCAR initializers
   # ============================================================================
+  mcar_p01:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mcar
+      p: 0.1
+
   mcar_p03:
     class_name: MissingnessInitializer
     kwargs:
       mechanism: mcar
       p: 0.3
+
+  mcar_p05:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mcar
+      p: 0.5
 
   # ============================================================================
   # MAR initializers — varying missingness proportion
@@ -94,11 +106,25 @@ missingness_initializers:
   # ============================================================================
   # MNAR logistic initializers
   # ============================================================================
+  mnar_logistic_p01:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mnar_logistic
+      p: 0.1
+      p_params: 0.3
+
   mnar_logistic_p03:
     class_name: MissingnessInitializer
     kwargs:
       mechanism: mnar_logistic
       p: 0.3
+      p_params: 0.3
+
+  mnar_logistic_p05:
+    class_name: MissingnessInitializer
+    kwargs:
+      mechanism: mnar_logistic
+      p: 0.5
       p_params: 0.3
 
   # ============================================================================

@@ -1099,6 +1099,10 @@ class Gadgil2023AFAMethod(AFAMethod):
         self.mask_width: int | None = None
         self.backbone_type: str = backbone_type
 
+        # Per-feature CMI logging (disabled by default).
+        self._log_cmi: bool = False
+        self._cmi_log: list[dict[str, torch.Tensor]] = []
+
     def _flat_mask_to_patch_mask(
         self, feature_mask: torch.Tensor
     ) -> torch.Tensor:
@@ -1174,7 +1178,32 @@ class Gadgil2023AFAMethod(AFAMethod):
         selections = (best_idx + 1).to(dtype=torch.long).unsqueeze(-1)
         stop_mask = stop_mask.unsqueeze(-1)
         selections = selections.masked_fill(stop_mask, 0)
+
+        if self._log_cmi:
+            self._cmi_log.append({
+                "pred_cmi": pred_cmi.detach().cpu(),
+                "entropy": entropy.detach().cpu(),
+                "feature_mask": feature_mask.detach().cpu(),
+                "selected_action": selections.detach().cpu(),
+            })
+
         return selections
+
+    def enable_cmi_logging(self) -> None:
+        """Enable per-feature CMI score logging during act()."""
+        self._log_cmi = True
+
+    def disable_cmi_logging(self) -> None:
+        """Disable per-feature CMI score logging."""
+        self._log_cmi = False
+
+    def get_cmi_log(self) -> list[dict[str, torch.Tensor]]:
+        """Return the accumulated CMI log entries."""
+        return self._cmi_log
+
+    def clear_cmi_log(self) -> None:
+        """Clear the accumulated CMI log."""
+        self._cmi_log = []
 
     @classmethod
     @override

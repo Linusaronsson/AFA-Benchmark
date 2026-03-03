@@ -271,6 +271,11 @@ def main(cfg: EvalConfig) -> None:
             "Using initializer-provided forbidden selection mask function."
         )
 
+    # Enable CMI logging for DIME if requested.
+    if cfg.log_cmi and hasattr(afa_method, "enable_cmi_logging"):
+        afa_method.enable_cmi_logging()
+        log.info("CMI logging enabled for %s.", type(afa_method).__name__)
+
     df_eval = eval_afa_method(
         afa_action_fn=afa_method.act,
         afa_unmask_fn=unmasker.unmask,
@@ -303,6 +308,22 @@ def main(cfg: EvalConfig) -> None:
     log.info(f"Saved evaluation data to CSV at: {csv_path}")
 
     log.info(f"Evaluation results saved to: {cfg.save_path}")
+
+    # Save CMI log if available.
+    cmi_log = getattr(afa_method, "get_cmi_log", None)
+    if callable(cmi_log) and cmi_log():
+        import pickle
+
+        entries = cmi_log()
+        cmi_log_path = csv_path.parent / "cmi_log.pkl"
+        with cmi_log_path.open("wb") as f:
+            pickle.dump(entries, f)
+        log.info(
+            "Saved CMI log (%d entries) to %s.",
+            len(entries),
+            cmi_log_path,
+        )
+        afa_method.clear_cmi_log()
 
     if run:
         run.finish()

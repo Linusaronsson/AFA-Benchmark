@@ -26,3 +26,4 @@ hard_budget: null
 soft_budget_param: null
 use_wandb: false
 smoke_test: false
+log_cmi: false
