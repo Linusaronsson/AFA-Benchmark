@@ -809,15 +809,25 @@ class CMIEstimator(nn.Module):
                 x = x_batch.to(device)
                 y = self._to_class_indices(y_batch).to(device)
 
-                m_sel = torch.zeros(
-                    len(x), n_selections, dtype=x.dtype, device=device
-                )
                 init_mask_bool = initializer.initialize(
                     features=x,
                     label=y,
                     feature_shape=feature_shape,
                 ).to(device)
+                forbidden_feat = initializer.get_training_forbidden_mask(
+                    init_mask_bool
+                ).to(device)
+                init_mask_bool = init_mask_bool & ~forbidden_feat
                 m_feat = init_mask_bool.to(dtype=x.dtype)
+
+                # TODO: does this conversion support AFAContext unmasker?
+                forbidden_sel = forbidden_feat.view(len(x), -1)
+                assert forbidden_sel.shape[1] == n_selections
+
+                m_sel = torch.zeros(
+                    len(x), n_selections, dtype=x.dtype, device=device
+                )
+                m_sel = torch.maximum(m_sel, forbidden_sel.to(dtype=x.dtype))
 
                 value_network.zero_grad()
                 predictor.zero_grad()
@@ -858,12 +868,17 @@ class CMIEstimator(nn.Module):
                     else:
                         pred_cmi = value_network(x_masked)
 
+                    pred_cmi = pred_cmi.masked_fill(forbidden_sel, -1e9)
+
                     best = torch.argmax(pred_cmi / selection_costs, dim=1)
                     # rng = np.random.default_rng()
-                    random = torch.tensor(
-                        np.random.choice(n_selections, size=len(x)),
-                        device=x.device,
-                    )
+                    allowed = ~forbidden_sel
+                    w = allowed.to(torch.float32)
+                    # random = torch.tensor(
+                    #     np.random.choice(n_selections, size=len(x)),
+                    #     device=x.device,
+                    # )
+                    random = torch.multinomial(w, num_samples=1).squeeze(1).to(x.device)
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
                     afa_selection = actions.to(torch.long)
@@ -925,9 +940,6 @@ class CMIEstimator(nn.Module):
                     # Move to device.
                     x = x_batch.to(device)
                     y = self._to_class_indices(y_batch).to(device)
-                    m_sel = torch.zeros(
-                        len(x), n_selections, dtype=x.dtype, device=device
-                    )
 
                     # Setup.
                     init_mask_bool = initializer.initialize(
@@ -935,6 +947,17 @@ class CMIEstimator(nn.Module):
                         label=y,
                         feature_shape=feature_shape,
                     ).to(device)
+                    forbidden_feat = initializer.get_training_forbidden_mask(
+                        init_mask_bool
+                    ).to(device)
+                    forbidden_sel = forbidden_feat.view(len(x), -1)
+                    assert forbidden_sel.shape[1] == n_selections
+                    m_sel = torch.zeros(
+                        len(x), n_selections, dtype=x.dtype, device=device
+                    )
+                    m_sel = torch.maximum(m_sel, forbidden_sel.to(dtype=x.dtype))
+
+                    init_mask_bool = init_mask_bool & ~forbidden_feat
                     m_feat = init_mask_bool.to(dtype=x.dtype)
                     if len(x.shape) == 4:
                         x_masked = x * m_feat
