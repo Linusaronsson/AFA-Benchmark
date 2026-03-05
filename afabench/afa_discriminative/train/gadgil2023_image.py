@@ -135,6 +135,10 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
         eps_steps=cfg.eps_steps,
         patience=cfg.patience,
         feature_costs=None,
+        ipw_mode=cfg.ipw_mode,
+        ipw_min_propensity=cfg.ipw_min_propensity,
+        ipw_max_weight=cfg.ipw_max_weight,
+        ipw_normalize_weights=cfg.ipw_normalize_weights,
     )
 
     afa_method = Gadgil2023AFAMethod(

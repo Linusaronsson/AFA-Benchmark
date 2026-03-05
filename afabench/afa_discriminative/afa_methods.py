@@ -730,6 +730,10 @@ class CMIEstimator(nn.Module):
         eps_steps: int = 1,
         feature_costs: torch.Tensor | None = None,
         cmi_scaling: str = "bounded",
+        ipw_mode: str = "none",
+        ipw_min_propensity: float = 1e-3,
+        ipw_max_weight: float = 10.0,
+        ipw_normalize_weights: bool = True,  # noqa: FBT002
         verbose: bool = True,  # noqa: FBT002
     ) -> None:
         if val_loss_fn is None:
@@ -740,6 +744,24 @@ class CMIEstimator(nn.Module):
             raise ValueError(msg)
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
+        if ipw_mode not in {"none", "feature_marginal"}:
+            msg = (
+                "ipw_mode must be one of {'none', 'feature_marginal'}, "
+                f"got {ipw_mode}."
+            )
+            raise ValueError(msg)
+        if ipw_min_propensity <= 0.0:
+            msg = (
+                "ipw_min_propensity must be > 0, "
+                f"got {ipw_min_propensity}."
+            )
+            raise ValueError(msg)
+        if ipw_max_weight <= 0.0:
+            msg = (
+                "ipw_max_weight must be > 0, "
+                f"got {ipw_max_weight}."
+            )
+            raise ValueError(msg)
 
         value_network: nn.Module = self.value_network
         predictor: nn.Module = self.predictor
@@ -808,6 +830,8 @@ class CMIEstimator(nn.Module):
                 # Move to device.
                 x = x_batch.to(device)
                 y = self._to_class_indices(y_batch).to(device)
+
+                # TODO: Check if this is a cold-start or warm-start.
 
                 init_mask_bool = initializer.initialize(
                     features=x,
@@ -906,9 +930,28 @@ class CMIEstimator(nn.Module):
                         loss_without_next_feature
                         - loss_with_next_feature.detach()
                     )
-                    value_network_loss = nn.functional.mse_loss(
-                        pred_cmi[torch.arange(len(x)), actions], delta
-                    )
+                    pred_selected = pred_cmi[torch.arange(len(x)), actions]
+                    squared_error = torch.square(pred_selected - delta)
+                    if ipw_mode == "none":
+                        value_network_loss = squared_error.mean()
+                    else:
+                        available_sel = (~forbidden_sel).to(dtype=x.dtype)
+                        propensity = available_sel.mean(dim=0)
+                        propensity_for_actions = propensity[actions]
+                        weights = torch.reciprocal(
+                            torch.clamp(
+                                propensity_for_actions,
+                                min=ipw_min_propensity,
+                            )
+                        )
+                        weights = torch.clamp(weights, max=ipw_max_weight)
+                        if ipw_normalize_weights:
+                            weights = weights / torch.clamp(
+                                weights.mean(), min=1e-12
+                            )
+                        value_network_loss = (
+                            weights.detach() * squared_error
+                        ).mean()
 
                     # Calculate gradients.
                     total_loss = torch.mean(value_network_loss) + torch.mean(

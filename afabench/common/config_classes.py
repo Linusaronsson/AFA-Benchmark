@@ -648,6 +648,10 @@ class Gadgil2023TrainingConfig:
 
     use_wandb: bool
     smoke_test: bool
+    ipw_mode: str = "none"
+    ipw_min_propensity: float = 1e-3
+    ipw_max_weight: float = 10.0
+    ipw_normalize_weights: bool = True
 
 
 cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
@@ -680,6 +684,10 @@ class Gadgil2023Training2DConfig:
 
     use_wandb: bool
     smoke_test: bool
+    ipw_mode: str = "none"
+    ipw_min_propensity: float = 1e-3
+    ipw_max_weight: float = 10.0
+    ipw_normalize_weights: bool = True
 
 
 cs.store(name="train_gadgil2023", node=Gadgil2023Training2DConfig)

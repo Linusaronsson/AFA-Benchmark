@@ -1,0 +1,39 @@
+# One-command comparison: standard DIME vs IPW-debiased DIME.
+#
+# Produces merged parquet + plots under:
+# extra/output/plot_results/eval_split-<split>/train_initializer-<train>+eval_initializer-<eval>/eval_perf/method_set-dime_ipw_compare+classifier_type-<type>/
+#
+# Override at runtime if needed, e.g.:
+#   --config train_initializer=mar_p03 datasets=[fico,pharyngitis] dataset_instance_indices=[0,1,2]
+
+dataset_instance_indices: [0]
+train_initializer: mar_p03
+eval_initializer: cold
+eval_dataset_split: val
+device: cpu
+use_wandb: false
+smoke_test: false
+
+datasets:
+  - fico
+
+methods:
+  - gadgil2023
+  - gadgil2023_ipw_feature_marginal
+
+method_sets:
+  dime_ipw_compare:
+    - gadgil2023
+    - gadgil2023_ipw_feature_marginal
+
+unmaskers:
+  default: direct
+
+eval_hard_budgets:
+  default: [3, 5, 8]
+
+soft_budget_params:
+  gadgil2023:
+    default: []
+  gadgil2023_ipw_feature_marginal:
+    default: []

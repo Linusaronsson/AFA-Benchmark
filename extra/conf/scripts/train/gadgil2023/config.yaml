@@ -24,3 +24,7 @@ seed: null
 soft_budget_param: null
 use_wandb: false
 smoke_test: false
+ipw_mode: "none"
+ipw_min_propensity: 0.001
+ipw_max_weight: 10.0
+ipw_normalize_weights: true

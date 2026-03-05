@@ -80,6 +80,22 @@ method_options:
         2: 20
         4: 20
         7: 20
+  gadgil2023_ipw_feature_marginal:
+    pretrained_model_name: "dime"
+    train_script_name: "gadgil2023"
+    method_specific_params:
+      - "ipw_mode=feature_marginal"
+      - "ipw_min_propensity=0.001"
+      - "ipw_max_weight=10.0"
+      - "ipw_normalize_weights=true"
+    use_max_hard_budget_when_training_soft_budget: true
+    eval_batch_size:
+      default: 32
+    eval_to_train_hard_budget_mapping:
+      cube_nonuniform_costs:
+        2: 20
+        4: 20
+        7: 20
   cae:
     train_script_name: "cae"
     eval_to_train_hard_budget_mapping:
