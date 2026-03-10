@@ -77,11 +77,22 @@ class StopShieldWrapper:
     """
     Deployment-time stop shield for AFA methods.
 
-    Source idea:
-    - stop-risk constraint in `deliverables/thesis/Typst/include/chapters/theory.typ`
-      (`rho(x_S, S) <= delta` before `STOP`)
-    - shielding-style safe POMDP planning, where a wrapper blocks unsafe actions
-      while leaving the base policy unchanged.
+    References:
+    - Sheng, Parker, and Feng (2024), "Safe POMDP Online Planning via
+      Shielding", ICRA 2024, doi:10.1109/ICRA57147.2024.10610195.
+    - Moss et al. (2024), "ConstrainedZero: Chance-Constrained POMDP Planning
+      using Learned Probabilistic Failure Surrogates and Adaptive Safety
+      Constraints", IJCAI 2024, doi:10.24963/ijcai.2024/746.
+    - No public repository was identified for Sheng et al. (2024).
+    - Relevant public code for the adjacent learned-surrogate CC-POMDP line:
+      https://github.com/sisl/ConstrainedZero.jl, which points to the
+      maintained implementation in the `BetaZero.jl` `safety` branch.
+
+    This implementation follows the shielding direction at a much smaller
+    scope. We wrap an existing AFA policy, estimate stop risk with
+    `rho = 1 - max_y p(y | x_S, S)`, and block `STOP` when `rho > delta`.
+    That keeps the base policy unchanged while making the safety mechanism
+    explicit and easy to audit.
 
     We keep the implementation narrow on purpose: only `STOP` is shielded,
     because in AFA the main safety question is usually *when to stop* rather
