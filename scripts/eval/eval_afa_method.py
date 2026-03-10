@@ -1,6 +1,9 @@
+from __future__ import annotations
+
+import json
 import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
@@ -8,29 +11,90 @@ import wandb
 from omegaconf import OmegaConf
 
 from afabench.common.bundle import load_bundle
-from afabench.common.config_classes import (
-    EvalConfig,
-    InitializerConfig,
-    UnmaskerConfig,
-)
-from afabench.common.custom_types import (
-    AFAClassifier,
-    AFADataset,
-    AFAInitializer,
-    AFAMethod,
-    AFAUnmasker,
-    FeatureMask,
-    SelectionMask,
-)
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers import AFAContextUnmasker
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import (
-    set_seed,
+from afabench.common.utils import set_seed
+from afabench.eval.cube_nm_ar import (
+    augment_cube_nm_ar_eval_df,
+    summarize_cube_nm_ar_episodes,
 )
 from afabench.eval.eval import eval_afa_method
+from afabench.eval.stop_shielding import StopShieldWrapper
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+    from afabench.common.config_classes import (
+        EvalConfig,
+        InitializerConfig,
+        UnmaskerConfig,
+    )
+    from afabench.common.custom_types import (
+        AFAClassifier,
+        AFADataset,
+        AFAInitializer,
+        AFAMethod,
+        AFAUnmasker,
+        FeatureMask,
+        SelectionMask,
+    )
 
 log = logging.getLogger(__name__)
+
+
+def _safe_mean(series: pd.Series) -> float:
+    if series.empty:
+        return 0.0
+    return float(series.astype(float).mean())
+
+
+def _get_cube_nm_ar_eval_summary(
+    df_eval: pd.DataFrame,
+) -> dict[str, float | int] | None:
+    episode_df = summarize_cube_nm_ar_episodes(df_eval)
+    if episode_df is None or episode_df.empty:
+        return None
+
+    risky_mask = episode_df["cube_nm_ar_is_risky_context"].astype(bool)
+    blocked_mask = episode_df["cube_nm_ar_relevant_block_blocked"].astype(bool)
+    risky_episode_df = episode_df[risky_mask]
+
+    return {
+        "episode_count": len(episode_df),
+        "risky_episode_count": len(risky_episode_df),
+        "risky_episode_rate": _safe_mean(risky_mask),
+        "risky_accuracy": _safe_mean(risky_episode_df["correct"]),
+        "risky_rescue_rate": _safe_mean(risky_episode_df["rescue_acquired"]),
+        "risky_relevant_block_acquisition_rate": _safe_mean(
+            risky_episode_df["relevant_block_acquired"]
+        ),
+        "risky_unsafe_stop_rate": _safe_mean(risky_episode_df["unsafe_stop"]),
+        "risky_avoidable_unsafe_stop_rate": _safe_mean(
+            risky_episode_df["avoidable_unsafe_stop"]
+        ),
+        "risky_blocked_rate": _safe_mean(blocked_mask[risky_mask]),
+    }
+
+
+def _log_cube_nm_ar_eval_summary(
+    df_eval: pd.DataFrame,
+) -> dict[str, float | int] | None:
+    risk_summary = _get_cube_nm_ar_eval_summary(df_eval)
+    if risk_summary is None:
+        return None
+
+    log.info(
+        "CUBE-NM-AR risk: risky_episode_rate=%.4f, risky_accuracy=%.4f, "
+        "risky_rescue_rate=%.4f, risky_unsafe_stop_rate=%.4f, "
+        "risky_avoidable_unsafe_stop_rate=%.4f.",
+        risk_summary["risky_episode_rate"],
+        risk_summary["risky_accuracy"],
+        risk_summary["risky_rescue_rate"],
+        risk_summary["risky_unsafe_stop_rate"],
+        risk_summary["risky_avoidable_unsafe_stop_rate"],
+    )
+    return risk_summary
 
 
 def _adapt_forbidden_mask_to_selection_space(
@@ -169,7 +233,7 @@ def load(
     config_path="../../extra/conf/scripts/eval",
     config_name="config",
 )
-def main(cfg: EvalConfig) -> None:
+def main(cfg: EvalConfig) -> None:  # noqa: C901, PLR0912, PLR0915
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -224,6 +288,40 @@ def main(cfg: EvalConfig) -> None:
     # Some methods require a soft budget parameter set during evaluation instead of training
     if cfg.soft_budget_param is not None:
         afa_method.set_cost_param(cost_param=cfg.soft_budget_param)
+        if hasattr(afa_method, "force_acquisition"):
+            afa_method.force_acquisition = False
+            log.info(
+                "Disabled force_acquisition for soft-budget evaluation."
+            )
+
+    stop_shield = None
+    afa_action_fn = afa_method.act
+    if cfg.stop_shield_delta is not None:
+        if external_classifier is not None:
+            shield_predict_fn = external_classifier.__call__
+            predictor_name = type(external_classifier).__name__
+        elif afa_method.has_builtin_classifier:
+            shield_predict_fn = afa_method.predict
+            predictor_name = type(afa_method).__name__
+        else:
+            msg = (
+                "stop_shield_delta requires either an external classifier or "
+                "a method with a builtin classifier."
+            )
+            raise ValueError(msg)
+
+        stop_shield = StopShieldWrapper(
+            afa_method=afa_method,
+            afa_predict_fn=shield_predict_fn,
+            risk_threshold=cfg.stop_shield_delta,
+            predictor_name=predictor_name,
+        )
+        afa_action_fn = stop_shield.act
+        log.info(
+            "Enabled stop shield with delta=%.4f using predictor %s.",
+            cfg.stop_shield_delta,
+            predictor_name,
+        )
 
     if cfg.hard_budget is not None:
         hard_budget_str = f"hard budget {cfg.hard_budget}"
@@ -277,7 +375,7 @@ def main(cfg: EvalConfig) -> None:
         log.info("CMI logging enabled for %s.", type(afa_method).__name__)
 
     df_eval = eval_afa_method(
-        afa_action_fn=afa_method.act,
+        afa_action_fn=afa_action_fn,
         afa_unmask_fn=unmasker.unmask,
         n_selection_choices=n_selection_choices,
         afa_initialize_fn=initializer.initialize,
@@ -295,14 +393,38 @@ def main(cfg: EvalConfig) -> None:
         selection_costs=selection_costs.tolist(),
         forbidden_mask_fn=forbidden_mask_fn,
     )
-
     # Add eval_seed and eval_hard_budget to dataframe
     df_eval["eval_seed"] = cfg.seed
     df_eval["eval_hard_budget"] = cfg.hard_budget
+    df_eval = augment_cube_nm_ar_eval_df(df_eval, dataset)
 
-    # Save CSV directly
     csv_path = Path(cfg.save_path)
     csv_path.parent.mkdir(parents=True, exist_ok=True)
+    risk_summary = _log_cube_nm_ar_eval_summary(df_eval)
+    if risk_summary is not None:
+        risk_path = csv_path.parent / "cube_nm_ar_risk_summary.json"
+        risk_path.write_text(
+            json.dumps(risk_summary, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        log.info("Saved CUBE-NM-AR risk summary to %s.", risk_path)
+
+    if stop_shield is not None:
+        shield_summary = stop_shield.get_summary()
+        shield_path = csv_path.parent / "stop_shield_summary.json"
+        shield_path.write_text(
+            json.dumps(shield_summary, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        log.info("Saved stop-shield summary to %s.", shield_path)
+
+    helper_columns = [
+        column for column in df_eval.columns if column.startswith("cube_")
+    ]
+    if helper_columns:
+        df_eval = df_eval.drop(columns=helper_columns)
+
+    # Save CSV directly
     # Use explicit null strings to avoid missing values in the pipeline.
     df_eval.to_csv(csv_path, index=False, na_rep="null")
     log.info(f"Saved evaluation data to CSV at: {csv_path}")

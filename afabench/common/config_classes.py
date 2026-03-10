@@ -1210,6 +1210,8 @@ class EvalConfig:
     hard_budget: int | None = None
     # Some methods require a soft budget parameter during evaluation, not training
     soft_budget_param: float | None = None
+    # Optional deployment-time shield: reject STOP when posterior risk > delta
+    stop_shield_delta: float | None = None
     # Whether to log to wandb
     use_wandb: bool = False
     smoke_test: bool = False

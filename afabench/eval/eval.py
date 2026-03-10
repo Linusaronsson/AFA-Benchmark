@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Sequence  # noqa: TC003
+from typing import override
 
 import pandas as pd
 import torch
@@ -24,6 +27,21 @@ from afabench.common.custom_types import (
 )
 
 log = logging.getLogger(__name__)
+
+
+class _DatasetWithIndex(Dataset[tuple[int, Features, Label]]):
+    """Wrap a dataset so evaluation can retain dataset-level sample ids."""
+
+    def __init__(self, dataset: AFADataset) -> None:
+        self.dataset: AFADataset = dataset
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[int, Features, Label]:
+        features, label = self.dataset[idx]
+        return idx, features, label
 
 
 def single_afa_step(
@@ -127,6 +145,7 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
     selection_budget: float | None = None,
     selection_costs: Sequence[float] | None = None,
     initial_selection_mask: SelectionMask | None = None,
+    sample_ids: Sequence[int] | None = None,
 ) -> pd.DataFrame:
     """
     Evaluate a single batch.
@@ -151,6 +170,8 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
         selection_budget (float|None): Total accumulated selection cost to allow per sample. If None, allow unlimited selections. Defaults to None.
         selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
         initial_selection_mask (SelectionMask|None): Pre-initialized selection mask marking features as already forbidden (True=forbidden). If None, starts with all features acquirable.
+        sample_ids (Sequence[int]|None): Dataset-level sample ids to attach to rows.
+            If None, uses 0..batch_size-1.
 
     Returns:
         pd.DataFrame: DataFrame with one row per sample and timestep, containing columns:
@@ -180,6 +201,14 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
             device=features.device,
             dtype=torch.bool,
         )
+    resolved_sample_ids = (
+        list(range(features.shape[0]))
+        if sample_ids is None
+        else [int(sample_id) for sample_id in sample_ids]
+    )
+    assert len(resolved_sample_ids) == features.shape[0], (
+        "sample_ids must have one entry per sample in the batch."
+    )
 
     # Track which selections have been made per sample (0-based indices)
     selections_performed = [[] for _ in range(features.shape[0])]
@@ -289,7 +318,7 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
                     .item(),
                     "true_class": true_label[true_idx].argmax(-1).item(),
                     "accumulated_cost": accumulated_costs[global_idx],
-                    "idx": global_idx,
+                    "idx": resolved_sample_ids[global_idx],
                     "forced_stop": forced_stops[global_idx],
                 }
             )
@@ -360,21 +389,25 @@ def eval_afa_method(
         device = torch.device("cpu")
 
     if only_n_samples is not None:
+        indexed_dataset = _DatasetWithIndex(dataset)
         dataloader = DataLoader(
-            dataset,
+            indexed_dataset,
             batch_size=batch_size,
             sampler=SubsetRandomSampler(
                 (torch.randperm(len(dataset))[:only_n_samples]).tolist()
             ),
         )
     else:
+        indexed_dataset = _DatasetWithIndex(dataset)
         dataloader = DataLoader(
-            dataset,
+            indexed_dataset,
             batch_size=batch_size,
         )
 
     batches_df: list[pd.DataFrame] = []
-    for _batch_features, _batch_label in tqdm(dataloader):
+    for batch_idx, _batch_features, _batch_label in tqdm(
+        dataloader, desc="Evaluating AFA"
+    ):
         batch_features = _batch_features.to(device)
         batch_label = _batch_label.to(device)
 
@@ -396,23 +429,23 @@ def eval_afa_method(
                 batch_initial_feature_mask, dataset.feature_shape
             ).to(device)
 
-        batches_df.append(
-            process_batch(
-                afa_action_fn=afa_action_fn,
-                afa_unmask_fn=afa_unmask_fn,
-                n_selection_choices=n_selection_choices,
-                features=batch_features,
-                initial_feature_mask=batch_initial_feature_mask,
-                initial_masked_features=batch_initial_masked_features,
-                true_label=batch_label,
-                feature_shape=dataset.feature_shape,
-                external_afa_predict_fn=external_afa_predict_fn,
-                builtin_afa_predict_fn=builtin_afa_predict_fn,
-                selection_budget=selection_budget,
-                selection_costs=selection_costs,
-                initial_selection_mask=batch_initial_selection_mask,
-            )
+        df_batch = process_batch(
+            afa_action_fn=afa_action_fn,
+            afa_unmask_fn=afa_unmask_fn,
+            n_selection_choices=n_selection_choices,
+            features=batch_features,
+            initial_feature_mask=batch_initial_feature_mask,
+            initial_masked_features=batch_initial_masked_features,
+            true_label=batch_label,
+            feature_shape=dataset.feature_shape,
+            external_afa_predict_fn=external_afa_predict_fn,
+            builtin_afa_predict_fn=builtin_afa_predict_fn,
+            selection_budget=selection_budget,
+            selection_costs=selection_costs,
+            initial_selection_mask=batch_initial_selection_mask,
+            sample_ids=batch_idx.tolist(),
         )
+        batches_df.append(df_batch)
     # Concatenate all batch DataFrames
     df_batches = pd.concat(batches_df, ignore_index=True)
     # Assert that all the columns described in docstring are present
