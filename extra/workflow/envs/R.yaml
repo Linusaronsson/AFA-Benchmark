@@ -1,9 +1,0 @@
-channels:
-    - conda-forge
-dependencies:
-    - r-base
-    - r-tidyverse
-    - r-knitr
-    - r-kableExtra
-    - r-yardstick
-    - r-ggbeeswarm
