@@ -1,4 +1,5 @@
-from collections.abc import Sequence
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any, final, override
 
 import torch
@@ -7,16 +8,20 @@ from tensordict import TensorDict, TensorDictBase
 from torchrl.data import Binary, Categorical, Composite, Unbounded
 from torchrl.envs import EnvBase
 
-from afabench.afa_rl.common.custom_types import (
-    AFADatasetFn,
-    AFARewardFn,
-)
-from afabench.common.custom_types import AFAInitializeFn, AFAUnmaskFn
-
 if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
+    from afabench.afa_rl.common.custom_types import (
+        AFADatasetFn,
+        AFARewardFn,
+    )
     from afabench.common.custom_types import (
+        AFAInitializeFn,
+        AFAUnmaskFn,
+        FeatureMask,
         Features,
         Label,
+        SelectionMask,
     )
 
 
@@ -51,6 +56,9 @@ class AFAEnv(EnvBase):
         | None,  # accumulated selection cost allowed before the episode ends. If None, no limit.
         initialize_fn: AFAInitializeFn,
         unmask_fn: AFAUnmaskFn,
+        forbidden_selection_mask_fn: (
+            Callable[[FeatureMask, torch.Size], SelectionMask] | None
+        ) = None,
         *,
         force_hard_budget: bool = False,  # if True and hard_budget is set, never allow the stop action
         seed: int | None = None,
@@ -78,6 +86,7 @@ class AFAEnv(EnvBase):
         self.force_hard_budget = force_hard_budget
         self.initialize_fn = initialize_fn
         self.unmask_fn = unmask_fn
+        self.forbidden_selection_mask_fn = forbidden_selection_mask_fn
         self.seed = seed
         if selection_costs is None:
             self.selection_costs = torch.ones(
@@ -171,6 +180,28 @@ class AFAEnv(EnvBase):
 
         initial_masked_features = features.clone()
         initial_masked_features[~initial_feature_mask] = 0.0
+        initial_selection_mask = torch.zeros(
+            tensordict.batch_size + torch.Size((self.n_selections,)),
+            dtype=torch.bool,
+            device=tensordict.device,
+        )
+        if self.forbidden_selection_mask_fn is not None:
+            initial_selection_mask = self.forbidden_selection_mask_fn(
+                initial_feature_mask, self.feature_shape
+            ).to(tensordict.device)
+            assert initial_selection_mask.shape == (
+                tensordict.batch_size + torch.Size((self.n_selections,))
+            ), (
+                "forbidden_selection_mask_fn must return selection-space mask "
+                f"with shape {tensordict.batch_size + torch.Size((self.n_selections,))}, "
+                f"got {initial_selection_mask.shape}."
+            )
+        initial_allowed_action_mask = torch.ones(
+            tensordict.batch_size + torch.Size((self.n_selections + 1,)),
+            dtype=torch.bool,
+            device=tensordict.device,
+        )
+        initial_allowed_action_mask[:, 1:] = ~initial_selection_mask
 
         td = TensorDict(
             {
@@ -181,17 +212,8 @@ class AFAEnv(EnvBase):
                     dtype=torch.bool,
                     device=tensordict.device,
                 ),
-                "allowed_action_mask": torch.ones(
-                    tensordict.batch_size
-                    + torch.Size((self.n_selections + 1,)),
-                    dtype=torch.bool,
-                    device=tensordict.device,
-                ),
-                "performed_selection_mask": torch.zeros(
-                    tensordict.batch_size + torch.Size((self.n_selections,)),
-                    dtype=torch.bool,
-                    device=tensordict.device,
-                ),
+                "allowed_action_mask": initial_allowed_action_mask,
+                "performed_selection_mask": initial_selection_mask,
                 "masked_features": initial_masked_features,
                 "features": features,
                 "label": label,

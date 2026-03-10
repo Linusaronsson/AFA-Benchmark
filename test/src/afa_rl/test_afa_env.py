@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 
 from afabench.afa_rl.common.afa_env import AFAEnv
@@ -9,6 +11,85 @@ from afabench.common.initializers.fixed_random_initializer import (
 from afabench.common.initializers.manual_initializer import ManualInitializer
 from afabench.common.unmaskers import ImagePatchUnmasker
 from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
+
+
+def test_reset_respects_forbidden_selection_mask() -> None:
+    all_features = torch.tensor(
+        [
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+        ]
+    )
+    all_labels = torch.tensor([[1, 0], [0, 1]])
+    dataset_fn = get_afa_dataset_fn(all_features, all_labels, shuffle=False)
+
+    def initialize_fn(
+        features: torch.Tensor,
+        label: torch.Tensor | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> torch.Tensor:
+        del label
+        assert feature_shape is not None
+        return torch.zeros_like(features, dtype=torch.bool).reshape(
+            features.shape[: -len(feature_shape)] + feature_shape
+        )
+
+    def forbidden_selection_mask_fn(
+        _observed_mask: torch.Tensor,
+        _feature_shape: torch.Size,
+    ) -> torch.Tensor:
+        return torch.tensor(
+            [
+                [True, False, True, False],
+                [False, True, False, True],
+            ],
+            dtype=torch.bool,
+        )
+
+    env = AFAEnv(
+        dataset_fn=dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=torch.device("cpu"),
+        batch_size=torch.Size((2,)),
+        feature_shape=torch.Size((4,)),
+        n_selections=4,
+        n_classes=2,
+        hard_budget=4.0,
+        initialize_fn=initialize_fn,
+        unmask_fn=DirectUnmasker().unmask,
+        forbidden_selection_mask_fn=forbidden_selection_mask_fn,
+        seed=123,
+    )
+
+    td = env.reset()
+
+    expected_selection_mask = torch.tensor(
+        [
+            [True, False, True, False],
+            [False, True, False, True],
+        ],
+        dtype=torch.bool,
+    )
+    expected_allowed_action_mask = torch.tensor(
+        [
+            [True, False, True, False, True],
+            [True, True, False, True, False],
+        ],
+        dtype=torch.bool,
+    )
+
+    assert torch.equal(td["performed_selection_mask"], expected_selection_mask)
+    assert torch.equal(td["allowed_action_mask"], expected_allowed_action_mask)
+
+    td["action"] = torch.tensor([2, 1], dtype=torch.int64)
+    td_next = env.step(td)["next"]
+
+    assert not td_next["allowed_action_mask"][0, 1].item()
+    assert not td_next["allowed_action_mask"][0, 3].item()
+    assert not td_next["allowed_action_mask"][1, 2].item()
+    assert not td_next["allowed_action_mask"][1, 4].item()
 
 
 def test_initializer_and_unmasker_integration() -> None:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import gc
 import logging
 from abc import ABC, abstractmethod
@@ -7,15 +9,11 @@ from typing import TYPE_CHECKING, Any, cast
 import torch
 import wandb
 from rl_helpers import dict_with_prefix
-from tensordict import TensorDictBase
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
-from wandb.sdk.wandb_run import Run
 
 from afabench.afa_rl.common.afa_env import AFAEnv
-from afabench.afa_rl.common.agent_interface import Agent
-from afabench.afa_rl.common.custom_types import AFARewardFn
 from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
 from afabench.afa_rl.common.utils import (
     get_eval_metrics,
@@ -24,24 +22,32 @@ from afabench.afa_rl.common.utils import (
 # from afabench.afa_rl.reward_functions import get_range_based_reward_fn
 # from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.config_classes import (
-    AFAMDPConfig,
-    AFARLTrainingLoopConfig,
-    InitializerConfig,
-    UnmaskerConfig,
-)
-from afabench.common.custom_types import (
-    AFADataset,
-    AFAInitializer,
-    AFAMethod,
-    AFAUnmasker,
-)
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import get_class_frequencies, initialize_wandb_run
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from tensordict import TensorDictBase
+    from wandb.sdk.wandb_run import Run
+
+    from afabench.afa_rl.common.agent_interface import Agent
+    from afabench.afa_rl.common.custom_types import AFARewardFn
+    from afabench.common.config_classes import (
+        AFAMDPConfig,
+        AFARLTrainingLoopConfig,
+        InitializerConfig,
+        UnmaskerConfig,
+    )
+    from afabench.common.custom_types import (
+        AFADataset,
+        AFAInitializer,
+        AFAMethod,
+        AFAUnmasker,
+        FeatureMask,
+        SelectionMask,
+    )
 
 log = logging.getLogger(__name__)
 
@@ -177,6 +183,19 @@ class RLTrainer(ABC):
     def _get_env_from_dataset(self, dataset: AFADataset) -> AFAEnv:
         features, labels = dataset.get_all_data()
         dataset_fn = get_afa_dataset_fn(features, labels, device=self.device)
+        maybe_forbidden_selection_mask_fn = getattr(
+            self.initializer, "get_forbidden_selection_mask", None
+        )
+        forbidden_selection_mask_fn: (
+            Callable[[FeatureMask, torch.Size], SelectionMask] | None
+        )
+        if callable(maybe_forbidden_selection_mask_fn):
+            forbidden_selection_mask_fn = cast(
+                "Callable[[FeatureMask, torch.Size], SelectionMask]",
+                maybe_forbidden_selection_mask_fn,
+            )
+        else:
+            forbidden_selection_mask_fn = None
         env = AFAEnv(
             dataset_fn=dataset_fn,
             reward_fn=self.reward_fn,
@@ -188,6 +207,7 @@ class RLTrainer(ABC):
             hard_budget=self.mdp_cfg.hard_budget,
             initialize_fn=self.initializer.initialize,
             unmask_fn=self.unmasker.unmask,
+            forbidden_selection_mask_fn=forbidden_selection_mask_fn,
             force_hard_budget=self.mdp_cfg.force_hard_budget,
             seed=self.seed,
             selection_costs=self.unnormalized_selection_costs.tolist(),
