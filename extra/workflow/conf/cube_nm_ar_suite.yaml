@@ -1,0 +1,51 @@
+# One-command CUBE-NM-AR suite.
+#
+# Run with:
+#   uv run snakemake \
+#     -s extra/workflow/snakefiles/orchestration/cube_nm_ar_suite.smk \
+#     --configfile extra/workflow/conf/cube_nm_ar_suite.yaml \
+#     -j 1 \
+#     all
+#
+# The outer suite is intentionally serial; each nested `pipeline.smk`
+# invocation uses `cube_nm_ar_suite_pipeline_cores`.
+
+cube_nm_ar_suite_train_initializers: [cube_nm_ar, cold]
+cube_nm_ar_suite_eval_initializers: [cold]
+cube_nm_ar_suite_budget_modes: [hard, soft]
+cube_nm_ar_suite_dataset: cube_nm_ar
+cube_nm_ar_suite_eval_dataset_split: val
+
+cube_nm_ar_suite_methods:
+  - gadgil2023
+  - gadgil2023_ipw_feature_marginal
+  - aaco_full
+
+cube_nm_ar_suite_mode_methods:
+  hard:
+    - gadgil2023
+    - gadgil2023_ipw_feature_marginal
+    - aaco_full
+  soft:
+    - aaco_full
+
+cube_nm_ar_suite_mode_stop_shield_deltas:
+  hard: []
+  soft: [0.2, 0.3]
+
+cube_nm_ar_suite_stop_shield_deltas: []
+cube_nm_ar_suite_pipeline_cores: 8
+cube_nm_ar_suite_pipeline_rerun_incomplete: true
+cube_nm_ar_suite_pipeline_config_overrides: []
+
+cube_nm_ar_suite_pipeline_configfiles:
+  - extra/workflow/conf/method_options.yaml
+  - extra/workflow/conf/pretrain_mapping.yaml
+  - extra/workflow/conf/classifier_names.yaml
+  - extra/workflow/conf/unmaskers.yaml
+
+cube_nm_ar_suite_mode_configfiles:
+  hard:
+    - extra/workflow/conf/cube_nm_ar_hard.yaml
+  soft:
+    - extra/workflow/conf/cube_nm_ar_soft_stop.yaml

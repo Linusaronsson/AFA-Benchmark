@@ -37,6 +37,10 @@ def load_config(config):
     eval_dataset_split = config.get(
         "eval_dataset_split", "test"
     )  # switch to val while developing, and train if debugging
+    stop_shield_deltas = [
+        str(delta) for delta in config.get("stop_shield_deltas", [])
+    ]
+    cube_nm_ar_budget_mode = config.get("cube_nm_ar_budget_mode", "hard")
     device = config.get("device", "cpu")
     use_wandb = config.get("use_wandb", False)
     smoke_test = config.get("smoke_test", False)
@@ -306,6 +310,8 @@ def load_config(config):
         "TRAIN_INITIALIZER": train_initializer,
         "EVAL_INITIALIZER": eval_initializer,
         "EVAL_DATASET_SPLIT": eval_dataset_split,
+        "STOP_SHIELD_DELTAS": stop_shield_deltas,
+        "CUBE_NM_AR_BUDGET_MODE": cube_nm_ar_budget_mode,
         "DEVICE": device,
         "USE_WANDB": use_wandb,
         "SMOKE_TEST": smoke_test,

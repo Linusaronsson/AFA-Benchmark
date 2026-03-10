@@ -19,6 +19,8 @@ SUBPLOT_HEIGHT = 2.8
 INITIALIZER_NAME_MAPPING = {
     "missingness": "Missingness",
     "missingness_all_observed": "All observed",
+    "cube_nm_ar": "CUBE-NM-AR",
+    "cold": "Cold start",
 }
 
 VARIANT_NAME_MAPPING = {

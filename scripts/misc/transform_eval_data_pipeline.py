@@ -1,8 +1,34 @@
+from __future__ import annotations
+
 import argparse
 import ast
 from pathlib import Path
 
 import polars as pl
+
+_CSV_SCHEMA_OVERRIDES = {
+    "prev_selections_performed": pl.String,
+    "action_performed": pl.UInt64,
+    "builtin_predicted_class": pl.UInt64,
+    "external_predicted_class": pl.UInt64,
+    "true_class": pl.UInt64,
+    "accumulated_cost": pl.Float64,
+    "idx": pl.UInt64,
+    "forced_stop": pl.Boolean,
+    "eval_seed": pl.UInt64,
+    "eval_hard_budget": pl.Float64,
+}
+
+_OPTIONAL_METADATA_COLUMNS = [
+    "cube_nm_ar_context_idx",
+    "cube_nm_ar_is_risky_context",
+    "cube_nm_ar_relevant_block_blocked",
+    "cube_nm_ar_relevant_action_start",
+    "cube_nm_ar_relevant_action_end",
+    "cube_nm_ar_rescue_action",
+    "cube_nm_ar_is_relevant_block_action",
+    "cube_nm_ar_is_rescue_action",
+]
 
 
 def parse_nullable(s: str) -> str | None:
@@ -50,18 +76,7 @@ def main() -> None:
 
     df = pl.read_csv(
         args.input_path,
-        schema={
-            "prev_selections_performed": pl.String,
-            "action_performed": pl.UInt64,
-            "builtin_predicted_class": pl.UInt64,
-            "external_predicted_class": pl.UInt64,
-            "true_class": pl.UInt64,
-            "accumulated_cost": pl.Float64,
-            "idx": pl.UInt64,
-            "forced_stop": pl.Boolean,
-            "eval_seed": pl.UInt64,
-            "eval_hard_budget": pl.Float64,
-        },
+        schema_overrides=_CSV_SCHEMA_OVERRIDES,
         null_values=["null"],
     )
 
@@ -91,6 +106,11 @@ def main() -> None:
             "eval_seed",
             "eval_hard_budget",
             "n_selections_performed",
+            *[
+                column
+                for column in _OPTIONAL_METADATA_COLUMNS
+                if column in df.columns
+            ],
         ],
         variable_name="classifier",
         value_name="predicted_class",

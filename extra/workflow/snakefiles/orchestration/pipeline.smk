@@ -10,6 +10,8 @@ Runtime filters (--config, select subsets to run):
     train_initializer (str, optional): Initializer for train/pretrain stages
     eval_initializer (str, optional): Initializer used during evaluation
     eval_dataset_split (str, default='val'): Dataset split for evaluation
+    stop_shield_deltas (list[float], default=[]): Extra stop-shielded eval
+        passes to run in parallel with standard evaluation.
 
 Output namespacing:
     - Training artifacts are namespaced by
@@ -77,6 +79,8 @@ INITIALIZER_TAG = (
     f"eval_initializer-{EVAL_INITIALIZER}"
 )
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
+STOP_SHIELD_DELTAS = _config["STOP_SHIELD_DELTAS"]
+CUBE_NM_AR_BUDGET_MODE = _config["CUBE_NM_AR_BUDGET_MODE"]
 DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]
 SMOKE_TEST = _config["SMOKE_TEST"]
