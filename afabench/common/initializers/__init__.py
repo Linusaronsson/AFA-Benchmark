@@ -1,3 +1,4 @@
+from .cube_nm_ar_initializer import CubeNMARInitializer
 from .fixed_random_initializer import FixedRandomInitializer
 from .least_informative_initializer import LeastInformativeInitializer
 from .manual_initializer import ManualInitializer
@@ -7,6 +8,7 @@ from .random_initializer import RandomInitializer
 from .zero_initializer import ZeroInitializer
 
 __all__ = [
+    "CubeNMARInitializer",
     "FixedRandomInitializer",
     "LeastInformativeInitializer",
     "ManualInitializer",

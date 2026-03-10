@@ -23,6 +23,7 @@ REGISTERED_CLASSES = {
     "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
     "CubeNonUniformCostsDataset": "afabench.common.datasets.datasets.CubeNonUniformCostsDataset",
     "AFAContextDataset": "afabench.common.datasets.datasets.AFAContextDataset",
+    "CubeNMARDataset": "afabench.common.datasets.datasets.CubeNMARDataset",
     "MNISTDataset": "afabench.common.datasets.datasets.MNISTDataset",
     "SyntheticMNISTDataset": "afabench.common.datasets.datasets.SyntheticMNISTDataset",
     "DiabetesDataset": "afabench.common.datasets.datasets.DiabetesDataset",
@@ -49,6 +50,7 @@ REGISTERED_CLASSES = {
     "DirectUnmasker": "afabench.common.unmaskers.DirectUnmasker",
     "ImagePatchUnmasker": "afabench.common.unmaskers.ImagePatchUnmasker",
     "AFAContextUnmasker": "afabench.common.unmaskers.AFAContextUnmasker",
+    "CubeNMARUnmasker": "afabench.common.unmaskers.CubeNMARUnmasker",
     # AFA Initializer Classes
     "ZeroInitializer": "afabench.common.initializers.ZeroInitializer",
     "FixedRandomInitializer": "afabench.common.initializers.FixedRandomInitializer",
@@ -58,6 +60,7 @@ REGISTERED_CLASSES = {
     "LeastInformativeInitializer": "afabench.common.initializers.LeastInformativeInitializer",
     "RandomInitializer": "afabench.common.initializers.RandomInitializer",
     "MissingnessInitializer": "afabench.common.initializers.MissingnessInitializer",
+    "CubeNMARInitializer": "afabench.common.initializers.CubeNMARInitializer",
     # General PyTorch Model Bundle
     "TorchModelBundle": "afabench.common.torch_bundle.TorchModelBundle",
 }

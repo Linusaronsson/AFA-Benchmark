@@ -30,6 +30,7 @@ type AFASelection = Integer[torch.Tensor, "*batch 1"]
 _DATASET_KEY_ALIASES = {
     "ACTG175Dataset": "actg",
     "AFAContextDataset": "afa_context",
+    "CubeNMARDataset": "cube_nm_ar",
     "BankMarketingDataset": "bank_marketing",
     "CKDDataset": "ckd",
     "CubeDataset": "cube",

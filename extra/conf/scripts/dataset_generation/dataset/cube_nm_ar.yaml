@@ -1,0 +1,13 @@
+class_name: "CubeNMARDataset"
+kwargs:
+  n_samples: 1000
+  n_contexts: 5
+  n_safe_contexts: 2
+  context_feature_std: 0.0
+  informative_feature_std: 0.02
+  non_informative_feature_mean: 0.5
+  non_informative_feature_std: 0.02
+  rescue_feature_std: 0.001
+  rescue_feature_cost: 4.0
+  risky_block_probability: 0.3
+  use_cheap_context_features: true

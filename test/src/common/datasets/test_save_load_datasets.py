@@ -11,6 +11,7 @@ pytestmark = pytest.mark.optional
 
 DATASETS_TO_TEST = [
     ("AFAContextDataset", {"n_samples": 10, "seed": 42}),
+    ("CubeNMARDataset", {"n_samples": 10, "seed": 42}),
     ("CubeDataset", {"n_samples": 10, "seed": 42}),
     ("DiabetesDataset", {"root": "extra/data/misc/diabetes.csv"}),
     ("MiniBooNEDataset", {"root": "extra/data/misc/miniboone.csv"}),
@@ -71,3 +72,22 @@ def test_dataset_roundtrip(dataset_name: str, kwargs: dict[str, Any]) -> None:
     assert torch.allclose(orig_labels, loaded_labels), (
         f"{dataset_name}: Labels mismatch after save/load"
     )
+
+
+def test_cube_nm_ar_feature_costs_match_feature_shape() -> None:
+    dataset_class = get_class("CubeNMARDataset")
+    dataset = dataset_class(n_samples=10, seed=42)
+
+    feature_costs = dataset.get_feature_acquisition_costs()
+
+    assert feature_costs.shape == torch.Size((dataset.feature_shape.numel(),))
+
+
+def test_cube_nm_ar_rescue_feature_encodes_only_final_label_bit() -> None:
+    dataset_class = get_class("CubeNMARDataset")
+    dataset = dataset_class(n_samples=64, seed=0, rescue_feature_std=0.0)
+    features, labels = dataset.get_all_data()
+    label_idx = labels.argmax(dim=1)
+    expected_rescue = (label_idx >= 4).float()
+
+    assert torch.equal(features[:, -1], expected_rescue)

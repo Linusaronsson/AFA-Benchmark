@@ -5,3 +5,4 @@ unmaskers:
   imagenette: 224x224_to_14x14
   afa_context_v2: afa_context_5_contexts
   afa_context_v2_without_noise: afa_context_5_contexts
+  cube_nm_ar: cube_nm_ar_5_contexts

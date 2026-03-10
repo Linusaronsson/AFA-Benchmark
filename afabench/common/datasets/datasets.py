@@ -606,6 +606,314 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 
 @final
+class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    Availability- and risk-aware CUBE-NM (CUBE-NM-AR).
+
+    Feature layout:
+        * First n_contexts features: cheap one-hot context group
+        * Next n_contexts features: archival hint features (constant-valued)
+        * Next 2 features: hidden availability controls (not queryable)
+        * Next n_contexts * block_size features: context-specific blocks
+        * Final feature: expensive rescue feature
+
+    Contexts with index < n_safe_contexts are safe: the relevant block reveals
+    the full 3-bit label. Remaining contexts are risky: the relevant block only
+    reveals the first two label bits, while the rescue feature reveals the
+    final bit. This makes the rescue feature useful but not sufficient on its
+    own.
+
+    The hidden availability controls encode the warm-start hint regime
+    (clear / ambiguous / none) and whether the relevant risky block is
+    permanently blocked. They are always masked and excluded from the
+    selection space, so they act as latent instance-level nuisance variables
+    rather than observable features.
+    """
+
+    block_size = 4
+    n_admin_features = 2
+
+    @classmethod
+    @override
+    def accepts_seed(cls) -> bool:
+        return True
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size((self.n_features,))
+
+    @property
+    def n_features(self) -> int:
+        return (
+            self.n_contexts
+            + self.n_hint_features
+            + self.n_admin_features
+            + self.n_contexts * self.block_size
+            + 1
+        )
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        # 3 bits for the label, but we still use 8 classes with one-hot encoding to keep things simple
+        return torch.Size([8])
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        return default_create_subset(self, indices)
+
+    def __init__(  # noqa: PLR0915
+        self,
+        n_samples: int = 20_000,
+        seed: int = 42069,
+        *,
+        n_contexts: int = 5,
+        n_safe_contexts: int = 2,
+        n_hint_features: int | None = None,
+        context_feature_std: float = 0.0,
+        hint_feature_value: float = 1.0,
+        informative_feature_std: float = 0.05,
+        non_informative_feature_mean: float = 0.5,
+        non_informative_feature_std: float = 0.05,
+        rescue_feature_std: float = 0.01,
+        rescue_feature_cost: float = 4.0,
+        risky_block_probability: float = 0.3,
+        use_cheap_context_features: bool = True,
+    ):
+        super().__init__()
+        if not (0 < n_safe_contexts <= n_contexts):
+            msg = (
+                "Expected n_safe_contexts in {1, ..., n_contexts}, got "
+                f"{n_safe_contexts=} and {n_contexts=}."
+            )
+            raise ValueError(msg)
+        if not (0.0 <= risky_block_probability <= 1.0):
+            msg = (
+                "Expected risky_block_probability in [0, 1], got "
+                f"{risky_block_probability=}."
+            )
+            raise ValueError(msg)
+
+        self.n_samples = n_samples
+        self.seed = seed
+        self.n_contexts = n_contexts
+        self.n_safe_contexts = n_safe_contexts
+        self.n_hint_features = (
+            n_contexts if n_hint_features is None else n_hint_features
+        )
+        if self.n_hint_features != self.n_contexts:
+            msg = (
+                "CubeNMARDataset currently expects one archival hint feature "
+                f"per context, got {self.n_hint_features=} and {self.n_contexts=}."
+            )
+            raise ValueError(msg)
+
+        self.context_feature_std = context_feature_std
+        self.hint_feature_value = hint_feature_value
+        self.informative_feature_std = informative_feature_std
+        self.non_informative_feature_mean = non_informative_feature_mean
+        self.non_informative_feature_std = non_informative_feature_std
+        self.rescue_feature_std = rescue_feature_std
+        self.rescue_feature_cost = rescue_feature_cost
+        self.risky_block_probability = risky_block_probability
+        self.use_cheap_context_features = use_cheap_context_features
+
+        self.rng = torch.Generator().manual_seed(seed)
+        self.features: Tensor
+        self.labels: Tensor
+
+        context = torch.randint(
+            0, self.n_contexts, (self.n_samples,), generator=self.rng
+        )
+        context_onehot = torch.nn.functional.one_hot(
+            context, num_classes=self.n_contexts
+        ).float()
+
+        if self.context_feature_std > 0:
+            context_onehot = context_onehot + torch.normal(
+                mean=0.0,
+                std=self.context_feature_std,
+                size=(self.n_samples, self.n_contexts),
+                generator=self.rng,
+            )
+
+        y_int = torch.randint(
+            0,
+            self.label_shape[0],
+            (self.n_samples,),
+            generator=self.rng,
+        )
+
+        binary_codes = torch.stack(
+            [
+                torch.tensor([int(b) for b in format(i, "03b")])
+                for i in range(self.label_shape[0])
+            ],
+            dim=0,
+        ).flip(-1)
+
+        hint_features = torch.full(
+            (self.n_samples, self.n_hint_features),
+            float(self.hint_feature_value),
+        )
+
+        hint_regime = torch.randint(
+            0, 3, (self.n_samples,), generator=self.rng
+        )
+        blocked_flag = torch.zeros(self.n_samples, dtype=torch.long)
+        risky_mask = context >= self.n_safe_contexts
+        if risky_mask.any():
+            blocked_flag[risky_mask] = (
+                torch.rand(
+                    int(risky_mask.sum().item()),
+                    generator=self.rng,
+                )
+                < self.risky_block_probability
+            ).long()
+        admin_features = torch.stack(
+            [hint_regime.float(), blocked_flag.float()],
+            dim=1,
+        )
+
+        blocks = torch.normal(
+            mean=self.non_informative_feature_mean,
+            std=self.non_informative_feature_std,
+            size=(self.n_samples, self.n_contexts, self.block_size),
+            generator=self.rng,
+        )
+
+        rescue_bit = binary_codes[y_int, -1].float().unsqueeze(-1)
+        rescue_feature = rescue_bit + torch.normal(
+            mean=0.0,
+            std=self.rescue_feature_std,
+            size=(self.n_samples, 1),
+            generator=self.rng,
+        )
+
+        for i in range(self.n_samples):
+            ctx = int(context[i].item())
+            label = int(y_int[i].item())
+            if ctx < self.n_safe_contexts:
+                bits = binary_codes[label].float()
+                informative_positions = [0, 1, 2]
+            else:
+                bits = binary_codes[label][:-1].float()
+                informative_positions = [0, 1]
+
+            noise = torch.normal(
+                mean=0.0,
+                std=self.informative_feature_std,
+                size=(len(informative_positions),),
+                generator=self.rng,
+            )
+            blocks[i, ctx, informative_positions] = bits + noise
+
+        block_features = blocks.view(self.n_samples, -1)
+        self.features = torch.cat(
+            [
+                context_onehot,
+                hint_features,
+                admin_features,
+                block_features,
+                rescue_feature,
+            ],
+            dim=1,
+        )
+        self.labels = torch.nn.functional.one_hot(
+            y_int, num_classes=self.label_shape[0]
+        ).float()
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self) -> int:
+        return self.features.size(0)
+
+    @override
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "config": {
+                    "n_samples": self.n_samples,
+                    "seed": self.seed,
+                    "n_contexts": self.n_contexts,
+                    "n_safe_contexts": self.n_safe_contexts,
+                    "n_hint_features": self.n_hint_features,
+                    "context_feature_std": self.context_feature_std,
+                    "hint_feature_value": self.hint_feature_value,
+                    "informative_feature_std": self.informative_feature_std,
+                    "non_informative_feature_mean": self.non_informative_feature_mean,
+                    "non_informative_feature_std": self.non_informative_feature_std,
+                    "rescue_feature_std": self.rescue_feature_std,
+                    "rescue_feature_cost": self.rescue_feature_cost,
+                    "risky_block_probability": self.risky_block_probability,
+                    "use_cheap_context_features": self.use_cheap_context_features,
+                },
+            },
+            path / "dataset.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path / "dataset.pt")
+        obj = cls.__new__(cls)
+        config = data["config"]
+        obj.n_samples = config["n_samples"]
+        obj.seed = config["seed"]
+        obj.n_contexts = config["n_contexts"]
+        obj.n_safe_contexts = config["n_safe_contexts"]
+        obj.n_hint_features = config["n_hint_features"]
+        obj.context_feature_std = config["context_feature_std"]
+        obj.hint_feature_value = config["hint_feature_value"]
+        obj.informative_feature_std = config["informative_feature_std"]
+        obj.non_informative_feature_mean = config[
+            "non_informative_feature_mean"
+        ]
+        obj.non_informative_feature_std = config["non_informative_feature_std"]
+        obj.rescue_feature_std = config["rescue_feature_std"]
+        obj.rescue_feature_cost = config["rescue_feature_cost"]
+        obj.risky_block_probability = config["risky_block_probability"]
+        obj.use_cheap_context_features = config["use_cheap_context_features"]
+        obj.rng = torch.Generator()
+        obj.features = data["features"]
+        obj.labels = data["labels"]
+        return obj
+
+    @override
+    def get_feature_acquisition_costs(self) -> torch.Tensor:
+        context_feature_cost_scaling = (
+            1 / self.n_contexts if self.use_cheap_context_features else 1
+        )
+        context_feature_costs = context_feature_cost_scaling * torch.ones(
+            self.n_contexts
+        )
+        hint_feature_costs = torch.zeros(self.n_hint_features)
+        admin_feature_costs = torch.zeros(self.n_admin_features)
+        block_feature_costs = torch.ones(self.n_contexts * self.block_size)
+        rescue_feature_costs = torch.tensor([self.rescue_feature_cost])
+        return torch.cat(
+            [
+                context_feature_costs,
+                hint_feature_costs,
+                admin_feature_costs,
+                block_feature_costs,
+                rescue_feature_costs,
+            ],
+            dim=0,
+        )
+
+
+@final
 class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """MNIST dataset wrapped to follow the AFADataset protocol."""
 

@@ -5,6 +5,7 @@ datasets:
   - bank_marketing
   - ckd
   - cube
+  - cube_nm_ar
   - cube_nonuniform_costs
   - diabetes
   - miniboone

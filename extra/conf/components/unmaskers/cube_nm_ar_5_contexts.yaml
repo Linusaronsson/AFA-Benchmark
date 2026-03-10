@@ -1,0 +1,5 @@
+class_name: "CubeNMARUnmasker"
+kwargs:
+  n_contexts: 5
+  n_hint_features: 5
+  n_admin_features: 2

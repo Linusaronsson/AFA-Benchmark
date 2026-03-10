@@ -1,0 +1,7 @@
+class_name: "CubeNMARInitializer"
+kwargs:
+  n_contexts: 5
+  n_hint_features: 5
+  block_size: 4
+  n_safe_contexts: 2
+  n_admin_features: 2
