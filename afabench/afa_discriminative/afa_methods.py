@@ -1,14 +1,16 @@
+from __future__ import annotations
+
+import logging
 import math
 from copy import deepcopy
 from pathlib import Path
-from typing import Self, override
+from typing import TYPE_CHECKING, Self, override
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch import nn, optim
-from torch.utils.data import DataLoader
 from torchrl.modules import MLP
+from tqdm.auto import tqdm
 
 from afabench.afa_discriminative.models import (
     ConvNet,
@@ -24,21 +26,90 @@ from afabench.afa_discriminative.utils import (
     get_entropy,
     ind_to_onehot,
     make_onehot,
-    restore_parameters,
     patch_soft_to_feature_soft,
+    restore_parameters,
     selection_soft_to_feature_soft,
 )
 from afabench.common.custom_types import (
-    AFAInitializer,
-    AFAUnmasker,
-    AFAMethod,
     AFAAction,
+    AFAInitializer,
+    AFAMethod,
+    AFAUnmasker,
     FeatureMask,
     Label,
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.common.unmaskers import AFAContextUnmasker
+from afabench.common.unmaskers import AFAContextUnmasker, CubeNMARUnmasker
+
+if TYPE_CHECKING:
+    from torch.utils.data import DataLoader
+
+log = logging.getLogger(__name__)
+
+
+def _feature_forbidden_to_selection_forbidden(
+    forbidden_feat: FeatureMask,
+    *,
+    n_selections: int,
+    feature_shape: torch.Size,
+    unmasker: AFAUnmasker,
+) -> SelectionMask:
+    """Convert feature-space forbidden masks to selection space when needed."""
+    flat_forbidden = forbidden_feat.reshape(forbidden_feat.shape[0], -1)
+    if flat_forbidden.shape[1] == n_selections:
+        return flat_forbidden
+
+    n_features = math.prod(feature_shape)
+    if flat_forbidden.shape[1] != n_features:
+        msg = (
+            "Forbidden feature mask has incompatible shape. Expected trailing "
+            f"dim {n_features} or {n_selections}, got {flat_forbidden.shape[1]}."
+        )
+        raise ValueError(msg)
+
+    # Special case for AFAContextUnmasker, which has a specific mapping from features to selections.
+    # Could probably be unified to a general case.
+    if isinstance(unmasker, AFAContextUnmasker):
+        n_contexts = unmasker.n_contexts
+        sel_forbidden = torch.zeros(
+            (flat_forbidden.shape[0], n_selections),
+            dtype=torch.bool,
+            device=forbidden_feat.device,
+        )
+        sel_forbidden[:, 0] = flat_forbidden[:, :n_contexts].any(dim=1)
+        sel_forbidden[:, 1:] = flat_forbidden[:, n_contexts:]
+        return sel_forbidden
+
+    if isinstance(unmasker, CubeNMARUnmasker):
+        excluded_start = (
+            unmasker.n_contexts
+            + unmasker.n_hint_features
+            + unmasker.n_admin_features
+        )
+        sel_forbidden = torch.zeros(
+            (flat_forbidden.shape[0], n_selections),
+            dtype=torch.bool,
+            device=forbidden_feat.device,
+        )
+        sel_forbidden[:, 0] = flat_forbidden[
+            :, : unmasker.n_contexts
+        ].any(dim=1)
+        sel_forbidden[:, 1:] = flat_forbidden[:, excluded_start:]
+        return sel_forbidden
+
+    if flat_forbidden.any():
+        msg = (
+            "Cannot convert a non-empty feature-space forbidden mask to "
+            f"selection space for unmasker {type(unmasker).__name__}."
+        )
+        raise ValueError(msg)
+
+    return torch.zeros(
+        (flat_forbidden.shape[0], n_selections),
+        dtype=torch.bool,
+        device=forbidden_feat.device,
+    )
 
 
 class GreedyDynamicSelection(nn.Module):
@@ -85,7 +156,7 @@ class GreedyDynamicSelection(nn.Module):
         val_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
         lr: float,
         nepochs: int,
-        max_features: int,
+        max_features: int | None,
         loss_fn: nn.Module,
         val_loss_fn: nn.Module | None = None,
         val_loss_mode: str | None = None,
@@ -156,7 +227,7 @@ class GreedyDynamicSelection(nn.Module):
         total_epochs = 0
         for temp in np.geomspace(start_temp, end_temp, temp_steps):
             if verbose:
-                print(f"Starting training with temp = {temp:.4f}\n")
+                log.info("Starting DIME training with temp=%.4f.", temp)
 
             # Set up optimizer and lr scheduler.
             opt = optim.Adam(
@@ -178,8 +249,17 @@ class GreedyDynamicSelection(nn.Module):
             best_predictor = deepcopy(predictor)
             num_bad_epochs = 0
             epoch = 0
+            epoch_iterator = range(nepochs)
+            progress_bar = None
+            if verbose:
+                progress_bar = tqdm(
+                    epoch_iterator,
+                    desc=f"DIME train T={temp:.4f}",
+                    leave=False,
+                )
+                epoch_iterator = progress_bar
 
-            for epoch in range(nepochs):
+            for _epoch in epoch_iterator:
                 # Switch models to training mode.
                 selector.train()
                 predictor.train()
@@ -220,13 +300,14 @@ class GreedyDynamicSelection(nn.Module):
                         soft = selector_layer(logits_cost, temp)
                         if len(x.shape) == 4:
                             soft_feat = patch_soft_to_feature_soft(soft, x)
+                        elif isinstance(unmasker, AFAContextUnmasker):
+                            soft_feat = selection_soft_to_feature_soft(
+                                soft,
+                                mask_size=mask_size,
+                                n_contexts=unmasker.n_contexts,
+                            )
                         else:
-                            if isinstance(unmasker, AFAContextUnmasker):
-                                soft_feat = selection_soft_to_feature_soft(
-                                    soft, mask_size=mask_size, n_contexts=unmasker.n_contexts
-                                )
-                            else:
-                                soft_feat = soft
+                            soft_feat = soft
                         m_soft_feat = torch.maximum(m_feat, soft_feat)
 
                         # Evaluate predictor model.
@@ -308,11 +389,14 @@ class GreedyDynamicSelection(nn.Module):
                                 soft = selector_layer(logits_cost, temp)
                             if len(x.shape) == 4:
                                 soft_feat = patch_soft_to_feature_soft(soft, x)
+                            elif isinstance(unmasker, AFAContextUnmasker):
+                                soft_feat = selection_soft_to_feature_soft(
+                                    soft,
+                                    mask_size,
+                                    unmasker.n_contexts,
+                                )
                             else:
-                                if isinstance(unmasker, AFAContextUnmasker):
-                                    soft_feat = selection_soft_to_feature_soft(soft, mask_size, unmasker.n_contexts)
-                                else:
-                                    soft_feat = soft
+                                soft_feat = soft
                             m_soft_feat = torch.maximum(m_feat, soft_feat)
                             m_sel = torch.max(m_sel, make_onehot(soft))
                             sel_idx = torch.argmax(soft, dim=1, keepdim=True)
@@ -349,18 +433,13 @@ class GreedyDynamicSelection(nn.Module):
                     pred = torch.cat(pred_list, 0)
                     hard_pred = torch.cat(hard_pred_list, 0)
                     y = torch.cat(label_list, 0)
-                    val_loss = val_loss_fn(pred, y)
-                    val_hard_loss = val_loss_fn(hard_pred, y)
+                    val_loss = float(val_loss_fn(pred, y).item())
+                    val_hard_loss = float(val_loss_fn(hard_pred, y).item())
 
-                # Print progress.
-                if verbose:
-                    print(
-                        f"{'-' * 8}Epoch {epoch + 1} ({
-                            epoch + 1 + total_epochs
-                        } total){'-' * 8}"
-                    )
-                    print(
-                        f"Val loss = {val_loss:.4f}, Zero-temp loss = {val_hard_loss:.4f}\n"
+                if progress_bar is not None:
+                    progress_bar.set_postfix(
+                        val_loss=f"{val_loss:.4f}",
+                        zero_temp_loss=f"{val_hard_loss:.4f}",
                     )
 
                 # Update scheduler.
@@ -390,7 +469,11 @@ class GreedyDynamicSelection(nn.Module):
 
             # Update total epoch count.
             if verbose:
-                print(f"Stopping temp = {temp:.4f} at epoch {epoch + 1}\n")
+                log.info(
+                    "Stopping DIME training with temp=%.4f at epoch %d.",
+                    temp,
+                    epoch + 1,
+                )
             total_epochs += epoch + 1
 
             # Copy parameters from best model.
@@ -412,8 +495,8 @@ class Covert2023AFAMethod(AFAMethod):
         device: torch.device,
         lambda_threshold: float | None = None,
         selection_costs: torch.Tensor | None = None,
-        selector_hidden_layers: list[int] = [128, 128],
-        predictor_hidden_layers: list[int] = [128, 128],
+        selector_hidden_layers: list[int] | None = None,
+        predictor_hidden_layers: list[int] | None = None,
         dropout: float = 0.3,
         modality: str | None = "tabular",
         n_patches: int | None = None,
@@ -433,8 +516,16 @@ class Covert2023AFAMethod(AFAMethod):
         else:
             self.lambda_threshold = lambda_threshold
         self._selection_costs: torch.Tensor | None = selection_costs
-        self.selector_hidden_layers = selector_hidden_layers
-        self.predictor_hidden_layers = predictor_hidden_layers
+        self.selector_hidden_layers = (
+            [128, 128]
+            if selector_hidden_layers is None
+            else selector_hidden_layers
+        )
+        self.predictor_hidden_layers = (
+            [128, 128]
+            if predictor_hidden_layers is None
+            else predictor_hidden_layers
+        )
         self.dropout = dropout
         self.modality: str | None = modality
         # for image selection
@@ -591,7 +682,7 @@ class Covert2023AFAMethod(AFAMethod):
             model.predictor.eval()
             return model.to(device)
 
-        elif arch["type"] in ("resnet18", "resnet50"):
+        if arch["type"] in ("resnet18", "resnet50"):
             d_out = arch["d_out"]
             if arch["type"] == "resnet18":
                 base = resnet18(pretrained=False)
@@ -762,6 +853,13 @@ class CMIEstimator(nn.Module):
                 f"got {ipw_max_weight}."
             )
             raise ValueError(msg)
+        if max_features is None:
+            msg = (
+                "CMIEstimator.fit requires an integer max_features. "
+                "Soft-budget workflow runs must provide a training hard "
+                "budget for discriminative methods."
+            )
+            raise ValueError(msg)
 
         value_network: nn.Module = self.value_network
         predictor: nn.Module = self.predictor
@@ -818,7 +916,21 @@ class CMIEstimator(nn.Module):
         num_bad_epochs = 0
         num_epsilon_steps = 0
 
-        for epoch in range(nepochs):
+        if verbose:
+            log.info(
+                "Training CMI estimator for %d epochs with max_features=%s and initial eps=%.5f.",
+                nepochs,
+                max_features,
+                eps,
+            )
+
+        epoch_iterator = tqdm(
+            range(nepochs),
+            total=nepochs,
+            desc="Training CMI estimator",
+            disable=not verbose,
+        )
+        for _epoch in epoch_iterator:
             # Switch models to training mode.
             value_network.train()
             predictor.train()
@@ -844,9 +956,12 @@ class CMIEstimator(nn.Module):
                 init_mask_bool = init_mask_bool & ~forbidden_feat
                 m_feat = init_mask_bool.to(dtype=x.dtype)
 
-                # TODO: does this conversion support AFAContext unmasker?
-                forbidden_sel = forbidden_feat.view(len(x), -1)
-                assert forbidden_sel.shape[1] == n_selections
+                forbidden_sel = _feature_forbidden_to_selection_forbidden(
+                    forbidden_feat,
+                    n_selections=n_selections,
+                    feature_shape=feature_shape,
+                    unmasker=unmasker,
+                )
 
                 m_sel = torch.zeros(
                     len(x), n_selections, dtype=x.dtype, device=device
@@ -993,8 +1108,12 @@ class CMIEstimator(nn.Module):
                     forbidden_feat = initializer.get_training_forbidden_mask(
                         init_mask_bool
                     ).to(device)
-                    forbidden_sel = forbidden_feat.view(len(x), -1)
-                    assert forbidden_sel.shape[1] == n_selections
+                    forbidden_sel = _feature_forbidden_to_selection_forbidden(
+                        forbidden_feat,
+                        n_selections=n_selections,
+                        feature_shape=feature_shape,
+                        unmasker=unmasker,
+                    )
                     m_sel = torch.zeros(
                         len(x), n_selections, dtype=x.dtype, device=device
                     )
@@ -1083,14 +1202,14 @@ class CMIEstimator(nn.Module):
             # )
             # wandb.log(log_payload)
 
-            # Print progress.
-            if verbose:
-                print(f"{'-' * 8}Epoch {epoch + 1}{'-' * 8}")
-                print(f"Loss Val/Mean = {val_loss_mean}")
-                print(f"Perf Val/Mean = {val_perf_mean}")
-                print(f"Loss Val/Final = {val_loss_final}")
-                print(f"Perf Val/Final = {val_perf_final}")
-                print(f"Eps Value = {eps}\n")
+            val_perf_final_display = float(val_perf_final.mean().item())
+            epoch_iterator.set_postfix(
+                val_loss_mean=f"{val_loss_mean.item():.4f}",
+                val_perf_mean=f"{val_perf_mean.item():.4f}",
+                val_loss_final=f"{val_loss_final.item():.4f}",
+                val_perf_final=f"{val_perf_final_display:.4f}",
+                eps=f"{eps:.4f}",
+            )
 
             # Update scheduler.
             scheduler.step(val_perf_mean)
@@ -1108,10 +1227,19 @@ class CMIEstimator(nn.Module):
                 eps = eps * eps_decay
                 num_bad_epochs = 0
                 num_epsilon_steps += 1
-                print(f"Decaying eps to {eps:.5f}, step = {num_epsilon_steps}")
+                log.info(
+                    "Decayed CMI estimator eps to %.5f (step %d/%d).",
+                    eps,
+                    num_epsilon_steps,
+                    eps_steps,
+                )
 
                 # Early stopping.
                 if num_epsilon_steps >= eps_steps:
+                    log.info(
+                        "Stopping CMI estimator after reaching %d epsilon decay steps.",
+                        num_epsilon_steps,
+                    )
                     break
 
                 # Reset optimizer learning rate. Could fully reset optimizer and scheduler, but this is simpler.
@@ -1131,8 +1259,8 @@ class Gadgil2023AFAMethod(AFAMethod):
         device: torch.device,
         lambda_threshold: float | None = None,
         selection_costs: torch.Tensor | None = None,
-        value_network_hidden_layers: list[int] = [128, 128],
-        predictor_hidden_layers: list[int] = [128, 128],
+        value_network_hidden_layers: list[int] | None = None,
+        predictor_hidden_layers: list[int] | None = None,
         dropout: float = 0.3,
         modality: str | None = "tabular",
         n_patches: int | None = None,
@@ -1152,8 +1280,16 @@ class Gadgil2023AFAMethod(AFAMethod):
         else:
             self.lambda_threshold = lambda_threshold
         self._selection_costs: torch.Tensor | None = selection_costs
-        self.value_network_hidden_layers = value_network_hidden_layers
-        self.predictor_hidden_layers = predictor_hidden_layers
+        self.value_network_hidden_layers = (
+            [128, 128]
+            if value_network_hidden_layers is None
+            else value_network_hidden_layers
+        )
+        self.predictor_hidden_layers = (
+            [128, 128]
+            if predictor_hidden_layers is None
+            else predictor_hidden_layers
+        )
         self.dropout = dropout
         self.modality: str | None = modality
         self.n_patches: int | None = n_patches
@@ -1329,7 +1465,7 @@ class Gadgil2023AFAMethod(AFAMethod):
             model.predictor.eval()
             return model.to(device)
 
-        elif arch["type"] in ("resnet18", "resnet50"):
+        if arch["type"] in ("resnet18", "resnet50"):
             d_out = arch["d_out"]
             if arch["type"] == "resnet18":
                 base = resnet18(pretrained=False)
