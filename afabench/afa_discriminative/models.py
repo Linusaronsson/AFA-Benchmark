@@ -7,6 +7,7 @@ from typing import Self, Any, Callable
 import torch
 import torch.nn.functional as F
 from torch import nn, optim
+from torch.utils.data import DataLoader, TensorDataset
 from torchrl.modules import MLP
 
 from afabench.afa_discriminative.utils import restore_parameters
@@ -618,3 +619,245 @@ class GreedyAFAClassifier:
         predictor.eval()
 
         return cls(predictor=predictor, architecture=arch, device=map_location)
+
+
+class NotMIWAE(nn.Module):
+    """
+    - encoder: x -> q(z|x)
+    - decoder: z -> mu
+    - p(x|z) = Normal(mu, exp(logstd)) with global scalar logstd
+    - missing process: self-masking logistic model
+    """
+    def __init__(
+        self,
+        d_in: int,
+        n_latent: int,
+        n_hidden: int = 128,
+        activation: type[nn.Module] = nn.Tanh,
+    ) -> None:
+        super().__init__()
+        self.d_in = d_in
+        self.n_latent = n_latent
+
+        act = activation
+
+        self.encoder = nn.Sequential(
+            nn.Linear(d_in, n_hidden),
+            act(),
+            nn.Linear(n_hidden, n_hidden),
+            act(),
+        )
+        self.q_mu = nn.Linear(n_hidden, n_latent)
+        self.q_logstd = nn.Linear(n_hidden, n_latent)
+
+        # z -> mu
+        self.mu = nn.Linear(n_latent, d_in)
+        # Global scalar log std for p(x|z)
+        self.logstd = nn.Parameter(torch.zeros(()))
+
+        # Self-masking missingness model parameters
+        self.raw_W = nn.Parameter(torch.zeros(1, 1, d_in))
+        self.b = nn.Parameter(torch.zeros(1, 1, d_in))
+
+    def forward(
+        self,
+        x_filled: torch.Tensor,
+        s: torch.Tensor,
+        n_samples: int,
+    ) -> dict[str, torch.Tensor]:
+        """
+        x_filled: [B, D], zero-filled at missing positions
+        s: [B, D], 1 for observed, 0 for missing
+        """
+        h = self.encoder(x_filled)
+        q_mu = self.q_mu(h)
+        q_logstd = torch.clamp(self.q_logstd(h), min=-10.0, max=10.0)
+        q_std = torch.exp(q_logstd)
+
+        # Reparameterized samples: [B, L, K]
+        eps = torch.randn(
+            x_filled.size(0), n_samples, self.n_latent, device=x_filled.device
+        )
+        z = q_mu[:, None, :] + eps * q_std[:, None, :]
+
+        # Decoder mean: [B, L, D]
+        mu = self.mu(z)
+        px_std = torch.exp(self.logstd)
+
+        x_exp = x_filled[:, None, :]
+        s_exp = s[:, None, :]
+
+        # log p(x_o | z)
+        p_x_given_z = torch.distributions.Normal(loc=mu, scale=px_std)
+        log_p_x_given_z = (p_x_given_z.log_prob(x_exp) * s_exp).sum(dim=-1)
+
+        # log q(z | x)
+        q_z = torch.distributions.Normal(
+            loc=q_mu[:, None, :],
+            scale=q_std[:, None, :],
+        )
+        log_q_z_given_x = q_z.log_prob(z).sum(dim=-1)
+
+        # log p(z)
+        prior = torch.distributions.Normal(
+            loc=torch.zeros_like(z),
+            scale=torch.ones_like(z),
+        )
+        log_p_z = prior.log_prob(z).sum(dim=-1)
+
+        # Missingness model p(s | x)
+        # notebook: W = -softplus(W), logits = W * (x_mixed - b)
+        W = -F.softplus(self.raw_W)
+        # [B, L, D], observed -> x, missing -> mu
+        l_out_mixed = mu * (1.0 - s_exp) + x_exp * s_exp
+        logits = W * (l_out_mixed - self.b)
+
+        log_p_s_given_x = -F.binary_cross_entropy_with_logits(
+            logits,
+            s_exp.expand_as(logits),
+            reduction="none",
+        ).sum(dim=-1)
+
+        # not-MIWAE bound
+        log_w = log_p_x_given_z + log_p_s_given_x + log_p_z - log_q_z_given_x
+        log_avg_weight = torch.logsumexp(log_w, dim=1) - math.log(n_samples)
+        notmiwae = log_avg_weight.mean()
+        loss = -notmiwae
+
+        return {
+            "loss": loss,
+            "notmiwae": notmiwae,
+            "mu": mu,
+            "log_p_x_given_z": log_p_x_given_z,
+            "log_p_s_given_x": log_p_s_given_x,
+            "log_p_z": log_p_z,
+            "log_q_z_given_x": log_q_z_given_x,
+        }
+
+    @torch.no_grad()
+    def impute(
+        self,
+        x_filled: torch.Tensor,
+        s: torch.Tensor,
+        n_samples: int = 1000,
+    ) -> torch.Tensor:
+        """
+        Returns posterior-weighted imputations xm, shape [B, D].
+        """
+        out = self.forward(x_filled=x_filled, s=s, n_samples=n_samples)
+        mu = out["mu"]  # [B, L, D]
+
+        log_w = (
+            out["log_p_x_given_z"]
+            + out["log_p_s_given_x"]
+            + out["log_p_z"]
+            - out["log_q_z_given_x"]
+        )
+        w = torch.softmax(log_w, dim=1)  # [B, L]
+        xm = (mu * w.unsqueeze(-1)).sum(dim=1)  # [B, D]
+        return xm
+
+    @torch.no_grad()
+    def feature_observation_probs(
+        self,
+        x_filled: torch.Tensor,
+        s: torch.Tensor,
+        n_samples: int = 100,
+    ) -> torch.Tensor:
+        h = self.encoder(x_filled)
+        q_mu = self.q_mu(h)
+        q_logstd = torch.clamp(self.q_logstd(h), min=-10.0, max=10.0)
+        q_std = torch.exp(q_logstd)
+
+        eps = torch.randn(
+            x_filled.size(0), n_samples, self.n_latent, device=x_filled.device
+        )
+        z = q_mu[:, None, :] + eps * q_std[:, None, :]
+
+        # [B, L, D]
+        mu = self.mu(z)
+        # [B, 1, D]
+        x_exp = x_filled[:, None, :]
+        s_exp = s[:, None, :]
+
+        W = -F.softplus(self.raw_W)
+        l_out_mixed = mu * (1.0 - s_exp) + x_exp * s_exp
+        logits = W * (l_out_mixed - self.b)
+
+        # [B, L, D]
+        probs = torch.sigmoid(logits)
+        return probs.mean(dim=1)
+
+
+def train_notmiwae(
+    model: NotMIWAE,
+    x_train: torch.Tensor,
+    s_train: torch.Tensor,
+    x_val: torch.Tensor | None = None,
+    s_val: torch.Tensor | None = None,
+    *,
+    lr: float = 1e-3,
+    batch_size: int = 128,
+    max_iter: int = 30000,
+    n_samples: int = 20,
+    eval_every: int = 100,
+) -> NotMIWAE:
+    device = next(model.parameters()).device
+    model.train()
+
+    train_ds = TensorDataset(x_train, s_train)
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=batch_size,
+        shuffle=True,
+        drop_last=False,
+    )
+
+    opt = torch.optim.Adam(model.parameters(), lr=lr)
+
+    best_state = deepcopy(model.state_dict())
+    best_val = float("inf")
+
+    step = 0
+    while step < max_iter:
+        for xb, sb in train_loader:
+            xb = xb.to(device)
+            sb = sb.to(device)
+
+            out = model(x_filled=xb, s=sb, n_samples=n_samples)
+            loss = out["loss"]
+
+            opt.zero_grad()
+            loss.backward()
+            opt.step()
+
+            if step % eval_every == 0:
+                model.eval()
+                with torch.no_grad():
+                    if x_val is None or s_val is None:
+                        val_out = model(
+                            x_filled=x_train.to(device),
+                            s=s_train.to(device),
+                            n_samples=n_samples,
+                        )
+                    else:
+                        val_out = model(
+                            x_filled=x_val.to(device),
+                            s=s_val.to(device),
+                            n_samples=n_samples,
+                        )
+                    val_loss = float(val_out["loss"].item())
+
+                if val_loss < best_val:
+                    best_val = val_loss
+                    best_state = deepcopy(model.state_dict())
+
+                model.train()
+
+            step += 1
+            if step >= max_iter:
+                break
+
+    model.load_state_dict(best_state)
+    model.eval()
+    return model

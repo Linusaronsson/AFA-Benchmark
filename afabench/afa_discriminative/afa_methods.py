@@ -15,6 +15,7 @@ from tqdm.auto import tqdm
 from afabench.afa_discriminative.models import (
     ConvNet,
     Predictor,
+    NotMIWAE,
     ResNet18Backbone,
     resnet18,
     resnet50,
@@ -26,6 +27,7 @@ from afabench.afa_discriminative.utils import (
     get_entropy,
     ind_to_onehot,
     make_onehot,
+    to_class_indices,
     patch_soft_to_feature_soft,
     restore_parameters,
     selection_soft_to_feature_soft,
@@ -145,11 +147,6 @@ class GreedyDynamicSelection(nn.Module):
         self.initializer: AFAInitializer = initializer
         self.unmasker: AFAUnmasker = unmasker
 
-    def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
-        if y.ndim >= 2:
-            return y.argmax(dim=-1).long()
-        return y.long()
-
     def fit(  # noqa: PLR0915, PLR0912, C901
         self,
         train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
@@ -267,7 +264,7 @@ class GreedyDynamicSelection(nn.Module):
                 for x_batch, y_batch in train_loader:
                     # Move to device.
                     x = x_batch.to(device)
-                    y = self._to_class_indices(y_batch).to(device)
+                    y = to_class_indices(y_batch).to(device)
 
                     m_sel = torch.zeros(
                         len(x), n_selections, dtype=x.dtype, device=device
@@ -357,7 +354,7 @@ class GreedyDynamicSelection(nn.Module):
                     for x_batch, y_batch in val_loader:
                         # Move to device.
                         x = x_batch.to(device)
-                        y = self._to_class_indices(y_batch).to(device)
+                        y = to_class_indices(y_batch).to(device)
 
                         m_sel = torch.zeros(
                             len(x), n_selections, dtype=x.dtype, device=device
@@ -787,6 +784,7 @@ class CMIEstimator(nn.Module):
         mask_layer: MaskLayer | MaskLayer2d,
         initializer: AFAInitializer,
         unmasker: AFAUnmasker,
+        notmiwae_model: NotMIWAE | None = None,
     ):
         super().__init__()
 
@@ -796,11 +794,25 @@ class CMIEstimator(nn.Module):
         self.mask_layer: MaskLayer | MaskLayer2d = mask_layer
         self.initializer: AFAInitializer = initializer
         self.unmasker: AFAUnmasker = unmasker
+        self.notmiwae_model: NotMIWAE | None = notmiwae_model
 
-    def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
-        if y.ndim >= 2:
-            return y.argmax(dim=-1).long()
-        return y.long()
+    def _ipw_weight_from_propensity(
+        self,
+        ipw_normalize_weights: bool,
+        ipw_min_propensity: float,
+        ipw_max_weight: float,
+        propensity_for_actions: torch.Tensor
+    ) -> torch.Tensor:
+        weights = torch.reciprocal(
+            torch.clamp(
+                propensity_for_actions,
+                min=ipw_min_propensity,
+            )
+        )
+        weights = torch.clamp(weights, max=ipw_max_weight)
+        if ipw_normalize_weights:
+            weights = weights / torch.clamp(weights.mean(), min=1e-12)
+        return weights.detach()
 
     def fit(  # noqa: PLR0915, PLR0912, C901
         self,
@@ -808,7 +820,7 @@ class CMIEstimator(nn.Module):
         val_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
         lr: float,
         nepochs: int,
-        max_features: int,
+        max_features: int | None,
         eps: float,
         loss_fn: nn.Module,
         val_loss_fn: nn.Module | None,
@@ -835,10 +847,15 @@ class CMIEstimator(nn.Module):
             raise ValueError(msg)
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
-        if ipw_mode not in {"none", "feature_marginal"}:
+        if ipw_mode not in {"none", "feature_marginal", "notmiwae_feature"}:
             msg = (
-                "ipw_mode must be one of {'none', 'feature_marginal'}, "
+                "ipw_mode must be one of {'none', 'feature_marginal', 'notmiwae_feature'}, "
                 f"got {ipw_mode}."
+            )
+            raise ValueError(msg)
+        if ipw_mode == "notmiwae_feature" and self.notmiwae_model is None:
+            msg = (
+                "ipw_mode='notmiwae_feature' requires a trained notmiwae_model."
             )
             raise ValueError(msg)
         if ipw_min_propensity <= 0.0:
@@ -896,6 +913,13 @@ class CMIEstimator(nn.Module):
 
         n_selections = unmasker.get_n_selections(feature_shape)
 
+        if ipw_mode == "notmiwae_feature" and n_selections != mask_size:
+            msg = (
+                "ipw_mode='notmiwae_feature' currently requires per feature selection "
+                f"(got n_selections={n_selections}, mask_size={mask_size})."
+            )
+            raise ValueError(msg)
+
         opt = optim.Adam(
             set(
                 list(value_network.parameters()) + list(predictor.parameters())
@@ -941,9 +965,8 @@ class CMIEstimator(nn.Module):
             for x_batch, y_batch in train_loader:
                 # Move to device.
                 x = x_batch.to(device)
-                y = self._to_class_indices(y_batch).to(device)
-
-                # TODO: Check if this is a cold-start or warm-start.
+                y = to_class_indices(y_batch).to(device)
+                batch_idx = torch.arange(len(x), device=device)
 
                 init_mask_bool = initializer.initialize(
                     features=x,
@@ -953,8 +976,9 @@ class CMIEstimator(nn.Module):
                 forbidden_feat = initializer.get_training_forbidden_mask(
                     init_mask_bool
                 ).to(device)
-                init_mask_bool = init_mask_bool & ~forbidden_feat
-                m_feat = init_mask_bool.to(dtype=x.dtype)
+                # init_mask_bool = init_mask_bool & ~forbidden_feat
+                # m_feat = init_mask_bool.to(dtype=x.dtype)
+                m_feat = torch.zeros_like(init_mask_bool, dtype=x.dtype)
 
                 forbidden_sel = _feature_forbidden_to_selection_forbidden(
                     forbidden_feat,
@@ -967,6 +991,22 @@ class CMIEstimator(nn.Module):
                     len(x), n_selections, dtype=x.dtype, device=device
                 )
                 m_sel = torch.maximum(m_sel, forbidden_sel.to(dtype=x.dtype))
+                notmiwae_propensity = None
+                if ipw_mode == "notmiwae_feature":
+                    assert self.notmiwae_model is not None
+                    obs_mask = (~forbidden_feat).to(dtype=x.dtype)
+                    x_obs = x * obs_mask
+                    self.notmiwae_model.eval()
+                    with torch.no_grad():
+                        feature_probs = self.notmiwae_model.feature_observation_probs(
+                            x_filled=x_obs,
+                            s=obs_mask,
+                            n_samples=100,
+                        )
+                        feature_probs = feature_probs.masked_fill(
+                            forbidden_feat, 0.0
+                        )
+                        notmiwae_propensity = feature_probs
 
                 value_network.zero_grad()
                 predictor.zero_grad()
@@ -1049,24 +1089,34 @@ class CMIEstimator(nn.Module):
                     squared_error = torch.square(pred_selected - delta)
                     if ipw_mode == "none":
                         value_network_loss = squared_error.mean()
-                    else:
+                    elif ipw_mode == "feature_marginal":
                         available_sel = (~forbidden_sel).to(dtype=x.dtype)
                         propensity = available_sel.mean(dim=0)
                         propensity_for_actions = propensity[actions]
-                        weights = torch.reciprocal(
-                            torch.clamp(
-                                propensity_for_actions,
-                                min=ipw_min_propensity,
-                            )
+                        weights = self._ipw_weight_from_propensity(
+                            ipw_normalize_weights=ipw_normalize_weights,
+                            ipw_min_propensity=ipw_min_propensity,
+                            ipw_max_weight=ipw_max_weight,
+                            propensity_for_actions=propensity_for_actions,
                         )
-                        weights = torch.clamp(weights, max=ipw_max_weight)
-                        if ipw_normalize_weights:
-                            weights = weights / torch.clamp(
-                                weights.mean(), min=1e-12
-                            )
                         value_network_loss = (
-                            weights.detach() * squared_error
+                            weights * squared_error
                         ).mean()
+                    elif ipw_mode == "notmiwae_feature":
+                        assert notmiwae_propensity is not None
+                        propensity_for_actions = notmiwae_propensity[batch_idx, actions]
+                        weights = self._ipw_weight_from_propensity(
+                            ipw_normalize_weights=ipw_normalize_weights,
+                            ipw_min_propensity=ipw_min_propensity,
+                            ipw_max_weight=ipw_max_weight,
+                            propensity_for_actions=propensity_for_actions,
+                        )
+                        value_network_loss = (
+                            weights * squared_error
+                        ).mean()
+                    else:
+                        msg = f"Unsupported ipw_mode: {ipw_mode}"
+                        raise RuntimeError(msg)
 
                     # Calculate gradients.
                     total_loss = torch.mean(value_network_loss) + torch.mean(
@@ -1097,7 +1147,7 @@ class CMIEstimator(nn.Module):
                 for x_batch, y_batch in val_loader:
                     # Move to device.
                     x = x_batch.to(device)
-                    y = self._to_class_indices(y_batch).to(device)
+                    y = to_class_indices(y_batch).to(device)
 
                     # Setup.
                     init_mask_bool = initializer.initialize(
@@ -1119,8 +1169,9 @@ class CMIEstimator(nn.Module):
                     )
                     m_sel = torch.maximum(m_sel, forbidden_sel.to(dtype=x.dtype))
 
-                    init_mask_bool = init_mask_bool & ~forbidden_feat
-                    m_feat = init_mask_bool.to(dtype=x.dtype)
+                    # init_mask_bool = init_mask_bool & ~forbidden_feat
+                    # m_feat = init_mask_bool.to(dtype=x.dtype)
+                    m_feat = torch.zeros_like(init_mask_bool, dtype=x.dtype)
                     if len(x.shape) == 4:
                         x_masked = x * m_feat
                     else:

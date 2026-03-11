@@ -14,18 +14,42 @@ from afabench.afa_discriminative.afa_methods import (
 )
 from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.afa_discriminative.models import (
-    GreedyAFAClassifier,  # noqa: TC001
+    GreedyAFAClassifier,
+    NotMIWAE,
+    train_notmiwae,
 )
 from afabench.afa_discriminative.utils import (
     MaskLayer,
     afa_discriminative_training_prep,
     tie_first_k_linears_by_module,
+    to_class_indices,
 )
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import Gadgil2023TrainingConfig
+from afabench.common.custom_types import AFAInitializer
 from afabench.common.utils import set_seed
 
 log = logging.getLogger(__name__)
+
+
+def _get_initial_observation_mask(
+    x: torch.Tensor,
+    y: torch.Tensor,
+    initializer: AFAInitializer,
+    feature_shape: torch.Size,
+) -> torch.Tensor:
+    with torch.no_grad():
+        y_idx = to_class_indices(y)
+        init_mask_bool = initializer.initialize(
+            features=x,
+            label=y_idx,
+            feature_shape=feature_shape,
+        )
+        forbidden_feat = initializer.get_training_forbidden_mask(
+            init_mask_bool
+        )
+        init_mask_bool = init_mask_bool & ~forbidden_feat
+        return init_mask_bool.float()
 
 
 def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
@@ -72,19 +96,58 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         dropout=cfg.dropout,
     ).to(device)
 
-    # pred_linears = [m for m in predictor.modules() if isinstance(m, nn.Linear)]
-    # value_linears = [
-    #     m for m in value_network.modules() if isinstance(m, nn.Linear)
-    # ]
-    # msg = "Mismatch in number of linear layers."
-    # assert len(pred_linears) == len(value_linears), msg
-    # for i in range(len(cfg.hidden_units)):
-    #     value_linears[i].weight = pred_linears[i].weight
-    #     value_linears[i].bias = pred_linears[i].bias
-
     tie_first_k_linears_by_module(predictor, value_network, k=2)
 
     mask_layer = MaskLayer(append=True)
+
+    notmiwae_model = None
+    if cfg.ipw_mode == "notmiwae_feature":
+        feature_shape = torch.Size([d_in])
+
+        train_x_all, train_y_all = train_dataset.get_all_data()
+        val_x_all, val_y_all = val_dataset.get_all_data()
+        train_x_all = train_x_all.to(device)
+        train_y_all = train_y_all.to(device)
+        val_x_all = val_x_all.to(device)
+        val_y_all = val_y_all.to(device)
+
+        train_s_all = _get_initial_observation_mask(
+            x=train_x_all,
+            y=train_y_all,
+            initializer=initializer,
+            feature_shape=feature_shape,
+        ).to(device)
+
+        val_s_all = _get_initial_observation_mask(
+            x=val_x_all,
+            y=val_y_all,
+            initializer=initializer,
+            feature_shape=feature_shape,
+        ).to(device)
+
+        train_x_filled = train_x_all * train_s_all
+        val_x_filled = val_x_all * val_s_all
+
+        # TODO: currently not compatible with the AFAContext unmasker
+        notmiwae_model = NotMIWAE(
+            d_in=d_in,
+            n_latent=max(1, d_in - 1),
+            n_hidden=128,
+            activation=nn.Tanh,
+        ).to(device)
+
+        notmiwae_model = train_notmiwae(
+            model=notmiwae_model,
+            x_train=train_x_filled,
+            s_train=train_s_all,
+            x_val=val_x_filled,
+            s_val=val_s_all,
+            lr=1e-3,
+            batch_size=128,
+            max_iter=30000 if not cfg.smoke_test else 50,
+            n_samples=20,
+            eval_every=100,
+        )
 
     greedy_cmi_estimator = CMIEstimator(
         value_network=value_network,
@@ -92,6 +155,7 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         mask_layer=mask_layer,
         initializer=initializer,
         unmasker=unmasker,
+        notmiwae_model=notmiwae_model,
     ).to(device)
     feature_costs = train_dataset.get_feature_acquisition_costs()
     greedy_cmi_estimator.fit(

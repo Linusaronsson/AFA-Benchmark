@@ -50,6 +50,12 @@ def ind_to_onehot(inds: torch.Tensor, n: int) -> torch.Tensor:
     return onehot
 
 
+def to_class_indices(y: torch.Tensor) -> torch.Tensor:
+    if y.ndim >= 2:
+        return y.argmax(dim=-1).long()
+    return y.long()
+
+
 def afa_discriminative_training_prep(
     train_dataset_bundle_path: Path,
     val_dataset_bundle_path: Path,
