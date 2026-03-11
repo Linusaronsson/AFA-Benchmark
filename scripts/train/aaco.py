@@ -8,7 +8,8 @@ from omegaconf import OmegaConf
 
 from afabench.afa_oracle import create_aaco_method
 from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.config_classes import AACOTrainConfig
+from afabench.common.config_classes import AACOTrainConfig, InitializerConfig
+from afabench.common.custom_types import AFAInitializer
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import set_seed
@@ -29,36 +30,47 @@ def _validate_train_missing_mode(mode: str) -> None:
     raise ValueError(msg)
 
 
-def _sample_train_observed_mask(
-    cfg: AACOTrainConfig,
+def _derive_train_support_masks(
+    initializer: AFAInitializer,
+    *,
+    seed: int,
     features: torch.Tensor,
     feature_shape: torch.Size,
-) -> torch.BoolTensor:
-    initializer = get_afa_initializer_from_config(cfg.initializer)
-    initializer.set_seed(cfg.seed)
+) -> tuple[torch.BoolTensor, torch.BoolTensor]:
+    initializer.set_seed(seed)
     observed_mask = initializer.initialize(
         features=features,
         feature_shape=feature_shape,
-    )
-    return observed_mask.bool()
+    ).bool()
+    forbidden_mask = initializer.get_training_forbidden_mask(
+        observed_mask
+    ).bool()
+    if bool((observed_mask & forbidden_mask).any().item()):
+        msg = (
+            "Initializer returned overlapping observed and forbidden "
+            "training masks."
+        )
+        raise ValueError(msg)
+    train_support_mask = ~forbidden_mask
+    return observed_mask, train_support_mask
 
 
 def _apply_train_missingness(
     x_train: torch.Tensor,
-    observed_mask: torch.BoolTensor,
+    train_support_mask: torch.BoolTensor,
     mode: str,
     hide_val: float,
 ) -> tuple[torch.Tensor, torch.BoolTensor | None]:
     masked_x = x_train.clone()
-    missing = ~observed_mask
+    missing = ~train_support_mask
 
     if mode in {"zero_fill", "mask_aware"}:
         masked_x[missing] = hide_val
-        returned_mask = observed_mask if mode == "mask_aware" else None
+        returned_mask = train_support_mask if mode == "mask_aware" else None
         return masked_x, returned_mask
 
     if mode == "impute_mean":
-        observed_float = observed_mask.float()
+        observed_float = train_support_mask.float()
         counts = observed_float.sum(dim=0).clamp_min(1.0)
         means = (x_train * observed_float).sum(dim=0) / counts
         masked_x[missing] = means.unsqueeze(0).expand_as(masked_x)[missing]
@@ -66,6 +78,91 @@ def _apply_train_missingness(
 
     msg = f"Unsupported train missing mode: {mode}"
     raise ValueError(msg)
+
+
+def _prepare_train_matrix(
+    *,
+    x_train: torch.Tensor,
+    feature_shape: torch.Size,
+    initializer_cfg: InitializerConfig,
+    seed: int,
+    mode: str,
+    hide_val: float,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.BoolTensor | None, float, float]:
+    initial_observed_mask_flat: torch.BoolTensor | None = None
+    train_support_mask_flat: torch.BoolTensor | None = None
+
+    if mode != "full":
+        initializer = get_afa_initializer_from_config(initializer_cfg)
+        initial_observed_mask, train_support_mask = (
+            _derive_train_support_masks(
+                initializer,
+                seed=seed,
+                features=x_train,
+                feature_shape=feature_shape,
+            )
+        )
+        initial_observed_mask_flat = initial_observed_mask.reshape(
+            x_train.shape[0], -1
+        )
+        train_support_mask_flat = train_support_mask.reshape(
+            x_train.shape[0], -1
+        )
+
+    if len(feature_shape) > 1:
+        x_train = x_train.view(x_train.shape[0], -1)
+        logger.info(
+            f"Flattened features from {feature_shape} to {x_train.shape[1]}"
+        )
+        if initial_observed_mask_flat is not None:
+            initial_observed_mask_flat = initial_observed_mask_flat.to(
+                x_train.device
+            )
+        if train_support_mask_flat is not None:
+            train_support_mask_flat = train_support_mask_flat.to(
+                x_train.device
+            )
+
+    x_train = x_train.to(device)
+    if initial_observed_mask_flat is not None:
+        initial_observed_mask_flat = initial_observed_mask_flat.to(device)
+    if train_support_mask_flat is not None:
+        train_support_mask_flat = train_support_mask_flat.to(device)
+
+    initial_fraction = (
+        initial_observed_mask_flat.float().mean().item()
+        if initial_observed_mask_flat is not None
+        else 1.0
+    )
+    support_fraction = (
+        train_support_mask_flat.float().mean().item()
+        if train_support_mask_flat is not None
+        else 1.0
+    )
+
+    if train_support_mask_flat is None:
+        logger.info("Train missingness mode: full (no masking)")
+        return x_train, None, initial_fraction, support_fraction
+
+    x_train, train_observed_mask = _apply_train_missingness(
+        x_train=x_train,
+        train_support_mask=train_support_mask_flat,
+        mode=mode,
+        hide_val=hide_val,
+    )
+    observed_fraction = train_observed_mask.float().mean().item() if (
+        train_observed_mask is not None
+    ) else support_fraction
+    logger.info(
+        "Train missingness mode: %s (initial observed %.4f, "
+        "training support %.4f, oracle-visible %.4f)",
+        mode,
+        initial_fraction,
+        support_fraction,
+        observed_fraction,
+    )
+    return x_train, train_observed_mask, initial_fraction, support_fraction
 
 
 def run(cfg: AACOTrainConfig) -> None:
@@ -96,23 +193,18 @@ def run(cfg: AACOTrainConfig) -> None:
     X_train, y_train = dataset_obj.get_all_data()
     feature_shape = dataset_obj.feature_shape
 
-    observed_mask_flat: torch.BoolTensor | None = None
-    if cfg.train_missing_mode != "full":
-        observed_mask = _sample_train_observed_mask(cfg, X_train, feature_shape)
-        observed_mask_flat = observed_mask.reshape(X_train.shape[0], -1)
-
-    if len(feature_shape) > 1:
-        X_train = X_train.view(X_train.shape[0], -1)
-        logger.info(
-            f"Flattened features from {feature_shape} to {X_train.shape[1]}"
+    X_train, train_observed_mask, initial_fraction, support_fraction = (
+        _prepare_train_matrix(
+            x_train=X_train,
+            feature_shape=feature_shape,
+            initializer_cfg=cfg.initializer,
+            seed=cfg.seed,
+            mode=cfg.train_missing_mode,
+            hide_val=cfg.aco.hide_val,
+            device=device,
         )
-        if observed_mask_flat is not None:
-            observed_mask_flat = observed_mask_flat.to(X_train.device)
-
-    X_train = X_train.to(device)
+    )
     y_train = y_train.to(device)
-    if observed_mask_flat is not None:
-        observed_mask_flat = observed_mask_flat.to(device)
 
     logger.debug(
         "X_train shape %s, y_train shape %s",
@@ -120,25 +212,6 @@ def run(cfg: AACOTrainConfig) -> None:
         y_train.shape,
     )
     logger.debug(f"Feature shape: {feature_shape}")
-
-    if observed_mask_flat is not None:
-        X_train, train_observed_mask = _apply_train_missingness(
-            x_train=X_train,
-            observed_mask=observed_mask_flat,
-            mode=cfg.train_missing_mode,
-            hide_val=cfg.aco.hide_val,
-        )
-        observed_fraction = train_observed_mask.float().mean().item() if (
-            train_observed_mask is not None
-        ) else observed_mask_flat.float().mean().item()
-        logger.info(
-            "Train missingness mode: %s (observed fraction %.4f)",
-            cfg.train_missing_mode,
-            observed_fraction,
-        )
-    else:
-        train_observed_mask = None
-        logger.info("Train missingness mode: full (no masking)")
 
     # Determine soft budget parameter
     soft_budget_param = (
@@ -221,6 +294,8 @@ def run(cfg: AACOTrainConfig) -> None:
             "classifier_bundle_path": str(classifier_bundle_path),
             "n_features": X_train.shape[1],
             "n_train_samples": len(X_train),
+            "initial_observed_fraction": initial_fraction,
+            "train_support_fraction": support_fraction,
         },
     )
     logger.info(f"Saved AACO method to: {cfg.save_path}")

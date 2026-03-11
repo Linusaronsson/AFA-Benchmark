@@ -165,3 +165,46 @@ method_options:
     eval_batch_size: *dummy_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
+  cube_nm_ar_oracle:
+    train_script_name: "cube_nm_ar_oracle"
+    eval_batch_size: *dummy_eval_batch_size
+    hard_budget_ignored_datasets:
+      - cube
+      - cube_nonuniform_costs
+      - afa_context
+      - afa_context_v2
+      - afa_context_v2_without_noise
+      - synthetic_mnist
+      - cube_without_noise
+      - afa_context_without_noise
+      - mnist
+      - actg
+      - bank_marketing
+      - ckd
+      - diabetes
+      - fico
+      - fashion_mnist
+      - imagenette
+      - miniboone
+      - pharyngitis
+      - physionet
+    soft_budget_ignored_datasets:
+      - cube
+      - cube_nonuniform_costs
+      - afa_context
+      - afa_context_v2
+      - afa_context_v2_without_noise
+      - synthetic_mnist
+      - cube_without_noise
+      - afa_context_without_noise
+      - mnist
+      - actg
+      - bank_marketing
+      - ckd
+      - diabetes
+      - fico
+      - fashion_mnist
+      - imagenette
+      - miniboone
+      - pharyngitis
+      - physionet

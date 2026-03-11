@@ -19,6 +19,7 @@ REGISTERED_CLASSES = {
     "RandomDummyAFAMethod": "afabench.common.afa_methods.RandomDummyAFAMethod",
     "OptimalCubeAFAMethod": "afabench.common.afa_methods.OptimalCubeAFAMethod",
     "StopBaselineMethod": "afabench.common.stop_baseline_method.StopBaselineMethod",
+    "CubeNMAROracleMethod": "afabench.common.cube_nm_ar_oracle_method.CubeNMAROracleMethod",
     # AFA Dataset Classes
     "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
     "CubeNonUniformCostsDataset": "afabench.common.datasets.datasets.CubeNonUniformCostsDataset",

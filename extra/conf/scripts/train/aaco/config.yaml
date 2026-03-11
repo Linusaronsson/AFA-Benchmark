@@ -51,11 +51,15 @@ hard_budget: null
 # ============================================================================
 # Train-time missingness for AACO oracle fitting
 # ============================================================================
-# full: fit on complete training features (current default behavior)
-# zero_fill: sample train masks via initializer and zero out missing entries
-# impute_mean: sample train masks and mean-impute missing entries
-# mask_aware: sample train masks, zero-fill inputs, and pass observed masks to
-#             the oracle so KNN/scoring use only shared observed entries
+# full: fit on complete training features (control setting)
+# zero_fill: hide training-time forbidden features from the initializer and
+#            zero-fill them in the retrospective training table
+# impute_mean: hide training-time forbidden features and mean-impute them
+# mask_aware: zero-fill training-time forbidden features and pass the resulting
+#             training-support mask to the oracle so KNN/scoring use only
+#             shared available training features
+# For initializers without forbidden training features (e.g. cold),
+# zero_fill/impute_mean/mask_aware collapse to the full-train control.
 train_missing_mode: "full"
 
 # ============================================================================

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 import plotnine as p9
@@ -29,9 +30,28 @@ VARIANT_NAME_MAPPING = {
     "magbt": "MAGBT",
     "malasso": "MALasso",
 }
+TRAIN_INITIALIZER_NAME_MAPPING = {
+    "cold": "Full train",
+    "cube_nm_ar": "Missing train",
+}
 
 
 def _format_initializer_label(initializer: str) -> str:
+    composite_match = re.fullmatch(
+        r"train_initializer-(.+)\+eval_initializer-(.+)",
+        initializer,
+    )
+    if composite_match is not None:
+        train_initializer, eval_initializer = composite_match.groups()
+        train_label = TRAIN_INITIALIZER_NAME_MAPPING.get(
+            train_initializer,
+            _format_initializer_label(train_initializer),
+        )
+        if eval_initializer == "cold":
+            return train_label
+        eval_label = _format_initializer_label(eval_initializer)
+        return f"{train_label} / eval {eval_label}"
+
     if initializer in INITIALIZER_NAME_MAPPING:
         return INITIALIZER_NAME_MAPPING[initializer]
 
@@ -270,14 +290,16 @@ def main() -> None:
         raise ValueError(msg)
 
     plot = _make_plot(summary_data)
-    plot.save(
-        args.output_dir / "initializer_comparison.pdf",
-        width=11.0,
-        height=max(
-            3.0,
-            SUBPLOT_HEIGHT * ((summary_data["dataset"].n_unique() + 1) // 2),
-        ),
+    plot_height = max(
+        3.0,
+        SUBPLOT_HEIGHT * ((summary_data["dataset"].n_unique() + 1) // 2),
     )
+    for suffix in ("pdf", "svg", "png"):
+        plot.save(
+            args.output_dir / f"initializer_comparison.{suffix}",
+            width=11.0,
+            height=plot_height,
+        )
     summary_data.write_csv(args.output_dir / "initializer_comparison.csv")
 
 

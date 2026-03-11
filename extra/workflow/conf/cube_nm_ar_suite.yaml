@@ -20,14 +20,22 @@ cube_nm_ar_suite_methods:
   - gadgil2023
   - gadgil2023_ipw_feature_marginal
   - aaco_full
+  - aaco_zero_fill
+  - aaco_mask_aware
+  - cube_nm_ar_oracle
 
 cube_nm_ar_suite_mode_methods:
   hard:
     - gadgil2023
     - gadgil2023_ipw_feature_marginal
     - aaco_full
+    - aaco_zero_fill
+    - aaco_mask_aware
+    - cube_nm_ar_oracle
   soft:
     - aaco_full
+    - aaco_zero_fill
+    - aaco_mask_aware
 
 cube_nm_ar_suite_mode_stop_shield_deltas:
   hard: []

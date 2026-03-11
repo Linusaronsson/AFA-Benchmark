@@ -870,6 +870,28 @@ class StopBaselineTrainConfig:
 
 cs.store(name="train_stop_baseline", node=StopBaselineTrainConfig)
 
+# cube_nm_ar_oracle
+
+
+@dataclass
+class CubeNMAROracleTrainConfig:
+    train_dataset_bundle_path: str
+    val_dataset_bundle_path: str
+    classifier_bundle_path: str | None
+    save_path: str
+    initializer: InitializerConfig
+    unmasker: UnmaskerConfig
+    hard_budget: int | None
+    soft_budget_param: float | None
+
+    device: str
+    seed: int | None
+    use_wandb: bool = False
+    smoke_test: bool = False
+
+
+cs.store(name="train_cube_nm_ar_oracle", node=CubeNMAROracleTrainConfig)
+
 # optimalcube
 
 

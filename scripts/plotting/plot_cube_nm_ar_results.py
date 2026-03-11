@@ -5,11 +5,17 @@ import argparse
 import json
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+from matplotlib.lines import Line2D
 
 from afabench.eval.plotting_config import METHOD_NAME_MAPPING
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 RISK_METRIC_KEYS = (
     "risky_episode_rate",
@@ -24,7 +30,7 @@ SHIELD_METRIC_KEYS = (
     "forced_continue_rate",
 )
 
-DEFAULT_FORMATS = ("png", "pdf")
+DEFAULT_FORMATS = ("pdf", "svg")
 DARK2_COLORS = (
     "#1B9E77",
     "#D95F02",
@@ -38,7 +44,10 @@ TRAIN_INITIALIZER_LABELS = {
     "cold": "full train",
     "cube_nm_ar": "missing train",
 }
-TRAIN_INITIALIZER_LINESTYLES = ("-", "--", "-.", ":")
+TRAIN_INITIALIZER_LINESTYLES = {
+    "cold": "-",
+    "cube_nm_ar": "--",
+}
 METHOD_STYLES: dict[str, dict[str, str]] = {
     "gadgil2023": {
         "label": METHOD_NAME_MAPPING.get("gadgil2023", "gadgil2023"),
@@ -53,22 +62,28 @@ METHOD_STYLES: dict[str, dict[str, str]] = {
         "marker": "s",
     },
     "aaco_full": {
-        "label": METHOD_NAME_MAPPING.get("aaco_full", "aaco_full"),
+        "label": "AACO",
         "color": DARK2_COLORS[2],
         "linestyle": "-",
         "marker": "^",
     },
     "aaco_zero_fill": {
-        "label": METHOD_NAME_MAPPING.get("aaco_zero_fill", "aaco_zero_fill"),
+        "label": "AACO + zero-fill",
         "color": DARK2_COLORS[3],
         "linestyle": "--",
         "marker": "D",
     },
     "aaco_mask_aware": {
-        "label": METHOD_NAME_MAPPING.get("aaco_mask_aware", "aaco_mask_aware"),
+        "label": "AACO + mask-aware",
         "color": DARK2_COLORS[4],
         "linestyle": "-.",
         "marker": "P",
+    },
+    "cube_nm_ar_oracle": {
+        "label": "CUBE-NM-AR oracle",
+        "color": "#111111",
+        "linestyle": ":",
+        "marker": "*",
     },
     "odin_model_based": {
         "label": METHOD_NAME_MAPPING.get(
@@ -421,6 +436,7 @@ def apply_paper_style() -> None:
             "axes.facecolor": "white",
             "figure.facecolor": "white",
             "savefig.facecolor": "white",
+            "savefig.transparent": False,
             "savefig.bbox": "tight",
             "grid.color": "#D0D0D0",
             "grid.alpha": 0.18,
@@ -458,10 +474,11 @@ def _train_initializer_linestyle(
     train_initializer: str,
     initializer_order: dict[str, int],
 ) -> str:
+    if train_initializer in TRAIN_INITIALIZER_LINESTYLES:
+        return TRAIN_INITIALIZER_LINESTYLES[train_initializer]
+    fallback_linestyles = ("-.", ":")
     order_idx = initializer_order.get(train_initializer, 0)
-    return TRAIN_INITIALIZER_LINESTYLES[
-        order_idx % len(TRAIN_INITIALIZER_LINESTYLES)
-    ]
+    return fallback_linestyles[order_idx % len(fallback_linestyles)]
 
 
 def _expand_ylim(
@@ -475,8 +492,8 @@ def _expand_ylim(
 
 
 def _get_series_entries(summary: pd.DataFrame) -> list[dict[str, object]]:
-    has_multiple_train_initializers = (
-        len(summary["train_initializer"].drop_duplicates()) > 1
+    has_multiple_eval_initializers = (
+        len(summary["eval_initializer"].drop_duplicates()) > 1
     )
     method_order = {method: idx for idx, method in enumerate(METHOD_STYLES)}
     train_initializers = list(summary["train_initializer"].drop_duplicates())
@@ -492,15 +509,42 @@ def _get_series_entries(summary: pd.DataFrame) -> list[dict[str, object]]:
             )
         )
     }
+    eval_initializers = list(summary["eval_initializer"].drop_duplicates())
+    eval_initializer_order = {
+        initializer: idx for idx, initializer in enumerate(eval_initializers)
+    }
+    variant_order = {
+        (
+            str(train_initializer),
+            str(eval_initializer),
+        ): idx
+        for idx, (train_initializer, eval_initializer) in enumerate(
+            summary[["train_initializer", "eval_initializer"]]
+            .drop_duplicates()
+            .sort_values(
+                ["train_initializer", "eval_initializer"],
+                key=lambda col: col.map(
+                    train_initializer_order
+                    if col.name == "train_initializer"
+                    else eval_initializer_order
+                ).fillna(999),
+            )
+            .itertuples(index=False, name=None)
+        )
+    }
     unique_pairs = (
-        summary[["method", "train_initializer"]]
+        summary[["method", "train_initializer", "eval_initializer"]]
         .drop_duplicates()
         .sort_values(
-            ["method", "train_initializer"],
+            ["method", "train_initializer", "eval_initializer"],
             key=lambda col: col.map(
                 method_order
                 if col.name == "method"
-                else train_initializer_order
+                else (
+                    train_initializer_order
+                    if col.name == "train_initializer"
+                    else eval_initializer_order
+                )
             ).fillna(999),
         )
     )
@@ -508,24 +552,46 @@ def _get_series_entries(summary: pd.DataFrame) -> list[dict[str, object]]:
     for row in unique_pairs.itertuples(index=False):
         method = str(row.method)
         train_initializer = str(row.train_initializer)
+        eval_initializer = str(row.eval_initializer)
         base_style = _method_style(method).copy()
-        label = _method_label(method)
-        if has_multiple_train_initializers:
-            suffix = _train_initializer_label(train_initializer)
-            label = f"{label} ({suffix})"
-            base_style["linestyle"] = _train_initializer_linestyle(
-                train_initializer,
-                train_initializer_order,
-            )
+        base_style["linestyle"] = _train_initializer_linestyle(
+            train_initializer,
+            train_initializer_order,
+        )
+        variant_label = _train_initializer_label(train_initializer)
+        if has_multiple_eval_initializers:
+            variant_label = f"{variant_label}; eval={eval_initializer}"
         entries.append(
             {
                 "method": method,
                 "train_initializer": train_initializer,
-                "label": label,
+                "eval_initializer": eval_initializer,
+                "method_label": _method_label(method),
+                "variant_label": variant_label,
+                "variant_index": variant_order[
+                    (train_initializer, eval_initializer)
+                ],
+                "n_variants": len(variant_order),
                 "style": base_style,
             }
         )
     return entries
+
+
+def _marker_x_positions(
+    x: NDArray[np.floating],
+    *,
+    budget_mode: str,
+    variant_index: int,
+    n_variants: int,
+) -> NDArray[np.floating]:
+    if n_variants <= 1:
+        return x
+
+    centered_index = variant_index - (n_variants - 1) / 2
+    if budget_mode == "soft":
+        return x * np.exp(0.045 * centered_index)
+    return x + 0.05 * centered_index
 
 
 def _plot_metric_panel(
@@ -557,6 +623,7 @@ def _plot_metric_panel(
             mean_column=mean_column,
             std_column=std_column,
             display_ylim=display_ylim,
+            budget_mode=budget_mode,
             budget_column=budget_column,
         )
     ax.set_title(title)
@@ -581,6 +648,7 @@ def _series_group(
     return summary[
         (summary["method"] == str(entry["method"]))
         & (summary["train_initializer"] == str(entry["train_initializer"]))
+        & (summary["eval_initializer"] == str(entry["eval_initializer"]))
     ].sort_values(budget_column)
 
 
@@ -592,21 +660,34 @@ def _plot_series(
     mean_column: str,
     std_column: str,
     display_ylim: tuple[float, float] | None,
+    budget_mode: str,
     budget_column: str,
 ) -> None:
     style = entry["style"]
     x = group[budget_column].to_numpy()
     y = group[mean_column].to_numpy()
     yerr = group[std_column].to_numpy()
+    marker_x = _marker_x_positions(
+        x,
+        budget_mode=budget_mode,
+        variant_index=int(entry["variant_index"]),
+        n_variants=int(entry["n_variants"]),
+    )
     ax.plot(
         x,
         y,
-        label=str(entry["label"]),
         color=style["color"],
         linestyle=style["linestyle"],
+    )
+    ax.plot(
+        marker_x,
+        y,
+        color=style["color"],
+        linestyle="None",
         marker=style["marker"],
         markerfacecolor="white",
         markeredgewidth=1.6,
+        zorder=3,
     )
     if group["runs"].max() <= 1:
         return
@@ -620,7 +701,7 @@ def _plot_series(
         lower,
         upper,
         color=style["color"],
-        alpha=0.14,
+        alpha=0.10,
         linewidth=0,
     )
 
@@ -659,31 +740,77 @@ def _annotate_panels(axes: list[plt.Axes]) -> None:
 
 def _finish_figure(
     fig: plt.Figure,
-    axes: list[plt.Axes],
+    series_entries: list[dict[str, object]],
     *,
     output_path: Path,
     formats: list[str],
-    legend_ncol: int = 3,
+    method_legend_ncol: int = 3,
 ) -> None:
-    by_label: dict[str, object] = {}
-    for ax in axes:
-        handles, labels = ax.get_legend_handles_labels()
-        for handle, label in zip(handles, labels, strict=True):
-            by_label.setdefault(label, handle)
     top_rect = 0.94
-    if by_label:
-        legend_rows = (len(by_label) + legend_ncol - 1) // legend_ncol
-        top_rect = max(0.72, 0.94 - 0.08 * max(0, legend_rows - 1))
-        fig.legend(
-            list(by_label.values()),
-            list(by_label.keys()),
-            loc="upper center",
-            bbox_to_anchor=(0.5, 1.02),
-            ncol=min(legend_ncol, len(by_label)),
+    methods_in_plot: dict[str, dict[str, object]] = {}
+    variants_in_plot: dict[str, dict[str, object]] = {}
+    for entry in series_entries:
+        methods_in_plot.setdefault(str(entry["method"]), entry)
+        variants_in_plot.setdefault(str(entry["variant_label"]), entry)
+
+    method_handles = [
+        Line2D(
+            [],
+            [],
+            color=str(entry["style"]["color"]),
+            linestyle="-",
+            marker=str(entry["style"]["marker"]),
+            markerfacecolor="white",
+            markeredgewidth=1.6,
+            label=str(entry["method_label"]),
         )
+        for entry in methods_in_plot.values()
+    ]
+    if method_handles:
+        method_legend_rows = (
+            len(method_handles) + method_legend_ncol - 1
+        ) // method_legend_ncol
+        top_rect = max(0.78, 0.92 - 0.07 * max(0, method_legend_rows - 1))
+        method_legend = fig.legend(
+            handles=method_handles,
+            labels=[handle.get_label() for handle in method_handles],
+            title="Policy",
+            loc="upper center",
+            bbox_to_anchor=(0.5, 1.04),
+            ncol=min(method_legend_ncol, len(method_handles)),
+        )
+        fig.add_artist(method_legend)
+
+    if len(variants_in_plot) > 1:
+        variant_handles = [
+            Line2D(
+                [],
+                [],
+                color="#4C4C4C",
+                linestyle=str(entry["style"]["linestyle"]),
+                linewidth=2.2,
+                label=str(entry["variant_label"]),
+            )
+            for entry in variants_in_plot.values()
+        ]
+        variant_legend = fig.legend(
+            handles=variant_handles,
+            labels=[handle.get_label() for handle in variant_handles],
+            title="Training Data",
+            loc="upper center",
+            bbox_to_anchor=(0.5, 0.94),
+            ncol=min(len(variant_handles), 3),
+            handlelength=3.0,
+        )
+        fig.add_artist(variant_legend)
+        top_rect = min(top_rect, 0.72)
     fig.tight_layout(rect=(0.0, 0.0, 1.0, top_rect))
     for fmt in formats:
-        fig.savefig(output_path.with_suffix(f".{fmt}"), bbox_inches="tight")
+        fig.savefig(
+            output_path.with_suffix(f".{fmt}"),
+            bbox_inches="tight",
+            facecolor="white",
+        )
     plt.close(fig)
 
 
@@ -717,7 +844,7 @@ def plot_accuracy(
     _annotate_panels(list(axes[0]))
     _finish_figure(
         fig,
-        list(axes[0]),
+        series_entries,
         output_path=output_path,
         formats=formats,
     )
@@ -750,7 +877,7 @@ def plot_behavior(
     _annotate_panels(list(axes[0]))
     _finish_figure(
         fig,
-        list(axes[0]),
+        series_entries,
         output_path=output_path,
         formats=formats,
     )
@@ -789,10 +916,10 @@ def plot_risk(
     _annotate_panels(list(axes.flat))
     _finish_figure(
         fig,
-        list(axes.flat),
+        series_entries,
         output_path=output_path,
         formats=formats,
-        legend_ncol=2,
+        method_legend_ncol=2,
     )
 
 
@@ -832,10 +959,10 @@ def plot_paper_summary(
     _annotate_panels(list(axes.flat))
     _finish_figure(
         fig,
-        list(axes.flat),
+        series_entries,
         output_path=output_path,
         formats=formats,
-        legend_ncol=2,
+        method_legend_ncol=2,
     )
 
 
@@ -873,10 +1000,10 @@ def plot_shielding(
     _annotate_panels(list(axes[0]))
     _finish_figure(
         fig,
-        list(axes[0]),
+        series_entries,
         output_path=output_path,
         formats=formats,
-        legend_ncol=2,
+        method_legend_ncol=2,
     )
 
 

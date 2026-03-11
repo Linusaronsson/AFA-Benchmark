@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import plotnine as p9
@@ -32,6 +32,9 @@ from afabench.eval.plotting_config import (
     PLOT_HEIGHT,
     PLOT_WIDTH,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 SUBPLOT_HEIGHT = 2.0
 
@@ -589,15 +592,22 @@ def add_metric_column(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def assert_only_one_soft_budget_param_type(df: pl.DataFrame) -> pl.DataFrame:
-    assert (
-        df["train_soft_budget_param"].is_null()
-        | df["eval_soft_budget_param"].is_null()
-    ).all(), (
-        "Both train_soft_budget_param and eval_soft_budget_param cannot be set. Choose one."
+    both_set = (
+        df["train_soft_budget_param"].is_not_null()
+        & df["eval_soft_budget_param"].is_not_null()
     )
+    if both_set.any():
+        mismatched = df.filter(both_set).filter(
+            pl.col("train_soft_budget_param")
+            != pl.col("eval_soft_budget_param")
+        )
+        assert mismatched.is_empty(), (
+            "Both train_soft_budget_param and eval_soft_budget_param are set "
+            "with different values. Choose one."
+        )
     df = df.with_columns(
         soft_budget_param=pl.coalesce(
-            "train_soft_budget_param", "eval_soft_budget_param"
+            "eval_soft_budget_param", "train_soft_budget_param"
         )
     ).drop(["train_soft_budget_param", "eval_soft_budget_param"])
     return df
@@ -705,7 +715,7 @@ class EvaluationPlotter:
         """
         self.input_path = input_path
         self.output_folder = output_folder
-        self.formats = formats
+        self.formats: Sequence[str] = formats
         self.df = pl.DataFrame()
         self.df_stop_action = None
         self.df_traj = None
