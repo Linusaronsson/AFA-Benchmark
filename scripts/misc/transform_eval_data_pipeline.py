@@ -22,7 +22,6 @@ _CSV_SCHEMA_OVERRIDES = {
 _OPTIONAL_METADATA_COLUMNS = [
     "cube_nm_ar_context_idx",
     "cube_nm_ar_is_risky_context",
-    "cube_nm_ar_relevant_block_blocked",
     "cube_nm_ar_relevant_action_start",
     "cube_nm_ar_relevant_action_end",
     "cube_nm_ar_rescue_action",
@@ -74,14 +73,14 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    df = pl.read_csv(
+    eval_df = pl.read_csv(
         args.input_path,
         schema_overrides=_CSV_SCHEMA_OVERRIDES,
         null_values=["null"],
     )
 
     # Change prev_selections_performed (a history of selections) to instead just be the number of selections performed, which is the same as the time step
-    df = df.with_columns(
+    eval_df = eval_df.with_columns(
         n_selections_performed=pl.col(
             "prev_selections_performed"
         ).map_elements(
@@ -90,7 +89,7 @@ def main() -> None:
     ).drop("prev_selections_performed")
 
     # Pivot long on classifier type
-    df = df.rename(
+    eval_df = eval_df.rename(
         {
             "builtin_predicted_class": "builtin",
             "external_predicted_class": "external",
@@ -109,7 +108,7 @@ def main() -> None:
             *[
                 column
                 for column in _OPTIONAL_METADATA_COLUMNS
-                if column in df.columns
+                if column in eval_df.columns
             ],
         ],
         variable_name="classifier",
@@ -117,7 +116,7 @@ def main() -> None:
     )
 
     # Add some columns provided as args
-    df = df.with_columns(
+    eval_df = eval_df.with_columns(
         afa_method=pl.lit(args.method, dtype=pl.String),
         dataset=pl.lit(args.dataset, dtype=pl.String),
         initializer=pl.lit(args.initializer, dtype=pl.String),
@@ -133,7 +132,7 @@ def main() -> None:
         ),
     )
 
-    df.write_parquet(args.output_path)
+    eval_df.write_parquet(args.output_path)
 
 
 if __name__ == "__main__":

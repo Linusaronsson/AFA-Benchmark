@@ -1,6 +1,6 @@
 # pyright: reportCallIssue=false, reportAttributeAccessIssue=false, reportArgumentType=false
 """
-Generate thesis-ready plots for CMI missing-train experiments.
+Generate thesis-ready plots for train-missing experiments.
 
 Reads the accuracy_summary.csv and gap_to_baseline.csv produced by
 missing_train_analysis.py and generates publication-quality figures.
@@ -22,7 +22,11 @@ import seaborn as sns
 
 # Method display names.
 METHOD_NAMES = {
+    "aaco_full": "AACO full",
+    "aaco_zero_fill": "AACO zero-fill",
+    "aaco_mask_aware": "AACO mask-aware",
     "gadgil2023": "DIME",
+    "gadgil2023_ipw_feature_marginal": "DIME + IPW",
     "ma2018_external": "EDDI",
     "covert2023": "GDFS",
 }

@@ -2,9 +2,11 @@
 Compare evaluation performance across initializers.
 
 Runtime config (--config / --configfile):
-    initializers (list[str], required):
-        Initializer names without prefix (e.g. ["missingness",
-        "missingness_all_observed"]).
+    train_initializers (list[str], required):
+        Train-stage initializer names without prefix. This workflow compares
+        train-time support conditions while holding the eval initializer fixed.
+    eval_initializer (str, default="cold"):
+        Eval-stage initializer used together with train_initializers.
     method_sets (dict[str, list[str]], required):
         Method sets; only keys are used to locate merged method-set artifacts.
     eval_dataset_split (str, default="val"):
@@ -27,21 +29,23 @@ Runtime config (--config / --configfile):
 
 Input expectations:
     This workflow expects upstream outputs from pipeline.smk for each
-    initializer at:
-      extra/output/merged_results/eval_split-<split>/initializer-<initializer>/
+    condition at:
+      extra/output/merged_results/eval_split-<split>/
+      train_initializer-<train_initializer>+eval_initializer-<eval_initializer>/
       eval_perf/method_set-<method_set>+classifier_type-<classifier>.parquet
 
 Outputs:
     Merged cross-initializer parquet:
-      extra/output/merged_results/eval_split-<split>/initializer-comparison/
+      extra/output/merged_results/eval_split-<split>/<comparison-tag>/
       eval_perf/method_set-<method_set>+classifier_type-<classifier>.parquet
     Plots:
-      extra/output/plot_results/eval_split-<split>/initializer-comparison/
+      extra/output/plot_results/eval_split-<split>/<comparison-tag>/
       eval_perf/method_set-<method_set>+classifier_type-<classifier>/
 """
 
 EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")
-INITIALIZERS = config.get("initializers", None)
+TRAIN_INITIALIZERS = config.get("train_initializers", None)
+EVAL_INITIALIZER = config.get("eval_initializer", "cold")
 METHOD_SETS = config.get("method_sets", None)
 CLASSIFIER_TYPES = config.get("classifier_types", ["external"])
 PIPELINE_CONFIGFILES = config.get("pipeline_configfiles", [])
@@ -49,19 +53,34 @@ PIPELINE_CORES = config.get("pipeline_cores", 8)
 PIPELINE_RERUN_INCOMPLETE = config.get("pipeline_rerun_incomplete", True)
 PIPELINE_EXTRA_CONFIG = config.get("pipeline_extra_config", "")
 
-if INITIALIZERS is None:
-    raise ValueError("Expected 'initializers' in config.")
+if TRAIN_INITIALIZERS is None:
+    raise ValueError("Expected 'train_initializers' in config.")
 if METHOD_SETS is None:
     raise ValueError("Expected 'method_sets' in config.")
 
+INITIALIZERS = TRAIN_INITIALIZERS
 METHOD_SET_NAMES = list(METHOD_SETS.keys())
+
+
+def _initializer_tag(initializer: str) -> str:
+    return (
+        f"train_initializer-{initializer}+"
+        f"eval_initializer-{EVAL_INITIALIZER}"
+    )
+
+
+def _comparison_tag() -> str:
+    return (
+        "train_initializer-comparison+"
+        f"eval_initializer-{EVAL_INITIALIZER}"
+    )
 
 
 def _upstream_eval_perf_paths():
     return [
         (
             f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/"
-            f"initializer-{initializer}/eval_perf/"
+            f"{_initializer_tag(initializer)}/eval_perf/"
             f"method_set-{method_set}+classifier_type-{classifier_type}.parquet"
         )
         for initializer in INITIALIZERS
@@ -73,7 +92,7 @@ def _upstream_eval_perf_paths():
 rule all:
     input:
         [
-            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/initializer-comparison/eval_perf/"
+            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{_comparison_tag()}/eval_perf/"
             f"method_set-{method_set}+classifier_type-{classifier_type}"
             for method_set in METHOD_SET_NAMES
             for classifier_type in CLASSIFIER_TYPES
@@ -89,6 +108,7 @@ if PIPELINE_CONFIGFILES:
             method_sets=" ".join(METHOD_SET_NAMES),
             classifier_types=" ".join(CLASSIFIER_TYPES),
             configfiles=" ".join(PIPELINE_CONFIGFILES),
+            eval_initializer=EVAL_INITIALIZER,
             rerun_incomplete=(
                 "--rerun-incomplete"
                 if PIPELINE_RERUN_INCOMPLETE
@@ -109,11 +129,12 @@ if PIPELINE_CONFIGFILES:
                     {params.rerun_incomplete} \
                     --nolock \
                     --configfile {params.configfiles} \
-                    --config initializer="${{initializer}}" \
+                    --config train_initializer="${{initializer}}" \
+                             eval_initializer="{params.eval_initializer}" \
                              eval_dataset_split="{EVAL_DATASET_SPLIT}" \
                              {params.pipeline_extra_config} \
                     --cores {params.pipeline_cores} \
-                    extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/initializer-${{initializer}}/eval_perf/method_set-${{method_set}}+classifier_type-${{classifier_type}}.parquet
+                    extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/train_initializer-${{initializer}}+eval_initializer-{params.eval_initializer}/eval_perf/method_set-${{method_set}}+classifier_type-${{classifier_type}}.parquet
                 done
               done
             done
@@ -123,12 +144,11 @@ if PIPELINE_CONFIGFILES:
 rule merge_initializer_eval_perf:
     input:
         lambda wc: [
-            f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/initializer-{initializer}/eval_perf/"
-            f"method_set-{wc.method_set}+classifier_type-{wc.classifier_type}.parquet"
+            f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/train_initializer-{initializer}+eval_initializer-{EVAL_INITIALIZER}/eval_perf/method_set-{wc.method_set}+classifier_type-{wc.classifier_type}.parquet"
             for initializer in INITIALIZERS
         ]
     output:
-        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/initializer-comparison/eval_perf/"
+        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{_comparison_tag()}/eval_perf/"
         "method_set-{method_set}+classifier_type-{classifier_type}.parquet"
     resources:
         shell_exec="bash"
@@ -141,11 +161,11 @@ rule merge_initializer_eval_perf:
 
 rule plot_initializer_eval_perf:
     input:
-        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/initializer-comparison/eval_perf/"
+        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{_comparison_tag()}/eval_perf/"
         "method_set-{method_set}+classifier_type-{classifier_type}.parquet"
     output:
         directory(
-            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/initializer-comparison/eval_perf/"
+            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{_comparison_tag()}/eval_perf/"
             "method_set-{method_set}+classifier_type-{classifier_type}"
         )
     resources:

@@ -22,7 +22,6 @@ RISK_METRIC_KEYS = (
     "risky_accuracy",
     "risky_rescue_rate",
     "risky_unsafe_stop_rate",
-    "risky_avoidable_unsafe_stop_rate",
 )
 SHIELD_METRIC_KEYS = (
     "proposed_stop_rate",
@@ -41,12 +40,18 @@ DARK2_COLORS = (
     "#A6761D",
 )
 TRAIN_INITIALIZER_LABELS = {
-    "cold": "full train",
-    "cube_nm_ar": "missing train",
+    "cold": "full train support",
+    "cube_nm_ar": "rescue-censored train",
+    "mcar_p03": "MCAR 30%",
+    "mar_p03": "MAR 30%",
+    "mnar_logistic_p03": "MNAR logistic 30%",
 }
 TRAIN_INITIALIZER_LINESTYLES = {
     "cold": "-",
     "cube_nm_ar": "--",
+    "mcar_p03": ":",
+    "mar_p03": "-.",
+    "mnar_logistic_p03": (0, (3, 1, 1, 1)),
 }
 METHOD_STYLES: dict[str, dict[str, str]] = {
     "gadgil2023": {
@@ -106,7 +111,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Summarize and plot CUBE-NM-AR evaluation logs for "
-            "train-missing / test-queryable runs."
+            "risky-rescue train-support experiments."
         )
     )
     parser.add_argument("eval_results_root", type=Path)
@@ -241,9 +246,15 @@ def _summarize_eval_run(
         on="episode_id",
         how="left",
     ).merge(action_flags, on="episode_id", how="left")
-    merged["correct"] = (
-        merged["external_predicted_class"] == merged["true_class"]
-    ).astype(float)
+    pred_col = (
+        "external_predicted_class"
+        if "external_predicted_class" in merged.columns
+        and bool(merged["external_predicted_class"].notna().any())
+        else "builtin_predicted_class"
+    )
+    merged["correct"] = (merged[pred_col] == merged["true_class"]).astype(
+        float
+    )
     return merged
 
 
@@ -372,14 +383,6 @@ def aggregate_runs(summary: pd.DataFrame, *, budget_mode: str) -> pd.DataFrame:
             risky_rescue_rate_std=("risky_rescue_rate", "std"),
             risky_unsafe_stop_rate_mean=("risky_unsafe_stop_rate", "mean"),
             risky_unsafe_stop_rate_std=("risky_unsafe_stop_rate", "std"),
-            risky_avoidable_unsafe_stop_rate_mean=(
-                "risky_avoidable_unsafe_stop_rate",
-                "mean",
-            ),
-            risky_avoidable_unsafe_stop_rate_std=(
-                "risky_avoidable_unsafe_stop_rate",
-                "std",
-            ),
             context_episode_rate_mean=("context_episode_rate", "mean"),
             context_episode_rate_std=("context_episode_rate", "std"),
             rescue_episode_rate_mean=("rescue_episode_rate", "mean"),
@@ -473,10 +476,10 @@ def _train_initializer_label(train_initializer: str) -> str:
 def _train_initializer_linestyle(
     train_initializer: str,
     initializer_order: dict[str, int],
-) -> str:
+) -> str | tuple[int, tuple[int, int, int, int]]:
     if train_initializer in TRAIN_INITIALIZER_LINESTYLES:
         return TRAIN_INITIALIZER_LINESTYLES[train_initializer]
-    fallback_linestyles = ("-.", ":")
+    fallback_linestyles: tuple[str, ...] = ("-.", ":")
     order_idx = initializer_order.get(train_initializer, 0)
     return fallback_linestyles[order_idx % len(fallback_linestyles)]
 
@@ -896,11 +899,7 @@ def plot_risk(
         ("risky_accuracy", "Risky-Context Accuracy", (0.0, 1.0)),
         ("risky_rescue_rate", "Risky Rescue Rate", (0.0, 1.0)),
         ("risky_unsafe_stop_rate", "Risky Unsafe-Stop Rate", (0.0, 1.0)),
-        (
-            "risky_avoidable_unsafe_stop_rate",
-            "Risky Avoidable Unsafe-Stop Rate",
-            (0.0, 1.0),
-        ),
+        ("first_action_context_rate", "First Action = Context", (0.0, 1.0)),
     ]
     for ax, (metric, title, ylim) in zip(axes.flat, metrics, strict=True):
         _plot_metric_panel(
@@ -936,11 +935,7 @@ def plot_paper_summary(
         ("accuracy", "Overall Accuracy", (0.0, 1.0)),
         ("risky_accuracy", "Risky-Context Accuracy", (0.0, 1.0)),
         ("risky_rescue_rate", "Risky Rescue Rate", (0.0, 1.0)),
-        (
-            "risky_avoidable_unsafe_stop_rate",
-            "Avoidable Unsafe-Stop Rate",
-            (0.0, 1.0),
-        ),
+        ("risky_unsafe_stop_rate", "Risky Unsafe-Stop Rate", (0.0, 1.0)),
     ]
     ylabels = ["Accuracy", "Accuracy", "Rate", "Rate"]
     for ax, (metric, title, ylim), ylabel in zip(

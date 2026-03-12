@@ -31,9 +31,27 @@ VARIANT_NAME_MAPPING = {
     "malasso": "MALasso",
 }
 TRAIN_INITIALIZER_NAME_MAPPING = {
-    "cold": "Full train",
-    "cube_nm_ar": "Missing train",
+    "cold": "Full train support",
+    "cube_nm_ar": "Rescue-censored train",
 }
+MECHANISM_INITIALIZER_MAPPING = {
+    "mcar": "MCAR",
+    "mar": "MAR",
+    "mnar_logistic": "MNAR logistic",
+}
+
+
+def _format_rate_initializer_label(initializer: str) -> str | None:
+    match = re.fullmatch(r"(mcar|mar|mnar_logistic)_p(\d+)", initializer)
+    if match is None:
+        return None
+
+    mechanism, rate_code = match.groups()
+    mechanism_label = MECHANISM_INITIALIZER_MAPPING.get(
+        mechanism, mechanism.upper()
+    )
+    rate = float(f"0.{rate_code}")
+    return f"{mechanism_label} {round(rate * 100):.0f}%"
 
 
 def _format_initializer_label(initializer: str) -> str:
@@ -41,6 +59,7 @@ def _format_initializer_label(initializer: str) -> str:
         r"train_initializer-(.+)\+eval_initializer-(.+)",
         initializer,
     )
+    formatted_label: str
     if composite_match is not None:
         train_initializer, eval_initializer = composite_match.groups()
         train_label = TRAIN_INITIALIZER_NAME_MAPPING.get(
@@ -48,24 +67,28 @@ def _format_initializer_label(initializer: str) -> str:
             _format_initializer_label(train_initializer),
         )
         if eval_initializer == "cold":
-            return train_label
-        eval_label = _format_initializer_label(eval_initializer)
-        return f"{train_label} / eval {eval_label}"
+            formatted_label = train_label
+        else:
+            eval_label = _format_initializer_label(eval_initializer)
+            formatted_label = f"{train_label} / eval {eval_label}"
+    else:
+        rate_label = _format_rate_initializer_label(initializer)
+        if rate_label is not None:
+            formatted_label = rate_label
+        elif initializer in INITIALIZER_NAME_MAPPING:
+            formatted_label = INITIALIZER_NAME_MAPPING[initializer]
+        elif initializer.startswith("missingness_all_observed_"):
+            variant = initializer.removeprefix("missingness_all_observed_")
+            variant_label = VARIANT_NAME_MAPPING.get(variant, variant.upper())
+            formatted_label = f"{variant_label} all observed"
+        elif initializer.startswith("missingness_"):
+            variant = initializer.removeprefix("missingness_")
+            variant_label = VARIANT_NAME_MAPPING.get(variant, variant.upper())
+            formatted_label = f"{variant_label} missingness"
+        else:
+            formatted_label = initializer
 
-    if initializer in INITIALIZER_NAME_MAPPING:
-        return INITIALIZER_NAME_MAPPING[initializer]
-
-    if initializer.startswith("missingness_all_observed_"):
-        variant = initializer.removeprefix("missingness_all_observed_")
-        variant_label = VARIANT_NAME_MAPPING.get(variant, variant.upper())
-        return f"{variant_label} all observed"
-
-    if initializer.startswith("missingness_"):
-        variant = initializer.removeprefix("missingness_")
-        variant_label = VARIANT_NAME_MAPPING.get(variant, variant.upper())
-        return f"{variant_label} missingness"
-
-    return initializer
+    return formatted_label
 
 
 def parse_args() -> argparse.Namespace:

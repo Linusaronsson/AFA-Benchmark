@@ -12,7 +12,7 @@ from omegaconf import OmegaConf
 
 from afabench.common.bundle import load_bundle
 from afabench.common.initializers.utils import get_afa_initializer_from_config
-from afabench.common.unmaskers import AFAContextUnmasker
+from afabench.common.unmaskers import AFAContextUnmasker, CubeNMARUnmasker
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import set_seed
 from afabench.eval.cube_nm_ar import (
@@ -57,7 +57,6 @@ def _get_cube_nm_ar_eval_summary(
         return None
 
     risky_mask = episode_df["cube_nm_ar_is_risky_context"].astype(bool)
-    blocked_mask = episode_df["cube_nm_ar_relevant_block_blocked"].astype(bool)
     risky_episode_df = episode_df[risky_mask]
 
     return {
@@ -70,10 +69,6 @@ def _get_cube_nm_ar_eval_summary(
             risky_episode_df["relevant_block_acquired"]
         ),
         "risky_unsafe_stop_rate": _safe_mean(risky_episode_df["unsafe_stop"]),
-        "risky_avoidable_unsafe_stop_rate": _safe_mean(
-            risky_episode_df["avoidable_unsafe_stop"]
-        ),
-        "risky_blocked_rate": _safe_mean(blocked_mask[risky_mask]),
     }
 
 
@@ -86,13 +81,11 @@ def _log_cube_nm_ar_eval_summary(
 
     log.info(
         "CUBE-NM-AR risk: risky_episode_rate=%.4f, risky_accuracy=%.4f, "
-        "risky_rescue_rate=%.4f, risky_unsafe_stop_rate=%.4f, "
-        "risky_avoidable_unsafe_stop_rate=%.4f.",
+        "risky_rescue_rate=%.4f, risky_unsafe_stop_rate=%.4f.",
         risk_summary["risky_episode_rate"],
         risk_summary["risky_accuracy"],
         risk_summary["risky_rescue_rate"],
         risk_summary["risky_unsafe_stop_rate"],
-        risk_summary["risky_avoidable_unsafe_stop_rate"],
     )
     return risk_summary
 
@@ -122,7 +115,7 @@ def _adapt_forbidden_mask_to_selection_space(
         )
         raise ValueError(msg)
 
-    # Feature-space -> selection-space conversion for context grouped selections.
+    # Feature-space -> selection-space conversion for grouped selections.
     if isinstance(unmasker, AFAContextUnmasker):
         n_contexts = unmasker.n_contexts
         expected_n_selections = 1 + (n_features - n_contexts)
@@ -142,6 +135,29 @@ def _adapt_forbidden_mask_to_selection_space(
         # Selection 0 corresponds to acquiring all context features at once.
         sel_forbidden[:, 0] = flat_forbidden[:, :n_contexts].any(dim=1)
         sel_forbidden[:, 1:] = flat_forbidden[:, n_contexts:]
+        batch_shape = forbidden_mask.shape[:-1]
+        return sel_forbidden.reshape(*batch_shape, n_selection_choices)
+
+    if isinstance(unmasker, CubeNMARUnmasker):
+        excluded_start = unmasker.n_contexts
+        expected_n_selections = 1 + (n_features - excluded_start)
+        if n_selection_choices != expected_n_selections:
+            msg = (
+                "Unexpected selection-space size for CubeNMARUnmasker. "
+                f"Expected {expected_n_selections}, got {n_selection_choices}."
+            )
+            raise ValueError(msg)
+
+        flat_forbidden = forbidden_mask.reshape(-1, n_features)
+        sel_forbidden = torch.zeros(
+            (flat_forbidden.shape[0], n_selection_choices),
+            dtype=torch.bool,
+            device=forbidden_mask.device,
+        )
+        sel_forbidden[:, 0] = flat_forbidden[:, : unmasker.n_contexts].any(
+            dim=1
+        )
+        sel_forbidden[:, 1:] = flat_forbidden[:, excluded_start:]
         batch_shape = forbidden_mask.shape[:-1]
         return sel_forbidden.reshape(*batch_shape, n_selection_choices)
 

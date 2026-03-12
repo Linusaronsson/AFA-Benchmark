@@ -1,8 +1,8 @@
 # pyright: reportCallIssue=false, reportAttributeAccessIssue=false, reportAssignmentType=false
 """
-Aggregate and summarize CMI missing-train experiment results.
+Aggregate and summarize train-missing experiment results.
 
-Reads merged parquet files from the pipeline output for each train_initializer
+Reads merged parquet files from the pipeline output for each train initializer
 condition, computes accuracy metrics per method/dataset/mechanism/rate, and
 generates summary tables.
 
@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--method-set",
-        default="cmi_missing_train",
+        default="real_missing_train",
         help="Method set name in the merged parquet filename.",
     )
     return parser.parse_args()
@@ -72,7 +72,7 @@ def load_all_results(
     for init_dir in sorted(split_dir.iterdir()):
         if not init_dir.is_dir():
             continue
-        # Extract initializer name from directory (e.g. "train_init-mcar_p03+eval_init-cold")
+        # Extract initializer name from workflow output directory.
         init_name = _extract_train_initializer(init_dir.name)
         if init_name is None or init_name not in INITIALIZER_META:
             continue
@@ -84,12 +84,12 @@ def load_all_results(
             print(f"Warning: missing {parquet_path}, skipping.")
             continue
 
-        df = pd.read_parquet(parquet_path)
+        result_df = pd.read_parquet(parquet_path)
         mechanism, rate = INITIALIZER_META[init_name]
-        df["train_initializer"] = init_name
-        df["mechanism"] = mechanism
-        df["miss_rate"] = rate
-        frames.append(df)
+        result_df["train_initializer"] = init_name
+        result_df["mechanism"] = mechanism
+        result_df["miss_rate"] = rate
+        frames.append(result_df)
 
     if not frames:
         msg = f"No parquet files found under {split_dir} for method_set={method_set}"
@@ -98,17 +98,20 @@ def load_all_results(
 
 
 def _extract_train_initializer(dirname: str) -> str | None:
-    """Extract train initializer name from a directory name like 'train_init-mcar_p03+eval_init-cold'."""
-    match = re.search(r"train_init-([^+]+)", dirname)
+    """Extract the train initializer from workflow output directory names."""
+    match = re.search(r"train_initializer-([^+]+)\+eval_initializer-", dirname)
     if match:
         return match.group(1)
+    legacy_match = re.search(r"initializer-([^+]+)$", dirname)
+    if legacy_match:
+        return legacy_match.group(1)
     # Fallback: the directory name might just be the initializer name.
     if dirname in INITIALIZER_META:
         return dirname
     return None
 
 
-def compute_accuracy(df: pd.DataFrame) -> pd.DataFrame:
+def compute_accuracy(results_df: pd.DataFrame) -> pd.DataFrame:
     """
     Compute accuracy at each (method, dataset, budget, initializer) combination.
 
@@ -116,11 +119,11 @@ def compute_accuracy(df: pd.DataFrame) -> pd.DataFrame:
     per idx within a budget group).
     """
     # Filter to external classifier predictions if available, else builtin.
-    if "classifier" in df.columns:
-        df_ext = df[df["classifier"] == "external"]
-        if df_ext.empty:
-            df_ext = df[df["classifier"] == "builtin"]
-        df = df_ext
+    eval_df = results_df
+    if "classifier" in results_df.columns:
+        eval_df = results_df[results_df["classifier"] == "external"]
+        if eval_df.empty:
+            eval_df = results_df[results_df["classifier"] == "builtin"]
 
     # Keep only the last step per sample (max n_selections_performed per idx).
     idx_cols = [
@@ -131,9 +134,9 @@ def compute_accuracy(df: pd.DataFrame) -> pd.DataFrame:
         "eval_seed",
         "idx",
     ]
-    available_cols = [c for c in idx_cols if c in df.columns]
-    df_last = df.loc[
-        df.groupby(available_cols)["n_selections_performed"].idxmax()
+    available_cols = [c for c in idx_cols if c in eval_df.columns]
+    df_last = eval_df.loc[
+        eval_df.groupby(available_cols)["n_selections_performed"].idxmax()
     ]
 
     df_last = df_last.copy()
@@ -180,13 +183,17 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     print("Loading results...")
-    df = load_all_results(args.results_dir, args.eval_split, args.method_set)
+    results_df = load_all_results(
+        args.results_dir, args.eval_split, args.method_set
+    )
     print(
-        f"Loaded {len(df)} rows across {df['train_initializer'].nunique()} initializers."
+        "Loaded "
+        f"{len(results_df)} rows across "
+        f"{results_df['train_initializer'].nunique()} initializers."
     )
 
     print("Computing accuracy...")
-    acc = compute_accuracy(df)
+    acc = compute_accuracy(results_df)
 
     print("Computing gap to baseline...")
     gap = compute_gap_to_baseline(acc)

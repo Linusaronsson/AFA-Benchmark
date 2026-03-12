@@ -12,6 +12,7 @@ and then writes cross-initializer CUBE-NM-AR comparison plots.
 
 Runtime config (`--configfile` on this snakefile):
     cube_nm_ar_suite_train_initializers (list[str], default=["cube_nm_ar", "cold"])
+    cube_nm_ar_suite_mode_train_initializers (dict[str, list[str]], optional)
     cube_nm_ar_suite_eval_initializers (list[str], default=["cold"])
     cube_nm_ar_suite_budget_modes (list[str], default=["hard", "soft"])
     cube_nm_ar_suite_dataset (str, default="cube_nm_ar")
@@ -32,6 +33,10 @@ import shlex
 SUITE_TRAIN_INITIALIZERS = config.get(
     "cube_nm_ar_suite_train_initializers",
     ["cube_nm_ar", "cold"],
+)
+SUITE_MODE_TRAIN_INITIALIZERS = config.get(
+    "cube_nm_ar_suite_mode_train_initializers",
+    {},
 )
 SUITE_EVAL_INITIALIZERS = config.get(
     "cube_nm_ar_suite_eval_initializers",
@@ -115,6 +120,13 @@ def _initializer_tag(train_initializer: str, eval_initializer: str) -> str:
 
 def _mode_methods(budget_mode: str) -> list[str]:
     return SUITE_MODE_METHODS.get(budget_mode, SUITE_METHODS)
+
+
+def _mode_train_initializers(budget_mode: str) -> list[str]:
+    return SUITE_MODE_TRAIN_INITIALIZERS.get(
+        budget_mode,
+        SUITE_TRAIN_INITIALIZERS,
+    )
 
 
 def _mode_stop_shield_deltas(budget_mode: str) -> list[str]:
@@ -215,9 +227,9 @@ MATERIALIZATION_COMMANDS = "\n".join(
         eval_initializer,
         budget_mode,
     )
-    for train_initializer in SUITE_TRAIN_INITIALIZERS
-    for eval_initializer in SUITE_EVAL_INITIALIZERS
     for budget_mode in SUITE_BUDGET_MODES
+    for train_initializer in _mode_train_initializers(budget_mode)
+    for eval_initializer in SUITE_EVAL_INITIALIZERS
 )
 
 
@@ -270,7 +282,9 @@ rule plot_cube_nm_ar_initializer_comparison:
         methods=lambda wildcards: " ".join(
             _mode_methods(wildcards.budget_mode)
         ),
-        train_initializers=" ".join(SUITE_TRAIN_INITIALIZERS),
+        train_initializers=lambda wildcards: " ".join(
+            _mode_train_initializers(wildcards.budget_mode)
+        ),
     resources:
         shell_exec="bash"
     shell:
@@ -302,7 +316,9 @@ rule plot_cube_nm_ar_initializer_comparison_shielded:
         methods=lambda wildcards: " ".join(
             _mode_methods(wildcards.budget_mode)
         ),
-        train_initializers=" ".join(SUITE_TRAIN_INITIALIZERS),
+        train_initializers=lambda wildcards: " ".join(
+            _mode_train_initializers(wildcards.budget_mode)
+        ),
     resources:
         shell_exec="bash"
     shell:
