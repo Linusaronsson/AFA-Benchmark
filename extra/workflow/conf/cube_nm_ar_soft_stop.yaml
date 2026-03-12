@@ -18,12 +18,16 @@ datasets:
   - cube_nm_ar
 
 methods:
+  - gadgil2023
+  - gadgil2023_ipw_feature_marginal
   - aaco_full
   - aaco_zero_fill
   - aaco_mask_aware
 
 method_sets:
   cube_nm_ar_soft_stop:
+    - gadgil2023
+    - gadgil2023_ipw_feature_marginal
     - aaco_full
     - aaco_zero_fill
     - aaco_mask_aware
@@ -36,6 +40,18 @@ eval_hard_budgets:
   cube_nm_ar: [7]
 
 soft_budget_params:
+  gadgil2023:
+    default: []
+    cube_nm_ar:
+      - [null, 0.001]
+      - [null, 0.005]
+      - [null, 0.01]
+  gadgil2023_ipw_feature_marginal:
+    default: []
+    cube_nm_ar:
+      - [null, 0.001]
+      - [null, 0.005]
+      - [null, 0.01]
   aaco_full:
     default: []
     cube_nm_ar:
