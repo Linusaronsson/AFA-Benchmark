@@ -91,3 +91,34 @@ def test_cube_nm_ar_rescue_feature_encodes_only_final_label_bit() -> None:
     expected_rescue = (label_idx >= 4).float()
 
     assert torch.equal(features[:, -1], expected_rescue)
+
+
+def test_cube_nm_ar_rejects_legacy_dataset_schema(tmp_path: Path) -> None:
+    dataset_class = get_class("CubeNMARDataset")
+    save_path = tmp_path / "data.bundle"
+    save_path.mkdir(parents=True, exist_ok=True)
+
+    torch.save(
+        {
+            "features": torch.zeros((1, 26)),
+            "labels": torch.zeros((1, 8)),
+            "config": {
+                "n_samples": 1,
+                "seed": 0,
+                "n_contexts": 5,
+                "n_safe_contexts": 2,
+                "context_feature_std": 0.0,
+                "informative_feature_std": 0.05,
+                "non_informative_feature_mean": 0.5,
+                "non_informative_feature_std": 0.05,
+                "rescue_feature_std": 0.01,
+                "rescue_feature_cost": 4.0,
+                "use_cheap_context_features": True,
+                "n_hint_features": 5,
+            },
+        },
+        save_path / "dataset.pt",
+    )
+
+    with pytest.raises(KeyError, match="simplified schema"):
+        dataset_class.load(save_path)

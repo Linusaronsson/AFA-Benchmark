@@ -1,16 +1,22 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import pytest
 import torch
 
 from afabench.common.cube_nm_ar_oracle_method import CubeNMAROracleMethod
 from afabench.common.unmaskers.cube_nm_ar_unmasker import CubeNMARUnmasker
 from afabench.eval.eval import process_batch
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 N_CONTEXTS = 5
-N_HINTS = 5
-N_ADMIN = 2
 BLOCK_SIZE = 4
-N_FEATURES = N_CONTEXTS + N_HINTS + N_ADMIN + N_CONTEXTS * BLOCK_SIZE + 1
+N_FEATURES = N_CONTEXTS + N_CONTEXTS * BLOCK_SIZE + 1
 N_SELECTIONS = 1 + N_CONTEXTS * BLOCK_SIZE + 1
-SELECTABLE_START = N_CONTEXTS + N_HINTS + N_ADMIN
+SELECTABLE_START = N_CONTEXTS
 RESCUE_ACTION = 2 + N_CONTEXTS * BLOCK_SIZE
 
 
@@ -18,8 +24,6 @@ def _make_method(max_cost: float | None = None) -> CubeNMAROracleMethod:
     return CubeNMAROracleMethod(
         n_contexts=N_CONTEXTS,
         n_safe_contexts=2,
-        n_hint_features=N_HINTS,
-        n_admin_features=N_ADMIN,
         block_size=BLOCK_SIZE,
         n_classes=8,
         context_action_cost=1.0,
@@ -110,17 +114,12 @@ def test_cube_nm_ar_oracle_follows_risky_context_plan_from_cold_start() -> (
     )
 
 
-def test_cube_nm_ar_oracle_uses_unique_hint_to_skip_context() -> None:
+def test_cube_nm_ar_oracle_requires_context_before_block_plan() -> None:
     method = _make_method()
     masked_features, feature_mask, selection_mask = _blank_state()
 
-    hint_idx = N_CONTEXTS + 1
-    feature_mask[0, hint_idx] = True
-    masked_features[0, hint_idx] = 1.0
-
-    # Safe context 1 starts at action 6.
     assert (
-        method.act(masked_features, feature_mask, selection_mask).item() == 6
+        method.act(masked_features, feature_mask, selection_mask).item() == 1
     )
 
 
@@ -150,11 +149,7 @@ def test_cube_nm_ar_oracle_respects_cost_ceiling() -> None:
 
 def test_cube_nm_ar_oracle_matches_budget_6_vs_7_landmark() -> None:
     method = _make_method()
-    unmasker = CubeNMARUnmasker(
-        n_contexts=N_CONTEXTS,
-        n_hint_features=N_HINTS,
-        n_admin_features=N_ADMIN,
-    )
+    unmasker = CubeNMARUnmasker(n_contexts=N_CONTEXTS)
     features = torch.zeros((1, N_FEATURES), dtype=torch.float32)
     features[0, 4] = 1.0
     true_label = torch.nn.functional.one_hot(
@@ -196,3 +191,26 @@ def test_cube_nm_ar_oracle_matches_budget_6_vs_7_landmark() -> None:
         False,
         False,
     ]
+
+
+def test_cube_nm_ar_oracle_rejects_legacy_state(
+    tmp_path: Path,
+) -> None:
+    save_path = tmp_path / "oracle.bundle"
+    save_path.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "n_contexts": N_CONTEXTS,
+            "n_safe_contexts": 2,
+            "block_size": BLOCK_SIZE,
+            "n_classes": 8,
+            "context_action_cost": 1.0,
+            "selectable_feature_costs": torch.tensor([1.0] * 20 + [4.0]),
+            "max_cost": None,
+            "n_hint_features": 5,
+        },
+        save_path / "method.pt",
+    )
+
+    with pytest.raises(KeyError, match="simplified schema"):
+        CubeNMAROracleMethod.load(save_path, device=torch.device("cpu"))

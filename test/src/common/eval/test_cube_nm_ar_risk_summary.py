@@ -39,15 +39,10 @@ def test_cube_nm_ar_episode_summary_tracks_unsafe_stops() -> None:
     features, _labels = dataset.get_all_data()
     features.zero_()
 
-    # Risky, unblocked context 3.
+    # Risky contexts 3, 4, 2.
     features[0, 3] = 1.0
-    # Risky, blocked context 4.
     features[1, 4] = 1.0
-    # Risky, unblocked context 2.
     features[2, 2] = 1.0
-
-    admin_start = dataset.n_contexts + dataset.n_hint_features
-    features[1, admin_start + 1] = 1.0
     dataset.features = features
 
     rescue_action = 2 + dataset.n_contexts * dataset.block_size
@@ -89,8 +84,4 @@ def test_cube_nm_ar_episode_summary_tracks_unsafe_stops() -> None:
     assert torch.equal(
         torch.tensor(summary["unsafe_stop"].tolist()),
         torch.tensor([False, True, True]),
-    )
-    assert torch.equal(
-        torch.tensor(summary["avoidable_unsafe_stop"].tolist()),
-        torch.tensor([False, False, True]),
     )

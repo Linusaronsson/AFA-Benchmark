@@ -30,20 +30,14 @@ def test_cube_initializer_distinguishes_start_mask_from_training_support() -> (
 ):
     initializer = CubeNMARInitializer(
         n_contexts=5,
-        n_hint_features=5,
         block_size=4,
         n_safe_contexts=2,
-        n_admin_features=2,
+        risky_rescue_missing_probability=1.0,
     )
-    feature_shape = torch.Size((33,))
+    feature_shape = torch.Size((26,))
     features = torch.zeros((2, feature_shape.numel()))
     features[0, 0] = 1.0
     features[1, 3] = 1.0
-    features[:, 5:10] = 1.0
-    features[0, 10] = 1.0
-    features[0, 11] = 0.0
-    features[1, 10] = 2.0
-    features[1, 11] = 1.0
     features[:, -1] = 4.0 / 7.0
 
     observed_mask, train_support_mask = _derive_train_support_masks(
@@ -55,33 +49,24 @@ def test_cube_initializer_distinguishes_start_mask_from_training_support() -> (
 
     assert not observed_mask[0, :5].any()
     assert train_support_mask[0, :5].all()
-    assert train_support_mask[0, 5]
-    assert train_support_mask[0, 6]
-    assert not train_support_mask[0, 7:10].any()
-    assert not train_support_mask[:, 10:12].any()
     assert train_support_mask[0, -1]
 
-    assert not observed_mask[1, 5:10].any()
-    assert not train_support_mask[1, 24:28].any()
-    assert train_support_mask[1, -1]
+    assert not observed_mask[1].any()
+    assert not train_support_mask[1, -1]
+    assert train_support_mask[1, :-1].all()
 
 
 def test_aaco_missingness_uses_training_support_not_start_mask() -> None:
     initializer = CubeNMARInitializer(
         n_contexts=5,
-        n_hint_features=5,
         block_size=4,
         n_safe_contexts=2,
-        n_admin_features=2,
+        risky_rescue_missing_probability=1.0,
     )
-    feature_shape = torch.Size((33,))
+    feature_shape = torch.Size((26,))
     features = torch.zeros((2, feature_shape.numel()))
     features[0, 0] = 1.0
     features[1, 3] = 1.0
-    features[:, 5:10] = 1.0
-    features[0, 10] = 1.0
-    features[1, 10] = 2.0
-    features[1, 11] = 1.0
     features[:, -1] = 4.0 / 7.0
 
     _observed_mask, train_support_mask = _derive_train_support_masks(
@@ -106,11 +91,8 @@ def test_aaco_missingness_uses_training_support_not_start_mask() -> None:
 
     assert zero_fill_mask is None
     assert bool(zero_filled[0, 0].item())
-    assert bool(zero_filled[0, 5].item())
-    assert not bool(zero_filled[0, 7].item())
-    assert not bool(zero_filled[0, 10].item())
-    assert not zero_filled[1, 24:28].any()
-    assert bool(zero_filled[1, -1].item())
+    assert bool(zero_filled[0, -1].item())
+    assert not bool(zero_filled[1, -1].item())
 
     assert torch.equal(mask_aware_filled, zero_filled)
     assert mask_aware_mask is not None
