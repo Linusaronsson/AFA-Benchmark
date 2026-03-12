@@ -1,5 +1,6 @@
-from pathlib import Path
-from typing import Self, final, override
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Self, final, override
 
 import torch
 
@@ -12,20 +13,32 @@ from afabench.common.custom_types import (
     SelectionMask,
 )
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 
 @final
 class CubeNMAROracleMethod(AFAMethod):
     """Deterministic acquisition oracle for CUBE-NM-AR."""
 
-    _class_version = "1.0.0"
+    _class_version = "3.0.0"
+    _state_keys = frozenset(
+        {
+            "n_contexts",
+            "n_safe_contexts",
+            "block_size",
+            "n_classes",
+            "context_action_cost",
+            "selectable_feature_costs",
+            "max_cost",
+        }
+    )
 
     def __init__(
         self,
         *,
         n_contexts: int,
         n_safe_contexts: int,
-        n_hint_features: int,
-        n_admin_features: int,
         block_size: int,
         n_classes: int,
         context_action_cost: float,
@@ -35,8 +48,6 @@ class CubeNMAROracleMethod(AFAMethod):
     ):
         self.n_contexts = n_contexts
         self.n_safe_contexts = n_safe_contexts
-        self.n_hint_features = n_hint_features
-        self.n_admin_features = n_admin_features
         self.block_size = block_size
         self.n_classes = n_classes
         self.context_action_cost = float(context_action_cost)
@@ -48,18 +59,6 @@ class CubeNMAROracleMethod(AFAMethod):
         self.selectable_feature_costs = self.selectable_feature_costs.to(
             self._device
         )
-
-    @property
-    def _hint_start(self) -> int:
-        return self.n_contexts
-
-    @property
-    def _hint_end(self) -> int:
-        return self._hint_start + self.n_hint_features
-
-    @property
-    def _selectable_feature_start(self) -> int:
-        return self._hint_end + self.n_admin_features
 
     @property
     def _rescue_action(self) -> int:
@@ -85,25 +84,13 @@ class CubeNMAROracleMethod(AFAMethod):
                 context_observed, : self.n_contexts
             ].argmax(dim=1)
 
-        visible_hints = feature_mask[:, self._hint_start : self._hint_end]
-        unique_hint = visible_hints.sum(dim=1) == 1
-        unique_hint_without_context = unique_hint & ~context_observed
-        if unique_hint_without_context.any():
-            context_idx[unique_hint_without_context] = (
-                visible_hints[unique_hint_without_context]
-                .float()
-                .argmax(dim=1)
-            )
-
         return context_idx
 
     def _current_cost(self, feature_mask: FeatureMask) -> torch.Tensor:
         context_acquired = (
             feature_mask[:, : self.n_contexts].any(dim=1).float()
         )
-        selectable_feature_mask = feature_mask[
-            :, self._selectable_feature_start :
-        ].float()
+        selectable_feature_mask = feature_mask[:, self.n_contexts :].float()
         return context_acquired * self.context_action_cost + (
             selectable_feature_mask
             * self.selectable_feature_costs.unsqueeze(0)
@@ -214,8 +201,6 @@ class CubeNMAROracleMethod(AFAMethod):
             {
                 "n_contexts": self.n_contexts,
                 "n_safe_contexts": self.n_safe_contexts,
-                "n_hint_features": self.n_hint_features,
-                "n_admin_features": self.n_admin_features,
                 "block_size": self.block_size,
                 "n_classes": self.n_classes,
                 "context_action_cost": self.context_action_cost,
@@ -229,11 +214,19 @@ class CubeNMAROracleMethod(AFAMethod):
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
         data = torch.load(path / "method.pt", map_location=device)
+        state_keys = set(data.keys())
+        if state_keys != set(cls._state_keys):
+            missing = sorted(cls._state_keys - state_keys)
+            unexpected = sorted(state_keys - cls._state_keys)
+            msg = (
+                "CubeNMAROracleMethod state does not match the simplified "
+                f"schema. Missing keys: {missing}; unexpected keys: "
+                f"{unexpected}."
+            )
+            raise KeyError(msg)
         return cls(
             n_contexts=data["n_contexts"],
             n_safe_contexts=data["n_safe_contexts"],
-            n_hint_features=data["n_hint_features"],
-            n_admin_features=data["n_admin_features"],
             block_size=data["block_size"],
             n_classes=data["n_classes"],
             context_action_cost=data["context_action_cost"],

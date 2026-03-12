@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import tarfile
 import urllib.request
-from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import ClassVar, Self, cast, final, override
+from typing import TYPE_CHECKING, ClassVar, Self, cast, final, override
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 
@@ -20,6 +21,9 @@ from ucimlrepo import fetch_ucirepo
 
 from afabench.common.custom_types import AFADataset
 from afabench.common.datasets.utils import default_create_subset
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 
 def _z_normalize(
@@ -612,8 +616,6 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     Feature layout:
         * First n_contexts features: cheap one-hot context group
-        * Next n_contexts features: archival hint features (constant-valued)
-        * Next 2 features: hidden availability controls (not queryable)
         * Next n_contexts * block_size features: context-specific blocks
         * Final feature: expensive rescue feature
 
@@ -623,15 +625,31 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     final bit. This makes the rescue feature useful but not sufficient on its
     own.
 
-    The hidden availability controls encode the warm-start hint regime
-    (clear / ambiguous / none) and whether the relevant risky block is
-    permanently blocked. They are always masked and excluded from the
-    selection space, so they act as latent instance-level nuisance variables
-    rather than observable features.
+    Missingness is intentionally not part of the dataset layout itself.
+    Train-time support restriction is delegated to the initializer so the
+    dataset stays close to the original CUBE-NM spirit: context routes the
+    policy to the relevant block, while risky contexts additionally require
+    rescue. Within each relevant 4-dimensional block, only the first three
+    coordinates can ever carry label information; the fourth coordinate is
+    always non-informative noise.
     """
 
     block_size = 4
-    n_admin_features = 2
+    _config_keys = frozenset(
+        {
+            "n_samples",
+            "seed",
+            "n_contexts",
+            "n_safe_contexts",
+            "context_feature_std",
+            "informative_feature_std",
+            "non_informative_feature_mean",
+            "non_informative_feature_std",
+            "rescue_feature_std",
+            "rescue_feature_cost",
+            "use_cheap_context_features",
+        }
+    )
 
     @classmethod
     @override
@@ -645,13 +663,7 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     @property
     def n_features(self) -> int:
-        return (
-            self.n_contexts
-            + self.n_hint_features
-            + self.n_admin_features
-            + self.n_contexts * self.block_size
-            + 1
-        )
+        return self.n_contexts + self.n_contexts * self.block_size + 1
 
     @property
     @override
@@ -663,22 +675,19 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def create_subset(self, indices: Sequence[int]) -> Self:
         return default_create_subset(self, indices)
 
-    def __init__(  # noqa: PLR0915
+    def __init__(
         self,
         n_samples: int = 20_000,
         seed: int = 42069,
         *,
         n_contexts: int = 5,
         n_safe_contexts: int = 2,
-        n_hint_features: int | None = None,
         context_feature_std: float = 0.0,
-        hint_feature_value: float = 1.0,
         informative_feature_std: float = 0.05,
         non_informative_feature_mean: float = 0.5,
         non_informative_feature_std: float = 0.05,
         rescue_feature_std: float = 0.01,
         rescue_feature_cost: float = 4.0,
-        risky_block_probability: float = 0.3,
         use_cheap_context_features: bool = True,
     ):
         super().__init__()
@@ -688,35 +697,17 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 f"{n_safe_contexts=} and {n_contexts=}."
             )
             raise ValueError(msg)
-        if not (0.0 <= risky_block_probability <= 1.0):
-            msg = (
-                "Expected risky_block_probability in [0, 1], got "
-                f"{risky_block_probability=}."
-            )
-            raise ValueError(msg)
 
         self.n_samples = n_samples
         self.seed = seed
         self.n_contexts = n_contexts
         self.n_safe_contexts = n_safe_contexts
-        self.n_hint_features = (
-            n_contexts if n_hint_features is None else n_hint_features
-        )
-        if self.n_hint_features != self.n_contexts:
-            msg = (
-                "CubeNMARDataset currently expects one archival hint feature "
-                f"per context, got {self.n_hint_features=} and {self.n_contexts=}."
-            )
-            raise ValueError(msg)
-
         self.context_feature_std = context_feature_std
-        self.hint_feature_value = hint_feature_value
         self.informative_feature_std = informative_feature_std
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
         self.rescue_feature_std = rescue_feature_std
         self.rescue_feature_cost = rescue_feature_cost
-        self.risky_block_probability = risky_block_probability
         self.use_cheap_context_features = use_cheap_context_features
 
         self.rng = torch.Generator().manual_seed(seed)
@@ -752,29 +743,6 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             ],
             dim=0,
         ).flip(-1)
-
-        hint_features = torch.full(
-            (self.n_samples, self.n_hint_features),
-            float(self.hint_feature_value),
-        )
-
-        hint_regime = torch.randint(
-            0, 3, (self.n_samples,), generator=self.rng
-        )
-        blocked_flag = torch.zeros(self.n_samples, dtype=torch.long)
-        risky_mask = context >= self.n_safe_contexts
-        if risky_mask.any():
-            blocked_flag[risky_mask] = (
-                torch.rand(
-                    int(risky_mask.sum().item()),
-                    generator=self.rng,
-                )
-                < self.risky_block_probability
-            ).long()
-        admin_features = torch.stack(
-            [hint_regime.float(), blocked_flag.float()],
-            dim=1,
-        )
 
         blocks = torch.normal(
             mean=self.non_informative_feature_mean,
@@ -813,8 +781,6 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.features = torch.cat(
             [
                 context_onehot,
-                hint_features,
-                admin_features,
                 block_features,
                 rescue_feature,
             ],
@@ -847,15 +813,12 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     "seed": self.seed,
                     "n_contexts": self.n_contexts,
                     "n_safe_contexts": self.n_safe_contexts,
-                    "n_hint_features": self.n_hint_features,
                     "context_feature_std": self.context_feature_std,
-                    "hint_feature_value": self.hint_feature_value,
                     "informative_feature_std": self.informative_feature_std,
                     "non_informative_feature_mean": self.non_informative_feature_mean,
                     "non_informative_feature_std": self.non_informative_feature_std,
                     "rescue_feature_std": self.rescue_feature_std,
                     "rescue_feature_cost": self.rescue_feature_cost,
-                    "risky_block_probability": self.risky_block_probability,
                     "use_cheap_context_features": self.use_cheap_context_features,
                 },
             },
@@ -868,13 +831,21 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         data = torch.load(path / "dataset.pt")
         obj = cls.__new__(cls)
         config = data["config"]
+        config_keys = set(config.keys())
+        if config_keys != set(cls._config_keys):
+            missing = sorted(cls._config_keys - config_keys)
+            unexpected = sorted(config_keys - cls._config_keys)
+            msg = (
+                "CubeNMARDataset config does not match the simplified "
+                f"schema. Missing keys: {missing}; unexpected keys: "
+                f"{unexpected}."
+            )
+            raise KeyError(msg)
         obj.n_samples = config["n_samples"]
         obj.seed = config["seed"]
         obj.n_contexts = config["n_contexts"]
         obj.n_safe_contexts = config["n_safe_contexts"]
-        obj.n_hint_features = config["n_hint_features"]
         obj.context_feature_std = config["context_feature_std"]
-        obj.hint_feature_value = config["hint_feature_value"]
         obj.informative_feature_std = config["informative_feature_std"]
         obj.non_informative_feature_mean = config[
             "non_informative_feature_mean"
@@ -882,7 +853,6 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.non_informative_feature_std = config["non_informative_feature_std"]
         obj.rescue_feature_std = config["rescue_feature_std"]
         obj.rescue_feature_cost = config["rescue_feature_cost"]
-        obj.risky_block_probability = config["risky_block_probability"]
         obj.use_cheap_context_features = config["use_cheap_context_features"]
         obj.rng = torch.Generator()
         obj.features = data["features"]
@@ -897,15 +867,11 @@ class CubeNMARDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         context_feature_costs = context_feature_cost_scaling * torch.ones(
             self.n_contexts
         )
-        hint_feature_costs = torch.zeros(self.n_hint_features)
-        admin_feature_costs = torch.zeros(self.n_admin_features)
         block_feature_costs = torch.ones(self.n_contexts * self.block_size)
         rescue_feature_costs = torch.tensor([self.rescue_feature_cost])
         return torch.cat(
             [
                 context_feature_costs,
-                hint_feature_costs,
-                admin_feature_costs,
                 block_feature_costs,
                 rescue_feature_costs,
             ],

@@ -84,11 +84,7 @@ def _feature_forbidden_to_selection_forbidden(
         return sel_forbidden
 
     if isinstance(unmasker, CubeNMARUnmasker):
-        excluded_start = (
-            unmasker.n_contexts
-            + unmasker.n_hint_features
-            + unmasker.n_admin_features
-        )
+        excluded_start = unmasker.n_contexts
         sel_forbidden = torch.zeros(
             (flat_forbidden.shape[0], n_selections),
             dtype=torch.bool,

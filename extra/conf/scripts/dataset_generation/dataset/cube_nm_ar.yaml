@@ -9,5 +9,4 @@ kwargs:
   non_informative_feature_std: 0.02
   rescue_feature_std: 0.001
   rescue_feature_cost: 4.0
-  risky_block_probability: 0.3
   use_cheap_context_features: true

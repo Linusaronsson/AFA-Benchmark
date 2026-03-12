@@ -11,10 +11,25 @@ if TYPE_CHECKING:
 
 CUBE_NM_AR_RISK_COLUMNS = {
     "cube_nm_ar_is_risky_context",
-    "cube_nm_ar_relevant_block_blocked",
     "cube_nm_ar_is_relevant_block_action",
     "cube_nm_ar_is_rescue_action",
 }
+
+
+def _prediction_column(df_eval: pd.DataFrame) -> str:
+    if "external_predicted_class" in df_eval.columns and bool(
+        df_eval["external_predicted_class"].notna().any()
+    ):
+        return "external_predicted_class"
+    if "builtin_predicted_class" in df_eval.columns and bool(
+        df_eval["builtin_predicted_class"].notna().any()
+    ):
+        return "builtin_predicted_class"
+    msg = (
+        "Expected either external_predicted_class or "
+        "builtin_predicted_class in CUBE-NM-AR evaluation data."
+    )
+    raise KeyError(msg)
 
 
 def augment_cube_nm_ar_eval_df(
@@ -26,8 +41,6 @@ def augment_cube_nm_ar_eval_df(
 
     features, _labels = dataset.get_all_data()
     context_idx = features[:, : dataset.n_contexts].argmax(dim=1).cpu().numpy()
-    admin_start = dataset.n_contexts + dataset.n_hint_features
-    relevant_block_blocked = features[:, admin_start + 1].cpu().numpy() > 0.5
     is_risky_context = context_idx >= dataset.n_safe_contexts
     relevant_action_start = 2 + context_idx * dataset.block_size
     relevant_action_end = relevant_action_start + dataset.block_size - 1
@@ -38,7 +51,6 @@ def augment_cube_nm_ar_eval_df(
             "idx": range(len(dataset)),
             "cube_nm_ar_context_idx": context_idx,
             "cube_nm_ar_is_risky_context": is_risky_context,
-            "cube_nm_ar_relevant_block_blocked": relevant_block_blocked,
             "cube_nm_ar_relevant_action_start": relevant_action_start,
             "cube_nm_ar_relevant_action_end": relevant_action_end,
             "cube_nm_ar_rescue_action": rescue_action,
@@ -104,17 +116,14 @@ def summarize_cube_nm_ar_episodes(
         how="left",
         validate="one_to_one",
     ).merge(action_flags, on="episode_id", how="left", validate="one_to_one")
+    pred_col = _prediction_column(episode_df)
     episode_df["correct"] = (
-        episode_df["external_predicted_class"] == episode_df["true_class"]
+        episode_df[pred_col] == episode_df["true_class"]
     ).astype(float)
 
     risky_mask = episode_df["cube_nm_ar_is_risky_context"].astype(bool)
-    blocked_mask = episode_df["cube_nm_ar_relevant_block_blocked"].astype(bool)
     informed_stop = episode_df["relevant_block_acquired"].astype(
         bool
     ) & episode_df["rescue_acquired"].astype(bool)
     episode_df["unsafe_stop"] = risky_mask & ~informed_stop
-    episode_df["avoidable_unsafe_stop"] = episode_df["unsafe_stop"] & (
-        risky_mask & ~blocked_mask
-    )
     return episode_df

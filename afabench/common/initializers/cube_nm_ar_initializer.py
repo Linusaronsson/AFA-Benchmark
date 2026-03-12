@@ -14,35 +14,50 @@ from afabench.common.custom_types import (
 @final
 class CubeNMARInitializer(AFAInitializer):
     """
-    Structured-missingness initializer for CubeNMARDataset.
+    Risk-aware training-support initializer for CubeNMARDataset.
 
-    It reveals archival hint features according to a hidden per-instance hint
-    regime and blocks the relevant block in a subset of risky-context episodes.
-    Both controls are encoded in hidden administrative coordinates that are
-    always masked and never queryable.
+    Training-time support restriction is injected here: for a subset of
+    risky-context samples, the rescue feature is unavailable during training
+    even though it is queryable again at evaluation.
     """
 
     def __init__(
         self,
         *,
         n_contexts: int,
-        n_hint_features: int,
         block_size: int,
         n_safe_contexts: int,
-        n_admin_features: int = 2,
+        risky_rescue_missing_probability: float = 0.3,
     ):
+        if not (0.0 <= risky_rescue_missing_probability <= 1.0):
+            msg = (
+                "Expected risky_rescue_missing_probability in [0, 1], got "
+                f"{risky_rescue_missing_probability=}."
+            )
+            raise ValueError(msg)
+
         self.n_contexts = n_contexts
-        self.n_hint_features = n_hint_features
         self.block_size = block_size
         self.n_safe_contexts = n_safe_contexts
-        self.n_admin_features = n_admin_features
+        self.risky_rescue_missing_probability = (
+            risky_rescue_missing_probability
+        )
         self.seed: int | None = None
+        self._rng: torch.Generator | None = None
         self._last_forbidden_selection_mask: SelectionMask | None = None
         self._last_training_forbidden_mask: FeatureMask | None = None
+
+    def _get_rng(self) -> torch.Generator:
+        if self._rng is None:
+            self._rng = torch.Generator()
+            if self.seed is not None:
+                self._rng.manual_seed(self.seed)
+        return self._rng
 
     @override
     def set_seed(self, seed: int | None) -> None:
         self.seed = seed
+        self._rng = None
 
     @override
     def initialize(
@@ -51,6 +66,7 @@ class CubeNMARInitializer(AFAInitializer):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
+        del label
         assert feature_shape is not None, (
             "feature_shape must be provided for CubeNMARInitializer"
         )
@@ -58,67 +74,34 @@ class CubeNMARInitializer(AFAInitializer):
         flat_features = features.reshape(-1, feature_shape.numel())
         batch_size = flat_features.shape[0]
         context = flat_features[:, : self.n_contexts].argmax(dim=1)
-        admin_start = self.n_contexts + self.n_hint_features
-        hint_regime = flat_features[:, admin_start].round().long().clamp(0, 2)
-        blocked_flag = flat_features[:, admin_start + 1] > 0.5
+        rescue_feature_idx = feature_shape.numel() - 1
+        rescue_selection_idx = 1 + self.n_contexts * self.block_size
 
         observed = torch.zeros_like(flat_features, dtype=torch.bool)
         training_forbidden = torch.zeros_like(flat_features, dtype=torch.bool)
         forbidden_selection = torch.zeros(
-            (
-                batch_size,
-                1
-                + (
-                    feature_shape.numel()
-                    - self.n_contexts
-                    - self.n_hint_features
-                    - self.n_admin_features
-                ),
-            ),
+            (batch_size, 1 + feature_shape.numel() - self.n_contexts),
             dtype=torch.bool,
             device=flat_features.device,
         )
 
-        hint_start = self.n_contexts
-        hint_end = hint_start + self.n_hint_features
-        admin_end = admin_start + self.n_admin_features
-        block_selection_start = 1
-        block_feature_start = admin_end
-
-        for sample_idx in range(batch_size):
-            ctx = int(context[sample_idx].item())
-            regime = int(hint_regime[sample_idx].item())
-
-            if regime == 0:
-                observed[sample_idx, hint_start + ctx] = True
-            elif regime == 1:
-                observed[sample_idx, hint_start + ctx] = True
-                offset = 1 + (ctx % max(self.n_contexts - 1, 1))
-                decoy = (ctx + offset) % self.n_contexts
-                observed[sample_idx, hint_start + decoy] = True
-
-            # Archival hints should remain visible if already observed, but
-            # hidden hints and all admin controls are never acquirable.
-            training_forbidden[sample_idx, hint_start:hint_end] = ~observed[
-                sample_idx, hint_start:hint_end
-            ]
-            training_forbidden[sample_idx, admin_start:admin_end] = True
-
-            is_risky = ctx >= self.n_safe_contexts
-            is_blocked = is_risky and bool(blocked_flag[sample_idx].item())
-            if is_blocked:
-                block_start = block_selection_start + ctx * self.block_size
-                forbidden_selection[
-                    sample_idx, block_start : block_start + self.block_size
-                ] = True
-                feature_block_start = (
-                    block_feature_start + ctx * self.block_size
+        risky_indices = (
+            (context >= self.n_safe_contexts)
+            .nonzero(as_tuple=False)
+            .squeeze(1)
+        )
+        if risky_indices.numel() > 0:
+            risky_draws = torch.rand(
+                (int(risky_indices.numel()),),
+                generator=self._get_rng(),
+            ).to(flat_features.device)
+            missing_mask = risky_draws < self.risky_rescue_missing_probability
+            missing_indices = risky_indices[missing_mask]
+            if missing_indices.numel() > 0:
+                training_forbidden[missing_indices, rescue_feature_idx] = True
+                forbidden_selection[missing_indices, rescue_selection_idx] = (
+                    True
                 )
-                training_forbidden[
-                    sample_idx,
-                    feature_block_start : feature_block_start
-                    + self.block_size,
-                ] = True
 
         self._last_forbidden_selection_mask = forbidden_selection.reshape(
             *features.shape[: -len(feature_shape)],
@@ -138,17 +121,7 @@ class CubeNMARInitializer(AFAInitializer):
     ) -> FeatureMask:
         if self._last_training_forbidden_mask is not None:
             return self._last_training_forbidden_mask
-
-        # Fallback when initialize() was not called immediately beforehand.
-        forbidden = torch.zeros_like(observed_mask, dtype=torch.bool)
-        hint_start = self.n_contexts
-        hint_end = hint_start + self.n_hint_features
-        admin_end = hint_end + self.n_admin_features
-        forbidden[..., hint_start:hint_end] = ~observed_mask[
-            ..., hint_start:hint_end
-        ]
-        forbidden[..., hint_end:admin_end] = True
-        return forbidden
+        return torch.zeros_like(observed_mask, dtype=torch.bool)
 
     def get_forbidden_selection_mask(
         self,

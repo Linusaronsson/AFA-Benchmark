@@ -70,8 +70,6 @@ def main(cfg: CubeNMAROracleTrainConfig) -> None:
     method = CubeNMAROracleMethod(
         n_contexts=train_dataset.n_contexts,
         n_safe_contexts=train_dataset.n_safe_contexts,
-        n_hint_features=train_dataset.n_hint_features,
-        n_admin_features=train_dataset.n_admin_features,
         block_size=train_dataset.block_size,
         n_classes=train_dataset.label_shape[-1],
         context_action_cost=float(selection_costs[0].item()),
