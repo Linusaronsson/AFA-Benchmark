@@ -5,17 +5,20 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.colors import to_hex
 from matplotlib.lines import Line2D
 
-from afabench.eval.plotting_config import METHOD_NAME_MAPPING
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
+from afabench.eval.plotting_config import (
+    COLOR_PALETTE_NAME,
+    METHOD_NAME_MAPPING,
+    PLOT_HEIGHT,
+    PLOT_WIDTH,
+)
 
 RISK_METRIC_KEYS = (
     "risky_episode_rate",
@@ -30,18 +33,20 @@ SHIELD_METRIC_KEYS = (
 )
 
 DEFAULT_FORMATS = ("pdf", "svg")
-DARK2_COLORS = (
-    "#1B9E77",
-    "#D95F02",
-    "#7570B3",
-    "#E7298A",
-    "#66A61E",
-    "#E6AB02",
-    "#A6761D",
-)
+
+
+def _shared_palette_colors() -> tuple[str, ...]:
+    cmap = plt.get_cmap(COLOR_PALETTE_NAME)
+    raw_colors = getattr(cmap, "colors", None)
+    if raw_colors is None:
+        raw_colors = [cmap(x) for x in np.linspace(0.0, 1.0, 8)]
+    return tuple(to_hex(color) for color in raw_colors)
+
+
+PALETTE_COLORS = _shared_palette_colors()
 TRAIN_INITIALIZER_LABELS = {
-    "cold": "full train support",
-    "cube_nm_ar": "rescue-censored train",
+    "cold": "Full train support",
+    "cube_nm_ar": "Rescue-censored train",
     "mcar_p03": "MCAR 30%",
     "mar_p03": "MAR 30%",
     "mnar_logistic_p03": "MNAR logistic 30%",
@@ -53,36 +58,42 @@ TRAIN_INITIALIZER_LINESTYLES = {
     "mar_p03": "-.",
     "mnar_logistic_p03": (0, (3, 1, 1, 1)),
 }
-METHOD_STYLES: dict[str, dict[str, str]] = {
+METHOD_STYLES: dict[str, dict[str, Any]] = {
     "gadgil2023": {
         "label": METHOD_NAME_MAPPING.get("gadgil2023", "gadgil2023"),
-        "color": DARK2_COLORS[0],
+        "color": PALETTE_COLORS[0],
         "linestyle": "-",
         "marker": "o",
     },
     "gadgil2023_ipw_feature_marginal": {
         "label": f"{METHOD_NAME_MAPPING.get('gadgil2023', 'gadgil2023')} + IPW",
-        "color": DARK2_COLORS[1],
+        "color": PALETTE_COLORS[1],
         "linestyle": "--",
         "marker": "s",
     },
     "aaco_full": {
         "label": "AACO",
-        "color": DARK2_COLORS[2],
+        "color": PALETTE_COLORS[2],
         "linestyle": "-",
         "marker": "^",
     },
     "aaco_zero_fill": {
         "label": "AACO + zero-fill",
-        "color": DARK2_COLORS[3],
+        "color": PALETTE_COLORS[3],
         "linestyle": "--",
         "marker": "D",
     },
     "aaco_mask_aware": {
         "label": "AACO + mask-aware",
-        "color": DARK2_COLORS[4],
+        "color": PALETTE_COLORS[4],
         "linestyle": "-.",
         "marker": "P",
+    },
+    "aaco_dr": {
+        "label": "AACO-DR",
+        "color": PALETTE_COLORS[5],
+        "linestyle": (0, (5, 2)),
+        "marker": "h",
     },
     "cube_nm_ar_oracle": {
         "label": "CUBE-NM-AR oracle",
@@ -94,17 +105,20 @@ METHOD_STYLES: dict[str, dict[str, str]] = {
         "label": METHOD_NAME_MAPPING.get(
             "odin_model_based", "odin_model_based"
         ),
-        "color": DARK2_COLORS[5],
+        "color": PALETTE_COLORS[6],
         "linestyle": "-",
         "marker": "X",
     },
     "odin_model_free": {
         "label": METHOD_NAME_MAPPING.get("odin_model_free", "odin_model_free"),
-        "color": DARK2_COLORS[6],
+        "color": PALETTE_COLORS[7],
         "linestyle": "--",
         "marker": "v",
     },
 }
+TWO_PANEL_FIGSIZE = (PLOT_WIDTH * 0.68, PLOT_HEIGHT * 0.72)
+FOUR_PANEL_FIGSIZE = (PLOT_WIDTH * 0.68, PLOT_HEIGHT * 1.25)
+THREE_PANEL_FIGSIZE = (PLOT_WIDTH * 0.84, PLOT_HEIGHT * 0.72)
 
 
 def parse_args() -> argparse.Namespace:
@@ -142,6 +156,7 @@ def parse_args() -> argparse.Namespace:
             "aaco_full",
             "aaco_zero_fill",
             "aaco_mask_aware",
+            "aaco_dr",
         ],
     )
     parser.add_argument("--n-contexts", type=int, default=5)
@@ -424,13 +439,14 @@ def apply_paper_style() -> None:
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
             "font.family": "DejaVu Sans",
-            "font.size": 10,
-            "axes.labelsize": 10,
-            "axes.titlesize": 11,
-            "axes.titleweight": "bold",
+            "font.size": 9,
+            "axes.labelsize": 9,
+            "axes.titlesize": 10,
+            "axes.titleweight": "normal",
             "xtick.labelsize": 9,
             "ytick.labelsize": 9,
             "legend.fontsize": 9,
+            "legend.title_fontsize": 9,
             "legend.frameon": False,
             "legend.handlelength": 2.4,
             "axes.spines.top": False,
@@ -516,25 +532,6 @@ def _get_series_entries(summary: pd.DataFrame) -> list[dict[str, object]]:
     eval_initializer_order = {
         initializer: idx for idx, initializer in enumerate(eval_initializers)
     }
-    variant_order = {
-        (
-            str(train_initializer),
-            str(eval_initializer),
-        ): idx
-        for idx, (train_initializer, eval_initializer) in enumerate(
-            summary[["train_initializer", "eval_initializer"]]
-            .drop_duplicates()
-            .sort_values(
-                ["train_initializer", "eval_initializer"],
-                key=lambda col: col.map(
-                    train_initializer_order
-                    if col.name == "train_initializer"
-                    else eval_initializer_order
-                ).fillna(999),
-            )
-            .itertuples(index=False, name=None)
-        )
-    }
     unique_pairs = (
         summary[["method", "train_initializer", "eval_initializer"]]
         .drop_duplicates()
@@ -571,30 +568,10 @@ def _get_series_entries(summary: pd.DataFrame) -> list[dict[str, object]]:
                 "eval_initializer": eval_initializer,
                 "method_label": _method_label(method),
                 "variant_label": variant_label,
-                "variant_index": variant_order[
-                    (train_initializer, eval_initializer)
-                ],
-                "n_variants": len(variant_order),
                 "style": base_style,
             }
         )
     return entries
-
-
-def _marker_x_positions(
-    x: NDArray[np.floating],
-    *,
-    budget_mode: str,
-    variant_index: int,
-    n_variants: int,
-) -> NDArray[np.floating]:
-    if n_variants <= 1:
-        return x
-
-    centered_index = variant_index - (n_variants - 1) / 2
-    if budget_mode == "soft":
-        return x * np.exp(0.045 * centered_index)
-    return x + 0.05 * centered_index
 
 
 def _plot_metric_panel(
@@ -626,7 +603,6 @@ def _plot_metric_panel(
             mean_column=mean_column,
             std_column=std_column,
             display_ylim=display_ylim,
-            budget_mode=budget_mode,
             budget_column=budget_column,
         )
     ax.set_title(title)
@@ -663,19 +639,12 @@ def _plot_series(
     mean_column: str,
     std_column: str,
     display_ylim: tuple[float, float] | None,
-    budget_mode: str,
     budget_column: str,
 ) -> None:
     style = entry["style"]
     x = group[budget_column].to_numpy()
     y = group[mean_column].to_numpy()
     yerr = group[std_column].to_numpy()
-    marker_x = _marker_x_positions(
-        x,
-        budget_mode=budget_mode,
-        variant_index=int(entry["variant_index"]),
-        n_variants=int(entry["n_variants"]),
-    )
     ax.plot(
         x,
         y,
@@ -683,13 +652,14 @@ def _plot_series(
         linestyle=style["linestyle"],
     )
     ax.plot(
-        marker_x,
+        x,
         y,
         color=style["color"],
         linestyle="None",
         marker=style["marker"],
-        markerfacecolor="white",
-        markeredgewidth=1.6,
+        markerfacecolor=style["color"],
+        markeredgecolor=style["color"],
+        markeredgewidth=0.8,
         zorder=3,
     )
     if group["runs"].max() <= 1:
@@ -728,28 +698,15 @@ def _set_budget_axis_limits(
         ax.set_xlim(min(budgets) - 0.1, max(budgets) + 0.1)
 
 
-def _annotate_panels(axes: list[plt.Axes]) -> None:
-    for idx, ax in enumerate(axes):
-        ax.text(
-            -0.14,
-            1.08,
-            f"{chr(ord('A') + idx)}",
-            transform=ax.transAxes,
-            fontsize=11,
-            fontweight="bold",
-            va="top",
-        )
-
-
 def _finish_figure(
     fig: plt.Figure,
     series_entries: list[dict[str, object]],
     *,
     output_path: Path,
     formats: list[str],
-    method_legend_ncol: int = 3,
+    method_legend_ncol: int = 4,
 ) -> None:
-    top_rect = 0.94
+    top_rect = 0.9
     methods_in_plot: dict[str, dict[str, object]] = {}
     variants_in_plot: dict[str, dict[str, object]] = {}
     for entry in series_entries:
@@ -763,26 +720,24 @@ def _finish_figure(
             color=str(entry["style"]["color"]),
             linestyle="-",
             marker=str(entry["style"]["marker"]),
-            markerfacecolor="white",
-            markeredgewidth=1.6,
+            markerfacecolor=str(entry["style"]["color"]),
+            markeredgecolor=str(entry["style"]["color"]),
+            markeredgewidth=0.8,
             label=str(entry["method_label"]),
         )
         for entry in methods_in_plot.values()
     ]
     if method_handles:
-        method_legend_rows = (
-            len(method_handles) + method_legend_ncol - 1
-        ) // method_legend_ncol
-        top_rect = max(0.78, 0.92 - 0.07 * max(0, method_legend_rows - 1))
         method_legend = fig.legend(
             handles=method_handles,
             labels=[handle.get_label() for handle in method_handles],
             title="Policy",
             loc="upper center",
-            bbox_to_anchor=(0.5, 1.04),
+            bbox_to_anchor=(0.5, 1.02),
             ncol=min(method_legend_ncol, len(method_handles)),
         )
         fig.add_artist(method_legend)
+        top_rect = 0.84
 
     if len(variants_in_plot) > 1:
         variant_handles = [
@@ -799,14 +754,14 @@ def _finish_figure(
         variant_legend = fig.legend(
             handles=variant_handles,
             labels=[handle.get_label() for handle in variant_handles],
-            title="Training Data",
+            title="Training Initializer",
             loc="upper center",
             bbox_to_anchor=(0.5, 0.94),
-            ncol=min(len(variant_handles), 3),
+            ncol=min(len(variant_handles), 4),
             handlelength=3.0,
         )
         fig.add_artist(variant_legend)
-        top_rect = min(top_rect, 0.72)
+        top_rect = min(top_rect, 0.76)
     fig.tight_layout(rect=(0.0, 0.0, 1.0, top_rect))
     for fmt in formats:
         fig.savefig(
@@ -825,7 +780,7 @@ def plot_accuracy(
     formats: list[str],
 ) -> None:
     series_entries = _get_series_entries(summary)
-    fig, axes = plt.subplots(1, 2, figsize=(7.6, 3.1), squeeze=False)
+    fig, axes = plt.subplots(1, 2, figsize=TWO_PANEL_FIGSIZE, squeeze=False)
     panels = [
         ("accuracy", "Overall Accuracy", (0.0, 1.0)),
         ("mean_cost", "Mean Acquisition Cost", None),
@@ -844,7 +799,6 @@ def plot_accuracy(
             ylabel=ylabel,
             ylim=ylim,
         )
-    _annotate_panels(list(axes[0]))
     _finish_figure(
         fig,
         series_entries,
@@ -861,7 +815,7 @@ def plot_behavior(
     formats: list[str],
 ) -> None:
     series_entries = _get_series_entries(summary)
-    fig, axes = plt.subplots(1, 2, figsize=(7.6, 3.1), squeeze=False)
+    fig, axes = plt.subplots(1, 2, figsize=TWO_PANEL_FIGSIZE, squeeze=False)
     metrics = [
         ("first_action_context_rate", "First Action = Context", (0.0, 1.0)),
         ("rescue_episode_rate", "Episode Rescue Rate", (0.0, 1.0)),
@@ -877,7 +831,6 @@ def plot_behavior(
             ylabel="Rate",
             ylim=ylim,
         )
-    _annotate_panels(list(axes[0]))
     _finish_figure(
         fig,
         series_entries,
@@ -894,7 +847,7 @@ def plot_risk(
     formats: list[str],
 ) -> None:
     series_entries = _get_series_entries(summary)
-    fig, axes = plt.subplots(2, 2, figsize=(7.6, 5.9), squeeze=False)
+    fig, axes = plt.subplots(2, 2, figsize=FOUR_PANEL_FIGSIZE, squeeze=False)
     metrics = [
         ("risky_accuracy", "Risky-Context Accuracy", (0.0, 1.0)),
         ("risky_rescue_rate", "Risky Rescue Rate", (0.0, 1.0)),
@@ -912,7 +865,6 @@ def plot_risk(
             ylabel="Rate",
             ylim=ylim,
         )
-    _annotate_panels(list(axes.flat))
     _finish_figure(
         fig,
         series_entries,
@@ -930,7 +882,7 @@ def plot_paper_summary(
     formats: list[str],
 ) -> None:
     series_entries = _get_series_entries(summary)
-    fig, axes = plt.subplots(2, 2, figsize=(7.6, 5.9), squeeze=False)
+    fig, axes = plt.subplots(2, 2, figsize=FOUR_PANEL_FIGSIZE, squeeze=False)
     metrics = [
         ("accuracy", "Overall Accuracy", (0.0, 1.0)),
         ("risky_accuracy", "Risky-Context Accuracy", (0.0, 1.0)),
@@ -951,7 +903,6 @@ def plot_paper_summary(
             ylabel=ylabel,
             ylim=ylim,
         )
-    _annotate_panels(list(axes.flat))
     _finish_figure(
         fig,
         series_entries,
@@ -975,7 +926,7 @@ def plot_shielding(
         return
 
     series_entries = _get_series_entries(summary)
-    fig, axes = plt.subplots(1, 3, figsize=(10.8, 3.1), squeeze=False)
+    fig, axes = plt.subplots(1, 3, figsize=THREE_PANEL_FIGSIZE, squeeze=False)
     metrics = [
         ("proposed_stop_rate", "Proposed Stop Rate", (0.0, 1.0)),
         ("rejected_stop_rate", "Rejected Stop Rate", (0.0, 1.0)),
@@ -992,7 +943,6 @@ def plot_shielding(
             ylabel="Rate",
             ylim=ylim,
         )
-    _annotate_panels(list(axes[0]))
     _finish_figure(
         fig,
         series_entries,

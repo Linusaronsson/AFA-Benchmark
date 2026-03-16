@@ -1,4 +1,5 @@
-# Focused CUBE-NM-AR run for soft stopping and stop shielding.
+# Focused CUBE-NM-AR run for soft stopping, threshold shielding, and
+# dualized stop sweeps.
 #
 # This file is a leaf config for `cube_nm_ar_suite.smk`.
 # It complements `cube_nm_ar_hard.yaml`.
@@ -9,6 +10,7 @@ train_initializer: cube_nm_ar
 eval_initializer: cold
 eval_dataset_split: val
 stop_shield_deltas: [0.2, 0.3]
+dual_lambdas: [0.3, 1.0, 3.0]
 cube_nm_ar_budget_mode: soft
 device: cpu
 use_wandb: false
@@ -23,6 +25,7 @@ methods:
   - aaco_full
   - aaco_zero_fill
   - aaco_mask_aware
+  - aaco_dr
 
 method_sets:
   cube_nm_ar_soft_stop:
@@ -31,6 +34,7 @@ method_sets:
     - aaco_full
     - aaco_zero_fill
     - aaco_mask_aware
+    - aaco_dr
 
 eval_hard_budgets:
   # Soft-stop plots ignore hard-budget eval runs, but discriminative
@@ -65,6 +69,12 @@ soft_budget_params:
       - [0.3, 0.3]
       - [1.2, 1.2]
   aaco_mask_aware:
+    default: []
+    cube_nm_ar:
+      - [0.1, 0.1]
+      - [0.3, 0.3]
+      - [1.2, 1.2]
+  aaco_dr:
     default: []
     cube_nm_ar:
       - [0.1, 0.1]

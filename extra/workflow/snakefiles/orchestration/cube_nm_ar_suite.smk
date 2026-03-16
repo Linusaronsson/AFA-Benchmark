@@ -6,7 +6,7 @@ suite layer that materializes:
 - multiple train initializers,
 - multiple eval initializers,
 - hard and soft budget modes,
-- optional stop-shielded evaluation variants,
+- optional threshold-shielded and dualized-stop evaluation variants,
 
 and then writes cross-initializer CUBE-NM-AR comparison plots.
 
@@ -21,9 +21,12 @@ Runtime config (`--configfile` on this snakefile):
     cube_nm_ar_suite_mode_methods (dict[str, list[str]], optional)
     cube_nm_ar_suite_stop_shield_deltas (list[float], default=[])
     cube_nm_ar_suite_mode_stop_shield_deltas (dict[str, list[float]], optional)
+    cube_nm_ar_suite_dual_lambdas (list[float], default=[])
+    cube_nm_ar_suite_mode_dual_lambdas (dict[str, list[float]], optional)
     cube_nm_ar_suite_pipeline_configfiles (list[str], required)
     cube_nm_ar_suite_mode_configfiles (dict[str, list[str]], required)
     cube_nm_ar_suite_pipeline_cores (int, default=8)
+    cube_nm_ar_suite_pipeline_profile (str, default="")
     cube_nm_ar_suite_pipeline_rerun_incomplete (bool, default=True)
     cube_nm_ar_suite_pipeline_config_overrides (list[str], default=[])
 """
@@ -64,19 +67,33 @@ SUITE_MODE_STOP_SHIELD_DELTAS = {
         {},
     ).items()
 }
+SUITE_DUAL_LAMBDAS = [
+    str(value) for value in config.get("cube_nm_ar_suite_dual_lambdas", [])
+]
+SUITE_MODE_DUAL_LAMBDAS = {
+    budget_mode: [str(value) for value in values]
+    for budget_mode, values in config.get(
+        "cube_nm_ar_suite_mode_dual_lambdas",
+        {},
+    ).items()
+}
 SUITE_PIPELINE_CONFIGFILES = config.get(
     "cube_nm_ar_suite_pipeline_configfiles",
     [],
 )
 SUITE_MODE_CONFIGFILES = config.get("cube_nm_ar_suite_mode_configfiles", {})
 SUITE_PIPELINE_CORES = config.get("cube_nm_ar_suite_pipeline_cores", 8)
+SUITE_PIPELINE_PROFILE = config.get(
+    "cube_nm_ar_suite_pipeline_profile",
+    config.get("pipeline_profile", ""),
+)
 SUITE_PIPELINE_RERUN_INCOMPLETE = config.get(
     "cube_nm_ar_suite_pipeline_rerun_incomplete",
     True,
 )
 SUITE_PIPELINE_CONFIG_OVERRIDES = config.get(
     "cube_nm_ar_suite_pipeline_config_overrides",
-    [],
+    shlex.split(config.get("pipeline_extra_config", "")),
 )
 
 if not SUITE_METHODS:
@@ -136,6 +153,13 @@ def _mode_stop_shield_deltas(budget_mode: str) -> list[str]:
     )
 
 
+def _mode_dual_lambdas(budget_mode: str) -> list[str]:
+    return SUITE_MODE_DUAL_LAMBDAS.get(
+        budget_mode,
+        SUITE_DUAL_LAMBDAS,
+    )
+
+
 def _format_cli_list(values: list[str]) -> str:
     return "[" + ",".join(repr(value) for value in values) + "]"
 
@@ -161,6 +185,9 @@ def _upstream_plot_targets(
     return [f"{base_dir}/stop_shield-none"] + [
         f"{base_dir}/stop_shield-{delta}"
         for delta in _mode_stop_shield_deltas(budget_mode)
+    ] + [
+        f"{base_dir}/dual_lambda-{dual_lambda}"
+        for dual_lambda in _mode_dual_lambdas(budget_mode)
     ]
 
 
@@ -205,18 +232,24 @@ def _materialization_command(
             f"methods={_format_cli_list(_mode_methods(budget_mode))}",
             "stop_shield_deltas="
             f"{_format_cli_list(_mode_stop_shield_deltas(budget_mode))}",
+            "dual_lambdas="
+            f"{_format_cli_list(_mode_dual_lambdas(budget_mode))}",
             f"train_initializer={train_initializer}",
             f"eval_initializer={eval_initializer}",
             f"eval_dataset_split={SUITE_EVAL_DATASET_SPLIT}",
             f"cube_nm_ar_budget_mode={budget_mode}",
-            "--cores",
-            str(SUITE_PIPELINE_CORES),
-            *_upstream_plot_targets(
-                train_initializer,
-                eval_initializer,
-                budget_mode,
-            ),
         ]
+    )
+    if SUITE_PIPELINE_PROFILE:
+        cmd.extend(["--profile", SUITE_PIPELINE_PROFILE])
+    else:
+        cmd.extend(["--cores", str(SUITE_PIPELINE_CORES)])
+    cmd.extend(
+        _upstream_plot_targets(
+            train_initializer,
+            eval_initializer,
+            budget_mode,
+        )
     )
     return " ".join(shlex.quote(part) for part in cmd)
 
@@ -249,6 +282,17 @@ rule all:
             for eval_initializer in SUITE_EVAL_INITIALIZERS
             for budget_mode in SUITE_BUDGET_MODES
             for stop_shield_delta in _mode_stop_shield_deltas(budget_mode)
+        ]
+        + [
+            (
+                "extra/output/plot_results/cube_nm_ar/"
+                f"eval_split-{SUITE_EVAL_DATASET_SPLIT}/"
+                f"train_initializer-comparison+eval_initializer-{eval_initializer}/"
+                f"budget_mode-{budget_mode}/dual_lambda-{dual_lambda}"
+            )
+            for eval_initializer in SUITE_EVAL_INITIALIZERS
+            for budget_mode in SUITE_BUDGET_MODES
+            for dual_lambda in _mode_dual_lambdas(budget_mode)
         ]
 
 
@@ -325,6 +369,38 @@ rule plot_cube_nm_ar_initializer_comparison_shielded:
         """
         python scripts/plotting/plot_cube_nm_ar_results.py \
             extra/output/eval_results_shielded/delta-{wildcards.stop_shield_delta}/eval_split-{SUITE_EVAL_DATASET_SPLIT} \
+            {output} \
+            --train-initializers {params.train_initializers} \
+            --eval-initializers {wildcards.eval_initializer} \
+            --budget-mode {wildcards.budget_mode} \
+            --dataset {SUITE_DATASET} \
+            --methods {params.methods}
+        """
+
+
+rule plot_cube_nm_ar_initializer_comparison_dualized:
+    input:
+        _suite_marker()
+    output:
+        directory(
+            "extra/output/plot_results/cube_nm_ar/"
+            f"eval_split-{SUITE_EVAL_DATASET_SPLIT}/"
+            "train_initializer-comparison+eval_initializer-{eval_initializer}/"
+            "budget_mode-{budget_mode}/dual_lambda-{dual_lambda}"
+        )
+    params:
+        methods=lambda wildcards: " ".join(
+            _mode_methods(wildcards.budget_mode)
+        ),
+        train_initializers=lambda wildcards: " ".join(
+            _mode_train_initializers(wildcards.budget_mode)
+        ),
+    resources:
+        shell_exec="bash"
+    shell:
+        """
+        python scripts/plotting/plot_cube_nm_ar_results.py \
+            extra/output/eval_results_dualized/lambda-{wildcards.dual_lambda}/eval_split-{SUITE_EVAL_DATASET_SPLIT} \
             {output} \
             --train-initializers {params.train_initializers} \
             --eval-initializers {wildcards.eval_initializer} \

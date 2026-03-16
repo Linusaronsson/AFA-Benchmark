@@ -51,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--method-set",
-        default="real_missing_train",
+        default="real_data_train_missing_eval_cold",
         help="Method set name in the merged parquet filename.",
     )
     return parser.parse_args()

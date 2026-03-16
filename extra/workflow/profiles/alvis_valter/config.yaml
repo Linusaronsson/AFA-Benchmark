@@ -18,3 +18,7 @@ set-resources:
     runtime: 600 # 10 hours
   eval_method:
     runtime: 600 # 10 hours
+  eval_method_shielded:
+    runtime: 600 # 10 hours
+  eval_method_dualized:
+    runtime: 600 # 10 hours

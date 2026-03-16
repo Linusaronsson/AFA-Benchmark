@@ -40,6 +40,7 @@ def load_config(config):
     stop_shield_deltas = [
         str(delta) for delta in config.get("stop_shield_deltas", [])
     ]
+    dual_lambdas = [str(value) for value in config.get("dual_lambdas", [])]
     cube_nm_ar_budget_mode = config.get("cube_nm_ar_budget_mode", "hard")
     device = config.get("device", "cpu")
     use_wandb = config.get("use_wandb", False)
@@ -212,7 +213,9 @@ def load_config(config):
                 }
             else:
                 # If eval_batch_size is a scalar, use it for all datasets
-                eval_batch_sizes[method] = dict.fromkeys(datasets, batch_size_config)
+                eval_batch_sizes[method] = dict.fromkeys(
+                    datasets, batch_size_config
+                )
 
     # ========================================================================
     # Budget and Unmasker Configuration
@@ -311,6 +314,7 @@ def load_config(config):
         "EVAL_INITIALIZER": eval_initializer,
         "EVAL_DATASET_SPLIT": eval_dataset_split,
         "STOP_SHIELD_DELTAS": stop_shield_deltas,
+        "DUAL_LAMBDAS": dual_lambdas,
         "CUBE_NM_AR_BUDGET_MODE": cube_nm_ar_budget_mode,
         "DEVICE": device,
         "USE_WANDB": use_wandb,

@@ -42,6 +42,7 @@ INITIALIZER_TAG = (
 )
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
 STOP_SHIELD_DELTAS = _config["STOP_SHIELD_DELTAS"]
+DUAL_LAMBDAS = _config["DUAL_LAMBDAS"]
 CUBE_NM_AR_BUDGET_MODE = _config["CUBE_NM_AR_BUDGET_MODE"]
 DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]
@@ -104,6 +105,13 @@ rule all:
             f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/"
             f"budget_mode-{CUBE_NM_AR_BUDGET_MODE}/stop_shield-{delta}"
             for delta in STOP_SHIELD_DELTAS
+            if "cube_nm_ar" in DATASETS
+        ] +
+        [
+            "extra/output/plot_results/cube_nm_ar/"
+            f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/"
+            f"budget_mode-{CUBE_NM_AR_BUDGET_MODE}/dual_lambda-{dual_lambda}"
+            for dual_lambda in DUAL_LAMBDAS
             if "cube_nm_ar" in DATASETS
         ]
 

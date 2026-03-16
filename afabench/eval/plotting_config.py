@@ -41,6 +41,7 @@ METHOD_NAME_MAPPING = {
     "aaco_zero_fill": "AACO (zero-fill train)",
     "aaco_impute_mean": "AACO (mean-impute train)",
     "aaco_mask_aware": "AACO (mask-aware train)",
+    "aaco_dr": "AACO-DR",
     "cube_nm_ar_oracle": "CUBE-NM-AR oracle",
 }
 

@@ -25,6 +25,7 @@ cube_nm_ar_suite_methods:
   - aaco_full
   - aaco_zero_fill
   - aaco_mask_aware
+  - aaco_dr
   - cube_nm_ar_oracle
 
 cube_nm_ar_suite_mode_methods:
@@ -34,6 +35,7 @@ cube_nm_ar_suite_mode_methods:
     - aaco_full
     - aaco_zero_fill
     - aaco_mask_aware
+    - aaco_dr
     - cube_nm_ar_oracle
   soft:
     - gadgil2023
@@ -41,12 +43,18 @@ cube_nm_ar_suite_mode_methods:
     - aaco_full
     - aaco_zero_fill
     - aaco_mask_aware
+    - aaco_dr
 
 cube_nm_ar_suite_mode_stop_shield_deltas:
   hard: []
   soft: [0.2, 0.3]
 
+cube_nm_ar_suite_mode_dual_lambdas:
+  hard: []
+  soft: [0.3, 1.0, 3.0]
+
 cube_nm_ar_suite_stop_shield_deltas: []
+cube_nm_ar_suite_dual_lambdas: []
 cube_nm_ar_suite_pipeline_cores: 8
 cube_nm_ar_suite_pipeline_rerun_incomplete: true
 cube_nm_ar_suite_pipeline_config_overrides: []

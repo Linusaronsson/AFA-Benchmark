@@ -35,20 +35,32 @@ def _cube_nm_ar_budget_tuples(method: str) -> list[tuple]:
 def _cube_nm_ar_eval_inputs(
     *,
     stop_shield_delta: str | None = None,
+    dual_lambda: str | None = None,
 ) -> list[str]:
     methods = _cube_nm_ar_methods()
     if not methods:
         return []
 
-    if stop_shield_delta is None:
+    if stop_shield_delta is not None and dual_lambda is not None:
+        raise ValueError(
+            "Expected at most one of stop_shield_delta and dual_lambda."
+        )
+
+    if stop_shield_delta is None and dual_lambda is None:
         base_root = (
             f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/"
             f"{INITIALIZER_TAG}"
         )
-    else:
+    elif stop_shield_delta is not None:
         base_root = (
             "extra/output/eval_results_shielded/"
             f"delta-{stop_shield_delta}/"
+            f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}"
+        )
+    else:
+        base_root = (
+            "extra/output/eval_results_dualized/"
+            f"lambda-{dual_lambda}/"
             f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}"
         )
 
@@ -187,6 +199,34 @@ rule plot_cube_nm_ar_shielded:
         """
         python scripts/plotting/plot_cube_nm_ar_results.py \
             extra/output/eval_results_shielded/delta-{wildcards.stop_shield_delta}/eval_split-{EVAL_DATASET_SPLIT} \
+            {output} \
+            --train-initializers {TRAIN_INITIALIZER} \
+            --eval-initializers {EVAL_INITIALIZER} \
+            --budget-mode {CUBE_NM_AR_BUDGET_MODE} \
+            --methods {params.methods}
+        """
+
+
+rule plot_cube_nm_ar_dualized:
+    input:
+        lambda wildcards: _cube_nm_ar_eval_inputs(
+            dual_lambda=wildcards.dual_lambda
+        )
+    output:
+        directory(
+            "extra/output/plot_results/cube_nm_ar/"
+            f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/"
+            f"budget_mode-{CUBE_NM_AR_BUDGET_MODE}/"
+            "dual_lambda-{dual_lambda}"
+        ),
+    params:
+        methods=" ".join(_cube_nm_ar_methods()),
+    resources:
+        shell_exec="bash"
+    shell:
+        """
+        python scripts/plotting/plot_cube_nm_ar_results.py \
+            extra/output/eval_results_dualized/lambda-{wildcards.dual_lambda}/eval_split-{EVAL_DATASET_SPLIT} \
             {output} \
             --train-initializers {TRAIN_INITIALIZER} \
             --eval-initializers {EVAL_INITIALIZER} \

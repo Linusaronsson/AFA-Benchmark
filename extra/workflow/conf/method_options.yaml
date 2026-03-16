@@ -27,6 +27,15 @@ method_options:
       - "train_missing_mode=mask_aware"
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
+  aaco_dr:
+    train_script_name: "aaco"
+    method_specific_params:
+      - "train_missing_mode=mask_aware"
+      - "aco.missingness_objective=doubly_robust"
+      - "aco.dr_min_propensity=0.001"
+      - "aco.dr_max_weight=20.0"
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"

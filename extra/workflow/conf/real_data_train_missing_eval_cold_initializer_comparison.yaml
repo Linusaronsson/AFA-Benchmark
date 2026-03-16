@@ -3,7 +3,7 @@
 # Run with:
 #   uv run snakemake \
 #     -s extra/workflow/snakefiles/orchestration/initializer_comparison.smk \
-#     --configfile extra/workflow/conf/real_missing_train_initializer_comparison.yaml \
+#     --configfile extra/workflow/conf/real_data_train_missing_eval_cold_initializer_comparison.yaml \
 #     -j 1 \
 #     all
 
@@ -17,17 +17,18 @@ eval_dataset_split: val
 classifier_types: [external]
 
 method_sets:
-  real_missing_train:
+  real_data_train_missing_eval_cold:
     - gadgil2023
     - gadgil2023_ipw_feature_marginal
     - aaco_full
     - aaco_zero_fill
     - aaco_mask_aware
+    - aaco_dr
     - ma2018_external
     - covert2023
 
 pipeline_configfiles:
-  - extra/workflow/conf/real_missing_train_hard.yaml
+  - extra/workflow/conf/real_data_train_missing_eval_cold_hard.yaml
   - extra/workflow/conf/method_options.yaml
   - extra/workflow/conf/pretrain_mapping.yaml
   - extra/workflow/conf/classifier_names.yaml

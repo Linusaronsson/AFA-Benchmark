@@ -1,4 +1,4 @@
-# Real-data train-missing / test-cold AFA workflow.
+# Real-data train-missing / eval-cold AFA workflow.
 #
 # This is a hard-budget-only leaf config for `pipeline.smk`.
 # Use together with train initializers such as:
@@ -22,16 +22,18 @@ methods:
   - aaco_full
   - aaco_zero_fill
   - aaco_mask_aware
+  - aaco_dr
   - ma2018_external
   - covert2023
 
 method_sets:
-  real_missing_train:
+  real_data_train_missing_eval_cold:
     - gadgil2023
     - gadgil2023_ipw_feature_marginal
     - aaco_full
     - aaco_zero_fill
     - aaco_mask_aware
+    - aaco_dr
     - ma2018_external
     - covert2023
 
@@ -45,6 +47,8 @@ soft_budget_params:
   aaco_zero_fill:
     default: []
   aaco_mask_aware:
+    default: []
+  aaco_dr:
     default: []
   ma2018_external:
     default: []

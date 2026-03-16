@@ -8,6 +8,7 @@ train_initializer: cube_nm_ar
 eval_initializer: cold
 eval_dataset_split: val
 stop_shield_deltas: []
+dual_lambdas: []
 cube_nm_ar_budget_mode: hard
 device: cpu
 use_wandb: false
@@ -22,6 +23,7 @@ methods:
   - aaco_full
   - aaco_zero_fill
   - aaco_mask_aware
+  - aaco_dr
   - cube_nm_ar_oracle
 
 method_sets:
@@ -31,6 +33,7 @@ method_sets:
     - aaco_full
     - aaco_zero_fill
     - aaco_mask_aware
+    - aaco_dr
     - cube_nm_ar_oracle
 
 eval_hard_budgets:
@@ -51,6 +54,9 @@ soft_budget_params:
     default: []
     cube_nm_ar: []
   aaco_mask_aware:
+    default: []
+    cube_nm_ar: []
+  aaco_dr:
     default: []
     cube_nm_ar: []
   cube_nm_ar_oracle:

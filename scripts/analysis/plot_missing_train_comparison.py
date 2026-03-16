@@ -25,6 +25,7 @@ METHOD_NAMES = {
     "aaco_full": "AACO full",
     "aaco_zero_fill": "AACO zero-fill",
     "aaco_mask_aware": "AACO mask-aware",
+    "aaco_dr": "AACO-DR",
     "gadgil2023": "DIME",
     "gadgil2023_ipw_feature_marginal": "DIME + IPW",
     "ma2018_external": "EDDI",

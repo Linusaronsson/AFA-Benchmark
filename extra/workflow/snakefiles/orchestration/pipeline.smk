@@ -12,6 +12,8 @@ Runtime filters (--config, select subsets to run):
     eval_dataset_split (str, default='val'): Dataset split for evaluation
     stop_shield_deltas (list[float], default=[]): Extra stop-shielded eval
         passes to run in parallel with standard evaluation.
+    dual_lambdas (list[float], default=[]): Extra dualized-stop eval passes
+        to run in parallel with standard evaluation.
 
 Output namespacing:
     - Training artifacts are namespaced by
@@ -80,6 +82,7 @@ INITIALIZER_TAG = (
 )
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
 STOP_SHIELD_DELTAS = _config["STOP_SHIELD_DELTAS"]
+DUAL_LAMBDAS = _config["DUAL_LAMBDAS"]
 CUBE_NM_AR_BUDGET_MODE = _config["CUBE_NM_AR_BUDGET_MODE"]
 DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]

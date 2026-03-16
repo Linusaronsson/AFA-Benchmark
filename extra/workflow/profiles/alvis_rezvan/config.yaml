@@ -31,6 +31,10 @@ set-resources:
   # Evaluation — the actual rule name in evaluation.smk is "eval_method"
   eval_method:
     runtime: 1440 # 24h — 12h was insufficient for aaco eval on MNIST/FashionMNIST budget=30
+  eval_method_shielded:
+    runtime: 1440 # 24h — threshold shielding shares the same eval bottlenecks
+  eval_method_dualized:
+    runtime: 1440 # 24h — dualized stop evaluation shares the same bottlenecks
   # Post-processing rules
   count_selections:
     runtime: 30

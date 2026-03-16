@@ -25,3 +25,11 @@ set-resources:
     runtime: 6000 # 100 hours
     mem_mb: 16000
     cpus_per_task: 4
+  eval_method_shielded:
+    runtime: 6000 # 100 hours
+    mem_mb: 16000
+    cpus_per_task: 4
+  eval_method_dualized:
+    runtime: 6000 # 100 hours
+    mem_mb: 16000
+    cpus_per_task: 4
