@@ -790,7 +790,7 @@ def _finish_figure(
                 [],
                 [],
                 color="#4C4C4C",
-                linestyle=str(entry["style"]["linestyle"]),
+                linestyle=entry["style"]["linestyle"],
                 linewidth=2.2,
                 label=str(entry["variant_label"]),
             )

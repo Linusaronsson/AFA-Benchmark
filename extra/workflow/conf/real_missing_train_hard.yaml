@@ -1,0 +1,52 @@
+# Real-data train-missing / test-cold AFA workflow.
+#
+# This is a hard-budget-only leaf config for `pipeline.smk`.
+# Use together with train initializers such as:
+#   cold, mcar_p03, mar_p03, mnar_logistic_p03
+
+dataset_instance_indices: [0, 1, 2, 3, 4]
+eval_dataset_split: val
+stop_shield_deltas: []
+device: cpu
+use_wandb: false
+smoke_test: false
+
+datasets:
+  - actg
+  - ckd
+  - physionet
+
+methods:
+  - gadgil2023
+  - gadgil2023_ipw_feature_marginal
+  - aaco_full
+  - aaco_zero_fill
+  - aaco_mask_aware
+  - ma2018_external
+  - covert2023
+
+method_sets:
+  real_missing_train:
+    - gadgil2023
+    - gadgil2023_ipw_feature_marginal
+    - aaco_full
+    - aaco_zero_fill
+    - aaco_mask_aware
+    - ma2018_external
+    - covert2023
+
+soft_budget_params:
+  gadgil2023:
+    default: []
+  gadgil2023_ipw_feature_marginal:
+    default: []
+  aaco_full:
+    default: []
+  aaco_zero_fill:
+    default: []
+  aaco_mask_aware:
+    default: []
+  ma2018_external:
+    default: []
+  covert2023:
+    default: []

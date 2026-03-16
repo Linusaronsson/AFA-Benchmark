@@ -1,0 +1,39 @@
+# Compare real-data train-missing conditions while keeping evaluation cold.
+#
+# Run with:
+#   uv run snakemake \
+#     -s extra/workflow/snakefiles/orchestration/initializer_comparison.smk \
+#     --configfile extra/workflow/conf/real_missing_train_initializer_comparison.yaml \
+#     -j 1 \
+#     all
+
+train_initializers:
+  - cold
+  - mcar_p03
+  - mar_p03
+  - mnar_logistic_p03
+eval_initializer: cold
+eval_dataset_split: val
+classifier_types: [external]
+
+method_sets:
+  real_missing_train:
+    - gadgil2023
+    - gadgil2023_ipw_feature_marginal
+    - aaco_full
+    - aaco_zero_fill
+    - aaco_mask_aware
+    - ma2018_external
+    - covert2023
+
+pipeline_configfiles:
+  - extra/workflow/conf/real_missing_train_hard.yaml
+  - extra/workflow/conf/method_options.yaml
+  - extra/workflow/conf/pretrain_mapping.yaml
+  - extra/workflow/conf/classifier_names.yaml
+  - extra/workflow/conf/eval_hard_budgets.yaml
+  - extra/workflow/conf/unmaskers.yaml
+
+pipeline_cores: 8
+pipeline_rerun_incomplete: true
+pipeline_extra_config: ""
