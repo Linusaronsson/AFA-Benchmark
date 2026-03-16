@@ -20,7 +20,10 @@ from afabench.eval.cube_nm_ar import (
     summarize_cube_nm_ar_episodes,
 )
 from afabench.eval.eval import eval_afa_method
-from afabench.eval.stop_shielding import StopShieldWrapper
+from afabench.eval.stop_shielding import (
+    DualizedStopWrapper,
+    StopShieldWrapper,
+)
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -88,6 +91,22 @@ def _log_cube_nm_ar_eval_summary(
         risk_summary["risky_unsafe_stop_rate"],
     )
     return risk_summary
+
+
+def _resolve_shield_predictor(
+    *,
+    afa_method: AFAMethod,
+    external_classifier: AFAClassifier | None,
+) -> tuple[Any, str]:
+    if external_classifier is not None:
+        return external_classifier.__call__, type(external_classifier).__name__
+    if afa_method.has_builtin_classifier:
+        return afa_method.predict, type(afa_method).__name__
+    msg = (
+        "Stop-control evaluation requires either an external classifier or "
+        "a method with a builtin classifier."
+    )
+    raise ValueError(msg)
 
 
 def _adapt_forbidden_mask_to_selection_space(
@@ -306,25 +325,29 @@ def main(cfg: EvalConfig) -> None:  # noqa: C901, PLR0912, PLR0915
         afa_method.set_cost_param(cost_param=cfg.soft_budget_param)
         if hasattr(afa_method, "force_acquisition"):
             afa_method.force_acquisition = False
-            log.info(
-                "Disabled force_acquisition for soft-budget evaluation."
-            )
+            log.info("Disabled force_acquisition for soft-budget evaluation.")
+
+    selection_costs = unmasker.get_selection_costs(
+        feature_costs=dataset.get_feature_acquisition_costs()
+    )
+    n_selection_choices = unmasker.get_n_selections(
+        feature_shape=dataset.feature_shape
+    )
 
     stop_shield = None
     afa_action_fn = afa_method.act
+    if cfg.stop_shield_delta is not None and cfg.dual_lambda is not None:
+        msg = (
+            "Use either stop_shield_delta or dual_lambda during evaluation, "
+            "not both."
+        )
+        raise ValueError(msg)
+
     if cfg.stop_shield_delta is not None:
-        if external_classifier is not None:
-            shield_predict_fn = external_classifier.__call__
-            predictor_name = type(external_classifier).__name__
-        elif afa_method.has_builtin_classifier:
-            shield_predict_fn = afa_method.predict
-            predictor_name = type(afa_method).__name__
-        else:
-            msg = (
-                "stop_shield_delta requires either an external classifier or "
-                "a method with a builtin classifier."
-            )
-            raise ValueError(msg)
+        shield_predict_fn, predictor_name = _resolve_shield_predictor(
+            afa_method=afa_method,
+            external_classifier=external_classifier,
+        )
 
         stop_shield = StopShieldWrapper(
             afa_method=afa_method,
@@ -332,10 +355,30 @@ def main(cfg: EvalConfig) -> None:  # noqa: C901, PLR0912, PLR0915
             risk_threshold=cfg.stop_shield_delta,
             predictor_name=predictor_name,
         )
-        afa_action_fn = stop_shield.act
+        afa_action_fn = stop_shield
         log.info(
             "Enabled stop shield with delta=%.4f using predictor %s.",
             cfg.stop_shield_delta,
+            predictor_name,
+        )
+    elif cfg.dual_lambda is not None:
+        shield_predict_fn, predictor_name = _resolve_shield_predictor(
+            afa_method=afa_method,
+            external_classifier=external_classifier,
+        )
+
+        stop_shield = DualizedStopWrapper(
+            afa_method=afa_method,
+            afa_predict_fn=shield_predict_fn,
+            afa_unmask_fn=unmasker.unmask,
+            predictor_name=predictor_name,
+            selection_costs=selection_costs,
+            dual_lambda=cfg.dual_lambda,
+        )
+        afa_action_fn = stop_shield
+        log.info(
+            "Enabled dualized stop wrapper with lambda=%.4f using predictor %s.",
+            cfg.dual_lambda,
             predictor_name,
         )
 
@@ -348,19 +391,12 @@ def main(cfg: EvalConfig) -> None:  # noqa: C901, PLR0912, PLR0915
         cfg.batch_size,
         hard_budget_str,
     )
-    selection_costs = unmasker.get_selection_costs(
-        feature_costs=dataset.get_feature_acquisition_costs()
-    )
     log.info(
         "Selection costs summary: n=%d, min=%.4f, max=%.4f, mean=%.4f.",
         selection_costs.numel(),
         selection_costs.min().item(),
         selection_costs.max().item(),
         selection_costs.mean().item(),
-    )
-
-    n_selection_choices = unmasker.get_n_selections(
-        feature_shape=dataset.feature_shape
     )
 
     forbidden_mask_fn = None

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence  # noqa: TC003
-from typing import override
+from typing import cast, override
 
 import pandas as pd
 import torch
@@ -75,13 +75,27 @@ def single_afa_step(
         tuple[AFAAction, MaskedFeatures, FeatureMask, Label|None, Label|None]: Action made (0=stop, 1-n=selection), updated masked features, feature mask and predicted labels after the AFA step.
     """
     # Get the action from the AFA method (0 = stop, 1-n = valid selections)
-    afa_action = afa_action_fn(
-        masked_features=masked_features,
-        feature_mask=feature_mask,
-        selection_mask=selection_mask,
-        label=label,
-        feature_shape=feature_shape,
-    )
+    if getattr(afa_action_fn, "requires_transition_context", False):
+        transition_aware_action_fn = cast(
+            "Callable[..., AFAAction]",
+            afa_action_fn,
+        )
+        afa_action = transition_aware_action_fn(
+            masked_features=masked_features,
+            feature_mask=feature_mask,
+            selection_mask=selection_mask,
+            label=label,
+            feature_shape=feature_shape,
+            features=features,
+        )
+    else:
+        afa_action = afa_action_fn(
+            masked_features=masked_features,
+            feature_mask=feature_mask,
+            selection_mask=selection_mask,
+            label=label,
+            feature_shape=feature_shape,
+        )
 
     # Convert action to selection for the unmasker
     afa_selection: AFASelection = afa_action - 1

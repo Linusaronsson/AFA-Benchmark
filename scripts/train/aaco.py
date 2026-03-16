@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Any, cast
@@ -7,6 +9,7 @@ import torch
 from omegaconf import OmegaConf
 
 from afabench.afa_oracle import create_aaco_method
+from afabench.afa_oracle.aaco_core import MISSINGNESS_OBJECTIVES
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import AACOTrainConfig, InitializerConfig
 from afabench.common.custom_types import AFAInitializer
@@ -26,6 +29,16 @@ def _validate_train_missing_mode(mode: str) -> None:
     msg = (
         "train_missing_mode must be one of "
         f"{sorted(_TRAIN_MISSING_MODES)}, got {mode!r}."
+    )
+    raise ValueError(msg)
+
+
+def _validate_missingness_objective(mode: str) -> None:
+    if mode in MISSINGNESS_OBJECTIVES:
+        return
+    msg = (
+        "aco.missingness_objective must be one of "
+        f"{sorted(MISSINGNESS_OBJECTIVES)}, got {mode!r}."
     )
     raise ValueError(msg)
 
@@ -151,9 +164,11 @@ def _prepare_train_matrix(
         mode=mode,
         hide_val=hide_val,
     )
-    observed_fraction = train_observed_mask.float().mean().item() if (
-        train_observed_mask is not None
-    ) else support_fraction
+    observed_fraction = (
+        train_observed_mask.float().mean().item()
+        if (train_observed_mask is not None)
+        else support_fraction
+    )
     logger.info(
         "Train missingness mode: %s (initial observed %.4f, "
         "training support %.4f, oracle-visible %.4f)",
@@ -171,6 +186,7 @@ def run(cfg: AACOTrainConfig) -> None:
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
     _validate_train_missing_mode(cfg.train_missing_mode)
+    _validate_missingness_objective(cfg.aco.missingness_objective)
 
     dataset_bundle_path = (
         cfg.train_dataset_bundle_path or cfg.dataset_artifact_name
@@ -254,6 +270,9 @@ def run(cfg: AACOTrainConfig) -> None:
         k_neighbors=cfg.aco.k_neighbors,
         acquisition_cost=soft_budget_param,
         hide_val=cfg.aco.hide_val,
+        missingness_objective=cfg.aco.missingness_objective,
+        dr_min_propensity=cfg.aco.dr_min_propensity,
+        dr_max_weight=cfg.aco.dr_max_weight,
         force_acquisition=force_acquisition,
         selection_size=selection_size,
         unmasker_class_name=cfg.unmasker.class_name,
@@ -291,6 +310,9 @@ def run(cfg: AACOTrainConfig) -> None:
             "selection_size": selection_size,
             "k_neighbors": cfg.aco.k_neighbors,
             "hide_val": cfg.aco.hide_val,
+            "missingness_objective": cfg.aco.missingness_objective,
+            "dr_min_propensity": cfg.aco.dr_min_propensity,
+            "dr_max_weight": cfg.aco.dr_max_weight,
             "classifier_bundle_path": str(classifier_bundle_path),
             "n_features": X_train.shape[1],
             "n_train_samples": len(X_train),

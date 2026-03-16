@@ -25,6 +25,7 @@ batch_size: 1
 hard_budget: null
 soft_budget_param: null
 stop_shield_delta: null
+dual_lambda: null
 use_wandb: false
 smoke_test: false
 log_cmi: false

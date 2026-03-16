@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -385,6 +387,9 @@ class AACOAFAMethod(AFAMethod):
             "k_neighbors": self.aaco_oracle.k_neighbors,
             "acquisition_cost": self.aaco_oracle.acquisition_cost,
             "hide_val": self.aaco_oracle.hide_val,
+            "missingness_objective": self.aaco_oracle.missingness_objective,
+            "dr_min_propensity": self.aaco_oracle.dr_min_propensity,
+            "dr_max_weight": self.aaco_oracle.dr_max_weight,
             "dataset_name": self.dataset_name,
             "force_acquisition": self.force_acquisition,
             "selection_size": self._selection_size,
@@ -433,6 +438,11 @@ class AACOAFAMethod(AFAMethod):
             k_neighbors=oracle_state["k_neighbors"],
             acquisition_cost=oracle_state["acquisition_cost"],
             hide_val=oracle_state["hide_val"],
+            missingness_objective=oracle_state.get(
+                "missingness_objective", "mask_aware"
+            ),
+            dr_min_propensity=oracle_state.get("dr_min_propensity", 1e-3),
+            dr_max_weight=oracle_state.get("dr_max_weight", 20.0),
             device=device,
         )
 
@@ -490,6 +500,9 @@ def create_aaco_method(
     k_neighbors: int = 5,
     acquisition_cost: float = 0.05,
     hide_val: float = 0.0,  # Use 0 for consistency with MLP training
+    missingness_objective: str = "mask_aware",
+    dr_min_propensity: float = 1e-3,
+    dr_max_weight: float | None = 20.0,
     *,
     force_acquisition: bool = False,
     selection_size: int | None = None,
@@ -507,6 +520,11 @@ def create_aaco_method(
         k_neighbors: Number of neighbors for KNN
         acquisition_cost: Cost per feature acquisition (soft budget)
         hide_val: Value to use for unobserved features
+        missingness_objective: Missing-data scoring rule for retrospective
+            neighbors. `"mask_aware"` uses the overlap-only baseline while
+            `"doubly_robust"` adds inverse-propensity correction.
+        dr_min_propensity: Lower clip for support propensities when using DR.
+        dr_max_weight: Optional upper clip for inverse propensity weights.
         force_acquisition: If True, never stop early (hard budget mode)
         selection_size: Optional selection space size for patch-based unmaskers
         unmasker_class_name: Unmasker class name for grouped selection spaces
@@ -525,6 +543,9 @@ def create_aaco_method(
         k_neighbors=k_neighbors,
         acquisition_cost=acquisition_cost,
         hide_val=hide_val,
+        missingness_objective=missingness_objective,
+        dr_min_propensity=dr_min_propensity,
+        dr_max_weight=dr_max_weight,
         device=device,
     )
 

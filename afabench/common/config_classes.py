@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from hydra.core.config_store import ConfigStore
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 cs = ConfigStore.instance()
 
@@ -1039,6 +1043,9 @@ class AACOConfig:
     k_neighbors: int = 5
     acquisition_cost: float = 0.05
     hide_val: float = 0.0  # Use 0 for consistency with MLP training
+    missingness_objective: str = "mask_aware"
+    dr_min_propensity: float = 1e-3
+    dr_max_weight: float | None = 20.0
     evaluate_final_performance: bool = True
     eval_only_n_samples: int | None = None
 
@@ -1234,6 +1241,11 @@ class EvalConfig:
     soft_budget_param: float | None = None
     # Optional deployment-time shield: reject STOP when posterior risk > delta
     stop_shield_delta: float | None = None
+    # Optional dualized stop rule: compare STOP against one-step continuation
+    # under c(a) + lambda * risk_hat(b'). This is tuned by sweeping
+    # `dual_lambda` on validation and selecting the value that satisfies the
+    # target risk budget.
+    dual_lambda: float | None = None
     # Whether to log to wandb
     use_wandb: bool = False
     smoke_test: bool = False

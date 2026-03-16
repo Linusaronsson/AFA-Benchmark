@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 import torch
 
-from afabench.eval.stop_shielding import StopShieldWrapper
+from afabench.eval.stop_shielding import DualizedStopWrapper, StopShieldWrapper
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -51,6 +51,43 @@ class ForceAcquisitionMethod:
         )
 
 
+class ForceAcquireFirstMethod:
+    def __init__(self) -> None:
+        self.force_acquisition: bool = False
+
+    def act(
+        self,
+        masked_features: torch.Tensor,
+        feature_mask: torch.Tensor,
+        selection_mask: torch.Tensor | None = None,
+        label: torch.Tensor | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> torch.Tensor:
+        del feature_mask, selection_mask, label, feature_shape
+        action = 1 if self.force_acquisition else 0
+        return torch.full(
+            (masked_features.shape[0], 1),
+            action,
+            dtype=torch.long,
+        )
+
+
+class UnavoidableStopMethod:
+    def __init__(self) -> None:
+        self.force_acquisition: bool = False
+
+    def act(
+        self,
+        masked_features: torch.Tensor,
+        feature_mask: torch.Tensor,
+        selection_mask: torch.Tensor | None = None,
+        label: torch.Tensor | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> torch.Tensor:
+        del feature_mask, selection_mask, label, feature_shape
+        return torch.zeros((masked_features.shape[0], 1), dtype=torch.long)
+
+
 class UnsupportedStopMethod:
     def act(
         self,
@@ -77,6 +114,36 @@ def _fixed_predict_fn(
         return predictions[: masked_features.shape[0]]
 
     return predict
+
+
+def _feature_mask_risk_predict_fn(
+    masked_features: torch.Tensor,
+    feature_mask: torch.Tensor,
+    label: torch.Tensor | None = None,
+    feature_shape: torch.Size | None = None,
+) -> torch.Tensor:
+    del masked_features, label, feature_shape
+    confident = feature_mask[:, 0]
+    probs = torch.empty((feature_mask.shape[0], 2), dtype=torch.float32)
+    probs[confident] = torch.tensor([0.95, 0.05])
+    probs[~confident] = torch.tensor([0.55, 0.45])
+    return probs
+
+
+def _first_feature_unmask(
+    masked_features: torch.Tensor,
+    feature_mask: torch.Tensor,
+    features: torch.Tensor,
+    afa_selection: torch.Tensor,
+    selection_mask: torch.Tensor | None = None,
+    label: torch.Tensor | None = None,
+    feature_shape: torch.Size | None = None,
+) -> torch.Tensor:
+    del masked_features, features, selection_mask, label, feature_shape
+    new_feature_mask = feature_mask.clone()
+    batch_indices = torch.arange(feature_mask.shape[0])
+    new_feature_mask[batch_indices, afa_selection.view(-1)] = True
+    return new_feature_mask
 
 
 def test_stop_shield_rejects_only_risky_stops_for_threshold_method() -> None:
@@ -157,3 +224,75 @@ def test_stop_shield_raises_for_unsupported_method() -> None:
             masked_features=torch.zeros((1, 2)),
             feature_mask=torch.zeros((1, 2), dtype=torch.bool),
         )
+
+
+def test_dualized_stop_wrapper_lambda_zero_prefers_stop() -> None:
+    wrapper = DualizedStopWrapper(
+        afa_method=cast(
+            "AFAMethod", cast("object", ForceAcquireFirstMethod())
+        ),
+        afa_predict_fn=_feature_mask_risk_predict_fn,
+        afa_unmask_fn=_first_feature_unmask,
+        predictor_name="mask-risk",
+        selection_costs=torch.tensor([0.1]),
+        dual_lambda=0.0,
+    )
+
+    actions = wrapper(
+        masked_features=torch.zeros((1, 1)),
+        feature_mask=torch.zeros((1, 1), dtype=torch.bool),
+        selection_mask=torch.zeros((1, 1), dtype=torch.bool),
+        features=torch.ones((1, 1)),
+    )
+
+    assert torch.equal(actions, torch.tensor([[0]]))
+    assert wrapper.get_summary()["n_rejected_stops"] == 0
+
+
+def test_dualized_stop_wrapper_rejects_risky_stop_when_continue_is_better() -> (
+    None
+):
+    wrapper = DualizedStopWrapper(
+        afa_method=cast(
+            "AFAMethod", cast("object", ForceAcquireFirstMethod())
+        ),
+        afa_predict_fn=_feature_mask_risk_predict_fn,
+        afa_unmask_fn=_first_feature_unmask,
+        predictor_name="mask-risk",
+        selection_costs=torch.tensor([0.1]),
+        dual_lambda=2.0,
+    )
+
+    actions = wrapper(
+        masked_features=torch.zeros((1, 1)),
+        feature_mask=torch.zeros((1, 1), dtype=torch.bool),
+        selection_mask=torch.zeros((1, 1), dtype=torch.bool),
+        features=torch.ones((1, 1)),
+    )
+
+    assert torch.equal(actions, torch.tensor([[1]]))
+    assert wrapper.get_summary()["n_rejected_stops"] == 1
+    assert wrapper.get_summary()["n_forced_continue_actions"] == 1
+
+
+def test_dualized_stop_wrapper_keeps_stop_when_no_legal_continue_exists() -> (
+    None
+):
+    wrapper = DualizedStopWrapper(
+        afa_method=cast("AFAMethod", cast("object", UnavoidableStopMethod())),
+        afa_predict_fn=_feature_mask_risk_predict_fn,
+        afa_unmask_fn=_first_feature_unmask,
+        predictor_name="mask-risk",
+        selection_costs=torch.tensor([0.1]),
+        dual_lambda=10.0,
+    )
+
+    actions = wrapper(
+        masked_features=torch.zeros((1, 1)),
+        feature_mask=torch.zeros((1, 1), dtype=torch.bool),
+        selection_mask=torch.zeros((1, 1), dtype=torch.bool),
+        features=torch.ones((1, 1)),
+    )
+
+    assert torch.equal(actions, torch.tensor([[0]]))
+    assert wrapper.get_summary()["n_unavoidable_stops"] == 1

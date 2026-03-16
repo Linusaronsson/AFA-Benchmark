@@ -22,11 +22,19 @@ defaults:
 #   - Higher cost = fewer features acquired
 #   - Typical range: 0.001 - 0.2 depending on dataset
 # hide_val: Value used for unobserved features (0.0 for consistency with MLP)
+# missingness_objective:
+#   - mask_aware: current overlap-aware retrospective scoring
+#   - doubly_robust: mask-aware augmentation plus marginal IPW correction
+# dr_min_propensity: lower clip on estimated support propensities
+# dr_max_weight: optional upper clip on inverse propensity weights
 
 aco:
   k_neighbors: 5
   acquisition_cost: 0.05
   hide_val: 0.0
+  missingness_objective: "mask_aware"
+  dr_min_propensity: 0.001
+  dr_max_weight: 20.0
   evaluate_final_performance: true
   eval_only_n_samples: null
 
