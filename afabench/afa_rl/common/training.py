@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import gc
 import logging
+import math
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import torch
 import wandb
@@ -18,11 +19,10 @@ from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
 from afabench.afa_rl.common.utils import (
     get_eval_metrics,
 )
-
-# from afabench.afa_rl.reward_functions import get_range_based_reward_fn
-# from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
 from afabench.common.bundle import load_bundle, save_bundle
+from afabench.common.custom_types import AFAInitializer
 from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.unmaskers import AFAContextUnmasker, CubeNMARUnmasker
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import get_class_frequencies, initialize_wandb_run
 
@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     )
     from afabench.common.custom_types import (
         AFADataset,
-        AFAInitializer,
+        AFAInitializeFn,
         AFAMethod,
         AFAUnmasker,
         FeatureMask,
@@ -50,6 +50,207 @@ if TYPE_CHECKING:
     )
 
 log = logging.getLogger(__name__)
+
+type EnvMaskMode = Literal["default", "train_restricted", "eval_cold"]
+
+
+def _initializer_has_training_support_restriction(
+    initializer: AFAInitializer,
+) -> bool:
+    return (
+        type(initializer).get_training_forbidden_mask
+        is not AFAInitializer.get_training_forbidden_mask
+    )
+
+
+def _adapt_forbidden_mask_to_selection_space(
+    forbidden_mask: torch.Tensor,
+    *,
+    n_selection_choices: int,
+    feature_shape: torch.Size,
+    unmasker: AFAUnmasker,
+) -> torch.Tensor:
+    """Convert feature-space forbidden masks to selection-space masks."""
+    if forbidden_mask.shape[-1] == n_selection_choices:
+        return forbidden_mask
+
+    n_features = math.prod(feature_shape)
+    if forbidden_mask.shape[-1] != n_features:
+        msg = (
+            "Initializer forbidden mask has incompatible shape. "
+            f"Expected trailing dim {n_selection_choices} (selection space) or "
+            f"{n_features} (feature space), got {forbidden_mask.shape[-1]}."
+        )
+        raise ValueError(msg)
+
+    def collapse_grouped_context_mask(
+        n_contexts: int,
+        *,
+        unmasker_name: str,
+    ) -> torch.Tensor:
+        expected_n_selections = 1 + (n_features - n_contexts)
+        if n_selection_choices != expected_n_selections:
+            msg = (
+                f"Unexpected selection-space size for {unmasker_name}. "
+                f"Expected {expected_n_selections}, got {n_selection_choices}."
+            )
+            raise ValueError(msg)
+
+        flat_forbidden = forbidden_mask.reshape(-1, n_features)
+        sel_forbidden = torch.zeros(
+            (flat_forbidden.shape[0], n_selection_choices),
+            dtype=torch.bool,
+            device=forbidden_mask.device,
+        )
+        sel_forbidden[:, 0] = flat_forbidden[:, :n_contexts].any(dim=1)
+        sel_forbidden[:, 1:] = flat_forbidden[:, n_contexts:]
+        batch_shape = forbidden_mask.shape[:-1]
+        return sel_forbidden.reshape(*batch_shape, n_selection_choices)
+
+    if isinstance(unmasker, AFAContextUnmasker):
+        return collapse_grouped_context_mask(
+            unmasker.n_contexts,
+            unmasker_name="AFAContextUnmasker",
+        )
+
+    if isinstance(unmasker, CubeNMARUnmasker):
+        return collapse_grouped_context_mask(
+            unmasker.n_contexts,
+            unmasker_name="CubeNMARUnmasker",
+        )
+
+    if forbidden_mask.any():
+        msg = (
+            "Cannot convert feature-level forbidden mask to selection space for "
+            f"unmasker {type(unmasker).__name__}."
+        )
+        raise ValueError(msg)
+
+    return torch.zeros(
+        (*forbidden_mask.shape[:-1], n_selection_choices),
+        dtype=torch.bool,
+        device=forbidden_mask.device,
+    )
+
+
+def _build_env_mask_fns(
+    initializer: AFAInitializer,
+    unmasker: AFAUnmasker,
+    *,
+    n_selection_choices: int,
+    mode: EnvMaskMode,
+) -> tuple[
+    AFAInitializeFn,
+    Callable[[FeatureMask, torch.Size], SelectionMask] | None,
+]:
+    """
+    Build environment mask functions for RL under default or train-missing semantics.
+
+    `train_restricted` matches the thesis objective: sample missingness once,
+    start from a cold state, and block training-forbidden actions.
+    `eval_cold` restores the standard cold-start evaluation protocol.
+    """
+    if mode == "eval_cold":
+
+        def cold_initialize(
+            features: torch.Tensor,
+            label: torch.Tensor,
+            feature_shape: torch.Size | None = None,
+        ) -> torch.Tensor:
+            del label
+            assert feature_shape is not None, (
+                "feature_shape must be provided for cold initialization"
+            )
+            batch_shape = features.shape[: -len(feature_shape)]
+            return torch.zeros(
+                batch_shape + feature_shape,
+                dtype=torch.bool,
+                device=features.device,
+            )
+
+        return cold_initialize, None
+
+    cached_observed_mask: torch.Tensor | None = None
+    maybe_forbidden_selection_mask_fn = getattr(
+        initializer, "get_forbidden_selection_mask", None
+    )
+    typed_forbidden_selection_mask_fn = (
+        cast(
+            "Callable[[FeatureMask, torch.Size], SelectionMask]",
+            maybe_forbidden_selection_mask_fn,
+        )
+        if callable(maybe_forbidden_selection_mask_fn)
+        else None
+    )
+
+    def initialize_fn(
+        features: torch.Tensor,
+        label: torch.Tensor,
+        feature_shape: torch.Size | None = None,
+    ) -> torch.Tensor:
+        nonlocal cached_observed_mask
+        observed_mask = initializer.initialize(
+            features=features,
+            label=label,
+            feature_shape=feature_shape,
+        ).bool()
+        cached_observed_mask = observed_mask
+        if mode == "train_restricted":
+            return torch.zeros_like(observed_mask, dtype=torch.bool)
+        return observed_mask
+
+    forbidden_selection_mask_fn: (
+        Callable[[FeatureMask, torch.Size], SelectionMask] | None
+    ) = None
+    if (
+        mode == "train_restricted"
+        or typed_forbidden_selection_mask_fn is not None
+    ):
+
+        def build_forbidden_selection_mask(
+            observed_mask: torch.Tensor,
+            feature_shape: torch.Size,
+        ) -> torch.Tensor:
+            source_observed_mask = (
+                observed_mask
+                if cached_observed_mask is None
+                else cached_observed_mask
+            )
+            batch_shape = source_observed_mask.shape[: -len(feature_shape)]
+            combined = torch.zeros(
+                batch_shape + torch.Size((n_selection_choices,)),
+                dtype=torch.bool,
+                device=source_observed_mask.device,
+            )
+
+            if mode == "train_restricted":
+                training_forbidden = initializer.get_training_forbidden_mask(
+                    source_observed_mask
+                ).bool()
+                combined |= _adapt_forbidden_mask_to_selection_space(
+                    training_forbidden,
+                    n_selection_choices=n_selection_choices,
+                    feature_shape=feature_shape,
+                    unmasker=unmasker,
+                )
+
+            if typed_forbidden_selection_mask_fn is not None:
+                raw_forbidden = typed_forbidden_selection_mask_fn(
+                    source_observed_mask,
+                    feature_shape,
+                ).bool()
+                combined |= _adapt_forbidden_mask_to_selection_space(
+                    raw_forbidden,
+                    n_selection_choices=n_selection_choices,
+                    feature_shape=feature_shape,
+                    unmasker=unmasker,
+                )
+
+            return combined
+
+        forbidden_selection_mask_fn = build_forbidden_selection_mask
+
+    return initialize_fn, forbidden_selection_mask_fn
 
 
 class RLTrainer(ABC):
@@ -177,25 +378,40 @@ class RLTrainer(ABC):
         ) * len(self.unnormalized_selection_costs)
 
     def _create_envs(self) -> None:
-        self.train_env = self._get_env_from_dataset(self.train_dataset)
-        self.eval_env = self._get_env_from_dataset(self.val_dataset)
+        has_train_restriction = _initializer_has_training_support_restriction(
+            self.initializer
+        )
+        if has_train_restriction:
+            log.info(
+                "Initializer %s uses restricted-support RL training. "
+                "Train env starts cold and blocks training-forbidden actions; "
+                "eval env uses standard cold-start semantics.",
+                type(self.initializer).__name__,
+            )
 
-    def _get_env_from_dataset(self, dataset: AFADataset) -> AFAEnv:
+        self.train_env = self._get_env_from_dataset(
+            self.train_dataset,
+            mode="train_restricted" if has_train_restriction else "default",
+        )
+        self.eval_env = self._get_env_from_dataset(
+            self.val_dataset,
+            mode="eval_cold" if has_train_restriction else "default",
+        )
+
+    def _get_env_from_dataset(
+        self,
+        dataset: AFADataset,
+        *,
+        mode: EnvMaskMode,
+    ) -> AFAEnv:
         features, labels = dataset.get_all_data()
         dataset_fn = get_afa_dataset_fn(features, labels, device=self.device)
-        maybe_forbidden_selection_mask_fn = getattr(
-            self.initializer, "get_forbidden_selection_mask", None
+        initialize_fn, forbidden_selection_mask_fn = _build_env_mask_fns(
+            self.initializer,
+            self.unmasker,
+            n_selection_choices=self._n_selections,
+            mode=mode,
         )
-        forbidden_selection_mask_fn: (
-            Callable[[FeatureMask, torch.Size], SelectionMask] | None
-        )
-        if callable(maybe_forbidden_selection_mask_fn):
-            forbidden_selection_mask_fn = cast(
-                "Callable[[FeatureMask, torch.Size], SelectionMask]",
-                maybe_forbidden_selection_mask_fn,
-            )
-        else:
-            forbidden_selection_mask_fn = None
         env = AFAEnv(
             dataset_fn=dataset_fn,
             reward_fn=self.reward_fn,
@@ -205,7 +421,7 @@ class RLTrainer(ABC):
             n_selections=self._n_selections,
             n_classes=self._n_classes,
             hard_budget=self.mdp_cfg.hard_budget,
-            initialize_fn=self.initializer.initialize,
+            initialize_fn=initialize_fn,
             unmask_fn=self.unmasker.unmask,
             forbidden_selection_mask_fn=forbidden_selection_mask_fn,
             force_hard_budget=self.mdp_cfg.force_hard_budget,
