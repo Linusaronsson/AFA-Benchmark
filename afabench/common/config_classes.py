@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from pathlib import Path
+from typing import Any
 
 from hydra.core.config_store import ConfigStore
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 cs = ConfigStore.instance()
 
