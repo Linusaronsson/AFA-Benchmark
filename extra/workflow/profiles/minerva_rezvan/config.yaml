@@ -15,6 +15,7 @@ retries: 1
 
 default-resources:
   slurm_partition: long
+  slurm_account: student
   runtime: 120 # minutes
   cpus_per_task: 1
   mem_mb: 4000
