@@ -3,6 +3,9 @@ from afabench.common.custom_types import AFAInitializer
 from afabench.common.initializers.cube_nm_ar_initializer import (
     CubeNMARInitializer,
 )
+from afabench.common.initializers.cube_nm_ar_mar_initializer import (
+    CubeNMARMARInitializer,
+)
 from afabench.common.initializers.fixed_random_initializer import (
     FixedRandomInitializer,
 )
@@ -67,6 +70,11 @@ def get_afa_initializer_from_config(  # noqa: PLR0911
     if initializer_config.class_name == "CubeNMARInitializer":
         cls = get_class(initializer_config.class_name)
         assert cls is CubeNMARInitializer
+        return cls(**initializer_config.kwargs)
+
+    if initializer_config.class_name == "CubeNMARMARInitializer":
+        cls = get_class(initializer_config.class_name)
+        assert cls is CubeNMARMARInitializer
         return cls(**initializer_config.kwargs)
 
     msg = f"Unknown initializer: {initializer_config.class_name}"

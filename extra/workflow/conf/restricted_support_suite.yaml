@@ -10,10 +10,10 @@
 # The outer suite is intentionally serial; each nested `pipeline.smk`
 # invocation uses `cube_nm_ar_suite_pipeline_cores`.
 
-cube_nm_ar_suite_train_initializers: [cube_nm_ar, cold, mcar_p03, mar_p03, mnar_logistic_p03]
+cube_nm_ar_suite_train_initializers: [cube_nm_ar, cold, mcar_p03, mar_p03, mnar_logistic_p03, cube_nm_ar_mar, cube_nm_ar_p01, cube_nm_ar_p05, cube_nm_ar_p07]
 cube_nm_ar_suite_mode_train_initializers:
-  hard: [cube_nm_ar, cold, mcar_p03, mar_p03, mnar_logistic_p03]
-  soft: [cube_nm_ar, cold, mcar_p03, mar_p03, mnar_logistic_p03]
+  hard: [cube_nm_ar, cold, mcar_p03, mar_p03, mnar_logistic_p03, cube_nm_ar_mar, cube_nm_ar_p01, cube_nm_ar_p05, cube_nm_ar_p07]
+  soft: [cube_nm_ar, cold, mcar_p03, mar_p03, mnar_logistic_p03, cube_nm_ar_mar, cube_nm_ar_p01, cube_nm_ar_p05, cube_nm_ar_p07]
 cube_nm_ar_suite_eval_initializers: [cold]
 cube_nm_ar_suite_budget_modes: [hard, soft]
 cube_nm_ar_suite_dataset: cube_nm_ar

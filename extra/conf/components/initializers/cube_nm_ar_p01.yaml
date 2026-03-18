@@ -1,0 +1,6 @@
+class_name: "CubeNMARInitializer"
+kwargs:
+  n_contexts: 5
+  block_size: 4
+  n_safe_contexts: 2
+  risky_rescue_missing_probability: 0.1

@@ -62,6 +62,7 @@ REGISTERED_CLASSES = {
     "RandomInitializer": "afabench.common.initializers.RandomInitializer",
     "MissingnessInitializer": "afabench.common.initializers.MissingnessInitializer",
     "CubeNMARInitializer": "afabench.common.initializers.CubeNMARInitializer",
+    "CubeNMARMARInitializer": "afabench.common.initializers.CubeNMARMARInitializer",
     # General PyTorch Model Bundle
     "TorchModelBundle": "afabench.common.torch_bundle.TorchModelBundle",
 }
