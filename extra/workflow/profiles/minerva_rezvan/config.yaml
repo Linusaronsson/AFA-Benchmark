@@ -1,0 +1,65 @@
+# Snakemake profile for Minerva SLURM cluster (Rezvan)
+#
+# Minerva partitions:
+#   short — max 30 minutes (default)
+#   long  — max 24 hours
+#
+# GPUs available:
+#   L4   — 24 GiB, 32 total (up to 8 per node)
+#   L40s — 48 GiB, 8 total  (up to 4 per node)
+
+executor: slurm
+jobs: 50
+latency-wait: 60
+retries: 1
+
+default-resources:
+  slurm_partition: long
+  runtime: 120 # minutes
+  cpus_per_task: 1
+  mem_mb: 4000
+
+set-resources:
+  train_classifier:
+    runtime: 120
+  train_masked_mlp_classifier:
+    runtime: 120
+  pretrain_model:
+    runtime: 1440 # 24h (max for long queue)
+    cpus_per_task: 4
+  train_method_with_pretrained_model:
+    runtime: 1440 # 24h
+    mem_mb: 16000
+    cpus_per_task: 4
+  train_method_without_pretrained_model:
+    runtime: 1440 # 24h
+    mem_mb: 16000
+    cpus_per_task: 4
+  eval_method:
+    runtime: 1440 # 24h
+    mem_mb: 16000
+    cpus_per_task: 4
+  eval_method_shielded:
+    runtime: 1440 # 24h
+    mem_mb: 16000
+    cpus_per_task: 4
+  eval_method_dualized:
+    runtime: 1440 # 24h
+    mem_mb: 16000
+    cpus_per_task: 4
+  count_selections:
+    runtime: 30
+  count_selections_soft:
+    runtime: 30
+  add_metadata_to_eval_data:
+    runtime: 30
+  add_metadata_to_eval_data_soft:
+    runtime: 30
+  pivot_long_classifier:
+    runtime: 10
+  pivot_long_classifier_soft:
+    runtime: 10
+  merge_eval:
+    runtime: 30
+  plot:
+    runtime: 30
