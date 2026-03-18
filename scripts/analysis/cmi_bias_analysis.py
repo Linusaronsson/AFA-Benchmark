@@ -28,12 +28,15 @@ INITIALIZER_META = {
     "mcar_p01": ("MCAR", 0.1),
     "mcar_p03": ("MCAR", 0.3),
     "mcar_p05": ("MCAR", 0.5),
+    "mcar_p07": ("MCAR", 0.7),
     "mar_p01": ("MAR", 0.1),
     "mar_p03": ("MAR", 0.3),
     "mar_p05": ("MAR", 0.5),
+    "mar_p07": ("MAR", 0.7),
     "mnar_logistic_p01": ("MNAR", 0.1),
     "mnar_logistic_p03": ("MNAR", 0.3),
     "mnar_logistic_p05": ("MNAR", 0.5),
+    "mnar_logistic_p07": ("MNAR", 0.7),
 }
 
 

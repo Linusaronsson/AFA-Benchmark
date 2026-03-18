@@ -1,0 +1,47 @@
+# Compare eval-time stop-control overlays while keeping train/eval
+# initialization fixed.
+#
+# This workflow mirrors the original pipeline interface: specify `datasets` and
+# `methods` on the CLI, then optionally override `train_initializer`,
+# `stop_shield_deltas`, `dual_lambdas`, and plotting filters.
+#
+# Example smoke run:
+#
+#   uv run snakemake \
+#     -s extra/workflow/snakefiles/orchestration/stop_control_comparison.smk \
+#     --configfile extra/workflow/conf/stop_control_comparison.yaml \
+#     --config \
+#       "datasets=[cube_without_noise]" \
+#       "methods=[aaco_full]" \
+#       train_initializer=mcar_p05 \
+#       "stop_shield_deltas=[0.2]" \
+#       "dual_lambdas=[1.0]" \
+#       "dataset_instance_indices=[0]" \
+#       smoke_test=true \
+#     -j 1 \
+#     all
+
+train_initializer: cold
+eval_initializer: cold
+eval_dataset_split: val
+
+stop_shield_deltas: [0.2, 0.3]
+dual_lambdas: [0.3, 1.0, 3.0]
+
+comparison_method_set_name: selected_methods
+classifier_types: [external]
+
+pipeline_configfiles:
+  - extra/workflow/conf/eval_hard_budgets_fast.yaml
+  - extra/workflow/conf/soft_budget_params_fast.yaml
+  - extra/workflow/conf/method_options.yaml
+  - extra/workflow/conf/pretrain_mapping.yaml
+  - extra/workflow/conf/classifier_names.yaml
+  - extra/workflow/conf/unmaskers.yaml
+
+pipeline_cores: 8
+pipeline_rerun_incomplete: true
+pipeline_extra_config: ""
+
+plot_budget_mode: soft
+plot_keep_largest_hard_budget: true

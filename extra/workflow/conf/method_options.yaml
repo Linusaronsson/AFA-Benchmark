@@ -9,6 +9,8 @@ method_options:
       - "train_missing_mode=full"
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
+  # Block-only baseline: train on the initializer support, but do not pass
+  # retrospective support masks into the AACO oracle.
   aaco_zero_fill:
     train_script_name: "aaco"
     method_specific_params:
@@ -78,6 +80,7 @@ method_options:
         2: 20
         4: 20
         7: 20
+  # Block-only DIME baseline; IPW variants are listed separately below.
   gadgil2023:
     pretrained_model_name: "dime"
     train_script_name: "gadgil2023"

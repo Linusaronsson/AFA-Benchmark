@@ -11,7 +11,12 @@ methods:
   - ma2018_builtin
   - ma2018_external
   - gadgil2023
+  - gadgil2023_ipw_feature_marginal
   - cae
   - permutation
   - aaco
   - aaco_nn
+  - aaco_full
+  - aaco_zero_fill
+  - aaco_mask_aware
+  - aaco_dr

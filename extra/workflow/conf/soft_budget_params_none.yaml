@@ -3,7 +3,19 @@ soft_budget_params:
     default: []
   aaco_nn:
     default: []
+  aaco_full:
+    default: []
+  aaco_zero_fill:
+    default: []
+  aaco_mask_aware:
+    default: []
+  aaco_dr:
+    default: []
   jafa:
+    default: []
+  gadgil2023:
+    default: []
+  gadgil2023_ipw_feature_marginal:
     default: []
   ol_without_mask: &ol
     default: []

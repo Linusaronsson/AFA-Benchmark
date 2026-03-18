@@ -57,3 +57,89 @@ rule transform_eval_data:
             --train_soft_budget_param {wildcards.train_soft_budget_param} \
             --eval_soft_budget_param {wildcards.eval_soft_budget_param}
         """
+
+
+rule transform_eval_data_shielded:
+    """Transform threshold-shielded evaluation data for aggregation."""
+    input:
+        f"extra/output/eval_results_shielded/delta-{{stop_shield_delta}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "{pretrain_folder}"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
+                            "eval_data.csv",
+    output:
+        f"extra/output/eval_results_transformed_shielded/delta-{{stop_shield_delta}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "{pretrain_folder}"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
+                            "eval_data.parquet",
+    resources:
+        shell_exec="bash"
+    shell:
+        """
+        python scripts/misc/transform_eval_data_pipeline.py \
+            --input_path {input} \
+            --output_path {output} \
+            --method {wildcards.method} \
+            --dataset {wildcards.dataset} \
+            --initializer {INITIALIZER_TAG} \
+            --train_seed {wildcards.train_seed} \
+            --train_hard_budget {wildcards.train_hard_budget} \
+            --train_soft_budget_param {wildcards.train_soft_budget_param} \
+            --eval_soft_budget_param {wildcards.eval_soft_budget_param}
+        """
+
+
+rule transform_eval_data_dualized:
+    """Transform dualized-stop evaluation data for aggregation."""
+    input:
+        f"extra/output/eval_results_dualized/lambda-{{dual_lambda}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "{pretrain_folder}"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
+                            "eval_data.csv",
+    output:
+        f"extra/output/eval_results_transformed_dualized/lambda-{{dual_lambda}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
+            "dataset-{dataset}+"
+            "instance_idx-{dataset_instance_idx}/"
+                "{pretrain_folder}"
+                    "train_seed-{train_seed}+"
+                    "train_hard_budget-{train_hard_budget}+"
+                    "train_soft_budget_param-{train_soft_budget_param}/"
+                        "eval_seed-{eval_seed}+"
+                        "eval_hard_budget-{eval_hard_budget}+"
+                        "eval_soft_budget_param-{eval_soft_budget_param}/"
+                            "eval_data.parquet",
+    resources:
+        shell_exec="bash"
+    shell:
+        """
+        python scripts/misc/transform_eval_data_pipeline.py \
+            --input_path {input} \
+            --output_path {output} \
+            --method {wildcards.method} \
+            --dataset {wildcards.dataset} \
+            --initializer {INITIALIZER_TAG} \
+            --train_seed {wildcards.train_seed} \
+            --train_hard_budget {wildcards.train_hard_budget} \
+            --train_soft_budget_param {wildcards.train_soft_budget_param} \
+            --eval_soft_budget_param {wildcards.eval_soft_budget_param}
+        """

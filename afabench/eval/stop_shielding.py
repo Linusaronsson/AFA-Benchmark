@@ -429,7 +429,8 @@ class DualizedStopWrapper:
         stopped_indices = stop_mask.nonzero(as_tuple=True)[0]
         continue_indices = stopped_indices[forced_continue_mask]
         forced_continue_action = forced_action[forced_continue_mask]
-        forced_selection = forced_continue_action.squeeze(-1) - 1
+        forced_selection = forced_continue_action - 1
+        forced_selection_indices = forced_selection.squeeze(-1)
 
         assert selection_mask is not None, (
             "Dualized stop control requires selection masks during evaluation."
@@ -452,9 +453,9 @@ class DualizedStopWrapper:
             label=None if label is None else label[continue_indices],
             feature_shape=feature_shape,
         )
-        action_costs = self.selection_costs.to(forced_selection.device)[
-            forced_selection
-        ]
+        action_costs = self.selection_costs.to(
+            forced_selection_indices.device
+        )[forced_selection_indices]
         continuation_objective = action_costs + (
             self.dual_lambda * continuation_risk
         )

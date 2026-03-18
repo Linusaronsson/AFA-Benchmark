@@ -17,9 +17,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,17 +29,27 @@ from afabench.eval.plotting_config import (
     METHOD_NAME_MAPPING,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
+    from matplotlib.axes import Axes
+    from numpy.typing import NDArray
+
+
 INITIALIZER_LABELS: dict[str, str] = {
     "cold": "Full data",
     "mcar_p01": "MCAR p=0.1",
     "mcar_p03": "MCAR p=0.3",
     "mcar_p05": "MCAR p=0.5",
+    "mcar_p07": "MCAR p=0.7",
     "mar_p01": "MAR p=0.1",
     "mar_p03": "MAR p=0.3",
     "mar_p05": "MAR p=0.5",
+    "mar_p07": "MAR p=0.7",
     "mnar_logistic_p01": "MNAR p=0.1",
     "mnar_logistic_p03": "MNAR p=0.3",
     "mnar_logistic_p05": "MNAR p=0.5",
+    "mnar_logistic_p07": "MNAR p=0.7",
 }
 
 
@@ -54,9 +63,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--eval-split", default="val")
     parser.add_argument("--method", default="aaco_full")
     parser.add_argument("--dataset", default="afa_context_v2")
-    parser.add_argument(
-        "--baseline-initializer", default="cold"
-    )
+    parser.add_argument("--baseline-initializer", default="cold")
     parser.add_argument(
         "--comparison-initializers",
         nargs="+",
@@ -66,9 +73,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path(
-            "extra/output/analysis/missing_train/heatmaps"
-        ),
+        default=Path("extra/output/analysis/missing_train/heatmaps"),
     )
     parser.add_argument(
         "--formats",
@@ -94,10 +99,7 @@ def _find_parquet(
             if not perf_dir.exists():
                 continue
             if method_set is not None:
-                candidate = (
-                    perf_dir
-                    / f"method_set-{method_set}+all.parquet"
-                )
+                candidate = perf_dir / f"method_set-{method_set}+all.parquet"
                 if candidate.exists():
                     return candidate
             # Fallback: pick first parquet.
@@ -111,7 +113,7 @@ def _normalize_heatmap(
     df: pl.DataFrame,
     max_action: int,
     max_time: int,
-) -> np.ndarray:
+) -> NDArray[np.float64]:
     """Build timestep-normalized heatmap, excluding action 0."""
     heatmap = np.zeros((max_action, max_time + 1))
     for row in df.iter_rows(named=True):
@@ -128,7 +130,7 @@ def _normalize_heatmap(
 
 
 def _format_axes(
-    ax: plt.Axes,
+    ax: Axes,
     max_action: int,
     max_time: int,
     title: str,
@@ -136,12 +138,8 @@ def _format_axes(
     ax.set_title(title, fontsize=10, fontweight="bold")
     ax.set_xlabel("Time step")
     ax.set_ylabel("Action index")
-    ax.set_xticks(
-        np.arange(0, max_time + 1, max(1, max_time // 5))
-    )
-    y_ticks = np.arange(
-        0, max_action + 1, max(1, (max_action + 1) // 10)
-    )
+    ax.set_xticks(np.arange(0, max_time + 1, max(1, max_time // 5)))
+    y_ticks = np.arange(0, max_action + 1, max(1, (max_action + 1) // 10))
     ax.set_yticks(y_ticks)
     ax.set_yticklabels(y_ticks + 1)
 
@@ -196,12 +194,8 @@ def plot_heatmap_comparison(
     )
 
     # Comparison panels.
-    for idx, (init_name, df) in enumerate(
-        comparison_dfs.items(), start=1
-    ):
-        heatmap = _normalize_heatmap(
-            df, global_max_action, global_max_time
-        )
+    for idx, (init_name, df) in enumerate(comparison_dfs.items(), start=1):
+        heatmap = _normalize_heatmap(df, global_max_action, global_max_time)
         axes[0, idx].imshow(
             heatmap,
             cmap="Blues",
@@ -210,12 +204,8 @@ def plot_heatmap_comparison(
             vmin=0.0,
             vmax=1.0,
         )
-        title = INITIALIZER_LABELS.get(
-            init_name, init_name.replace("_", " ")
-        )
-        _format_axes(
-            axes[0, idx], global_max_action, global_max_time, title
-        )
+        title = INITIALIZER_LABELS.get(init_name, init_name.replace("_", " "))
+        _format_axes(axes[0, idx], global_max_action, global_max_time, title)
 
     method_label = METHOD_NAME_MAPPING.get(method, method)
     dataset_label = DATASET_NAME_MAPPING.get(dataset, dataset)
@@ -227,10 +217,7 @@ def plot_heatmap_comparison(
     fig.tight_layout()
 
     for fmt in formats:
-        path = (
-            output_dir
-            / f"heatmap_comparison_{method}_{dataset}.{fmt}"
-        )
+        path = output_dir / f"heatmap_comparison_{method}_{dataset}.{fmt}"
         fig.savefig(path, bbox_inches="tight", dpi=300)
         print(f"Saved {path}")
     plt.close(fig)
@@ -261,9 +248,7 @@ def main() -> None:
     )
     # Keep only largest hard budget.
     max_budget = bl_df["eval_hard_budget"].max()
-    bl_df = bl_df.filter(
-        pl.col("eval_hard_budget") == max_budget
-    )
+    bl_df = bl_df.filter(pl.col("eval_hard_budget") == max_budget)
     if bl_df.is_empty():
         print(
             f"No baseline data for method={args.method}, "
@@ -286,21 +271,19 @@ def main() -> None:
                 f"initializer={init_name}, skipping."
             )
             continue
-        df = pl.read_parquet(path)
-        df = df.filter(
+        comparison_df = pl.read_parquet(path)
+        comparison_df = comparison_df.filter(
             (pl.col("afa_method") == args.method)
             & (pl.col("dataset") == args.dataset)
             & (pl.col("action_performed") != 0)
         )
-        df = df.filter(
+        comparison_df = comparison_df.filter(
             pl.col("eval_hard_budget") == max_budget
         )
-        if df.is_empty():
-            print(
-                f"Warning: no data for {init_name}, skipping."
-            )
+        if comparison_df.is_empty():
+            print(f"Warning: no data for {init_name}, skipping.")
             continue
-        comparison_dfs[init_name] = df
+        comparison_dfs[init_name] = comparison_df
 
     if not comparison_dfs:
         print("No comparison data found. Nothing to plot.")

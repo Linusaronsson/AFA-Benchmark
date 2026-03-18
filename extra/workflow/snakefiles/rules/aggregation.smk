@@ -8,57 +8,72 @@ Combines individual results into unified datasets:
 """
 
 
+def _eval_perf_transformed_inputs(
+    method_set: str,
+    *,
+    transformed_root: str,
+) -> list[str]:
+    return [
+        (
+            f"{transformed_root}/{method}/"
+                f"dataset-{dataset}+"
+                f"instance_idx-{dataset_instance_idx}/"
+                    f"{NO_PRETRAIN_STR}/"
+                        f"train_seed-{dataset_instance_idx}+"
+                        f"train_hard_budget-{train_hard_budget}+"
+                        f"train_soft_budget_param-{train_soft_budget_param}/"
+                            f"eval_seed-{dataset_instance_idx}+"
+                            f"eval_hard_budget-{eval_hard_budget}+"
+                            f"eval_soft_budget_param-{eval_soft_budget_param}/"
+                                "eval_data.parquet"
+        )
+        for method in METHOD_SETS[method_set]
+        if method in METHODS_WITHOUT_PRETRAINING_STAGE
+        for dataset in DATASETS
+        for dataset_instance_idx in DATASET_INSTANCE_INDICES
+        for (
+            train_hard_budget,
+            eval_hard_budget,
+            train_soft_budget_param,
+            eval_soft_budget_param,
+        ) in BUDGET_PARAMS[method][dataset]
+    ] + [
+        (
+            f"{transformed_root}/{method}/"
+                f"dataset-{dataset}+"
+                f"instance_idx-{dataset_instance_idx}/"
+                    f"pretrain_seed-{dataset_instance_idx}/"
+                        f"train_seed-{dataset_instance_idx}+"
+                        f"train_hard_budget-{train_hard_budget}+"
+                        f"train_soft_budget_param-{train_soft_budget_param}/"
+                            f"eval_seed-{dataset_instance_idx}+"
+                            f"eval_hard_budget-{eval_hard_budget}+"
+                            f"eval_soft_budget_param-{eval_soft_budget_param}/"
+                                "eval_data.parquet"
+        )
+        for method in METHOD_SETS[method_set]
+        if method in METHODS_WITH_PRETRAINING_STAGE
+        for dataset in DATASETS
+        for dataset_instance_idx in DATASET_INSTANCE_INDICES
+        for (
+            train_hard_budget,
+            eval_hard_budget,
+            train_soft_budget_param,
+            eval_soft_budget_param,
+        ) in BUDGET_PARAMS[method][dataset]
+    ]
+
+
 rule merge_eval_perf:
     """Merge evaluation performance results from all methods within a method set."""
-    input: lambda wc:
-        [
-            (
-                f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"{NO_PRETRAIN_STR}/"
-                            f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.parquet"
-            )
-            for method in METHOD_SETS[wc.method_set] if method in METHODS_WITHOUT_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (
-                train_hard_budget,
-                eval_hard_budget,
-                train_soft_budget_param,
-                eval_soft_budget_param,
-            ) in BUDGET_PARAMS[method][dataset]
-        ] +
-        [
-            (
-                f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"pretrain_seed-{dataset_instance_idx}/"
-                            f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.parquet"
-            )
-            for method in METHOD_SETS[wc.method_set] if method in METHODS_WITH_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (
-                train_hard_budget,
-                eval_hard_budget,
-                train_soft_budget_param,
-                eval_soft_budget_param,
-            ) in BUDGET_PARAMS[method][dataset]
-        ]
+    input:
+        lambda wc: _eval_perf_transformed_inputs(
+            wc.method_set,
+            transformed_root=(
+                "extra/output/eval_results_transformed/"
+                f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}"
+            ),
+        )
     resources:
         shell_exec="bash"
     output:
@@ -74,6 +89,82 @@ rule split_by_classifier_type:
     output:
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
+    resources:
+        shell_exec="bash"
+    shell:
+        """
+            python scripts/misc/split_eval_perf_by_classifier.py \
+                --input_path {input} \
+                --output_builtin {output[0]} \
+                --output_external {output[1]}
+        """
+
+
+rule merge_eval_perf_shielded:
+    """Merge threshold-shielded evaluation performance results."""
+    input:
+        lambda wc: _eval_perf_transformed_inputs(
+            wc.method_set,
+            transformed_root=(
+                "extra/output/eval_results_transformed_shielded/"
+                f"delta-{wc.stop_shield_delta}/"
+                f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}"
+            ),
+        )
+    resources:
+        shell_exec="bash"
+    output:
+        f"extra/output/merged_results_shielded/delta-{{stop_shield_delta}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet",
+    shell:
+        """
+            python scripts/misc/merge_dataframes.py {input} --output {output}
+        """
+
+
+rule split_by_classifier_type_shielded:
+    input:
+        f"extra/output/merged_results_shielded/delta-{{stop_shield_delta}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet"
+    output:
+        f"extra/output/merged_results_shielded/delta-{{stop_shield_delta}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
+        f"extra/output/merged_results_shielded/delta-{{stop_shield_delta}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
+    resources:
+        shell_exec="bash"
+    shell:
+        """
+            python scripts/misc/split_eval_perf_by_classifier.py \
+                --input_path {input} \
+                --output_builtin {output[0]} \
+                --output_external {output[1]}
+        """
+
+
+rule merge_eval_perf_dualized:
+    """Merge dualized-stop evaluation performance results."""
+    input:
+        lambda wc: _eval_perf_transformed_inputs(
+            wc.method_set,
+            transformed_root=(
+                "extra/output/eval_results_transformed_dualized/"
+                f"lambda-{wc.dual_lambda}/"
+                f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}"
+            ),
+        )
+    resources:
+        shell_exec="bash"
+    output:
+        f"extra/output/merged_results_dualized/lambda-{{dual_lambda}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet",
+    shell:
+        """
+            python scripts/misc/merge_dataframes.py {input} --output {output}
+        """
+
+
+rule split_by_classifier_type_dualized:
+    input:
+        f"extra/output/merged_results_dualized/lambda-{{dual_lambda}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet"
+    output:
+        f"extra/output/merged_results_dualized/lambda-{{dual_lambda}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
+        f"extra/output/merged_results_dualized/lambda-{{dual_lambda}}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
     resources:
         shell_exec="bash"
     shell:

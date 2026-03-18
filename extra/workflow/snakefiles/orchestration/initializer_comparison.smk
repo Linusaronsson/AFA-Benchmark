@@ -7,8 +7,14 @@ Runtime config (--config / --configfile):
         train-time support conditions while holding the eval initializer fixed.
     eval_initializer (str, default="cold"):
         Eval-stage initializer used together with train_initializers.
-    method_sets (dict[str, list[str]], required):
-        Method sets; only keys are used to locate merged method-set artifacts.
+    methods (list[str], optional):
+        Methods to compare. When `method_sets` is omitted, a synthetic method
+        set is created from this list so the CLI matches `pipeline.smk`.
+    method_sets (dict[str, list[str]], optional):
+        Optional explicit method sets. If omitted, a single synthetic method
+        set is constructed from `methods`.
+    comparison_method_set_name (str, default="selected_methods"):
+        Method-set name used when synthesizing a method set from `methods`.
     eval_dataset_split (str, default="val"):
         Evaluation split used in upstream pipeline outputs.
     classifier_types (list[str], default=["external"]):
@@ -17,6 +23,10 @@ Runtime config (--config / --configfile):
         If provided, this workflow first materializes required upstream
         `pipeline.smk` merged parquet files for each initializer using these
         config files.
+    datasets / methods / dataset_instance_indices / device / use_wandb /
+    smoke_test (optional):
+        Top-level pipeline-style config keys that are forwarded directly to
+        nested `pipeline.smk` invocations.
     pipeline_cores (int, default=8):
         Cores used by nested `pipeline.smk` invocations when
         `pipeline_configfiles` is provided.
@@ -29,6 +39,15 @@ Runtime config (--config / --configfile):
     pipeline_extra_config (str, default=""):
         Optional raw `--config` key-value overrides appended to nested
         `pipeline.smk` invocations.
+    plot_budget_mode (str, default="hard"):
+        Budget regime used when plotting merged comparison outputs.
+    plot_keep_largest_hard_budget (bool, default=True):
+        When plot_budget_mode="hard", keep only the largest hard budget per
+        dataset in the comparison plot.
+    plot_eval_hard_budget (float, optional):
+        When set and plot_budget_mode="hard", keep only this hard budget in
+        the comparison plot. This takes precedence over
+        plot_keep_largest_hard_budget.
 
 Input expectations:
     This workflow expects upstream outputs from pipeline.smk for each
@@ -46,23 +65,44 @@ Outputs:
       eval_perf/method_set-<method_set>+classifier_type-<classifier>/
 """
 
+import json
 import shlex
 
 EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")
 TRAIN_INITIALIZERS = config.get("train_initializers", None)
 EVAL_INITIALIZER = config.get("eval_initializer", "cold")
+METHODS = config.get("methods", None)
 METHOD_SETS = config.get("method_sets", None)
+COMPARISON_METHOD_SET_NAME = config.get(
+    "comparison_method_set_name",
+    "selected_methods",
+)
 CLASSIFIER_TYPES = config.get("classifier_types", ["external"])
 PIPELINE_CONFIGFILES = config.get("pipeline_configfiles", [])
 PIPELINE_CORES = config.get("pipeline_cores", 8)
 PIPELINE_PROFILE = config.get("pipeline_profile", "")
 PIPELINE_RERUN_INCOMPLETE = config.get("pipeline_rerun_incomplete", True)
 PIPELINE_EXTRA_CONFIG = config.get("pipeline_extra_config", "")
+PLOT_BUDGET_MODE = config.get("plot_budget_mode", "hard")
+PLOT_KEEP_LARGEST_HARD_BUDGET = config.get(
+    "plot_keep_largest_hard_budget", True
+)
+PLOT_EVAL_HARD_BUDGET = config.get("plot_eval_hard_budget", None)
+PIPELINE_PASSTHROUGH_KEYS = (
+    "datasets",
+    "methods",
+    "dataset_instance_indices",
+    "device",
+    "use_wandb",
+    "smoke_test",
+)
 
 if TRAIN_INITIALIZERS is None:
     raise ValueError("Expected 'train_initializers' in config.")
 if METHOD_SETS is None:
-    raise ValueError("Expected 'method_sets' in config.")
+    if METHODS is None:
+        raise ValueError("Expected either 'methods' or 'method_sets' in config.")
+    METHOD_SETS = {COMPARISON_METHOD_SET_NAME: METHODS}
 
 INITIALIZERS = TRAIN_INITIALIZERS
 METHOD_SET_NAMES = list(METHOD_SETS.keys())
@@ -96,6 +136,48 @@ def _pipeline_extra_config_args() -> str:
     if not PIPELINE_EXTRA_CONFIG:
         return ""
     return " ".join(shlex.quote(arg) for arg in shlex.split(PIPELINE_EXTRA_CONFIG))
+
+
+def _serialize_pipeline_config_value(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return value
+    return json.dumps(value)
+
+
+def _pipeline_passthrough_config_args() -> str:
+    args = []
+    for key in PIPELINE_PASSTHROUGH_KEYS:
+        if key not in config:
+            continue
+        value = config[key]
+        if value is None:
+            continue
+        serialized_value = _serialize_pipeline_config_value(value)
+        args.append(shlex.quote(f"{key}={serialized_value}"))
+    args.append(
+        shlex.quote(
+            "method_sets=" + _serialize_pipeline_config_value(METHOD_SETS)
+        )
+    )
+    return " ".join(args)
+
+
+def _plot_eval_perf_args() -> str:
+    args = ["--budget-mode", shlex.quote(PLOT_BUDGET_MODE)]
+    if PLOT_EVAL_HARD_BUDGET is not None:
+        args.extend(
+            [
+                "--eval-hard-budget",
+                shlex.quote(str(PLOT_EVAL_HARD_BUDGET)),
+            ]
+        )
+    elif PLOT_KEEP_LARGEST_HARD_BUDGET:
+        args.append("--keep-largest-hard-budget")
+    return " ".join(args)
 
 
 def _upstream_eval_perf_paths():
@@ -137,6 +219,7 @@ if PIPELINE_CONFIGFILES:
                 else ""
             ),
             pipeline_extra_config=_pipeline_extra_config_args(),
+            pipeline_passthrough_config=_pipeline_passthrough_config_args(),
             pipeline_execution_args=_pipeline_execution_args(),
         resources:
             shell_exec="bash"
@@ -154,6 +237,7 @@ if PIPELINE_CONFIGFILES:
                     --config train_initializer="${{initializer}}" \
                              eval_initializer="{params.eval_initializer}" \
                              eval_dataset_split="{EVAL_DATASET_SPLIT}" \
+                             {params.pipeline_passthrough_config} \
                              {params.pipeline_extra_config} \
                     {params.pipeline_execution_args} \
                     extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/train_initializer-${{initializer}}+eval_initializer-{params.eval_initializer}/eval_perf/method_set-${{method_set}}+classifier_type-${{classifier_type}}.parquet
@@ -177,7 +261,7 @@ rule merge_initializer_eval_perf:
     shell:
         """
         mkdir -p $(dirname {output})
-        python scripts/misc/merge_dataframes.py {input} --output {output}
+        uv run python scripts/misc/merge_dataframes.py {input} --output {output}
         """
 
 
@@ -190,10 +274,12 @@ rule plot_initializer_eval_perf:
             f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{_comparison_tag()}/eval_perf/"
             "method_set-{method_set}+classifier_type-{classifier_type}"
         )
+    params:
+        plot_args=_plot_eval_perf_args()
     resources:
         shell_exec="bash"
     shell:
         """
-        python scripts/plotting/plot_eval_perf_by_initializer.py \
-            {input} {output} --budget-mode hard --keep-largest-hard-budget
+        uv run python scripts/plotting/plot_eval_perf_by_initializer.py \
+            {input} {output} {params.plot_args}
         """

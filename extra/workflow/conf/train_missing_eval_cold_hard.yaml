@@ -1,0 +1,17 @@
+# Generic train-missing / eval-cold hard-budget workflow defaults.
+#
+# Compose this with the same generic config fragments used by the original
+# pipeline, for example:
+#   - datasets_main.yaml or a dataset override via --config
+#   - methods.yaml or a methods override via --config
+#   - method_sets.yaml
+#   - eval_hard_budgets.yaml
+#   - soft_budget_params_none.yaml
+
+dataset_instance_indices: [0, 1, 2, 3, 4]
+eval_dataset_split: val
+stop_shield_deltas: []
+cube_nm_ar_budget_mode: hard
+device: cpu
+use_wandb: false
+smoke_test: false

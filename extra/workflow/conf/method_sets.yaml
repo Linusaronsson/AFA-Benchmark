@@ -40,3 +40,10 @@ method_sets:
     - gadgil2023
     - cae
     - aaco
+  train_missing_eval_cold:
+    - gadgil2023
+    - gadgil2023_ipw_feature_marginal
+    - aaco_full
+    - aaco_zero_fill
+    - aaco_mask_aware
+    - aaco_dr

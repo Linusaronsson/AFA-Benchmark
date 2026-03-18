@@ -1,10 +1,17 @@
 soft_budget_params:
-  aaco:
+  aaco: &aaco_single_soft_budget_params
     default:
       - [0.05, null]
+  aaco_full: *aaco_single_soft_budget_params
+  aaco_zero_fill: *aaco_single_soft_budget_params
+  aaco_mask_aware: *aaco_single_soft_budget_params
+  aaco_dr: *aaco_single_soft_budget_params
   aaco_nn:
     default:
       - [0.05, null]
+  gadgil2023: &gadgil_single_soft_budget_params
+    default: []
+  gadgil2023_ipw_feature_marginal: *gadgil_single_soft_budget_params
   jafa:
     default:
       - [0.01, null]

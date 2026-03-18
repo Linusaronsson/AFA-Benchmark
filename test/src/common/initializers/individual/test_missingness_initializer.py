@@ -209,3 +209,53 @@ def test_forbidden_mask_seed_determinism(
     fb2 = init2.get_forbidden_selection_mask(obs2, feature_shape)
 
     assert torch.equal(fb1, fb2)
+
+
+@pytest.mark.parametrize("mechanism", ["mcar", "mar", "mnar_logistic"])
+def test_high_missingness_resamples_fully_missing_rows(
+    mechanism: str,
+    tabular_features: tuple[Features, torch.Size],
+) -> None:
+    """High-p masking should still leave every sample some train-time support."""
+    features, feature_shape = tabular_features
+    init = MissingnessInitializer(mechanism=mechanism, p=0.95)
+    init.set_seed(42)
+    observed_mask = init.initialize(
+        features=features,
+        feature_shape=feature_shape,
+    )
+
+    flat_observed = observed_mask.reshape(features.shape[0], -1)
+    assert flat_observed.any(dim=1).all(), (
+        "Every sample should keep at least one observed feature after "
+        "resampling fully-missing rows."
+    )
+
+
+def test_high_missingness_resampling_is_seed_deterministic(
+    tabular_features: tuple[Features, torch.Size],
+) -> None:
+    """Resampling retries should remain deterministic under a fixed seed."""
+    features, feature_shape = tabular_features
+
+    init1 = MissingnessInitializer(mechanism="mcar", p=0.95)
+    init1.set_seed(123)
+    mask1 = init1.initialize(features=features, feature_shape=feature_shape)
+
+    init2 = MissingnessInitializer(mechanism="mcar", p=0.95)
+    init2.set_seed(123)
+    mask2 = init2.initialize(features=features, feature_shape=feature_shape)
+
+    assert torch.equal(mask1, mask2)
+
+
+def test_impossible_nonempty_support_raises(
+    tabular_features: tuple[Features, torch.Size],
+) -> None:
+    """If the mechanism always masks everything, fail instead of looping forever."""
+    features, feature_shape = tabular_features
+    init = MissingnessInitializer(mechanism="mcar", p=1.0)
+    init.set_seed(7)
+
+    with pytest.raises(RuntimeError, match="Failed to sample non-empty"):
+        init.initialize(features=features, feature_shape=feature_shape)

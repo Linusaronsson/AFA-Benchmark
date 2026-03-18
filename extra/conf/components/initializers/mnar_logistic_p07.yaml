@@ -1,0 +1,5 @@
+class_name: "MissingnessInitializer"
+kwargs:
+  mechanism: mnar_logistic
+  p: 0.7
+  p_params: 0.3

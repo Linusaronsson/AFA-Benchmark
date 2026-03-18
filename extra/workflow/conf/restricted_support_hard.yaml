@@ -1,4 +1,4 @@
-# Focused CUBE-NM-AR run for planning under a hard deadline.
+# Focused restricted-support run for planning under a hard deadline.
 #
 # This file is a leaf config for `cube_nm_ar_suite.smk`.
 
@@ -27,7 +27,7 @@ methods:
   - cube_nm_ar_oracle
 
 method_sets:
-  cube_nm_ar_hard:
+  restricted_support_hard:
     - gadgil2023
     - gadgil2023_ipw_feature_marginal
     - aaco_full

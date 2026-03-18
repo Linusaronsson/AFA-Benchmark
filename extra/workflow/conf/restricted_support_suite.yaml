@@ -1,9 +1,9 @@
-# One-command CUBE-NM-AR suite.
+# One-command restricted-support suite.
 #
 # Run with:
 #   uv run snakemake \
 #     -s extra/workflow/snakefiles/orchestration/cube_nm_ar_suite.smk \
-#     --configfile extra/workflow/conf/cube_nm_ar_suite.yaml \
+#     --configfile extra/workflow/conf/restricted_support_suite.yaml \
 #     -j 1 \
 #     all
 #
@@ -67,6 +67,6 @@ cube_nm_ar_suite_pipeline_configfiles:
 
 cube_nm_ar_suite_mode_configfiles:
   hard:
-    - extra/workflow/conf/cube_nm_ar_hard.yaml
+    - extra/workflow/conf/restricted_support_hard.yaml
   soft:
-    - extra/workflow/conf/cube_nm_ar_soft_stop.yaml
+    - extra/workflow/conf/restricted_support_soft_stop.yaml

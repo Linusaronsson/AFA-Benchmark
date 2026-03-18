@@ -4,7 +4,7 @@
 #   uv run snakemake \
 #     -s extra/workflow/snakefiles/orchestration/initializer_comparison.smk \
 #     --configfile \
-#       extra/workflow/conf/synthetic_train_missing_eval_cold_initializer_comparison.yaml \
+#       extra/workflow/conf/train_missing_eval_cold_initializer_comparison.yaml \
 #       extra/workflow/conf/missingness_alvis_rezvan.yaml \
 #     -j 1 \
 #     all
@@ -12,7 +12,7 @@
 #   uv run snakemake \
 #     -s extra/workflow/snakefiles/orchestration/cube_nm_ar_suite.smk \
 #     --configfile \
-#       extra/workflow/conf/cube_nm_ar_suite.yaml \
+#       extra/workflow/conf/restricted_support_suite.yaml \
 #       extra/workflow/conf/missingness_alvis_rezvan.yaml \
 #     -j 1 \
 #     all

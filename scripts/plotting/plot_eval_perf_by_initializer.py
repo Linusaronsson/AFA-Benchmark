@@ -50,7 +50,9 @@ def _format_rate_initializer_label(initializer: str) -> str | None:
     mechanism_label = MECHANISM_INITIALIZER_MAPPING.get(
         mechanism, mechanism.upper()
     )
-    rate = float(f"0.{rate_code}")
+    # Initializer suffixes use compact tenths notation:
+    # p01 -> 0.1, p03 -> 0.3, p05 -> 0.5, p07 -> 0.7.
+    rate = float(rate_code) / (10 ** max(len(rate_code) - 1, 0))
     return f"{mechanism_label} {round(rate * 100):.0f}%"
 
 
@@ -94,12 +96,30 @@ def _format_initializer_label(initializer: str) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Plot evaluation performance grouped by initializer, using "
-            "already merged eval parquet from the workflow."
+            "Plot evaluation performance grouped by a comparison column, "
+            "using already merged eval parquet from the workflow."
         )
     )
     parser.add_argument("input_path", type=Path, help="Input parquet path.")
     parser.add_argument("output_dir", type=Path, help="Output directory.")
+    parser.add_argument(
+        "--group-column",
+        type=str,
+        default="initializer",
+        help="Column used for the comparison axis.",
+    )
+    parser.add_argument(
+        "--group-label",
+        type=str,
+        default="Initializer",
+        help="Axis and legend label for the comparison column.",
+    )
+    parser.add_argument(
+        "--output-stem",
+        type=str,
+        default="initializer_comparison",
+        help="Stem used for output filenames.",
+    )
     parser.add_argument(
         "--budget-mode",
         type=str,
@@ -116,6 +136,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--eval-hard-budget",
+        type=float,
+        default=None,
+        help=(
+            "Optional hard budget to keep. When set, this takes precedence "
+            "over --keep-largest-hard-budget."
+        ),
+    )
+    parser.add_argument(
         "--methods",
         nargs="*",
         default=None,
@@ -124,11 +153,21 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _compute_metrics_per_run(data: pl.DataFrame) -> pl.DataFrame:
+def _format_group_value(value: str, group_column: str) -> str:
+    if group_column == "initializer":
+        return _format_initializer_label(value)
+    return value
+
+
+def _compute_metrics_per_run(
+    data: pl.DataFrame,
+    *,
+    group_column: str,
+) -> pl.DataFrame:
     group_cols = [
         "afa_method",
         "dataset",
-        "initializer",
+        group_column,
         "train_seed",
         "eval_seed",
         "eval_hard_budget",
@@ -142,7 +181,7 @@ def _compute_metrics_per_run(data: pl.DataFrame) -> pl.DataFrame:
             {
                 "afa_method": [group_df["afa_method"].first()],
                 "dataset": [group_df["dataset"].first()],
-                "initializer": [group_df["initializer"].first()],
+                group_column: [group_df[group_column].first()],
                 "train_seed": [group_df["train_seed"].first()],
                 "eval_seed": [group_df["eval_seed"].first()],
                 "eval_hard_budget": [group_df["eval_hard_budget"].first()],
@@ -169,7 +208,7 @@ def _compute_metrics_per_run(data: pl.DataFrame) -> pl.DataFrame:
             schema={
                 "afa_method": pl.String,
                 "dataset": pl.String,
-                "initializer": pl.String,
+                group_column: pl.String,
                 "train_seed": pl.UInt64,
                 "eval_seed": pl.UInt64,
                 "eval_hard_budget": pl.Float64,
@@ -183,14 +222,18 @@ def _compute_metrics_per_run(data: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def _aggregate_across_seeds(data: pl.DataFrame) -> pl.DataFrame:
+def _aggregate_across_seeds(
+    data: pl.DataFrame,
+    *,
+    group_column: str,
+) -> pl.DataFrame:
     data = data.with_columns(
         metric=pl.when(pl.col("dataset").is_in(DATASETS_WITH_F_SCORE))
         .then(pl.col("f_score"))
         .otherwise(pl.col("accuracy"))
     )
     return (
-        data.group_by("dataset", "afa_method", "initializer")
+        data.group_by("dataset", "afa_method", group_column)
         .agg(
             mean_metric=pl.col("metric").mean(),
             std_metric=pl.col("metric").std(),
@@ -210,10 +253,13 @@ def _filter_budget_mode(
     data: pl.DataFrame,
     mode: str,
     keep_largest_hard_budget: bool,
+    eval_hard_budget: float | None = None,
 ) -> pl.DataFrame:
     if mode == "hard":
         data = data.filter(pl.col("eval_hard_budget").is_not_null())
-        if keep_largest_hard_budget:
+        if eval_hard_budget is not None:
+            data = data.filter(pl.col("eval_hard_budget") == eval_hard_budget)
+        elif keep_largest_hard_budget:
             data = data.filter(
                 pl.col("eval_hard_budget")
                 == pl.col("eval_hard_budget").max().over("dataset")
@@ -227,16 +273,22 @@ def _filter_budget_mode(
     return data
 
 
-def _make_plot(summary_data: pl.DataFrame) -> p9.ggplot:
+def _make_plot(
+    summary_data: pl.DataFrame,
+    *,
+    group_column: str,
+    group_label: str,
+) -> p9.ggplot:
     plot_data = summary_data.with_columns(
         dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING),
         afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
-        initializer=pl.col("initializer").map_elements(
-            _format_initializer_label,
-            return_dtype=pl.String,
-        ),
+        **{
+            group_column: pl.col(group_column).map_elements(
+                lambda value: _format_group_value(value, group_column),
+                return_dtype=pl.String,
+            )
+        },
     )
-
     n_datasets = max(plot_data["dataset"].n_unique(), 1)
     n_rows = (n_datasets + 1) // 2
     figure_height = SUBPLOT_HEIGHT * n_rows
@@ -245,9 +297,9 @@ def _make_plot(summary_data: pl.DataFrame) -> p9.ggplot:
         p9.ggplot(
             plot_data,
             p9.aes(
-                x="initializer",
+                x=group_column,
                 y="mean_metric",
-                color="initializer",
+                color=group_column,
                 shape="afa_method",
             ),
         )
@@ -259,12 +311,18 @@ def _make_plot(summary_data: pl.DataFrame) -> p9.ggplot:
         + p9.facet_wrap("dataset", scales="free_y", ncol=2)
         + p9.scale_color_brewer(type="qual", palette=COLOR_PALETTE_NAME)
         + p9.labs(
-            x="Initializer",
+            x=group_label,
             y="Metric",
-            color="Initializer",
+            color=group_label,
             shape="Policy",
         )
         + p9.theme(figure_size=(11.0, figure_height))
+        # + p9.theme(
+        #     axis_text_x=p9.element_blank(),
+        #     axis_ticks_major_x=p9.element_blank(),
+        #     axis_title_x=p9.element_blank(),  # optional
+        # )
+        + p9.theme(axis_text_x=p9.element_text(rotation=45, ha="right"))
     )
 
 
@@ -279,7 +337,7 @@ def main() -> None:
         "true_class",
         "dataset",
         "afa_method",
-        "initializer",
+        args.group_column,
         "train_seed",
         "eval_seed",
         "eval_hard_budget",
@@ -299,31 +357,72 @@ def main() -> None:
         (pl.col("action_performed") == 0)
         & pl.col("predicted_class").is_not_null()
     )
+    available_hard_budgets = None
+    if args.budget_mode in {"hard", "all"}:
+        available_hard_budgets = (
+            data.filter(pl.col("eval_hard_budget").is_not_null())
+            .group_by("dataset")
+            .agg(
+                budgets=pl.col("eval_hard_budget")
+                .unique()
+                .sort()
+                .cast(pl.List(pl.Float64))
+            )
+            .sort("dataset")
+        )
     data = _filter_budget_mode(
-        data, args.budget_mode, args.keep_largest_hard_budget
+        data,
+        args.budget_mode,
+        args.keep_largest_hard_budget,
+        args.eval_hard_budget,
     )
     if data.is_empty():
         msg = "No rows left after filtering; cannot generate plot."
+        if (
+            args.budget_mode == "hard"
+            and args.eval_hard_budget is not None
+            and available_hard_budgets is not None
+            and not available_hard_budgets.is_empty()
+        ):
+            budget_summary = ", ".join(
+                f"{row['dataset']}={row['budgets']}"
+                for row in available_hard_budgets.to_dicts()
+            )
+            msg = (
+                "No rows left after filtering for "
+                f"eval_hard_budget={args.eval_hard_budget}. "
+                f"Available hard budgets by dataset: {budget_summary}."
+            )
         raise ValueError(msg)
 
-    metrics_per_run = _compute_metrics_per_run(data)
-    summary_data = _aggregate_across_seeds(metrics_per_run)
+    metrics_per_run = _compute_metrics_per_run(
+        data,
+        group_column=args.group_column,
+    )
+    summary_data = _aggregate_across_seeds(
+        metrics_per_run,
+        group_column=args.group_column,
+    )
     if summary_data.is_empty():
         msg = "No grouped rows produced; cannot generate plot."
         raise ValueError(msg)
 
-    plot = _make_plot(summary_data)
+    plot = _make_plot(
+        summary_data,
+        group_column=args.group_column,
+        group_label=args.group_label,
+    )
     plot_height = max(
-        3.0,
+        6.0,
         SUBPLOT_HEIGHT * ((summary_data["dataset"].n_unique() + 1) // 2),
     )
     for suffix in ("pdf", "svg", "png"):
         plot.save(
-            args.output_dir / f"initializer_comparison.{suffix}",
-            width=11.0,
+            args.output_dir / f"{args.output_stem}.{suffix}",
+            width=15.0,
             height=plot_height,
         )
-    summary_data.write_csv(args.output_dir / "initializer_comparison.csv")
+    summary_data.write_csv(args.output_dir / f"{args.output_stem}.csv")
 
 
 if __name__ == "__main__":

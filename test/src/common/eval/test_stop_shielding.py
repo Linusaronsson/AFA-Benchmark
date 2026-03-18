@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, cast
 import pytest
 import torch
 
+from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.eval.stop_shielding import DualizedStopWrapper, StopShieldWrapper
 
 if TYPE_CHECKING:
@@ -296,3 +297,26 @@ def test_dualized_stop_wrapper_keeps_stop_when_no_legal_continue_exists() -> (
 
     assert torch.equal(actions, torch.tensor([[0]]))
     assert wrapper.get_summary()["n_unavoidable_stops"] == 1
+
+
+def test_dualized_stop_wrapper_handles_direct_unmasker_batch_of_one() -> None:
+    wrapper = DualizedStopWrapper(
+        afa_method=cast(
+            "AFAMethod", cast("object", ForceAcquireFirstMethod())
+        ),
+        afa_predict_fn=_feature_mask_risk_predict_fn,
+        afa_unmask_fn=DirectUnmasker().unmask,
+        predictor_name="mask-risk",
+        selection_costs=torch.tensor([0.1, 0.1]),
+        dual_lambda=2.0,
+    )
+
+    actions = wrapper(
+        masked_features=torch.zeros((1, 2)),
+        feature_mask=torch.zeros((1, 2), dtype=torch.bool),
+        selection_mask=torch.zeros((1, 2), dtype=torch.bool),
+        features=torch.ones((1, 2)),
+        feature_shape=torch.Size([2]),
+    )
+
+    assert torch.equal(actions, torch.tensor([[1]]))

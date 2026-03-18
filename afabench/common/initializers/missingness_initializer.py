@@ -51,6 +51,7 @@ class MissingnessInitializer(AFAInitializer):
         "mnar_quantiles",
     }
     _FORBIDDEN_MASK_SEED_OFFSET: ClassVar[int] = 9999
+    _NONEMPTY_RESAMPLE_MAX_ATTEMPTS: ClassVar[int] = 1024
 
     def __init__(
         self,
@@ -130,33 +131,84 @@ class MissingnessInitializer(AFAInitializer):
 
         flat_features = features.reshape(batch_size, n_features)
 
-        # Generate missingness mask (True = missing in malearn convention)
-        missing_mask = self._generate_mask(flat_features)
-
-        # Invert: malearn True=missing -> AFA True=observed
-        observed_mask = ~missing_mask
+        # Generate missingness mask (True = missing in malearn convention),
+        # then resample only the degenerate rows that would leave the sample
+        # with no train-time support at all.
+        missing_mask = self._generate_mask(flat_features, seed_offset=0)
+        observed_mask = self._ensure_nonempty_support(
+            features=flat_features,
+            missing_mask=missing_mask,
+        )
 
         # Reshape back to original batch + feature shape
         return observed_mask.reshape(batch_shape + feature_shape)
 
-    def _generate_mask(self, x: torch.Tensor) -> torch.BoolTensor:
+    def _effective_seed(self, seed_offset: int) -> int | None:
+        if self.seed is None:
+            return None
+        return self.seed + seed_offset
+
+    def _ensure_nonempty_support(
+        self,
+        *,
+        features: torch.Tensor,
+        missing_mask: torch.BoolTensor,
+    ) -> torch.BoolTensor:
+        """Resample fully-missing rows until every sample keeps some support."""
+        observed_mask = cast("torch.BoolTensor", ~missing_mask)
+        bad_rows = ~observed_mask.any(dim=1)
+        if not bad_rows.any():
+            return observed_mask
+
+        for attempt in range(1, self._NONEMPTY_RESAMPLE_MAX_ATTEMPTS + 1):
+            replacement_missing = self._generate_mask(
+                features[bad_rows],
+                seed_offset=attempt,
+            )
+            replacement_observed = cast(
+                "torch.BoolTensor", ~replacement_missing
+            )
+            observed_mask[bad_rows] = replacement_observed
+            bad_rows = ~observed_mask.any(dim=1)
+            if not bad_rows.any():
+                return observed_mask
+
+        msg = (
+            "Failed to sample non-empty train support for all rows after "
+            f"{self._NONEMPTY_RESAMPLE_MAX_ATTEMPTS} attempts. "
+            f"mechanism={self.mechanism!r}, p={self.p}."
+        )
+        raise RuntimeError(msg)
+
+    def _generate_mask(
+        self,
+        x: torch.Tensor,
+        *,
+        seed_offset: int = 0,
+    ) -> torch.BoolTensor:
         """
         Generate a missingness mask using the configured mechanism.
 
         Args:
             x: 2D tensor of shape (n, d).
+            seed_offset: Offset added to the base seed for deterministic
+                resampling attempts.
 
         Returns:
             Boolean tensor where True means missing (malearn convention).
         """
         # Use float64 for numerical stability in logistic fitting
         x_double = x.double()
+        effective_seed = self._effective_seed(seed_offset)
 
         if self.mechanism == "mcar":
-            mask = MCAR_mask(x_double, p=self.p, seed=self.seed)
+            mask = MCAR_mask(x_double, p=self.p, seed=effective_seed)
         elif self.mechanism == "mar":
             mask = MAR_mask(
-                x_double, p=self.p, p_obs=self.p_obs, seed=self.seed
+                x_double,
+                p=self.p,
+                p_obs=self.p_obs,
+                seed=effective_seed,
             )
         elif self.mechanism == "mnar_logistic":
             mask = MNAR_mask_logistic(
@@ -164,10 +216,14 @@ class MissingnessInitializer(AFAInitializer):
                 p=self.p,
                 p_params=self.p_params,
                 exclude_inputs=self.exclude_inputs,
-                seed=self.seed,
+                seed=effective_seed,
             )
         elif self.mechanism == "mnar_self":
-            mask = MNAR_self_mask_logistic(x_double, p=self.p, seed=self.seed)
+            mask = MNAR_self_mask_logistic(
+                x_double,
+                p=self.p,
+                seed=effective_seed,
+            )
         elif self.mechanism == "mnar_quantiles":
             mask = MNAR_mask_quantiles(
                 x_double,
@@ -176,7 +232,7 @@ class MissingnessInitializer(AFAInitializer):
                 p_params=self.p_params,
                 cut=self.cut,
                 MCAR=self.mcar,
-                seed=self.seed,
+                seed=effective_seed,
             )
         else:
             msg = f"Unknown mechanism: {self.mechanism}"

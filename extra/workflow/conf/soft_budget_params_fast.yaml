@@ -1,13 +1,20 @@
 # Fill this config when you have done a full sweep and only want the edge cases
 soft_budget_params:
-  aaco:
+  aaco: &aaco_fast_soft_budget_params
     default:
       - [0.05, null]
       - [0.01, null]
+  aaco_full: *aaco_fast_soft_budget_params
+  aaco_zero_fill: *aaco_fast_soft_budget_params
+  aaco_mask_aware: *aaco_fast_soft_budget_params
+  aaco_dr: *aaco_fast_soft_budget_params
   aaco_nn:
     default:
       - [0.05, null]
       - [0.01, null]
+  gadgil2023: &gadgil_fast_soft_budget_params
+    default: []
+  gadgil2023_ipw_feature_marginal: *gadgil_fast_soft_budget_params
   jafa:
     default:
       - [0.001, null]

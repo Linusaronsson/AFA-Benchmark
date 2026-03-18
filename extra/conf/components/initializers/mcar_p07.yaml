@@ -1,0 +1,4 @@
+class_name: "MissingnessInitializer"
+kwargs:
+  mechanism: mcar
+  p: 0.7

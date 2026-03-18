@@ -1,5 +1,5 @@
 soft_budget_params:
-  aaco:
+  aaco: &aaco_soft_budget_params
     default:
       - [0.05, null]
       - [0.01, null]
@@ -24,6 +24,10 @@ soft_budget_params:
       - [0.0001, null]
       - [0.001, null]
       - [0.01, null]
+  aaco_full: *aaco_soft_budget_params
+  aaco_zero_fill: *aaco_soft_budget_params
+  aaco_mask_aware: *aaco_soft_budget_params
+  aaco_dr: *aaco_soft_budget_params
   aaco_nn:
     default:
       - [0.05, null]
@@ -41,6 +45,61 @@ soft_budget_params:
       - [1.5, null]
       - [2, null]
       - [2.5, null]
+  gadgil2023: &gadgil_soft_budget_params
+    default: []
+    actg:
+      - [null, 0.0005]
+      - [null, 0.003]
+      - [null, 0.01]
+    bank_marketing:
+      - [null, 0.00005]
+      - [null, 0.001]
+      - [null, 0.01]
+    ckd:
+      - [null, 0.00001]
+      - [null, 0.001]
+      - [null, 0.01]
+    cube_nonuniform_costs:
+      - [null, 0.001]
+      - [null, 0.005]
+      - [null, 0.01]
+    cube:
+      - [null, 0.001]
+      - [null, 0.005]
+      - [null, 0.01]
+    diabetes:
+      - [null, 0.000001]
+      - [null, 0.00001]
+      - [null, 0.0001]
+    fashion_mnist:
+      - [null, 0.000000001]
+      - [null, 0.0000001]
+      - [null, 0.0001]
+    miniboone:
+      - [null, 0.00001]
+      - [null, 0.0001]
+      - [null, 0.001]
+    mnist:
+      - [null, 0.000000000001]
+      - [null, 0.0000001]
+      - [null, 0.0001]
+    physionet:
+      - [null, 0.0001]
+      - [null, 0.0003]
+      - [null, 0.0007]
+    afa_context_v2:
+      - [null, 0.001]
+      - [null, 0.003]
+      - [null, 0.01]
+    afa_context_v2_without_noise:
+      - [null, 0.00005]
+      - [null, 0.001]
+      - [null, 0.005]
+    imagenette:
+      - [null, 0.024]
+      - [null, 0.04]
+      - [null, 0.09]
+  gadgil2023_ipw_feature_marginal: *gadgil_soft_budget_params
   jafa:
     default: [] # don't rely on defaults
     cube:
@@ -426,60 +485,6 @@ soft_budget_params:
       - [null, 1]
       - [null, 1.2]
       - [null, 1.6]
-  gadgil2023:
-    default: []
-    actg:
-      - [null, 0.0005]
-      - [null, 0.003]
-      - [null, 0.01]
-    bank_marketing:
-      - [null, 0.00005]
-      - [null, 0.001]
-      - [null, 0.01]
-    ckd:
-      - [null, 0.00001]
-      - [null, 0.001]
-      - [null, 0.01]
-    cube_nonuniform_costs:
-      - [null, 0.001]
-      - [null, 0.005]
-      - [null, 0.01]
-    cube:
-      - [null, 0.001]
-      - [null, 0.005]
-      - [null, 0.01]
-    diabetes:
-      - [null, 0.000001]
-      - [null, 0.00001]
-      - [null, 0.0001]
-    fashion_mnist:
-      - [null, 0.000000001]
-      - [null, 0.0000001]
-      - [null, 0.0001]
-    miniboone:
-      - [null, 0.00001]
-      - [null, 0.0001]
-      - [null, 0.001]
-    mnist:
-      - [null, 0.000000000001]
-      - [null, 0.0000001]
-      - [null, 0.0001]
-    physionet:
-      - [null, 0.0001]
-      - [null, 0.0003]
-      - [null, 0.0007]
-    afa_context_v2:
-      - [null, 0.001]
-      - [null, 0.003]
-      - [null, 0.01]
-    afa_context_v2_without_noise:
-      - [null, 0.00005]
-      - [null, 0.001]
-      - [null, 0.005]
-    imagenette:
-      - [null, 0.024]
-      - [null, 0.04]
-      - [null, 0.09]
   cae:
     default: []
   permutation:
