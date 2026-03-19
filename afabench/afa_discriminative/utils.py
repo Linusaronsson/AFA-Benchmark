@@ -155,6 +155,34 @@ def _replace_module(root: nn.Module, old: nn.Module, new: nn.Module) -> None:
         _replace_module(child, old, new)
 
 
+def precompute_initial_and_forbidden_masks(
+    dataset: AFADataset,
+    initializer: AFAInitializer,
+    feature_shape: torch.Size,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """
+    Compute forbidden masks once for entire dataset.
+    Returns tensor of shape [N, d_in] (tabular).
+    """
+    x_all, y_all = dataset.get_all_data()
+    x_all = x_all.to(device)
+    y_all = to_class_indices(y_all).to(device)
+
+    with torch.no_grad():
+        observed_mask = initializer.initialize(
+            features=x_all,
+            label=y_all,
+            feature_shape=feature_shape,
+        ).to(device)
+        forbidden_mask = initializer.get_training_forbidden_mask(
+            observed_mask
+        ).bool().to(device)
+        observed_mask = observed_mask & ~forbidden_mask
+
+    return observed_mask.cpu(), forbidden_mask.cpu()
+
+
 class MaskLayer(nn.Module):
     """
     Mask layer for tabular data.

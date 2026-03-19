@@ -10,8 +10,12 @@ from torch import nn, optim
 from torch.utils.data import DataLoader, TensorDataset
 from torchrl.modules import MLP
 
-from afabench.afa_discriminative.utils import restore_parameters
+from afabench.afa_discriminative.utils import (
+    restore_parameters,
+    to_class_indices,
+)
 from afabench.afa_rl.common.utils import mask_data
+from afabench.common.custom_types import AFAInitializer
 
 models_dir = "./models/pretrained_resnet_models"
 model_name = {
@@ -192,15 +196,17 @@ class UpsamplingBottleneckBlock(nn.Module):
 class MaskingPretrainer(nn.Module):
     """Pretrain model with missing features."""
 
-    def __init__(self, model, mask_layer):
+    def __init__(self,
+        model,
+        mask_layer,
+        initializer: AFAInitializer | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> None:
         super().__init__()
         self.model = model
         self.mask_layer = mask_layer
-
-    def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
-        if y.ndim >= 2:
-            return y.argmax(dim=-1).long()
-        return y.long()
+        self.initializer = initializer
+        self.feature_shape = feature_shape
 
     def fit(
         self,
@@ -252,10 +258,20 @@ class MaskingPretrainer(nn.Module):
             # Switch model to training mode.
             model.train()
             epoch_train_loss = 0.0
-            for x, y in train_loader:
-                # Move to device.
+            for batch in train_loader:
+                if len(batch) == 3:
+                    x, y, forbidden_feat = batch
+                else:
+                    x, y = batch
+                    raise RuntimeError(
+                        "Forbidden mask missing from pretraining dataloader"
+                    )
                 x = x.to(device)
-                y = self._to_class_indices(y).to(device)
+                y = to_class_indices(y).to(device)
+                forbidden_feat = forbidden_feat.bool().to(device)
+
+                # allowed_feat = torch.ones_like(x, dtype=torch.bool, device=device)
+                allowed_feat = ~forbidden_feat
 
                 # Generate missingness.
                 p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
@@ -264,6 +280,8 @@ class MaskingPretrainer(nn.Module):
                     m = (torch.rand(x.size(0), n, device=device) < p).float()
                 else:
                     _, m, _ = mask_data(x, p)
+                    m = m & allowed_feat
+                    m = m.float()
 
                 # Calculate loss.
                 x_masked = mask_layer(x, m)
@@ -271,9 +289,10 @@ class MaskingPretrainer(nn.Module):
                 loss = loss_fn(pred, y)
 
                 # Take gradient step.
+                opt.zero_grad()
                 loss.backward()
                 opt.step()
-                model.zero_grad()
+                # model.zero_grad()
                 epoch_train_loss += loss.item()
 
             avg_train = epoch_train_loss / len(train_loader)
@@ -285,10 +304,18 @@ class MaskingPretrainer(nn.Module):
                 pred_list = []
                 label_list = []
 
-                for x, y in val_loader:
-                    # Move to device.
+                for batch in val_loader:
+                    if len(batch) == 3:
+                        x, y, forbidden_feat = batch
+                    else:
+                        x, y = batch
+                        raise RuntimeError(
+                            "Forbidden mask missing from pretraining dataloader"
+                        )
                     x = x.to(device)
-                    y = self._to_class_indices(y).to(device)
+                    y = to_class_indices(y).to(device)
+                    forbidden_feat = forbidden_feat.to(device).bool()
+                    allowed_feat = ~forbidden_feat
 
                     # Generate missingness.
                     p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
@@ -301,6 +328,8 @@ class MaskingPretrainer(nn.Module):
                         ).float()
                     else:
                         _, m, _ = mask_data(x, p)
+                        m = m & allowed_feat
+                        m = m.float()
                     x_masked = mask_layer(x, m)
                     pred = model(x_masked)
                     pred_list.append(pred)

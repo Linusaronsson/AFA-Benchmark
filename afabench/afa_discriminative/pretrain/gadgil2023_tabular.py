@@ -1,7 +1,7 @@
 import gc
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import torch
 from omegaconf import OmegaConf
@@ -13,12 +13,17 @@ from afabench.afa_discriminative.models import (
     GreedyAFAClassifier,
     MaskingPretrainer,
 )
-from afabench.afa_discriminative.utils import MaskLayer
+from afabench.afa_discriminative.utils import (
+    MaskLayer,
+    precompute_initial_and_forbidden_masks,
+)
 from afabench.common.bundle import (
     load_bundle,
     save_bundle,
 )
 from afabench.common.config_classes import Gadgil2023PretrainingConfig
+from afabench.common.custom_types import AFADataset  # noqa: TC001
+from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.utils import (
     get_class_frequencies,
     set_seed,
@@ -39,18 +44,39 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     train_dataset, train_manifest = load_bundle(
         Path(cfg.train_dataset_bundle_path)
     )
+    train_dataset = cast("AFADataset", cast("object", train_dataset))
     val_dataset, _ = load_bundle(Path(cfg.val_dataset_bundle_path))
+    val_dataset = cast("AFADataset", cast("object", val_dataset))
 
     dataset_name = train_manifest["class_name"].replace("Dataset", "").lower()
-    _, train_labels = train_dataset.get_all_data()  # pyright: ignore[reportAttributeAccessIssue]
+    _, train_labels = train_dataset.get_all_data()
     train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
     )
     class_weights = class_weights.to(device)
 
+    initializer = get_afa_initializer_from_config(cfg.initializer)
+    feature_shape = torch.Size([train_dataset.feature_shape[0]])
+    _, train_forbidden_mask = precompute_initial_and_forbidden_masks(
+        train_dataset,
+        initializer,
+        feature_shape,
+        device,
+    )
+    _, val_forbidden_mask = precompute_initial_and_forbidden_masks(
+        val_dataset,
+        initializer,
+        feature_shape,
+        device,
+    )
+
     train_loader, val_loader, d_in, d_out = prepare_datasets(
-        train_dataset, val_dataset, cfg.batch_size
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        batch_size=cfg.batch_size,
+        train_forbidden_mask=train_forbidden_mask,
+        val_forbidden_mask=val_forbidden_mask,
     )
 
     in_features: int = int(d_in * 2)
@@ -78,7 +104,10 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     mask_layer = MaskLayer(append=True)
     print("Pretraining predictor")
     print("-" * 8)
-    pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
+    pretrain = MaskingPretrainer(
+        model=predictor,
+        mask_layer=mask_layer,
+    ).to(device)
     pretrain.fit(
         train_loader,
         val_loader,

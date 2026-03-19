@@ -21,35 +21,34 @@ from afabench.afa_discriminative.models import (
 from afabench.afa_discriminative.utils import (
     MaskLayer,
     afa_discriminative_training_prep,
+    precompute_initial_and_forbidden_masks,
     tie_first_k_linears_by_module,
-    to_class_indices,
 )
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import Gadgil2023TrainingConfig
-from afabench.common.custom_types import AFAInitializer
 from afabench.common.utils import set_seed
 
 log = logging.getLogger(__name__)
 
 
-def _get_initial_observation_mask(
-    x: torch.Tensor,
-    y: torch.Tensor,
-    initializer: AFAInitializer,
-    feature_shape: torch.Size,
-) -> torch.Tensor:
-    with torch.no_grad():
-        y_idx = to_class_indices(y)
-        init_mask_bool = initializer.initialize(
-            features=x,
-            label=y_idx,
-            feature_shape=feature_shape,
-        )
-        forbidden_feat = initializer.get_training_forbidden_mask(
-            init_mask_bool
-        )
-        init_mask_bool = init_mask_bool & ~forbidden_feat
-        return init_mask_bool.float()
+# def _get_initial_observation_mask(
+#     x: torch.Tensor,
+#     y: torch.Tensor,
+#     initializer: AFAInitializer,
+#     feature_shape: torch.Size,
+# ) -> torch.Tensor:
+#     with torch.no_grad():
+#         y_idx = to_class_indices(y)
+#         init_mask_bool = initializer.initialize(
+#             features=x,
+#             label=y_idx,
+#             feature_shape=feature_shape,
+#         )
+#         forbidden_feat = initializer.get_training_forbidden_mask(
+#             init_mask_bool
+#         )
+#         init_mask_bool = init_mask_bool & ~forbidden_feat
+#         return init_mask_bool.float()
 
 
 def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
@@ -72,8 +71,28 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
     assert class_weights is not None
     class_weights = class_weights.to(device)
 
+    feature_shape = torch.Size([train_dataset.feature_shape[0]])
+    # TODO: different missingness models for train and validation, distribution shift?
+    train_obs_mask, train_forbidden_mask = (
+        precompute_initial_and_forbidden_masks(
+            train_dataset,
+            initializer,
+            feature_shape,
+            device,
+        )
+    )
+    val_obs_mask, val_forbidden_mask = precompute_initial_and_forbidden_masks(
+        val_dataset,
+        initializer,
+        feature_shape,
+        device,
+    )
     train_loader, val_loader, d_in, d_out = prepare_datasets(
-        train_dataset, val_dataset, cfg.batch_size
+        train_dataset=train_dataset,
+        val_dataset=val_dataset,
+        batch_size=cfg.batch_size,
+        train_forbidden_mask=train_forbidden_mask,
+        val_forbidden_mask=val_forbidden_mask,
     )
 
     predictor, _ = load_bundle(
@@ -102,8 +121,6 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
 
     notmiwae_model = None
     if cfg.ipw_mode == "notmiwae_feature":
-        feature_shape = torch.Size([d_in])
-
         train_x_all, train_y_all = train_dataset.get_all_data()
         val_x_all, val_y_all = val_dataset.get_all_data()
         train_x_all = train_x_all.to(device)
@@ -111,19 +128,22 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         val_x_all = val_x_all.to(device)
         val_y_all = val_y_all.to(device)
 
-        train_s_all = _get_initial_observation_mask(
-            x=train_x_all,
-            y=train_y_all,
-            initializer=initializer,
-            feature_shape=feature_shape,
-        ).to(device)
+        train_s_all = train_obs_mask.to(dtype=train_x_all.dtype, device=device)
+        val_s_all = val_obs_mask.to(dtype=val_x_all.dtype, device=device)
 
-        val_s_all = _get_initial_observation_mask(
-            x=val_x_all,
-            y=val_y_all,
-            initializer=initializer,
-            feature_shape=feature_shape,
-        ).to(device)
+        # train_s_all = _get_initial_observation_mask(
+        #     x=train_x_all,
+        #     y=train_y_all,
+        #     initializer=initializer,
+        #     feature_shape=feature_shape,
+        # ).to(device)
+
+        # val_s_all = _get_initial_observation_mask(
+        #     x=val_x_all,
+        #     y=val_y_all,
+        #     initializer=initializer,
+        #     feature_shape=feature_shape,
+        # ).to(device)
 
         train_x_filled = train_x_all * train_s_all
         val_x_filled = val_x_all * val_s_all
@@ -153,7 +173,7 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         value_network=value_network,
         predictor=predictor,
         mask_layer=mask_layer,
-        initializer=initializer,
+        # initializer=initializer,
         unmasker=unmasker,
         notmiwae_model=notmiwae_model,
     ).to(device)
