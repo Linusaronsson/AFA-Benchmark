@@ -16,6 +16,24 @@ from afabench.common.custom_types import FeatureMask, Label, MaskedFeatures
 logger = logging.getLogger(__name__)
 
 
+def configure_runtime_for_device(device: str | torch.device | None) -> str:
+    """Normalize the requested device and hide CUDA for CPU-only runs."""
+    if isinstance(device, torch.device):
+        device_type = device.type
+    elif device is None:
+        device_type = "cpu"
+    else:
+        device_type = str(device).split(":", maxsplit=1)[0]
+
+    if device_type == "cpu":
+        # CPU jobs on cluster nodes may still see a CUDA-enabled PyTorch build.
+        # Hide CUDA early so Lightning does not probe GPU RNG state.
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+        os.environ["PYTORCH_NVML_BASED_CUDA_CHECK"] = "0"
+
+    return device_type
+
+
 def set_seed(seed: int | None) -> int:
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
@@ -24,8 +42,12 @@ def set_seed(seed: int | None) -> int:
     random.seed(seed)
     np.random.seed(seed)  # noqa: NPY002
     torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    try:
+        if torch.cuda.device_count() > 0:
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
+    except RuntimeError:
+        logger.debug("Skipping CUDA RNG seeding; CUDA is unavailable.")
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 

@@ -12,6 +12,7 @@ from afabench.afa_rl.common.dataset_utils import DataModuleFromDatasets
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.datasets.utils import flatten_features_collate
 from afabench.common.torch_bundle import TorchModelBundle
+from afabench.common.utils import configure_runtime_for_device
 
 if TYPE_CHECKING:
     from torch.utils.data.dataset import Dataset
@@ -97,6 +98,7 @@ def supervised_learning(
     """
     if device is None:
         device = "cpu"
+    device = configure_runtime_for_device(device)
     if metadata_to_save_in_bundle is None:
         metadata_to_save_in_bundle = {}
     log.info("Loading datasets...")

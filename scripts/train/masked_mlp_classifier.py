@@ -14,7 +14,11 @@ from afabench.common.classifiers import WrappedMaskedMLPClassifier
 from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
 from afabench.common.datasets.utils import flatten_features_collate
 from afabench.common.models import LitMaskedMLPClassifier
-from afabench.common.utils import get_class_frequencies, set_seed
+from afabench.common.utils import (
+    configure_runtime_for_device,
+    get_class_frequencies,
+    set_seed,
+)
 
 if TYPE_CHECKING:
     from torch.utils.data import Dataset
@@ -31,6 +35,7 @@ log = logging.getLogger(__name__)
 )
 def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     log.debug(cfg)
+    cfg.device = configure_runtime_for_device(cfg.device)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
