@@ -47,3 +47,4 @@ method_sets:
     - aaco_zero_fill
     - aaco_mask_aware
     - aaco_dr
+    - ol_with_mask

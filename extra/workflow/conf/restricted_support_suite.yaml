@@ -1,4 +1,4 @@
-# One-command restricted-support suite.
+# One-command restricted-support suite for publication plots.
 #
 # Run with:
 #   uv run snakemake \
@@ -9,13 +9,16 @@
 #
 # The outer suite is intentionally serial; each nested `pipeline.smk`
 # invocation uses `cube_nm_ar_suite_pipeline_cores`.
+#
+# This suite is soft-budget only. The phenomenon of interest is premature
+# STOP under restricted support, which is not observable in the hard-budget
+# regime.
 
 cube_nm_ar_suite_train_initializers: [cube_nm_ar, cold, mcar_p03, mar_p03, mnar_logistic_p03, cube_nm_ar_mar, cube_nm_ar_p01, cube_nm_ar_p05, cube_nm_ar_p07]
 cube_nm_ar_suite_mode_train_initializers:
-  hard: [cube_nm_ar, cold, mcar_p03, mar_p03, mnar_logistic_p03, cube_nm_ar_mar, cube_nm_ar_p01, cube_nm_ar_p05, cube_nm_ar_p07]
   soft: [cube_nm_ar, cold, mcar_p03, mar_p03, mnar_logistic_p03, cube_nm_ar_mar, cube_nm_ar_p01, cube_nm_ar_p05, cube_nm_ar_p07]
 cube_nm_ar_suite_eval_initializers: [cold]
-cube_nm_ar_suite_budget_modes: [hard, soft]
+cube_nm_ar_suite_budget_modes: [soft]
 cube_nm_ar_suite_dataset: cube_nm_ar
 cube_nm_ar_suite_eval_dataset_split: val
 
@@ -26,17 +29,9 @@ cube_nm_ar_suite_methods:
   - aaco_zero_fill
   - aaco_mask_aware
   - aaco_dr
-  - cube_nm_ar_oracle
+  - ol_with_mask
 
 cube_nm_ar_suite_mode_methods:
-  hard:
-    - gadgil2023
-    - gadgil2023_ipw_feature_marginal
-    - aaco_full
-    - aaco_zero_fill
-    - aaco_mask_aware
-    - aaco_dr
-    - cube_nm_ar_oracle
   soft:
     - gadgil2023
     - gadgil2023_ipw_feature_marginal
@@ -44,13 +39,12 @@ cube_nm_ar_suite_mode_methods:
     - aaco_zero_fill
     - aaco_mask_aware
     - aaco_dr
+    - ol_with_mask
 
 cube_nm_ar_suite_mode_stop_shield_deltas:
-  hard: []
   soft: [0.2, 0.3]
 
 cube_nm_ar_suite_mode_dual_lambdas:
-  hard: []
   soft: [0.3, 1.0, 3.0]
 
 cube_nm_ar_suite_stop_shield_deltas: []
@@ -66,7 +60,5 @@ cube_nm_ar_suite_pipeline_configfiles:
   - extra/workflow/conf/unmaskers.yaml
 
 cube_nm_ar_suite_mode_configfiles:
-  hard:
-    - extra/workflow/conf/restricted_support_hard.yaml
   soft:
     - extra/workflow/conf/restricted_support_soft_stop.yaml

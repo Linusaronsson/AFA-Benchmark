@@ -62,6 +62,7 @@ REPRESENTATIVE_SOFT_BUDGETS: dict[str, float] = {
     "aaco_dr": 1.2,
     "gadgil2023": 0.01,
     "gadgil2023_ipw_feature_marginal": 0.01,
+    "ol_with_mask": 0.01,
 }
 
 METRIC_DISPLAY = {
@@ -73,6 +74,56 @@ METRIC_DISPLAY = {
     "first_action_context_rate": "First Action = Context",
     "rescue_episode_rate": "Episode Rescue Rate",
     "forced_stop_rate": "Forced-Stop Rate",
+}
+
+PUBLICATION_METHOD_SPECS: dict[str, dict[str, str | None]] = {
+    "gadgil2023": {
+        "baseline_label": "DIME baseline",
+        "curve_label": None,
+    },
+    "gadgil2023_ipw_feature_marginal": {
+        "baseline_label": None,
+        "curve_label": "DIME + IPW",
+    },
+    "aaco_full": {
+        "baseline_label": "AACO baseline",
+        "curve_label": None,
+    },
+    "aaco_zero_fill": {
+        "baseline_label": None,
+        "curve_label": "AACO + zero-fill",
+    },
+    "aaco_mask_aware": {
+        "baseline_label": None,
+        "curve_label": "AACO + mask-aware",
+    },
+    "aaco_dr": {
+        "baseline_label": None,
+        "curve_label": "AACO + DR",
+    },
+    "ol_with_mask": {
+        "baseline_label": "OL-MFRL baseline",
+        "curve_label": None,
+    },
+}
+
+CURVE_LABEL_ORDER = [
+    "DIME + IPW",
+    "AACO + zero-fill",
+    "AACO + mask-aware",
+    "AACO + DR",
+]
+
+BASELINE_LABEL_ORDER = [
+    "DIME baseline",
+    "AACO baseline",
+    "OL-MFRL baseline",
+]
+
+BASELINE_LINETYPES = {
+    "DIME baseline": "solid",
+    "AACO baseline": "dashed",
+    "OL-MFRL baseline": "dashdot",
 }
 
 
@@ -115,6 +166,7 @@ def parse_args() -> argparse.Namespace:
             "aaco_zero_fill",
             "aaco_mask_aware",
             "aaco_dr",
+            "ol_with_mask",
         ],
     )
     parser.add_argument("--n-contexts", type=int, default=5)
@@ -210,6 +262,19 @@ def _load_metric_summary(
         if key in loaded_summary:
             summary[key] = float(loaded_summary[key])
     return summary
+
+
+def _publication_method_spec(
+    method: str,
+) -> dict[str, str | None]:
+    default_label = METHOD_NAME_MAPPING.get(method, method)
+    return PUBLICATION_METHOD_SPECS.get(
+        method,
+        {
+            "baseline_label": None,
+            "curve_label": default_label,
+        },
+    )
 
 
 def _summarize_eval_run(
@@ -492,6 +557,19 @@ def _method_breaks(df: pd.DataFrame) -> list[str]:
     return [m for m in order if m in available]
 
 
+def _add_publication_method_columns(
+    data: pd.DataFrame,
+) -> pd.DataFrame:
+    data = data.copy()
+    data["baseline_label"] = data["method"].map(
+        lambda method: _publication_method_spec(method)["baseline_label"]
+    )
+    data["curve_label"] = data["method"].map(
+        lambda method: _publication_method_spec(method)["curve_label"]
+    )
+    return data
+
+
 def _make_budget_sweep_plot(
     long_df: pd.DataFrame,
     *,
@@ -563,8 +641,14 @@ def _save_plot(
 def _filter_representative_budgets(
     agg: pd.DataFrame,
     budget_col: str,
+    *,
+    budget_mode: str,
 ) -> pd.DataFrame:
-    # Keep only rows at each method's representative budget.
+    if budget_mode == "hard":
+        representative = agg.groupby("method")[budget_col].transform("max")
+        return pd.DataFrame(agg[agg[budget_col] == representative]).copy()
+
+    # Keep only rows at each method's representative soft budget.
     mask = agg.apply(
         lambda row: (
             row["method"] in REPRESENTATIVE_SOFT_BUDGETS
@@ -628,12 +712,31 @@ def _make_degradation_plot(
     *,
     n_metrics: int,
 ) -> p9.ggplot:
-    # Separate MNAR (lines) from MAR (standalone points).
-    mnar = long_df[long_df["mechanism"] == "MNAR"]
-    mar = long_df[long_df["mechanism"] == "MAR"]
-    mnar = _apply_method_labels(mnar)
-    mar = _apply_method_labels(mar)
-    breaks = _method_breaks(mnar)
+    publication_df = _add_publication_method_columns(long_df)
+    baseline = publication_df[
+        (publication_df["train_initializer"] == "cold")
+        & publication_df["baseline_label"].notna()
+    ].copy()
+    mnar = publication_df[
+        (publication_df["train_initializer"] != "cold")
+        & (publication_df["mechanism"] == "MNAR")
+        & publication_df["curve_label"].notna()
+    ].copy()
+    mar = publication_df[
+        (publication_df["train_initializer"] != "cold")
+        & (publication_df["mechanism"] == "MAR")
+        & publication_df["curve_label"].notna()
+    ].copy()
+    curve_breaks = [
+        label
+        for label in CURVE_LABEL_ORDER
+        if label in mnar["curve_label"].unique().tolist()
+    ]
+    baseline_breaks = [
+        label
+        for label in BASELINE_LABEL_ORDER
+        if label in baseline["baseline_label"].unique().tolist()
+    ]
 
     n_rows = (n_metrics + 1) // 2
     fig_height = max(PLOT_HEIGHT, 2.8 * n_rows)
@@ -644,8 +747,8 @@ def _make_degradation_plot(
             p9.aes(
                 x="p_miss",
                 y="mean_metric",
-                color="method",
-                fill="method",
+                color="curve_label",
+                fill="curve_label",
             ),
         )
         + p9.geom_line()
@@ -654,17 +757,18 @@ def _make_degradation_plot(
             p9.aes(ymin="low_metric", ymax="high_metric"),
             alpha=0.1,
             size=0.0,
+            show_legend=False,
         )
         + p9.facet_wrap("metric_name", scales="free_y", ncol=2)
         + p9.scale_color_brewer(
             type="qual",
             palette=COLOR_PALETTE_NAME,
-            breaks=breaks,
+            breaks=curve_breaks,
         )
         + p9.scale_fill_brewer(
             type="qual",
             palette=COLOR_PALETTE_NAME,
-            breaks=breaks,
+            breaks=curve_breaks,
         )
         + p9.scale_x_continuous(
             labels=lambda xs: [f"{x:.0%}" for x in xs],
@@ -672,19 +776,33 @@ def _make_degradation_plot(
         + p9.labs(
             x="Training missingness rate (MNAR)",
             y="Value",
-            color="Policy",
-            fill="Policy",
+            color="Mitigations",
+            linetype="Baselines",
         )
         + p9.theme(figure_size=(PLOT_WIDTH * 0.75, fig_height))
     )
-    # MAR control as open triangles at x=0.3.
+    if not baseline.empty:
+        plot += p9.geom_hline(
+            data=baseline,
+            mapping=p9.aes(
+                yintercept="mean_metric",
+                linetype="baseline_label",
+            ),
+            color="black",
+            alpha=0.75,
+            size=0.65,
+        )
+        plot += p9.scale_linetype_manual(
+            values=BASELINE_LINETYPES,
+            breaks=baseline_breaks,
+        )
     if not mar.empty:
         plot += p9.geom_point(
             data=mar,
             mapping=p9.aes(
                 x="p_miss",
                 y="mean_metric",
-                color="method",
+                color="curve_label",
             ),
             shape="^",
             size=4,
@@ -702,7 +820,13 @@ def plot_missingness_degradation(
     formats: list[str],
     metrics: list[str] | None = None,
 ) -> None:
-    # Figure A: missingness degradation on CUBE-NM-AR.
+    if budget_mode != "soft":
+        print(
+            "Skipping missingness degradation plot: "
+            "CUBE-NM-AR publication comparison is soft-budget only."
+        )
+        return
+
     if metrics is None:
         metrics = [
             "accuracy",
@@ -711,7 +835,11 @@ def plot_missingness_degradation(
             "mean_cost",
         ]
     budget_col = _budget_column(budget_mode)
-    filtered = _filter_representative_budgets(aggregated, budget_col)
+    filtered = _filter_representative_budgets(
+        aggregated,
+        budget_col,
+        budget_mode=budget_mode,
+    )
     if filtered.empty:
         print("No rows at representative budgets; skipping degradation plot.")
         return
@@ -754,8 +882,16 @@ def plot_shield_comparison(
         ]
     budget_col = _budget_column(budget_mode)
 
-    unshielded_f = _filter_representative_budgets(unshielded, budget_col)
-    shielded_f = _filter_representative_budgets(shielded, budget_col)
+    unshielded_f = _filter_representative_budgets(
+        unshielded,
+        budget_col,
+        budget_mode=budget_mode,
+    )
+    shielded_f = _filter_representative_budgets(
+        shielded,
+        budget_col,
+        budget_mode=budget_mode,
+    )
 
     unshielded_long = _melt_degradation(unshielded_f, metrics)
     shielded_long = _melt_degradation(shielded_f, metrics)
@@ -767,13 +903,18 @@ def plot_shield_comparison(
     unshielded_long["shield_status"] = "Unshielded"
     shielded_long["shield_status"] = "Shielded"
     combined = pd.concat([unshielded_long, shielded_long], ignore_index=True)
-    # Keep only MNAR rows (lines) for the grid.
-    combined = combined[combined["mechanism"] == "MNAR"].copy()
+    combined = _add_publication_method_columns(combined)
+    combined = combined[
+        (combined["mechanism"] == "MNAR") & combined["curve_label"].notna()
+    ].copy()
     if combined.empty:
         return
 
-    combined = _apply_method_labels(combined)
-    breaks = _method_breaks(combined)
+    breaks = [
+        label
+        for label in CURVE_LABEL_ORDER
+        if label in combined["curve_label"].unique().tolist()
+    ]
 
     n_metrics = combined["metric_name"].nunique()
     fig_height = max(PLOT_HEIGHT, 2.5 * n_metrics)
@@ -785,8 +926,8 @@ def plot_shield_comparison(
             p9.aes(
                 x="p_miss",
                 y="mean_metric",
-                color="method",
-                fill="method",
+                color="curve_label",
+                fill="curve_label",
             ),
         )
         + p9.geom_line()
@@ -795,6 +936,7 @@ def plot_shield_comparison(
             p9.aes(ymin="low_metric", ymax="high_metric"),
             alpha=0.1,
             size=0.0,
+            show_legend=False,
         )
         + p9.facet_grid(
             "metric_name ~ shield_status",
@@ -816,8 +958,7 @@ def plot_shield_comparison(
         + p9.labs(
             x="Training missingness rate (MNAR)",
             y="Value",
-            color="Policy",
-            fill="Policy",
+            color="Mitigations",
         )
         + p9.theme(figure_size=(fig_width, fig_height))
     )
@@ -1063,13 +1204,18 @@ def main() -> None:
             "skipping per-initializer budget sweep plots."
         )
 
-    # Missingness degradation (Figure A).
-    plot_missingness_degradation(
-        aggregated,
-        args.output_dir / "missingness_degradation",
-        budget_mode=args.budget_mode,
-        formats=args.formats,
-    )
+    if multi_init:
+        plot_missingness_degradation(
+            aggregated,
+            args.output_dir / "missingness_degradation",
+            budget_mode=args.budget_mode,
+            formats=args.formats,
+        )
+    else:
+        print(
+            "Single train_initializer detected; "
+            "skipping missingness degradation plot."
+        )
 
     # Shield comparison (Figure C).
     if args.shield_aggregate is not None:

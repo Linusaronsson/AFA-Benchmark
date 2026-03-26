@@ -1,0 +1,42 @@
+# Minimal leaf override for publication-figure smoke tests.
+#
+# This keeps a single representative soft budget per method family so the
+# CUBE-NM-AR comparison plots render quickly while still exercising the
+# baseline/mitigation legend split.
+
+dataset_instance_indices: [0]
+stop_shield_deltas: []
+dual_lambdas: []
+device: cpu
+use_wandb: false
+smoke_test: true
+
+soft_budget_params:
+  gadgil2023:
+    default: []
+    cube_nm_ar:
+      - [null, 0.01]
+  gadgil2023_ipw_feature_marginal:
+    default: []
+    cube_nm_ar:
+      - [null, 0.01]
+  aaco_full:
+    default: []
+    cube_nm_ar:
+      - [1.2, 1.2]
+  aaco_zero_fill:
+    default: []
+    cube_nm_ar:
+      - [1.2, 1.2]
+  aaco_mask_aware:
+    default: []
+    cube_nm_ar:
+      - [1.2, 1.2]
+  aaco_dr:
+    default: []
+    cube_nm_ar:
+      - [1.2, 1.2]
+  ol_with_mask:
+    default: []
+    cube_nm_ar:
+      - [0.01, 0.01]

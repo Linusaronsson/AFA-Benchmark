@@ -6,7 +6,6 @@ from pathlib import Path
 
 import plotnine as p9
 import polars as pl
-from sklearn.metrics import accuracy_score, f1_score
 
 from afabench.eval.plotting_config import (
     COLOR_PALETTE_NAME,
@@ -22,6 +21,56 @@ MECHANISM_LABELS = {
     "mcar": "MCAR",
     "mar": "MAR",
     "mnar_logistic": "MNAR logistic",
+}
+
+PUBLICATION_METHOD_SPECS: dict[str, dict[str, str | None]] = {
+    "gadgil2023": {
+        "baseline_label": "DIME baseline",
+        "curve_label": None,
+    },
+    "gadgil2023_ipw_feature_marginal": {
+        "baseline_label": None,
+        "curve_label": "DIME + IPW",
+    },
+    "aaco_full": {
+        "baseline_label": "AACO baseline",
+        "curve_label": None,
+    },
+    "aaco_zero_fill": {
+        "baseline_label": None,
+        "curve_label": "AACO + zero-fill",
+    },
+    "aaco_mask_aware": {
+        "baseline_label": None,
+        "curve_label": "AACO + mask-aware",
+    },
+    "aaco_dr": {
+        "baseline_label": None,
+        "curve_label": "AACO + DR",
+    },
+    "ol_with_mask": {
+        "baseline_label": "OL-MFRL baseline",
+        "curve_label": None,
+    },
+}
+
+CURVE_LABEL_ORDER = [
+    "DIME + IPW",
+    "AACO + zero-fill",
+    "AACO + mask-aware",
+    "AACO + DR",
+]
+
+BASELINE_LABEL_ORDER = [
+    "DIME baseline",
+    "AACO baseline",
+    "OL-MFRL baseline",
+]
+
+BASELINE_LINETYPES = {
+    "DIME baseline": "solid",
+    "AACO baseline": "dashed",
+    "OL-MFRL baseline": "dashdot",
 }
 
 
@@ -120,11 +169,28 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _collect_lazy(frame: pl.LazyFrame) -> pl.DataFrame:
+    return frame.collect(engine="streaming")
+
+
+def _publication_method_spec(
+    afa_method: str,
+) -> dict[str, str | None]:
+    default_label = METHOD_NAME_MAPPING.get(afa_method, afa_method)
+    return PUBLICATION_METHOD_SPECS.get(
+        afa_method,
+        {
+            "baseline_label": None,
+            "curve_label": default_label,
+        },
+    )
+
+
 def _compute_metrics_per_run(
-    data: pl.DataFrame,
+    data: pl.LazyFrame,
     *,
     group_column: str,
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
     group_cols = [
         "afa_method",
         "dataset",
@@ -137,58 +203,90 @@ def _compute_metrics_per_run(
         "eval_soft_budget_param",
     ]
 
-    return data.group_by(*group_cols).map_groups(
-        lambda group_df: pl.DataFrame(
-            {
-                "afa_method": [group_df["afa_method"].first()],
-                "dataset": [group_df["dataset"].first()],
-                group_column: [group_df[group_column].first()],
-                "train_seed": [group_df["train_seed"].first()],
-                "eval_seed": [group_df["eval_seed"].first()],
-                "eval_hard_budget": [group_df["eval_hard_budget"].first()],
-                "train_hard_budget": [group_df["train_hard_budget"].first()],
-                "train_soft_budget_param": [
-                    group_df["train_soft_budget_param"].first()
-                ],
-                "eval_soft_budget_param": [
-                    group_df["eval_soft_budget_param"].first()
-                ],
-                "accuracy": [
-                    accuracy_score(
-                        group_df["true_class"],
-                        group_df["predicted_class"],
-                    )
-                ],
-                "f_score": [
-                    f1_score(
-                        group_df["true_class"],
-                        group_df["predicted_class"],
-                        average="macro",
-                    )
-                ],
-            },
-            schema={
-                "afa_method": pl.String,
-                "dataset": pl.String,
-                group_column: pl.String,
-                "train_seed": pl.UInt64,
-                "eval_seed": pl.UInt64,
-                "eval_hard_budget": pl.Float64,
-                "train_hard_budget": pl.Float64,
-                "train_soft_budget_param": pl.Float64,
-                "eval_soft_budget_param": pl.Float64,
-                "accuracy": pl.Float64,
-                "f_score": pl.Float64,
-            },
+    confusion = data.group_by(
+        [*group_cols, "true_class", "predicted_class"]
+    ).agg(n=pl.len())
+
+    accuracy = (
+        confusion.group_by(group_cols)
+        .agg(
+            total=pl.col("n").sum(),
+            correct=pl.when(pl.col("true_class") == pl.col("predicted_class"))
+            .then(pl.col("n"))
+            .otherwise(0)
+            .sum(),
         )
+        .with_columns(
+            accuracy=pl.col("correct").cast(pl.Float64)
+            / pl.col("total").clip(lower_bound=1).cast(pl.Float64)
+        )
+        .select([*group_cols, "accuracy"])
+    )
+
+    true_totals = (
+        confusion.group_by([*group_cols, "true_class"])
+        .agg(true_total=pl.col("n").sum().cast(pl.UInt64))
+        .rename({"true_class": "label"})
+        .with_columns(pred_total=pl.lit(0, dtype=pl.UInt64))
+        .select([*group_cols, "label", "true_total", "pred_total"])
+    )
+    pred_totals = (
+        confusion.group_by([*group_cols, "predicted_class"])
+        .agg(pred_total=pl.col("n").sum().cast(pl.UInt64))
+        .rename({"predicted_class": "label"})
+        .with_columns(true_total=pl.lit(0, dtype=pl.UInt64))
+        .select([*group_cols, "label", "true_total", "pred_total"])
+    )
+    label_totals = (
+        pl.concat([true_totals, pred_totals])
+        .group_by([*group_cols, "label"])
+        .agg(
+            true_total=pl.col("true_total").sum(),
+            pred_total=pl.col("pred_total").sum(),
+        )
+    )
+    tp_by_label = (
+        confusion.filter(pl.col("true_class") == pl.col("predicted_class"))
+        .select([*group_cols, pl.col("true_class").alias("label"), "n"])
+        .rename({"n": "tp"})
+        .with_columns(tp=pl.col("tp").cast(pl.UInt64))
+    )
+
+    f_score = (
+        label_totals.join(
+            tp_by_label,
+            on=[*group_cols, "label"],
+            how="left",
+            nulls_equal=True,
+        )
+        .with_columns(
+            tp=pl.col("tp").fill_null(0),
+            denom=(pl.col("true_total") + pl.col("pred_total")).cast(
+                pl.Float64
+            ),
+        )
+        .with_columns(
+            f1_label=pl.when(pl.col("denom") > 0)
+            .then(2.0 * pl.col("tp").cast(pl.Float64) / pl.col("denom"))
+            .otherwise(0.0)
+        )
+        .group_by(group_cols)
+        .agg(f_score=pl.col("f1_label").mean())
+    )
+
+    return accuracy.join(
+        f_score,
+        on=group_cols,
+        how="left",
+        nulls_equal=True,
     )
 
 
 def _aggregate_across_seeds(
-    data: pl.DataFrame,
+    data: pl.LazyFrame,
     *,
     group_column: str,
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
     data = data.with_columns(
         metric=pl.when(pl.col("dataset").is_in(DATASETS_WITH_F_SCORE))
         .then(pl.col("f_score"))
@@ -214,11 +312,11 @@ def _aggregate_across_seeds(
 
 
 def _filter_budget_mode(
-    data: pl.DataFrame,
+    data: pl.LazyFrame,
     mode: str,
     keep_largest_hard_budget: bool,
     eval_hard_budget: float | None = None,
-) -> pl.DataFrame:
+) -> pl.LazyFrame:
     if mode == "hard":
         data = data.filter(pl.col("eval_hard_budget").is_not_null())
         if eval_hard_budget is not None:
@@ -262,6 +360,21 @@ def _enrich_with_mechanism_and_rate(
     )
 
 
+def _enrich_with_publication_roles(
+    summary: pl.DataFrame,
+) -> pl.DataFrame:
+    baseline_labels: list[str | None] = []
+    curve_labels: list[str | None] = []
+    for afa_method in summary["afa_method"].to_list():
+        spec = _publication_method_spec(afa_method)
+        baseline_labels.append(spec["baseline_label"])
+        curve_labels.append(spec["curve_label"])
+    return summary.with_columns(
+        baseline_label=pl.Series(baseline_labels, dtype=pl.String),
+        curve_label=pl.Series(curve_labels, dtype=pl.String),
+    )
+
+
 DATASET_NAME_MAPPING_WITH_METRIC = {
     ds: (f"{name} ({'F1' if ds in DATASETS_WITH_F_SCORE else 'Acc.'})")
     for ds, name in DATASET_NAME_MAPPING.items()
@@ -274,19 +387,15 @@ def _make_mechanism_plot(
     *,
     mechanism_label: str,
 ) -> p9.ggplot:
-    # mechanism_data: rows with varying rate.
-    # baseline_data: cold-start reference (horizontal dashed lines).
+    # mechanism_data: mitigation rows with varying training missingness rate.
+    # baseline_data: full-support reference methods shown as hlines.
     plot_df = mechanism_data.with_columns(
         dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING_WITH_METRIC),
-        afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
     )
 
-    method_order = list(METHOD_NAME_MAPPING.keys())
-    available = plot_df["afa_method"].unique().to_list()
-    ordered = [
-        METHOD_NAME_MAPPING.get(m, m)
-        for m in method_order
-        if METHOD_NAME_MAPPING.get(m, m) in available
+    available_curve_labels = plot_df["curve_label"].unique().to_list()
+    curve_breaks = [
+        label for label in CURVE_LABEL_ORDER if label in available_curve_labels
     ]
 
     n_datasets = max(plot_df["dataset"].n_unique(), 1)
@@ -300,8 +409,8 @@ def _make_mechanism_plot(
             p9.aes(
                 x="rate",
                 y="mean_metric",
-                color="afa_method",
-                fill="afa_method",
+                color="curve_label",
+                fill="curve_label",
             ),
         )
         + p9.geom_line()
@@ -310,17 +419,18 @@ def _make_mechanism_plot(
             p9.aes(ymin="low_metric", ymax="high_metric"),
             alpha=0.1,
             size=0.0,
+            show_legend=False,
         )
         + p9.facet_wrap("dataset", scales="free_y", ncol=2)
         + p9.scale_color_brewer(
             type="qual",
             palette=COLOR_PALETTE_NAME,
-            breaks=ordered,
+            breaks=curve_breaks,
         )
         + p9.scale_fill_brewer(
             type="qual",
             palette=COLOR_PALETTE_NAME,
-            breaks=ordered,
+            breaks=curve_breaks,
         )
         + p9.scale_x_continuous(
             labels=lambda xs: [f"{x:.0%}" for x in xs],
@@ -328,29 +438,37 @@ def _make_mechanism_plot(
         + p9.labs(
             x=f"Training missingness rate ({mechanism_label})",
             y="Metric",
-            color="Policy",
-            fill="Policy",
+            color="Mitigations",
+            linetype="Baselines",
         )
         + p9.theme(figure_size=(figure_width, figure_height))
     )
 
-    # Cold-start baselines as horizontal dashed lines.
     if not baseline_data.is_empty():
         bl = baseline_data.with_columns(
             dataset=pl.col("dataset").replace(
                 DATASET_NAME_MAPPING_WITH_METRIC
             ),
-            afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
         )
+        available_baseline_labels = bl["baseline_label"].unique().to_list()
+        baseline_breaks = [
+            label
+            for label in BASELINE_LABEL_ORDER
+            if label in available_baseline_labels
+        ]
         plot += p9.geom_hline(
             data=bl,
             mapping=p9.aes(
                 yintercept="mean_metric",
-                color="afa_method",
+                linetype="baseline_label",
             ),
-            linetype="dashed",
-            alpha=0.5,
-            size=0.6,
+            color="black",
+            alpha=0.75,
+            size=0.65,
+        )
+        plot += p9.scale_linetype_manual(
+            values=BASELINE_LINETYPES,
+            breaks=baseline_breaks,
         )
 
     return plot
@@ -374,8 +492,9 @@ def _save_plot(
 
 def _load_and_prepare(
     args: argparse.Namespace,
-) -> pl.DataFrame:
-    data = pl.read_parquet(args.input_path)
+) -> pl.LazyFrame:
+    data = pl.scan_parquet(args.input_path)
+    schema = data.collect_schema()
     required_cols = {
         "action_performed",
         "predicted_class",
@@ -390,10 +509,12 @@ def _load_and_prepare(
         "train_soft_budget_param",
         "eval_soft_budget_param",
     }
-    missing_cols = required_cols.difference(data.columns)
+    missing_cols = required_cols.difference(schema.names())
     if missing_cols:
         msg = f"Input parquet missing required columns: {sorted(missing_cols)}"
         raise ValueError(msg)
+
+    data = data.select(sorted(required_cols))
 
     if args.methods:
         data = data.filter(pl.col("afa_method").is_in(args.methods))
@@ -416,19 +537,21 @@ def _load_and_prepare(
             )
             .sort("dataset")
         )
+        available_hard_budgets = _collect_lazy(available_hard_budgets)
     data = _filter_budget_mode(
         data,
         args.budget_mode,
         args.keep_largest_hard_budget,
         args.eval_hard_budget,
     )
-    if data.is_empty():
+    remaining_rows = _collect_lazy(data.select(pl.len())).item()
+    if remaining_rows == 0:
         msg = "No rows left after filtering."
         if (
             args.budget_mode == "hard"
             and args.eval_hard_budget is not None
             and available_hard_budgets is not None
-            and not available_hard_budgets.is_empty()
+            and available_hard_budgets.height > 0
         ):
             budget_summary = ", ".join(
                 f"{row['dataset']}={row['budgets']}"
@@ -482,21 +605,28 @@ def main() -> None:
         data,
         group_column=args.group_column,
     )
-    summary_data = _aggregate_across_seeds(
-        metrics_per_run,
-        group_column=args.group_column,
+    summary_data = _collect_lazy(
+        _aggregate_across_seeds(
+            metrics_per_run,
+            group_column=args.group_column,
+        )
     )
-    if summary_data.is_empty():
+    if summary_data.height == 0:
         msg = "No grouped rows produced; cannot generate plot."
         raise ValueError(msg)
 
-    summary_data.write_csv(args.output_dir / f"{args.output_stem}.csv")
-
     enriched = _enrich_with_mechanism_and_rate(summary_data, args.group_column)
+    enriched = _enrich_with_publication_roles(enriched)
+    enriched.write_csv(args.output_dir / f"{args.output_stem}.csv")
 
-    baseline = enriched.filter(pl.col("mechanism") == "cold")
+    baseline = enriched.filter(
+        (pl.col("mechanism") == "cold")
+        & pl.col("baseline_label").is_not_null()
+    )
     mechanism_rows = enriched.filter(
-        (pl.col("mechanism") != "cold") & pl.col("mechanism").is_not_null()
+        (pl.col("mechanism") != "cold")
+        & pl.col("mechanism").is_not_null()
+        & pl.col("curve_label").is_not_null()
     )
 
     if mechanism_rows.is_empty():

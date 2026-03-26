@@ -1,0 +1,27 @@
+# Small smoke overlay for publication-style train-missingness plots.
+#
+# Example:
+#   uv run snakemake \
+#     -s extra/workflow/snakefiles/orchestration/initializer_comparison.smk \
+#     --configfile \
+#       extra/workflow/conf/train_missing_eval_cold_initializer_comparison.yaml \
+#       extra/workflow/conf/train_missing_eval_cold_smoke.yaml \
+#     -j 1 \
+#     all
+
+datasets: [cube_without_noise]
+dataset_instance_indices: [0]
+train_initializers: [cold, mcar_p03, mar_p03, mnar_logistic_p03]
+methods:
+  - gadgil2023
+  - gadgil2023_ipw_feature_marginal
+  - aaco_full
+  - aaco_zero_fill
+  - aaco_mask_aware
+  - aaco_dr
+  - ol_with_mask
+smoke_test: true
+use_wandb: false
+device: cpu
+pipeline_cores: 4
+comparison_method_set_name: train_missing_eval_cold_smoke

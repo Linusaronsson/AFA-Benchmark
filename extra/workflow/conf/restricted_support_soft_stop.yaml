@@ -26,6 +26,7 @@ methods:
   - aaco_zero_fill
   - aaco_mask_aware
   - aaco_dr
+  - ol_with_mask
 
 method_sets:
   restricted_support_soft_stop:
@@ -35,6 +36,7 @@ method_sets:
     - aaco_zero_fill
     - aaco_mask_aware
     - aaco_dr
+    - ol_with_mask
 
 eval_hard_budgets:
   # Soft-stop plots ignore hard-budget eval runs, but discriminative
@@ -80,3 +82,9 @@ soft_budget_params:
       - [0.1, 0.1]
       - [0.3, 0.3]
       - [1.2, 1.2]
+  ol_with_mask:
+    default: []
+    cube_nm_ar:
+      - [0.005, 0.005]
+      - [0.01, 0.01]
+      - [0.02, 0.02]

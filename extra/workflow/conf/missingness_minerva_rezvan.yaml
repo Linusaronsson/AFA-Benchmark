@@ -8,11 +8,11 @@
 #       extra/workflow/conf/missingness_minerva_rezvan.yaml \
 #     --config \
 #       "datasets=[cube_without_noise,actg175]" \
-#       "methods=[gadgil2023,gadgil2023_ipw_feature_marginal,aaco_full,aaco_zero_fill,aaco_mask_aware,aaco_dr]" \
+#       "methods=[gadgil2023,gadgil2023_ipw_feature_marginal,aaco_full,aaco_zero_fill,aaco_mask_aware,aaco_dr,ol_with_mask]" \
 #     -j 1 \
 #     all
 #
-# CUBE-NM-AR suite:
+# CUBE-NM-AR suite (soft-budget only):
 #   uv run snakemake \
 #     -s extra/workflow/snakefiles/orchestration/cube_nm_ar_suite.smk \
 #     --configfile \

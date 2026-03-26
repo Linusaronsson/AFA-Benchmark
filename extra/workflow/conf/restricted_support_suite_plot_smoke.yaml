@@ -1,0 +1,24 @@
+# Fast smoke overlay for publication-style CUBE-NM-AR comparison plots.
+#
+# Example:
+#   uv run snakemake \
+#     -s extra/workflow/snakefiles/orchestration/cube_nm_ar_suite.smk \
+#     --configfile \
+#       extra/workflow/conf/restricted_support_suite.yaml \
+#       extra/workflow/conf/restricted_support_suite_plot_smoke.yaml \
+#     -j 1 \
+#     all
+
+cube_nm_ar_suite_train_initializers: [cold, cube_nm_ar, cube_nm_ar_mar]
+cube_nm_ar_suite_mode_train_initializers:
+  soft: [cold, cube_nm_ar, cube_nm_ar_mar]
+cube_nm_ar_suite_budget_modes: [soft]
+cube_nm_ar_suite_mode_stop_shield_deltas:
+  soft: []
+cube_nm_ar_suite_mode_dual_lambdas:
+  soft: []
+cube_nm_ar_suite_pipeline_cores: 4
+cube_nm_ar_suite_mode_configfiles:
+  soft:
+    - extra/workflow/conf/restricted_support_soft_stop.yaml
+    - extra/workflow/conf/restricted_support_soft_stop_plot_smoke.yaml

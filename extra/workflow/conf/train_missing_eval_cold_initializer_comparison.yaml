@@ -9,7 +9,7 @@
 #     --configfile extra/workflow/conf/train_missing_eval_cold_initializer_comparison.yaml \
 #     --config \
 #       "datasets=[cube_without_noise]" \
-#       "methods=[gadgil2023,gadgil2023_ipw_feature_marginal,aaco_full,aaco_zero_fill,aaco_mask_aware,aaco_dr]" \
+#       "methods=[gadgil2023,gadgil2023_ipw_feature_marginal,aaco_full,aaco_zero_fill,aaco_mask_aware,aaco_dr,ol_with_mask]" \
 #     -j 1 \
 #     all
 
