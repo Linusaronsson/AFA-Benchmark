@@ -29,6 +29,7 @@ from afabench.common.config_classes import (
 )
 from afabench.common.custom_types import AFAMethod
 from afabench.common.utils import (
+    configure_runtime_for_device,
     set_seed,
 )
 
@@ -94,6 +95,7 @@ def method_specific_init(
     cfg.mdp.hard_budget = cfg.hard_budget
 
     log.debug(cfg)
+    cfg.device = configure_runtime_for_device(cfg.device)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
