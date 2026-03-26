@@ -68,7 +68,7 @@ BASELINE_LABEL_ORDER = [
 ]
 
 BASELINE_LINETYPES = {
-    "DIME baseline": "solid",
+    "DIME baseline": "dotted",
     "AACO baseline": "dashed",
     "OL-MFRL baseline": "dashdot",
 }
@@ -439,7 +439,13 @@ def _make_mechanism_plot(
             x=f"Training missingness rate ({mechanism_label})",
             y="Metric",
             color="Mitigations",
+            fill="Mitigations",
             linetype="Baselines",
+        )
+        + p9.guides(
+            fill="none",
+            color=p9.guide_legend(order=1),
+            linetype=p9.guide_legend(order=2),
         )
         + p9.theme(figure_size=(figure_width, figure_height))
     )
@@ -463,8 +469,8 @@ def _make_mechanism_plot(
                 linetype="baseline_label",
             ),
             color="black",
-            alpha=0.75,
-            size=0.65,
+            alpha=0.9,
+            size=0.8,
         )
         plot += p9.scale_linetype_manual(
             values=BASELINE_LINETYPES,

@@ -121,7 +121,7 @@ BASELINE_LABEL_ORDER = [
 ]
 
 BASELINE_LINETYPES = {
-    "DIME baseline": "solid",
+    "DIME baseline": "dotted",
     "AACO baseline": "dashed",
     "OL-MFRL baseline": "dashdot",
 }
@@ -777,7 +777,13 @@ def _make_degradation_plot(
             x="Training missingness rate (MNAR)",
             y="Value",
             color="Mitigations",
+            fill="Mitigations",
             linetype="Baselines",
+        )
+        + p9.guides(
+            fill="none",
+            color=p9.guide_legend(order=1),
+            linetype=p9.guide_legend(order=2),
         )
         + p9.theme(figure_size=(PLOT_WIDTH * 0.75, fig_height))
     )
@@ -789,8 +795,8 @@ def _make_degradation_plot(
                 linetype="baseline_label",
             ),
             color="black",
-            alpha=0.75,
-            size=0.65,
+            alpha=0.9,
+            size=0.8,
         )
         plot += p9.scale_linetype_manual(
             values=BASELINE_LINETYPES,
@@ -904,16 +910,25 @@ def plot_shield_comparison(
     shielded_long["shield_status"] = "Shielded"
     combined = pd.concat([unshielded_long, shielded_long], ignore_index=True)
     combined = _add_publication_method_columns(combined)
+    baseline = combined[
+        (combined["train_initializer"] == "cold")
+        & combined["baseline_label"].notna()
+    ].copy()
     combined = combined[
         (combined["mechanism"] == "MNAR") & combined["curve_label"].notna()
     ].copy()
     if combined.empty:
         return
 
-    breaks = [
+    curve_breaks = [
         label
         for label in CURVE_LABEL_ORDER
         if label in combined["curve_label"].unique().tolist()
+    ]
+    baseline_breaks = [
+        label
+        for label in BASELINE_LABEL_ORDER
+        if label in baseline["baseline_label"].unique().tolist()
     ]
 
     n_metrics = combined["metric_name"].nunique()
@@ -945,23 +960,45 @@ def plot_shield_comparison(
         + p9.scale_color_brewer(
             type="qual",
             palette=COLOR_PALETTE_NAME,
-            breaks=breaks,
+            breaks=curve_breaks,
         )
         + p9.scale_fill_brewer(
             type="qual",
             palette=COLOR_PALETTE_NAME,
-            breaks=breaks,
+            breaks=curve_breaks,
         )
         + p9.scale_x_continuous(
             labels=lambda xs: [f"{x:.0%}" for x in xs],
         )
         + p9.labs(
             x="Training missingness rate (MNAR)",
-            y="Value",
+            y=None,
             color="Mitigations",
+            fill="Mitigations",
+            linetype="Baselines",
+        )
+        + p9.guides(
+            fill="none",
+            color=p9.guide_legend(order=1),
+            linetype=p9.guide_legend(order=2),
         )
         + p9.theme(figure_size=(fig_width, fig_height))
     )
+    if not baseline.empty:
+        plot += p9.geom_hline(
+            data=baseline,
+            mapping=p9.aes(
+                yintercept="mean_metric",
+                linetype="baseline_label",
+            ),
+            color="black",
+            alpha=0.9,
+            size=0.8,
+        )
+        plot += p9.scale_linetype_manual(
+            values=BASELINE_LINETYPES,
+            breaks=baseline_breaks,
+        )
     _save_plot(
         plot,
         output_path,
