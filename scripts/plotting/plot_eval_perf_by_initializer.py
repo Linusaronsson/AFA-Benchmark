@@ -13,91 +13,53 @@ from afabench.eval.plotting_config import (
     DATASET_NAME_MAPPING,
     DATASETS_WITH_F_SCORE,
     METHOD_NAME_MAPPING,
+    PLOT_WIDTH,
 )
 
 SUBPLOT_HEIGHT = 2.8
 
-INITIALIZER_NAME_MAPPING = {
-    "missingness": "Missingness",
-    "missingness_all_observed": "All observed",
-    "cube_nm_ar": "CUBE-NM-AR",
-    "cold": "Cold start",
-}
-
-VARIANT_NAME_MAPPING = {
-    "marf": "MARF",
-    "madt": "MADT",
-    "magbt": "MAGBT",
-    "malasso": "MALasso",
-}
-TRAIN_INITIALIZER_NAME_MAPPING = {
-    "cold": "Full train support",
-    "cube_nm_ar": "Rescue-censored train",
-}
-MECHANISM_INITIALIZER_MAPPING = {
+MECHANISM_LABELS = {
     "mcar": "MCAR",
     "mar": "MAR",
     "mnar_logistic": "MNAR logistic",
 }
 
 
-def _format_rate_initializer_label(initializer: str) -> str | None:
-    match = re.fullmatch(r"(mcar|mar|mnar_logistic)_p(\d+)", initializer)
+def _parse_mechanism_and_rate(
+    initializer: str,
+) -> tuple[str, float] | None:
+    # Handles both raw (mcar_p03) and composite
+    # (train_initializer-mcar_p03+eval_initializer-cold) forms.
+    composite = re.fullmatch(
+        r"train_initializer-(.+)\+eval_initializer-(.+)",
+        initializer,
+    )
+    train_init = composite.group(1) if composite else initializer
+
+    match = re.fullmatch(r"(mcar|mar|mnar_logistic)_p(\d+)", train_init)
     if match is None:
         return None
 
     mechanism, rate_code = match.groups()
-    mechanism_label = MECHANISM_INITIALIZER_MAPPING.get(
-        mechanism, mechanism.upper()
-    )
-    # Initializer suffixes use compact tenths notation:
-    # p01 -> 0.1, p03 -> 0.3, p05 -> 0.5, p07 -> 0.7.
     rate = float(rate_code) / (10 ** max(len(rate_code) - 1, 0))
-    return f"{mechanism_label} {round(rate * 100):.0f}%"
+    return mechanism, rate
 
 
-def _format_initializer_label(initializer: str) -> str:
-    composite_match = re.fullmatch(
+def _is_cold_start(initializer: str) -> bool:
+    composite = re.fullmatch(
         r"train_initializer-(.+)\+eval_initializer-(.+)",
         initializer,
     )
-    formatted_label: str
-    if composite_match is not None:
-        train_initializer, eval_initializer = composite_match.groups()
-        train_label = TRAIN_INITIALIZER_NAME_MAPPING.get(
-            train_initializer,
-            _format_initializer_label(train_initializer),
-        )
-        if eval_initializer == "cold":
-            formatted_label = train_label
-        else:
-            eval_label = _format_initializer_label(eval_initializer)
-            formatted_label = f"{train_label} / eval {eval_label}"
-    else:
-        rate_label = _format_rate_initializer_label(initializer)
-        if rate_label is not None:
-            formatted_label = rate_label
-        elif initializer in INITIALIZER_NAME_MAPPING:
-            formatted_label = INITIALIZER_NAME_MAPPING[initializer]
-        elif initializer.startswith("missingness_all_observed_"):
-            variant = initializer.removeprefix("missingness_all_observed_")
-            variant_label = VARIANT_NAME_MAPPING.get(variant, variant.upper())
-            formatted_label = f"{variant_label} all observed"
-        elif initializer.startswith("missingness_"):
-            variant = initializer.removeprefix("missingness_")
-            variant_label = VARIANT_NAME_MAPPING.get(variant, variant.upper())
-            formatted_label = f"{variant_label} missingness"
-        else:
-            formatted_label = initializer
-
-    return formatted_label
+    train_init = composite.group(1) if composite else initializer
+    return train_init == "cold"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Plot evaluation performance grouped by a comparison column, "
-            "using already merged eval parquet from the workflow."
+            "Plot evaluation performance grouped by a comparison "
+            "column, using already merged eval parquet from the "
+            "workflow."
         )
     )
     parser.add_argument("input_path", type=Path, help="Input parquet path.")
@@ -107,12 +69,6 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="initializer",
         help="Column used for the comparison axis.",
-    )
-    parser.add_argument(
-        "--group-label",
-        type=str,
-        default="Initializer",
-        help="Axis and legend label for the comparison column.",
     )
     parser.add_argument(
         "--output-stem",
@@ -131,8 +87,8 @@ def parse_args() -> argparse.Namespace:
         "--keep-largest-hard-budget",
         action="store_true",
         help=(
-            "When budget-mode=hard, keep only the largest hard budget per "
-            "dataset."
+            "When budget-mode=hard, keep only the largest hard "
+            "budget per dataset."
         ),
     )
     parser.add_argument(
@@ -140,8 +96,8 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=None,
         help=(
-            "Optional hard budget to keep. When set, this takes precedence "
-            "over --keep-largest-hard-budget."
+            "Optional hard budget to keep. When set, this takes "
+            "precedence over --keep-largest-hard-budget."
         ),
     )
     parser.add_argument(
@@ -150,13 +106,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional list of methods to keep.",
     )
+    parser.add_argument(
+        "--save-individual-subplots",
+        action="store_true",
+        help="Also save one figure per dataset per mechanism.",
+    )
+    parser.add_argument(
+        "--formats",
+        nargs="+",
+        default=["pdf", "svg", "png"],
+        help="Output formats (default: pdf svg png).",
+    )
     return parser.parse_args()
-
-
-def _format_group_value(value: str, group_column: str) -> str:
-    if group_column == "initializer":
-        return _format_initializer_label(value)
-    return value
 
 
 def _compute_metrics_per_run(
@@ -194,7 +155,8 @@ def _compute_metrics_per_run(
                 ],
                 "accuracy": [
                     accuracy_score(
-                        group_df["true_class"], group_df["predicted_class"]
+                        group_df["true_class"],
+                        group_df["predicted_class"],
                     )
                 ],
                 "f_score": [
@@ -241,10 +203,12 @@ def _aggregate_across_seeds(
         )
         .with_columns(
             std_metric=pl.col("std_metric").fill_null(0.0),
-            low_metric=pl.col("mean_metric")
-            - pl.col("std_metric").fill_null(0.0),
-            high_metric=pl.col("mean_metric")
-            + pl.col("std_metric").fill_null(0.0),
+            sem_metric=pl.col("std_metric").fill_null(0.0)
+            / pl.col("n_runs").clip(1).sqrt(),
+        )
+        .with_columns(
+            low_metric=pl.col("mean_metric") - pl.col("sem_metric"),
+            high_metric=pl.col("mean_metric") + pl.col("sem_metric"),
         )
     )
 
@@ -273,63 +237,144 @@ def _filter_budget_mode(
     return data
 
 
-def _make_plot(
-    summary_data: pl.DataFrame,
-    *,
+def _enrich_with_mechanism_and_rate(
+    summary: pl.DataFrame,
     group_column: str,
-    group_label: str,
-) -> p9.ggplot:
-    plot_data = summary_data.with_columns(
-        dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING),
-        afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
-        **{
-            group_column: pl.col(group_column).map_elements(
-                lambda value: _format_group_value(value, group_column),
-                return_dtype=pl.String,
-            )
-        },
+) -> pl.DataFrame:
+    # Cold-start rows get mechanism="cold" and rate=0.0.
+    mechanisms: list[str | None] = []
+    rates: list[float | None] = []
+    for value in summary[group_column].to_list():
+        if _is_cold_start(value):
+            mechanisms.append("cold")
+            rates.append(0.0)
+        else:
+            parsed = _parse_mechanism_and_rate(value)
+            if parsed is not None:
+                mechanisms.append(parsed[0])
+                rates.append(parsed[1])
+            else:
+                mechanisms.append(None)
+                rates.append(None)
+    return summary.with_columns(
+        mechanism=pl.Series(mechanisms, dtype=pl.String),
+        rate=pl.Series(rates, dtype=pl.Float64),
     )
-    n_datasets = max(plot_data["dataset"].n_unique(), 1)
-    n_rows = (n_datasets + 1) // 2
-    figure_height = SUBPLOT_HEIGHT * n_rows
 
-    return (
+
+DATASET_NAME_MAPPING_WITH_METRIC = {
+    ds: (f"{name} ({'F1' if ds in DATASETS_WITH_F_SCORE else 'Acc.'})")
+    for ds, name in DATASET_NAME_MAPPING.items()
+}
+
+
+def _make_mechanism_plot(
+    mechanism_data: pl.DataFrame,
+    baseline_data: pl.DataFrame,
+    *,
+    mechanism_label: str,
+) -> p9.ggplot:
+    # mechanism_data: rows with varying rate.
+    # baseline_data: cold-start reference (horizontal dashed lines).
+    plot_df = mechanism_data.with_columns(
+        dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING_WITH_METRIC),
+        afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
+    )
+
+    method_order = list(METHOD_NAME_MAPPING.keys())
+    available = plot_df["afa_method"].unique().to_list()
+    ordered = [
+        METHOD_NAME_MAPPING.get(m, m)
+        for m in method_order
+        if METHOD_NAME_MAPPING.get(m, m) in available
+    ]
+
+    n_datasets = max(plot_df["dataset"].n_unique(), 1)
+    n_rows = (n_datasets + 1) // 2
+    figure_height = max(6.0, SUBPLOT_HEIGHT * n_rows)
+    figure_width = min(PLOT_WIDTH, 11.0)
+
+    plot = (
         p9.ggplot(
-            plot_data,
+            plot_df,
             p9.aes(
-                x=group_column,
+                x="rate",
                 y="mean_metric",
-                color=group_column,
-                shape="afa_method",
+                color="afa_method",
+                fill="afa_method",
             ),
         )
-        + p9.geom_point(size=2.8)
-        + p9.geom_errorbar(
+        + p9.geom_line()
+        + p9.geom_point(size=2.5)
+        + p9.geom_ribbon(
             p9.aes(ymin="low_metric", ymax="high_metric"),
-            width=0.08,
+            alpha=0.1,
+            size=0.0,
         )
         + p9.facet_wrap("dataset", scales="free_y", ncol=2)
-        + p9.scale_color_brewer(type="qual", palette=COLOR_PALETTE_NAME)
-        + p9.labs(
-            x=group_label,
-            y="Metric",
-            color=group_label,
-            shape="Policy",
+        + p9.scale_color_brewer(
+            type="qual",
+            palette=COLOR_PALETTE_NAME,
+            breaks=ordered,
         )
-        + p9.theme(figure_size=(11.0, figure_height))
-        # + p9.theme(
-        #     axis_text_x=p9.element_blank(),
-        #     axis_ticks_major_x=p9.element_blank(),
-        #     axis_title_x=p9.element_blank(),  # optional
-        # )
-        + p9.theme(axis_text_x=p9.element_text(rotation=45, ha="right"))
+        + p9.scale_fill_brewer(
+            type="qual",
+            palette=COLOR_PALETTE_NAME,
+            breaks=ordered,
+        )
+        + p9.scale_x_continuous(
+            labels=lambda xs: [f"{x:.0%}" for x in xs],
+        )
+        + p9.labs(
+            x=f"Training missingness rate ({mechanism_label})",
+            y="Metric",
+            color="Policy",
+            fill="Policy",
+        )
+        + p9.theme(figure_size=(figure_width, figure_height))
     )
 
+    # Cold-start baselines as horizontal dashed lines.
+    if not baseline_data.is_empty():
+        bl = baseline_data.with_columns(
+            dataset=pl.col("dataset").replace(
+                DATASET_NAME_MAPPING_WITH_METRIC
+            ),
+            afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
+        )
+        plot += p9.geom_hline(
+            data=bl,
+            mapping=p9.aes(
+                yintercept="mean_metric",
+                color="afa_method",
+            ),
+            linetype="dashed",
+            alpha=0.5,
+            size=0.6,
+        )
 
-def main() -> None:
-    args = parse_args()
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+    return plot
 
+
+def _save_plot(
+    plot: p9.ggplot,
+    output_path: Path,
+    *,
+    width: float,
+    height: float,
+    formats: list[str],
+) -> None:
+    for fmt in formats:
+        plot.save(
+            output_path.with_suffix(f".{fmt}"),
+            width=width,
+            height=height,
+        )
+
+
+def _load_and_prepare(
+    args: argparse.Namespace,
+) -> pl.DataFrame:
     data = pl.read_parquet(args.input_path)
     required_cols = {
         "action_performed",
@@ -357,6 +402,7 @@ def main() -> None:
         (pl.col("action_performed") == 0)
         & pl.col("predicted_class").is_not_null()
     )
+
     available_hard_budgets = None
     if args.budget_mode in {"hard", "all"}:
         available_hard_budgets = (
@@ -377,7 +423,7 @@ def main() -> None:
         args.eval_hard_budget,
     )
     if data.is_empty():
-        msg = "No rows left after filtering; cannot generate plot."
+        msg = "No rows left after filtering."
         if (
             args.budget_mode == "hard"
             and args.eval_hard_budget is not None
@@ -391,9 +437,46 @@ def main() -> None:
             msg = (
                 "No rows left after filtering for "
                 f"eval_hard_budget={args.eval_hard_budget}. "
-                f"Available hard budgets by dataset: {budget_summary}."
+                f"Available: {budget_summary}."
             )
         raise ValueError(msg)
+    return data
+
+
+def _save_individual_subplots(
+    mech_data: pl.DataFrame,
+    baseline: pl.DataFrame,
+    *,
+    mech_label: str,
+    subplot_dir: Path,
+    figure_width: float,
+    formats: list[str],
+) -> None:
+    subplot_dir.mkdir(parents=True, exist_ok=True)
+    for dataset in sorted(mech_data["dataset"].unique().to_list()):
+        ds_data = mech_data.filter(pl.col("dataset") == dataset)
+        ds_baseline = baseline.filter(pl.col("dataset") == dataset)
+        ds_plot = _make_mechanism_plot(
+            ds_data,
+            ds_baseline,
+            mechanism_label=mech_label,
+        )
+        display_name = DATASET_NAME_MAPPING.get(dataset, dataset)
+        ds_stem = (display_name or dataset).replace(" ", "_").lower()
+        _save_plot(
+            ds_plot,
+            subplot_dir / ds_stem,
+            width=figure_width * 0.55,
+            height=SUBPLOT_HEIGHT * 1.4,
+            formats=formats,
+        )
+
+
+def main() -> None:
+    args = parse_args()
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+
+    data = _load_and_prepare(args)
 
     metrics_per_run = _compute_metrics_per_run(
         data,
@@ -407,22 +490,56 @@ def main() -> None:
         msg = "No grouped rows produced; cannot generate plot."
         raise ValueError(msg)
 
-    plot = _make_plot(
-        summary_data,
-        group_column=args.group_column,
-        group_label=args.group_label,
-    )
-    plot_height = max(
-        6.0,
-        SUBPLOT_HEIGHT * ((summary_data["dataset"].n_unique() + 1) // 2),
-    )
-    for suffix in ("pdf", "svg", "png"):
-        plot.save(
-            args.output_dir / f"{args.output_stem}.{suffix}",
-            width=15.0,
-            height=plot_height,
-        )
     summary_data.write_csv(args.output_dir / f"{args.output_stem}.csv")
+
+    enriched = _enrich_with_mechanism_and_rate(summary_data, args.group_column)
+
+    baseline = enriched.filter(pl.col("mechanism") == "cold")
+    mechanism_rows = enriched.filter(
+        (pl.col("mechanism") != "cold") & pl.col("mechanism").is_not_null()
+    )
+
+    if mechanism_rows.is_empty():
+        print("No mechanism-specific rows found; nothing to plot.")
+        return
+
+    mechanisms = sorted(mechanism_rows["mechanism"].unique().to_list())
+    figure_width = min(PLOT_WIDTH, 11.0)
+
+    for mechanism in mechanisms:
+        assert isinstance(mechanism, str)
+        mech_label: str = MECHANISM_LABELS.get(mechanism, mechanism.upper())
+        mech_data = mechanism_rows.filter(pl.col("mechanism") == mechanism)
+        if mech_data.is_empty():
+            continue
+
+        n_datasets = max(mech_data["dataset"].n_unique(), 1)
+        n_rows = (n_datasets + 1) // 2
+        figure_height = max(6.0, SUBPLOT_HEIGHT * n_rows)
+
+        plot = _make_mechanism_plot(
+            mech_data,
+            baseline,
+            mechanism_label=mech_label,
+        )
+        stem = f"{args.output_stem}_{mechanism}"
+        _save_plot(
+            plot,
+            args.output_dir / stem,
+            width=figure_width,
+            height=figure_height,
+            formats=args.formats,
+        )
+
+        if args.save_individual_subplots:
+            _save_individual_subplots(
+                mech_data,
+                baseline,
+                mech_label=mech_label,
+                subplot_dir=args.output_dir / f"{stem}_subplots",
+                figure_width=figure_width,
+                formats=args.formats,
+            )
 
 
 if __name__ == "__main__":
