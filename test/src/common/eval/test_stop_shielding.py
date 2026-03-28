@@ -1,17 +1,86 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Self, cast, final, override
 
 import pytest
 import torch
 
+from afabench.afa_rl.common.afa_methods import RLAFAMethod
 from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.eval.stop_shielding import DualizedStopWrapper, StopShieldWrapper
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
+
+    from tensordict import TensorDict
+    from tensordict.nn import TensorDictModuleBase
 
     from afabench.common.custom_types import AFAMethod
+
+
+class _MaskedGreedyPolicy(torch.nn.Module):
+    @override
+    def forward(self, td: TensorDict) -> TensorDict:
+        allowed_action_mask = td["allowed_action_mask"].bool()
+        actions = torch.zeros(
+            allowed_action_mask.shape[0],
+            dtype=torch.long,
+            device=allowed_action_mask.device,
+        )
+        for row_idx, row_mask in enumerate(allowed_action_mask):
+            allowed_actions = row_mask.nonzero(as_tuple=False).flatten()
+            if allowed_actions.numel() > 0:
+                actions[row_idx] = allowed_actions[0]
+        td["action"] = actions
+        return td
+
+
+@final
+class _ConstantClassifier:
+    n_classes: int
+    _device: torch.device
+
+    def __init__(
+        self,
+        n_classes: int = 2,
+        device: torch.device | None = None,
+    ) -> None:
+        self.n_classes = n_classes
+        self._device = torch.device("cpu") if device is None else device
+
+    def __call__(
+        self,
+        masked_features: torch.Tensor,
+        feature_mask: torch.Tensor,
+        label: torch.Tensor | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> torch.Tensor:
+        del feature_mask, label, feature_shape
+        probs = torch.zeros(
+            (masked_features.shape[0], self.n_classes),
+            dtype=torch.float32,
+            device=masked_features.device,
+        )
+        probs[:, 0] = 0.6
+        probs[:, 1] = 0.4
+        return probs
+
+    def save(self, path: Path) -> None:
+        torch.save({"n_classes": self.n_classes}, path)
+
+    @classmethod
+    def load(cls, path: Path, device: torch.device) -> Self:
+        state = torch.load(path, map_location=device)
+        return cls(n_classes=state["n_classes"], device=device)
+
+    def to(self, device: torch.device) -> Self:
+        self._device = device
+        return self
+
+    @property
+    def device(self) -> torch.device:
+        return self._device
 
 
 class ThresholdStopMethod:
@@ -186,6 +255,32 @@ def test_stop_shield_uses_force_acquisition_when_available() -> None:
     )
 
     assert torch.equal(actions, torch.tensor([[3]]))
+    assert method.force_acquisition is False
+
+
+def test_stop_shield_supports_rl_methods_via_force_acquisition() -> None:
+    method = RLAFAMethod(
+        policy_tdmodule=cast(
+            "TensorDictModuleBase",
+            cast("object", _MaskedGreedyPolicy()),
+        ),
+        afa_classifier=_ConstantClassifier(),
+        _device=torch.device("cpu"),
+    )
+    shield = StopShieldWrapper(
+        afa_method=cast("AFAMethod", cast("object", method)),
+        afa_predict_fn=_fixed_predict_fn(torch.tensor([[0.6, 0.4]])),
+        risk_threshold=0.2,
+        predictor_name="fixed",
+    )
+
+    actions = shield.act(
+        masked_features=torch.zeros((1, 2)),
+        feature_mask=torch.zeros((1, 2), dtype=torch.bool),
+        selection_mask=torch.tensor([[False, True]], dtype=torch.bool),
+    )
+
+    assert torch.equal(actions, torch.tensor([[1]]))
     assert method.force_acquisition is False
 
 

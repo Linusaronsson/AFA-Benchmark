@@ -26,6 +26,8 @@ def get_td_from_masked_features(
     masked_features: MaskedFeatures,
     feature_mask: FeatureMask,
     selection_mask: SelectionMask,
+    *,
+    force_acquisition: bool = False,
 ) -> TensorDict:
     """
     Create a TensorDict suitable as input to AFA RL agents.
@@ -36,10 +38,12 @@ def get_td_from_masked_features(
     - "feature_mask"
     """
     # The action mask is almost the same as the negated selection mask but with one extra element (the stop action)
+    stop_mask_value = not force_acquisition
     action_mask = torch.cat(
         [
-            torch.ones(
+            torch.full(
                 selection_mask.shape[:-1] + (1,),
+                stop_mask_value,
                 dtype=feature_mask.dtype,
                 device=feature_mask.device,
             ),
@@ -69,6 +73,7 @@ class RLAFAMethod(AFAMethod):
     policy_tdmodule: TensorDictModuleBase | ProbabilisticActor
     afa_classifier: AFAClassifier
     _device: torch.device
+    force_acquisition: bool = False
 
     def __post_init__(self):
         # Move policy and classifier to the specified device
@@ -97,8 +102,31 @@ class RLAFAMethod(AFAMethod):
         assert selection_mask is not None, (
             "RLAFAMethod requires selection_mask"
         )
+        selection_mask = selection_mask.to(self._device)
+        batch_size = masked_features.shape[0]
+        actions = torch.zeros(
+            (batch_size, 1),
+            dtype=torch.long,
+            device=self._device,
+        )
+
+        active_mask = (
+            (~selection_mask).any(dim=-1)
+            if self.force_acquisition
+            else torch.ones(
+                batch_size,
+                dtype=torch.bool,
+                device=self._device,
+            )
+        )
+        if not active_mask.any():
+            return actions.to(original_device)
+
         td = get_td_from_masked_features(
-            masked_features, feature_mask, selection_mask
+            masked_features[active_mask],
+            feature_mask[active_mask],
+            selection_mask[active_mask],
+            force_acquisition=self.force_acquisition,
         )
 
         # Apply the agent's policy to the tensordict
@@ -109,9 +137,9 @@ class RLAFAMethod(AFAMethod):
             td = self.policy_tdmodule(td)
 
         # Get the action from the tensordict
-        afa_selection = td["action"].unsqueeze(-1)
+        actions[active_mask] = td["action"].unsqueeze(-1)
 
-        return afa_selection.to(original_device)
+        return actions.to(original_device)
 
     @override
     def predict(
