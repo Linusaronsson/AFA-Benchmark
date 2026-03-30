@@ -79,7 +79,7 @@ METRIC_DISPLAY = {
 PUBLICATION_METHOD_SPECS: dict[str, dict[str, str | None]] = {
     "gadgil2023": {
         "baseline_label": "DIME baseline",
-        "curve_label": None,
+        "curve_label": "DIME + block-only",
     },
     "gadgil2023_ipw_feature_marginal": {
         "baseline_label": None,
@@ -103,15 +103,17 @@ PUBLICATION_METHOD_SPECS: dict[str, dict[str, str | None]] = {
     },
     "ol_with_mask": {
         "baseline_label": "OL-MFRL baseline",
-        "curve_label": None,
+        "curve_label": "OL-MFRL + block-only",
     },
 }
 
 CURVE_LABEL_ORDER = [
+    "DIME + block-only",
     "DIME + IPW",
     "AACO + zero-fill",
     "AACO + mask-aware",
     "AACO + DR",
+    "OL-MFRL + block-only",
 ]
 
 BASELINE_LABEL_ORDER = [
@@ -538,7 +540,14 @@ def _melt_to_long(
         sub["low_metric"] = sub["mean_metric"] - sem
         sub["high_metric"] = sub["mean_metric"] + sem
         frames.append(sub)
-    return pd.concat(frames, ignore_index=True)
+    long_df = pd.concat(frames, ignore_index=True)
+    metric_order = [METRIC_DISPLAY.get(metric, metric) for metric in metrics]
+    long_df["metric_name"] = pd.Categorical(
+        long_df["metric_name"],
+        categories=metric_order,
+        ordered=True,
+    )
+    return long_df
 
 
 def _apply_method_labels(
@@ -704,7 +713,14 @@ def _melt_degradation(
         frames.append(sub)
     if not frames:
         return pd.DataFrame()
-    return pd.concat(frames, ignore_index=True)
+    long_df = pd.concat(frames, ignore_index=True)
+    metric_order = [METRIC_DISPLAY.get(metric, metric) for metric in metrics]
+    long_df["metric_name"] = pd.Categorical(
+        long_df["metric_name"],
+        categories=metric_order,
+        ordered=True,
+    )
+    return long_df
 
 
 def _make_degradation_plot(
@@ -739,7 +755,7 @@ def _make_degradation_plot(
     ]
 
     n_rows = (n_metrics + 1) // 2
-    fig_height = max(PLOT_HEIGHT, 2.8 * n_rows)
+    fig_height = max(PLOT_HEIGHT + 1.0, 2.8 * n_rows)
 
     plot = (
         p9.ggplot(
@@ -785,7 +801,7 @@ def _make_degradation_plot(
             color=p9.guide_legend(order=1),
             linetype=p9.guide_legend(order=2),
         )
-        + p9.theme(figure_size=(PLOT_WIDTH * 0.75, fig_height))
+        + p9.theme(figure_size=(PLOT_WIDTH, fig_height))
     )
     if not baseline.empty:
         plot += p9.geom_hline(
@@ -857,7 +873,7 @@ def plot_missingness_degradation(
     n_metrics = long["metric_name"].nunique()
     n_rows = (n_metrics + 1) // 2
     fig_height = max(PLOT_HEIGHT, 2.8 * n_rows)
-    fig_width = PLOT_WIDTH * 0.75
+    fig_width = PLOT_WIDTH
 
     plot = _make_degradation_plot(long, n_metrics=n_metrics)
     _save_plot(
@@ -931,9 +947,52 @@ def plot_shield_comparison(
         if label in baseline["baseline_label"].unique().tolist()
     ]
 
+    metric_order = [METRIC_DISPLAY.get(metric, metric) for metric in metrics]
+    combined["metric_name"] = pd.Categorical(
+        combined["metric_name"],
+        categories=metric_order,
+        ordered=True,
+    )
+    baseline["metric_name"] = pd.Categorical(
+        baseline["metric_name"],
+        categories=metric_order,
+        ordered=True,
+    )
+    combined["shield_status"] = pd.Categorical(
+        combined["shield_status"],
+        categories=["Unshielded", "Shielded"],
+        ordered=True,
+    )
+    baseline["shield_status"] = pd.Categorical(
+        baseline["shield_status"],
+        categories=["Unshielded", "Shielded"],
+        ordered=True,
+    )
+    panel_order = [
+        f"{shield}\n{metric}"
+        for shield in ["Unshielded", "Shielded"]
+        for metric in metric_order
+    ]
+    combined["panel_label"] = pd.Categorical(
+        combined.apply(
+            lambda row: f"{row['shield_status']}\n{row['metric_name']}",
+            axis=1,
+        ),
+        categories=panel_order,
+        ordered=True,
+    )
+    baseline["panel_label"] = pd.Categorical(
+        baseline.apply(
+            lambda row: f"{row['shield_status']}\n{row['metric_name']}",
+            axis=1,
+        ),
+        categories=panel_order,
+        ordered=True,
+    )
+
     n_metrics = combined["metric_name"].nunique()
-    fig_height = max(PLOT_HEIGHT, 2.5 * n_metrics)
-    fig_width = PLOT_WIDTH * 0.75
+    fig_height = max(PLOT_HEIGHT + 1.4, 6.4)
+    fig_width = PLOT_WIDTH
 
     plot = (
         p9.ggplot(
@@ -953,9 +1012,10 @@ def plot_shield_comparison(
             size=0.0,
             show_legend=False,
         )
-        + p9.facet_grid(
-            "metric_name ~ shield_status",
+        + p9.facet_wrap(
+            "panel_label",
             scales="free_y",
+            ncol=n_metrics,
         )
         + p9.scale_color_brewer(
             type="qual",
@@ -972,7 +1032,7 @@ def plot_shield_comparison(
         )
         + p9.labs(
             x="Training missingness rate (MNAR)",
-            y=None,
+            y="Value",
             color="Mitigations",
             fill="Mitigations",
             linetype="Baselines",

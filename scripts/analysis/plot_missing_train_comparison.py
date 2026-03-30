@@ -26,7 +26,7 @@ METHOD_NAMES = {
     "aaco_zero_fill": "AACO zero-fill",
     "aaco_mask_aware": "AACO mask-aware",
     "aaco_dr": "AACO-DR",
-    "gadgil2023": "DIME",
+    "gadgil2023": "DIME + block-only",
     "gadgil2023_ipw_feature_marginal": "DIME + IPW",
     "ma2018_external": "EDDI",
     "covert2023": "GDFS",
@@ -252,11 +252,12 @@ def plot_mechanism_sensitivity(gap: pd.DataFrame, output_dir: Path) -> None:
     print(f"Saved {path}")
 
 
-def plot_mitigation_comparison(
+def plot_mitigation_comparison(  # noqa: C901
     acc: pd.DataFrame,
     output_dir: Path,
 ) -> None:
-    """Compare mitigation variants within each method family.
+    """
+    Compare mitigation variants within each method family.
 
     For each (dataset, mechanism, miss_rate) condition, create one figure
     with one subplot per method family.  Each subplot shows accuracy vs
@@ -293,9 +294,7 @@ def plot_mitigation_comparison(
             active_families = {}
             for family_name, members in METHOD_FAMILIES.items():
                 present = [
-                    m
-                    for m in members
-                    if m in df_cond["afa_method"].unique()
+                    m for m in members if m in df_cond["afa_method"].unique()
                 ]
                 if len(present) >= 2:
                     active_families[family_name] = present
@@ -364,13 +363,9 @@ def plot_mitigation_comparison(
                 ax.grid(alpha=0.3)
 
             rate_str = f"{miss_rate:.1f}".replace(".", "")
-            fig.suptitle(
-                f"{dataset}: {mechanism} p={miss_rate}"
-            )
+            fig.suptitle(f"{dataset}: {mechanism} p={miss_rate}")
             fig.tight_layout()
-            fname = (
-                f"mitigation_{dataset}_{mechanism}_{rate_str}.pdf"
-            )
+            fname = f"mitigation_{dataset}_{mechanism}_{rate_str}.pdf"
             path = output_dir / fname
             fig.savefig(path, bbox_inches="tight", dpi=150)
             plt.close(fig)

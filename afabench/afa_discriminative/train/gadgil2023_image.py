@@ -40,7 +40,7 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
         cfg.nepochs = 1
         cfg.patience = 1
 
-    train_dataset, val_dataset, initializer, unmasker, _ = (
+    train_dataset, val_dataset, _, unmasker, _ = (
         afa_discriminative_training_prep(
             train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
             val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
@@ -117,7 +117,6 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
         value_network=value_network,
         predictor=predictor,
         mask_layer=mask_layer,
-        initializer=initializer,
         unmasker=unmasker,
     ).to(device)
     greedy_cmi_estimator.fit(

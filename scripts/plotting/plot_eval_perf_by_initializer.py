@@ -16,6 +16,7 @@ from afabench.eval.plotting_config import (
 )
 
 SUBPLOT_HEIGHT = 2.8
+DATASET_FACET_COLS = 4
 
 MECHANISM_LABELS = {
     "mcar": "MCAR",
@@ -26,7 +27,7 @@ MECHANISM_LABELS = {
 PUBLICATION_METHOD_SPECS: dict[str, dict[str, str | None]] = {
     "gadgil2023": {
         "baseline_label": "DIME baseline",
-        "curve_label": None,
+        "curve_label": "DIME + block-only",
     },
     "gadgil2023_ipw_feature_marginal": {
         "baseline_label": None,
@@ -50,15 +51,17 @@ PUBLICATION_METHOD_SPECS: dict[str, dict[str, str | None]] = {
     },
     "ol_with_mask": {
         "baseline_label": "OL-MFRL baseline",
-        "curve_label": None,
+        "curve_label": "OL-MFRL + block-only",
     },
 }
 
 CURVE_LABEL_ORDER = [
+    "DIME + block-only",
     "DIME + IPW",
     "AACO + zero-fill",
     "AACO + mask-aware",
     "AACO + DR",
+    "OL-MFRL + block-only",
 ]
 
 BASELINE_LABEL_ORDER = [
@@ -399,9 +402,9 @@ def _make_mechanism_plot(
     ]
 
     n_datasets = max(plot_df["dataset"].n_unique(), 1)
-    n_rows = (n_datasets + 1) // 2
+    n_rows = (n_datasets + DATASET_FACET_COLS - 1) // DATASET_FACET_COLS
     figure_height = max(6.0, SUBPLOT_HEIGHT * n_rows)
-    figure_width = min(PLOT_WIDTH, 11.0)
+    figure_width = PLOT_WIDTH
 
     plot = (
         p9.ggplot(
@@ -421,7 +424,11 @@ def _make_mechanism_plot(
             size=0.0,
             show_legend=False,
         )
-        + p9.facet_wrap("dataset", scales="free_y", ncol=2)
+        + p9.facet_wrap(
+            "dataset",
+            scales="free_y",
+            ncol=DATASET_FACET_COLS,
+        )
         + p9.scale_color_brewer(
             type="qual",
             palette=COLOR_PALETTE_NAME,
@@ -640,7 +647,7 @@ def main() -> None:
         return
 
     mechanisms = sorted(mechanism_rows["mechanism"].unique().to_list())
-    figure_width = min(PLOT_WIDTH, 11.0)
+    figure_width = PLOT_WIDTH
 
     for mechanism in mechanisms:
         assert isinstance(mechanism, str)
@@ -650,7 +657,7 @@ def main() -> None:
             continue
 
         n_datasets = max(mech_data["dataset"].n_unique(), 1)
-        n_rows = (n_datasets + 1) // 2
+        n_rows = (n_datasets + DATASET_FACET_COLS - 1) // DATASET_FACET_COLS
         figure_height = max(6.0, SUBPLOT_HEIGHT * n_rows)
 
         plot = _make_mechanism_plot(
