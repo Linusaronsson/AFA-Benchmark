@@ -14,8 +14,8 @@ from tqdm.auto import tqdm
 
 from afabench.afa_discriminative.models import (
     ConvNet,
-    Predictor,
     NotMIWAE,
+    Predictor,
     ResNet18Backbone,
     resnet18,
     resnet50,
@@ -27,10 +27,10 @@ from afabench.afa_discriminative.utils import (
     get_entropy,
     ind_to_onehot,
     make_onehot,
-    to_class_indices,
     patch_soft_to_feature_soft,
     restore_parameters,
     selection_soft_to_feature_soft,
+    to_class_indices,
 )
 from afabench.common.custom_types import (
     AFAAction,
@@ -108,6 +108,99 @@ def _feature_forbidden_to_selection_forbidden(
         dtype=torch.bool,
         device=forbidden_feat.device,
     )
+
+
+def _feature_observed_to_selection_performed(
+    observed_feat: FeatureMask,
+    *,
+    n_selections: int,
+    feature_shape: torch.Size,
+    unmasker: AFAUnmasker,
+) -> SelectionMask:
+    """Convert feature-space observed masks to performed selections."""
+    flat_observed = observed_feat.reshape(observed_feat.shape[0], -1)
+    if flat_observed.shape[1] == n_selections:
+        return flat_observed
+
+    n_features = math.prod(feature_shape)
+    if flat_observed.shape[1] != n_features:
+        msg = (
+            "Observed feature mask has incompatible shape. Expected trailing "
+            f"dim {n_features} or {n_selections}, got {flat_observed.shape[1]}."
+        )
+        raise ValueError(msg)
+
+    if isinstance(unmasker, AFAContextUnmasker):
+        n_contexts = unmasker.n_contexts
+        sel_performed = torch.zeros(
+            (flat_observed.shape[0], n_selections),
+            dtype=torch.bool,
+            device=observed_feat.device,
+        )
+        sel_performed[:, 0] = flat_observed[:, :n_contexts].all(dim=1)
+        sel_performed[:, 1:] = flat_observed[:, n_contexts:]
+        return sel_performed
+
+    if isinstance(unmasker, CubeNMARUnmasker):
+        n_contexts = unmasker.n_contexts
+        sel_performed = torch.zeros(
+            (flat_observed.shape[0], n_selections),
+            dtype=torch.bool,
+            device=observed_feat.device,
+        )
+        sel_performed[:, 0] = flat_observed[:, :n_contexts].all(dim=1)
+        sel_performed[:, 1:] = flat_observed[:, n_contexts:]
+        return sel_performed
+
+    if flat_observed.any():
+        msg = (
+            "Cannot convert a non-empty feature-space observed mask to "
+            f"selection space for unmasker {type(unmasker).__name__}."
+        )
+        raise ValueError(msg)
+
+    return torch.zeros(
+        (flat_observed.shape[0], n_selections),
+        dtype=torch.bool,
+        device=observed_feat.device,
+    )
+
+
+def _build_initial_feature_and_selection_masks(
+    observed_feat: FeatureMask,
+    forbidden_feat: FeatureMask,
+    *,
+    n_selections: int,
+    feature_shape: torch.Size,
+    unmasker: AFAUnmasker,
+    dtype: torch.dtype,
+) -> tuple[torch.Tensor, SelectionMask]:
+    """Build the initial feature and unavailable-selection masks."""
+    observed_feat = observed_feat.bool()
+    forbidden_feat = forbidden_feat.bool()
+    if observed_feat.shape != forbidden_feat.shape:
+        msg = (
+            "Observed and forbidden masks must have the same shape. Got "
+            f"{observed_feat.shape} and {forbidden_feat.shape}."
+        )
+        raise ValueError(msg)
+    if bool((observed_feat & forbidden_feat).any().item()):
+        msg = "Observed and forbidden masks must be disjoint."
+        raise ValueError(msg)
+
+    observed_sel = _feature_observed_to_selection_performed(
+        observed_feat,
+        n_selections=n_selections,
+        feature_shape=feature_shape,
+        unmasker=unmasker,
+    )
+    forbidden_sel = _feature_forbidden_to_selection_forbidden(
+        forbidden_feat,
+        n_selections=n_selections,
+        feature_shape=feature_shape,
+        unmasker=unmasker,
+    )
+    return observed_feat.to(dtype=dtype), observed_sel | forbidden_sel
 
 
 class GreedyDynamicSelection(nn.Module):
@@ -898,15 +991,19 @@ class CMIEstimator(nn.Module):
             # Must be tabular (1d data).
             # x, y = next(iter(val_loader))
             first_batch = next(iter(val_loader))
-            if len(first_batch) == 3:
-                x0, y0, _ = first_batch
+            if len(first_batch) == 4:
+                x0, _, _, _ = first_batch
+            elif len(first_batch) == 3:
+                x0, _, _ = first_batch
             else:
-                x0, y0 = first_batch
+                x0, _ = first_batch
             assert len(x0.shape) == 2
             mask_size = x0.shape[1]
 
         first_batch = next(iter(val_loader))
-        if len(first_batch) == 3:
+        if len(first_batch) == 4:
+            x0, _, _, _ = first_batch
+        elif len(first_batch) == 3:
             x0, _, _ = first_batch
         else:
             x0, _ = next(iter(val_loader))
@@ -976,44 +1073,40 @@ class CMIEstimator(nn.Module):
             total_loss = 0
 
             for batch in train_loader:
-                if len(batch) == 3:
+                if len(batch) == 4:
+                    x_batch, y_batch, observed_feat, forbidden_feat = batch
+                elif len(batch) == 3:
                     x_batch, y_batch, forbidden_feat = batch
+                    observed_feat = torch.zeros_like(
+                        forbidden_feat, dtype=torch.bool
+                    )
                 else:
                     x_batch, y_batch = batch
-                    raise RuntimeError("Forbidden mask missing from dataloader")
+                    msg = "Forbidden mask missing from dataloader"
+                    raise RuntimeError(msg)
                 # Move to device.
                 x = x_batch.to(device)
                 y = to_class_indices(y_batch).to(device)
+                observed_feat = observed_feat.to(device).bool()
                 forbidden_feat = forbidden_feat.to(device)
                 batch_idx = torch.arange(len(x), device=device)
 
-                # init_mask_bool = initializer.initialize(
-                #     features=x,
-                #     label=y,
-                #     feature_shape=feature_shape,
-                # ).to(device)
-                # forbidden_feat = initializer.get_training_forbidden_mask(
-                #     init_mask_bool
-                # ).to(device)
-                # init_mask_bool = init_mask_bool & ~forbidden_feat
-                # m_feat = init_mask_bool.to(dtype=x.dtype)
-                m_feat = torch.zeros_like(x, dtype=x.dtype)
-
-                forbidden_sel = _feature_forbidden_to_selection_forbidden(
-                    forbidden_feat,
-                    n_selections=n_selections,
-                    feature_shape=feature_shape,
-                    unmasker=unmasker,
+                m_feat, initial_selection_mask = (
+                    _build_initial_feature_and_selection_masks(
+                        observed_feat,
+                        forbidden_feat,
+                        n_selections=n_selections,
+                        feature_shape=feature_shape,
+                        unmasker=unmasker,
+                        dtype=x.dtype,
+                    )
                 )
 
-                m_sel = torch.zeros(
-                    len(x), n_selections, dtype=x.dtype, device=device
-                )
-                m_sel = torch.maximum(m_sel, forbidden_sel.to(dtype=x.dtype))
+                m_sel = initial_selection_mask.to(dtype=x.dtype)
                 notmiwae_propensity = None
                 if ipw_mode == "notmiwae_feature":
                     assert self.notmiwae_model is not None
-                    obs_mask = (~forbidden_feat).to(dtype=x.dtype)
+                    obs_mask = observed_feat.to(dtype=x.dtype)
                     x_obs = x * obs_mask
                     self.notmiwae_model.eval()
                     with torch.no_grad():
@@ -1066,19 +1159,24 @@ class CMIEstimator(nn.Module):
                     else:
                         pred_cmi = value_network(x_masked)
 
-                    pred_cmi = pred_cmi.masked_fill(forbidden_sel, -1e9)
+                    unavailable_sel = m_sel.bool()
+                    pred_cmi = pred_cmi.masked_fill(unavailable_sel, -1e9)
 
                     best = torch.argmax(pred_cmi / selection_costs, dim=1)
-                    # rng = np.random.default_rng()
-                    allowed = ~forbidden_sel
-                    w = allowed.to(torch.float32)
-                    # random = torch.tensor(
-                    #     np.random.choice(n_selections, size=len(x)),
-                    #     device=x.device,
-                    # )
-                    random = torch.multinomial(w, num_samples=1).squeeze(1).to(x.device)
+                    available_sel = (~unavailable_sel).to(dtype=x.dtype)
+                    has_available = available_sel.sum(dim=1) > 0
+                    sampling_weights = available_sel.clone()
+                    sampling_weights[~has_available] = 1.0
+                    random = torch.multinomial(
+                        sampling_weights, num_samples=1
+                    ).squeeze(1).to(x.device)
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
+                    actions = torch.where(
+                        has_available,
+                        actions,
+                        torch.zeros_like(actions),
+                    )
                     afa_selection = actions.to(torch.long)
                     afa_selection = afa_selection.unsqueeze(1)
                     m_sel = torch.max(m_sel, ind_to_onehot(actions, n_selections))
@@ -1106,10 +1204,14 @@ class CMIEstimator(nn.Module):
                     )
                     pred_selected = pred_cmi[torch.arange(len(x)), actions]
                     squared_error = torch.square(pred_selected - delta)
+                    squared_error = torch.where(
+                        has_available,
+                        squared_error,
+                        torch.zeros_like(squared_error),
+                    )
                     if ipw_mode == "none":
                         value_network_loss = squared_error.mean()
                     elif ipw_mode == "feature_marginal":
-                        available_sel = (~forbidden_sel).to(dtype=x.dtype)
                         propensity = available_sel.mean(dim=0)
                         propensity_for_actions = propensity[actions]
                         weights = self._ipw_weight_from_propensity(
@@ -1164,40 +1266,35 @@ class CMIEstimator(nn.Module):
 
             with torch.no_grad():
                 for batch in val_loader:
-                    if len(batch) == 3:
+                    if len(batch) == 4:
+                        x_batch, y_batch, observed_feat, forbidden_feat = batch
+                    elif len(batch) == 3:
                         x_batch, y_batch, forbidden_feat = batch
+                        observed_feat = torch.zeros_like(
+                            forbidden_feat, dtype=torch.bool
+                        )
                     else:
                         x_batch, y_batch = batch
-                        raise RuntimeError("Forbidden mask missing from dataloader")
+                        msg = "Forbidden mask missing from dataloader"
+                        raise RuntimeError(msg)
                     # Move to device.
                     x = x_batch.to(device)
                     y = to_class_indices(y_batch).to(device)
+                    observed_feat = observed_feat.to(device).bool()
                     forbidden_feat = forbidden_feat.to(device)
 
                     # Setup.
-                    # init_mask_bool = initializer.initialize(
-                    #     features=x,
-                    #     label=y,
-                    #     feature_shape=feature_shape,
-                    # ).to(device)
-                    # forbidden_feat = initializer.get_training_forbidden_mask(
-                    #     init_mask_bool
-                    # ).to(device)
-                    forbidden_sel = _feature_forbidden_to_selection_forbidden(
-                        forbidden_feat,
-                        n_selections=n_selections,
-                        feature_shape=feature_shape,
-                        unmasker=unmasker,
+                    m_feat, initial_selection_mask = (
+                        _build_initial_feature_and_selection_masks(
+                            observed_feat,
+                            forbidden_feat,
+                            n_selections=n_selections,
+                            feature_shape=feature_shape,
+                            unmasker=unmasker,
+                            dtype=x.dtype,
+                        )
                     )
-                    m_sel = torch.zeros(
-                        len(x), n_selections, dtype=x.dtype, device=device
-                    )
-                    m_sel = torch.maximum(m_sel, forbidden_sel.to(dtype=x.dtype))
-
-                    # init_mask_bool = init_mask_bool & ~forbidden_feat
-                    # m_feat = init_mask_bool.to(dtype=x.dtype)
-                    # m_feat = torch.zeros_like(init_mask_bool, dtype=x.dtype)
-                    m_feat = torch.zeros_like(x, dtype=x.dtype)
+                    m_sel = initial_selection_mask.to(dtype=x.dtype)
                     if len(x.shape) == 4:
                         x_masked = x * m_feat
                     else:

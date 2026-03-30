@@ -91,6 +91,8 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         train_dataset=train_dataset,
         val_dataset=val_dataset,
         batch_size=cfg.batch_size,
+        train_observed_mask=train_obs_mask,
+        val_observed_mask=val_obs_mask,
         train_forbidden_mask=train_forbidden_mask,
         val_forbidden_mask=val_forbidden_mask,
     )

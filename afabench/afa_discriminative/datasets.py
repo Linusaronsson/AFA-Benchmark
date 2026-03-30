@@ -10,6 +10,8 @@ def prepare_datasets(
     train_dataset,  # noqa: ANN001
     val_dataset,  # noqa: ANN001
     batch_size: int,
+    train_observed_mask: torch.Tensor | None = None,
+    val_observed_mask: torch.Tensor | None = None,
     train_forbidden_mask: torch.Tensor | None = None,
     val_forbidden_mask: torch.Tensor | None = None,
 ) -> tuple[DataLoader[Any], DataLoader[Any], int, int]:
@@ -22,29 +24,51 @@ def prepare_datasets(
         def __init__(
             self,
             original_dataset: AFADataset,
+            observed_mask: torch.Tensor | None = None,
             forbidden_mask: torch.Tensor | None = None,
         ) -> None:
             self.original_dataset: Any = original_dataset
             self.features, self.labels = original_dataset.get_all_data()
             self.features: Any = self.features.float()
             self.labels: Any = self.labels.argmax(dim=1).long()
+            self.observed_mask = observed_mask
             self.forbidden_mask = forbidden_mask
 
         def __getitem__(self, idx: int):
-            if self.forbidden_mask is None:
-                return self.features[idx], self.labels[idx]
-            else:
+            if self.observed_mask is not None:
+                if self.forbidden_mask is None:
+                    return (
+                        self.features[idx],
+                        self.labels[idx],
+                        self.observed_mask[idx],
+                    )
                 return (
                     self.features[idx],
                     self.labels[idx],
+                    self.observed_mask[idx],
                     self.forbidden_mask[idx],
                 )
+            if self.forbidden_mask is None:
+                return self.features[idx], self.labels[idx]
+            return (
+                self.features[idx],
+                self.labels[idx],
+                self.forbidden_mask[idx],
+            )
 
         def __len__(self):
             return len(self.original_dataset)
 
-    train_dataset = ConvertedDataset(train_dataset, train_forbidden_mask)
-    val_dataset = ConvertedDataset(val_dataset, val_forbidden_mask)
+    train_dataset = ConvertedDataset(
+        train_dataset,
+        train_observed_mask,
+        train_forbidden_mask,
+    )
+    val_dataset = ConvertedDataset(
+        val_dataset,
+        val_observed_mask,
+        val_forbidden_mask,
+    )
 
     train_loader = DataLoader(
         train_dataset,  # pyright: ignore[reportArgumentType]
