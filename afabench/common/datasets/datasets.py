@@ -391,18 +391,25 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 
 @final
-class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     """
-    A hybrid dataset combining context-based feature selection and the Cube dataset.
+    Synthetic tabular benchmark implementing the paper's CUBE-NM setup.
 
-    - Features:
-        * First n_contexts features: one-hot context (0, 1, ..., n_contexts-1)
-        * Next n_contexts * 10 features: Each block of 10 features is informative if context == block index, else noise
+    Each sample has a logical context variable that selects which one of
+    `n_contexts` CUBE-style 10-feature blocks is informative. The logical
+    context is encoded as a noisy one-hot vector in the first `n_contexts`
+    feature positions, matching the paper's implementation detail that the
+    whole context can be acquired with one grouped action.
 
-    - Label:
-        * One of 8 classes encoded by a 3-bit binary vector inserted into the relevant block
+    Feature layout:
+    - context encoding: `n_contexts` noisy one-hot features
+    - block features: `n_contexts` blocks of size `block_size`
+      Only the block chosen by the context contains class signal.
 
-    Optimal policy: query the context first, then only the relevant 10-dimensional block.
+    Labels are 8-way one-hot vectors derived from the standard CUBE binary
+    code pattern. The canonical benchmark setting uses `n_contexts=5`, which
+    gives 55 observed features and 51 acquisition groups under
+    `CubeNMUnmasker`.
     """
 
     @classmethod
@@ -438,9 +445,9 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         informative_feature_std: float = 0.1,
         non_informative_feature_mean: float = 0.5,
         non_informative_feature_std: float = 0.3,
-        n_contexts: int = 3,
+        n_contexts: int = 5,
         *,
-        use_cheap_context_features: bool = False,
+        use_cheap_context_features: bool = True,
     ):
         self.n_samples = n_samples
         self.seed = seed
@@ -456,7 +463,8 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.rng = torch.Generator().manual_seed(seed)
         self.features: Tensor
         self.labels: Tensor
-        # Sample context (0, 1, ..., n_contexts-1)
+        # Sample the logical context, then encode it as a noisy one-hot
+        # vector to match the benchmark setup used in the paper.
         context = torch.randint(
             0, self.n_contexts, (self.n_samples,), generator=self.rng
         )
@@ -486,7 +494,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             dim=0,
         ).flip(-1)  # (8, 3)
 
-        # Create n_contexts blocks of features, each 10D
+        # Create one candidate CUBE block per context value.
         blocks = []
         for _block_context in range(self.n_contexts):
             block = torch.normal(
@@ -498,7 +506,7 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             blocks.append(block)
         blocks = torch.stack(blocks, dim=1)  # (n_samples, n_contexts, 10)
 
-        # Insert informative signal into the correct block based on context
+        # Only the context-selected block carries label information.
         for i in range(self.n_samples):
             ctx = int(context[i].item())
             label = int(y_int[i].item())
@@ -515,13 +523,13 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             )
             blocks[i, ctx, insert_idx] = bin_code + noise
 
-        # Flatten blocks: (n_samples, n_contexts * 10)
+        # Flatten blocks: (n_samples, n_contexts * block_size)
         block_features = blocks.view(self.n_samples, -1)
 
-        # Final feature matrix: context (n_contexts) + all block features (n_contexts * 10)
+        # Final matrix: one-hot context features followed by all blocks.
         self.features = torch.cat(
             [context_onehot, block_features], dim=1
-        )  # (n_samples, n_contexts + n_contexts * 10)
+        )  # (n_samples, n_contexts + n_contexts * block_size)
 
         # One-hot labels
         self.labels = torch.nn.functional.one_hot(
@@ -568,13 +576,8 @@ class AFAContextDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj = cls.__new__(cls)
         obj.n_samples = data["config"]["n_samples"]
         obj.seed = data["config"]["seed"]
-        if "n_contexts" in data["config"]:
-            obj.n_contexts = data["config"]["n_contexts"]
-        else:  # backwards-compatible path
-            obj.n_contexts = 3
-        obj.context_feature_std = data["config"].get(
-            "context_feature_std", 0.1
-        )
+        obj.n_contexts = data["config"]["n_contexts"]
+        obj.context_feature_std = data["config"]["context_feature_std"]
         obj.informative_feature_std = data["config"]["informative_feature_std"]
         obj.non_informative_feature_mean = data["config"][
             "non_informative_feature_mean"

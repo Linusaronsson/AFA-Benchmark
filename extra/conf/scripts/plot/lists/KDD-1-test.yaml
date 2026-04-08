@@ -1,4 +1,4 @@
-# cube, AFAContext, MNIST and FashionMNIST
+# cube, CubeNM3Ctx, MNIST and FashionMNIST
 eval_artifact_names:
   # FashionMNIST split 4 - zannone2019
   - train_zannone2019-FashionMNIST_split_4-budget_10-seed_42-masked_mlp_classifier-FashionMNIST_split_4:KDD

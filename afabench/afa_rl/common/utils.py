@@ -370,7 +370,8 @@ def check_masked_classifier_performance(
         #     (logits_half.argmax(dim=-1) == labels.argmax(dim=-1)).float().mean()
         # )
 
-        # Only allow classifier to look at the "optimal" feature according to AFAContext
+        # Only allow classifier to look at the "optimal" feature according to
+        # CUBE-NM
         feature_mask_optimal = torch.zeros_like(
             features,
             dtype=torch.bool,

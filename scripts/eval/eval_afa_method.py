@@ -23,7 +23,7 @@ from afabench.common.custom_types import (
     SelectionMask,
 )
 from afabench.common.initializers.utils import get_afa_initializer_from_config
-from afabench.common.unmaskers import AFAContextUnmasker
+from afabench.common.unmaskers import CubeNMUnmasker
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
     set_seed,
@@ -44,7 +44,7 @@ def _adapt_forbidden_mask_to_selection_space(
     Ensure forbidden mask is expressed in selection space.
 
     MissingnessInitializer returns feature-level masks by default. For grouped
-    unmaskers (e.g. AFAContextUnmasker), convert to selection-level masks.
+    unmaskers (e.g. CubeNMUnmasker), convert to selection-level masks.
     """
     if forbidden_mask.shape[-1] == n_selection_choices:
         return forbidden_mask
@@ -59,12 +59,12 @@ def _adapt_forbidden_mask_to_selection_space(
         raise ValueError(msg)
 
     # Feature-space -> selection-space conversion for context grouped selections.
-    if isinstance(unmasker, AFAContextUnmasker):
+    if isinstance(unmasker, CubeNMUnmasker):
         n_contexts = unmasker.n_contexts
         expected_n_selections = 1 + (n_features - n_contexts)
         if n_selection_choices != expected_n_selections:
             msg = (
-                "Unexpected selection-space size for AFAContextUnmasker. "
+                "Unexpected selection-space size for CubeNMUnmasker. "
                 f"Expected {expected_n_selections}, got {n_selection_choices}."
             )
             raise ValueError(msg)

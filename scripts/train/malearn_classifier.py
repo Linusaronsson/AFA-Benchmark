@@ -11,6 +11,7 @@ from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.classifiers import WrappedMALearnClassifier
 from afabench.common.config_classes import TrainMALearnClassifierConfig
 from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.utils import set_seed
 from afabench.missing_values.malearn import (
     MADTClassifier,
@@ -203,7 +204,9 @@ def main(cfg: TrainMALearnClassifierConfig) -> None:
     val_acc = float(np.mean(val_pred == y_val))
     log.info("Validation accuracy (masked): %.4f", val_acc)
 
-    dataset_name = train_manifest["class_name"].replace("Dataset", "").lower()
+    dataset_name = infer_dataset_key_from_class_name(
+        train_manifest["class_name"]
+    )
 
     save_bundle(
         obj=wrapped_classifier,

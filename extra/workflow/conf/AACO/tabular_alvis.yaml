@@ -28,8 +28,8 @@ smoke_test: false
 datasets:
   - cube
   - cube_without_noise
-  - afa_context
-  - afa_context_without_noise
+  - cube_nm
+  - cube_nm_without_noise
   - actg
   - ckd
   - diabetes
@@ -66,8 +66,8 @@ eval_hard_budgets:
   actg: [5, 10, 15]
   ckd: [5, 10, 15]
   # Medium tabular (33-50 features)
-  afa_context: [5, 10, 15]
-  afa_context_without_noise: [5, 10, 15]
+  cube_nm: [5, 10, 15]
+  cube_nm_without_noise: [5, 10, 15]
   diabetes: [5, 10, 20]
   physionet: [5, 10, 20]
   miniboone: [5, 15, 25]

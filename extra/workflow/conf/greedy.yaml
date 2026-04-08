@@ -1,6 +1,6 @@
 experiment_id: "tmp" # set this every time at the command line
 dataset_artifact_aliases:
-    AFAContext: "Jul29-nightly-AFAContext"
+    CubeNM3Ctx: "Jul29-nightly-CubeNM3Ctx"
     cube: "Jul24"
     diabetes: "cost"
     miniboone: "Jul24"
@@ -9,7 +9,7 @@ dataset_artifact_aliases:
     # actg: "Oct13"
     # ckd: "Oct13"
 eval_batch_size_per_dataset:
-    AFAContext: 4
+    CubeNM3Ctx: 4
     cube: 4
     diabetes: 4
     miniboone: 4
@@ -25,7 +25,7 @@ trained_method_artifact_aliases:
     ma2018: "Jul30"
 classifier: "masked_mlp_classifier"
 classifier_artifact_aliases:
-    AFAContext: "KDD"
+    CubeNM3Ctx: "KDD"
     cube: "KDD"
     diabetes: "KDD"
     miniboone: "KDD"
@@ -38,7 +38,7 @@ seeds: [42] # use more seeds at the end
 eval_device: "cpu"
 trained_budgets_per_method:
     covert2023:
-        AFAContext: [10]
+        CubeNM3Ctx: [10]
         cube: [10]
         diabetes: [15]
         miniboone: [15]
@@ -47,7 +47,7 @@ trained_budgets_per_method:
         # actg: [23]
         # ckd: [24]
     gadgil2023:
-        AFAContext: [10]
+        CubeNM3Ctx: [10]
         cube: [10]
         diabetes: [15]
         miniboone: [15]
@@ -56,7 +56,7 @@ trained_budgets_per_method:
         # actg: [23]
         # ckd: [24]
     ma2018:
-        AFAContext: [10]
+        CubeNM3Ctx: [10]
         cube: [10]
         diabetes: [15]
         miniboone: [15]

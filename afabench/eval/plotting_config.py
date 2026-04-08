@@ -39,12 +39,12 @@ METHOD_NAME_MAPPING = {
 DATASET_NAME_MAPPING = {
     "cube": "CUBE",
     "cube_nonuniform_costs": "CUBE-NUC",
-    "afa_context": "AFAContext",
-    "afa_context_v2": "CUBE-NM",
-    "afa_context_v2_without_noise": "CUBE-NM-noiseless",
+    "cube_nm": "CUBE-NM",
+    "cube_nm_without_noise": "CUBE-NM-noiseless",
+    "cube_nm_3ctx": "CUBE-NM-3ctx",
+    "cube_nm_3ctx_without_noise": "CUBE-NM-3ctx-noiseless",
     "synthetic_mnist": "Synthetic MNIST",
     "cube_without_noise": "CUBE-noiseless",
-    "afa_context_without_noise": "AFAContext-noiseless",
     "synthetic_mnist_without_noise": "Synthetic-MNIST-noiseless",
     "mnist": "MNIST",
     "actg": "ACTG",
@@ -64,16 +64,19 @@ DATASETS_WITH_F_SCORE = ["physionet", "bank_marketing"]
 
 # Dataset groupings for organized plotting
 DATASET_SETS = {
-    "context_v2_pair": {
-        "afa_context_v2",
-        "afa_context_v2_without_noise",
+    "cube_nm_pair": {
+        "cube_nm",
+        "cube_nm_without_noise",
+    },
+    "cube_nm_3ctx_pair": {
+        "cube_nm_3ctx",
+        "cube_nm_3ctx_without_noise",
     },
     "set1": {
         "cube",
         "cube_without_noise",
-        "afa_context",
-        "afa_context_without_noise",
-        "afa_context_v2_without_noise",
+        "cube_nm",
+        "cube_nm_without_noise",
         "miniboone",
         "bank_marketing",
         "diabetes",
@@ -86,16 +89,14 @@ DATASET_SETS = {
         "ckd",
         "mnist",
         "cube_nonuniform_costs",
-        "afa_context_v2",
         "fico",
         "pharyngitis",
     },
     "all": {
         "cube",
         "cube_without_noise",
-        "afa_context",
-        "afa_context_without_noise",
-        "afa_context_v2_without_noise",
+        "cube_nm",
+        "cube_nm_without_noise",
         "miniboone",
         "bank_marketing",
         "diabetes",
@@ -107,7 +108,6 @@ DATASET_SETS = {
         "ckd",
         "mnist",
         "cube_nonuniform_costs",
-        "afa_context_v2",
         "pharyngitis",
     },
 }

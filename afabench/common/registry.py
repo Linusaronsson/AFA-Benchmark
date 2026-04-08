@@ -22,7 +22,7 @@ REGISTERED_CLASSES = {
     # AFA Dataset Classes
     "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
     "CubeNonUniformCostsDataset": "afabench.common.datasets.datasets.CubeNonUniformCostsDataset",
-    "AFAContextDataset": "afabench.common.datasets.datasets.AFAContextDataset",
+    "CubeNMDataset": "afabench.common.datasets.datasets.CubeNMDataset",
     "MNISTDataset": "afabench.common.datasets.datasets.MNISTDataset",
     "SyntheticMNISTDataset": "afabench.common.datasets.datasets.SyntheticMNISTDataset",
     "DiabetesDataset": "afabench.common.datasets.datasets.DiabetesDataset",
@@ -48,7 +48,7 @@ REGISTERED_CLASSES = {
     # AFA Unmasker Classes
     "DirectUnmasker": "afabench.common.unmaskers.DirectUnmasker",
     "ImagePatchUnmasker": "afabench.common.unmaskers.ImagePatchUnmasker",
-    "AFAContextUnmasker": "afabench.common.unmaskers.AFAContextUnmasker",
+    "CubeNMUnmasker": "afabench.common.unmaskers.CubeNMUnmasker",
     # AFA Initializer Classes
     "ZeroInitializer": "afabench.common.initializers.ZeroInitializer",
     "FixedRandomInitializer": "afabench.common.initializers.FixedRandomInitializer",

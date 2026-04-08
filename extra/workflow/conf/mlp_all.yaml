@@ -12,8 +12,8 @@ output_path_prefix: extra/output/classifiers
 # All tabular datasets
 datasets:
   - actg
-  - afa_context
-  - afa_context_without_noise
+  - cube_nm
+  - cube_nm_without_noise
   - bank_marketing
   - ckd
   - cube

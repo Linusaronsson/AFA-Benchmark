@@ -19,6 +19,7 @@ from afabench.common.bundle import (
     save_bundle,
 )
 from afabench.common.config_classes import Gadgil2023PretrainingConfig
+from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.utils import (
     get_class_frequencies,
     set_seed,
@@ -41,7 +42,9 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     )
     val_dataset, _ = load_bundle(Path(cfg.val_dataset_bundle_path))
 
-    dataset_name = train_manifest["class_name"].replace("Dataset", "").lower()
+    dataset_name = infer_dataset_key_from_class_name(
+        train_manifest["class_name"]
+    )
     _, train_labels = train_dataset.get_all_data()  # pyright: ignore[reportAttributeAccessIssue]
     train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (

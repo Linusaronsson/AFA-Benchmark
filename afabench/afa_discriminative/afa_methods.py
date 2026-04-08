@@ -38,7 +38,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.common.unmaskers import AFAContextUnmasker
+from afabench.common.unmaskers import CubeNMUnmasker
 
 
 class GreedyDynamicSelection(nn.Module):
@@ -221,7 +221,7 @@ class GreedyDynamicSelection(nn.Module):
                         if len(x.shape) == 4:
                             soft_feat = patch_soft_to_feature_soft(soft, x)
                         else:
-                            if isinstance(unmasker, AFAContextUnmasker):
+                            if isinstance(unmasker, CubeNMUnmasker):
                                 soft_feat = selection_soft_to_feature_soft(
                                     soft, mask_size=mask_size, n_contexts=unmasker.n_contexts
                                 )
@@ -309,7 +309,7 @@ class GreedyDynamicSelection(nn.Module):
                             if len(x.shape) == 4:
                                 soft_feat = patch_soft_to_feature_soft(soft, x)
                             else:
-                                if isinstance(unmasker, AFAContextUnmasker):
+                                if isinstance(unmasker, CubeNMUnmasker):
                                     soft_feat = selection_soft_to_feature_soft(soft, mask_size, unmasker.n_contexts)
                                 else:
                                     soft_feat = soft
@@ -497,7 +497,8 @@ class Covert2023AFAMethod(AFAMethod):
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
             logits = self.selector(x_masked).flatten(1)
-            # TODO: currently assume that if we use AFAContextUnmasker, then we have not None selection mask
+            # TODO: currently assume that if we use CubeNMUnmasker, then we
+            # have a non-None selection mask
             if selection_mask is not None:
                 assert logits.shape == selection_mask.shape, (
                     f"selection_mask shape {selection_mask.shape} incompatible with logits {logits.shape}"

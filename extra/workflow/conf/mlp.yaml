@@ -15,8 +15,8 @@ output_path_prefix: extra/output/classifiers
 datasets:
   - cube
   - cube_without_noise
-  - afa_context
-  - afa_context_without_noise
+  - cube_nm
+  - cube_nm_without_noise
 
 # Dataset instances (one classifier per instance)
 # Each instance uses its index as both the instance_idx and seed
@@ -30,7 +30,7 @@ smoke_test: false
 # ============================================================================
 # Model hyperparameters
 # ============================================================================
-# These are tuned for small tabular datasets (600 samples, 20-33 features)
+# These are tuned for small tabular datasets (600 samples, 20-55 features)
 #
 # epochs: 100 with early stopping via Lightning's ModelCheckpoint
 # batch_size: 64 - smaller batches work better for small datasets

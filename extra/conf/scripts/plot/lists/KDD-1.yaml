@@ -1,4 +1,4 @@
-# cube, AFAContext, MNIST and FashionMNIST
+# cube, CubeNM3Ctx, MNIST and FashionMNIST
 eval_artifact_names:
   - "aaco-cube_split_1-builtin:KDD"
   - "aaco-cube_split_1-builtin:v10"
@@ -15,21 +15,21 @@ eval_artifact_names:
   - "aaco-cube_split_5-builtin:KDD"
   - "aaco-cube_split_5-builtin:v10"
   - "aaco-cube_split_5-builtin:v9"
-  - "aaco-AFAContext_split_1-builtin:KDD"
-  - "aaco-AFAContext_split_1-builtin:v10"
-  - "aaco-AFAContext_split_1-builtin:v9"
-  - "aaco-AFAContext_split_2-builtin:KDD"
-  - "aaco-AFAContext_split_2-builtin:v9"
-  - "aaco-AFAContext_split_2-builtin:v8"
-  - "aaco-AFAContext_split_3-builtin:KDD"
-  - "aaco-AFAContext_split_3-builtin:v10"
-  - "aaco-AFAContext_split_3-builtin:v9"
-  - "aaco-AFAContext_split_4-builtin:KDD"
-  - "aaco-AFAContext_split_4-builtin:v10"
-  - "aaco-AFAContext_split_4-builtin:v9"
-  - "aaco-AFAContext_split_5-builtin:KDD"
-  - "aaco-AFAContext_split_5-builtin:v10"
-  - "aaco-AFAContext_split_5-builtin:v9"
+  - "aaco-CubeNM3Ctx_split_1-builtin:KDD"
+  - "aaco-CubeNM3Ctx_split_1-builtin:v10"
+  - "aaco-CubeNM3Ctx_split_1-builtin:v9"
+  - "aaco-CubeNM3Ctx_split_2-builtin:KDD"
+  - "aaco-CubeNM3Ctx_split_2-builtin:v9"
+  - "aaco-CubeNM3Ctx_split_2-builtin:v8"
+  - "aaco-CubeNM3Ctx_split_3-builtin:KDD"
+  - "aaco-CubeNM3Ctx_split_3-builtin:v10"
+  - "aaco-CubeNM3Ctx_split_3-builtin:v9"
+  - "aaco-CubeNM3Ctx_split_4-builtin:KDD"
+  - "aaco-CubeNM3Ctx_split_4-builtin:v10"
+  - "aaco-CubeNM3Ctx_split_4-builtin:v9"
+  - "aaco-CubeNM3Ctx_split_5-builtin:KDD"
+  - "aaco-CubeNM3Ctx_split_5-builtin:v10"
+  - "aaco-CubeNM3Ctx_split_5-builtin:v9"
   - "aaco-MNIST_split_1-builtin:KDD"
   - "aaco-MNIST_split_1-builtin:v4"
   - "aaco-MNIST_split_1-builtin:v3"
@@ -210,156 +210,156 @@ eval_artifact_names:
   - "train_ma2018-cube_split_5-budget_5-seed_42-masked_mlp_classifier-cube_split_5:Jul30"
   - "train_ma2018-cube_split_5-budget_10-seed_42-builtin:Jul30"
   - "train_ma2018-cube_split_5-budget_10-seed_42-masked_mlp_classifier-cube_split_5:Jul30"
-  - "train_cae-AFAContext_split_1-budget_3-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_cae-AFAContext_split_1-budget_5-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_cae-AFAContext_split_1-budget_10-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_cae-AFAContext_split_2-budget_3-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_cae-AFAContext_split_2-budget_5-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_cae-AFAContext_split_2-budget_10-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_cae-AFAContext_split_3-budget_3-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_cae-AFAContext_split_3-budget_5-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_cae-AFAContext_split_3-budget_10-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_cae-AFAContext_split_4-budget_3-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_cae-AFAContext_split_4-budget_5-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_cae-AFAContext_split_4-budget_10-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_cae-AFAContext_split_5-budget_3-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_cae-AFAContext_split_5-budget_5-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_cae-AFAContext_split_5-budget_10-seed_42-builtin:Jul30"
-  - "train_cae-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_permutation-AFAContext_split_1-budget_3-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_permutation-AFAContext_split_1-budget_5-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_permutation-AFAContext_split_1-budget_10-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_permutation-AFAContext_split_2-budget_3-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_permutation-AFAContext_split_2-budget_5-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_permutation-AFAContext_split_2-budget_10-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_permutation-AFAContext_split_3-budget_3-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_permutation-AFAContext_split_3-budget_5-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_permutation-AFAContext_split_3-budget_10-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_permutation-AFAContext_split_4-budget_3-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_permutation-AFAContext_split_4-budget_5-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_permutation-AFAContext_split_4-budget_10-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_permutation-AFAContext_split_5-budget_3-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_permutation-AFAContext_split_5-budget_5-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_permutation-AFAContext_split_5-budget_10-seed_42-builtin:Jul30"
-  - "train_permutation-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_covert2023-AFAContext_split_1-budget_3-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_covert2023-AFAContext_split_1-budget_5-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_covert2023-AFAContext_split_1-budget_10-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_covert2023-AFAContext_split_2-budget_3-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_covert2023-AFAContext_split_2-budget_5-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_covert2023-AFAContext_split_2-budget_10-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_covert2023-AFAContext_split_3-budget_3-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_covert2023-AFAContext_split_3-budget_5-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_covert2023-AFAContext_split_3-budget_10-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_covert2023-AFAContext_split_4-budget_3-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_covert2023-AFAContext_split_4-budget_5-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_covert2023-AFAContext_split_4-budget_10-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_covert2023-AFAContext_split_5-budget_3-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_covert2023-AFAContext_split_5-budget_5-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_covert2023-AFAContext_split_5-budget_10-seed_42-builtin:Jul30"
-  - "train_covert2023-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_gadgil2023-AFAContext_split_1-budget_3-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_gadgil2023-AFAContext_split_1-budget_5-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_gadgil2023-AFAContext_split_1-budget_10-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_gadgil2023-AFAContext_split_2-budget_3-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_gadgil2023-AFAContext_split_2-budget_5-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_gadgil2023-AFAContext_split_2-budget_10-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_gadgil2023-AFAContext_split_3-budget_3-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_gadgil2023-AFAContext_split_3-budget_5-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_gadgil2023-AFAContext_split_3-budget_10-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_gadgil2023-AFAContext_split_4-budget_3-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_gadgil2023-AFAContext_split_4-budget_5-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_gadgil2023-AFAContext_split_4-budget_10-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_gadgil2023-AFAContext_split_5-budget_3-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_gadgil2023-AFAContext_split_5-budget_5-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_gadgil2023-AFAContext_split_5-budget_10-seed_42-builtin:Jul30"
-  - "train_gadgil2023-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_ma2018-AFAContext_split_1-budget_3-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_ma2018-AFAContext_split_1-budget_5-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_ma2018-AFAContext_split_1-budget_10-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30"
-  - "train_ma2018-AFAContext_split_2-budget_3-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_ma2018-AFAContext_split_2-budget_5-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_ma2018-AFAContext_split_2-budget_10-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30"
-  - "train_ma2018-AFAContext_split_3-budget_3-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_ma2018-AFAContext_split_3-budget_5-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_ma2018-AFAContext_split_3-budget_10-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30"
-  - "train_ma2018-AFAContext_split_4-budget_3-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_ma2018-AFAContext_split_4-budget_5-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_ma2018-AFAContext_split_4-budget_10-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30"
-  - "train_ma2018-AFAContext_split_5-budget_3-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_ma2018-AFAContext_split_5-budget_5-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
-  - "train_ma2018-AFAContext_split_5-budget_10-seed_42-builtin:Jul30"
-  - "train_ma2018-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30"
+  - "train_cae-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_cae-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_cae-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_cae-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_cae-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_cae-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_cae-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_cae-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_cae-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_cae-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_cae-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_cae-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_cae-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_cae-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_cae-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:Jul30"
+  - "train_cae-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:Jul30"
+  - "train_permutation-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:Jul30"
+  - "train_covert2023-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:Jul30"
+  - "train_gadgil2023-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:Jul30"
+  - "train_ma2018-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30"
   - "train_cae-MNIST_split_1-budget_10-seed_42-builtin:Jul30"
   - "train_cae-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:Jul30"
   - "train_cae-MNIST_split_1-budget_20-seed_42-builtin:Jul30"
@@ -769,111 +769,111 @@ eval_artifact_names:
   - train_zannone2019-cube_split_5-budget_5-seed_42-builtin:KDD
   - train_zannone2019-cube_split_5-budget_10-seed_42-builtin:KDD
 
-  # AFAContext split 1 - shim2018
-  - train_shim2018-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD
-  - train_shim2018-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD
-  - train_shim2018-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD
-  - train_shim2018-AFAContext_split_1-budget_3-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_1-budget_5-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_1-budget_10-seed_42-builtin:KDD
-  # AFAContext split 1 - kachuee2019
-  - train_kachuee2019-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD
-  - train_kachuee2019-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD
-  - train_kachuee2019-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD
-  - train_kachuee2019-AFAContext_split_1-budget_3-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_1-budget_5-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_1-budget_10-seed_42-builtin:KDD
-  # AFAContext split 1 - zannone2019
-  - train_zannone2019-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD
-  - train_zannone2019-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD
-  - train_zannone2019-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD
-  - train_zannone2019-AFAContext_split_1-budget_3-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_1-budget_5-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_1-budget_10-seed_42-builtin:KDD
-  # AFAContext split 2 - shim2018
-  - train_shim2018-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD
-  - train_shim2018-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD
-  - train_shim2018-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD
-  - train_shim2018-AFAContext_split_2-budget_3-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_2-budget_5-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_2-budget_10-seed_42-builtin:KDD
-  # AFAContext split 2 - kachuee2019
-  - train_kachuee2019-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD
-  - train_kachuee2019-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD
-  - train_kachuee2019-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD
-  - train_kachuee2019-AFAContext_split_2-budget_3-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_2-budget_5-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_2-budget_10-seed_42-builtin:KDD
-  # AFAContext split 2 - zannone2019
-  - train_zannone2019-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD
-  - train_zannone2019-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD
-  - train_zannone2019-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD
-  - train_zannone2019-AFAContext_split_2-budget_3-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_2-budget_5-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_2-budget_10-seed_42-builtin:KDD
-  # AFAContext split 3 - shim2018
-  - train_shim2018-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD
-  - train_shim2018-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD
-  - train_shim2018-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD
-  - train_shim2018-AFAContext_split_3-budget_3-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_3-budget_5-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_3-budget_10-seed_42-builtin:KDD
-  # AFAContext split 3 - kachuee2019
-  - train_kachuee2019-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD
-  - train_kachuee2019-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD
-  - train_kachuee2019-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD
-  - train_kachuee2019-AFAContext_split_3-budget_3-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_3-budget_5-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_3-budget_10-seed_42-builtin:KDD
-  # AFAContext split 3 - zannone2019
-  - train_zannone2019-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD
-  - train_zannone2019-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD
-  - train_zannone2019-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD
-  - train_zannone2019-AFAContext_split_3-budget_3-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_3-budget_5-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_3-budget_10-seed_42-builtin:KDD
-  # AFAContext split 4 - shim2018
-  - train_shim2018-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD
-  - train_shim2018-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD
-  - train_shim2018-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD
-  - train_shim2018-AFAContext_split_4-budget_3-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_4-budget_5-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_4-budget_10-seed_42-builtin:KDD
-  # AFAContext split 4 - kachuee2019
-  - train_kachuee2019-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD
-  - train_kachuee2019-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD
-  - train_kachuee2019-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD
-  - train_kachuee2019-AFAContext_split_4-budget_3-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_4-budget_5-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_4-budget_10-seed_42-builtin:KDD
-  # AFAContext split 4 - zannone2019
-  - train_zannone2019-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD
-  - train_zannone2019-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD
-  - train_zannone2019-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD
-  - train_zannone2019-AFAContext_split_4-budget_3-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_4-budget_5-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_4-budget_10-seed_42-builtin:KDD
-  # AFAContext split 5 - shim2018
-  - train_shim2018-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD
-  - train_shim2018-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD
-  - train_shim2018-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD
-  - train_shim2018-AFAContext_split_5-budget_3-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_5-budget_5-seed_42-builtin:KDD
-  - train_shim2018-AFAContext_split_5-budget_10-seed_42-builtin:KDD
-  # AFAContext split 5 - kachuee2019
-  - train_kachuee2019-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD
-  - train_kachuee2019-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD
-  - train_kachuee2019-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD
-  - train_kachuee2019-AFAContext_split_5-budget_3-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_5-budget_5-seed_42-builtin:KDD
-  - train_kachuee2019-AFAContext_split_5-budget_10-seed_42-builtin:KDD
-  # AFAContext split 5 - zannone2019
-  - train_zannone2019-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD
-  - train_zannone2019-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD
-  - train_zannone2019-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD
-  - train_zannone2019-AFAContext_split_5-budget_3-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_5-budget_5-seed_42-builtin:KDD
-  - train_zannone2019-AFAContext_split_5-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 1 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD
+  - train_shim2018-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD
+  - train_shim2018-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD
+  - train_shim2018-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 1 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 1 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 2 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD
+  - train_shim2018-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD
+  - train_shim2018-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD
+  - train_shim2018-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 2 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 2 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 3 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD
+  - train_shim2018-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD
+  - train_shim2018-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD
+  - train_shim2018-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 3 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 3 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 4 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD
+  - train_shim2018-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD
+  - train_shim2018-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD
+  - train_shim2018-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 4 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 4 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 5 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD
+  - train_shim2018-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD
+  - train_shim2018-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD
+  - train_shim2018-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:KDD
+  - train_shim2018-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 5 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:KDD
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:KDD
+  # CubeNM3Ctx split 5 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:KDD
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:KDD
 
   # MNIST split 1 - shim2018
   - train_shim2018-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:KDD
@@ -1123,41 +1123,41 @@ eval_artifact_names:
   - train_zannone2019-cube_split_5-budget_5-seed_42-builtin:KDD-model-free
   - train_zannone2019-cube_split_5-budget_10-seed_42-builtin:KDD-model-free
 
-  # AFAContext split 1 - zannone2019 (model-free)
-  - train_zannone2019-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD-model-free
-  - train_zannone2019-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD-model-free
-  - train_zannone2019-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:KDD-model-free
-  - train_zannone2019-AFAContext_split_1-budget_3-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_1-budget_5-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_1-budget_10-seed_42-builtin:KDD-model-free
-  # AFAContext split 2 - zannone2019 (model-free)
-  - train_zannone2019-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD-model-free
-  - train_zannone2019-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD-model-free
-  - train_zannone2019-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:KDD-model-free
-  - train_zannone2019-AFAContext_split_2-budget_3-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_2-budget_5-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_2-budget_10-seed_42-builtin:KDD-model-free
-  # AFAContext split 3 - zannone2019 (model-free)
-  - train_zannone2019-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD-model-free
-  - train_zannone2019-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD-model-free
-  - train_zannone2019-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:KDD-model-free
-  - train_zannone2019-AFAContext_split_3-budget_3-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_3-budget_5-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_3-budget_10-seed_42-builtin:KDD-model-free
-  # AFAContext split 4 - zannone2019 (model-free)
-  - train_zannone2019-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD-model-free
-  - train_zannone2019-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD-model-free
-  - train_zannone2019-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:KDD-model-free
-  - train_zannone2019-AFAContext_split_4-budget_3-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_4-budget_5-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_4-budget_10-seed_42-builtin:KDD-model-free
-  # AFAContext split 5 - zannone2019 (model-free)
-  - train_zannone2019-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD-model-free
-  - train_zannone2019-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD-model-free
-  - train_zannone2019-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:KDD-model-free
-  - train_zannone2019-AFAContext_split_5-budget_3-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_5-budget_5-seed_42-builtin:KDD-model-free
-  - train_zannone2019-AFAContext_split_5-budget_10-seed_42-builtin:KDD-model-free
+  # CubeNM3Ctx split 1 - zannone2019 (model-free)
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:KDD-model-free
+  # CubeNM3Ctx split 2 - zannone2019 (model-free)
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:KDD-model-free
+  # CubeNM3Ctx split 3 - zannone2019 (model-free)
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:KDD-model-free
+  # CubeNM3Ctx split 4 - zannone2019 (model-free)
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:KDD-model-free
+  # CubeNM3Ctx split 5 - zannone2019 (model-free)
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:KDD-model-free
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:KDD-model-free
 
   # MNIST split 1 - zannone2019 (model-free)
   - train_zannone2019-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:KDD-model-free

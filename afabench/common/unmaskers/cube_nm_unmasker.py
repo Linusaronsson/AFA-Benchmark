@@ -14,8 +14,8 @@ from afabench.common.custom_types import (
 
 
 @final
-class AFAContextUnmasker(AFAUnmasker):
-    """The first selection unmasks **all** the context features, otherwise this unmasker behaves like DirectUnmasker."""
+class CubeNMUnmasker(AFAUnmasker):
+    """Group the one-hot context features into one selection, then reveal the remaining features individually."""
 
     def __init__(self, n_contexts: int):
         self.n_contexts = n_contexts

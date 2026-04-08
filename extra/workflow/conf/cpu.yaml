@@ -1,6 +1,6 @@
 experiment_id: "tmp" # set this every time at the command line
 dataset_artifact_aliases:
-    AFAContext: "Jul29-nightly-AFAContext"
+    CubeNM3Ctx: "Jul29-nightly-CubeNM3Ctx"
     cube: "Jul24"
     diabetes: "Jul24"
     FashionMNIST: "Jul24"
@@ -15,7 +15,7 @@ pretrained_model_aliases:
     kachuee2019: "oct9a"
 classifier: "masked_mlp_classifier"
 classifier_artifact_aliases:
-    AFAContext: "KDD"
+    CubeNM3Ctx: "KDD"
     cube: "KDD"
     diabetes: "KDD"
     FashionMNIST: "KDD"

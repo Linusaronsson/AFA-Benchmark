@@ -11,8 +11,8 @@ smoke_test: false
 datasets:
   - cube
   - cube_without_noise
-  - afa_context
-  - afa_context_without_noise
+  - cube_nm
+  - cube_nm_without_noise
 
 methods:
   - stop_baseline

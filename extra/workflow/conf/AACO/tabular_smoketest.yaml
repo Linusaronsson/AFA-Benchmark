@@ -28,7 +28,7 @@ smoke_test: true
 
 # Small tabular datasets only (fast smoke test)
 datasets:
-  - afa_context_without_noise
+  - cube_nm_without_noise
   - cube_without_noise
 
 # Methods to run

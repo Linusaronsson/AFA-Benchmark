@@ -89,7 +89,7 @@ for accurate diagnosis with minimal cost. See the following survey for details: 
 | Dataset | Type | Modality | Train Size | Val Size | Test Size | \# Features | \# Groups | \# Classes |
 | :-----: | :--: | :------: | :--------: | :------: | :-------: | :---------: | :-------: | :--------: |
 | CUBE | Synthetic | Tabular | 600 | 200 | 200 | 20 | | 20 | 8 |
-| CUBE-NM | Synthetic | Tabular | 600 | 200 | 200 | 33 | 33 | 8 |
+| CUBE-NM | Synthetic | Tabular | 600 | 200 | 200 | 55 | 51 | 8 |
 | MNIST | Real World | Image (tabularized) | 36,000 | 12,000 | 12,000 | 784 | 784 | 10 |
 | FashionMNIST | Real World | Image (tabularized) | 36,000 | 12,000 | 12,000 | 784 | 784 | 10 |
 | Diabetes | Real World | Tabular | 55,237 | 18,412 | 18,413 | 45 | 45 | 3 | |

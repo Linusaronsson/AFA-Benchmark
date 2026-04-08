@@ -21,7 +21,7 @@ save_path: ???
 # ============================================================================
 # Training hyperparameters
 # ============================================================================
-# Tuned for small tabular datasets (600 samples, 20-33 features)
+# Tuned for small tabular datasets (600 samples, 20-55 features)
 #
 # epochs: 100 with checkpointing (not early stopping) via ModelCheckpoint (monitors val_loss)
 # batch_size: 64 - smaller batches work better for small datasets

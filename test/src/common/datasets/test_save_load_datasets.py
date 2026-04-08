@@ -10,7 +10,7 @@ from afabench.common.registry import get_class
 pytestmark = pytest.mark.optional
 
 DATASETS_TO_TEST = [
-    ("AFAContextDataset", {"n_samples": 10, "seed": 42}),
+    ("CubeNMDataset", {"n_samples": 10, "seed": 42}),
     ("CubeDataset", {"n_samples": 10, "seed": 42}),
     ("DiabetesDataset", {"root": "extra/data/misc/diabetes.csv"}),
     ("MiniBooNEDataset", {"root": "extra/data/misc/miniboone.csv"}),
