@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 import torch
 
-from afabench.common.unmaskers.afa_context_unmasker import AFAContextUnmasker
+from afabench.common.unmaskers.cube_nm_unmasker import CubeNMUnmasker
 
 
 @pytest.fixture
@@ -12,7 +12,7 @@ def unmasker_setup() -> dict[str, Any]:
     n_contexts = 3
     feature_shape = torch.Size((33,))
     n_features = feature_shape.numel()
-    unmasker = AFAContextUnmasker(n_contexts=n_contexts)
+    unmasker = CubeNMUnmasker(n_contexts=n_contexts)
 
     features = torch.arange(n_features).unsqueeze(0)
     initial_feature_mask = torch.full((n_features,), False).unsqueeze(0)
@@ -75,7 +75,7 @@ def test_selection_unmasks_correct_features(
 
 def test_selection_costs() -> None:
     n_contexts = 3
-    unmasker = AFAContextUnmasker(n_contexts=n_contexts)
+    unmasker = CubeNMUnmasker(n_contexts=n_contexts)
 
     selection_costs = unmasker.get_selection_costs(
         feature_costs=torch.tensor([0.2, 0.3, 0.1, 1, 2, 3])
@@ -87,7 +87,7 @@ def test_selection_costs() -> None:
 
 def test_get_n_selections() -> None:
     n_contexts = 3
-    unmasker = AFAContextUnmasker(n_contexts=n_contexts)
+    unmasker = CubeNMUnmasker(n_contexts=n_contexts)
 
     n_selections = unmasker.get_n_selections(feature_shape=torch.Size((7,)))
 

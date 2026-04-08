@@ -150,7 +150,7 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         train_x_filled = train_x_all * train_s_all
         val_x_filled = val_x_all * val_s_all
 
-        # TODO: currently not compatible with the AFAContext unmasker
+        # TODO: currently not compatible with the CubeNM unmasker
         notmiwae_model = NotMIWAE(
             d_in=d_in,
             n_latent=max(1, d_in - 1),

@@ -13,6 +13,7 @@ from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.classifiers import WrappedMaskedMLPClassifier
 from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
 from afabench.common.datasets.utils import flatten_features_collate
+from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.models import LitMaskedMLPClassifier
 from afabench.common.utils import (
     configure_runtime_for_device,
@@ -48,7 +49,9 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
 
     # Load datasets via bundle system
     train_dataset, train_manifest = load_bundle(Path(cfg.train_dataset_path))
-    dataset_name = train_manifest["class_name"].replace("Dataset", "").lower()
+    dataset_name = infer_dataset_key_from_class_name(
+        train_manifest["class_name"]
+    )
     train_dataset = cast("AFADataset", cast("object", train_dataset))
     val_dataset, _ = load_bundle(Path(cfg.val_dataset_path))
     val_dataset = cast("AFADataset", cast("object", val_dataset))

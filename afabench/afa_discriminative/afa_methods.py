@@ -42,7 +42,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.common.unmaskers import AFAContextUnmasker, CubeNMARUnmasker
+from afabench.common.unmaskers import CubeNMARUnmasker, CubeNMUnmasker
 
 if TYPE_CHECKING:
     from torch.utils.data import DataLoader
@@ -70,9 +70,10 @@ def _feature_forbidden_to_selection_forbidden(
         )
         raise ValueError(msg)
 
-    # Special case for AFAContextUnmasker, which has a specific mapping from features to selections.
+    # Special case for CubeNMUnmasker, which has a specific mapping from
+    # features to selections.
     # Could probably be unified to a general case.
-    if isinstance(unmasker, AFAContextUnmasker):
+    if isinstance(unmasker, CubeNMUnmasker):
         n_contexts = unmasker.n_contexts
         sel_forbidden = torch.zeros(
             (flat_forbidden.shape[0], n_selections),
@@ -130,7 +131,7 @@ def _feature_observed_to_selection_performed(
         )
         raise ValueError(msg)
 
-    if isinstance(unmasker, AFAContextUnmasker):
+    if isinstance(unmasker, CubeNMUnmasker):
         n_contexts = unmasker.n_contexts
         sel_performed = torch.zeros(
             (flat_observed.shape[0], n_selections),
@@ -394,7 +395,7 @@ class GreedyDynamicSelection(nn.Module):
                         soft = selector_layer(logits_cost, temp)
                         if len(x.shape) == 4:
                             soft_feat = patch_soft_to_feature_soft(soft, x)
-                        elif isinstance(unmasker, AFAContextUnmasker):
+                        elif isinstance(unmasker, CubeNMUnmasker):
                             soft_feat = selection_soft_to_feature_soft(
                                 soft,
                                 mask_size=mask_size,
@@ -483,7 +484,7 @@ class GreedyDynamicSelection(nn.Module):
                                 soft = selector_layer(logits_cost, temp)
                             if len(x.shape) == 4:
                                 soft_feat = patch_soft_to_feature_soft(soft, x)
-                            elif isinstance(unmasker, AFAContextUnmasker):
+                            elif isinstance(unmasker, CubeNMUnmasker):
                                 soft_feat = selection_soft_to_feature_soft(
                                     soft,
                                     mask_size,
@@ -682,7 +683,8 @@ class Covert2023AFAMethod(AFAMethod):
         if self.modality == "tabular":
             x_masked = torch.cat([masked_features, feature_mask], dim=1)
             logits = self.selector(x_masked).flatten(1)
-            # TODO: currently assume that if we use AFAContextUnmasker, then we have not None selection mask
+            # TODO: currently assume that if we use CubeNMUnmasker, then we
+            # have a non-None selection mask
             if selection_mask is not None:
                 assert logits.shape == selection_mask.shape, (
                     f"selection_mask shape {selection_mask.shape} incompatible with logits {logits.shape}"

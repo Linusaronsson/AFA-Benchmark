@@ -1,7 +1,7 @@
 plotting_run_name: "tmp"
 datasets:
   - cube
-  - AFAContext
+  - CubeNM3Ctx
   - MNIST
   - FashionMNIST
   - diabetes

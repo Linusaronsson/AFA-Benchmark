@@ -9,16 +9,16 @@ eval_artifact_names:
   - train_zannone2019-cube_split_2-budget_10-seed_42-masked_mlp_classifier-cube_split_2:tutorial-eval
   - train_zannone2019-cube_split_2-budget_5-seed_42-builtin:tutorial-eval
   - train_zannone2019-cube_split_2-budget_10-seed_42-builtin:tutorial-eval
-  # AFAContext split 1 - zannone2019
-  - train_zannone2019-AFAContext_split_1-budget_4-seed_42-masked_mlp_classifier-AFAContext_split_1:tutorial-eval
-  - train_zannone2019-AFAContext_split_1-budget_8-seed_42-masked_mlp_classifier-AFAContext_split_1:tutorial-eval
-  - train_zannone2019-AFAContext_split_1-budget_4-seed_42-builtin:tutorial-eval
-  - train_zannone2019-AFAContext_split_1-budget_8-seed_42-builtin:tutorial-eval
-  # AFAContext split 2 - zannone2019
-  - train_zannone2019-AFAContext_split_1-budget_4-seed_42-masked_mlp_classifier-AFAContext_split_1:tutorial-eval
-  - train_zannone2019-AFAContext_split_1-budget_8-seed_42-masked_mlp_classifier-AFAContext_split_1:tutorial-eval
-  - train_zannone2019-AFAContext_split_1-budget_4-seed_42-builtin:tutorial-eval
-  - train_zannone2019-AFAContext_split_1-budget_8-seed_42-builtin:tutorial-eval
+  # CubeNM3Ctx split 1 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_4-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:tutorial-eval
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_8-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:tutorial-eval
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_4-seed_42-builtin:tutorial-eval
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_8-seed_42-builtin:tutorial-eval
+  # CubeNM3Ctx split 2 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_4-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:tutorial-eval
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_8-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:tutorial-eval
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_4-seed_42-builtin:tutorial-eval
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_8-seed_42-builtin:tutorial-eval
   # cube split 1 - cae
   - train_cae-cube_split_1-budget_5-seed_42-masked_mlp_classifier-cube_split_1:tutorial-eval
   - train_cae-cube_split_1-budget_10-seed_42-masked_mlp_classifier-cube_split_1:tutorial-eval
@@ -29,13 +29,13 @@ eval_artifact_names:
   - train_cae-cube_split_2-budget_10-seed_42-masked_mlp_classifier-cube_split_2:tutorial-eval
   - train_cae-cube_split_2-budget_5-seed_42-builtin:tutorial-eval
   - train_cae-cube_split_2-budget_10-seed_42-builtin:tutorial-eval
-  # AFAContext split 1 - cae
-  - train_cae-AFAContext_split_1-budget_4-seed_42-masked_mlp_classifier-AFAContext_split_1:tutorial-eval
-  - train_cae-AFAContext_split_1-budget_8-seed_42-masked_mlp_classifier-AFAContext_split_1:tutorial-eval
-  - train_cae-AFAContext_split_1-budget_4-seed_42-builtin:tutorial-eval
-  - train_cae-AFAContext_split_1-budget_8-seed_42-builtin:tutorial-eval
-  # AFAContext split 2 - cae
-  - train_cae-AFAContext_split_1-budget_4-seed_42-masked_mlp_classifier-AFAContext_split_1:tutorial-eval
-  - train_cae-AFAContext_split_1-budget_8-seed_42-masked_mlp_classifier-AFAContext_split_1:tutorial-eval
-  - train_cae-AFAContext_split_1-budget_4-seed_42-builtin:tutorial-eval
-  - train_cae-AFAContext_split_1-budget_8-seed_42-builtin:tutorial-eval
+  # CubeNM3Ctx split 1 - cae
+  - train_cae-CubeNM3Ctx_split_1-budget_4-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:tutorial-eval
+  - train_cae-CubeNM3Ctx_split_1-budget_8-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:tutorial-eval
+  - train_cae-CubeNM3Ctx_split_1-budget_4-seed_42-builtin:tutorial-eval
+  - train_cae-CubeNM3Ctx_split_1-budget_8-seed_42-builtin:tutorial-eval
+  # CubeNM3Ctx split 2 - cae
+  - train_cae-CubeNM3Ctx_split_1-budget_4-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:tutorial-eval
+  - train_cae-CubeNM3Ctx_split_1-budget_8-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:tutorial-eval
+  - train_cae-CubeNM3Ctx_split_1-budget_4-seed_42-builtin:tutorial-eval
+  - train_cae-CubeNM3Ctx_split_1-budget_8-seed_42-builtin:tutorial-eval

@@ -22,7 +22,7 @@ from afabench.afa_rl.common.utils import (
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.custom_types import AFAInitializer
 from afabench.common.initializers.utils import get_afa_initializer_from_config
-from afabench.common.unmaskers import AFAContextUnmasker, CubeNMARUnmasker
+from afabench.common.unmaskers import CubeNMARUnmasker, CubeNMUnmasker
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import get_class_frequencies, initialize_wandb_run
 
@@ -116,10 +116,10 @@ def _adapt_forbidden_mask_to_selection_space(
         batch_shape = forbidden_mask.shape[:-1]
         return sel_forbidden.reshape(*batch_shape, n_selection_choices)
 
-    if isinstance(unmasker, AFAContextUnmasker):
+    if isinstance(unmasker, CubeNMUnmasker):
         return collapse_grouped_context_mask(
             unmasker.n_contexts,
-            unmasker_name="AFAContextUnmasker",
+            unmasker_name="CubeNMUnmasker",
         )
 
     if isinstance(unmasker, CubeNMARUnmasker):

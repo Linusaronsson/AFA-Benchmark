@@ -71,12 +71,12 @@ def _make_inputs() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     return masked_features, feature_mask, selection_mask
 
 
-def test_context_selection_space_path_maps_to_actions() -> None:
+def test_cube_nm_selection_space_path_maps_to_actions() -> None:
     oracle = DummyOracle(next_selection=0)
     method = AACOAFAMethod(
         aaco_oracle=cast("AACOOracle", cast("object", oracle)),
-        dataset_name="afacontextv2",
-        unmasker_class_name="AFAContextUnmasker",
+        dataset_name="cube_nm",
+        unmasker_class_name="CubeNMUnmasker",
         unmasker_kwargs={"n_contexts": 5},
         _selection_size=51,
         _selection_costs=torch.ones(51),
@@ -108,12 +108,12 @@ def test_context_selection_space_path_maps_to_actions() -> None:
     assert oracle.last_selection_costs.shape == (51,)
 
 
-def test_context_selection_space_stop_maps_to_zero_action() -> None:
+def test_cube_nm_selection_space_stop_maps_to_zero_action() -> None:
     oracle = DummyOracle(next_selection=None)
     method = AACOAFAMethod(
         aaco_oracle=cast("AACOOracle", cast("object", oracle)),
-        dataset_name="afacontextv2",
-        unmasker_class_name="AFAContextUnmasker",
+        dataset_name="cube_nm",
+        unmasker_class_name="CubeNMUnmasker",
         unmasker_kwargs={"n_contexts": 5},
         _selection_size=51,
     )
@@ -133,8 +133,8 @@ def test_no_observation_selection_space_path_maps_to_actions() -> None:
     oracle = DummyOracle(next_selection=7)
     method = AACOAFAMethod(
         aaco_oracle=cast("AACOOracle", cast("object", oracle)),
-        dataset_name="afacontextv2",
-        unmasker_class_name="AFAContextUnmasker",
+        dataset_name="cube_nm",
+        unmasker_class_name="CubeNMUnmasker",
         unmasker_kwargs={"n_contexts": 5},
         _selection_size=51,
     )
@@ -158,8 +158,8 @@ def test_no_observation_selection_space_path_maps_stop() -> None:
     oracle = DummyOracle(next_selection=None)
     method = AACOAFAMethod(
         aaco_oracle=cast("AACOOracle", cast("object", oracle)),
-        dataset_name="afacontextv2",
-        unmasker_class_name="AFAContextUnmasker",
+        dataset_name="cube_nm",
+        unmasker_class_name="CubeNMUnmasker",
         unmasker_kwargs={"n_contexts": 5},
         _selection_size=51,
     )

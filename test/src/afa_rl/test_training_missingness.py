@@ -15,8 +15,8 @@ from afabench.common.initializers.manual_initializer import ManualInitializer
 from afabench.common.initializers.missingness_initializer import (
     MissingnessInitializer,
 )
-from afabench.common.unmaskers.afa_context_unmasker import (
-    AFAContextUnmasker,
+from afabench.common.unmaskers.cube_nm_unmasker import (
+    CubeNMUnmasker,
 )
 from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
 
@@ -178,7 +178,7 @@ def test_train_restricted_masks_adapt_to_grouped_selection_space() -> None:
         training_forbidden_mask=training_forbidden_mask,
     )
     n_contexts = 2
-    unmasker = AFAContextUnmasker(n_contexts=n_contexts)
+    unmasker = CubeNMUnmasker(n_contexts=n_contexts)
     n_selection_choices = unmasker.get_n_selections(torch.Size((6,)))
 
     initialize_fn, forbidden_selection_mask_fn = _build_env_mask_fns(

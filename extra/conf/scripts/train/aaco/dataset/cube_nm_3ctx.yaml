@@ -1,5 +1,5 @@
 # @package _global_
-dataset_artifact_name: "afa-team/afa-benchmark/AFAContext_split_1:latest"
+dataset_artifact_name: "afa-team/afa-benchmark/CubeNM3Ctx_split_1:latest"
 
 aco:
   k_neighbors: 5

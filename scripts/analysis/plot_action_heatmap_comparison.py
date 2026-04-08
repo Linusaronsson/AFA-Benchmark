@@ -9,7 +9,7 @@ Usage:
     python scripts/analysis/plot_action_heatmap_comparison.py \
         --results-dir extra/output/merged_results \
         --method aaco_full \
-        --dataset afa_context_v2 \
+        --dataset cube_nm \
         --comparison-initializers mcar_p03 mar_p03 mnar_logistic_p03 \
         --output-dir extra/output/analysis/missing_train/heatmaps
 """
@@ -62,7 +62,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--eval-split", default="val")
     parser.add_argument("--method", default="aaco_full")
-    parser.add_argument("--dataset", default="afa_context_v2")
+    parser.add_argument("--dataset", default="cube_nm")
     parser.add_argument("--baseline-initializer", default="cold")
     parser.add_argument(
         "--comparison-initializers",

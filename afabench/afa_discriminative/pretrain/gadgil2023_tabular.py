@@ -24,6 +24,7 @@ from afabench.common.bundle import (
 from afabench.common.config_classes import Gadgil2023PretrainingConfig
 from afabench.common.custom_types import AFADataset  # noqa: TC001
 from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.utils import (
     get_class_frequencies,
     set_seed,
@@ -48,8 +49,10 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     val_dataset, _ = load_bundle(Path(cfg.val_dataset_bundle_path))
     val_dataset = cast("AFADataset", cast("object", val_dataset))
 
-    dataset_name = train_manifest["class_name"].replace("Dataset", "").lower()
-    _, train_labels = train_dataset.get_all_data()
+    dataset_name = infer_dataset_key_from_class_name(
+        train_manifest["class_name"]
+    )
+    _, train_labels = train_dataset.get_all_data()  # pyright: ignore[reportAttributeAccessIssue]
     train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities

@@ -8,6 +8,8 @@ from typing import Protocol, Self
 import torch
 from jaxtyping import Bool, Float, Integer
 
+from afabench.common.naming import infer_dataset_key_from_class_name
+
 logger = logging.getLogger(__name__)
 
 type Features = Float[torch.Tensor, "*batch *feature_shape"]
@@ -27,36 +29,8 @@ type AFAAction = Integer[torch.Tensor, "*batch 1"]
 # Unmaskers receive this.
 type AFASelection = Integer[torch.Tensor, "*batch 1"]
 
-_DATASET_KEY_ALIASES = {
-    "ACTG175Dataset": "actg",
-    "AFAContextDataset": "afa_context",
-    "CubeNMARDataset": "cube_nm_ar",
-    "BankMarketingDataset": "bank_marketing",
-    "CKDDataset": "ckd",
-    "CubeDataset": "cube",
-    "DiabetesDataset": "diabetes",
-    "FICODataset": "fico",
-    "FashionMNISTDataset": "fashion_mnist",
-    "ImagenetteDataset": "imagenette",
-    "MiniBooNEDataset": "miniboone",
-    "MNISTDataset": "mnist",
-    "PharyngitisDataset": "pharyngitis",
-    "PhysionetDataset": "physionet",
-    "SyntheticMNISTDataset": "synthetic_mnist",
-}
-
-
 def _infer_dataset_key(dataset: object) -> str:
-    class_name = dataset.__class__.__name__
-    if class_name in _DATASET_KEY_ALIASES:
-        return _DATASET_KEY_ALIASES[class_name]
-    class_name = class_name.removesuffix("Dataset")
-    key_parts = []
-    for idx, char in enumerate(class_name):
-        if char.isupper() and idx > 0:
-            key_parts.append("_")
-        key_parts.append(char.lower())
-    return "".join(key_parts)
+    return infer_dataset_key_from_class_name(dataset.__class__.__name__)
 
 
 class AFADataset(Protocol):

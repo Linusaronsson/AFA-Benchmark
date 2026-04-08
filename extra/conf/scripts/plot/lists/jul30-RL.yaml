@@ -105,111 +105,111 @@ eval_artifact_names:
   - train_zannone2019-cube_split_5-budget_5-seed_42-builtin:Jul30
   - train_zannone2019-cube_split_5-budget_10-seed_42-builtin:Jul30
 
-  # AFAContext split 1 - shim2018
-  - train_shim2018-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30
-  - train_shim2018-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30
-  - train_shim2018-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30
-  - train_shim2018-AFAContext_split_1-budget_3-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_1-budget_5-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_1-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 1 - kachuee2019
-  - train_kachuee2019-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30
-  - train_kachuee2019-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30
-  - train_kachuee2019-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30
-  - train_kachuee2019-AFAContext_split_1-budget_3-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_1-budget_5-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_1-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 1 - zannone2019
-  - train_zannone2019-AFAContext_split_1-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30
-  - train_zannone2019-AFAContext_split_1-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30
-  - train_zannone2019-AFAContext_split_1-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_1:Jul30
-  - train_zannone2019-AFAContext_split_1-budget_3-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_1-budget_5-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_1-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 2 - shim2018
-  - train_shim2018-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30
-  - train_shim2018-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30
-  - train_shim2018-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30
-  - train_shim2018-AFAContext_split_2-budget_3-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_2-budget_5-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_2-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 2 - kachuee2019
-  - train_kachuee2019-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30
-  - train_kachuee2019-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30
-  - train_kachuee2019-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30
-  - train_kachuee2019-AFAContext_split_2-budget_3-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_2-budget_5-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_2-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 2 - zannone2019
-  - train_zannone2019-AFAContext_split_2-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30
-  - train_zannone2019-AFAContext_split_2-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30
-  - train_zannone2019-AFAContext_split_2-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_2:Jul30
-  - train_zannone2019-AFAContext_split_2-budget_3-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_2-budget_5-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_2-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 3 - shim2018
-  - train_shim2018-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30
-  - train_shim2018-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30
-  - train_shim2018-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30
-  - train_shim2018-AFAContext_split_3-budget_3-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_3-budget_5-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_3-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 3 - kachuee2019
-  - train_kachuee2019-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30
-  - train_kachuee2019-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30
-  - train_kachuee2019-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30
-  - train_kachuee2019-AFAContext_split_3-budget_3-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_3-budget_5-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_3-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 3 - zannone2019
-  - train_zannone2019-AFAContext_split_3-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30
-  - train_zannone2019-AFAContext_split_3-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30
-  - train_zannone2019-AFAContext_split_3-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_3:Jul30
-  - train_zannone2019-AFAContext_split_3-budget_3-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_3-budget_5-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_3-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 4 - shim2018
-  - train_shim2018-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30
-  - train_shim2018-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30
-  - train_shim2018-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30
-  - train_shim2018-AFAContext_split_4-budget_3-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_4-budget_5-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_4-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 4 - kachuee2019
-  - train_kachuee2019-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30
-  - train_kachuee2019-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30
-  - train_kachuee2019-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30
-  - train_kachuee2019-AFAContext_split_4-budget_3-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_4-budget_5-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_4-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 4 - zannone2019
-  - train_zannone2019-AFAContext_split_4-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30
-  - train_zannone2019-AFAContext_split_4-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30
-  - train_zannone2019-AFAContext_split_4-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_4:Jul30
-  - train_zannone2019-AFAContext_split_4-budget_3-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_4-budget_5-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_4-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 5 - shim2018
-  - train_shim2018-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30
-  - train_shim2018-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30
-  - train_shim2018-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30
-  - train_shim2018-AFAContext_split_5-budget_3-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_5-budget_5-seed_42-builtin:Jul30
-  - train_shim2018-AFAContext_split_5-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 5 - kachuee2019
-  - train_kachuee2019-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30
-  - train_kachuee2019-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30
-  - train_kachuee2019-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30
-  - train_kachuee2019-AFAContext_split_5-budget_3-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_5-budget_5-seed_42-builtin:Jul30
-  - train_kachuee2019-AFAContext_split_5-budget_10-seed_42-builtin:Jul30
-  # AFAContext split 5 - zannone2019
-  - train_zannone2019-AFAContext_split_5-budget_3-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30
-  - train_zannone2019-AFAContext_split_5-budget_5-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30
-  - train_zannone2019-AFAContext_split_5-budget_10-seed_42-masked_mlp_classifier-AFAContext_split_5:Jul30
-  - train_zannone2019-AFAContext_split_5-budget_3-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_5-budget_5-seed_42-builtin:Jul30
-  - train_zannone2019-AFAContext_split_5-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 1 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30
+  - train_shim2018-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30
+  - train_shim2018-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30
+  - train_shim2018-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 1 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 1 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_1:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_3-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_5-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_1-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 2 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30
+  - train_shim2018-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30
+  - train_shim2018-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30
+  - train_shim2018-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 2 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 2 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_2:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_3-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_5-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_2-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 3 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30
+  - train_shim2018-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30
+  - train_shim2018-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30
+  - train_shim2018-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 3 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 3 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_3:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_3-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_5-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_3-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 4 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30
+  - train_shim2018-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30
+  - train_shim2018-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30
+  - train_shim2018-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 4 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 4 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_4:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_3-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_5-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_4-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 5 - shim2018
+  - train_shim2018-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30
+  - train_shim2018-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30
+  - train_shim2018-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30
+  - train_shim2018-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:Jul30
+  - train_shim2018-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 5 - kachuee2019
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:Jul30
+  - train_kachuee2019-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:Jul30
+  # CubeNM3Ctx split 5 - zannone2019
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_3-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_5-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_10-seed_42-masked_mlp_classifier-CubeNM3Ctx_split_5:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_3-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_5-seed_42-builtin:Jul30
+  - train_zannone2019-CubeNM3Ctx_split_5-budget_10-seed_42-builtin:Jul30
 
   # MNIST split 1 - shim2018
   - train_shim2018-MNIST_split_1-budget_10-seed_42-masked_mlp_classifier-MNIST_split_1:Jul30

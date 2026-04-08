@@ -25,6 +25,7 @@ from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.initializers.utils import (
     get_afa_initializer_from_config,
 )
+from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import set_seed
 
@@ -76,8 +77,8 @@ def _load_rollout_dataset(
     dataset_bundle_path = _resolve_train_dataset_path(cfg)
     logger.info(f"Loading dataset from {dataset_bundle_path}...")
     dataset_obj, dataset_manifest = load_bundle(dataset_bundle_path)
-    dataset_name = (
-        dataset_manifest["class_name"].replace("Dataset", "").lower()
+    dataset_name = infer_dataset_key_from_class_name(
+        dataset_manifest["class_name"]
     )
     split = dataset_manifest["metadata"].get("split_idx", None)
     dataset: Any = dataset_obj

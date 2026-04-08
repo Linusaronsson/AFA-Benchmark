@@ -23,7 +23,7 @@ REGISTERED_CLASSES = {
     # AFA Dataset Classes
     "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
     "CubeNonUniformCostsDataset": "afabench.common.datasets.datasets.CubeNonUniformCostsDataset",
-    "AFAContextDataset": "afabench.common.datasets.datasets.AFAContextDataset",
+    "CubeNMDataset": "afabench.common.datasets.datasets.CubeNMDataset",
     "CubeNMARDataset": "afabench.common.datasets.datasets.CubeNMARDataset",
     "MNISTDataset": "afabench.common.datasets.datasets.MNISTDataset",
     "SyntheticMNISTDataset": "afabench.common.datasets.datasets.SyntheticMNISTDataset",
@@ -50,7 +50,7 @@ REGISTERED_CLASSES = {
     # AFA Unmasker Classes
     "DirectUnmasker": "afabench.common.unmaskers.DirectUnmasker",
     "ImagePatchUnmasker": "afabench.common.unmaskers.ImagePatchUnmasker",
-    "AFAContextUnmasker": "afabench.common.unmaskers.AFAContextUnmasker",
+    "CubeNMUnmasker": "afabench.common.unmaskers.CubeNMUnmasker",
     "CubeNMARUnmasker": "afabench.common.unmaskers.CubeNMARUnmasker",
     # AFA Initializer Classes
     "ZeroInitializer": "afabench.common.initializers.ZeroInitializer",

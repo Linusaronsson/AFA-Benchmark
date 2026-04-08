@@ -1,7 +1,7 @@
 datasets:
   - actg
-  - afa_context_v2
-  - afa_context_v2_without_noise
+  - cube_nm
+  - cube_nm_without_noise
   - bank_marketing
   - ckd
   - cube

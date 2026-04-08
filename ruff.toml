@@ -66,7 +66,7 @@ exclude = [
   # "scripts/train/shim2018.py",
   # "scripts/train/zannone2019.py",
   # "scripts/train/sequential_dummy.py",
-  # "test/afa_rl/test_afacontext_optimal_selection.py",
+  # "test/afa_rl/test_cube_nm_optimal_selection.py",
   # "test/afa_rl/test_datasets.py",
   # "test/afa_rl/test_readprocessencoder.py",
   # "test/afa_rl/test_utils.py",

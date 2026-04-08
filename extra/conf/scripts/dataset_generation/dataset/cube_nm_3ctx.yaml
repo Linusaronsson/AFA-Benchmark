@@ -1,7 +1,9 @@
-class_name: "AFAContextDataset"
+class_name: "CubeNMDataset"
 kwargs:
   n_samples: 1000
   context_feature_std: 0.1
   informative_feature_std: 0.3
   non_informative_feature_mean: 0.5
   non_informative_feature_std: 0.3
+  use_cheap_context_features: false
+  n_contexts: 3
