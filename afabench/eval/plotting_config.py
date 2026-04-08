@@ -50,6 +50,10 @@ METHOD_NAME_MAPPING = {
 
 # Dataset display names mapping
 DATASET_NAME_MAPPING = {
+    "afa_context": "CUBE-NM-3ctx",
+    "afa_context_without_noise": "CUBE-NM-3ctx-noiseless",
+    "afa_context_v2": "CUBE-NM",
+    "afa_context_v2_without_noise": "CUBE-NM-noiseless",
     "cube": "CUBE",
     "cube_nonuniform_costs": "CUBE-NUC",
     "cube_nm": "CUBE-NM",
@@ -57,6 +61,7 @@ DATASET_NAME_MAPPING = {
     "cube_nm_3ctx": "CUBE-NM-3ctx",
     "cube_nm_3ctx_without_noise": "CUBE-NM-3ctx-noiseless",
     "cube_nm_ar": "CUBE-NM-AR",
+    "xor_noisy_shortcut": "XOR Shortcut",
     "synthetic_mnist": "Synthetic MNIST",
     "cube_without_noise": "CUBE-noiseless",
     "synthetic_mnist_without_noise": "Synthetic-MNIST-noiseless",
@@ -81,6 +86,9 @@ DATASET_SETS = {
     "cube_nm_pair": {
         "cube_nm",
         "cube_nm_without_noise",
+    },
+    "toy": {
+        "xor_noisy_shortcut",
     },
     "cube_nm_3ctx_pair": {
         "cube_nm_3ctx",
@@ -130,6 +138,7 @@ DATASET_SETS = {
         "cube_nonuniform_costs",
         "cube_nm_ar",
         "pharyngitis",
+        "xor_noisy_shortcut",
     },
 }
 

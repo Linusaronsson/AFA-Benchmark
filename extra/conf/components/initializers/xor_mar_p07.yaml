@@ -1,0 +1,5 @@
+class_name: "XORNoisyShortcutInitializer"
+kwargs:
+  mechanism: mar
+  p: 0.7
+  structured_shift: 0.25

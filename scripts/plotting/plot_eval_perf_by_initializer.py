@@ -7,6 +7,7 @@ from pathlib import Path
 import plotnine as p9
 import polars as pl
 
+from afabench.common.naming import LEGACY_DATASET_KEY_ALIASES
 from afabench.eval.plotting_config import (
     COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
@@ -21,6 +22,7 @@ DATASET_FACET_COLS = 4
 MECHANISM_LABELS = {
     "mcar": "MCAR",
     "mar": "MAR",
+    "mnar": "MNAR",
     "mnar_logistic": "MNAR logistic",
 }
 
@@ -88,7 +90,10 @@ def _parse_mechanism_and_rate(
     )
     train_init = composite.group(1) if composite else initializer
 
-    match = re.fullmatch(r"(mcar|mar|mnar_logistic)_p(\d+)", train_init)
+    match = re.fullmatch(
+        r"(?:xor_)?(mcar|mar|mnar|mnar_logistic)_p(\d+)",
+        train_init,
+    )
     if match is None:
         return None
 
@@ -528,6 +533,9 @@ def _load_and_prepare(
         raise ValueError(msg)
 
     data = data.select(sorted(required_cols))
+    data = data.with_columns(
+        dataset=pl.col("dataset").replace(LEGACY_DATASET_KEY_ALIASES)
+    )
 
     if args.methods:
         data = data.filter(pl.col("afa_method").is_in(args.methods))

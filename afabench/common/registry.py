@@ -25,6 +25,7 @@ REGISTERED_CLASSES = {
     "CubeNonUniformCostsDataset": "afabench.common.datasets.datasets.CubeNonUniformCostsDataset",
     "CubeNMDataset": "afabench.common.datasets.datasets.CubeNMDataset",
     "CubeNMARDataset": "afabench.common.datasets.datasets.CubeNMARDataset",
+    "XORNoisyShortcutDataset": "afabench.common.datasets.datasets.XORNoisyShortcutDataset",
     "MNISTDataset": "afabench.common.datasets.datasets.MNISTDataset",
     "SyntheticMNISTDataset": "afabench.common.datasets.datasets.SyntheticMNISTDataset",
     "DiabetesDataset": "afabench.common.datasets.datasets.DiabetesDataset",
@@ -63,6 +64,7 @@ REGISTERED_CLASSES = {
     "MissingnessInitializer": "afabench.common.initializers.MissingnessInitializer",
     "CubeNMARInitializer": "afabench.common.initializers.CubeNMARInitializer",
     "CubeNMARMARInitializer": "afabench.common.initializers.CubeNMARMARInitializer",
+    "XORNoisyShortcutInitializer": "afabench.common.initializers.XORNoisyShortcutInitializer",
     # General PyTorch Model Bundle
     "TorchModelBundle": "afabench.common.torch_bundle.TorchModelBundle",
 }

@@ -24,6 +24,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
+from afabench.common.naming import (
+    LEGACY_DATASET_KEY_ALIASES,
+    canonicalize_dataset_key,
+)
 from afabench.eval.plotting_config import (
     DATASET_NAME_MAPPING,
     METHOD_NAME_MAPPING,
@@ -50,6 +54,15 @@ INITIALIZER_LABELS: dict[str, str] = {
     "mnar_logistic_p03": "MNAR p=0.3",
     "mnar_logistic_p05": "MNAR p=0.5",
     "mnar_logistic_p07": "MNAR p=0.7",
+    "xor_mcar_p03": "MCAR p=0.3",
+    "xor_mcar_p05": "MCAR p=0.5",
+    "xor_mcar_p07": "MCAR p=0.7",
+    "xor_mar_p03": "simple MAR p=0.3",
+    "xor_mar_p05": "simple MAR p=0.5",
+    "xor_mar_p07": "simple MAR p=0.7",
+    "xor_mnar_p03": "MNAR p=0.3",
+    "xor_mnar_p05": "MNAR p=0.5",
+    "xor_mnar_p07": "MNAR p=0.7",
 }
 
 
@@ -102,11 +115,29 @@ def _find_parquet(
                 candidate = perf_dir / f"method_set-{method_set}+all.parquet"
                 if candidate.exists():
                     return candidate
+                classifier_specific = sorted(
+                    perf_dir.glob(
+                        f"method_set-{method_set}+classifier_type-*.parquet"
+                    )
+                )
+                if classifier_specific:
+                    return classifier_specific[0]
             # Fallback: pick first parquet.
             parquets = sorted(perf_dir.glob("*.parquet"))
             if parquets:
                 return parquets[0]
     return None
+
+
+def _available_summary(df: pl.DataFrame) -> str:
+    datasets = sorted(df["dataset"].unique().to_list())
+    methods = sorted(df["afa_method"].unique().to_list())
+    return (
+        f"available datasets={datasets[:8]}"
+        + ("..." if len(datasets) > 8 else "")
+        + f", methods={methods[:8]}"
+        + ("..." if len(methods) > 8 else "")
+    )
 
 
 def _normalize_heatmap(
@@ -226,6 +257,7 @@ def plot_heatmap_comparison(
 def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    args.dataset = canonicalize_dataset_key(args.dataset)
 
     # Load baseline.
     bl_path = _find_parquet(
@@ -241,20 +273,23 @@ def main() -> None:
         )
         return
     bl_df = pl.read_parquet(bl_path)
-    bl_df = bl_df.filter(
+    bl_df = bl_df.with_columns(
+        dataset=pl.col("dataset").replace(LEGACY_DATASET_KEY_ALIASES)
+    ).filter(
         (pl.col("afa_method") == args.method)
         & (pl.col("dataset") == args.dataset)
         & (pl.col("action_performed") != 0)
     )
-    # Keep only largest hard budget.
-    max_budget = bl_df["eval_hard_budget"].max()
-    bl_df = bl_df.filter(pl.col("eval_hard_budget") == max_budget)
     if bl_df.is_empty():
         print(
             f"No baseline data for method={args.method}, "
-            f"dataset={args.dataset}."
+            f"dataset={args.dataset} in {bl_path}. "
+            f"{_available_summary(pl.read_parquet(bl_path).with_columns(dataset=pl.col('dataset').replace(LEGACY_DATASET_KEY_ALIASES)))}"
         )
         return
+    # Keep only largest hard budget.
+    max_budget = bl_df["eval_hard_budget"].max()
+    bl_df = bl_df.filter(pl.col("eval_hard_budget") == max_budget)
 
     # Load comparison initializers.
     comparison_dfs: dict[str, pl.DataFrame] = {}
@@ -272,7 +307,9 @@ def main() -> None:
             )
             continue
         comparison_df = pl.read_parquet(path)
-        comparison_df = comparison_df.filter(
+        comparison_df = comparison_df.with_columns(
+            dataset=pl.col("dataset").replace(LEGACY_DATASET_KEY_ALIASES)
+        ).filter(
             (pl.col("afa_method") == args.method)
             & (pl.col("dataset") == args.dataset)
             & (pl.col("action_performed") != 0)

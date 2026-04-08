@@ -1,0 +1,4 @@
+class_name: "XORNoisyShortcutInitializer"
+kwargs:
+  mechanism: mcar
+  p: 0.7

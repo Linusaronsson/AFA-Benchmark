@@ -10,6 +10,7 @@ from afabench.common.registry import get_class
 pytestmark = pytest.mark.optional
 
 DATASETS_TO_TEST = [
+    ("XORNoisyShortcutDataset", {"n_samples": 10, "seed": 42}),
     ("CubeNMDataset", {"n_samples": 10, "seed": 42}),
     ("CubeNMARDataset", {"n_samples": 10, "seed": 42}),
     ("CubeDataset", {"n_samples": 10, "seed": 42}),

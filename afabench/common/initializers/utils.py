@@ -22,11 +22,14 @@ from afabench.common.initializers.mutual_information_initializer import (
 from afabench.common.initializers.random_initializer import (
     RandomInitializer,
 )
+from afabench.common.initializers.xor_noisy_shortcut_initializer import (
+    XORNoisyShortcutInitializer,
+)
 from afabench.common.initializers.zero_initializer import ZeroInitializer
 from afabench.common.registry import get_class
 
 
-def get_afa_initializer_from_config(  # noqa: PLR0911
+def get_afa_initializer_from_config(  # noqa: C901, PLR0911
     initializer_config: InitializerConfig,
 ) -> AFAInitializer:
     """Get initializer from config."""
@@ -75,6 +78,11 @@ def get_afa_initializer_from_config(  # noqa: PLR0911
     if initializer_config.class_name == "CubeNMARMARInitializer":
         cls = get_class(initializer_config.class_name)
         assert cls is CubeNMARMARInitializer
+        return cls(**initializer_config.kwargs)
+
+    if initializer_config.class_name == "XORNoisyShortcutInitializer":
+        cls = get_class(initializer_config.class_name)
+        assert cls is XORNoisyShortcutInitializer
         return cls(**initializer_config.kwargs)
 
     msg = f"Unknown initializer: {initializer_config.class_name}"

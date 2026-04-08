@@ -1,0 +1,36 @@
+# XOR noisy-shortcut smoke workflow:
+# - one dataset instance
+# - one hard budget (b=2)
+# - three representative missingness mechanisms at p=0.5
+# - no OL baseline, matching the thesis comparison set
+
+datasets: [xor_noisy_shortcut]
+dataset_instance_indices: [0]
+train_initializers: [cold, xor_mcar_p05, xor_mar_p05, xor_mnar_p05]
+methods:
+  - gadgil2023
+  - gadgil2023_ipw_feature_marginal
+  - aaco_full
+  - aaco_zero_fill
+  - aaco_mask_aware
+  - aaco_dr
+classifier_types: [external]
+smoke_test: true
+use_wandb: false
+device: cpu
+pipeline_cores: 4
+comparison_method_set_name: xor_train_missing_smoke
+plot_eval_hard_budget: 2.0
+plot_keep_largest_hard_budget: false
+
+pipeline_configfiles:
+  - extra/workflow/conf/train_missing_eval_cold_hard.yaml
+  - extra/workflow/conf/datasets_main.yaml
+  - extra/workflow/conf/methods.yaml
+  - extra/workflow/conf/method_sets.yaml
+  - extra/workflow/conf/eval_hard_budgets_single.yaml
+  - extra/workflow/conf/soft_budget_params_none.yaml
+  - extra/workflow/conf/method_options.yaml
+  - extra/workflow/conf/pretrain_mapping.yaml
+  - extra/workflow/conf/classifier_names.yaml
+  - extra/workflow/conf/unmaskers.yaml

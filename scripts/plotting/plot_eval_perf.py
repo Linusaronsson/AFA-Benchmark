@@ -23,6 +23,7 @@ from plotnine import (
 )
 from sklearn.metrics import accuracy_score, f1_score
 
+from afabench.common.naming import LEGACY_DATASET_KEY_ALIASES
 from afabench.eval.plotting_config import (
     COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
@@ -266,7 +267,9 @@ def read_parquet(input_csv_path: Path) -> pl.DataFrame:
     ]
     if casts:
         df = df.with_columns(casts)
-    return df
+    return df.with_columns(
+        dataset=pl.col("dataset").replace(LEGACY_DATASET_KEY_ALIASES)
+    )
 
 
 def get_variance_of_metrics_and_cost(df: pl.DataFrame) -> pl.DataFrame:

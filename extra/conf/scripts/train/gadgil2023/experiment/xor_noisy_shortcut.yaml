@@ -1,0 +1,12 @@
+batch_size: 128
+lr: 0.001
+hard_budget: 2
+nepochs: 120
+patience: 8
+eps: 0.05
+eps_decay: 0.2
+eps_steps: 10
+activation: "ReLU"
+
+hidden_units: [32, 32]
+dropout: 0.1

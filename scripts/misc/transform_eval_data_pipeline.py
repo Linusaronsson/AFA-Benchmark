@@ -6,6 +6,8 @@ from pathlib import Path
 
 import polars as pl
 
+from afabench.common.naming import canonicalize_dataset_key
+
 _CSV_SCHEMA_OVERRIDES = {
     "prev_selections_performed": pl.String,
     "action_performed": pl.UInt64,
@@ -118,7 +120,9 @@ def main() -> None:
     # Add some columns provided as args
     eval_df = eval_df.with_columns(
         afa_method=pl.lit(args.method, dtype=pl.String),
-        dataset=pl.lit(args.dataset, dtype=pl.String),
+        dataset=pl.lit(
+            canonicalize_dataset_key(args.dataset), dtype=pl.String
+        ),
         initializer=pl.lit(args.initializer, dtype=pl.String),
         train_seed=pl.lit(parse_nullable(args.train_seed), dtype=pl.UInt64),
         train_hard_budget=pl.lit(

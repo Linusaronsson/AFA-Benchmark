@@ -26,6 +26,7 @@ from plotnine import (
     scale_x_discrete,
 )
 
+from afabench.common.naming import LEGACY_DATASET_KEY_ALIASES
 from afabench.eval.plotting_config import (
     COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
@@ -77,7 +78,9 @@ def read_parquet_safe(path: Path) -> pl.DataFrame:
         pl.col("time_eval").fill_null(0).alias("eval"),
     )
 
-    return df
+    return df.with_columns(
+        dataset=pl.col("dataset").replace(LEGACY_DATASET_KEY_ALIASES)
+    )
 
 
 def parse_args() -> argparse.Namespace:

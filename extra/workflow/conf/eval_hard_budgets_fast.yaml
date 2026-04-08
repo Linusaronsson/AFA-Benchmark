@@ -18,3 +18,4 @@ eval_hard_budgets:
   physionet: [5, 15] # 40 features
   synthetic_mnist: [1, 3] # 7x7 patches
   synthetic_mnist_without_noise: [1, 3] # 7x7 patches
+  xor_noisy_shortcut: [1, 2] # 3 features, costs [1, 1, 2]

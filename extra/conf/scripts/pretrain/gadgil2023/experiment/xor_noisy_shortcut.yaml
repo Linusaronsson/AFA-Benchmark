@@ -1,0 +1,10 @@
+batch_size: 128
+lr: 0.001
+nepochs: 80
+patience: 8
+activation: "ReLU"
+
+hidden_units: [32, 32]
+dropout: 0.1
+min_masking_probability: 0.0
+max_masking_probability: 0.9

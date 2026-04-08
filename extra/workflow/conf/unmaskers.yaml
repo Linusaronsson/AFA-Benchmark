@@ -8,3 +8,4 @@ unmaskers:
   cube_nm_without_noise: cube_nm
   cube_nm_3ctx: cube_nm_3ctx
   cube_nm_3ctx_without_noise: cube_nm_3ctx
+  xor_noisy_shortcut: direct

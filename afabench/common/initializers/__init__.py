@@ -6,6 +6,7 @@ from .manual_initializer import ManualInitializer
 from .missingness_initializer import MissingnessInitializer
 from .mutual_information_initializer import MutualInformationInitializer
 from .random_initializer import RandomInitializer
+from .xor_noisy_shortcut_initializer import XORNoisyShortcutInitializer
 from .zero_initializer import ZeroInitializer
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "MissingnessInitializer",
     "MutualInformationInitializer",
     "RandomInitializer",
+    "XORNoisyShortcutInitializer",
     "ZeroInitializer",
 ]

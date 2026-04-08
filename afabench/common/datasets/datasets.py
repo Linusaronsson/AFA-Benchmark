@@ -2533,3 +2533,132 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.features = data["features"]
         obj.labels = data["labels"]
         return obj
+
+
+@final
+class XORNoisyShortcutDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    Three-feature binary dataset matching the thesis XOR shortcut example.
+
+    Features:
+        x1, x2 ~ Bernoulli(0.5) independently
+        y = XOR(x1, x2)
+        x3 = noisy copy of y with probability ``shortcut_accuracy``
+
+    Feature acquisition costs are fixed to [1, 1, 2].
+    """
+
+    @classmethod
+    @override
+    def accepts_seed(cls) -> bool:
+        return True
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size([3])
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([2])
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        return default_create_subset(self, indices)
+
+    def __init__(
+        self,
+        seed: int = 123,
+        n_samples: int = 20000,
+        shortcut_accuracy: float = 0.51,
+    ):
+        super().__init__()
+        if not (0.0 <= shortcut_accuracy <= 1.0):
+            msg = (
+                "shortcut_accuracy must be in [0, 1], got "
+                f"{shortcut_accuracy}."
+            )
+            raise ValueError(msg)
+
+        self.seed = seed
+        self.n_samples = n_samples
+        self.shortcut_accuracy = shortcut_accuracy
+        self.rng = torch.Generator()
+        self.rng.manual_seed(self.seed)
+
+        x1 = torch.randint(
+            0,
+            2,
+            (self.n_samples,),
+            dtype=torch.int64,
+            generator=self.rng,
+        )
+        x2 = torch.randint(
+            0,
+            2,
+            (self.n_samples,),
+            dtype=torch.int64,
+            generator=self.rng,
+        )
+        y_int = torch.bitwise_xor(x1, x2)
+        shortcut_matches = (
+            torch.rand((self.n_samples,), generator=self.rng)
+            < self.shortcut_accuracy
+        )
+        x3 = torch.where(shortcut_matches, y_int, 1 - y_int)
+
+        self.features = torch.stack(
+            [x1.float(), x2.float(), x3.float()],
+            dim=1,
+        )
+        self.labels = torch.nn.functional.one_hot(
+            y_int,
+            num_classes=self.label_shape[0],
+        ).float()
+        self.feature_costs = torch.tensor([1.0, 1.0, 2.0])
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self) -> int:
+        return len(self.features)
+
+    @override
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "feature_costs": self.feature_costs,
+                "config": {
+                    "n_samples": self.n_samples,
+                    "seed": self.seed,
+                    "shortcut_accuracy": self.shortcut_accuracy,
+                },
+            },
+            path / "dataset.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path / "dataset.pt")
+        obj = cls.__new__(cls)
+        obj.seed = data["config"]["seed"]
+        obj.n_samples = data["config"]["n_samples"]
+        obj.shortcut_accuracy = data["config"]["shortcut_accuracy"]
+        obj.rng = torch.Generator()
+        obj.features = data["features"]
+        obj.labels = data["labels"]
+        obj.feature_costs = data.get(
+            "feature_costs",
+            torch.tensor([1.0, 1.0, 2.0]),
+        )
+        return obj

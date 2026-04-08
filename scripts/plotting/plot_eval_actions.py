@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -10,12 +9,15 @@ import numpy as np
 import polars as pl
 from tqdm import tqdm
 
+from afabench.common.naming import LEGACY_DATASET_KEY_ALIASES
 from afabench.eval.plotting_config import (
     DATASET_NAME_MAPPING,
     METHOD_NAME_MAPPING,
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from matplotlib.axes import Axes
 
 type Heatmap = Any
@@ -82,7 +84,9 @@ def create_dummy_data() -> pl.DataFrame:
 
 
 def read_parquet(input_path: Path) -> pl.DataFrame:
-    return pl.read_parquet(input_path)
+    return pl.read_parquet(input_path).with_columns(
+        dataset=pl.col("dataset").replace(LEGACY_DATASET_KEY_ALIASES)
+    )
 
 
 def parse_args() -> argparse.Namespace:

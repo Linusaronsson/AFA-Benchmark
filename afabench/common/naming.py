@@ -18,6 +18,14 @@ _DATASET_KEY_ALIASES = {
     "PharyngitisDataset": "pharyngitis",
     "PhysionetDataset": "physionet",
     "SyntheticMNISTDataset": "synthetic_mnist",
+    "XORNoisyShortcutDataset": "xor_noisy_shortcut",
+}
+
+LEGACY_DATASET_KEY_ALIASES = {
+    "afa_context": "cube_nm_3ctx",
+    "afa_context_without_noise": "cube_nm_3ctx_without_noise",
+    "afa_context_v2": "cube_nm",
+    "afa_context_v2_without_noise": "cube_nm_without_noise",
 }
 
 
@@ -31,5 +39,12 @@ def camel_to_snake(name: str) -> str:
 def infer_dataset_key_from_class_name(class_name: str) -> str:
     """Infer the canonical dataset key from a dataset class name."""
     if class_name in _DATASET_KEY_ALIASES:
-        return _DATASET_KEY_ALIASES[class_name]
-    return camel_to_snake(class_name.removesuffix("Dataset"))
+        return canonicalize_dataset_key(_DATASET_KEY_ALIASES[class_name])
+    return canonicalize_dataset_key(
+        camel_to_snake(class_name.removesuffix("Dataset"))
+    )
+
+
+def canonicalize_dataset_key(dataset_key: str) -> str:
+    """Collapse historical dataset ids onto the current canonical keys."""
+    return LEGACY_DATASET_KEY_ALIASES.get(dataset_key, dataset_key)

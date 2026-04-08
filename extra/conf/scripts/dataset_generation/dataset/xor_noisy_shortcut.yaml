@@ -1,0 +1,4 @@
+class_name: "XORNoisyShortcutDataset"
+kwargs:
+  n_samples: 20000
+  shortcut_accuracy: 0.51
