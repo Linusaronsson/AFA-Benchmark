@@ -19,6 +19,7 @@ from plotnine import (
     labs,
     scale_color_brewer,
     scale_fill_brewer,
+    scale_linetype_manual,
     theme,
 )
 from sklearn.metrics import accuracy_score, f1_score
@@ -49,6 +50,28 @@ EXCLUSION_MAPPING = {
 }
 
 DATASETS = DATASET_NAME_MAPPING.keys()
+
+NON_MYOPIC_METHODS = frozenset(
+    {
+        "aaco",
+        "aaco_dr",
+        "aaco_full",
+        "aaco_impute_mean",
+        "aaco_madt",
+        "aaco_magbt",
+        "aaco_malasso",
+        "aaco_mask_aware",
+        "aaco_marf",
+        "aaco_nn",
+        "aaco_zero_fill",
+        "cube_nm_ar_oracle",
+        "jafa",
+        "odin_model_based",
+        "odin_model_free",
+        "ol_with_mask",
+        "ol_without_mask",
+    }
+)
 
 DATASET_NAME_MAPPING_INCLUDING_METRIC = {
     dataset: f"{name} ({'F1' if dataset in DATASETS_WITH_F_SCORE else 'Accuracy'})"
@@ -400,6 +423,11 @@ def get_plot(
         for orig in method_order
         if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
     ]
+    ordered_line_types = [
+        "dotted" if orig in NON_MYOPIC_METHODS else "solid"
+        for orig in method_order
+        if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
+    ]
 
     # Use provided dimensions or defaults
     if figure_width is None:
@@ -443,7 +471,11 @@ def get_plot(
             alpha=0.1,
             size=0.0,
         )
-        plot += geom_line()
+        plot += geom_line(aes(linetype="afa_method"))
+        plot += scale_linetype_manual(
+            values=ordered_line_types,
+            breaks=ordered_display_names,
+        )
     else:
         plot += geom_point()
         plot += geom_errorbar(
