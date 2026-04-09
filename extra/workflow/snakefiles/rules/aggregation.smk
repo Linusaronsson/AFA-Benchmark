@@ -7,6 +7,8 @@ Combines individual results into unified datasets:
 - Merging time measurements across all runs
 """
 
+from afabench.common.naming import resolve_existing_dataset_path
+
 
 def _eval_perf_transformed_inputs(
     method_set: str,
@@ -62,6 +64,13 @@ def _eval_perf_transformed_inputs(
             eval_soft_budget_param,
         ) in BUDGET_PARAMS[method][dataset]
     ]
+
+
+def _resolve_time_input(
+    canonical_path: str,
+    dataset: str,
+) -> str:
+    return resolve_existing_dataset_path(canonical_path, dataset)
 
 
 rule merge_eval_perf:
@@ -179,32 +188,49 @@ rule split_by_classifier_type_dualized:
 rule time_df_with_pretrain:
     """Combine pretrain, train, and eval time measurements into a single dataframe."""
     input:
-        lambda wildcards: (
-            f"extra/output/pretrained_models/{TRAIN_INITIALIZER_TAG}/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
+        lambda wildcards: _resolve_time_input(
+            (
+                f"extra/output/pretrained_models/{TRAIN_INITIALIZER_TAG}/"
+                f"{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
                 f"dataset-{wildcards.dataset}+"
                 f"instance_idx-{wildcards.dataset_instance_idx}/"
-                    f"pretrain_seed-{wildcards.pretrain_seed}/"
-                        "pretrain_time.txt"
+                f"pretrain_seed-{wildcards.pretrain_seed}/"
+                "pretrain_time.txt"
+            ),
+            wildcards.dataset,
         ),
-        f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "train_time.txt",
-        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
-                "pretrain_seed-{pretrain_seed}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_time.txt"
+        lambda wildcards: _resolve_time_input(
+            (
+                f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/"
+                f"{wildcards.method}/"
+                f"dataset-{wildcards.dataset}+"
+                f"instance_idx-{wildcards.dataset_instance_idx}/"
+                f"pretrain_seed-{wildcards.pretrain_seed}/"
+                f"train_seed-{wildcards.train_seed}+"
+                f"train_hard_budget-{wildcards.train_hard_budget}+"
+                f"train_soft_budget_param-{wildcards.train_soft_budget_param}/"
+                "train_time.txt"
+            ),
+            wildcards.dataset,
+        ),
+        lambda wildcards: _resolve_time_input(
+            (
+                "extra/output/eval_time_results/"
+                f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/"
+                f"{wildcards.method}/"
+                f"dataset-{wildcards.dataset}+"
+                f"instance_idx-{wildcards.dataset_instance_idx}/"
+                f"pretrain_seed-{wildcards.pretrain_seed}/"
+                f"train_seed-{wildcards.train_seed}+"
+                f"train_hard_budget-{wildcards.train_hard_budget}+"
+                f"train_soft_budget_param-{wildcards.train_soft_budget_param}/"
+                f"eval_seed-{wildcards.eval_seed}+"
+                f"eval_hard_budget-{wildcards.eval_hard_budget}+"
+                f"eval_soft_budget_param-{wildcards.eval_soft_budget_param}/"
+                "eval_time.txt"
+            ),
+            wildcards.dataset,
+        )
     output:
         f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
@@ -234,25 +260,38 @@ rule time_df_with_pretrain:
 rule time_df_without_pretrain:
     """Combine train and eval time measurements, with pretrain time set to null."""
     input:
-        f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+        lambda wildcards: _resolve_time_input(
+            (
+                f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/"
+                f"{wildcards.method}/"
+                f"dataset-{wildcards.dataset}+"
+                f"instance_idx-{wildcards.dataset_instance_idx}/"
                 f"{NO_PRETRAIN_STR}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "train_time.txt",
-        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+                f"train_seed-{wildcards.train_seed}+"
+                f"train_hard_budget-{wildcards.train_hard_budget}+"
+                f"train_soft_budget_param-{wildcards.train_soft_budget_param}/"
+                "train_time.txt"
+            ),
+            wildcards.dataset,
+        ),
+        lambda wildcards: _resolve_time_input(
+            (
+                "extra/output/eval_time_results/"
+                f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/"
+                f"{wildcards.method}/"
+                f"dataset-{wildcards.dataset}+"
+                f"instance_idx-{wildcards.dataset_instance_idx}/"
                 f"{NO_PRETRAIN_STR}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_time.txt"
+                f"train_seed-{wildcards.train_seed}+"
+                f"train_hard_budget-{wildcards.train_hard_budget}+"
+                f"train_soft_budget_param-{wildcards.train_soft_budget_param}/"
+                f"eval_seed-{wildcards.eval_seed}+"
+                f"eval_hard_budget-{wildcards.eval_hard_budget}+"
+                f"eval_soft_budget_param-{wildcards.eval_soft_budget_param}/"
+                "eval_time.txt"
+            ),
+            wildcards.dataset,
+        )
     output:
         f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"

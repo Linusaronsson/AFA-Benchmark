@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 _DATASET_KEY_ALIASES = {
     "ACTG175Dataset": "actg",
@@ -28,6 +29,11 @@ LEGACY_DATASET_KEY_ALIASES = {
     "afa_context_v2_without_noise": "cube_nm_without_noise",
 }
 
+CANONICAL_TO_LEGACY_DATASET_KEY_ALIASES = {
+    canonical_key: legacy_key
+    for legacy_key, canonical_key in LEGACY_DATASET_KEY_ALIASES.items()
+}
+
 
 def camel_to_snake(name: str) -> str:
     """Convert CamelCase names to snake_case."""
@@ -48,3 +54,31 @@ def infer_dataset_key_from_class_name(class_name: str) -> str:
 def canonicalize_dataset_key(dataset_key: str) -> str:
     """Collapse historical dataset ids onto the current canonical keys."""
     return LEGACY_DATASET_KEY_ALIASES.get(dataset_key, dataset_key)
+
+
+def get_legacy_dataset_key(dataset_key: str) -> str | None:
+    """Return the legacy dataset key for a canonical dataset key, if any."""
+    return CANONICAL_TO_LEGACY_DATASET_KEY_ALIASES.get(dataset_key)
+
+
+def resolve_existing_dataset_path(
+    path: str | Path,
+    dataset_key: str,
+) -> str:
+    """Resolve a canonical dataset path to an existing legacy path if needed."""
+    canonical_path = str(path)
+    if Path(canonical_path).exists():
+        return canonical_path
+
+    legacy_dataset_key = get_legacy_dataset_key(dataset_key)
+    if legacy_dataset_key is None:
+        return canonical_path
+
+    legacy_path = canonical_path.replace(
+        f"dataset-{dataset_key}",
+        f"dataset-{legacy_dataset_key}",
+        1,
+    )
+    if Path(legacy_path).exists():
+        return legacy_path
+    return canonical_path
