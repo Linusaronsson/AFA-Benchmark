@@ -246,7 +246,8 @@ class AFAEnv(EnvBase):
         )
 
         # Match evaluator semantics: if a proposed selection would exceed the
-        # hard budget, force a STOP transition instead of executing it.
+        # hard budget, terminate without executing the acquisition.
+        budget_exceeded = torch.zeros_like(action_values, dtype=torch.bool)
         if self.has_hard_budget:
             candidate_selection_mask = action_values != 0
             if candidate_selection_mask.any():
@@ -260,70 +261,78 @@ class AFAEnv(EnvBase):
                 )
                 if would_exceed.any():
                     candidate_indices = batch_indices[candidate_selection_mask]
-                    forced_stop_indices = candidate_indices[would_exceed]
-                    action_values[forced_stop_indices] = 0
+                    budget_exceeded[candidate_indices[would_exceed]] = True
 
-        effective_action = (
-            action_values.unsqueeze(-1)
-            if action.ndim > 1 and action.shape[-1] == 1
-            else action_values
-        )
-
-        # Acquire new features from unmasker if we don't choose the stop action
-        no_stop_mask = action_values != 0
-        new_feature_mask_no_stop = self.unmask_fn(
-            masked_features=tensordict["masked_features"][no_stop_mask],
-            feature_mask=tensordict["feature_mask"][no_stop_mask],
-            features=tensordict["features"][no_stop_mask],
-            afa_selection=(action_values[no_stop_mask] - 1).unsqueeze(-1),
-            selection_mask=tensordict["performed_selection_mask"][
-                no_stop_mask
-            ],
-            label=tensordict["label"][no_stop_mask],
-            feature_shape=self.feature_shape,
-        )
+        # Acquire new features only for selections that are both non-stop and
+        # within budget.
+        valid_selection_mask = (action_values != 0) & ~budget_exceeded
         new_feature_mask = tensordict["feature_mask"].clone()
-        new_feature_mask[no_stop_mask] = new_feature_mask_no_stop
+        if valid_selection_mask.any():
+            new_feature_mask_valid = self.unmask_fn(
+                masked_features=tensordict["masked_features"][
+                    valid_selection_mask
+                ],
+                feature_mask=tensordict["feature_mask"][valid_selection_mask],
+                features=tensordict["features"][valid_selection_mask],
+                afa_selection=(
+                    action_values[valid_selection_mask] - 1
+                ).unsqueeze(-1),
+                selection_mask=tensordict["performed_selection_mask"][
+                    valid_selection_mask
+                ],
+                label=tensordict["label"][valid_selection_mask],
+                feature_shape=self.feature_shape,
+            )
+            new_feature_mask[valid_selection_mask] = new_feature_mask_valid
 
         new_masked_features = tensordict["features"].clone()
         new_masked_features[~new_feature_mask] = 0.0
 
         # Add up costs
         new_accumulated_cost = tensordict["accumulated_cost"].clone()
-        new_accumulated_cost[no_stop_mask] += self.selection_costs[
-            (action_values[no_stop_mask] - 1).long()
-        ]
+        if valid_selection_mask.any():
+            new_accumulated_cost[valid_selection_mask] += self.selection_costs[
+                (action_values[valid_selection_mask] - 1).long()
+            ]
 
         # Update masks
         new_performed_action_mask = tensordict["performed_action_mask"].clone()
-        new_performed_action_mask[batch_indices, action_values.long()] = True
         new_allowed_action_mask = tensordict["allowed_action_mask"].clone()
         new_performed_selection_mask = tensordict[
             "performed_selection_mask"
         ].clone()
 
-        # For non-stop actions, update selection mask and disable that action
-        if no_stop_mask.any():
-            non_stop_indices = batch_indices[no_stop_mask]
-            selections = (action_values[no_stop_mask] - 1).long()
+        stop_mask = action_values == 0
+        if stop_mask.any():
+            new_performed_action_mask[batch_indices[stop_mask], 0] = True
+
+        # For valid selection actions, update selection mask and disable that action
+        if valid_selection_mask.any():
+            non_stop_indices = batch_indices[valid_selection_mask]
+            selections = (action_values[valid_selection_mask] - 1).long()
+            new_performed_action_mask[
+                non_stop_indices, action_values[valid_selection_mask].long()
+            ] = True
             new_performed_selection_mask[non_stop_indices, selections] = True
             new_allowed_action_mask[
-                non_stop_indices, action_values[no_stop_mask].long()
+                non_stop_indices, action_values[valid_selection_mask].long()
             ] = False
 
         # If stop action is not allowed, ensure it stays disabled
         if not self.allow_stop_action:
             new_allowed_action_mask[:, 0] = False
 
-        # Done if we choose to stop (possibly because the environment forced a
-        # stop on an over-budget proposal), or all selection actions are exhausted.
+        # Done if we choose to stop, propose an over-budget selection, or all
+        # selection actions are exhausted.
         # Check if all selection actions (actions 1 through n_selections) are disabled
         selection_actions_available = new_allowed_action_mask[:, 1:].any(
             dim=-1
         )
-        done = (action_values == 0).unsqueeze(-1) | (
-            ~selection_actions_available
-        ).unsqueeze(-1)
+        done = (
+            stop_mask.unsqueeze(-1)
+            | budget_exceeded.unsqueeze(-1)
+            | (~selection_actions_available).unsqueeze(-1)
+        )
 
         # Always calculate a possible reward
         with torch.no_grad():
@@ -334,7 +343,7 @@ class AFAEnv(EnvBase):
                 new_masked_features,
                 new_feature_mask,
                 new_performed_selection_mask,
-                effective_action,
+                action,
                 tensordict["features"],
                 tensordict["label"],
                 done,

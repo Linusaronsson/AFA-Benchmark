@@ -622,7 +622,7 @@ def test_per_sample_termination_hard_budget() -> None:
     )
 
 
-def test_over_budget_selection_is_forced_to_stop_without_acquisition() -> None:
+def test_over_budget_selection_is_terminal_noop_without_acquisition() -> None:
     all_features = torch.tensor([[1.0, 2.0, 3.0]])
     all_labels = torch.tensor([[1, 0]])
     dataset_fn = get_afa_dataset_fn(all_features, all_labels, shuffle=False)
@@ -652,6 +652,8 @@ def test_over_budget_selection_is_forced_to_stop_without_acquisition() -> None:
     td = env.step(td)["next"]
 
     feature_mask_after_first = td["feature_mask"].clone()
+    performed_action_mask_after_first = td["performed_action_mask"].clone()
+    allowed_action_mask_after_first = td["allowed_action_mask"].clone()
     selection_mask_after_first = td["performed_selection_mask"].clone()
     accumulated_cost_after_first = td["accumulated_cost"].clone()
 
@@ -662,13 +664,19 @@ def test_over_budget_selection_is_forced_to_stop_without_acquisition() -> None:
         "Over-budget proposal should terminate the episode"
     )
     assert torch.equal(td["feature_mask"], feature_mask_after_first), (
-        "Forced stop should not acquire the over-budget feature"
+        "Terminal no-op should not acquire the over-budget feature"
     )
     assert torch.equal(
+        td["performed_action_mask"], performed_action_mask_after_first
+    ), "Terminal no-op should not mark the over-budget action as performed"
+    assert torch.equal(
+        td["allowed_action_mask"], allowed_action_mask_after_first
+    ), "Terminal no-op should not consume any additional allowed action"
+    assert torch.equal(
         td["performed_selection_mask"], selection_mask_after_first
-    ), "Forced stop should not mark the over-budget selection as performed"
+    ), "Terminal no-op should not mark the over-budget selection as performed"
     assert torch.equal(td["accumulated_cost"], accumulated_cost_after_first), (
-        "Forced stop should not increase accumulated cost"
+        "Terminal no-op should not increase accumulated cost"
     )
 
 
