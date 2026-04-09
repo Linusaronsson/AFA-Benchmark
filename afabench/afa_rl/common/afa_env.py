@@ -75,6 +75,7 @@ class AFAEnv(EnvBase):
         self.feature_shape = feature_shape
         self.n_selections = n_selections
         self.n_classes = n_classes
+        self.has_hard_budget = hard_budget is not None
         if hard_budget is None:
             # If hard budget is not set, always allow agent to stop
             self.hard_budget = self.n_selections
@@ -237,16 +238,44 @@ class AFAEnv(EnvBase):
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
         batch_numel = tensordict.batch_size.numel()
         batch_indices = torch.arange(batch_numel, device=tensordict.device)
+        action = tensordict["action"].clone()
+        action_values = (
+            action.squeeze(-1)
+            if action.ndim > 1 and action.shape[-1] == 1
+            else action
+        )
+
+        # Match evaluator semantics: if a proposed selection would exceed the
+        # hard budget, force a STOP transition instead of executing it.
+        if self.has_hard_budget:
+            candidate_selection_mask = action_values != 0
+            if candidate_selection_mask.any():
+                proposed_costs = self.selection_costs[
+                    (action_values[candidate_selection_mask] - 1).long()
+                ]
+                would_exceed = (
+                    tensordict["accumulated_cost"][candidate_selection_mask]
+                    + proposed_costs
+                    > self.hard_budget
+                )
+                if would_exceed.any():
+                    candidate_indices = batch_indices[candidate_selection_mask]
+                    forced_stop_indices = candidate_indices[would_exceed]
+                    action_values[forced_stop_indices] = 0
+
+        effective_action = (
+            action_values.unsqueeze(-1)
+            if action.ndim > 1 and action.shape[-1] == 1
+            else action_values
+        )
 
         # Acquire new features from unmasker if we don't choose the stop action
-        no_stop_mask = tensordict["action"] != 0
+        no_stop_mask = action_values != 0
         new_feature_mask_no_stop = self.unmask_fn(
             masked_features=tensordict["masked_features"][no_stop_mask],
             feature_mask=tensordict["feature_mask"][no_stop_mask],
             features=tensordict["features"][no_stop_mask],
-            afa_selection=(tensordict["action"] - 1)[no_stop_mask].unsqueeze(
-                -1
-            ),
+            afa_selection=(action_values[no_stop_mask] - 1).unsqueeze(-1),
             selection_mask=tensordict["performed_selection_mask"][
                 no_stop_mask
             ],
@@ -262,12 +291,12 @@ class AFAEnv(EnvBase):
         # Add up costs
         new_accumulated_cost = tensordict["accumulated_cost"].clone()
         new_accumulated_cost[no_stop_mask] += self.selection_costs[
-            (tensordict["action"] - 1)[no_stop_mask]
+            (action_values[no_stop_mask] - 1).long()
         ]
 
         # Update masks
         new_performed_action_mask = tensordict["performed_action_mask"].clone()
-        new_performed_action_mask[batch_indices, tensordict["action"]] = True
+        new_performed_action_mask[batch_indices, action_values.long()] = True
         new_allowed_action_mask = tensordict["allowed_action_mask"].clone()
         new_performed_selection_mask = tensordict[
             "performed_selection_mask"
@@ -276,29 +305,25 @@ class AFAEnv(EnvBase):
         # For non-stop actions, update selection mask and disable that action
         if no_stop_mask.any():
             non_stop_indices = batch_indices[no_stop_mask]
-            selections = (
-                tensordict["action"][no_stop_mask] - 1
-            )  # Convert to 0-based selection index
+            selections = (action_values[no_stop_mask] - 1).long()
             new_performed_selection_mask[non_stop_indices, selections] = True
             new_allowed_action_mask[
-                non_stop_indices, tensordict["action"][no_stop_mask]
+                non_stop_indices, action_values[no_stop_mask].long()
             ] = False
 
         # If stop action is not allowed, ensure it stays disabled
         if not self.allow_stop_action:
             new_allowed_action_mask[:, 0] = False
 
-        # Done if we **exceed** the hard budget, have chosen all the actions, choose to stop (action 0),
-        # or all selection actions are exhausted
+        # Done if we choose to stop (possibly because the environment forced a
+        # stop on an over-budget proposal), or all selection actions are exhausted.
         # Check if all selection actions (actions 1 through n_selections) are disabled
         selection_actions_available = new_allowed_action_mask[:, 1:].any(
             dim=-1
         )
-        done = (
-            ((new_accumulated_cost > self.hard_budget).unsqueeze(-1))
-            | (tensordict["action"] == 0).unsqueeze(-1)
-            | (~selection_actions_available).unsqueeze(-1)
-        )
+        done = (action_values == 0).unsqueeze(-1) | (
+            ~selection_actions_available
+        ).unsqueeze(-1)
 
         # Always calculate a possible reward
         with torch.no_grad():
@@ -309,7 +334,7 @@ class AFAEnv(EnvBase):
                 new_masked_features,
                 new_feature_mask,
                 new_performed_selection_mask,
-                tensordict["action"],
+                effective_action,
                 tensordict["features"],
                 tensordict["label"],
                 done,
