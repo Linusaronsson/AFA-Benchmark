@@ -17,8 +17,8 @@ from plotnine import (
     geom_ribbon,
     ggplot,
     labs,
-    scale_color_brewer,
-    scale_fill_brewer,
+    scale_color_manual,
+    scale_fill_manual,
     scale_linetype_manual,
     theme,
 )
@@ -26,10 +26,10 @@ from sklearn.metrics import accuracy_score, f1_score
 
 from afabench.common.naming import LEGACY_DATASET_KEY_ALIASES
 from afabench.eval.plotting_config import (
-    COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
     DATASET_SETS,
     DATASETS_WITH_F_SCORE,
+    METHOD_COLOR_MAPPING,
     METHOD_NAME_MAPPING,
     PLOT_HEIGHT,
     PLOT_WIDTH,
@@ -74,6 +74,16 @@ NON_MYOPIC_METHODS = frozenset(
         "odin_model_free",
         "ol_with_mask",
         "ol_without_mask",
+    }
+)
+
+COMPARE_INIT_ONLY_METHODS = frozenset(
+    {
+        "gadgil2023_ipw_feature_marginal",
+        "aaco_full",
+        "aaco_zero_fill",
+        "aaco_mask_aware",
+        "aaco_dr",
     }
 )
 
@@ -295,6 +305,14 @@ def read_parquet(input_csv_path: Path) -> pl.DataFrame:
     )
 
 
+def filter_compare_init_only_methods(
+    dataframe: pl.DataFrame,
+) -> pl.DataFrame:
+    return dataframe.filter(
+        ~pl.col("afa_method").is_in(COMPARE_INIT_ONLY_METHODS)
+    )
+
+
 def get_variance_of_metrics_and_cost(df: pl.DataFrame) -> pl.DataFrame:
     df = df.group_by(
         "afa_method", "dataset", "eval_hard_budget", "soft_budget_param"
@@ -448,7 +466,6 @@ def get_plot(
                 x=x_col,
                 y="mean_metric",
                 color="afa_method",
-                fill="afa_method",
             ),
         )
         + facet_wrap(
@@ -456,29 +473,36 @@ def get_plot(
             scales="free",
             ncol=4,
         )
-        + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
+        + labs(x=x_label, y="Metric")
         + theme(figure_size=(figure_width, figure_height))
-        + scale_color_brewer(
-            type="qual",
-            palette=COLOR_PALETTE_NAME,
+        + scale_color_manual(
+            name="Policy",
+            values=METHOD_COLOR_MAPPING,
             breaks=ordered_display_names,
-        )
-        + scale_fill_brewer(
-            type="qual",
-            palette=COLOR_PALETTE_NAME,
-            breaks=ordered_display_names,
+            limits=ordered_display_names,
         )
     )
 
     if use_line:
         plot += geom_point()
+        plot += scale_fill_manual(
+            values=METHOD_COLOR_MAPPING,
+            breaks=ordered_display_names,
+            limits=ordered_display_names,
+        )
         plot += geom_ribbon(
-            aes(ymin="low_metric", ymax="high_metric"),
+            aes(
+                ymin="low_metric",
+                ymax="high_metric",
+                fill="afa_method",
+            ),
             alpha=0.1,
             size=0.0,
+            show_legend=False,
         )
         plot += geom_line(aes(linetype="afa_method"))
         plot += scale_linetype_manual(
+            name="Policy",
             values=ordered_line_types,
             breaks=ordered_display_names,
         )
@@ -757,7 +781,9 @@ class EvaluationPlotter:
 
     def load_input_file(self) -> None:
         """Load the input parquet file."""
-        self.df = read_parquet(self.input_path)
+        self.df = filter_compare_init_only_methods(
+            read_parquet(self.input_path)
+        )
 
     def validate_soft_budget_params(self) -> None:
         """Validate and consolidate soft budget parameters."""

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from matplotlib import colormaps
+from matplotlib.colors import to_hex
+
 # Plot dimensions
 PLOT_WIDTH = 13
 PLOT_HEIGHT = 5
@@ -152,3 +155,27 @@ DATASET_SETS = {
 #   - 'Paired': Paired colors, 12 colors
 #   - 'Set3': Pastel, 12 colors
 COLOR_PALETTE_NAME = "Dark2"
+
+
+def _colormap_colors(name: str, n_colors: int) -> list[str]:
+    cmap = colormaps[name]
+    return [to_hex(cmap(index)) for index in range(n_colors)]
+
+
+_METHOD_COLOR_SEQUENCE = [
+    *_colormap_colors("tab20", 20),
+    *_colormap_colors("tab20b", 20),
+    *_colormap_colors("tab20c", 20),
+]
+
+if len(_METHOD_COLOR_SEQUENCE) < len(METHOD_NAME_MAPPING):
+    msg = (
+        "Not enough colors configured for all methods: "
+        f"{len(_METHOD_COLOR_SEQUENCE)} < {len(METHOD_NAME_MAPPING)}"
+    )
+    raise ValueError(msg)
+
+METHOD_COLOR_MAPPING = {
+    display_name: _METHOD_COLOR_SEQUENCE[index]
+    for index, display_name in enumerate(METHOD_NAME_MAPPING.values())
+}
