@@ -46,8 +46,10 @@ rule train_classifier:
         script_params=lambda wildcards: _classifier_script_params(
             wildcards.dataset
         ),
+        device=lambda wildcards: _classifier_device(),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_extra=_classifier_slurm_extra()
     shell:
         """
         python scripts/train/{params.script_name}.py \
@@ -56,7 +58,7 @@ rule train_classifier:
             save_path={output} \
             components/initializers@initializer={TRAIN_INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={DEVICE} \
+            device={params.device} \
             seed=0 \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
@@ -82,8 +84,12 @@ rule train_classifier_for_method:
         script_params=lambda wildcards: _method_classifier_script_params(
             wildcards.method, wildcards.dataset
         ),
+        device=lambda wildcards: _method_device(wildcards.method),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_extra=lambda wildcards: _method_slurm_extra(
+            wildcards.method
+        )
     shell:
         """
         python scripts/train/{params.script_name}.py \
@@ -92,7 +98,7 @@ rule train_classifier_for_method:
             save_path={output} \
             components/initializers@initializer={TRAIN_INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={DEVICE} \
+            device={params.device} \
             seed=0 \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \

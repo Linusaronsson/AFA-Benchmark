@@ -86,6 +86,10 @@ PIPELINE_PASSTHROUGH_KEYS = (
     "methods",
     "dataset_instance_indices",
     "device",
+    "default_compute_platform",
+    "compute_platform_devices",
+    "classifier_compute_platform",
+    "slurm_extra_by_compute_platform",
     "use_wandb",
     "smoke_test",
 )

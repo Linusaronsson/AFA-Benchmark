@@ -1,5 +1,6 @@
 executor: slurm
-jobs: 9001
+# Avoid flooding the queue while still leaving room for CPU-heavy sweeps.
+jobs: 16
 latency-wait: 30 # seconds
 
 default-resources:

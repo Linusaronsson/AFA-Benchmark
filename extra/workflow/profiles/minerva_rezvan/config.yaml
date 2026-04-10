@@ -9,7 +9,8 @@
 #   L40s — 48 GiB, 8 total  (up to 4 per node)
 
 executor: slurm
-jobs: 50
+# Keep queue pressure modest on shared course infrastructure.
+jobs: 8
 latency-wait: 60
 retries: 1
 

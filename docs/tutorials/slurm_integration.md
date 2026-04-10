@@ -135,14 +135,14 @@ To create a profile for a new cluster:
    executor: slurm
    jobs: 9001
    latency-wait: 30
-   
+
    default-resources:
      slurm_partition: my_partition
      slurm_account: my_account
      runtime: 120
      cpus_per_task: 1
      mem_mb: 4000
-   
+
    set-resources:
      pretrain_model:
        runtime: 600
@@ -183,6 +183,55 @@ set-resources:
   train_classifier:
     slurm_partition: cpu_partition  # CPU-only nodes
 ```
+
+### Method-Aware CPU/GPU Placement
+
+The workflow now supports a logical `compute_platform` label per method and
+per pretrained model family. This lets one Snakemake run mix CPU-only methods
+(for example the AACO family) with GPU-favored methods (for example RL and
+DIME-family baselines) while keeping a single result tree.
+
+Annotate the methods in `extra/workflow/conf/method_options.yaml`:
+
+```yaml
+method_options:
+  aaco_full:
+    train_script_name: "aaco"
+    compute_platform: cpu
+  ol_with_mask:
+    pretrained_model_name: "ol_with_mask"
+    train_script_name: "kachuee2019"
+    compute_platform: gpu
+```
+
+Annotate shared pretraining families in `extra/workflow/conf/pretrain_mapping.yaml`:
+
+```yaml
+pretrain_mapping:
+  aaco:
+    pretrain_script_name: "aaco"
+    compute_platform: cpu
+  dime:
+    pretrain_script_name: "gadgil2023"
+    compute_platform: gpu
+```
+
+Then, in your orchestration overlay config, map those logical labels to actual
+devices and SLURM flags:
+
+```yaml
+default_compute_platform: cpu
+compute_platform_devices:
+  cpu: cpu
+  gpu: cuda
+classifier_compute_platform: cpu
+slurm_extra_by_compute_platform:
+  cpu: "--constraint=NOGPU"
+  gpu: "--gres=gpu:T4:1"
+```
+
+This is the cleanest way to keep one outer command and one centralized output
+directory without forcing the whole run onto either CPU or GPU.
 
 ### Debugging SLURM Issues
 

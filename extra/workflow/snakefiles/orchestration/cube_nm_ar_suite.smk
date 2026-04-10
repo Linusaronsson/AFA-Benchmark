@@ -31,6 +31,7 @@ Runtime config (`--configfile` on this snakefile):
     cube_nm_ar_suite_pipeline_config_overrides (list[str], default=[])
 """
 
+import json
 import shlex
 
 SUITE_TRAIN_INITIALIZERS = config.get(
@@ -94,6 +95,16 @@ SUITE_PIPELINE_RERUN_INCOMPLETE = config.get(
 SUITE_PIPELINE_CONFIG_OVERRIDES = config.get(
     "cube_nm_ar_suite_pipeline_config_overrides",
     shlex.split(config.get("pipeline_extra_config", "")),
+)
+SUITE_PIPELINE_PASSTHROUGH_KEYS = (
+    "dataset_instance_indices",
+    "device",
+    "default_compute_platform",
+    "compute_platform_devices",
+    "classifier_compute_platform",
+    "slurm_extra_by_compute_platform",
+    "use_wandb",
+    "smoke_test",
 )
 
 if not SUITE_METHODS:
@@ -164,6 +175,28 @@ def _format_cli_list(values: list[str]) -> str:
     return "[" + ",".join(repr(value) for value in values) + "]"
 
 
+def _serialize_config_value(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return str(value)
+    if isinstance(value, str):
+        return value
+    return json.dumps(value)
+
+
+def _pipeline_passthrough_overrides() -> list[str]:
+    overrides: list[str] = []
+    for key in SUITE_PIPELINE_PASSTHROUGH_KEYS:
+        if key not in config:
+            continue
+        value = config[key]
+        if value is None:
+            continue
+        overrides.append(f"{key}={_serialize_config_value(value)}")
+    return overrides
+
+
 def _suite_marker() -> str:
     return (
         "extra/output/.suite_state/cube_nm_ar/"
@@ -229,6 +262,7 @@ def _materialization_command(
             *configfiles,
             "--config",
             *SUITE_PIPELINE_CONFIG_OVERRIDES,
+            *_pipeline_passthrough_overrides(),
             f"methods={_format_cli_list(_mode_methods(budget_mode))}",
             "stop_shield_deltas="
             f"{_format_cli_list(_mode_stop_shield_deltas(budget_mode))}",

@@ -43,8 +43,36 @@ def load_config(config):
     dual_lambdas = [str(value) for value in config.get("dual_lambdas", [])]
     cube_nm_ar_budget_mode = config.get("cube_nm_ar_budget_mode", "hard")
     device = config.get("device", "cpu")
+    default_compute_platform = config.get("default_compute_platform", "cpu")
+    compute_platform_devices = config.get(
+        "compute_platform_devices",
+        {"cpu": "cpu", "gpu": "cuda"},
+    )
+    classifier_compute_platform = config.get(
+        "classifier_compute_platform",
+        default_compute_platform,
+    )
+    slurm_extra_by_compute_platform = config.get(
+        "slurm_extra_by_compute_platform",
+        {},
+    )
     use_wandb = config.get("use_wandb", False)
     smoke_test = config.get("smoke_test", False)
+
+    if default_compute_platform not in compute_platform_devices:
+        msg = (
+            "Expected default_compute_platform to be one of "
+            f"{sorted(compute_platform_devices)}, got "
+            f"{default_compute_platform!r}."
+        )
+        raise ValueError(msg)
+    if classifier_compute_platform not in compute_platform_devices:
+        msg = (
+            "Expected classifier_compute_platform to be one of "
+            f"{sorted(compute_platform_devices)}, got "
+            f"{classifier_compute_platform!r}."
+        )
+        raise ValueError(msg)
 
     # ========================================================================
     # Pretrained Models Configuration
@@ -64,6 +92,18 @@ def load_config(config):
         model_name: " ".join(model_config.get("pretrain_params", []))
         for model_name, model_config in pretrain_mapping.items()
     }
+    pretrain_compute_platforms = {
+        model_name: model_config.get(
+            "compute_platform",
+            default_compute_platform,
+        )
+        for model_name, model_config in pretrain_mapping.items()
+    }
+    _validate_compute_platforms(
+        pretrain_compute_platforms,
+        compute_platform_devices,
+        label="pretrain_mapping",
+    )
 
     # ========================================================================
     # Methods Configuration
@@ -109,6 +149,16 @@ def load_config(config):
         for method, options in method_options.items()
         if method in methods and "train_script_name" in options
     }
+    method_compute_platforms = {
+        method: options.get("compute_platform", default_compute_platform)
+        for method, options in method_options.items()
+        if method in methods
+    }
+    _validate_compute_platforms(
+        method_compute_platforms,
+        compute_platform_devices,
+        label="method_options",
+    )
 
     # Optional method-specific classifier training config.
     # Format in method_options:
@@ -317,16 +367,22 @@ def load_config(config):
         "DUAL_LAMBDAS": dual_lambdas,
         "CUBE_NM_AR_BUDGET_MODE": cube_nm_ar_budget_mode,
         "DEVICE": device,
+        "DEFAULT_COMPUTE_PLATFORM": default_compute_platform,
+        "COMPUTE_PLATFORM_DEVICES": compute_platform_devices,
+        "CLASSIFIER_COMPUTE_PLATFORM": classifier_compute_platform,
+        "SLURM_EXTRA_BY_COMPUTE_PLATFORM": slurm_extra_by_compute_platform,
         "USE_WANDB": use_wandb,
         "SMOKE_TEST": smoke_test,
         "PRETRAIN_NAMES": pretrain_names,
         "PRETRAIN_SCRIPT_NAMES": pretrain_model_script_names,
         "PRETRAIN_PARAMS": pretrain_model_params,
+        "PRETRAIN_COMPUTE_PLATFORMS": pretrain_compute_platforms,
         "METHOD_OPTIONS": method_options,
         "METHODS": methods,
         "METHODS_WITH_PRETRAINING_STAGE": methods_with_pretraining_stage,
         "METHODS_WITHOUT_PRETRAINING_STAGE": methods_without_pretraining_stage,
         "METHOD_TRAIN_SCRIPT_NAMES": method_train_script_names,
+        "METHOD_COMPUTE_PLATFORMS": method_compute_platforms,
         "METHOD_CLASSIFIER_SCRIPT_NAMES": method_classifier_script_names,
         "METHOD_CLASSIFIER_SCRIPT_PARAMS": method_classifier_script_params,
         "METHOD_TO_CLASSIFIER_BUNDLE_METHOD": (
@@ -358,6 +414,27 @@ def _fill_missing_datasets_with_default(config_dict, datasets):
         for dataset in datasets
         if dataset not in config_dict
     }
+
+
+def _validate_compute_platforms(
+    platforms: dict[str, str],
+    compute_platform_devices: dict[str, str],
+    *,
+    label: str,
+) -> None:
+    valid_platforms = set(compute_platform_devices)
+    invalid_entries = {
+        name: platform
+        for name, platform in platforms.items()
+        if platform not in valid_platforms
+    }
+    if not invalid_entries:
+        return
+    msg = (
+        f"Invalid compute_platform entries in {label}: {invalid_entries}. "
+        f"Expected one of {sorted(valid_platforms)}."
+    )
+    raise ValueError(msg)
 
 
 def _create_budget_combinations(

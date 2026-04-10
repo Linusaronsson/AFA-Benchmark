@@ -1,32 +1,29 @@
-# Overlay config for running the missingness orchestration workflows on Alvis.
+# Overlay config for running missingness orchestration workflows on Vera.
+#
+# This is intentionally CPU-safe by default. AACO-family runs fit this well.
+# If/when the exact Vera GPU request syntax is confirmed, switch
+# `compute_platform_devices.gpu` to `cuda` and populate
+# `slurm_extra_by_compute_platform.gpu` accordingly.
 #
 # Usage:
 #   uv run snakemake \
 #     -s extra/workflow/snakefiles/orchestration/initializer_comparison.smk \
 #     --configfile \
 #       extra/workflow/conf/train_missing_eval_cold_initializer_comparison.yaml \
-#       extra/workflow/conf/missingness_alvis_rezvan.yaml \
-#     -j 1 \
-#     all
-#
-#   uv run snakemake \
-#     -s extra/workflow/snakefiles/orchestration/cube_nm_ar_suite.smk \
-#     --configfile \
-#       extra/workflow/conf/restricted_support_suite.yaml \
-#       extra/workflow/conf/missingness_alvis_rezvan.yaml \
+#       extra/workflow/conf/missingness_vera_rezvan.yaml \
 #     -j 1 \
 #     all
 #
 # Keep the outer orchestration workflow local (`-j 1`) and let the nested
 # `pipeline.smk` invocations submit to SLURM via the profile below.
 
-pipeline_profile: extra/workflow/profiles/alvis_rezvan
+pipeline_profile: extra/workflow/profiles/vera_rezvan
 default_compute_platform: cpu
 compute_platform_devices:
   cpu: cpu
-  gpu: cuda
+  gpu: cpu
 classifier_compute_platform: cpu
 slurm_extra_by_compute_platform:
-  cpu: "--constraint=NOGPU"
-  gpu: "--gres=gpu:T4:1"
+  cpu: ""
+  gpu: ""
 pipeline_extra_config: ""

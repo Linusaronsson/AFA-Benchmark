@@ -4,7 +4,8 @@
 # Note: Alvis does NOT allow direct memory requests.
 
 executor: slurm
-jobs: 50
+# Keep GPU-hour burn and queue pressure under control.
+jobs: 8
 latency-wait: 60
 retries: 2
 

@@ -1,10 +1,12 @@
 method_options:
   aaco:
     train_script_name: "aaco"
+    compute_platform: cpu
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   aaco_full:
     train_script_name: "aaco"
+    compute_platform: cpu
     method_specific_params:
       - "train_missing_mode=full"
     hard_budget_ignored_datasets: [imagenette]
@@ -13,24 +15,28 @@ method_options:
   # retrospective support masks into the AACO oracle.
   aaco_zero_fill:
     train_script_name: "aaco"
+    compute_platform: cpu
     method_specific_params:
       - "train_missing_mode=zero_fill"
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   aaco_impute_mean:
     train_script_name: "aaco"
+    compute_platform: cpu
     method_specific_params:
       - "train_missing_mode=impute_mean"
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   aaco_mask_aware:
     train_script_name: "aaco"
+    compute_platform: cpu
     method_specific_params:
       - "train_missing_mode=mask_aware"
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   aaco_dr:
     train_script_name: "aaco"
+    compute_platform: cpu
     method_specific_params:
       - "train_missing_mode=mask_aware"
       - "aco.missingness_objective=doubly_robust"
@@ -41,11 +47,13 @@ method_options:
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"
+    compute_platform: gpu
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
     soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   ma2018_builtin:
     pretrained_model_name: "pvae"
     train_script_name: "ma2018_builtin"
+    compute_platform: gpu
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 8
@@ -59,6 +67,7 @@ method_options:
   ma2018_external:
     pretrained_model_name: "pvae"
     train_script_name: "ma2018_external"
+    compute_platform: gpu
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 8
@@ -72,6 +81,7 @@ method_options:
   covert2023:
     pretrained_model_name: "gdfs"
     train_script_name: "covert2023"
+    compute_platform: gpu
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 32
@@ -84,6 +94,7 @@ method_options:
   gadgil2023:
     pretrained_model_name: "dime"
     train_script_name: "gadgil2023"
+    compute_platform: gpu
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 32
@@ -95,6 +106,7 @@ method_options:
   gadgil2023_ipw_feature_marginal:
     pretrained_model_name: "dime"
     train_script_name: "gadgil2023"
+    compute_platform: gpu
     method_specific_params:
       - "ipw_mode=feature_marginal"
       - "ipw_min_propensity=0.001"
@@ -110,6 +122,7 @@ method_options:
         7: 20
   cae:
     train_script_name: "cae"
+    compute_platform: gpu
     eval_to_train_hard_budget_mapping:
       cube_nonuniform_costs:
         2: 20
@@ -119,6 +132,7 @@ method_options:
     soft_budget_ignored_datasets: [cube_nm, cube_nm_without_noise]
   permutation:
     train_script_name: "permutation"
+    compute_platform: gpu
     eval_to_train_hard_budget_mapping:
       cube_nonuniform_costs:
         2: 20
@@ -129,6 +143,7 @@ method_options:
   jafa:
     pretrained_model_name: "jafa"
     train_script_name: "shim2018"
+    compute_platform: gpu
     eval_batch_size: &rl_eval_batch_size
       default: 128
     hard_budget_ignored_datasets: [imagenette]
@@ -136,6 +151,7 @@ method_options:
   odin_model_based:
     pretrained_model_name: "pvae"
     train_script_name: "zannone2019"
+    compute_platform: gpu
     method_specific_params:
       - "additional_generation_fraction=1.0"
     eval_batch_size: *rl_eval_batch_size
@@ -144,6 +160,7 @@ method_options:
   odin_model_free:
     pretrained_model_name: "pvae"
     train_script_name: "zannone2019"
+    compute_platform: gpu
     method_specific_params:
       - "additional_generation_fraction=0.0"
     eval_batch_size: *rl_eval_batch_size
@@ -152,33 +169,39 @@ method_options:
   ol_without_mask:
     pretrained_model_name: "ol_without_mask"
     train_script_name: "kachuee2019"
+    compute_platform: gpu
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   ol_with_mask:
     pretrained_model_name: "ol_with_mask"
     train_script_name: "kachuee2019"
+    compute_platform: gpu
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   random_dummy:
     train_script_name: "random_dummy"
+    compute_platform: cpu
     eval_batch_size: &dummy_eval_batch_size
       default: 128
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   sequential_dummy:
     train_script_name: "sequential_dummy"
+    compute_platform: cpu
     eval_batch_size: *dummy_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   stop_baseline:
     train_script_name: "stop_baseline"
+    compute_platform: cpu
     eval_batch_size: *dummy_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   cube_nm_ar_oracle:
     train_script_name: "cube_nm_ar_oracle"
+    compute_platform: cpu
     eval_batch_size: *dummy_eval_batch_size
     hard_budget_ignored_datasets:
       - cube

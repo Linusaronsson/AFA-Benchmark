@@ -11,30 +11,37 @@ pretrain_mapping:
   pvae:
     pretrain_script_name: "zannone2019"
     pretrain_params: []
+    compute_platform: gpu
 
   jafa:
     pretrain_script_name: "shim2018"
     pretrain_params: []
+    compute_platform: gpu
 
   ol_without_mask:
     pretrain_script_name: "kachuee2019"
     pretrain_params: ["pq_module.use_feature_mask=false"]
+    compute_platform: gpu
 
   ol_with_mask:
     pretrain_script_name: "kachuee2019"
     pretrain_params: ["pq_module.use_feature_mask=true"]
+    compute_platform: gpu
 
   aaco:
     pretrain_script_name: "aaco"
     pretrain_params: []
+    compute_platform: cpu
 
   gdfs:
     pretrain_script_name: "covert2023"
     pretrain_params: []
+    compute_platform: gpu
 
   dime:
     pretrain_script_name: "gadgil2023"
     pretrain_params: []
+    compute_platform: gpu
 
   # Example: If you need a variant with specific parameters
   # pvae_custom:

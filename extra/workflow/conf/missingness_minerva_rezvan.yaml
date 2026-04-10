@@ -25,4 +25,12 @@
 # `pipeline.smk` invocations submit to SLURM via the profile below.
 
 pipeline_profile: extra/workflow/profiles/minerva_rezvan
-pipeline_extra_config: "device=cpu"
+default_compute_platform: cpu
+compute_platform_devices:
+  cpu: cpu
+  gpu: cpu
+classifier_compute_platform: cpu
+slurm_extra_by_compute_platform:
+  cpu: ""
+  gpu: ""
+pipeline_extra_config: ""

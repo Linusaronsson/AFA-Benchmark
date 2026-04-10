@@ -48,9 +48,15 @@ rule pretrain_model:
     params:
         script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
         pretrain_params=lambda wildcards: PRETRAIN_PARAMS[wildcards.pretrained_model_name],
-        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset]
+        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        device=lambda wildcards: _pretrain_device(
+            wildcards.pretrained_model_name
+        )
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_extra=lambda wildcards: _pretrain_slurm_extra(
+            wildcards.pretrained_model_name
+        )
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -61,7 +67,7 @@ rule pretrain_model:
             save_path={output[0]} \
             components/initializers@initializer={TRAIN_INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={DEVICE} \
+            device={params.device} \
             seed={wildcards.pretrain_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
@@ -116,9 +122,13 @@ rule train_method_with_pretrained_model:
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],
-        method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method]
+        method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method],
+        device=lambda wildcards: _method_device(wildcards.method)
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_extra=lambda wildcards: _method_slurm_extra(
+            wildcards.method
+        )
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -132,7 +142,7 @@ rule train_method_with_pretrained_model:
             components/unmaskers@unmasker={params.unmasker} \
             hard_budget={wildcards.train_hard_budget} \
             soft_budget_param={wildcards.train_soft_budget_param} \
-            device={DEVICE} \
+            device={params.device} \
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
@@ -178,9 +188,13 @@ rule train_method_without_pretrained_model:
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],
-        method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method]
+        method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method],
+        device=lambda wildcards: _method_device(wildcards.method)
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_extra=lambda wildcards: _method_slurm_extra(
+            wildcards.method
+        )
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -193,7 +207,7 @@ rule train_method_without_pretrained_model:
             components/unmaskers@unmasker={params.unmasker} \
             hard_budget={wildcards.train_hard_budget} \
             soft_budget_param={wildcards.train_soft_budget_param} \
-            device={DEVICE} \
+            device={params.device} \
             seed={wildcards.train_seed} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \

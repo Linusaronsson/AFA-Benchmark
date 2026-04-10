@@ -63,8 +63,12 @@ rule eval_method:
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],
+        device=lambda wildcards: _method_device(wildcards.method),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_extra=lambda wildcards: _method_slurm_extra(
+            wildcards.method
+        )
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -76,7 +80,7 @@ rule eval_method:
             save_path={output[0]} \
             classifier_bundle_path={input[2]} \
             seed={wildcards.eval_seed} \
-            device={DEVICE} \
+            device={params.device} \
             hard_budget={wildcards.eval_hard_budget} \
             soft_budget_param={wildcards.eval_soft_budget_param} \
             batch_size={params.eval_batch_size} \
@@ -131,8 +135,12 @@ rule eval_method_shielded:
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],
+        device=lambda wildcards: _method_device(wildcards.method),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_extra=lambda wildcards: _method_slurm_extra(
+            wildcards.method
+        )
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -144,7 +152,7 @@ rule eval_method_shielded:
             save_path={output[0]} \
             classifier_bundle_path={input[2]} \
             seed={wildcards.eval_seed} \
-            device={DEVICE} \
+            device={params.device} \
             hard_budget={wildcards.eval_hard_budget} \
             soft_budget_param={wildcards.eval_soft_budget_param} \
             batch_size={params.eval_batch_size} \
@@ -200,8 +208,12 @@ rule eval_method_dualized:
     params:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],
+        device=lambda wildcards: _method_device(wildcards.method),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_extra=lambda wildcards: _method_slurm_extra(
+            wildcards.method
+        )
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -213,7 +225,7 @@ rule eval_method_dualized:
             save_path={output[0]} \
             classifier_bundle_path={input[2]} \
             seed={wildcards.eval_seed} \
-            device={DEVICE} \
+            device={params.device} \
             hard_budget={wildcards.eval_hard_budget} \
             soft_budget_param={wildcards.eval_soft_budget_param} \
             batch_size={params.eval_batch_size} \
