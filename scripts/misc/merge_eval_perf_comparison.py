@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import polars as pl
+from afabench.common.parquet import concat_labeled_parquets
 
 
 def parse_args() -> argparse.Namespace:
@@ -38,26 +38,11 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-
-    dataframes: list[pl.DataFrame] = []
-    for label, path_str in args.input:
-        path = Path(path_str)
-        if not path.exists():
-            msg = f"Input parquet does not exist: {path}"
-            raise FileNotFoundError(msg)
-
-        dataframe = pl.read_parquet(path).with_columns(
-            pl.lit(label, dtype=pl.String).alias(args.group_column)
-        )
-        dataframes.append(dataframe)
-
-    if not dataframes:
-        msg = "Expected at least one input parquet."
-        raise ValueError(msg)
-
-    merged = pl.concat(dataframes, how="diagonal_relaxed")
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    merged.write_parquet(args.output)
+    concat_labeled_parquets(
+        [(label, Path(path_str)) for label, path_str in args.input],
+        label_column=args.group_column,
+        output_path=args.output,
+    )
 
 
 if __name__ == "__main__":

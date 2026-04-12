@@ -7,6 +7,11 @@ import plotnine as p9
 import polars as pl
 from sklearn.metrics import accuracy_score, f1_score
 
+from afabench.common.parquet import (
+    collect_streaming,
+    require_columns,
+    scan_parquet,
+)
 from afabench.eval.plotting_config import (
     COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
@@ -277,7 +282,7 @@ def main() -> None:
     args = parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    data = pl.read_parquet(args.input_path)
+    data = scan_parquet(args.input_path)
     required_columns = {
         "action_performed",
         "predicted_class",
@@ -288,21 +293,21 @@ def main() -> None:
         "eval_seed",
         "eval_hard_budget",
     }
-    missing_columns = required_columns.difference(data.columns)
-    if missing_columns:
-        msg = f"Input parquet missing columns: {sorted(missing_columns)}"
-        raise ValueError(msg)
+    require_columns(data, required_columns)
 
     known_methods = set(METHOD_TO_VARIANT_POLICY)
-    data = data.filter(pl.col("afa_method").is_in(known_methods))
-    data = data.filter(
-        (pl.col("action_performed") == 0)
-        & pl.col("predicted_class").is_not_null()
-        & pl.col("eval_hard_budget").is_not_null()
+    data = (
+        data.select(sorted(required_columns))
+        .filter(pl.col("afa_method").is_in(known_methods))
+        .filter(
+            (pl.col("action_performed") == 0)
+            & pl.col("predicted_class").is_not_null()
+            & pl.col("eval_hard_budget").is_not_null()
+        )
     )
     # We anchor budget=0 by construction to ensure MA baseline and AACO
     # coincide exactly at the starting point.
-    data = data.filter(pl.col("eval_hard_budget") > 0)
+    data = collect_streaming(data.filter(pl.col("eval_hard_budget") > 0))
 
     if data.is_empty():
         msg = "No rows left after filtering for MA-variant AACO plotting."

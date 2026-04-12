@@ -25,6 +25,7 @@ from plotnine import (
 from sklearn.metrics import accuracy_score, f1_score
 
 from afabench.common.naming import LEGACY_DATASET_KEY_ALIASES
+from afabench.common.parquet import collect_streaming, scan_parquet
 from afabench.eval.plotting_config import (
     DATASET_NAME_MAPPING,
     DATASET_SETS,
@@ -276,7 +277,7 @@ def get_metrics_at_every_action(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def read_parquet(input_csv_path: Path) -> pl.DataFrame:
-    df = pl.read_parquet(input_csv_path)
+    data = scan_parquet(input_csv_path)
     dtypes = {
         "action_performed": pl.UInt64,
         "true_class": pl.UInt64,
@@ -293,6 +294,9 @@ def read_parquet(input_csv_path: Path) -> pl.DataFrame:
         "train_soft_budget_param": pl.Float64,
         "eval_soft_budget_param": pl.Float64,
     }
+    available_columns = set(data.collect_schema().names())
+    selected_columns = sorted(available_columns.intersection(dtypes))
+    df = collect_streaming(data.select(selected_columns))
     casts = [
         pl.col(name).cast(dtype, strict=False)
         for name, dtype in dtypes.items()

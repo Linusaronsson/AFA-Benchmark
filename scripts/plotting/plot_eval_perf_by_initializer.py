@@ -8,6 +8,11 @@ import plotnine as p9
 import polars as pl
 
 from afabench.common.naming import LEGACY_DATASET_KEY_ALIASES
+from afabench.common.parquet import (
+    collect_streaming,
+    require_columns,
+    scan_parquet,
+)
 from afabench.eval.plotting_config import (
     COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
@@ -178,7 +183,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def _collect_lazy(frame: pl.LazyFrame) -> pl.DataFrame:
-    return frame.collect(engine="streaming")
+    return collect_streaming(frame)
 
 
 def _publication_method_spec(
@@ -511,8 +516,7 @@ def _save_plot(
 def _load_and_prepare(
     args: argparse.Namespace,
 ) -> pl.LazyFrame:
-    data = pl.scan_parquet(args.input_path)
-    schema = data.collect_schema()
+    data = scan_parquet(args.input_path)
     required_cols = {
         "action_performed",
         "predicted_class",
@@ -527,10 +531,7 @@ def _load_and_prepare(
         "train_soft_budget_param",
         "eval_soft_budget_param",
     }
-    missing_cols = required_cols.difference(schema.names())
-    if missing_cols:
-        msg = f"Input parquet missing required columns: {sorted(missing_cols)}"
-        raise ValueError(msg)
+    require_columns(data, required_cols)
 
     data = data.select(sorted(required_cols))
     data = data.with_columns(

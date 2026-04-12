@@ -1,12 +1,7 @@
 import argparse
 from pathlib import Path
 
-import polars as pl
-
-
-def _write_parquet(df: pl.DataFrame, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    df.write_parquet(path)
+from afabench.common.parquet import split_parquet_by_column_values
 
 
 def main() -> None:
@@ -18,16 +13,15 @@ def main() -> None:
     parser.add_argument("--output_external", type=Path, required=True)
     args = parser.parse_args()
 
-    df = pl.read_parquet(args.input_path)
-    if "classifier" not in df.columns:
-        msg = "Expected 'classifier' column in eval performance dataframe."
-        raise ValueError(msg)
-
-    builtin = df.filter(pl.col("classifier") == "builtin").drop("classifier")
-    external = df.filter(pl.col("classifier") == "external").drop("classifier")
-
-    _write_parquet(builtin, args.output_builtin)
-    _write_parquet(external, args.output_external)
+    split_parquet_by_column_values(
+        args.input_path,
+        column="classifier",
+        outputs_by_value={
+            "builtin": args.output_builtin,
+            "external": args.output_external,
+        },
+        drop_column=True,
+    )
 
 
 if __name__ == "__main__":
