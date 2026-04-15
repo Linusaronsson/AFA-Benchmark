@@ -14,9 +14,9 @@ from afabench.common.parquet import (
     scan_parquet,
 )
 from afabench.eval.plotting_config import (
-    COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
     DATASETS_WITH_F_SCORE,
+    METHOD_COLOR_MAPPING,
     METHOD_NAME_MAPPING,
     PLOT_WIDTH,
 )
@@ -77,10 +77,49 @@ BASELINE_LABEL_ORDER = [
     "OL-MFRL baseline",
 ]
 
+NON_MYOPIC_METHODS = frozenset(
+    {
+        "aaco",
+        "aaco_dr",
+        "aaco_full",
+        "aaco_impute_mean",
+        "aaco_madt",
+        "aaco_magbt",
+        "aaco_malasso",
+        "aaco_mask_aware",
+        "aaco_marf",
+        "aaco_nn",
+        "aaco_zero_fill",
+        "cube_nm_ar_oracle",
+        "jafa",
+        "odin_model_based",
+        "odin_model_free",
+        "ol_with_mask",
+        "ol_without_mask",
+    }
+)
+
+POLICY_LABEL_ORDER = [
+    "DIME baseline",
+    "DIME + block-only",
+    "DIME + IPW",
+    "AACO baseline",
+    "AACO + zero-fill",
+    "AACO + mask-aware",
+    "AACO + DR",
+    "OL-MFRL baseline",
+    "OL-MFRL + block-only",
+]
+
 BASELINE_LINETYPES = {
-    "DIME baseline": "dotted",
+    "DIME baseline": "solid",
     "AACO baseline": "dashed",
     "OL-MFRL baseline": "dashdot",
+}
+
+CURVE_TYPE_SHAPES = {
+    "Myopic": "o",
+    "Non-myopic": "^",
 }
 
 
@@ -179,6 +218,15 @@ def parse_args() -> argparse.Namespace:
         default=["pdf", "svg", "png"],
         help="Output formats (default: pdf svg png).",
     )
+    parser.add_argument(
+        "--point-nudge",
+        type=float,
+        default=0.0,
+        help=(
+            "Optional horizontal nudge applied only to curve points. "
+            "Useful when multiple policies overlap exactly."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -197,6 +245,79 @@ def _publication_method_spec(
             "curve_label": default_label,
         },
     )
+
+
+def _publication_method_color(afa_method: str) -> str:
+    display_name = METHOD_NAME_MAPPING.get(afa_method, afa_method)
+    return METHOD_COLOR_MAPPING.get(display_name, "#333333")
+
+
+def _publication_method_curve_type(afa_method: str) -> str:
+    return "Non-myopic" if afa_method in NON_MYOPIC_METHODS else "Myopic"
+
+
+def _label_method_pairs(
+    mechanism_data: pl.DataFrame,
+    baseline_data: pl.DataFrame,
+) -> list[tuple[str, str]]:
+    curve_pairs = (
+        mechanism_data.select("afa_method", "curve_label")
+        .filter(pl.col("curve_label").is_not_null())
+        .unique()
+        .iter_rows()
+    )
+    baseline_pairs = (
+        baseline_data.select("afa_method", "baseline_label")
+        .filter(pl.col("baseline_label").is_not_null())
+        .unique()
+        .iter_rows()
+    )
+    return [
+        (label, afa_method)
+        for afa_method, label in [*curve_pairs, *baseline_pairs]
+        if isinstance(afa_method, str) and isinstance(label, str)
+    ]
+
+
+def _label_color_mapping(
+    mechanism_data: pl.DataFrame,
+    baseline_data: pl.DataFrame,
+) -> dict[str, str]:
+    return {
+        label: _publication_method_color(afa_method)
+        for label, afa_method in _label_method_pairs(
+            mechanism_data, baseline_data
+        )
+    }
+
+
+def _label_curve_type_mapping(
+    mechanism_data: pl.DataFrame,
+    baseline_data: pl.DataFrame,
+) -> dict[str, str]:
+    return {
+        label: _publication_method_curve_type(afa_method)
+        for label, afa_method in _label_method_pairs(
+            mechanism_data, baseline_data
+        )
+    }
+
+
+def _curve_point_offset_mapping(
+    ordered_labels: list[str],
+    point_nudge: float,
+) -> dict[str, float]:
+    curve_labels = [
+        label for label in ordered_labels if "baseline" not in label.lower()
+    ]
+    if point_nudge <= 0 or len(curve_labels) <= 1:
+        return dict.fromkeys(curve_labels, 0.0)
+
+    midpoint = (len(curve_labels) - 1) / 2.0
+    return {
+        label: (index - midpoint) * point_nudge
+        for index, label in enumerate(curve_labels)
+    }
 
 
 def _compute_metrics_per_run(
@@ -399,17 +520,59 @@ def _make_mechanism_plot(
     baseline_data: pl.DataFrame,
     *,
     mechanism_label: str,
+    point_nudge: float = 0.0,
 ) -> p9.ggplot:
     # mechanism_data: mitigation rows with varying training missingness rate.
     # baseline_data: full-support reference methods shown as hlines.
     plot_df = mechanism_data.with_columns(
         dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING_WITH_METRIC),
     )
+    baseline_plot_df = baseline_data.with_columns(
+        dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING_WITH_METRIC),
+    )
+    label_color_mapping = _label_color_mapping(mechanism_data, baseline_data)
+    label_curve_type_mapping = _label_curve_type_mapping(
+        mechanism_data, baseline_data
+    )
 
-    available_curve_labels = plot_df["curve_label"].unique().to_list()
-    curve_breaks = [
-        label for label in CURVE_LABEL_ORDER if label in available_curve_labels
+    available_labels = (
+        plot_df.select(pl.col("curve_label").alias("label"))
+        .vstack(
+            baseline_plot_df.select(pl.col("baseline_label").alias("label")),
+            in_place=False,
+        )["label"]
+        .drop_nulls()
+        .unique()
+        .to_list()
+    )
+    ordered_labels = [
+        label for label in POLICY_LABEL_ORDER if label in available_labels
     ]
+    curve_breaks = [
+        label for label in ordered_labels if "baseline" not in label.lower()
+    ]
+    baseline_breaks = [
+        label for label in BASELINE_LABEL_ORDER if label in available_labels
+    ]
+    x_breaks = sorted(plot_df["rate"].unique().to_list())
+    point_offset_mapping = _curve_point_offset_mapping(
+        ordered_labels,
+        point_nudge,
+    )
+    plot_df = plot_df.with_columns(
+        curve_type=pl.col("curve_label").replace_strict(
+            label_curve_type_mapping,
+        )
+    )
+    point_plot_df = plot_df.with_columns(
+        point_x=pl.col("rate")
+        + pl.col("curve_label").replace_strict(
+            point_offset_mapping,
+            default=0.0,
+        )
+    )
+    myopic_plot_df = plot_df.filter(pl.col("curve_type") == "Myopic")
+    non_myopic_plot_df = plot_df.filter(pl.col("curve_type") == "Non-myopic")
 
     n_datasets = max(plot_df["dataset"].n_unique(), 1)
     n_rows = (n_datasets + DATASET_FACET_COLS - 1) // DATASET_FACET_COLS
@@ -424,75 +587,108 @@ def _make_mechanism_plot(
                 y="mean_metric",
                 color="curve_label",
                 fill="curve_label",
+                group="curve_label",
             ),
         )
-        + p9.geom_line()
-        + p9.geom_point(size=2.5)
         + p9.geom_ribbon(
             p9.aes(ymin="low_metric", ymax="high_metric"),
-            alpha=0.1,
+            alpha=0.06,
             size=0.0,
             show_legend=False,
+        )
+        + (
+            p9.geom_hline(
+                data=baseline_plot_df,
+                mapping=p9.aes(
+                    yintercept="mean_metric",
+                    linetype="baseline_label",
+                ),
+                color="#3a3a3a",
+                alpha=0.85,
+                size=0.95,
+            )
+            if not baseline_plot_df.is_empty()
+            else p9.geom_blank()
+        )
+        + p9.geom_line(
+            data=myopic_plot_df,
+            linetype="solid",
+            size=0.9,
+            show_legend=False,
+        )
+        + p9.geom_line(
+            data=non_myopic_plot_df,
+            linetype="dotted",
+            size=0.9,
+            show_legend=False,
+        )
+        + p9.geom_point(
+            mapping=p9.aes(x="point_x", y="mean_metric"),
+            inherit_aes=False,
+            data=point_plot_df,
+            color="white",
+            size=3.3,
+            show_legend=False,
+        )
+        + p9.geom_point(
+            mapping=p9.aes(
+                x="point_x",
+                y="mean_metric",
+                color="curve_label",
+                shape="curve_type",
+            ),
+            inherit_aes=False,
+            data=point_plot_df,
+            size=2.2,
         )
         + p9.facet_wrap(
             "dataset",
             scales="free_y",
             ncol=DATASET_FACET_COLS,
         )
-        + p9.scale_color_brewer(
-            type="qual",
-            palette=COLOR_PALETTE_NAME,
+        + p9.scale_color_manual(
+            name="Policy",
+            values=label_color_mapping,
             breaks=curve_breaks,
+            limits=curve_breaks,
         )
-        + p9.scale_fill_brewer(
-            type="qual",
-            palette=COLOR_PALETTE_NAME,
+        + p9.scale_fill_manual(
+            values=label_color_mapping,
             breaks=curve_breaks,
+            limits=curve_breaks,
+        )
+        + p9.scale_shape_manual(
+            name="Policy Type",
+            values=CURVE_TYPE_SHAPES,
+            breaks=["Myopic", "Non-myopic"],
+            limits=["Myopic", "Non-myopic"],
+        )
+        + p9.scale_linetype_manual(
+            name="Baselines",
+            values=BASELINE_LINETYPES,
+            breaks=baseline_breaks,
+            limits=baseline_breaks,
         )
         + p9.scale_x_continuous(
+            breaks=x_breaks,
             labels=lambda xs: [f"{x:.0%}" for x in xs],
         )
         + p9.labs(
             x=f"Training missingness rate ({mechanism_label})",
             y="Metric",
-            color="Mitigations",
-            fill="Mitigations",
+            color="Policy",
+            fill="Policy",
+            shape="Policy Type",
             linetype="Baselines",
         )
         + p9.guides(
             fill="none",
             color=p9.guide_legend(order=1),
-            linetype=p9.guide_legend(order=2),
+            shape=p9.guide_legend(order=2),
+            linetype=p9.guide_legend(order=3),
         )
         + p9.theme(figure_size=(figure_width, figure_height))
     )
-
-    if not baseline_data.is_empty():
-        bl = baseline_data.with_columns(
-            dataset=pl.col("dataset").replace(
-                DATASET_NAME_MAPPING_WITH_METRIC
-            ),
-        )
-        available_baseline_labels = bl["baseline_label"].unique().to_list()
-        baseline_breaks = [
-            label
-            for label in BASELINE_LABEL_ORDER
-            if label in available_baseline_labels
-        ]
-        plot += p9.geom_hline(
-            data=bl,
-            mapping=p9.aes(
-                yintercept="mean_metric",
-                linetype="baseline_label",
-            ),
-            color="black",
-            alpha=0.9,
-            size=0.8,
-        )
-        plot += p9.scale_linetype_manual(
-            values=BASELINE_LINETYPES,
-            breaks=baseline_breaks,
-        )
 
     return plot
 
@@ -596,6 +792,7 @@ def _save_individual_subplots(
     subplot_dir: Path,
     figure_width: float,
     formats: list[str],
+    point_nudge: float,
 ) -> None:
     subplot_dir.mkdir(parents=True, exist_ok=True)
     for dataset in sorted(mech_data["dataset"].unique().to_list()):
@@ -605,6 +802,7 @@ def _save_individual_subplots(
             ds_data,
             ds_baseline,
             mechanism_label=mech_label,
+            point_nudge=point_nudge,
         )
         display_name = DATASET_NAME_MAPPING.get(dataset, dataset)
         ds_stem = (display_name or dataset).replace(" ", "_").lower()
@@ -673,6 +871,7 @@ def main() -> None:
             mech_data,
             baseline,
             mechanism_label=mech_label,
+            point_nudge=args.point_nudge,
         )
         stem = f"{args.output_stem}_{mechanism}"
         _save_plot(
@@ -691,6 +890,7 @@ def main() -> None:
                 subplot_dir=args.output_dir / f"{stem}_subplots",
                 figure_width=figure_width,
                 formats=args.formats,
+                point_nudge=args.point_nudge,
             )
 
 
