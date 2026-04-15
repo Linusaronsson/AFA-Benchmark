@@ -66,6 +66,7 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
             val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
             initializer_cfg=cfg.initializer,
             unmasker_cfg=cfg.unmasker,
+            seed=cfg.seed,
         )
     )
     assert class_weights is not None
@@ -130,8 +131,15 @@ def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
         val_x_all = val_x_all.to(device)
         val_y_all = val_y_all.to(device)
 
-        train_s_all = train_obs_mask.to(dtype=train_x_all.dtype, device=device)
-        val_s_all = val_obs_mask.to(dtype=val_x_all.dtype, device=device)
+        # train_obs_mask is zeroed for restriction-type initializers (cold
+        # start). Availability for notmiwae is the complement of the
+        # forbidden mask.
+        train_s_all = (~train_forbidden_mask).to(
+            dtype=train_x_all.dtype, device=device
+        )
+        val_s_all = (~val_forbidden_mask).to(
+            dtype=val_x_all.dtype, device=device
+        )
 
         # train_s_all = _get_initial_observation_mask(
         #     x=train_x_all,

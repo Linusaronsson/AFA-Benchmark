@@ -45,6 +45,7 @@ def train_image(cfg: Covert2023Training2DConfig) -> None:
             val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
             initializer_cfg=cfg.initializer,
             unmasker_cfg=cfg.unmasker,
+            seed=cfg.seed,
         )
     )
     train_loader = DataLoader(

@@ -29,6 +29,22 @@ from afabench.common.initializers.zero_initializer import ZeroInitializer
 from afabench.common.registry import get_class
 
 
+def initializer_has_training_support_restriction(
+    initializer: AFAInitializer,
+) -> bool:
+    """
+    Return whether the initializer marks some features unavailable at train time.
+
+    Such initializers (e.g. MissingnessInitializer) represent *availability*,
+    not a warm start: the training loop must start cold and block the
+    forbidden features.
+    """
+    return (
+        type(initializer).get_training_forbidden_mask
+        is not AFAInitializer.get_training_forbidden_mask
+    )
+
+
 def get_afa_initializer_from_config(  # noqa: C901, PLR0911
     initializer_config: InitializerConfig,
 ) -> AFAInitializer:

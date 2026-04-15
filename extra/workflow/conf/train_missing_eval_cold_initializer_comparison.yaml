@@ -1,7 +1,9 @@
 # Compare train-missing conditions while keeping evaluation cold.
 #
 # This is the generic initializer-comparison entrypoint for the train-missing
-# ablation workflow. Use the same kind of CLI overrides as the original
+# ablation workflow. We keep the hard budget fixed at one representative value
+# per dataset, rather than sweeping budgets, so the comparison isolates
+# missingness rate/type. Use the same kind of CLI overrides as the original
 # pipeline, for example:
 #
 #   uv run snakemake \
@@ -34,7 +36,7 @@ pipeline_configfiles:
   - extra/workflow/conf/datasets_main.yaml
   - extra/workflow/conf/methods.yaml
   - extra/workflow/conf/method_sets.yaml
-  - extra/workflow/conf/eval_hard_budgets.yaml
+  - extra/workflow/conf/eval_hard_budgets_single.yaml
   - extra/workflow/conf/soft_budget_params_none.yaml
   - extra/workflow/conf/method_options.yaml
   - extra/workflow/conf/pretrain_mapping.yaml
@@ -47,4 +49,4 @@ pipeline_extra_config: ""
 
 plot_budget_mode: hard
 plot_eval_hard_budget: null
-plot_keep_largest_hard_budget: true
+plot_keep_largest_hard_budget: false

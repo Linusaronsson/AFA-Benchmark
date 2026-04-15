@@ -39,6 +39,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
             val_dataset_bundle_path=Path(cfg.val_dataset_path),
             initializer_cfg=cfg.initializer,
             unmasker_cfg=cfg.unmasker,
+            seed=cfg.seed,
         )
     )
     d_out = train_dataset.label_shape[0]

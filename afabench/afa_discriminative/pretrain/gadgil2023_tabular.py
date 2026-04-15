@@ -52,7 +52,7 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     dataset_name = infer_dataset_key_from_class_name(
         train_manifest["class_name"]
     )
-    _, train_labels = train_dataset.get_all_data()  # pyright: ignore[reportAttributeAccessIssue]
+    _, train_labels = train_dataset.get_all_data()
     train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
@@ -60,6 +60,7 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     class_weights = class_weights.to(device)
 
     initializer = get_afa_initializer_from_config(cfg.initializer)
+    initializer.set_seed(cfg.seed)
     feature_shape = torch.Size([train_dataset.feature_shape[0]])
     _, train_forbidden_mask = precompute_initial_and_forbidden_masks(
         train_dataset,

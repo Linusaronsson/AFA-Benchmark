@@ -46,6 +46,7 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
             val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
             initializer_cfg=cfg.initializer,
             unmasker_cfg=cfg.unmasker,
+            seed=cfg.seed,
         )
     )
     d_out = train_dataset.label_shape[0]

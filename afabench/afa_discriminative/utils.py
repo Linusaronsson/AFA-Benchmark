@@ -7,7 +7,10 @@ from torch import nn
 from torch.distributions import Categorical, RelaxedOneHotCategorical
 
 from afabench.common.bundle import load_bundle
-from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.initializers.utils import (
+    get_afa_initializer_from_config,
+    initializer_has_training_support_restriction,
+)
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import get_class_frequencies
 from afabench.common.custom_types import AFADataset
@@ -61,6 +64,7 @@ def afa_discriminative_training_prep(
     val_dataset_bundle_path: Path,
     initializer_cfg: InitializerConfig,
     unmasker_cfg: UnmaskerConfig,
+    seed: int | None = None,
 ) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor | None]:
     train_dataset, _train_dataset_manifest = load_bundle(
         train_dataset_bundle_path,
@@ -72,8 +76,10 @@ def afa_discriminative_training_prep(
     val_dataset = cast("AFADataset", cast("object", val_dataset))
 
     initializer = get_afa_initializer_from_config(initializer_cfg)
-
     unmasker = get_afa_unmasker_from_config(unmasker_cfg)
+    if seed is not None:
+        initializer.set_seed(seed)
+        unmasker.set_seed(seed)
 
     # Also calculate class weights
     class_weights: torch.Tensor | None = None
@@ -179,6 +185,13 @@ def precompute_initial_and_forbidden_masks(
             observed_mask
         ).bool().to(device)
         observed_mask = observed_mask & ~forbidden_mask
+
+        # Availability-style initializers (e.g. MissingnessInitializer) return
+        # the set of features that are *available* for this sample, not a warm
+        # start. The discriminative training loop must start cold and block
+        # the forbidden features. Mirrors afa_rl train_restricted semantics.
+        if initializer_has_training_support_restriction(initializer):
+            observed_mask = torch.zeros_like(observed_mask, dtype=torch.bool)
 
     return observed_mask.cpu(), forbidden_mask.cpu()
 

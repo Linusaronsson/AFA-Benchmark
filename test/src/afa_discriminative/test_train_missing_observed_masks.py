@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import final
 
 import torch
@@ -8,6 +9,13 @@ from afabench.afa_discriminative.afa_methods import (
     _build_initial_feature_and_selection_masks,
 )
 from afabench.afa_discriminative.datasets import prepare_datasets
+from afabench.afa_discriminative.utils import (
+    afa_discriminative_training_prep,
+)
+from afabench.common.config_classes import (
+    InitializerConfig,
+    UnmaskerConfig,
+)
 from afabench.common.unmaskers.cube_nm_ar_unmasker import CubeNMARUnmasker
 
 
@@ -30,6 +38,24 @@ class _ToyDataset:
 
     def __len__(self) -> int:
         return int(self._features.shape[0])
+
+
+@final
+class _SeedRecordingInitializer:
+    def __init__(self) -> None:
+        self.seed: int | None = None
+
+    def set_seed(self, seed: int | None) -> None:
+        self.seed = seed
+
+
+@final
+class _SeedRecordingUnmasker:
+    def __init__(self) -> None:
+        self.seed: int | None = None
+
+    def set_seed(self, seed: int | None) -> None:
+        self.seed = seed
 
 
 def test_prepare_datasets_preserves_observed_and_forbidden_masks() -> None:
@@ -96,3 +122,58 @@ def test_initial_masks_mark_preobserved_grouped_context_as_unavailable() -> (
     assert selection_mask[1, 3]
     assert selection_mask[1, -1]
     assert selection_mask[1].sum().item() == 2
+
+
+def test_discriminative_training_prep_seeds_initializer_and_unmasker(
+    monkeypatch,  # noqa: ANN001
+) -> None:
+    dataset = _ToyDataset(
+        features=torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
+        labels=torch.tensor([[1.0, 0.0], [0.0, 1.0]]),
+    )
+    initializer = _SeedRecordingInitializer()
+    unmasker = _SeedRecordingUnmasker()
+
+    def _fake_load_bundle(
+        path: Path,  # noqa: ARG001
+    ) -> tuple[_ToyDataset, dict[str, object]]:
+        return dataset, {}
+
+    monkeypatch.setattr(
+        "afabench.afa_discriminative.utils.load_bundle",
+        _fake_load_bundle,
+    )
+    monkeypatch.setattr(
+        "afabench.afa_discriminative.utils.get_afa_initializer_from_config",
+        lambda _cfg: initializer,
+    )
+    monkeypatch.setattr(
+        "afabench.afa_discriminative.utils.get_afa_unmasker_from_config",
+        lambda _cfg: unmasker,
+    )
+
+    (
+        _train_dataset,
+        _val_dataset,
+        returned_initializer,
+        returned_unmasker,
+        (class_weights),
+    ) = afa_discriminative_training_prep(
+        train_dataset_bundle_path=Path("train.bundle"),
+        val_dataset_bundle_path=Path("val.bundle"),
+        initializer_cfg=InitializerConfig(
+            class_name="unused",
+            kwargs={},
+        ),
+        unmasker_cfg=UnmaskerConfig(
+            class_name="unused",
+            kwargs={},
+        ),
+        seed=123,
+    )
+
+    assert returned_initializer is initializer
+    assert returned_unmasker is unmasker
+    assert initializer.seed == 123
+    assert unmasker.seed == 123
+    assert class_weights is not None

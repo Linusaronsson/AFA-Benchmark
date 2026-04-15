@@ -24,4 +24,4 @@ smoke_test: true
 use_wandb: false
 device: cpu
 pipeline_cores: 4
-comparison_method_set_name: train_missing_eval_cold_smoke
+comparison_method_set_name: train_missing_eval_cold_fixed_budget_smoke

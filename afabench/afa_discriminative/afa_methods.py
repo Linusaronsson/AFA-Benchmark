@@ -1108,7 +1108,10 @@ class CMIEstimator(nn.Module):
                 notmiwae_propensity = None
                 if ipw_mode == "notmiwae_feature":
                     assert self.notmiwae_model is not None
-                    obs_mask = observed_feat.to(dtype=x.dtype)
+                    # observed_feat is the cold (zero) initial mask under
+                    # restriction-type initializers; recover the true
+                    # availability mask from the forbidden mask instead.
+                    obs_mask = (~forbidden_feat).to(dtype=x.dtype)
                     x_obs = x * obs_mask
                     self.notmiwae_model.eval()
                     with torch.no_grad():
