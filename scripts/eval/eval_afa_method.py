@@ -224,6 +224,9 @@ def main(cfg: EvalConfig) -> None:
     # Some methods require a soft budget parameter set during evaluation instead of training
     if cfg.soft_budget_param is not None:
         afa_method.set_cost_param(cost_param=cfg.soft_budget_param)
+    elif cfg.hard_budget is not None and hasattr(afa_method, "force_acquisition"):
+        afa_method.force_acquisition = True
+        log.info("Enabled force_acquisition for hard-budget evaluation.")
 
     if cfg.hard_budget is not None:
         hard_budget_str = f"hard budget {cfg.hard_budget}"
