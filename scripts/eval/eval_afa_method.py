@@ -326,6 +326,9 @@ def main(cfg: EvalConfig) -> None:  # noqa: C901, PLR0912, PLR0915
         if hasattr(afa_method, "force_acquisition"):
             afa_method.force_acquisition = False
             log.info("Disabled force_acquisition for soft-budget evaluation.")
+    elif cfg.hard_budget is not None and hasattr(afa_method, "force_acquisition"):
+        afa_method.force_acquisition = True
+        log.info("Enabled force_acquisition for hard-budget evaluation.")
 
     selection_costs = unmasker.get_selection_costs(
         feature_costs=dataset.get_feature_acquisition_costs()
