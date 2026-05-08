@@ -122,6 +122,15 @@ CURVE_TYPE_SHAPES = {
     "Non-myopic": "^",
 }
 
+REFERENCE_METHODS = {
+    "gadgil2023": "gadgil2023",
+    "gadgil2023_ipw_feature_marginal": "gadgil2023",
+    "aaco_zero_fill": "aaco_full",
+    "aaco_mask_aware": "aaco_full",
+    "aaco_dr": "aaco_full",
+    "ol_with_mask": "ol_with_mask",
+}
+
 
 def _parse_mechanism_and_rate(
     initializer: str,
@@ -254,6 +263,10 @@ def _publication_method_color(afa_method: str) -> str:
 
 def _publication_method_curve_type(afa_method: str) -> str:
     return "Non-myopic" if afa_method in NON_MYOPIC_METHODS else "Myopic"
+
+
+def _publication_reference_method(afa_method: str) -> str | None:
+    return REFERENCE_METHODS.get(afa_method)
 
 
 def _label_method_pairs(
@@ -442,6 +455,93 @@ def _aggregate_across_seeds(
             low_metric=pl.col("mean_metric") - pl.col("sem_metric"),
             high_metric=pl.col("mean_metric") + pl.col("sem_metric"),
         )
+    )
+
+
+def _add_metric_column(data: pl.LazyFrame) -> pl.LazyFrame:
+    return data.with_columns(
+        metric=pl.when(pl.col("dataset").is_in(DATASETS_WITH_F_SCORE))
+        .then(pl.col("f_score"))
+        .otherwise(pl.col("accuracy"))
+    )
+
+
+def _aggregate_baseline_percent(
+    metrics: pl.LazyFrame,
+    *,
+    group_column: str,
+) -> pl.DataFrame:
+    metrics = _add_metric_column(metrics)
+    enriched = _collect_lazy(metrics)
+    enriched = _enrich_with_mechanism_and_rate(enriched, group_column)
+    enriched = _enrich_with_publication_roles(enriched)
+    reference_methods = [
+        _publication_reference_method(afa_method)
+        for afa_method in enriched["afa_method"].to_list()
+    ]
+    enriched = enriched.with_columns(
+        reference_method=pl.Series(reference_methods, dtype=pl.String)
+    )
+
+    curve_rows = enriched.filter(
+        (pl.col("mechanism") != "cold")
+        & pl.col("mechanism").is_not_null()
+        & pl.col("curve_label").is_not_null()
+        & pl.col("reference_method").is_not_null()
+    )
+    baseline_rows = (
+        enriched.filter(pl.col("mechanism") == "cold")
+        .select(
+            "dataset",
+            "afa_method",
+            "train_seed",
+            "eval_seed",
+            "eval_hard_budget",
+            pl.col("metric").alias("baseline_metric"),
+        )
+        .rename({"afa_method": "reference_method"})
+    )
+    matched = curve_rows.join(
+        baseline_rows,
+        on=[
+            "dataset",
+            "reference_method",
+            "train_seed",
+            "eval_seed",
+            "eval_hard_budget",
+        ],
+        how="inner",
+        nulls_equal=True,
+    ).with_columns(
+        baseline_percent=pl.when(pl.col("baseline_metric") > 0)
+        .then(100.0 * pl.col("metric") / pl.col("baseline_metric"))
+        .otherwise(None)
+    )
+
+    return (
+        matched.group_by("dataset", "afa_method", group_column)
+        .agg(
+            mean_metric=pl.col("metric").mean(),
+            mean_baseline_metric=pl.col("baseline_metric").mean(),
+            mean_baseline_percent=pl.col("baseline_percent").mean(),
+            std_baseline_percent=pl.col("baseline_percent").std(),
+            n_runs=pl.col("baseline_percent").count(),
+        )
+        .with_columns(
+            std_baseline_percent=pl.col("std_baseline_percent").fill_null(0.0)
+        )
+        .with_columns(
+            sem_baseline_percent=pl.col("std_baseline_percent")
+            / pl.col("n_runs").clip(1).sqrt()
+        )
+        .with_columns(
+            low_baseline_percent=pl.col("mean_baseline_percent")
+            - pl.col("sem_baseline_percent"),
+            high_baseline_percent=pl.col("mean_baseline_percent")
+            + pl.col("sem_baseline_percent"),
+        )
+        .pipe(_enrich_with_mechanism_and_rate, group_column)
+        .pipe(_enrich_with_publication_roles)
     )
 
 
@@ -693,6 +793,167 @@ def _make_mechanism_plot(
     return plot
 
 
+def _make_baseline_percent_plot(
+    mechanism_data: pl.DataFrame,
+    *,
+    mechanism_label: str,
+    point_nudge: float = 0.0,
+) -> p9.ggplot:
+    plot_df = mechanism_data.with_columns(
+        dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING_WITH_METRIC),
+    )
+    label_pairs = (
+        mechanism_data.select("afa_method", "curve_label")
+        .filter(pl.col("curve_label").is_not_null())
+        .unique()
+        .iter_rows()
+    )
+    label_color_mapping = {
+        label: _publication_method_color(afa_method)
+        for afa_method, label in label_pairs
+        if isinstance(afa_method, str) and isinstance(label, str)
+    }
+    label_pairs = (
+        mechanism_data.select("afa_method", "curve_label")
+        .filter(pl.col("curve_label").is_not_null())
+        .unique()
+        .iter_rows()
+    )
+    label_curve_type_mapping = {
+        label: _publication_method_curve_type(afa_method)
+        for afa_method, label in label_pairs
+        if isinstance(afa_method, str) and isinstance(label, str)
+    }
+
+    available_labels = (
+        plot_df.select(pl.col("curve_label").alias("label"))["label"]
+        .drop_nulls()
+        .unique()
+        .to_list()
+    )
+    ordered_labels = [
+        label for label in CURVE_LABEL_ORDER if label in available_labels
+    ]
+    point_offset_mapping = _curve_point_offset_mapping(
+        ordered_labels,
+        point_nudge,
+    )
+    plot_df = plot_df.with_columns(
+        curve_type=pl.col("curve_label").replace_strict(
+            label_curve_type_mapping,
+        )
+    )
+    point_plot_df = plot_df.with_columns(
+        point_x=pl.col("rate")
+        + pl.col("curve_label").replace_strict(
+            point_offset_mapping,
+            default=0.0,
+        )
+    )
+    myopic_plot_df = plot_df.filter(pl.col("curve_type") == "Myopic")
+    non_myopic_plot_df = plot_df.filter(pl.col("curve_type") == "Non-myopic")
+
+    x_breaks = sorted(plot_df["rate"].unique().to_list())
+    return (
+        p9.ggplot(
+            plot_df,
+            p9.aes(
+                x="rate",
+                y="mean_baseline_percent",
+                color="curve_label",
+                fill="curve_label",
+                group="curve_label",
+            ),
+        )
+        + p9.geom_hline(
+            yintercept=100.0,
+            color="#3a3a3a",
+            linetype="dashed",
+            size=0.7,
+        )
+        + p9.geom_ribbon(
+            p9.aes(
+                ymin="low_baseline_percent",
+                ymax="high_baseline_percent",
+            ),
+            alpha=0.06,
+            size=0.0,
+            show_legend=False,
+        )
+        + p9.geom_line(
+            data=myopic_plot_df,
+            linetype="solid",
+            size=0.9,
+            show_legend=False,
+        )
+        + p9.geom_line(
+            data=non_myopic_plot_df,
+            linetype="dotted",
+            size=0.9,
+            show_legend=False,
+        )
+        + p9.geom_point(
+            mapping=p9.aes(x="point_x", y="mean_baseline_percent"),
+            inherit_aes=False,
+            data=point_plot_df,
+            color="white",
+            size=3.3,
+            show_legend=False,
+        )
+        + p9.geom_point(
+            mapping=p9.aes(
+                x="point_x",
+                y="mean_baseline_percent",
+                color="curve_label",
+                shape="curve_type",
+            ),
+            inherit_aes=False,
+            data=point_plot_df,
+            size=2.2,
+        )
+        + p9.facet_wrap(
+            "dataset",
+            scales="free_y",
+            ncol=DATASET_FACET_COLS,
+        )
+        + p9.scale_color_manual(
+            name="Policy",
+            values=label_color_mapping,
+            breaks=ordered_labels,
+            limits=ordered_labels,
+        )
+        + p9.scale_fill_manual(
+            values=label_color_mapping,
+            breaks=ordered_labels,
+            limits=ordered_labels,
+        )
+        + p9.scale_shape_manual(
+            name="Policy Type",
+            values=CURVE_TYPE_SHAPES,
+            breaks=["Myopic", "Non-myopic"],
+            limits=["Myopic", "Non-myopic"],
+        )
+        + p9.scale_x_continuous(
+            breaks=x_breaks,
+            labels=lambda xs: [f"{x:.0%}" for x in xs],
+        )
+        + p9.scale_y_continuous(labels=lambda ys: [f"{y:.0f}%" for y in ys])
+        + p9.labs(
+            x=f"Training missingness rate ({mechanism_label})",
+            y="% of full-data baseline",
+            color="Policy",
+            fill="Policy",
+            shape="Policy Type",
+        )
+        + p9.guides(
+            fill="none",
+            color=p9.guide_legend(order=1),
+            shape=p9.guide_legend(order=2),
+        )
+        + p9.theme(figure_size=(PLOT_WIDTH, 6.0))
+    )
+
+
 def _save_plot(
     plot: p9.ggplot,
     output_path: Path,
@@ -838,6 +1099,13 @@ def main() -> None:
     enriched = _enrich_with_mechanism_and_rate(summary_data, args.group_column)
     enriched = _enrich_with_publication_roles(enriched)
     enriched.write_csv(args.output_dir / f"{args.output_stem}.csv")
+    baseline_percent = _aggregate_baseline_percent(
+        metrics_per_run,
+        group_column=args.group_column,
+    )
+    baseline_percent.write_csv(
+        args.output_dir / f"{args.output_stem}_relative.csv"
+    )
 
     baseline = enriched.filter(
         (pl.col("mechanism") == "cold")
@@ -881,6 +1149,23 @@ def main() -> None:
             height=figure_height,
             formats=args.formats,
         )
+
+        relative_data = baseline_percent.filter(
+            pl.col("mechanism") == mechanism
+        )
+        if not relative_data.is_empty():
+            relative_plot = _make_baseline_percent_plot(
+                relative_data,
+                mechanism_label=mech_label,
+                point_nudge=args.point_nudge,
+            )
+            _save_plot(
+                relative_plot,
+                args.output_dir / f"{args.output_stem}_relative_{mechanism}",
+                width=figure_width,
+                height=figure_height,
+                formats=args.formats,
+            )
 
         if args.save_individual_subplots:
             _save_individual_subplots(
