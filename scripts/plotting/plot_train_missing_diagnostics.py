@@ -820,7 +820,36 @@ def plot_family_relative_change_at_70(
         y_positions
     )
 
-    fig_height = 3.2
+    fig_height = 3.8
+    # facet_grid shares x-scales within each mechanism column, which compresses
+    # the Real-world row. Wrapped facets give each panel its own local x-axis.
+    aggregate["facet_label"] = (
+        aggregate["dataset_group"].astype(str)
+        + "\n"
+        + aggregate["mechanism_label"].astype(str)
+    )
+    facet_order = [
+        f"{dataset_group}\n{mechanism_label}"
+        for dataset_group in DATASET_GROUP_ORDER
+        for mechanism_label in MECHANISM_ORDER
+        if f"{dataset_group}\n{mechanism_label}"
+        in set(aggregate["facet_label"])
+    ]
+    aggregate["facet_label"] = pd.Categorical(
+        aggregate["facet_label"],
+        categories=facet_order,
+        ordered=True,
+    )
+    rate_points["facet_label"] = (
+        rate_points["dataset_group"].astype(str)
+        + "\n"
+        + rate_points["mechanism_label"].astype(str)
+    )
+    rate_points["facet_label"] = pd.Categorical(
+        rate_points["facet_label"],
+        categories=facet_order,
+        ordered=True,
+    )
     plot = (
         p9.ggplot(
             aggregate,
@@ -856,7 +885,7 @@ def plot_family_relative_change_at_70(
             show_legend=False,
         )
         + p9.geom_point(size=3.2, show_legend=False)
-        + p9.facet_grid("dataset_group ~ mechanism_label", scales="free_x")
+        + p9.facet_wrap("facet_label", ncol=3, scales="free_x")
         + p9.scale_color_manual(
             values={"Myopic": "#3366AA", "Non-myopic": "#CC6677"},
         )
