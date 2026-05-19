@@ -37,7 +37,7 @@ log = logging.getLogger(__name__)
 class AFAEvaluator:
     def __init__(self, cfg: EvalConfig):
         self._cfg = cfg
-        self._force_acquisition = False
+        self._force_acquisition: bool = False  # set to true during hard budget
         self._wandb_run: Run | None = None
         self._method: AFAMethod | None = None
         self._method_metadata: dict[str, Any] | None = None
@@ -218,6 +218,7 @@ class AFAEvaluator:
             selection_budget=self._cfg.hard_budget,
             batch_size=self._cfg.batch_size,
             selection_costs=self._selection_costs.tolist(),
+            force_acquisition=self._force_acquisition,
         )
 
         # Add eval_seed and eval_hard_budget to dataframe
