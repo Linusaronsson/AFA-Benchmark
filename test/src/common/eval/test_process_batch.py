@@ -6,7 +6,7 @@ from afabench.common.custom_types import (
     Label,
 )
 from afabench.eval.eval import process_batch
-from afabench.test.helpers import (
+from afabench.testing.helpers import (
     get_deterministic_action_fn,
     get_deterministic_afa_predict_fn,
     get_direct_unmask_fn,
