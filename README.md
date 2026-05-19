@@ -69,7 +69,7 @@ See the [pipeline explanation](docs/tutorials/pipeline_explanation.md) tutorial 
 
 **Example**: Medical diagnosis where each test costs money and time. AFA methods
 intelligently decide which tests to order next based on previous results, aiming
-for accurate diagnosis with minimal cost. See the following survey for details: [AFA Survey](https://arxiv.org/abs/2502.11067). 
+for accurate diagnosis with minimal cost. See the following survey for details: [AFA Survey](https://arxiv.org/abs/2502.11067).
 
 ## Implemented Methods
 |    Method     |                                                                            Paper                                                                             |             Strategy             |  Greedy?   |
@@ -120,6 +120,19 @@ Learn more in our tutorials:
   - [Pipeline explanation](docs/tutorials/pipeline_explanation.md)
   - [Adding a new dataset](docs/tutorials/add_dataset.md)
   - [Adding a new method](docs/tutorials/add_method.md)
+
+## Development
+
+We encourage researchers to fork this repository and implement their own methods. To follow the repo conventions, run
+```shell
+uv run just qa
+```
+which will
+
+- format code with `ruff format`
+- do linting and formatting with `ruff check --fix`
+- type checking with `basedpyright --warnings`
+- run tests with `pytest`
 
 
 ## Citation
