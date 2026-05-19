@@ -20,6 +20,7 @@ from afabench.common.custom_types import (
     Label,
     MaskedFeatures,
     SelectionMask,
+    SupportsForcedAcquisition,
 )
 from afabench.common.registry import get_class
 
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 @final
-class AACOAFAMethod(AFAMethod):
+class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
     """
     AACO-based Active Feature Acquisition method.
 
