@@ -27,6 +27,21 @@ from afabench.common.custom_types import (
 log = logging.getLogger(__name__)
 
 
+def override_stop_with_first_selection(
+    afa_action: AFAAction, selection_mask: SelectionMask
+) -> AFAAction:
+    """Override each stop action in `afa_action` with the first available selection in `selection_mask`."""
+    new_afa_action = afa_action.clone()
+
+    flat_selection_mask = selection_mask.flatten(start_dim=1)
+
+    first_available_selection = (~flat_selection_mask).int().argmax(dim=1)
+    mask = (afa_action == 0).squeeze(-1)
+    new_afa_action[mask] = (first_available_selection[mask] + 1).unsqueeze(-1)
+
+    return new_afa_action
+
+
 @dataclass
 class AFAStepResult:
     action: AFAAction  # which action was chosen
@@ -34,6 +49,9 @@ class AFAStepResult:
     feature_mask: FeatureMask  # new feature mask
     external_prediction: Label | None
     builtin_prediction: Label | None
+    acquisition_forced: (
+        torch.Tensor
+    )  # bool tensor, true if acquisition was forced
 
 
 def single_afa_step(
@@ -47,6 +65,8 @@ def single_afa_step(
     feature_shape: torch.Size | None = None,
     external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
+    *,
+    force_acquisition: bool = False,
 ) -> AFAStepResult:
     """
     Perform a single AFA step.
@@ -55,6 +75,7 @@ def single_afa_step(
         label: Passed to all functions that may need it. Normally unused
             (accessing it would be cheating), but available for benchmarking.
         feature_shape: Required by some action/unmask/predict implementations.
+        force_acquisition: if true, override stop actions with the next available acquisition action instead. Useful in the hard budget setting.
     """
     # Get the action from the AFA method (0 = stop, 1-n = valid selections)
     afa_action = afa_action_fn(
@@ -64,6 +85,17 @@ def single_afa_step(
         label=label,
         feature_shape=feature_shape,
     )
+    batch_size = afa_action.shape[:-1]
+
+    acquisition_forced = torch.zeros(batch_size, dtype=torch.bool)
+    if force_acquisition:
+        overriden_afa_action = override_stop_with_first_selection(
+            afa_action, selection_mask
+        )
+        acquisition_forced[
+            (overriden_afa_action != afa_action).squeeze(-1)
+        ] = True
+        afa_action = overriden_afa_action
 
     # Convert action to selection for the unmasker
     afa_selection: AFASelection = afa_action - 1
@@ -110,6 +142,7 @@ def single_afa_step(
         feature_mask=new_feature_mask,
         external_prediction=external_prediction,
         builtin_prediction=builtin_prediction,
+        acquisition_forced=acquisition_forced,
     )
 
 
