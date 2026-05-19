@@ -195,3 +195,4 @@ cython_debug/
 
 # Snakemake cache
 /.snakemake
+/.checkpoint.error
