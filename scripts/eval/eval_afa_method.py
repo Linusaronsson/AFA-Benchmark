@@ -1,4 +1,5 @@
 import logging
+from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, final
 
@@ -34,12 +35,23 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+class ForcedAcquisitionMode(Enum):
+    """Different ways that features can be forcibly acquired, even though the AFAMethod may prefer the stop action."""
+
+    DISABLED = auto()  # no forced acquisition, allow stop action
+    METHOD_BASED = auto()  # assume that the AFAMethod implements its own logic for forcing acquisition, thus never returning the stop action
+    FALLBACK = auto()  # allow the AFAMethod to return a stop action, but override it using some dummy logic (see evaluation functions)
+
+
 @final
 class AFAEvaluator:
     def __init__(self, cfg: EvalConfig):
         self._cfg = cfg
         self._fallback_force_acquisition: bool = (
             False  # set to true during hard budget
+        )
+        self._forced_acquisition_mode: ForcedAcquisitionMode = (
+            ForcedAcquisitionMode.DISABLED
         )
         self._wandb_run: Run | None = None
         self._method: AFAMethod | None = None
@@ -65,6 +77,7 @@ class AFAEvaluator:
         self._set_selection_info()
         self._exec()
         self._save()
+        self._assert_no_stop_action_if_forced_acquisition()
 
     def _load(
         self,
@@ -160,11 +173,13 @@ class AFAEvaluator:
         if self._cfg.hard_budget is not None:
             if isinstance(self._method, SupportsForcedAcquisition):
                 self._method.force_acquisition = True
+                self._forced_acquisition_mode = (
+                    ForcedAcquisitionMode.METHOD_BASED
+                )
                 log.info(
                     "Enabled force_acquisition for hard-budget evaluation."
                 )
-                self._fallback_force_acquisition = False
-            self._fallback_force_acquisition = True  # used for methods that don't support custom force acquisition logic
+            self._forced_acquisition_mode = ForcedAcquisitionMode.FALLBACK
 
     def _set_selection_info(self) -> None:
         assert self._unmasker is not None
@@ -240,6 +255,12 @@ class AFAEvaluator:
 
         if self._wandb_run:
             self._wandb_run.finish()
+
+    def _assert_no_stop_action_if_forced_acquisition(self) -> None:
+        assert self._df_eval is not None
+
+        if self._forced_acquisition_mode != ForcedAcquisitionMode.DISABLED:
+            assert not (self._df_eval["action_performed"] == 0).any()
 
 
 @hydra.main(
