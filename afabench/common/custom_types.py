@@ -3,7 +3,7 @@ import logging
 from collections.abc import Sequence
 from math import prod
 from pathlib import Path
-from typing import Protocol, Self
+from typing import Protocol, Self, runtime_checkable
 
 import torch
 from jaxtyping import Bool, Float, Integer
@@ -432,3 +432,10 @@ class AFAInitializeFn(Protocol):
             feature_shape: The shape of the features excluding the batch dimension, if needed. Since both masked_features and label can have multiple batch dimensions, the feature shape cannot be inferred automatically.
         """
         ...
+
+
+@runtime_checkable
+class SupportsForceAcquisition(Protocol):
+    """Used during evaluation to detect whether an AFAMethod supports forced acquisition. During hard budget evaluation, we want to ignore stop actions."""
+
+    force_acquisition: bool
