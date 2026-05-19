@@ -18,6 +18,7 @@ from afabench.common.custom_types import (
     Label,
     MaskedFeatures,
     SelectionMask,
+    SupportsForcedAcquisition,
 )
 from afabench.common.registry import get_class
 
@@ -63,12 +64,13 @@ def get_td_from_masked_features(
 
 @dataclass
 @final
-class RLAFAMethod(AFAMethod):
+class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
     """Implements the AFAMethod protocol for a TensorDictModule policy together with a classifier."""
 
     policy_tdmodule: TensorDictModuleBase | ProbabilisticActor
     afa_classifier: AFAClassifier
     _device: torch.device
+    force_acquisition: bool = False
 
     def __post_init__(self):
         # Move policy and classifier to the specified device

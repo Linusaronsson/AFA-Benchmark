@@ -435,7 +435,7 @@ class AFAInitializeFn(Protocol):
 
 
 @runtime_checkable
-class SupportsForceAcquisition(Protocol):
+class SupportsForcedAcquisition(Protocol):
     """Used during evaluation to detect whether an AFAMethod supports forced acquisition. During hard budget evaluation, we want to ignore stop actions."""
 
     force_acquisition: bool

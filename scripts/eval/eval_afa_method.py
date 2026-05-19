@@ -11,6 +11,7 @@ from afabench.common.bundle import load_bundle
 from afabench.common.config_classes import (
     EvalConfig,
 )
+from afabench.common.custom_types import SupportsForcedAcquisition
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import (
@@ -37,7 +38,9 @@ log = logging.getLogger(__name__)
 class AFAEvaluator:
     def __init__(self, cfg: EvalConfig):
         self._cfg = cfg
-        self._force_acquisition: bool = False  # set to true during hard budget
+        self._fallback_force_acquisition: bool = (
+            False  # set to true during hard budget
+        )
         self._wandb_run: Run | None = None
         self._method: AFAMethod | None = None
         self._method_metadata: dict[str, Any] | None = None
@@ -155,14 +158,13 @@ class AFAEvaluator:
 
     def _set_hard_budget(self) -> None:
         if self._cfg.hard_budget is not None:
-            if hasattr(self._method, "force_acquisition"):
-                self._method.force_acquisition = (  # pyright: ignore[reportAttributeAccessIssue, reportOptionalMemberAccess]
-                    True  # TODO: no method should depend on this, ideally
-                )
+            if isinstance(self._method, SupportsForcedAcquisition):
+                self._method.force_acquisition = True
                 log.info(
                     "Enabled force_acquisition for hard-budget evaluation."
                 )
-            self._force_acquisition = True
+                self._fallback_force_acquisition = False
+            self._fallback_force_acquisition = True  # used for methods that don't support custom force acquisition logic
 
     def _set_selection_info(self) -> None:
         assert self._unmasker is not None
@@ -218,7 +220,7 @@ class AFAEvaluator:
             selection_budget=self._cfg.hard_budget,
             batch_size=self._cfg.batch_size,
             selection_costs=self._selection_costs.tolist(),
-            force_acquisition=self._force_acquisition,
+            force_acquisition=self._fallback_force_acquisition,
         )
 
         # Add eval_seed and eval_hard_budget to dataframe
