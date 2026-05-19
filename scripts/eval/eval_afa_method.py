@@ -177,9 +177,13 @@ class AFAEvaluator:
                     ForcedAcquisitionMode.METHOD_BASED
                 )
                 log.info(
-                    "Enabled force_acquisition for hard-budget evaluation."
+                    "Enabled method-backed forced acquisition for hard-budget evaluation."
                 )
-            self._forced_acquisition_mode = ForcedAcquisitionMode.FALLBACK
+            else:
+                self._forced_acquisition_mode = ForcedAcquisitionMode.FALLBACK
+                log.info(
+                    "Enabled fallback forced acquisition for hard-budget evaluation."
+                )
 
     def _set_selection_info(self) -> None:
         assert self._unmasker is not None
