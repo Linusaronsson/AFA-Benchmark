@@ -10,7 +10,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.eval.eval import single_afa_step
+from afabench.eval.eval import AFAStepResult, single_afa_step
 
 
 def afa_unmask_fn(
@@ -81,7 +81,7 @@ def test_single_afa_step(
         # Always output action 3 (selection index 2, unmasking features 4-5)
         return 3 * torch.ones((masked_features.shape[0], 1), dtype=torch.int64)
 
-    action, new_masked_features, new_feature_mask, _, _ = single_afa_step(
+    result: AFAStepResult = single_afa_step(
         features=features,
         label=label,
         masked_features=masked_features,
@@ -93,17 +93,17 @@ def test_single_afa_step(
 
     # Expected: both samples selected action 3, which unmaskes features 4-5
     expected_action = torch.tensor([[3], [3]], dtype=torch.int64)
-    assert torch.allclose(action, expected_action), (
-        f"Expected action {expected_action.tolist()}, but got {action.tolist()}"
+    assert torch.allclose(result.action, expected_action), (
+        f"Expected action {expected_action.tolist()}, but got {result.action.tolist()}"
     )
 
     expected_masked_features = torch.tensor(
         [[1, 2, 0, 0, 5, 6], [0, 0, 9, 10, 11, 12]],
         dtype=torch.float32,
     )
-    assert torch.allclose(new_masked_features, expected_masked_features), (
+    assert torch.allclose(result.masked_features, expected_masked_features), (
         f"Expected masked features {expected_masked_features.tolist()}, "
-        f"but got {new_masked_features.tolist()}"
+        f"but got {result.masked_features.tolist()}"
     )
 
     expected_feature_mask = torch.tensor(
@@ -111,10 +111,10 @@ def test_single_afa_step(
         dtype=torch.bool,
     )
     assert torch.allclose(
-        new_feature_mask.float(), expected_feature_mask.float()
+        result.feature_mask.float(), expected_feature_mask.float()
     ), (
         f"Expected feature mask {expected_feature_mask.tolist()}, "
-        f"but got {new_feature_mask.tolist()}"
+        f"but got {result.feature_mask.tolist()}"
     )
 
 
@@ -141,7 +141,7 @@ def test_single_afa_step_stop_selection(
                 actions[i] = 0
         return actions
 
-    action, new_masked_features, new_feature_mask, _, _ = single_afa_step(
+    result: AFAStepResult = single_afa_step(
         features=features,
         label=label,
         masked_features=masked_features,
@@ -153,17 +153,17 @@ def test_single_afa_step_stop_selection(
 
     # Expected: sample 0 stops (action 0), sample 1 selects action 3
     expected_action = torch.tensor([[0], [3]], dtype=torch.int64)
-    assert torch.allclose(action, expected_action), (
-        f"Expected action {expected_action.tolist()}, but got {action.tolist()}"
+    assert torch.allclose(result.action, expected_action), (
+        f"Expected action {expected_action.tolist()}, but got {result.action.tolist()}"
     )
 
     expected_masked_features = torch.tensor(
         [[1, 2, 0, 0, 0, 0], [0, 0, 9, 10, 11, 12]],
         dtype=torch.float32,
     )
-    assert torch.allclose(new_masked_features, expected_masked_features), (
+    assert torch.allclose(result.masked_features, expected_masked_features), (
         f"Expected masked features {expected_masked_features.tolist()}, "
-        f"but got {new_masked_features.tolist()}"
+        f"but got {result.masked_features.tolist()}"
     )
 
     expected_feature_mask = torch.tensor(
@@ -171,8 +171,8 @@ def test_single_afa_step_stop_selection(
         dtype=torch.bool,
     )
     assert torch.allclose(
-        new_feature_mask.float(), expected_feature_mask.float()
+        result.feature_mask.float(), expected_feature_mask.float()
     ), (
         f"Expected feature mask {expected_feature_mask.tolist()}, "
-        f"but got {new_feature_mask.tolist()}"
+        f"but got {result.feature_mask.tolist()}"
     )

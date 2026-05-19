@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 
 import pandas as pd
 import torch
@@ -26,6 +27,15 @@ from afabench.common.custom_types import (
 log = logging.getLogger(__name__)
 
 
+@dataclass
+class AFAStepResult:
+    action: AFAAction  # which action was chosen
+    masked_features: MaskedFeatures  # new masked features
+    feature_mask: FeatureMask  # new feature mask
+    external_prediction: Label | None
+    builtin_prediction: Label | None
+
+
 def single_afa_step(
     features: Features,
     label: Label,
@@ -37,24 +47,14 @@ def single_afa_step(
     feature_shape: torch.Size | None = None,
     external_afa_predict_fn: AFAPredictFn | None = None,
     builtin_afa_predict_fn: AFAPredictFn | None = None,
-) -> tuple[AFAAction, MaskedFeatures, FeatureMask, Label | None, Label | None]:
+) -> AFAStepResult:
     """
     Perform a single AFA step.
 
     Args:
-        features (Features): True unmasked features, required by unmasker.
-        label (Label): The true label, passed to all functions that may need it. Usually not used, since that would be a form of cheating, but we might want some objects to have access to it for benchmarking.
-        masked_features (MaskedFeatures): Currently masked features.
-        feature_mask (FeatureMask): Current feature mask.
-        selection_mask (SelectionMask): Mask indicating which selections have already been performed.
-        afa_action_fn (AFAActionFn): How to make AFA actions. Returns 0 to stop or 1-n to select.
-        afa_unmask_fn (AFAUnmaskFn): How to select new features from AFA selections.
-        feature_shape (torch.Size|None): Shape of the features, required by some objects.
-        external_afa_predict_fn (AFAPredictFn|None): An external classifier.
-        builtin_afa_predict_fn (AFAPredictFn|None): A builtin classifier, if such exists.
-
-    Returns:
-        tuple[AFAAction, MaskedFeatures, FeatureMask, Label|None, Label|None]: Action made (0=stop, 1-n=selection), updated masked features, feature mask and predicted labels after the AFA step.
+        label: Passed to all functions that may need it. Normally unused
+            (accessing it would be cheating), but available for benchmarking.
+        feature_shape: Required by some action/unmask/predict implementations.
     """
     # Get the action from the AFA method (0 = stop, 1-n = valid selections)
     afa_action = afa_action_fn(
@@ -104,12 +104,12 @@ def single_afa_step(
     else:
         builtin_prediction = None
 
-    return (
-        afa_action,
-        new_masked_features,
-        new_feature_mask,
-        external_prediction,
-        builtin_prediction,
+    return AFAStepResult(
+        action=afa_action,
+        masked_features=new_masked_features,
+        feature_mask=new_feature_mask,
+        external_prediction=external_prediction,
+        builtin_prediction=builtin_prediction,
     )
 
 
@@ -207,13 +207,7 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
         active_feature_mask = feature_mask[active_indices]
         active_selection_mask = selection_mask[active_indices]
 
-        (
-            active_afa_action,
-            active_new_masked_features,
-            active_new_feature_mask,
-            active_external_prediction,
-            active_builtin_prediction,
-        ) = single_afa_step(
+        step = single_afa_step(
             features=active_features,
             label=true_label[active_indices],
             masked_features=active_masked_features,
@@ -226,12 +220,12 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
             selection_mask=active_selection_mask,
         )
         # Key assumption: predictions are logits/probabilities for classes
-        if active_builtin_prediction is not None:
-            assert active_builtin_prediction.shape[-1] > 1, (
+        if step.builtin_prediction is not None:
+            assert step.builtin_prediction.shape[-1] > 1, (
                 "Expected builtin prediction to have class dimension"
             )
-        if active_external_prediction is not None:
-            assert active_external_prediction.shape[-1] > 1, (
+        if step.external_prediction is not None:
+            assert step.external_prediction.shape[-1] > 1, (
                 "Expected external prediction to have class dimension"
             )
 
@@ -239,7 +233,7 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
         if selection_budget is not None:
             for active_idx, true_idx in enumerate(active_indices):
                 global_idx = int(true_idx.item())
-                action = int(active_afa_action[active_idx].item())
+                action = int(step.action[active_idx].item())
                 if action > 0:  # Valid selection (not stop action)
                     selection_idx = action - 1
                     action_cost = selection_costs_list[selection_idx]
@@ -248,11 +242,11 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
                         > selection_budget
                     ):
                         # Override action to stop (0) if it would exceed budget
-                        active_afa_action[active_idx, 0] = 0
+                        step.action[active_idx, 0] = 0
                         forced_stops[global_idx] = True
 
         # Update accumulated costs for valid selections (BEFORE appending rows)
-        actions = active_afa_action.squeeze(-1)
+        actions = step.action.squeeze(-1)
         valid_selections = actions > 0
         if valid_selections.any():
             for active_idx, global_idx in enumerate(active_indices):
@@ -267,7 +261,7 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
         # Append one row per active sample
         for active_idx, true_idx in enumerate(active_indices):
             global_idx = int(true_idx.item())
-            action = active_afa_action[active_idx].item()
+            action = step.action[active_idx].item()
             # It does not matter if we append -1 here, since we will never access the last value
             selections_performed[global_idx].append(action - 1)
 
@@ -278,13 +272,11 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
                     ).copy(),
                     "action_performed": action,
                     "builtin_predicted_class": None
-                    if active_builtin_prediction is None
-                    else active_builtin_prediction[active_idx]
-                    .argmax(-1)
-                    .item(),
+                    if step.builtin_prediction is None
+                    else step.builtin_prediction[active_idx].argmax(-1).item(),
                     "external_predicted_class": None
-                    if active_external_prediction is None
-                    else active_external_prediction[active_idx]
+                    if step.external_prediction is None
+                    else step.external_prediction[active_idx]
                     .argmax(-1)
                     .item(),
                     "true_class": true_label[true_idx].argmax(-1).item(),
@@ -295,8 +287,8 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
             )
 
         # Update feature mask, masked features and selection mask
-        masked_features[active_indices] = active_new_masked_features
-        feature_mask[active_indices] = active_new_feature_mask
+        masked_features[active_indices] = step.masked_features
+        feature_mask[active_indices] = step.feature_mask
         if valid_selections.any():
             # Update selection mask for valid selections
             selection_mask[

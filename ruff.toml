@@ -93,6 +93,7 @@ ignore = [
   "D212",  # multi-line-summary-first-line
   "D400",  # missing-trailing-period. D415 already covers this.
   "D413",  # missing-blank-line-after-last-section
+  "D417",  # undocumented-param
   # Type annotations (ANN)
   "ANN204",  # missing-return-type-special-method. I don't want to annotate __init__
   # Pycodestyle errors (E)
