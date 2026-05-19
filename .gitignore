@@ -184,7 +184,6 @@ cython_debug/
 # Wandb folders
 /extra/wandb
 
-
 # Everything that the snakefiles produce
 /extra/output
 
@@ -196,8 +195,3 @@ cython_debug/
 
 # Snakemake cache
 /.snakemake
-
-# R files
-.Rproj.user
-AFA-Benchmark.Rproj
-.Rhistory
