@@ -13,8 +13,8 @@ from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.classifiers import WrappedMaskedMLPClassifier
 from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
 from afabench.common.datasets.utils import flatten_features_collate
-from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.models import LitMaskedMLPClassifier
+from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.utils import get_class_frequencies, set_seed
 
 if TYPE_CHECKING:

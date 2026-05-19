@@ -40,7 +40,6 @@ REGISTERED_CLASSES = {
     "UniformDummyAFAClassifier": "afabench.common.classifiers.UniformDummyAFAClassifier",
     "WrappedMaskedMLPClassifier": "afabench.common.classifiers.WrappedMaskedMLPClassifier",
     "WrappedMaskedViTClassifier": "afabench.common.classifiers.WrappedMaskedViTClassifier",
-    "WrappedMALearnClassifier": "afabench.common.classifiers.WrappedMALearnClassifier",
     "Shim2018AFAClassifier": "afabench.afa_rl.shim2018.models.Shim2018AFAClassifier",
     "Zannone2019AFAClassifier": "afabench.afa_rl.zannone2019.models.Zannone2019AFAClassifier",
     "Kachuee2019AFAClassifier": "afabench.afa_rl.kachuee2019.models.Kachuee2019AFAClassifier",
@@ -57,7 +56,6 @@ REGISTERED_CLASSES = {
     "MutualInformationInitializer": "afabench.common.initializers.MutualInformationInitializer",
     "LeastInformativeInitializer": "afabench.common.initializers.LeastInformativeInitializer",
     "RandomInitializer": "afabench.common.initializers.RandomInitializer",
-    "MissingnessInitializer": "afabench.common.initializers.MissingnessInitializer",
     # General PyTorch Model Bundle
     "TorchModelBundle": "afabench.common.torch_bundle.TorchModelBundle",
 }

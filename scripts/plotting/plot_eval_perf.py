@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING, final
 
 import numpy as np
 import plotnine as p9
@@ -33,6 +33,9 @@ from afabench.eval.plotting_config import (
     PLOT_HEIGHT,
     PLOT_WIDTH,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 SUBPLOT_HEIGHT = 2.0
 
@@ -712,6 +715,7 @@ def process_df_every_action(df: pl.DataFrame) -> pl.DataFrame | None:
     return var_metric_df_every_action
 
 
+@final
 class EvaluationPlotter:
     """Load, process, and generate evaluation performance plots."""
 

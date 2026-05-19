@@ -64,7 +64,7 @@ def test_merge_dataframes_basic_concatenation(tmp_path: Path) -> None:
     create_dummy_parquet(file2, rows=50, seed=43)
 
     # Run the merge script
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [  # noqa: S607
             "uv",
             "run",
@@ -133,7 +133,7 @@ def test_merge_dataframes_with_missing_columns(tmp_path: Path) -> None:
     create_dummy_parquet(file2, rows=30, seed=43, missing_col="classifier")
 
     # Run the merge script
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [  # noqa: S607
             "uv",
             "run",
@@ -194,7 +194,7 @@ def test_merge_dataframes_large_string_normalization(tmp_path: Path) -> None:
     create_dummy_parquet(file2, rows=50, seed=43)
 
     # Run the merge script
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [  # noqa: S607
             "uv",
             "run",
@@ -242,7 +242,7 @@ def test_merge_dataframes_single_file(tmp_path: Path) -> None:
     create_dummy_parquet(file1, rows=100, seed=42)
 
     # Run the merge script with single file
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [  # noqa: S607
             "uv",
             "run",
@@ -284,7 +284,7 @@ def test_merge_dataframes_missing_input_file(tmp_path: Path) -> None:
     nonexistent = tmp_path / "nonexistent.parquet"
 
     # Run the merge script with non-existent file
-    result = subprocess.run(  # noqa: S603
+    result = subprocess.run(
         [  # noqa: S607
             "uv",
             "run",

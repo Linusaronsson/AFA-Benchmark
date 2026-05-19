@@ -87,7 +87,7 @@ class TestRLAndDummyPipeline:
         cores: int,
     ) -> None:
         """Generate a single dataset using Snakemake."""
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             [  # noqa: S607
                 "uv",
                 "run",
@@ -162,7 +162,7 @@ class TestRLAndDummyPipeline:
             "--rerun-incomplete",
         ]
 
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
@@ -240,7 +240,7 @@ class TestRLAndDummyPipeline:
             "--rerun-incomplete",
         ]
 
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
@@ -312,7 +312,7 @@ class TestRLAndDummyPipeline:
             "--rerun-incomplete",
         ]
 
-        result = subprocess.run(  # noqa: S603
+        result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,

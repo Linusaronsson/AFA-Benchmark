@@ -29,6 +29,7 @@ type AFAAction = Integer[torch.Tensor, "*batch 1"]
 # Unmaskers receive this.
 type AFASelection = Integer[torch.Tensor, "*batch 1"]
 
+
 def _infer_dataset_key(dataset: object) -> str:
     return infer_dataset_key_from_class_name(dataset.__class__.__name__)
 
