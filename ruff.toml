@@ -36,7 +36,7 @@ exclude = [
   "afabench/static/models.py",
   "afabench/static/static_methods.py",
   "afabench/static/utils.py",
-  "scripts/eval/eval_afa_method.py",
+  # "scripts/eval/eval_afa_method.py",
   "scripts/misc/calculate_evaluation_time.py",
   "scripts/misc/calculate_training_time.py",
   "scripts/misc/download_result_plots.py",
