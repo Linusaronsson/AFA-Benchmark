@@ -23,6 +23,7 @@ REGISTERED_CLASSES = {
     "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
     "CubeNonUniformCostsDataset": "afabench.common.datasets.datasets.CubeNonUniformCostsDataset",
     "CubeNMDataset": "afabench.common.datasets.datasets.CubeNMDataset",
+    "AFAContextDataset": "afabench.common.datasets.datasets.CubeNMDataset",  # legacy alias to CubeNM
     "MNISTDataset": "afabench.common.datasets.datasets.MNISTDataset",
     "SyntheticMNISTDataset": "afabench.common.datasets.datasets.SyntheticMNISTDataset",
     "DiabetesDataset": "afabench.common.datasets.datasets.DiabetesDataset",
