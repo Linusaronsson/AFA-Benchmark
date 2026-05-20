@@ -60,7 +60,7 @@ HEATMAP_METHOD_SET = "heatmap_comparison"
 # NOTE: exclude training rules!
 # include: "../rules/training.smk"
 # include: "../rules/classifier_training.smk"
-# include: "../rules/evaluation.smk"
+include: "../rules/evaluation.smk"
 include: "../rules/transformations.smk"
 include: "../rules/aggregation.smk"
 include: "../rules/visualization.smk"
