@@ -189,15 +189,15 @@ class AFAEvaluator:
         assert self._unmasker is not None
         assert self._dataset is not None
 
-        selection_costs = self._unmasker.get_selection_costs(
+        self._selection_costs = self._unmasker.get_selection_costs(
             feature_costs=self._dataset.get_feature_acquisition_costs()
         )
         log.info(
             "Selection costs summary: n=%d, min=%.4f, max=%.4f, mean=%.4f.",
-            selection_costs.numel(),
-            selection_costs.min().item(),
-            selection_costs.max().item(),
-            selection_costs.mean().item(),
+            self._selection_costs.numel(),
+            self._selection_costs.min().item(),
+            self._selection_costs.max().item(),
+            self._selection_costs.mean().item(),
         )
         self._n_selection_choices = self._unmasker.get_n_selections(
             feature_shape=self._dataset.feature_shape
