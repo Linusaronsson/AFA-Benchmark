@@ -16,7 +16,7 @@ type Features = Float[torch.Tensor, "*batch *feature_shape"]
 # MaskedFeatures are similar to Features, but are 0 where FeatureMask is False
 type MaskedFeatures = Float[torch.Tensor, "*batch *feature_shape"]
 type FeatureMask = Bool[torch.Tensor, "*batch *feature_shape"]
-type SelectionMask = Bool[torch.Tensor, "*batch *selection_shape"]
+type SelectionMask = Bool[torch.Tensor, "*batch n_selections"]
 # We allow arbitrary labels
 type Label = Float[torch.Tensor, "*batch *label_shape"]
 type Logits = Float[torch.Tensor, "*batch *n_classes"]
