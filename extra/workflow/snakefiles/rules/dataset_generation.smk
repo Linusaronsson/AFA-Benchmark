@@ -1,4 +1,13 @@
 
+rule all_generate_dataset:
+    input:
+        [
+            f"extra/output/datasets/{dataset}/{dataset_instance_idx}/{split}.bundle"
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for split in ["train", "val", "test"]
+        ]
+
 
 # Generate instances for a single type of dataset
 # Use same seeds as instance indices
