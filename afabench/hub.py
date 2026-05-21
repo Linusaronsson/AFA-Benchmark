@@ -90,7 +90,7 @@ def _download_and_extract(
     repo_id: str,
     cache_dir: Path | None,
 ) -> Path:
-    from huggingface_hub import hf_hub_download  # noqa: PLC0415
+    from huggingface_hub import hf_hub_download
 
     zip_path = Path(
         hf_hub_download(
