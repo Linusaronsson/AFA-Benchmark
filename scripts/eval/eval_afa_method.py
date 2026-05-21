@@ -264,7 +264,10 @@ class AFAEvaluator:
         assert self._df_eval is not None
 
         if self._forced_acquisition_mode != ForcedAcquisitionMode.DISABLED:
-            assert not (self._df_eval["action_performed"] == 0).any()
+            # The method should only have stopped if it was forced to
+            assert self._df_eval.query("action_performed == 0")[  # pyright: ignore[reportGeneralTypeIssues]
+                "forced_stop"
+            ].all()
 
 
 @hydra.main(
