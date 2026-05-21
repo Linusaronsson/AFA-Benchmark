@@ -23,45 +23,6 @@ from afabench.common.custom_types import (
 from afabench.common.registry import get_class
 
 
-def get_td_from_masked_features(
-    masked_features: MaskedFeatures,
-    feature_mask: FeatureMask,
-    selection_mask: SelectionMask,
-) -> TensorDict:
-    """
-    Create a TensorDict suitable as input to AFA RL agents.
-
-    The keys are:
-    - "action_mask"
-    - "masked_features"
-    - "feature_mask"
-    """
-    # The action mask is almost the same as the negated selection mask but with one extra element (the stop action)
-    action_mask = torch.cat(
-        [
-            torch.ones(
-                selection_mask.shape[:-1] + (1,),
-                dtype=feature_mask.dtype,
-                device=feature_mask.device,
-            ),
-            ~selection_mask,
-        ],
-        dim=-1,
-    )
-
-    td = TensorDict(
-        {
-            "allowed_action_mask": action_mask,
-            "masked_features": masked_features,
-            "feature_mask": feature_mask,
-        },
-        batch_size=masked_features.shape[0],
-        device=masked_features.device,
-    )
-
-    return td
-
-
 @dataclass
 @final
 class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
@@ -82,6 +43,47 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
     def has_builtin_classifier(self) -> bool:
         return True
 
+    def get_td_from_masked_features(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        selection_mask: SelectionMask,
+    ) -> TensorDict:
+        """
+        Create a TensorDict suitable as input to AFA RL agents.
+
+        The keys are:
+        - "action_mask"
+        - "masked_features"
+        - "feature_mask"
+        """
+        # The action mask is almost the same as the negated selection mask but with one extra element (the stop action)
+        stop_action_mask = torch.full(
+            selection_mask.shape[:-1] + (1,),
+            (not self.force_acquisition),
+            dtype=selection_mask.dtype,
+            device=selection_mask.device,
+        )
+        action_mask = torch.cat(
+            [
+                stop_action_mask,
+                ~selection_mask,
+            ],
+            dim=-1,
+        )
+
+        td = TensorDict(
+            {
+                "allowed_action_mask": action_mask,
+                "masked_features": masked_features,
+                "feature_mask": feature_mask,
+            },
+            batch_size=masked_features.shape[0],
+            device=masked_features.device,
+        )
+
+        return td
+
     @override
     def act(
         self,
@@ -99,7 +101,7 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
         assert selection_mask is not None, (
             "RLAFAMethod requires selection_mask"
         )
-        td = get_td_from_masked_features(
+        td = self.get_td_from_masked_features(
             masked_features, feature_mask, selection_mask
         )
 
