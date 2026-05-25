@@ -60,7 +60,7 @@ device: null
 replay_buffer_device_same_as_device: true # generally true, but set to false for larger samples
 
 reward_method: "Bayesian-L1" # same as original paper
-mcdrop_samples: 1000 # same as original paper
+mcdrop_samples: 100 # original paper uses 1k but this is overkill
 
 # Alias arguments, only to implement interface assumed by snakemake
 hard_budget: null
