@@ -281,10 +281,11 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
         trainer.train(cfg=cfg.rl_training_loop)
     except KeyboardInterrupt:
         log.info("Training interrupted by user")
-    finally:
-        log.info("Training completed, starting cleanup and model saving")
-        trainer.save(save_path=Path(cfg.save_path))
-        log.info("Script completed successfully")
+        raise
+
+    log.info("Training completed, saving model")
+    trainer.save(save_path=Path(cfg.save_path))
+    log.info("Script completed successfully")
 
 
 if __name__ == "__main__":
