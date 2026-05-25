@@ -105,6 +105,35 @@ class Kachuee2019PQModule(nn.Module):
 
         return class_logits, qvalues
 
+    def forward_q_only(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask | None = None,
+    ) -> torch.Tensor:
+        assert masked_features.ndim == 2
+        x = self._maybe_concatenate(masked_features, feature_mask)
+        # P-Net forward path
+        act_last = x
+        acts_p = []
+        with torch.no_grad():
+            for f_layer in self.layers_p[:-1]:
+                act_last = F.dropout(
+                    F.relu(f_layer(act_last)), p=self.cfg.p_dropout
+                )
+                acts_p.append(act_last)
+
+        # Q-Net forward path, gradients are not backpropagated to P-Net
+        act_last = x
+        act_last = F.relu(self.layers_q[0](act_last))
+        for f_layer, p_act in zip(
+            self.layers_q[1:-1], acts_p[:-1], strict=False
+        ):
+            act_last = F.relu(f_layer(torch.cat([act_last, p_act], dim=1)))
+        p_act = acts_p[-1].detach()
+        qvalues = self.layers_q[-1](torch.cat([act_last, p_act], dim=1))
+
+        return qvalues
+
     def _maybe_concatenate(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask | None
     ) -> torch.Tensor:
