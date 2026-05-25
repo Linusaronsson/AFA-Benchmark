@@ -54,7 +54,7 @@ class Kachuee2019ActionValueModule(nn.Module):
         flat_masked_features = flat_masked_features.flatten(end_dim=-2)
         flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
         # pq_module.forward ensures that gradients are not backpropagated to the P network
-        _class_logits, qvalues = self.pq_module.forward_q_only(
+        qvalues = self.pq_module.forward_q_only(
             flat_masked_features, flat_feature_mask
         )
 
