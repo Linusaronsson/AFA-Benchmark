@@ -35,14 +35,38 @@ METHOD_NAME_MAPPING = {
     "stop_baseline_malasso": "No acquisition (MALasso)",
 }
 
+# Fixed colors for distinct policy families. Colors use Paul Tol's muted
+# qualitative scheme: https://sronpersonalpages.nl/~pault/data/colourschemes.pdf
+METHOD_COLOR_MAPPING = {
+    # EDDI / Ma 2018
+    "ma2018_external": "#332288",  # indigo
+    "ma2018_builtin": "#332288",
+    # Discriminative myopic
+    "covert2023": "#88CCEE",  # cyan
+    "gadgil2023": "#44AA99",  # teal
+    # RL
+    "jafa": "#117733",  # green
+    "ol_with_mask": "#999933",  # olive
+    "ol_without_mask": "#999933",
+    "odin_model_based": "#DDCC77",  # sand
+    "odin_model_free": "#DDCC77",
+    # Oracle-based
+    "aaco": "#CC6677",  # rose
+    "aaco_nn": "#CC6677",
+    # Static
+    "permutation": "#882255",  # wine
+    "cae": "#882255",
+    # Dummy / baselines
+    "random_dummy": "#AA4499",  # purple
+    "sequential_dummy": "#AA4499",
+}
+
 # Dataset display names mapping
 DATASET_NAME_MAPPING = {
     "cube": "CUBE",
     "cube_nonuniform_costs": "CUBE-NUC",
     "cube_nm": "CUBE-NM",
     "cube_nm_without_noise": "CUBE-NM-noiseless",
-    "cube_nm_3ctx": "CUBE-NM-3ctx",
-    "cube_nm_3ctx_without_noise": "CUBE-NM-3ctx-noiseless",
     "synthetic_mnist": "Synthetic MNIST",
     "cube_without_noise": "CUBE-noiseless",
     "synthetic_mnist_without_noise": "Synthetic-MNIST-noiseless",
@@ -67,10 +91,6 @@ DATASET_SETS = {
     "cube_nm_pair": {
         "cube_nm",
         "cube_nm_without_noise",
-    },
-    "cube_nm_3ctx_pair": {
-        "cube_nm_3ctx",
-        "cube_nm_3ctx_without_noise",
     },
     "set1": {
         "cube",

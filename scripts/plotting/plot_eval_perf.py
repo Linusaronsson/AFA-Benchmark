@@ -17,18 +17,18 @@ from plotnine import (
     geom_ribbon,
     ggplot,
     labs,
-    scale_color_brewer,
-    scale_fill_brewer,
+    scale_color_manual,
+    scale_fill_manual,
     scale_linetype_manual,
     theme,
 )
 from sklearn.metrics import accuracy_score, f1_score
 
 from afabench.eval.plotting_config import (
-    COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
     DATASET_SETS,
     DATASETS_WITH_F_SCORE,
+    METHOD_COLOR_MAPPING,
     METHOD_NAME_MAPPING,
     PLOT_HEIGHT,
     PLOT_WIDTH,
@@ -429,6 +429,11 @@ def get_plot(
         for orig in method_order
         if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
     ]
+    ordered_color_values = {
+        METHOD_NAME_MAPPING.get(orig, orig): METHOD_COLOR_MAPPING[orig]
+        for orig in method_order
+        if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
+    }
     # Use provided dimensions or defaults
     if figure_width is None:
         figure_width = PLOT_WIDTH
@@ -452,14 +457,12 @@ def get_plot(
         )
         + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
         + theme(figure_size=(figure_width, figure_height))
-        + scale_color_brewer(
-            type="qual",
-            palette=COLOR_PALETTE_NAME,
+        + scale_color_manual(
+            values=ordered_color_values,
             breaks=ordered_display_names,
         )
-        + scale_fill_brewer(
-            type="qual",
-            palette=COLOR_PALETTE_NAME,
+        + scale_fill_manual(
+            values=ordered_color_values,
             breaks=ordered_display_names,
         )
     )
