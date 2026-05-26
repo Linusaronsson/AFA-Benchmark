@@ -35,30 +35,109 @@ METHOD_NAME_MAPPING = {
     "stop_baseline_malasso": "No acquisition (MALasso)",
 }
 
-# Fixed colors for distinct policy families. Colors use ColorBrewer Set2.
-METHOD_COLOR_MAPPING = {
+METHOD_POLICY_FAMILY_MAPPING = {
     # EDDI / Ma 2018
-    "ma2018_external": "#66C2A5",  # teal
-    "ma2018_builtin": "#66C2A5",
+    "ma2018_external": "ma2018",
+    "ma2018_builtin": "ma2018",
     # Discriminative myopic
-    "covert2023": "#FC8D62",  # orange
-    "gadgil2023": "#8DA0CB",  # blue
+    "covert2023": "covert2023",
+    "gadgil2023": "gadgil2023",
     # RL
-    "jafa": "#E78AC3",  # pink
-    "ol_with_mask": "#A6D854",  # green
-    "ol_without_mask": "#A6D854",
-    "odin_model_based": "#FFD92F",  # yellow
-    "odin_model_free": "#FFD92F",
+    "jafa": "jafa",
+    "ol_with_mask": "ol",
+    "ol_without_mask": "ol",
+    "odin_model_based": "odin",
+    "odin_model_free": "odin",
     # Oracle-based
-    "aaco": "#E5C494",  # tan
-    "aaco_nn": "#E5C494",
+    "aaco": "aaco",
+    "aaco_nn": "aaco",
+    "aaco_dr": "aaco",
+    "aaco_full": "aaco",
+    "aaco_impute_mean": "aaco",
+    "aaco_madt": "aaco",
+    "aaco_magbt": "aaco",
+    "aaco_malasso": "aaco",
+    "aaco_mask_aware": "aaco",
+    "aaco_marf": "aaco",
+    "aaco_zero_fill": "aaco",
     # Static
-    "permutation": "#B3B3B3",  # grey
-    "cae": "#B3B3B3",
+    "permutation": "static",
+    "cae": "static",
     # Dummy / baselines
-    "random_dummy": "#B3B3B3",
-    "sequential_dummy": "#B3B3B3",
+    "random_dummy": "dummy",
+    "sequential_dummy": "dummy",
+    "stop_baseline": "dummy",
+    "stop_baseline_marf": "dummy",
+    "stop_baseline_madt": "dummy",
+    "stop_baseline_magbt": "dummy",
+    "stop_baseline_malasso": "dummy",
 }
+
+METHOD_FAMILY_COLOR_SCHEMES = {
+    "tol_muted": {
+        "ma2018": "#332288",  # indigo
+        "covert2023": "#88CCEE",  # cyan
+        "gadgil2023": "#44AA99",  # teal
+        "jafa": "#117733",  # green
+        "ol": "#999933",  # olive
+        "odin": "#DDCC77",  # sand
+        "aaco": "#CC6677",  # rose
+        "static": "#882255",  # wine
+        "dummy": "#AA4499",  # purple
+    },
+    "colorbrewer_set1": {
+        "ma2018": "#E41A1C",  # red
+        "covert2023": "#377EB8",  # blue
+        "gadgil2023": "#4DAF4A",  # green
+        "jafa": "#984EA3",  # purple
+        "ol": "#FF7F00",  # orange
+        "odin": "#FFFF33",  # yellow
+        "aaco": "#A65628",  # brown
+        "static": "#F781BF",  # pink
+        "dummy": "#999999",  # grey
+    },
+    "colorbrewer_set2": {
+        "ma2018": "#66C2A5",  # teal
+        "covert2023": "#FC8D62",  # orange
+        "gadgil2023": "#8DA0CB",  # blue
+        "jafa": "#E78AC3",  # pink
+        "ol": "#A6D854",  # green
+        "odin": "#FFD92F",  # yellow
+        "aaco": "#E5C494",  # tan
+        "static": "#B3B3B3",  # grey
+        "dummy": "#B3B3B3",  # grey
+    },
+    "colorbrewer_dark2": {
+        "ma2018": "#1B9E77",  # teal
+        "covert2023": "#D95F02",  # orange
+        "gadgil2023": "#7570B3",  # purple
+        "jafa": "#E7298A",  # pink
+        "ol": "#66A61E",  # green
+        "odin": "#E6AB02",  # mustard
+        "aaco": "#A6761D",  # brown
+        "static": "#666666",  # grey
+        "dummy": "#666666",  # grey
+    },
+}
+
+
+def get_method_color_mapping(scheme_name: str) -> dict[str, str]:
+    """Return fixed method colors for a named qualitative color scheme."""
+    family_colors = METHOD_FAMILY_COLOR_SCHEMES[scheme_name]
+    return {
+        method: family_colors[family]
+        for method, family in METHOD_POLICY_FAMILY_MAPPING.items()
+    }
+
+
+METHOD_COLOR_SCHEMES = {
+    name: get_method_color_mapping(name)
+    for name in METHOD_FAMILY_COLOR_SCHEMES
+}
+
+# Change this value to switch the fixed policy colors used by plots.
+ACTIVE_METHOD_COLOR_SCHEME = "colorbrewer_dark2"
+METHOD_COLOR_MAPPING = METHOD_COLOR_SCHEMES[ACTIVE_METHOD_COLOR_SCHEME]
 
 # Dataset display names mapping
 DATASET_NAME_MAPPING = {

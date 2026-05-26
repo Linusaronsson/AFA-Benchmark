@@ -21,6 +21,7 @@ from plotnine import (
     scale_fill_manual,
     scale_linetype_manual,
     theme,
+    theme_bw,
 )
 from sklearn.metrics import accuracy_score, f1_score
 
@@ -456,6 +457,7 @@ def get_plot(
             ncol=4,
         )
         + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
+        + theme_bw()
         + theme(figure_size=(figure_width, figure_height))
         + scale_color_manual(
             values=ordered_color_values,
