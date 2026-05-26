@@ -9,6 +9,7 @@ import plotnine as p9
 import polars as pl
 from plotnine import (
     aes,
+    element_text,
     facet_wrap,
     geom_errorbar,
     geom_errorbarh,
@@ -31,6 +32,7 @@ from afabench.eval.plotting_config import (
     DATASETS_WITH_F_SCORE,
     METHOD_COLOR_MAPPING,
     METHOD_NAME_MAPPING,
+    PLOT_FONT_FAMILY,
     PLOT_HEIGHT,
     PLOT_WIDTH,
 )
@@ -458,7 +460,10 @@ def get_plot(
         )
         + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
         + theme_bw()
-        + theme(figure_size=(figure_width, figure_height))
+        + theme(
+            figure_size=(figure_width, figure_height),
+            text=element_text(family=PLOT_FONT_FAMILY),
+        )
         + scale_color_manual(
             values=ordered_color_values,
             breaks=ordered_display_names,

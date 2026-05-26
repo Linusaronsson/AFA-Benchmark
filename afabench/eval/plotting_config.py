@@ -5,6 +5,7 @@ from __future__ import annotations
 # Plot dimensions
 PLOT_WIDTH = 13
 PLOT_HEIGHT = 5
+PLOT_FONT_FAMILY = "Libertinus Serif"
 
 # Method display names mapping
 METHOD_NAME_MAPPING = {

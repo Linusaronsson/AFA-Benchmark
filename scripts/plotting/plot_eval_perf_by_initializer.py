@@ -12,6 +12,7 @@ from afabench.eval.plotting_config import (
     DATASET_NAME_MAPPING,
     DATASETS_WITH_F_SCORE,
     METHOD_NAME_MAPPING,
+    PLOT_FONT_FAMILY,
 )
 
 SUBPLOT_HEIGHT = 2.8
@@ -219,7 +220,10 @@ def _make_plot(summary_data: pl.DataFrame) -> p9.ggplot:
             color="Initializer",
             shape="Policy",
         )
-        + p9.theme(figure_size=(11.0, figure_height))
+        + p9.theme(
+            figure_size=(11.0, figure_height),
+            text=p9.element_text(family=PLOT_FONT_FAMILY),
+        )
     )
 
 

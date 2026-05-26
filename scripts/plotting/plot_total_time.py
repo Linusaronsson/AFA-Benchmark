@@ -18,18 +18,21 @@ import polars as pl
 from plotnine import (
     aes,
     coord_flip,
+    element_text,
     facet_wrap,
     geom_bar,
     ggplot,
     labs,
     scale_fill_brewer,
     scale_x_discrete,
+    theme,
 )
 
 from afabench.eval.plotting_config import (
     COLOR_PALETTE_NAME,
     DATASET_NAME_MAPPING,
     METHOD_NAME_MAPPING,
+    PLOT_FONT_FAMILY,
 )
 
 
@@ -116,6 +119,7 @@ def common_plot_operations(p: p9.ggplot) -> p9.ggplot:
         p
         + coord_flip()
         + labs(x="Policy", y="Time (s)", fill="Stage")
+        + theme(text=element_text(family=PLOT_FONT_FAMILY))
         + scale_x_discrete()
         + scale_fill_brewer(
             type="qual",

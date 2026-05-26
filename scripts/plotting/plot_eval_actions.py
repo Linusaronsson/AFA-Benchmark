@@ -12,6 +12,7 @@ from tqdm import tqdm
 from afabench.eval.plotting_config import (
     DATASET_NAME_MAPPING,
     METHOD_NAME_MAPPING,
+    PLOT_FONT_FAMILY,
 )
 
 if TYPE_CHECKING:
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
 type Heatmap = Any
+
+plt.rcParams["font.family"] = PLOT_FONT_FAMILY
 
 
 def create_dummy_data() -> pl.DataFrame:
