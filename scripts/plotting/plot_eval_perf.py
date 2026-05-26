@@ -412,6 +412,9 @@ def get_plot(
         dataset=pl.col("dataset").replace(
             DATASET_NAME_MAPPING_INCLUDING_METRIC
         ),
+        policy_type=pl.when(pl.col("afa_method").is_in(NON_MYOPIC_METHODS))
+        .then(pl.lit("Non-myopic"))
+        .otherwise(pl.lit("Myopic")),
         afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
     )
 
@@ -426,12 +429,6 @@ def get_plot(
         for orig in method_order
         if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
     ]
-    ordered_line_types = [
-        "dotted" if orig in NON_MYOPIC_METHODS else "solid"
-        for orig in method_order
-        if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
-    ]
-
     # Use provided dimensions or defaults
     if figure_width is None:
         figure_width = PLOT_WIDTH
@@ -474,10 +471,11 @@ def get_plot(
             alpha=0.1,
             size=0.0,
         )
-        plot += geom_line(aes(linetype="afa_method"))
+        plot += geom_line(aes(linetype="policy_type"))
         plot += scale_linetype_manual(
-            values=ordered_line_types,
-            breaks=ordered_display_names,
+            name="Policy type",
+            values={"Myopic": "solid", "Non-myopic": "dotted"},
+            breaks=["Myopic", "Non-myopic"],
         )
     else:
         plot += geom_point()
