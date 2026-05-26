@@ -35,30 +35,29 @@ METHOD_NAME_MAPPING = {
     "stop_baseline_malasso": "No acquisition (MALasso)",
 }
 
-# Fixed colors for distinct policy families. Colors use Paul Tol's muted
-# qualitative scheme: https://sronpersonalpages.nl/~pault/data/colourschemes.pdf
+# Fixed colors for distinct policy families. Colors use ColorBrewer Set1.
 METHOD_COLOR_MAPPING = {
     # EDDI / Ma 2018
-    "ma2018_external": "#332288",  # indigo
-    "ma2018_builtin": "#332288",
+    "ma2018_external": "#E41A1C",  # red
+    "ma2018_builtin": "#E41A1C",
     # Discriminative myopic
-    "covert2023": "#88CCEE",  # cyan
-    "gadgil2023": "#44AA99",  # teal
+    "covert2023": "#377EB8",  # blue
+    "gadgil2023": "#4DAF4A",  # green
     # RL
-    "jafa": "#117733",  # green
-    "ol_with_mask": "#999933",  # olive
-    "ol_without_mask": "#999933",
-    "odin_model_based": "#DDCC77",  # sand
-    "odin_model_free": "#DDCC77",
+    "jafa": "#984EA3",  # purple
+    "ol_with_mask": "#FF7F00",  # orange
+    "ol_without_mask": "#FF7F00",
+    "odin_model_based": "#FFFF33",  # yellow
+    "odin_model_free": "#FFFF33",
     # Oracle-based
-    "aaco": "#CC6677",  # rose
-    "aaco_nn": "#CC6677",
+    "aaco": "#A65628",  # brown
+    "aaco_nn": "#A65628",
     # Static
-    "permutation": "#882255",  # wine
-    "cae": "#882255",
+    "permutation": "#F781BF",  # pink
+    "cae": "#F781BF",
     # Dummy / baselines
-    "random_dummy": "#AA4499",  # purple
-    "sequential_dummy": "#AA4499",
+    "random_dummy": "#999999",  # grey
+    "sequential_dummy": "#999999",
 }
 
 # Dataset display names mapping
