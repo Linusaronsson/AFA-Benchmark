@@ -35,29 +35,29 @@ METHOD_NAME_MAPPING = {
     "stop_baseline_malasso": "No acquisition (MALasso)",
 }
 
-# Fixed colors for distinct policy families. Colors use ColorBrewer Set1.
+# Fixed colors for distinct policy families. Colors use ColorBrewer Set2.
 METHOD_COLOR_MAPPING = {
     # EDDI / Ma 2018
-    "ma2018_external": "#E41A1C",  # red
-    "ma2018_builtin": "#E41A1C",
+    "ma2018_external": "#66C2A5",  # teal
+    "ma2018_builtin": "#66C2A5",
     # Discriminative myopic
-    "covert2023": "#377EB8",  # blue
-    "gadgil2023": "#4DAF4A",  # green
+    "covert2023": "#FC8D62",  # orange
+    "gadgil2023": "#8DA0CB",  # blue
     # RL
-    "jafa": "#984EA3",  # purple
-    "ol_with_mask": "#FF7F00",  # orange
-    "ol_without_mask": "#FF7F00",
-    "odin_model_based": "#FFFF33",  # yellow
-    "odin_model_free": "#FFFF33",
+    "jafa": "#E78AC3",  # pink
+    "ol_with_mask": "#A6D854",  # green
+    "ol_without_mask": "#A6D854",
+    "odin_model_based": "#FFD92F",  # yellow
+    "odin_model_free": "#FFD92F",
     # Oracle-based
-    "aaco": "#A65628",  # brown
-    "aaco_nn": "#A65628",
+    "aaco": "#E5C494",  # tan
+    "aaco_nn": "#E5C494",
     # Static
-    "permutation": "#F781BF",  # pink
-    "cae": "#F781BF",
+    "permutation": "#B3B3B3",  # grey
+    "cae": "#B3B3B3",
     # Dummy / baselines
-    "random_dummy": "#999999",  # grey
-    "sequential_dummy": "#999999",
+    "random_dummy": "#B3B3B3",
+    "sequential_dummy": "#B3B3B3",
 }
 
 # Dataset display names mapping
