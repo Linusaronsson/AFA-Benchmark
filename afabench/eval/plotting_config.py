@@ -20,8 +20,8 @@ METHOD_NAME_MAPPING = {
     "odin_model_based": "ODIN-MBRL",
     "odin_model_free": "ODIN-MFRL",
     # Oracle-based
-    "aaco": "AACO",
-    "aaco_nn": "AACO+NN",
+    "aaco": "AACO-OC",
+    "aaco_nn": "AACO+NN-OC",
     # Static
     "permutation": "PT-S",
     "cae": "CAE-S",
