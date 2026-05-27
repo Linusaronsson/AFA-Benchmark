@@ -42,6 +42,7 @@ if TYPE_CHECKING:
 
 SUBPLOT_HEIGHT = 2.0
 PLOT_FONT_SIZE = 12
+SUBPLOT_TITLE_FONT_SIZE = 14
 
 # EXCLUSION_MAPPING = {
 #     # Exclude method from dataset by default, except when methods set matches
@@ -459,6 +460,7 @@ def get_plot(
                 family=PLOT_FONT_FAMILY,
                 size=PLOT_FONT_SIZE,
             ),
+            strip_text=element_text(size=SUBPLOT_TITLE_FONT_SIZE),
         )
         + scale_color_manual(
             values=ordered_color_values,
