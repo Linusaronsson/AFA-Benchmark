@@ -22,7 +22,11 @@ if TYPE_CHECKING:
 
 type Heatmap = Any
 
+PLOT_FONT_SIZE = 12
+PLOT_TITLE_FONT_SIZE = 14
+
 plt.rcParams["font.family"] = PLOT_FONT_FAMILY
+plt.rcParams["font.size"] = PLOT_FONT_SIZE
 
 
 def create_dummy_data() -> pl.DataFrame:
@@ -193,7 +197,11 @@ def format_heatmap_axes(
 ) -> None:
     """Format and label axes for a heatmap subplot."""
     method_name = METHOD_NAME_MAPPING.get(method, method)
-    ax.set_title(method_name, fontsize=12, fontweight="bold")
+    ax.set_title(
+        method_name,
+        fontsize=PLOT_FONT_SIZE,
+        fontweight="bold",
+    )
     ax.set_xlabel("Time step")
     ax.set_ylabel("Action index")
     ax.set_xticks(np.arange(0, int(max_time) + 1, max(1, int(max_time) // 5)))
@@ -265,7 +273,7 @@ def create_action_heatmap(
     dataset_name = DATASET_NAME_MAPPING.get(dataset, dataset)
     fig.suptitle(
         f"Action Heatmaps - {dataset_name} - {extra_title}",
-        fontsize=14,
+        fontsize=PLOT_TITLE_FONT_SIZE,
         y=0.98,
     )
     plt.subplots_adjust(
@@ -389,7 +397,7 @@ def produce_separate_plots(
         )
         fig.suptitle(
             f"Action Heatmaps - {dataset_display_name} - {extra_title}",
-            fontsize=14,
+            fontsize=PLOT_TITLE_FONT_SIZE,
             y=0.98,
         )
         plt.subplots_adjust(

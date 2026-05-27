@@ -35,6 +35,8 @@ from afabench.eval.plotting_config import (
     PLOT_FONT_FAMILY,
 )
 
+PLOT_FONT_SIZE = 12
+
 
 def get_mock_df() -> pl.DataFrame:
     """Generate mock dataframe for testing."""
@@ -119,7 +121,12 @@ def common_plot_operations(p: p9.ggplot) -> p9.ggplot:
         p
         + coord_flip()
         + labs(x="Policy", y="Time (s)", fill="Stage")
-        + theme(text=element_text(family=PLOT_FONT_FAMILY))
+        + theme(
+            text=element_text(
+                family=PLOT_FONT_FAMILY,
+                size=PLOT_FONT_SIZE,
+            )
+        )
         + scale_x_discrete()
         + scale_fill_brewer(
             type="qual",

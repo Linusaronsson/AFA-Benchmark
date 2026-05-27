@@ -41,6 +41,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 SUBPLOT_HEIGHT = 2.0
+PLOT_FONT_SIZE = 12
 
 EXCLUSION_MAPPING = {
     # Exclude method from dataset by default, except when methods set matches
@@ -462,7 +463,10 @@ def get_plot(
         + theme_bw()
         + theme(
             figure_size=(figure_width, figure_height),
-            text=element_text(family=PLOT_FONT_FAMILY),
+            text=element_text(
+                family=PLOT_FONT_FAMILY,
+                size=PLOT_FONT_SIZE,
+            ),
         )
         + scale_color_manual(
             values=ordered_color_values,
