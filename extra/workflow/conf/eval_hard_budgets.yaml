@@ -10,7 +10,7 @@ eval_hard_budgets:
   cube: [3, 5, 10]
   cube_without_noise: [3, 5, 10]
   cube_nonuniform_costs: [2, 4, 7]
-  diabetes: [5, 10, 15]
+  diabetes: [1, 3, 5]
   mnist: [10, 20, 30]
   fashion_mnist: [10, 20, 30]
   imagenette: [5, 10, 15]
