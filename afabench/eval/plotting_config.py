@@ -18,8 +18,8 @@ METHOD_NAME_MAPPING = {
     "jafa": "JAFA",
     "ol_with_mask": "OL",
     "ol_without_mask": "OL(no-mask)",
-    "odin_model_based": "ODIN",
-    "odin_model_free": "ODIN",
+    "odin_model_based": "ODIN(model-based)",
+    "odin_model_free": "ODIN(model-free)",
     # Oracle-based
     "aaco": "AACO",
     "aaco_nn": "AACO(NN)",
