@@ -1,17 +1,17 @@
 # Which methods we run the pipeline on
 methods:
   - jafa
-  # - odin_model_free
+  - odin_model_free
   - odin_model_based
-  # - ol_without_mask
+  - ol_without_mask
   - ol_with_mask
-  # - random_dummy
-  # - sequential_dummy
+  - random_dummy
+  - sequential_dummy
   - covert2023
-  # - ma2018_builtin
+  - ma2018_builtin
   - ma2018_external
   - gadgil2023
   - cae
-  # - permutation
+  - permutation
   - aaco
-  # - aaco_nn
+  - aaco_nn
