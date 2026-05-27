@@ -6,7 +6,6 @@ datasets:
   - ckd
   - cube
   - cube_nonuniform_costs
-  - diabetes
   - miniboone
   - physionet
   - mnist

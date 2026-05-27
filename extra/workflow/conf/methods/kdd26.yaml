@@ -1,0 +1,10 @@
+# Which methods we run the pipeline on
+methods:
+  - jafa
+  - odin_model_based
+  - ol_with_mask
+  - covert2023
+  - ma2018_external
+  - gadgil2023
+  - cae
+  - aaco
