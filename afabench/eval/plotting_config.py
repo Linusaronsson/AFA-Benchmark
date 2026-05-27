@@ -16,8 +16,8 @@ METHOD_NAME_MAPPING = {
     "gadgil2023": "DIME",
     # RL
     "jafa": "JAFA",
-    "ol_with_mask": "OL",
-    "ol_without_mask": "OL(no-mask)",
+    "ol_with_mask": "OL(with-mask)",
+    "ol_without_mask": "OL(without-mask)",
     "odin_model_based": "ODIN(model-based)",
     "odin_model_free": "ODIN(model-free)",
     # Oracle-based
