@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 
 type Heatmap = Any
 
-PLOT_FONT_SIZE = 12
-PLOT_TITLE_FONT_SIZE = 14
+PLOT_FONT_SIZE = 16
+PLOT_TITLE_FONT_SIZE = 18
 
 plt.rcParams["font.family"] = PLOT_FONT_FAMILY
 plt.rcParams["font.size"] = PLOT_FONT_SIZE
