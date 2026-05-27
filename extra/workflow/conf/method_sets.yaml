@@ -30,6 +30,7 @@ method_sets:
     - jafa
     - aaco
     - covert2023
+    - ma2018_external
   # A subset of methods, as the main result
   main:
     - jafa
