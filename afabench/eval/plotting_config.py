@@ -196,7 +196,7 @@ DATASET_SETS = {
         "cube_nm_without_noise",
         "bank_marketing",
         "miniboone",
-        "diabetes",
+        "actg",
         "physionet",
         "fashion_mnist",
         "imagenette",
