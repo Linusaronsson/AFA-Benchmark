@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 
 SUBPLOT_HEIGHT = 2.0
 PLOT_FONT_SIZE = 12
-SUBPLOT_TITLE_FONT_SIZE = 14
+SUBPLOT_TITLE_FONT_SIZE = 10
 
 # EXCLUSION_MAPPING = {
 #     # Exclude method from dataset by default, except when methods set matches
