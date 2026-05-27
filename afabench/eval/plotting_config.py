@@ -10,30 +10,25 @@ PLOT_FONT_FAMILY = "Libertinus Serif"
 # Method display names mapping
 METHOD_NAME_MAPPING = {
     # Greedy
-    "ma2018_external": "EDDI-GM",
-    "ma2018_builtin": "EDDI-GM+builtin",
-    "covert2023": "GDFS-DM",
-    "gadgil2023": "DIME-DM",
+    "ma2018_external": "EDDI",
+    "ma2018_builtin": "EDDI(builtin)",
+    "covert2023": "GDFS",
+    "gadgil2023": "DIME",
     # RL
-    "jafa": "JAFA-MFRL",
-    "ol_with_mask": "OL-MFRL",
-    "ol_without_mask": "OL-MFRL+no-mask",
-    "odin_model_based": "ODIN-MBRL",
-    "odin_model_free": "ODIN-MFRL",
+    "jafa": "JAFA",
+    "ol_with_mask": "OL(with-mask)",
+    "ol_without_mask": "OL(without-mask)",
+    "odin_model_based": "ODIN(model-based)",
+    "odin_model_free": "ODIN(model-free)",
     # Oracle-based
-    "aaco": "AACO-OC",
-    "aaco_nn": "AACO+NN-OC",
+    "aaco": "AACO",
+    "aaco_nn": "AACO(NN)",
     # Static
-    "permutation": "PT-S",
-    "cae": "CAE-S",
+    "permutation": "PT",
+    "cae": "CAE",
     # Dummy
     "random_dummy": "Random",
     "sequential_dummy": "Sequential dummy",
-    "stop_baseline": "No acquisition",
-    "stop_baseline_marf": "No acquisition (MARF)",
-    "stop_baseline_madt": "No acquisition (MADT)",
-    "stop_baseline_magbt": "No acquisition (MAGBT)",
-    "stop_baseline_malasso": "No acquisition (MALasso)",
 }
 
 METHOD_POLICY_FAMILY_MAPPING = {
@@ -52,26 +47,12 @@ METHOD_POLICY_FAMILY_MAPPING = {
     # Oracle-based
     "aaco": "aaco",
     "aaco_nn": "aaco",
-    "aaco_dr": "aaco",
-    "aaco_full": "aaco",
-    "aaco_impute_mean": "aaco",
-    "aaco_madt": "aaco",
-    "aaco_magbt": "aaco",
-    "aaco_malasso": "aaco",
-    "aaco_mask_aware": "aaco",
-    "aaco_marf": "aaco",
-    "aaco_zero_fill": "aaco",
     # Static
     "permutation": "static",
     "cae": "static",
     # Dummy / baselines
     "random_dummy": "dummy",
     "sequential_dummy": "dummy",
-    "stop_baseline": "dummy",
-    "stop_baseline_marf": "dummy",
-    "stop_baseline_madt": "dummy",
-    "stop_baseline_magbt": "dummy",
-    "stop_baseline_malasso": "dummy",
 }
 
 METHOD_FAMILY_COLOR_SCHEMES = {
@@ -208,6 +189,20 @@ DATASET_SETS = {
         "mnist",
         "cube_nonuniform_costs",
         "pharyngitis",
+    },
+    "kdd26": {
+        "cube",
+        "cube_nm",
+        "cube_nm_without_noise",
+        "bank_marketing",
+        "miniboone",
+        "diabetes",
+        "physionet",
+        "fashion_mnist",
+        "imagenette",
+        "ckd",
+        "mnist",
+        "cube_nonuniform_costs",
     },
 }
 

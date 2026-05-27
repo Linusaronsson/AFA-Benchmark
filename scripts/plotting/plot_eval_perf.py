@@ -43,35 +43,27 @@ if TYPE_CHECKING:
 SUBPLOT_HEIGHT = 2.0
 PLOT_FONT_SIZE = 12
 
-EXCLUSION_MAPPING = {
-    # Exclude method from dataset by default, except when methods set matches
-    # Structure: (method, dataset) -> frozenset of allowed method combinations
-    # If the set of methods in the dataset matches one of the frozensets,
-    # the method is NOT excluded. Otherwise, it IS excluded.
-    ("odin_model_based", "diabetes"): frozenset(
-        [frozenset(["odin_model_based", "odin_model_free"])]
-    ),
-    ("odin_model_based", "miniboone"): frozenset(
-        [frozenset(["odin_model_based", "odin_model_free"])]
-    ),
-}
+# EXCLUSION_MAPPING = {
+#     # Exclude method from dataset by default, except when methods set matches
+#     # Structure: (method, dataset) -> frozenset of allowed method combinations
+#     # If the set of methods in the dataset matches one of the frozensets,
+#     # the method is NOT excluded. Otherwise, it IS excluded.
+#     ("odin_model_based", "diabetes"): frozenset(
+#         [frozenset(["odin_model_based", "odin_model_free"])]
+#     ),
+#     ("odin_model_based", "miniboone"): frozenset(
+#         [frozenset(["odin_model_based", "odin_model_free"])]
+#     ),
+# }
+
+EXCLUSION_MAPPING = {}
 
 DATASETS = DATASET_NAME_MAPPING.keys()
 
 NON_MYOPIC_METHODS = frozenset(
     {
         "aaco",
-        "aaco_dr",
-        "aaco_full",
-        "aaco_impute_mean",
-        "aaco_madt",
-        "aaco_magbt",
-        "aaco_malasso",
-        "aaco_mask_aware",
-        "aaco_marf",
         "aaco_nn",
-        "aaco_zero_fill",
-        "cube_nm_ar_oracle",
         "jafa",
         "odin_model_based",
         "odin_model_free",
