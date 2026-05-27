@@ -20,6 +20,9 @@ set-resources:
   train_method_without_pretrained_model:
     runtime: 6000 # 100 hours
     cpus_per_task: 8
+  eval_method:
+    runtime: 6000 # 100 hours
+    cpus_per_task: 8
 
   # Although the merged eval dataframes "only" take up less than 1Gb, opening them can use a lot more
   split_by_classifier_type:
