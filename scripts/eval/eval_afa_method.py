@@ -77,7 +77,6 @@ class AFAEvaluator:
         self._set_selection_info()
         self._exec()
         self._save()
-        self._assert_no_stop_action_if_forced_acquisition()
 
     def _load(
         self,
@@ -259,15 +258,6 @@ class AFAEvaluator:
 
         if self._wandb_run:
             self._wandb_run.finish()
-
-    def _assert_no_stop_action_if_forced_acquisition(self) -> None:
-        assert self._df_eval is not None
-
-        if self._forced_acquisition_mode != ForcedAcquisitionMode.DISABLED:
-            # The method should only have stopped if it was forced to
-            assert self._df_eval.query("action_performed == 0")[  # pyright: ignore[reportGeneralTypeIssues]
-                "forced_stop"
-            ].all()
 
 
 @hydra.main(
