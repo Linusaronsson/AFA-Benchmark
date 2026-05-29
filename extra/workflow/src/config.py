@@ -106,8 +106,8 @@ def load_config(config):
     # Optional method-specific classifier training config.
     # Format in method_options:
     #   classifier:
-    #     script_name: "malearn_classifier"
-    #     script_params: ["model_name=marf", ...]
+    #     script_name: "some_classifier"
+    #     script_params: [...]
     method_classifier_script_names = {}
     method_classifier_script_params = {}
     for method, options in method_options.items():

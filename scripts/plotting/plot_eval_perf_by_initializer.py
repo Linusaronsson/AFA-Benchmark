@@ -17,35 +17,6 @@ from afabench.eval.plotting_config import (
 
 SUBPLOT_HEIGHT = 2.8
 
-INITIALIZER_NAME_MAPPING = {
-    "missingness": "Missingness",
-    "missingness_all_observed": "All observed",
-}
-
-VARIANT_NAME_MAPPING = {
-    "marf": "MARF",
-    "madt": "MADT",
-    "magbt": "MAGBT",
-    "malasso": "MALasso",
-}
-
-
-def _format_initializer_label(initializer: str) -> str:
-    if initializer in INITIALIZER_NAME_MAPPING:
-        return INITIALIZER_NAME_MAPPING[initializer]
-
-    if initializer.startswith("missingness_all_observed_"):
-        variant = initializer.removeprefix("missingness_all_observed_")
-        variant_label = VARIANT_NAME_MAPPING.get(variant, variant.upper())
-        return f"{variant_label} all observed"
-
-    if initializer.startswith("missingness_"):
-        variant = initializer.removeprefix("missingness_")
-        variant_label = VARIANT_NAME_MAPPING.get(variant, variant.upper())
-        return f"{variant_label} missingness"
-
-    return initializer
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -187,10 +158,6 @@ def _make_plot(summary_data: pl.DataFrame) -> p9.ggplot:
     plot_data = summary_data.with_columns(
         dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING),
         afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
-        initializer=pl.col("initializer").map_elements(
-            _format_initializer_label,
-            return_dtype=pl.String,
-        ),
     )
 
     n_datasets = max(plot_data["dataset"].n_unique(), 1)
