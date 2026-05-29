@@ -216,7 +216,11 @@ class Ma2018AFAMethod(AFAMethod):
             costs = self._selection_costs.to(self._device)
             costs = torch.clamp(costs, min=1e-12)
             scores = scores / costs.unsqueeze(0)
-        best_scores, best_idx = scores.max(dim=1)
+        # best_scores, best_idx = scores.max(dim=1)
+        best_scores = scores.max(dim=1).values
+        is_best = scores == best_scores.unsqueeze(1)
+        tie_weights = is_best.float()
+        best_idx = torch.multinomial(tie_weights, num_samples=1).squeeze(1)
         lam = self.lambda_threshold
         stop_mask = best_scores < lam
         stop_mask = stop_mask | (best_scores < -1e5)
