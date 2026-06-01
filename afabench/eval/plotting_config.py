@@ -131,7 +131,7 @@ DATASET_NAME_MAPPING = {
     "cube_without_noise": "CUBE-noiseless",
     "synthetic_mnist_without_noise": "Synthetic-MNIST-noiseless",
     "mnist": "MNIST",
-    "actg": "ACTG",
+    "actg": "ACTG175",
     "bank_marketing": "BankMarketing",
     "ckd": "CKD",
     "diabetes": "Diabetes",
