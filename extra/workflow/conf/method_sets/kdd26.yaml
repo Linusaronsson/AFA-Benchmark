@@ -27,7 +27,6 @@ method_sets:
   # Methods that we compare heatmaps for
   heatmap_comparison:
     - ol_with_mask
-    - jafa
     - aaco
     - covert2023
     - ma2018_external
