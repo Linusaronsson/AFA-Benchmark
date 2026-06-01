@@ -214,97 +214,6 @@ def format_heatmap_axes(
     ax.set_yticklabels(y_ticks + 1)
 
 
-def create_action_heatmap(
-    dataframe: pl.DataFrame,
-    dataset: str,
-    output_folder: Path,
-    extra_title: str,
-    formats: Sequence[str] = ("pdf",),
-) -> None:
-    """
-    Create action heatmaps for all methods in a dataset.
-
-    One figure per dataset with subplots for each method in a 4-column layout.
-    X-axis: time (n_selections_performed)
-    Y-axis: action index
-    """
-    # Filter out action 0
-    dataframe = dataframe.filter(pl.col("action_performed") != 0)
-    methods = sorted(dataframe["afa_method"].unique())
-    num_methods = len(methods)
-    num_cols = 5
-    num_rows = (num_methods + num_cols - 1) // num_cols
-
-    # Calculate global max_action and max_time across all methods
-    global_max_action = cast("int", dataframe["action_performed"].max())
-    global_max_time = cast("int", dataframe["n_selections_performed"].max())
-
-    fig, axes = plt.subplots(
-        num_rows, num_cols, figsize=(5 * num_cols, 4 * num_rows), squeeze=False
-    )
-
-    for idx, method in enumerate(methods):
-        row = idx // num_cols
-        col = idx % num_cols
-        ax = axes[row, col]
-        df_method = dataframe.filter(pl.col("afa_method") == method)
-
-        heatmap = normalize_heatmap_by_timestep(
-            df_method, global_max_action, global_max_time
-        )
-
-        ax.imshow(
-            heatmap,
-            cmap="Blues",
-            aspect="auto",
-            origin="lower",
-            vmin=0.0,
-            vmax=1.0,
-        )
-
-        format_heatmap_axes(ax, global_max_action, global_max_time, method)
-
-    # Hide any unused subplots
-    for idx in range(num_methods, num_rows * num_cols):
-        row = idx // num_cols
-        col = idx % num_cols
-        axes[row, col].set_visible(False)
-
-    dataset_name = DATASET_NAME_MAPPING.get(dataset, dataset)
-    fig.suptitle(
-        f"Action Heatmaps - {dataset_name} - {extra_title}",
-        fontsize=PLOT_TITLE_FONT_SIZE,
-        y=0.98,
-    )
-    plt.subplots_adjust(
-        left=0.08, right=0.92, top=0.84, bottom=0.1, wspace=0.3
-    )
-
-    for fmt in formats:
-        output_path = output_folder / f"{dataset}_action_heatmap.{fmt}"
-        fig.savefig(output_path, bbox_inches="tight", dpi=300)
-    plt.close(fig)
-
-
-def produce_plots(
-    df: pl.DataFrame,
-    output_folder: Path,
-    extra_title: str,
-    formats: Sequence[str] = ("pdf",),
-) -> None:
-    for keys_tuple, dataset_df in tqdm(
-        df.group_by("dataset"), desc="Creating action heatmaps"
-    ):
-        dataset_name = keys_tuple[0]
-        create_action_heatmap(
-            dataset_df,
-            dataset_name,
-            output_folder,
-            extra_title=extra_title,
-            formats=formats,
-        )
-
-
 def produce_separate_plots(
     df: pl.DataFrame,
     output_folder: Path,
@@ -349,9 +258,9 @@ def produce_separate_plots(
         dataset_output_folder = output_folder / dataset_name
         dataset_output_folder.mkdir(parents=True, exist_ok=True)
 
-        # Create the heatmap plot with 4 columns
+        # Create the heatmap plot with 5 columns
         num_methods = len(methods)
-        num_cols = 4
+        num_cols = 5
         num_rows = (num_methods + num_cols - 1) // num_cols
 
         # Calculate global max_action and max_time across all methods in group
@@ -361,7 +270,7 @@ def produce_separate_plots(
         fig, axes = plt.subplots(
             num_rows,
             num_cols,
-            figsize=(5 * num_cols, 4 * num_rows),
+            figsize=(3 * num_cols, 4 * num_rows),
             squeeze=False,
         )
 
