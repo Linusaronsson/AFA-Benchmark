@@ -232,7 +232,7 @@ def create_action_heatmap(
     dataframe = dataframe.filter(pl.col("action_performed") != 0)
     methods = sorted(dataframe["afa_method"].unique())
     num_methods = len(methods)
-    num_cols = 4
+    num_cols = 5
     num_rows = (num_methods + num_cols - 1) // num_cols
 
     # Calculate global max_action and max_time across all methods
