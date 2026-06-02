@@ -5,7 +5,6 @@ from typing import Self, override
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchrl.modules import MLP
@@ -24,15 +23,15 @@ from afabench.afa_discriminative.utils import (
     get_entropy,
     ind_to_onehot,
     make_onehot,
-    restore_parameters,
     patch_soft_to_feature_soft,
+    restore_parameters,
     selection_soft_to_feature_soft,
 )
 from afabench.common.custom_types import (
-    AFAInitializer,
-    AFAUnmasker,
-    AFAMethod,
     AFAAction,
+    AFAInitializer,
+    AFAMethod,
+    AFAUnmasker,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -142,7 +141,9 @@ class GreedyDynamicSelection(nn.Module):
                 feature_costs = torch.ones(mask_size, device="cpu")
         elif isinstance(feature_costs, np.ndarray):
             feature_costs = torch.tensor(feature_costs, device="cpu")
-        selection_costs = unmasker.get_selection_costs(feature_costs).to(device)
+        selection_costs = unmasker.get_selection_costs(feature_costs).to(
+            device
+        )
         log_cost = torch.log(selection_costs)
 
         n_selections = unmasker.get_n_selections(feature_shape)
@@ -220,13 +221,14 @@ class GreedyDynamicSelection(nn.Module):
                         soft = selector_layer(logits_cost, temp)
                         if len(x.shape) == 4:
                             soft_feat = patch_soft_to_feature_soft(soft, x)
+                        elif isinstance(unmasker, CubeNMUnmasker):
+                            soft_feat = selection_soft_to_feature_soft(
+                                soft,
+                                mask_size=mask_size,
+                                n_contexts=unmasker.n_contexts,
+                            )
                         else:
-                            if isinstance(unmasker, CubeNMUnmasker):
-                                soft_feat = selection_soft_to_feature_soft(
-                                    soft, mask_size=mask_size, n_contexts=unmasker.n_contexts
-                                )
-                            else:
-                                soft_feat = soft
+                            soft_feat = soft
                         m_soft_feat = torch.maximum(m_feat, soft_feat)
 
                         # Evaluate predictor model.
@@ -308,11 +310,12 @@ class GreedyDynamicSelection(nn.Module):
                                 soft = selector_layer(logits_cost, temp)
                             if len(x.shape) == 4:
                                 soft_feat = patch_soft_to_feature_soft(soft, x)
+                            elif isinstance(unmasker, CubeNMUnmasker):
+                                soft_feat = selection_soft_to_feature_soft(
+                                    soft, mask_size, unmasker.n_contexts
+                                )
                             else:
-                                if isinstance(unmasker, CubeNMUnmasker):
-                                    soft_feat = selection_soft_to_feature_soft(soft, mask_size, unmasker.n_contexts)
-                                else:
-                                    soft_feat = soft
+                                soft_feat = soft
                             m_soft_feat = torch.maximum(m_feat, soft_feat)
                             m_sel = torch.max(m_sel, make_onehot(soft))
                             sel_idx = torch.argmax(soft, dim=1, keepdim=True)
@@ -412,8 +415,8 @@ class Covert2023AFAMethod(AFAMethod):
         device: torch.device,
         lambda_threshold: float | None = None,
         selection_costs: torch.Tensor | None = None,
-        selector_hidden_layers: list[int] = [128, 128],
-        predictor_hidden_layers: list[int] = [128, 128],
+        selector_hidden_layers: list[int] | None = None,
+        predictor_hidden_layers: list[int] | None = None,
         dropout: float = 0.3,
         modality: str | None = "tabular",
         n_patches: int | None = None,
@@ -433,9 +436,15 @@ class Covert2023AFAMethod(AFAMethod):
         else:
             self.lambda_threshold = lambda_threshold
         self._selection_costs: torch.Tensor | None = selection_costs
-        self.selector_hidden_layers = selector_hidden_layers
-        self.predictor_hidden_layers = predictor_hidden_layers
-        self.dropout = dropout
+        self.selector_hidden_layers: list[int] = selector_hidden_layers or [
+            128,
+            128,
+        ]
+        self.predictor_hidden_layers: list[int] = predictor_hidden_layers or [
+            128,
+            128,
+        ]
+        self.dropout: float = dropout
         self.modality: str | None = modality
         # for image selection
         self.n_patches: int | None = n_patches
@@ -486,7 +495,9 @@ class Covert2023AFAMethod(AFAMethod):
     ) -> AFAAction:
         with torch.no_grad():
             if self.modality == "tabular":
-                x_masked_pred = torch.cat([masked_features, feature_mask], dim=1)
+                x_masked_pred = torch.cat(
+                    [masked_features, feature_mask], dim=1
+                )
                 pred = self.predictor(x_masked_pred)
             else:
                 pred = self.predictor(masked_features)
@@ -538,7 +549,9 @@ class Covert2023AFAMethod(AFAMethod):
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
-        checkpoint = torch.load(path / "model.pt", weights_only=False, map_location=device)
+        checkpoint = torch.load(
+            path / "model.pt", weights_only=False, map_location=device
+        )
         arch = checkpoint["architecture"]
         lambda_threshold = checkpoint.get("lambda_threshold", None)
         selection_costs = checkpoint.get("selection_costs", None)
@@ -592,7 +605,7 @@ class Covert2023AFAMethod(AFAMethod):
             model.predictor.eval()
             return model.to(device)
 
-        elif arch["type"] in ("resnet18", "resnet50"):
+        if arch["type"] in ("resnet18", "resnet50"):
             d_out = arch["d_out"]
             if arch["type"] == "resnet18":
                 base = resnet18(pretrained=False)
@@ -656,7 +669,9 @@ class Covert2023AFAMethod(AFAMethod):
             "predictor_state_dict": self.predictor.state_dict(),
             "architecture": arch,
             "lambda_threshold": float(self.lambda_threshold),
-            "selection_costs": self._selection_costs.detach().cpu() if self._selection_costs is not None else None
+            "selection_costs": self._selection_costs.detach().cpu()
+            if self._selection_costs is not None
+            else None,
         }
         torch.save(payload, Path(path) / "model.pt")
 
@@ -772,7 +787,9 @@ class CMIEstimator(nn.Module):
                 feature_costs = torch.ones(mask_size, device="cpu")
         elif isinstance(feature_costs, np.ndarray):
             feature_costs = torch.tensor(feature_costs).to("cpu")
-        selection_costs = unmasker.get_selection_costs(feature_costs).to(device)
+        selection_costs = unmasker.get_selection_costs(feature_costs).to(
+            device
+        )
         selection_costs = torch.clamp(selection_costs, min=1e-12)
 
         n_selections = unmasker.get_n_selections(feature_shape)
@@ -860,16 +877,18 @@ class CMIEstimator(nn.Module):
                         pred_cmi = value_network(x_masked)
 
                     best = torch.argmax(pred_cmi / selection_costs, dim=1)
-                    # rng = np.random.default_rng()
-                    random = torch.tensor(
-                        np.random.choice(n_selections, size=len(x)),
+                    random = torch.randint(
+                        n_selections,
+                        size=(len(x),),
                         device=x.device,
                     )
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
                     afa_selection = actions.to(torch.long)
                     afa_selection = afa_selection.unsqueeze(1)
-                    m_sel = torch.max(m_sel, ind_to_onehot(actions, n_selections))
+                    m_sel = torch.max(
+                        m_sel, ind_to_onehot(actions, n_selections)
+                    )
 
                     # Predictor loss.
                     m_feat = unmasker.unmask(
@@ -968,7 +987,8 @@ class CMIEstimator(nn.Module):
                             pred_cmi / selection_costs, dim=1
                         )
                         m_sel = torch.max(
-                            m_sel, ind_to_onehot(best_feature_index, n_selections)
+                            m_sel,
+                            ind_to_onehot(best_feature_index, n_selections),
                         )
                         afa_selection = best_feature_index.to(torch.long)
                         afa_selection = afa_selection.unsqueeze(1)
@@ -1066,8 +1086,8 @@ class Gadgil2023AFAMethod(AFAMethod):
         device: torch.device,
         lambda_threshold: float | None = None,
         selection_costs: torch.Tensor | None = None,
-        value_network_hidden_layers: list[int] = [128, 128],
-        predictor_hidden_layers: list[int] = [128, 128],
+        value_network_hidden_layers: list[int] | None = None,
+        predictor_hidden_layers: list[int] | None = None,
         dropout: float = 0.3,
         modality: str | None = "tabular",
         n_patches: int | None = None,
@@ -1087,9 +1107,14 @@ class Gadgil2023AFAMethod(AFAMethod):
         else:
             self.lambda_threshold = lambda_threshold
         self._selection_costs: torch.Tensor | None = selection_costs
-        self.value_network_hidden_layers = value_network_hidden_layers
-        self.predictor_hidden_layers = predictor_hidden_layers
-        self.dropout = dropout
+        self.value_network_hidden_layers: list[int] = (
+            value_network_hidden_layers or [128, 128]
+        )
+        self.predictor_hidden_layers: list[int] = predictor_hidden_layers or [
+            128,
+            128,
+        ]
+        self.dropout: float = dropout
         self.modality: str | None = modality
         self.n_patches: int | None = n_patches
         self.d_in: int | None = d_in
@@ -1180,7 +1205,9 @@ class Gadgil2023AFAMethod(AFAMethod):
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
-        checkpoint = torch.load(path / "model.pt", weights_only=False, map_location=device)
+        checkpoint = torch.load(
+            path / "model.pt", weights_only=False, map_location=device
+        )
         arch = checkpoint["architecture"]
         lambda_threshold = checkpoint.get("lambda_threshold", None)
         selection_costs = checkpoint.get("selection_costs", None)
@@ -1235,7 +1262,7 @@ class Gadgil2023AFAMethod(AFAMethod):
             model.predictor.eval()
             return model.to(device)
 
-        elif arch["type"] in ("resnet18", "resnet50"):
+        if arch["type"] in ("resnet18", "resnet50"):
             d_out = arch["d_out"]
             if arch["type"] == "resnet18":
                 base = resnet18(pretrained=False)
@@ -1300,7 +1327,9 @@ class Gadgil2023AFAMethod(AFAMethod):
             "predictor_state_dict": self.predictor.state_dict(),
             "architecture": arch,
             "lambda_threshold": float(self.lambda_threshold),
-            "selection_costs": self._selection_costs.detach().cpu() if self._selection_costs is not None else None
+            "selection_costs": self._selection_costs.detach().cpu()
+            if self._selection_costs is not None
+            else None,
         }
         torch.save(payload, Path(path) / "model.pt")
 

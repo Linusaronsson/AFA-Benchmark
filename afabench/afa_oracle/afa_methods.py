@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Self, cast, final, override
 
@@ -12,9 +12,9 @@ from afabench.afa_oracle.utils import (
 )
 from afabench.common.bundle import load_bundle
 from afabench.common.custom_types import (
+    AFAAction,
     AFAClassifier,
     AFAMethod,
-    AFAAction,
     AFAUnmasker,
     FeatureMask,
     Label,
@@ -78,7 +78,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             classifier, _ = load_bundle(
                 self.classifier_bundle_path, device=self._device
             )
-            classifier = cast(AFAClassifier, cast(object, classifier))
+            classifier = cast("AFAClassifier", cast("object", classifier))
             self.aaco_oracle.set_classifier(classifier)
             logger.info(
                 f"Loaded classifier from {self.classifier_bundle_path}"
@@ -206,7 +206,11 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             )
 
             selection_to_feature_mask = None
-            if use_selection_space and feature_shape is not None:
+            if (
+                use_selection_space
+                and feature_shape is not None
+                and selection_size is not None
+            ):
                 selection_to_feature_mask = (
                     self._get_selection_to_feature_mask(
                         feature_shape=feature_shape,
@@ -497,7 +501,7 @@ def create_aaco_method(
     device: torch.device | None = None,
 ) -> AACOAFAMethod:
     """
-    Factory function to create AACO method.
+    Create an AACO method.
 
     Args:
         dataset_name: Name of dataset (for mask generator config)

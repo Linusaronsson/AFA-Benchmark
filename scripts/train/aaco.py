@@ -1,17 +1,20 @@
 import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.common.utils import set_seed
 from afabench.afa_oracle import create_aaco_method
 from afabench.common.bundle import load_bundle, save_bundle
 from afabench.common.config_classes import AACOTrainConfig
 from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
+from afabench.common.utils import set_seed
+
+if TYPE_CHECKING:
+    from afabench.common.custom_types import AFADataset
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +38,14 @@ def run(cfg: AACOTrainConfig) -> None:
         dataset_manifest["class_name"]
     )
     split = dataset_manifest["metadata"].get("split_idx", None)
+    dataset = cast("AFADataset", cast("object", dataset_obj))
 
     logger.info(f"Dataset: {dataset_manifest['class_name']}, Split: {split}")
-    logger.info(f"Training samples: {len(dataset_obj)}")
+    logger.info(f"Training samples: {len(dataset)}")
 
     # Get training data (flatten if needed - AACO works on flat features)
-    X_train, y_train = dataset_obj.get_all_data()
-    feature_shape = dataset_obj.feature_shape
+    X_train, y_train = dataset.get_all_data()
+    feature_shape = dataset.feature_shape
 
     if len(feature_shape) > 1:
         X_train = X_train.view(X_train.shape[0], -1)
@@ -79,14 +83,12 @@ def run(cfg: AACOTrainConfig) -> None:
     # Determine selection space from unmasker
     unmasker = get_afa_unmasker_from_config(cfg.unmasker)
     selection_size = unmasker.get_n_selections(
-        feature_shape=dataset_obj.feature_shape
+        feature_shape=dataset.feature_shape
     )
     selection_costs = unmasker.get_selection_costs(
-        feature_costs=dataset_obj.get_feature_acquisition_costs()
+        feature_costs=dataset.get_feature_acquisition_costs()
     ).to(device)
-    if cfg.unmasker.kwargs is None:
-        unmasker_kwargs: dict[str, Any] = {}
-    elif OmegaConf.is_config(cfg.unmasker.kwargs):
+    if OmegaConf.is_config(cfg.unmasker.kwargs):
         unmasker_kwargs = cast(
             "dict[str, Any]",
             OmegaConf.to_container(cfg.unmasker.kwargs, resolve=True),

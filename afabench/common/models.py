@@ -1,12 +1,11 @@
 import logging
+from collections.abc import Callable
 from copy import deepcopy
-from typing import final, override
+from typing import Literal, Protocol, cast, final, override
 
 import lightning as pl
 import torch
 import torch.nn.functional as F
-import wandb
-from jaxtyping import Float
 from torch import Tensor, nn, optim
 from torchrl.modules import MLP
 
@@ -23,6 +22,17 @@ from afabench.common.custom_types import (
 )
 
 
+class VisionBackbone(Protocol):
+    embed_dim: int
+    num_features: int
+
+    def forward_features(self, x: Tensor) -> Tensor: ...
+
+    def forward_head(
+        self, x: Tensor, *, pre_logits: bool = False
+    ) -> Tensor: ...
+
+
 @final
 class LitMaskedMLPClassifier(pl.LightningModule):
     """A lit module for a MaskedMLPClassifier that takes masked features and feature masks as input."""
@@ -33,7 +43,7 @@ class LitMaskedMLPClassifier(pl.LightningModule):
         n_classes: int,
         num_cells: tuple[int, ...] = (128, 128),
         dropout: float = 0.1,
-        class_probabilities: Float[Tensor, "n_classes"] | None = None,
+        class_probabilities: Tensor | None = None,
         min_masking_probability: float = 0.0,
         max_masking_probability: float = 1.0,
         lr: float = 1e-3,
@@ -202,17 +212,18 @@ class MaskedMLPClassifier(nn.Module):
 
 
 class MaskedViTClassifier(nn.Module):
-    def __init__(self, backbone, num_classes: int = 10):
+    def __init__(self, backbone: nn.Module, num_classes: int = 10):
         super().__init__()
         feat_dim = getattr(
             backbone, "embed_dim", getattr(backbone, "num_features", None)
         )
         if feat_dim is None:
-            raise AttributeError(
-                "Backbone must expose embed_dim or num_features."
-            )
-        self.backbone = backbone
-        self.fc = nn.Linear(feat_dim, num_classes)
+            msg = "Backbone must expose embed_dim or num_features."
+            raise AttributeError(msg)
+        self.backbone: VisionBackbone = cast(
+            "VisionBackbone", cast("object", backbone)
+        )
+        self.fc: nn.Linear = nn.Linear(feat_dim, num_classes)
 
     @override
     def forward(
@@ -232,42 +243,35 @@ class MaskedViTClassifier(nn.Module):
 
 
 class MaskedViTTrainer(nn.Module):
-    def __init__(self,
-        model: nn.Module,
-        mask_layer: MaskLayer2d
-    ) -> None:
+    def __init__(self, model: nn.Module, mask_layer: MaskLayer2d) -> None:
         super().__init__()
-        self.model = model
-        self.mask_layer = mask_layer
+        self.model: nn.Module = model
+        self.mask_layer: MaskLayer2d = mask_layer
 
     def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
         if y.ndim >= 2:
             return y.argmax(dim=-1).long()
         return y.long()
 
-    def fit(
+    def fit(  # noqa: PLR0915
         self,
-        train_loader,
-        val_loader,
+        train_loader: torch.utils.data.DataLoader[tuple[Tensor, Tensor]],
+        val_loader: torch.utils.data.DataLoader[tuple[Tensor, Tensor]],
         lr: float,
         nepochs: int,
-        loss_fn,
-        val_loss_fn=None,
-        val_loss_mode=None,
+        loss_fn: Callable[[Tensor, Tensor], Tensor],
+        val_loss_fn: Callable[[Tensor, Tensor], Tensor] | None = None,
+        val_loss_mode: Literal["min", "max"] | None = None,
         factor: float = 0.2,
         patience: int = 2,
         min_lr: float = 1e-6,
         min_mask: float = 0.1,
         max_mask: float = 0.9,
         logger: logging.Logger | None = None,
-    ):
-
+    ) -> None:
         assert val_loss_fn is not None
         assert val_loss_mode in ["min", "max"]
-        if logger is not None:
-            log = logger
-        else:
-            log = logging.getLogger(__name__)
+        log = logger if logger is not None else logging.getLogger(__name__)
 
         model = self.model
         device = next(model.parameters()).device
@@ -280,7 +284,7 @@ class MaskedViTTrainer(nn.Module):
             min_lr=min_lr,
         )
 
-        def better(a, b):
+        def better(a: float, b: float) -> bool:
             return (a < b) if val_loss_mode == "min" else (a > b)
 
         best_state = None
@@ -353,6 +357,7 @@ class MaskedViTTrainer(nn.Module):
         if best_state:
             model.load_state_dict(best_state)
 
+    @override
     def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
         x_masked = self.mask_layer(x, mask)
         return self.model(x_masked, mask)

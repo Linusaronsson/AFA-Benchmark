@@ -1,3 +1,5 @@
+# pyright: reportImplicitOverride=false, reportUnannotatedClassAttribute=false
+# ruff: noqa: ANN001, ANN003, ANN201, ANN202, B007, C901, D401, EM101, EM102, FBT002, I001, N802, PERF401, PLR0912, PLR0915, PLR1704, PLW2901, PTH118, TRY003, UP008, UP035
 import math
 import os
 from copy import deepcopy
@@ -73,6 +75,7 @@ def resnet50(pretrained=False, **kwargs):
             state_dict = torch.load(ckpt_path, map_location="cpu")
         except FileNotFoundError:
             from torch.hub import load_state_dict_from_url
+
             state_dict = load_state_dict_from_url(
                 model_urls["resnet50"],
                 weights_only=False,
@@ -556,15 +559,18 @@ def build_mlp(arch: dict[str, Any]) -> nn.Module:
         dropout=arch["dropout"],
     )
 
+
 def build_resnet18_predictor(arch: dict[str, Any]) -> nn.Module:
     base = resnet18(pretrained=bool(arch.get("pretrained", True)))
     backbone, expansion = ResNet18Backbone(base)
     return Predictor(backbone, expansion, num_classes=int(arch["d_out"]))
 
+
 def build_resnet50_predictor(arch: dict[str, Any]) -> nn.Module:
     base = resnet50(pretrained=bool(arch.get("pretrained", True)))
     backbone, expansion = ResNet18Backbone(base)
     return Predictor(backbone, expansion, num_classes=int(arch["d_out"]))
+
 
 _BUILDERS: dict[str, Callable[[dict[str, Any]], nn.Module]] = {
     "mlp": build_mlp,
@@ -602,7 +608,9 @@ class GreedyAFAClassifier:
         path: Path,
         map_location: torch.device,
     ) -> Self:
-        checkpoint = torch.load(path / "model.pt", map_location=map_location, weights_only=False)
+        checkpoint = torch.load(
+            path / "model.pt", map_location=map_location, weights_only=False
+        )
         arch: dict[str, Any] = checkpoint["architecture"]
         state_dict = checkpoint["predictor_state_dict"]
         model_type = arch.get("type")

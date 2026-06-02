@@ -1,12 +1,15 @@
-import hydra
 from pathlib import Path
 from typing import cast
 
-from afabench.common.config_classes import Covert2023TrainingConfig, Covert2023Training2DConfig
-from afabench.common.bundle import load_bundle
+import hydra
 
-from afabench.afa_discriminative.train.covert2023_tabular import train_tabular
 from afabench.afa_discriminative.train.covert2023_image import train_image
+from afabench.afa_discriminative.train.covert2023_tabular import train_tabular
+from afabench.common.bundle import load_bundle
+from afabench.common.config_classes import (
+    Covert2023Training2DConfig,
+    Covert2023TrainingConfig,
+)
 
 IMAGE_DATASET_CLASSNAMES = {
     "ImagenetteDataset",
@@ -23,9 +26,10 @@ def main(cfg: Covert2023TrainingConfig | Covert2023Training2DConfig) -> None:
     cls = manifest.get("class_name", "")
 
     if cls in IMAGE_DATASET_CLASSNAMES:
-        train_image(cast(Covert2023Training2DConfig, cfg))
+        train_image(cast("Covert2023Training2DConfig", cfg))
     else:
-        train_tabular(cast(Covert2023TrainingConfig, cfg))
+        train_tabular(cast("Covert2023TrainingConfig", cfg))
+
 
 if __name__ == "__main__":
     main()

@@ -1,25 +1,30 @@
-import torch
 import logging
+
+import torch
 import torch.nn.functional as F
 
-from afabench.common.utils import get_class_frequencies
-from afabench.afa_oracle.mask_generator import random_mask_generator
+from afabench.afa_oracle.mask_generator import (
+    RandomMaskGenerator,
+    random_mask_generator,
+)
 from afabench.afa_oracle.utils import (
     ensure_probabilities,
     get_patch_dimensions,
     uses_patch_selection,
 )
+from afabench.common.custom_types import AFAClassifier
+from afabench.common.utils import get_class_frequencies
 
 logger = logging.getLogger(__name__)
 
 
 def get_knn(
-    X_train: torch.Tensor,
-    X_query: torch.Tensor,
+    X_train: torch.Tensor,  # noqa: N803
+    X_query: torch.Tensor,  # noqa: N803
     masks: torch.Tensor,
     num_neighbors: int,
     instance_idx: int = 0,
-    exclude_instance: bool = True,
+    exclude_instance: bool = True,  # noqa: FBT002
     batch_size: int = 1000,
 ) -> torch.Tensor:
     """
@@ -63,7 +68,7 @@ def get_knn(
     return idx_topk[idx_topk != instance_idx][:num_neighbors]
 
 
-def load_mask_generator(input_dim: int):
+def load_mask_generator(input_dim: int) -> RandomMaskGenerator:
     """Their exact mask generator loading logic."""
     # Paper shows this works nearly as well as 10,000 (for MNIST)
     return random_mask_generator(100, input_dim, 100)
@@ -87,18 +92,18 @@ class AACOOracle:
         hide_val: float = 0.0,  # Use 0 for consistency with MLP training
         device: torch.device | None = None,
     ):
-        self.k_neighbors = k_neighbors
-        self.acquisition_cost = acquisition_cost
-        self.hide_val = hide_val
-        self.classifier = None
-        self.mask_generator = None
-        self._patch_mask_generators: dict[int, random_mask_generator] = {}
+        self.k_neighbors: int = k_neighbors
+        self.acquisition_cost: float = acquisition_cost
+        self.hide_val: float = hide_val
+        self.classifier: AFAClassifier | None = None
+        self.mask_generator: RandomMaskGenerator | None = None
+        self._patch_mask_generators: dict[int, RandomMaskGenerator] = {}
         self.X_train: torch.Tensor | None = None
         self.y_train: torch.Tensor | None = None
-        self.device = device or torch.device("cpu")
+        self.device: torch.device = device or torch.device("cpu")
         self.class_weights: torch.Tensor | None = None
 
-    def fit(self, X_train: torch.Tensor, y_train: torch.Tensor):
+    def fit(self, X_train: torch.Tensor, y_train: torch.Tensor) -> None:  # noqa: N803
         """
         Fit the oracle on training data.
 
@@ -119,7 +124,7 @@ class AACOOracle:
 
         logger.info(f"Training data: {X_train.shape}")
 
-    def set_classifier(self, classifier):
+    def set_classifier(self, classifier: AFAClassifier) -> None:
         """Set the classifier model used by the oracle."""
         self.classifier = classifier
 
@@ -134,13 +139,13 @@ class AACOOracle:
             self.class_weights = self.class_weights.to(device)
         return self
 
-    def select_next_feature(
+    def select_next_feature(  # noqa: C901, PLR0912, PLR0915
         self,
         x_observed: torch.Tensor,
         observed_mask: torch.Tensor,
         instance_idx: int = 0,
-        force_acquisition: bool = False,
-        exclude_instance: bool = True,
+        force_acquisition: bool = False,  # noqa: FBT002
+        exclude_instance: bool = True,  # noqa: FBT002
         feature_shape: torch.Size | None = None,
         selection_size: int | None = None,
         selection_costs: torch.Tensor | None = None,
@@ -173,7 +178,10 @@ class AACOOracle:
             "Oracle must have a classifier set. Call set_classifier() first."
         )
 
-        assert self.X_train is not None and self.y_train is not None, (
+        assert self.X_train is not None, (
+            "Oracle must be fitted first. Call fit() first."
+        )
+        assert self.y_train is not None, (
             "Oracle must be fitted first. Call fit() first."
         )
 
@@ -184,6 +192,14 @@ class AACOOracle:
         device = self.device
         observed_feature_mask = observed_mask.to(device).bool()
         observed_feature_mask_row = observed_feature_mask.float().unsqueeze(0)
+        mask_width = 0
+        n_channels = 0
+        height = 0
+        width = 0
+        patch_h = 0
+        patch_w = 0
+        patch_mask_generator: RandomMaskGenerator | None = None
+        mask_generator: RandomMaskGenerator | None = None
 
         # Get nearest neighbors based on currently observed features
         x_query = x_observed.unsqueeze(0).to(device)
@@ -197,7 +213,8 @@ class AACOOracle:
         ).squeeze()
 
         if use_patch_selection:
-            assert feature_shape and selection_size is not None
+            assert feature_shape
+            assert selection_size is not None
             n_channels, height, width, patch_h, patch_w = get_patch_dimensions(
                 selection_size, feature_shape
             )
@@ -216,31 +233,34 @@ class AACOOracle:
                 )
         else:
             selection_dim = feature_count
-            assert self.mask_generator is not None
+            mask_generator = self.mask_generator
+            assert mask_generator is not None
 
         if selection_mask is not None:
             current_selection_mask = selection_mask.to(device).bool().view(-1)
             assert len(current_selection_mask) == selection_dim, (
                 "selection_mask has incompatible selection dimension."
             )
+        elif use_patch_selection:
+            observed_mask_2d = observed_feature_mask.view(
+                n_channels, height, width
+            )
+            fm = observed_mask_2d.view(
+                n_channels,
+                mask_width,
+                patch_h,
+                mask_width,
+                patch_w,
+            )
+            current_selection_mask = fm.any(dim=(0, 2, 4)).view(-1).bool()
         else:
-            if use_patch_selection:
-                observed_mask_2d = observed_feature_mask.view(
-                    n_channels, height, width
-                )
-                fm = observed_mask_2d.view(
-                    n_channels,
-                    mask_width,
-                    patch_h,
-                    mask_width,
-                    patch_w,
-                )
-                current_selection_mask = fm.any(dim=(0, 2, 4)).view(-1).bool()
-            else:
-                current_selection_mask = observed_feature_mask.clone()
-        current_selection_mask_row = current_selection_mask.float().unsqueeze(0)
+            current_selection_mask = observed_feature_mask.clone()
+        current_selection_mask_row = current_selection_mask.float().unsqueeze(
+            0
+        )
 
         if use_patch_selection:
+            assert patch_mask_generator is not None
             new_masks = patch_mask_generator(current_selection_mask_row).to(
                 device
             )
@@ -250,9 +270,8 @@ class AACOOracle:
             )
         else:
             # Generate candidate masks for Monte Carlo approximation.
-            new_masks = self.mask_generator(current_selection_mask_row).to(
-                device
-            )
+            assert mask_generator is not None
+            new_masks = mask_generator(current_selection_mask_row).to(device)
             candidate_selection_masks = torch.maximum(
                 new_masks,
                 current_selection_mask_row.repeat(new_masks.shape[0], 1).to(
@@ -351,15 +370,15 @@ class AACOOracle:
         best_selection_mask = candidate_selection_masks[best_idx].bool()
 
         # Find the new selection(s) to acquire.
-        new_features = (
-            best_selection_mask & ~current_selection_mask
-        ).nonzero(as_tuple=True)[0]
+        new_features = (best_selection_mask & ~current_selection_mask).nonzero(
+            as_tuple=True
+        )[0]
 
         if len(new_features) == 0:
             if force_acquisition:
-                unobserved = (~current_selection_mask).nonzero(
-                    as_tuple=True
-                )[0]
+                unobserved = (~current_selection_mask).nonzero(as_tuple=True)[
+                    0
+                ]
                 if len(unobserved) > 0:
                     return int(unobserved[0].item())
             # Best action is to stop (only possible if force_acquisition=False)
@@ -385,8 +404,10 @@ class AACOOracle:
         ) | observed_feature_mask.unsqueeze(0)
 
         X_masked_ordering = X_nn.unsqueeze(0).repeat(len(new_features), 1, 1)
-        mask_expanded = ordering_feature_masks.float().unsqueeze(1).repeat(
-            1, self.k_neighbors, 1
+        mask_expanded = (
+            ordering_feature_masks.float()
+            .unsqueeze(1)
+            .repeat(1, self.k_neighbors, 1)
         )
         X_masked_ordering = X_masked_ordering * mask_expanded + (
             self.hide_val * (1 - mask_expanded)
@@ -415,7 +436,7 @@ class AACOOracle:
         best_feature_idx = avg_loss.argmin().item()
         return int(new_features[best_feature_idx].item())
 
-    def select_next_selection(
+    def select_next_selection(  # noqa: PLR0915
         self,
         x_observed: torch.Tensor,
         observed_mask: torch.Tensor,
@@ -423,8 +444,8 @@ class AACOOracle:
         selection_to_feature_mask: torch.Tensor,
         selection_costs: torch.Tensor | None = None,
         instance_idx: int = 0,
-        force_acquisition: bool = False,
-        exclude_instance: bool = True,
+        force_acquisition: bool = False,  # noqa: FBT002
+        exclude_instance: bool = True,  # noqa: FBT002
     ) -> int | None:
         """
         Select the next **selection** (not feature) to acquire.
@@ -435,7 +456,10 @@ class AACOOracle:
         assert self.classifier is not None, (
             "Oracle must have a classifier set. Call set_classifier() first."
         )
-        assert self.X_train is not None and self.y_train is not None, (
+        assert self.X_train is not None, (
+            "Oracle must be fitted first. Call fit() first."
+        )
+        assert self.y_train is not None, (
             "Oracle must be fitted first. Call fit() first."
         )
         assert selection_to_feature_mask.ndim == 2, (
@@ -535,7 +559,7 @@ class AACOOracle:
         expected_losses = losses.mean(dim=1)
 
         costs = expected_losses + self.acquisition_cost * candidate_costs
-        best_candidate_idx = costs.argmin().item()
+        best_candidate_idx = int(costs.argmin().item())
         selected = int(candidate_indices[best_candidate_idx].item())
         if selected < 0:
             return None

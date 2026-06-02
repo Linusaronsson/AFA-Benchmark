@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Self, final, override
 
-import numpy as np
 import timm
 import torch
 from torch import Tensor, nn
@@ -9,7 +8,6 @@ from torch import Tensor, nn
 from afabench.common.custom_types import (
     AFAClassifier,
     FeatureMask,
-    Features,
     Label,
     Logits,
     MaskedFeatures,
@@ -23,18 +21,19 @@ class RandomDummyAFAClassifier(AFAClassifier):
 
     def __init__(self, n_classes: int):
         self.n_classes = n_classes
+        self._device = torch.device("cpu")
 
     @override
     def __call__(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
-        features: Features | None,
-        label: Label | None,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Logits:
         # Return random logits with the same batch size as masked_features
         batch_size = masked_features.shape[0]
-        logits = torch.randn(batch_size, self.n_classes)
+        logits = torch.randn(batch_size, self.n_classes, device=self._device)
 
         return logits
 
@@ -53,40 +52,70 @@ class RandomDummyAFAClassifier(AFAClassifier):
         n_classes = torch.load(path, map_location=device)
 
         # Return a new DummyClassifier instance
-        return RandomDummyAFAClassifier(n_classes)
+        return cls(n_classes).to(device)
+
+    @override
+    def to(self, device: torch.device) -> Self:
+        self._device = device
+        return self
+
+    @property
+    @override
+    def device(self) -> torch.device:
+        return self._device
 
 
+@final
 class UniformDummyAFAClassifier(AFAClassifier):
     """A uniform dummy classifier that outputs uniform logits. It is used for testing purposes."""
 
     def __init__(self, n_classes: int):
         self.n_classes = n_classes
+        self._device = torch.device("cpu")
 
+    @override
     def __call__(
         self,
         masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,  # noqa: ARG002
+        feature_mask: FeatureMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Logits:
         # Return random logits with the same batch size as masked_features
         batch_size = masked_features.shape[0]
-        logits = torch.ones(batch_size, self.n_classes)
+        logits = torch.ones(batch_size, self.n_classes, device=self._device)
 
         return logits
 
+    @override
     def save(self, path: Path) -> None:
         """Save the classifier to a file. Only n_classes needs to be stored."""
         torch.save(self.n_classes, path)
 
-    @staticmethod
-    def load(path: str, device: torch.device) -> "UniformDummyAFAClassifier":
+    @classmethod
+    @override
+    def load(
+        cls, path: Path, device: torch.device
+    ) -> "UniformDummyAFAClassifier":
         """Load the classifier from a file, placing it on the given device."""
         # Load the number of classes
         n_classes = torch.load(path, map_location=device)
 
         # Return a new DummyClassifier instance
-        return UniformDummyAFAClassifier(n_classes)
+        return cls(n_classes).to(device)
+
+    @override
+    def to(self, device: torch.device) -> Self:
+        self._device = device
+        return self
+
+    @property
+    @override
+    def device(self) -> torch.device:
+        return self._device
 
 
+@final
 class Predictor(nn.Module):
     def __init__(self, input_dim: int, output_dim: int):
         super().__init__()
@@ -99,29 +128,38 @@ class Predictor(nn.Module):
             nn.Linear(128, output_dim),
         )
 
+    @override
     def forward(self, x: Tensor) -> Tensor:
         return self.model(x)
 
 
+@final
 class NNClassifier(AFAClassifier):
     """
-    A trainable classifier that uses a simple predictor
+    A trainable classifier that uses a simple predictor.
+
     and handles masked input.
     """
 
     def __init__(self, input_dim: int, output_dim: int, device: torch.device):
         super().__init__()
-        self.device = device
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self._device = device
         self.predictor = Predictor(input_dim, output_dim).to(device)
 
+    @override
     def __call__(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
     ) -> Logits:
         x_masked = torch.cat([masked_features, feature_mask], dim=1)
         return self.predictor(x_masked)
 
+    @override
     def save(self, path: Path) -> None:
         torch.save(
             {
@@ -133,6 +171,7 @@ class NNClassifier(AFAClassifier):
         )
 
     @classmethod
+    @override
     def load(cls, path: Path, device: torch.device) -> "NNClassifier":
         checkpoint = torch.load(path, map_location=device)
         classifier = cls(
@@ -140,6 +179,17 @@ class NNClassifier(AFAClassifier):
         )
         classifier.predictor.load_state_dict(checkpoint["model_state_dict"])
         return classifier
+
+    @override
+    def to(self, device: torch.device) -> Self:
+        self._device = device
+        self.predictor = self.predictor.to(device)
+        return self
+
+    @property
+    @override
+    def device(self) -> torch.device:
+        return self._device
 
 
 @final
@@ -300,9 +350,4 @@ class WrappedMaskedViTClassifier(AFAClassifier):
     def to(self, device: torch.device) -> Self:
         self._device = device
         self.module = self.module.to(device)
-        return self
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self._device = device
         return self

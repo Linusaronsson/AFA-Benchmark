@@ -1,12 +1,15 @@
+from collections.abc import Iterable
 from itertools import chain, combinations
 
 import numpy as np
+import numpy.typing as npt
 import torch
 
 
-def powerset(iterable):
+def powerset[T](iterable: Iterable[T]) -> list[list[T]]:
     """
     Generate all possible subsets (powerset) of the iterable, excluding the empty set.
+
     powerset([1,2,3]) --> (1,) (2,) (3,) (1,2) (1,3) (2,3) (1,2,3).
     """
     s = list(iterable)
@@ -20,7 +23,7 @@ def powerset(iterable):
     ]
 
 
-def generate_all_masks(input_dim):
+def generate_all_masks(input_dim: int) -> npt.NDArray[np.float64]:
     """Generate all possible masks for a given feature dimension."""
     subsets = powerset(range(input_dim))
     all_masks = np.zeros((len(subsets), input_dim))
@@ -31,52 +34,68 @@ def generate_all_masks(input_dim):
     return all_masks
 
 
-class all_mask_generator:
-    def __init__(self, all_masks):
-        self.all_masks = torch.from_numpy(all_masks)
+class AllMaskGenerator:
+    def __init__(self, all_masks: npt.NDArray[np.float64]) -> None:
+        self.all_masks: torch.Tensor = torch.from_numpy(all_masks)
 
-    def __call__(self, mask_curr):
+    def __call__(self, _mask_curr: torch.Tensor) -> torch.Tensor:
         return self.all_masks
 
 
-def generate_ball(N, d1, d2):
+def generate_ball(
+    num_masks: int,
+    d1: int,
+    d2: int,
+    rng: np.random.Generator | None = None,
+) -> npt.NDArray[np.float64]:
     """Generate random binary masks."""
-    Ball = np.concatenate(
+    rng = rng or np.random.default_rng()
+    ball = np.concatenate(
         [
             np.sum(
-                np.random.permutation(np.eye(d1))[:, : np.random.randint(d2)],
+                rng.permutation(np.eye(d1))[:, : rng.integers(d2)],
                 1,
                 keepdims=True,
             )
-            for _ in range(N)
+            for _ in range(num_masks)
         ],
         1,
     )
-    return Ball
+    return ball
 
 
-class random_mask_generator:
+class RandomMaskGenerator:
     """Their exact random mask generator implementation."""
 
-    def __init__(self, num_samples, feature_dim, num_generated_masks):
-        self.num_samples = num_samples
-        self.feature_dim = feature_dim
-        self.num_generated_masks = num_generated_masks
-        self._cached_masks = None
+    def __init__(
+        self, num_samples: int, feature_dim: int, num_generated_masks: int
+    ) -> None:
+        self.num_samples: int = num_samples
+        self.feature_dim: int = feature_dim
+        self.num_generated_masks: int = num_generated_masks
+        self._cached_masks: torch.Tensor | None = None
+        self._rng: np.random.Generator = np.random.default_rng()
 
-    def __call__(self, mask_curr):
+    def __call__(self, _mask_curr: torch.Tensor) -> torch.Tensor:
         # Cache masks to avoid repeated numpy generation in tight loops.
         if self._cached_masks is None:
             ball = generate_ball(
-                self.num_generated_masks, self.feature_dim, self.feature_dim
+                self.num_generated_masks,
+                self.feature_dim,
+                self.feature_dim,
+                self._rng,
             )
             self._cached_masks = torch.tensor(
                 ball[
                     :,
-                    np.random.permutation(self.num_generated_masks)[
+                    self._rng.permutation(self.num_generated_masks)[
                         : self.num_generated_masks
                     ],
                 ],
                 dtype=torch.float32,
             ).T
         return self._cached_masks
+
+
+all_mask_generator = AllMaskGenerator
+random_mask_generator = RandomMaskGenerator

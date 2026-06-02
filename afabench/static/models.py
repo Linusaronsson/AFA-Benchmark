@@ -1,8 +1,14 @@
+from collections.abc import Callable, Iterable
 from copy import deepcopy
+from typing import Literal, override
 
 import torch
-from afabench.static.utils import restore_parameters
 from torch import nn, optim
+
+from afabench.static.utils import restore_parameters
+
+type BatchLoader = Iterable[tuple[torch.Tensor, torch.Tensor]]
+type LossFunction = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
 
 
 class BaseModel(nn.Module):
@@ -10,37 +16,38 @@ class BaseModel(nn.Module):
 
     def __init__(self, model: nn.Module):
         super().__init__()
-        self.model = model
+        self.model: nn.Module = model
 
     def _to_class_indices(self, y: torch.Tensor) -> torch.Tensor:
         if y.ndim >= 2:
             return y.argmax(dim=-1).long()
         return y.long()
 
-    def fit(
+    def fit(  # noqa: C901
         self,
-        train_loader,
-        val_loader,
-        lr,
-        nepochs,
-        loss_fn,
-        val_loss_fn=None,
-        val_loss_mode=None,
-        factor=0.2,
-        patience=2,
-        min_lr=1e-6,
-        early_stopping_epochs=None,
-        verbose=True,
-    ):
+        train_loader: BatchLoader,
+        val_loader: BatchLoader,
+        lr: float,
+        nepochs: int,
+        loss_fn: LossFunction,
+        val_loss_fn: LossFunction | None = None,
+        val_loss_mode: Literal["min", "max"] | None = None,
+        factor: float = 0.2,
+        patience: int = 2,
+        min_lr: float = 1e-6,
+        early_stopping_epochs: int | None = None,
+        verbose: bool = True,  # noqa: FBT002
+    ) -> None:
         """Train model."""
         # Verify arguments.
         if val_loss_fn is None:
             val_loss_fn = loss_fn
             val_loss_mode = "min"
         elif val_loss_mode is None:
-            raise ValueError(
-                "must specify val_loss_mode (min or max) when validation_loss_fn is specified"
+            message = (
+                "must specify val_loss_mode when val_loss_fn is specified"
             )
+            raise ValueError(message)
 
         # Set up optimizer and lr scheduler.
         model = self.model
@@ -55,7 +62,7 @@ class BaseModel(nn.Module):
         )
 
         # For tracking best model and early stopping.
-        best_model = None
+        best_model: nn.Module | None = None
         num_bad_epochs = 0
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
@@ -64,10 +71,10 @@ class BaseModel(nn.Module):
             # Switch model to training mode.
             model.train()
 
-            for x, y in train_loader:
+            for x_batch, y_batch in train_loader:
                 # Move to device.
-                x = x.to(device)
-                y = self._to_class_indices(y).to(device)
+                x = x_batch.to(device)
+                y = self._to_class_indices(y_batch).to(device)
 
                 # Calculate loss.
                 pred = model(x)
@@ -85,10 +92,10 @@ class BaseModel(nn.Module):
                 pred_list = []
                 label_list = []
 
-                for x, y in val_loader:
+                for x_batch, y_batch in val_loader:
                     # Move to device.
-                    x = x.to(device)
-                    y = self._to_class_indices(y).to(device)
+                    x = x_batch.to(device)
+                    y = self._to_class_indices(y_batch).to(device)
 
                     # Calculate prediction.
                     pred = model(x)
@@ -125,6 +132,7 @@ class BaseModel(nn.Module):
         assert best_model is not None
         restore_parameters(model, best_model)
 
-    def forward(self, x):
+    @override
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Generate model prediction."""
         return self.model(x)

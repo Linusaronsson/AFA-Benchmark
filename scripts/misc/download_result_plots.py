@@ -1,7 +1,9 @@
 import logging
 import re
 import shutil
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Protocol
 
 import hydra
 import torch
@@ -10,14 +12,29 @@ import wandb
 from afabench.common.config_classes import PlotDownloadConfig
 
 
-def process_figure_artifact(figure_artifact, files):
+class FigureArtifact(Protocol):
+    name: str
+    type: str
+
+    def download(self) -> str: ...
+
+
+class PlotRun(Protocol):
+    def logged_artifacts(self) -> Iterable[FigureArtifact]: ...
+
+
+def process_figure_artifact(
+    figure_artifact: FigureArtifact, files: list[Path]
+) -> None:
     artifact_dir = Path(figure_artifact.download())
-    figure_file_path = [f for f in artifact_dir.iterdir()][0]
+    figure_file_path = next(iter(artifact_dir.iterdir()))
     files.append(figure_file_path)
 
 
-def process_plot_artifact(cfg: PlotDownloadConfig, plot_run):
-    files = []
+def process_plot_artifact(
+    cfg: PlotDownloadConfig, plot_run: PlotRun
+) -> list[Path]:
+    files: list[Path] = []
     figure_artifacts = [
         artifact
         for artifact in plot_run.logged_artifacts()
@@ -59,11 +76,8 @@ def is_match(
     budget: int | None,
     metric: str,
     file_type: str,
-):
-    if budget is None:
-        budget_pattern = r"budget\d+"
-    else:
-        budget_pattern = f"budget{budget}"
+) -> bool:
+    budget_pattern = r"budget\d+" if budget is None else f"budget{budget}"
     pattern = rf"^figure-{re.escape(dataset)}_.*_{budget_pattern}_{
         re.escape(metric)
     }-{file_type}:v\d+$"

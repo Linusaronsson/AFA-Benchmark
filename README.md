@@ -134,6 +134,12 @@ which will
 - type checking with `basedpyright --warnings`
 - run tests with `pytest`
 
+## Contributing
+
+New files are expected to follow the project's linting, formatting, and type
+checking rules. Before opening a pull request, run `uv run just qa` from the
+repository root and fix any reported issues.
+
 
 ## Citation
 If you use this benchmark in your research, please cite,
