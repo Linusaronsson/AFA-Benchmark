@@ -344,6 +344,7 @@ def eval_afa_method(
     selection_budget: int | None = None,
     batch_size: int = 1,
     selection_costs: Sequence[float] | None = None,
+    seed: int | None = None,
     *,
     force_acquisition: bool = False,
 ) -> pd.DataFrame:
@@ -363,6 +364,7 @@ def eval_afa_method(
         selection_budget (int|None): How many AFA selections to allow per sample. If None, allow unlimited selections. Defaults to None.
         batch_size (int): Batch size for processing samples. Defaults to 1.
         selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
+        seed (int|None): Seed for evaluation-time sampling, such as `only_n_samples`.
         force_acquisition (bool): Whether to force feature acquisition, ignoring stop actions.
 
     Returns:
@@ -378,12 +380,19 @@ def eval_afa_method(
     if device is None:
         device = torch.device("cpu")
 
+    sampler_generator = None
+    if seed is not None:
+        sampler_generator = torch.Generator().manual_seed(seed)
+
     if only_n_samples is not None:
+        sample_indices = torch.randperm(
+            len(dataset), generator=sampler_generator
+        )[:only_n_samples].tolist()
         dataloader = DataLoader(
             dataset,
             batch_size=batch_size,
             sampler=SubsetRandomSampler(
-                (torch.randperm(len(dataset))[:only_n_samples]).tolist()
+                sample_indices, generator=sampler_generator
             ),
         )
     else:

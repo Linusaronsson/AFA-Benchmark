@@ -238,6 +238,7 @@ class AFAEvaluator:
             selection_budget=self._cfg.hard_budget,
             batch_size=self._cfg.batch_size,
             selection_costs=self._selection_costs.tolist(),
+            seed=self._cfg.seed,
             force_acquisition=self._fallback_force_acquisition,
         )
 
