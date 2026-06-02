@@ -9,12 +9,15 @@ from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
 
-from afabench.afa_discriminative.utils import MaskLayer2d, afa_discriminative_training_prep
+from afabench.afa_discriminative.utils import (
+    MaskLayer2d,
+    afa_discriminative_training_prep,
+)
+from afabench.common.bundle import save_bundle
 from afabench.common.classifiers import WrappedMaskedViTClassifier
 from afabench.common.config_classes import TrainMaskedViTClassifierConfig
 from afabench.common.models import MaskedViTClassifier, MaskedViTTrainer
 from afabench.common.utils import set_seed
-from afabench.common.bundle import save_bundle
 
 log = logging.getLogger(__name__)
 
@@ -33,13 +36,11 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         cfg.epochs = 1
         cfg.patience = 1
 
-    train_dataset, val_dataset, _, _, _ = (
-        afa_discriminative_training_prep(
-            train_dataset_bundle_path=Path(cfg.train_dataset_path),
-            val_dataset_bundle_path=Path(cfg.val_dataset_path),
-            initializer_cfg=cfg.initializer,
-            unmasker_cfg=cfg.unmasker,
-        )
+    train_dataset, val_dataset, _, _, _ = afa_discriminative_training_prep(
+        train_dataset_bundle_path=Path(cfg.train_dataset_path),
+        val_dataset_bundle_path=Path(cfg.val_dataset_path),
+        initializer_cfg=cfg.initializer,
+        unmasker_cfg=cfg.unmasker,
     )
     d_out = train_dataset.label_shape[0]
     train_loader = DataLoader(

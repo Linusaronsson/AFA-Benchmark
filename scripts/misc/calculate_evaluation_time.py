@@ -1,8 +1,10 @@
 import logging
 from collections import defaultdict
+from collections.abc import Iterable, MutableMapping
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from tempfile import NamedTemporaryFile
+from typing import Protocol, cast
 
 import hydra
 import numpy as np
@@ -13,15 +15,37 @@ from omegaconf import OmegaConf
 from afabench.common.config_classes import EvaluationTimeCalculationConfig
 
 
-def process_eval_artifact_sync(eval_artifact, evaluation_times):
+class EvalArtifact(Protocol):
+    metadata: MutableMapping[str, str]
+
+    def logged_by(self) -> "WandbRun": ...
+
+
+class WandbRun(Protocol):
+    name: str
+    id: str
+    url: str
+    summary: MutableMapping[str, MutableMapping[str, int]]
+
+    def used_artifacts(self) -> Iterable[EvalArtifact]: ...
+
+
+def process_eval_artifact_sync(
+    eval_artifact: EvalArtifact,
+    evaluation_times: defaultdict[str, list[int]],
+) -> None:
     eval_run = eval_artifact.logged_by()
     runtime = eval_run.summary["_wandb"]["runtime"]
     method_type = eval_artifact.metadata["method_type"]
     evaluation_times[method_type].append(runtime)
 
 
-def process_all_eval_artifacts(plotting_runs, evaluation_times, max_workers=8):
-    """Accepts a list of plotting runs and processes all their eval artifacts concurrently."""
+def process_all_eval_artifacts(
+    plotting_runs: Iterable[WandbRun],
+    evaluation_times: defaultdict[str, list[int]],
+    max_workers: int = 8,
+) -> None:
+    """Process eval artifacts for the given plotting runs concurrently."""
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = []
         for plotting_run in plotting_runs:
@@ -49,7 +73,9 @@ def main(cfg: EvaluationTimeCalculationConfig) -> None:
 
     run = wandb.init(
         job_type="time_calculation",
-        config=OmegaConf.to_container(cfg, resolve=True),  # pyright: ignore
+        config=cast(
+            "dict[str, object]", OmegaConf.to_container(cfg, resolve=True)
+        ),
         dir="extra/logs/wandb",
     )
 

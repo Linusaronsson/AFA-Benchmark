@@ -1,7 +1,7 @@
-import os
+from collections.abc import Iterable
 from copy import deepcopy
 from pathlib import Path
-from typing import override
+from typing import Literal, Self, override
 
 import numpy as np
 import torch
@@ -9,8 +9,8 @@ from torch import nn, optim
 from torch.distributions import RelaxedOneHotCategorical
 
 from afabench.common.custom_types import (
-    AFAMethod,
     AFAAction,
+    AFAMethod,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -18,25 +18,28 @@ from afabench.common.custom_types import (
 )
 from afabench.static.utils import restore_parameters
 
+type BatchLoader = Iterable[tuple[torch.Tensor, torch.Tensor]]
+
 
 class ConcreteMask(nn.Module):
     """For differentiable global feature selection."""
 
     def __init__(
         self,
-        num_features,
-        num_select,
-        append=False,
-        gamma=0.2,
+        num_features: int,
+        num_select: int,
+        append: bool = False,  # noqa: FBT002
+        gamma: float = 0.2,
     ):
         super().__init__()
-        self.logits = nn.Parameter(
+        self.logits: nn.Parameter = nn.Parameter(
             torch.randn(num_select, num_features, dtype=torch.float32)
         )
-        self.append = append
-        self.gamma = gamma
+        self.append: bool = append
+        self.gamma: float = gamma
 
-    def forward(self, x, temp):
+    @override
+    def forward(self, x: torch.Tensor, temp: float) -> torch.Tensor:
         dist = RelaxedOneHotCategorical(temp, logits=self.logits / self.gamma)
         sample = dist.rsample([len(x)])
         m = sample.max(dim=1).values
@@ -55,15 +58,18 @@ class ConcreteMask2d(nn.Module):
         gamma: float = 0.2,
     ):
         super().__init__()
-        self.logits = nn.Parameter(
-            torch.randn(num_select, width ** 2, dtype=torch.float32)
+        self.logits: nn.Parameter = nn.Parameter(
+            torch.randn(num_select, width**2, dtype=torch.float32)
         )
-        self.upsample = torch.nn.Upsample(scale_factor=patch_size)
-        self.width = width
-        self.patch_size = patch_size
-        self.gamma = gamma
+        self.upsample: torch.nn.Upsample = torch.nn.Upsample(
+            scale_factor=patch_size
+        )
+        self.width: int = width
+        self.patch_size: int = patch_size
+        self.gamma: float = gamma
 
-    def forward(self, x, temp):
+    @override
+    def forward(self, x: torch.Tensor, temp: float) -> torch.Tensor:
         dist = RelaxedOneHotCategorical(temp, logits=self.logits / self.gamma)
         sample = dist.rsample([len(x)])
         m = sample.max(dim=1).values
@@ -89,24 +95,24 @@ class DifferentiableSelector(nn.Module):
             return y.argmax(dim=-1).long()
         return y.long()
 
-    def fit(
+    def fit(  # noqa: C901, PLR0912, PLR0915
         self,
-        train_loader,
-        val_loader,
-        lr,
-        nepochs,
-        loss_fn,
-        val_loss_fn=None,
-        val_loss_mode="min",
-        factor=0.2,
-        patience=2,
-        min_lr=1e-5,
-        early_stopping_epochs=None,
-        start_temp=10.0,
-        end_temp=0.01,
-        temp_steps=10,
-        verbose=True,
-    ):
+        train_loader: BatchLoader,
+        val_loader: BatchLoader,
+        lr: float,
+        nepochs: int,
+        loss_fn: nn.Module,
+        val_loss_fn: nn.Module | None = None,
+        val_loss_mode: Literal["min", "max"] = "min",
+        factor: float = 0.2,
+        patience: int = 2,
+        min_lr: float = 1e-5,
+        early_stopping_epochs: int | None = None,
+        start_temp: float = 10.0,
+        end_temp: float = 0.01,
+        temp_steps: int = 10,
+        verbose: bool = True,  # noqa: FBT002
+    ) -> None:
         """Train model to perform global feature selection."""
         # Verify arguments.
         if val_loss_fn is None:
@@ -121,9 +127,9 @@ class DifferentiableSelector(nn.Module):
         val_loss_fn.to(device)
 
         # For tracking best models with zero temperature.
-        best_val = None
-        best_zerotemp_model = None
-        best_zerotemp_selector = None
+        best_val: torch.Tensor | None = None
+        best_zerotemp_model: nn.Module | None = None
+        best_zerotemp_selector: ConcreteMask | ConcreteMask2d | None = None
 
         # Train separately with each temperature.
         total_epochs = 0
@@ -138,7 +144,7 @@ class DifferentiableSelector(nn.Module):
             )
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
                 opt,
-                mode=val_loss_mode,  # pyright: ignore[reportArgumentType]
+                mode=val_loss_mode,
                 factor=factor,
                 patience=patience,
                 min_lr=min_lr,
@@ -153,10 +159,10 @@ class DifferentiableSelector(nn.Module):
                 # Switch model to training mode.
                 model.train()
 
-                for x, y in train_loader:
+                for x_batch, y_batch in train_loader:
                     # Move to device.
-                    x = x.to(device)
-                    y = self._to_class_indices(y).to(device)
+                    x = x_batch.to(device)
+                    y = self._to_class_indices(y_batch).to(device)
 
                     # Select features and make prediction.
                     x_masked = selector_layer(x, temp)
@@ -189,10 +195,10 @@ class DifferentiableSelector(nn.Module):
                     hard_pred_list = []
                     label_list = []
 
-                    for x, y in val_loader:
+                    for x_batch, y_batch in val_loader:
                         # Move to device.
-                        x = x.to(device)
-                        y = self._to_class_indices(y).to(device)
+                        x = x_batch.to(device)
+                        y = self._to_class_indices(y_batch).to(device)
 
                         # Evaluate model with soft sample.
                         x_masked = selector_layer(x, temp)
@@ -271,16 +277,19 @@ class StaticBaseMethod(AFAMethod):
         self,
         selected_history: dict[int, list[int]],
         predictors: dict[int, nn.Module],
-        device: torch.device = torch.device("cpu"),
+        device: str | torch.device = "cpu",
         image_size: int | None = None,
         patch_size: int | None = None,
     ):
         super().__init__()
-        self.selected_history = selected_history
-        self.predictors = {b: m.to(device) for b, m in predictors.items()}
-        self.image_size = image_size
-        self.patch_size = patch_size
-        self._device = device
+        device = torch.device(device)
+        self.selected_history: dict[int, list[int]] = selected_history
+        self.predictors: dict[int, nn.Module] = {
+            b: m.to(device) for b, m in predictors.items()
+        }
+        self.image_size: int | None = image_size
+        self.patch_size: int | None = patch_size
+        self._device: torch.device = device
 
     @override
     def predict(
@@ -292,31 +301,40 @@ class StaticBaseMethod(AFAMethod):
     ) -> Label:
         if masked_features.ndim == 4:
             if self.patch_size is None:
-                raise RuntimeError("patch_size missing from method; retrain/save with patch_size")
+                message = "patch_size missing from method; retrain/save with patch_size"
+                raise RuntimeError(message)
             fm = feature_mask
             if fm.ndim == 4:
                 fm = fm.any(dim=1)
             elif fm.ndim != 3:
-                raise RuntimeError(f"Unexpected image feature_mask shape: {feature_mask.shape}")
+                message = f"Unexpected image feature_mask shape: {feature_mask.shape}"
+                raise RuntimeError(message)
 
             B, H, W = fm.shape
             p = self.patch_size
             if H % p != 0 or W % p != 0:
-                raise RuntimeError(f"Image size {(H,W)} not divisible by patch_size={p}")
+                message = (
+                    f"Image size {(H, W)} not divisible by patch_size={p}"
+                )
+                raise RuntimeError(message)
             gh, gw = H // p, W // p
             patch_mask = fm.reshape(B, gh, p, gw, p).all(dim=(2, 4))
             counts = patch_mask.reshape(B, -1).sum(dim=1)
         else:
             counts = feature_mask.sum(dim=1)
         if not (counts == counts[0]).all():
-            raise RuntimeError("mixed budgets in batch")
+            message = "mixed budgets in batch"
+            raise RuntimeError(message)
         b = int(counts[0].item())
         if b == 0:
             # uniform prior over classes
             if masked_features.ndim == 4:
                 assert self.image_size is not None
                 n_classes = next(iter(self.predictors.values()))(
-                    torch.zeros((1, 3, self.image_size, self.image_size), device=self._device)
+                    torch.zeros(
+                        (1, 3, self.image_size, self.image_size),
+                        device=self._device,
+                    )
                 ).shape[-1]
             else:
                 n_classes = next(iter(self.predictors.values()))(
@@ -352,11 +370,14 @@ class StaticBaseMethod(AFAMethod):
             # for tabular datasets
             counts = feature_mask.sum(dim=1)
         if not (counts == counts[0]).all():
-            raise RuntimeError("mixed budgets in batch")
+            message = "mixed budgets in batch"
+            raise RuntimeError(message)
         b = int(counts[0].item())
         if (b + 1) not in self.selected_history:
             return torch.zeros(
-                (masked_features.size(0), 1), dtype=torch.long, device=self._device
+                (masked_features.size(0), 1),
+                dtype=torch.long,
+                device=self._device,
             )
 
         if selection_mask is not None:
@@ -367,31 +388,33 @@ class StaticBaseMethod(AFAMethod):
             if mask0[idx] == 0:
                 choice = idx + 1
                 return torch.full(
-                    (masked_features.size(0),1),
+                    (masked_features.size(0), 1),
                     fill_value=choice,
                     dtype=torch.long,
                     device=self._device,
                 )
 
         return torch.zeros(
-            (masked_features.size(0),1), dtype=torch.long, device=self._device
+            (masked_features.size(0), 1), dtype=torch.long, device=self._device
         )
 
-    def save(self, path: Path):
-        os.makedirs(path, exist_ok=True)
+    @override
+    def save(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
                 "selected_history": self.selected_history,
                 "image_size": self.image_size,
                 "patch_size": self.patch_size,
             },
-            path / "selected.pt"
+            path / "selected.pt",
         )
         for b, mdl in self.predictors.items():
             torch.save(mdl, path / f"predictor_b{b}.pt")
 
     @classmethod
-    def load(cls, path: Path, device="cpu"):
+    @override
+    def load(cls, path: Path, device: str | torch.device = "cpu") -> Self:
         data = torch.load(
             path / "selected.pt", weights_only=False, map_location="cpu"
         )
@@ -399,8 +422,8 @@ class StaticBaseMethod(AFAMethod):
         image_size = data.get("image_size", None)
         patch_size = data.get("patch_size", None)
 
-        preds = {}
-        for b in hist.keys():
+        preds: dict[int, nn.Module] = {}
+        for b in hist:
             model = torch.load(
                 path / f"predictor_b{b}.pt",
                 weights_only=False,
@@ -413,19 +436,22 @@ class StaticBaseMethod(AFAMethod):
             predictors=preds,
             image_size=image_size,
             patch_size=patch_size,
-            device=device
+            device=device,
         ).to(device)
 
-    def to(self, device):
-        self._device = device
+    @override
+    def to(self, device: str | torch.device) -> Self:
+        self._device = torch.device(device)
         for b in self.predictors:
-            self.predictors[b] = self.predictors[b].to(device)
+            self.predictors[b] = self.predictors[b].to(self._device)
         return self
 
     @property
-    def device(self):
+    @override
+    def device(self) -> torch.device:
         return self._device
 
     @property
+    @override
     def has_builtin_classifier(self) -> bool:
         return True

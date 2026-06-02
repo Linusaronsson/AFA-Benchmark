@@ -5,10 +5,26 @@ Provides utilities for loading and processing Snakemake configuration files
 with support for methods, datasets, budgets, and other common parameters.
 """
 
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+# Snakemake config values are intentionally heterogeneous.
+# ruff: noqa: ANN401
+
 NO_PRETRAIN_STR = "NO_PRETRAIN"
 
+type ConfigDict = Mapping[str, Any]
+type BudgetParam = int | float | str
+type NullableParam = BudgetParam | None
+type BudgetCombination = tuple[
+    BudgetParam,
+    BudgetParam,
+    BudgetParam,
+    BudgetParam,
+]
 
-def load_config(config):
+
+def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     """
     Load and validate configuration variables from the Snakemake config.
 
@@ -43,9 +59,7 @@ def load_config(config):
     # Pretrained Models Configuration
     # ========================================================================
 
-    pretrain_mapping = config.get("pretrain_mapping", None)
-    if pretrain_mapping is None:
-        raise ValueError("Expected pretrain_mapping to be provided.")
+    pretrain_mapping = _required_config(config, "pretrain_mapping")
 
     # Extract pretrain script names and params for each pretrained model
     pretrain_model_script_names = {
@@ -62,13 +76,12 @@ def load_config(config):
     # Methods Configuration
     # ========================================================================
 
-    method_options = config.get("method_options", None)
-    if method_options is None:
-        raise ValueError("Expected method_options to be provided.")
+    method_options = _required_config(config, "method_options")
 
     methods = config.get("methods", [])
     if methods is None:
-        raise ValueError("Expected methods to be provided.")
+        message = "Expected methods to be provided."
+        raise ValueError(message)
 
     method_sets = config.get("method_sets", {})
     # Filter out methods that have not been enabled by the "methods" option
@@ -134,9 +147,7 @@ def load_config(config):
     # Filter pretrain_names to only include those needed by selected methods
     pretrain_names_needed = set(method_to_pretrained_model.values())
     pretrain_names = [
-        name
-        for name in pretrain_mapping.keys()
-        if name in pretrain_names_needed
+        name for name in pretrain_mapping if name in pretrain_names_needed
     ]
 
     # Default method_specific_params to empty list if not provided
@@ -174,9 +185,7 @@ def load_config(config):
     # Dataset Configuration
     # ========================================================================
 
-    datasets = config.get("datasets", None)
-    if datasets is None:
-        raise ValueError("Expected datasets to be provided.")
+    datasets = _required_config(config, "datasets")
 
     # Extract eval_batch_size from method_options
     # Format: {method: {dataset: batch_size}}
@@ -198,27 +207,23 @@ def load_config(config):
                 }
             else:
                 # If eval_batch_size is a scalar, use it for all datasets
-                eval_batch_sizes[method] = dict.fromkeys(datasets, batch_size_config)
+                eval_batch_sizes[method] = dict.fromkeys(
+                    datasets, batch_size_config
+                )
 
     # ========================================================================
     # Budget and Unmasker Configuration
     # ========================================================================
 
-    unmaskers_raw = config.get("unmaskers", None)
-    if unmaskers_raw is None:
-        raise ValueError("Expected unmaskers to be provided.")
+    unmaskers_raw = _required_config(config, "unmaskers")
     unmaskers = _fill_missing_datasets_with_default(unmaskers_raw, datasets)
 
-    eval_hard_budgets_raw = config.get("eval_hard_budgets", None)
-    if eval_hard_budgets_raw is None:
-        raise ValueError("Expected eval_hard_budgets to be provided.")
+    eval_hard_budgets_raw = _required_config(config, "eval_hard_budgets")
     eval_hard_budgets = _fill_missing_datasets_with_default(
         eval_hard_budgets_raw, datasets
     )
 
-    soft_budget_params_raw = config.get("soft_budget_params", None)
-    if soft_budget_params_raw is None:
-        raise ValueError("Expected soft_budget_params to be provided.")
+    soft_budget_params_raw = _required_config(config, "soft_budget_params")
 
     # Fill in missing datasets for each method's soft budget params
     soft_budget_params = {
@@ -230,9 +235,7 @@ def load_config(config):
     # Classifier Names Configuration
     # ========================================================================
 
-    classifier_names_raw = config.get("classifier_names", None)
-    if classifier_names_raw is None:
-        raise ValueError("Expected classifier_names to be provided.")
+    classifier_names_raw = _required_config(config, "classifier_names")
     classifier_names = _fill_missing_datasets_with_default(
         classifier_names_raw, datasets
     )
@@ -326,7 +329,17 @@ def load_config(config):
 # ============================================================================
 
 
-def _fill_missing_datasets_with_default(config_dict, datasets):
+def _required_config(config: ConfigDict, key: str) -> Any:
+    value = config.get(key, None)
+    if value is None:
+        message = f"Expected {key} to be provided."
+        raise ValueError(message)
+    return value
+
+
+def _fill_missing_datasets_with_default(
+    config_dict: dict[str, Any], datasets: Sequence[str]
+) -> dict[str, Any]:
     """Fill in missing datasets with the default value."""
     return config_dict | {
         dataset: config_dict["default"]
@@ -336,15 +349,17 @@ def _fill_missing_datasets_with_default(config_dict, datasets):
 
 
 def _create_budget_combinations(
-    method,
-    dataset,
-    eval_hard_budgets,
-    soft_budget_params,
-    eval_to_train_hard_budget_mapping,
-    use_max_hard_budget_when_training_soft_budget: bool = False,
-    ignore_hard_budgets: bool = False,
-    ignore_soft_budgets: bool = False,
-):
+    method: str,
+    dataset: str,
+    eval_hard_budgets: Sequence[BudgetParam],
+    soft_budget_params: Sequence[Sequence[NullableParam]],
+    eval_to_train_hard_budget_mapping: dict[
+        str, dict[str, dict[BudgetParam, BudgetParam]]
+    ],
+    use_max_hard_budget_when_training_soft_budget: bool = False,  # noqa: FBT002
+    ignore_hard_budgets: bool = False,  # noqa: FBT002
+    ignore_soft_budgets: bool = False,  # noqa: FBT002
+) -> list[BudgetCombination]:
     """
     Create budget parameter tuples for a method-dataset pair.
 
@@ -405,15 +420,20 @@ def _create_budget_combinations(
     return result
 
 
-def _normalize_nullable_param(value):
+def _normalize_nullable_param(value: NullableParam) -> BudgetParam:
     if value is None:
         return "null"
     return value
 
 
 def _get_train_hard_budget_from_eval(
-    method, dataset, eval_budget, eval_to_train_hard_budget_mapping
-):
+    method: str,
+    dataset: str,
+    eval_budget: BudgetParam,
+    eval_to_train_hard_budget_mapping: dict[
+        str, dict[str, dict[BudgetParam, BudgetParam]]
+    ],
+) -> BudgetParam:
     """
     Get the training hard budget for a given evaluation hard budget.
 
@@ -441,11 +461,11 @@ def _get_train_hard_budget_from_eval(
 
 
 def _compute_datasets_used_per_method(
-    methods,
-    datasets,
-    hard_budget_ignored_datasets,
-    soft_budget_ignored_datasets,
-):
+    methods: Sequence[str],
+    datasets: Sequence[str],
+    hard_budget_ignored_datasets: Mapping[str, Sequence[str]],
+    soft_budget_ignored_datasets: Mapping[str, Sequence[str]],
+) -> dict[str, list[str]]:
     """
     Compute which datasets are actually used for each method.
 

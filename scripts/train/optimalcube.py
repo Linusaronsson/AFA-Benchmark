@@ -2,7 +2,7 @@ import gc
 import logging
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
@@ -10,10 +10,14 @@ import wandb
 from omegaconf import OmegaConf
 
 from afabench.common.afa_methods import OptimalCubeAFAMethod
+from afabench.common.bundle import load_bundle
 from afabench.common.config_classes import (
     OptimalCubeTrainConfig,
 )
-from afabench.common.utils import load_dataset_artifact, set_seed
+from afabench.common.utils import set_seed
+
+if TYPE_CHECKING:
+    from afabench.common.custom_types import AFADataset
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +27,7 @@ log = logging.getLogger(__name__)
     config_path="../../extra/conf/train/optimalcube",
     config_name="config",
 )
-def main(cfg: OptimalCubeTrainConfig):
+def main(cfg: OptimalCubeTrainConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -42,12 +46,14 @@ def main(cfg: OptimalCubeTrainConfig):
     log.info(f"W&B run URL: {run.url}")
 
     # Load dataset artifact
-    train_dataset, val_dataset, _, dataset_metadata = load_dataset_artifact(
-        cfg.dataset_artifact_name
+    train_dataset_obj, dataset_metadata = load_bundle(
+        Path(cfg.dataset_artifact_name)
     )
+    train_dataset = cast("AFADataset", cast("object", train_dataset_obj))
 
     # Get number of classes from the dataset
-    n_classes = train_dataset.labels.shape[-1]
+    _, y_train = train_dataset.get_all_data()
+    n_classes = y_train.shape[-1]
 
     afa_method = OptimalCubeAFAMethod(
         device=torch.device("cpu"), n_classes=n_classes

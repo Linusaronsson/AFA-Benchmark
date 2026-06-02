@@ -14,8 +14,8 @@ from tqdm import tqdm
 
 from afabench.afa_discriminative.datasets import prepare_datasets
 from afabench.afa_discriminative.utils import afa_discriminative_training_prep
-from afabench.common.config_classes import PermutationTrainingConfig
 from afabench.common.bundle import save_bundle
+from afabench.common.config_classes import PermutationTrainingConfig
 from afabench.common.utils import set_seed
 from afabench.static.models import BaseModel
 from afabench.static.static_methods import StaticBaseMethod
@@ -29,7 +29,7 @@ log = logging.getLogger(__name__)
     config_path="../../extra/conf/scripts/train/permutation",
     config_name="config",
 )
-def main(cfg: PermutationTrainingConfig):
+def main(cfg: PermutationTrainingConfig) -> None:
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
@@ -54,7 +54,7 @@ def main(cfg: PermutationTrainingConfig):
         train_dataset, val_dataset, cfg.batch_size
     )
 
-    def auroc_metric(pred: torch.Tensor, y: torch.Tensor):
+    def auroc_metric(pred: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         return AUROC(task="multiclass", num_classes=d_out)(
             pred.softmax(dim=1), y
         )
@@ -80,14 +80,14 @@ def main(cfg: PermutationTrainingConfig):
     )
 
     permutation_importance = np.zeros(d_in)
+    rng = np.random.default_rng(cfg.seed)
     x_train, _ = train_dataset.get_all_data()
     for i in tqdm(range(d_in)):
         x_val, y_val = val_dataset.get_all_data()
         x_val = x_val.clone()
         y_val = y_val.argmax(dim=1).long()
-        x_val[:, i] = x_train[
-            np.random.choice(len(x_train), size=len(x_val)), i
-        ]
+        shuffled_indices = rng.choice(len(x_train), size=len(x_val))
+        x_val[:, i] = x_train[shuffled_indices, i]
         with torch.no_grad():
             pred = model(x_val.to(device)).cpu()
             permutation_importance[i] = -auroc_metric(pred, y_val)
