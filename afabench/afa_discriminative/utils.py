@@ -1,5 +1,5 @@
-from typing import cast, override
 from pathlib import Path
+from typing import cast, override
 
 import torch
 import torch.nn.functional as F
@@ -7,10 +7,6 @@ from torch import nn
 from torch.distributions import Categorical, RelaxedOneHotCategorical
 
 from afabench.common.bundle import load_bundle
-from afabench.common.initializers.utils import get_afa_initializer_from_config
-from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import get_class_frequencies
-from afabench.common.custom_types import AFADataset
 from afabench.common.config_classes import (
     InitializerConfig,
     UnmaskerConfig,
@@ -20,6 +16,9 @@ from afabench.common.custom_types import (
     AFAInitializer,
     AFAUnmasker,
 )
+from afabench.common.initializers.utils import get_afa_initializer_from_config
+from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
+from afabench.common.utils import get_class_frequencies
 
 
 def restore_parameters(model: nn.Module, best_model: nn.Module) -> None:
@@ -55,7 +54,7 @@ def afa_discriminative_training_prep(
     val_dataset_bundle_path: Path,
     initializer_cfg: InitializerConfig,
     unmasker_cfg: UnmaskerConfig,
-) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor | None]:
+) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor]:
     train_dataset, _train_dataset_manifest = load_bundle(
         train_dataset_bundle_path,
     )
@@ -69,13 +68,10 @@ def afa_discriminative_training_prep(
 
     unmasker = get_afa_unmasker_from_config(unmasker_cfg)
 
-    # Also calculate class weights
-    class_weights: torch.Tensor | None = None
-    if len(train_dataset.feature_shape) == 1:
-        _, train_labels = train_dataset.get_all_data()
-        train_class_probabilities = get_class_frequencies(train_labels)
-        class_weights = 1 / train_class_probabilities
-        class_weights = class_weights / class_weights.sum()
+    _, train_labels = train_dataset.get_all_data()
+    train_class_probabilities = get_class_frequencies(train_labels)
+    class_weights = 1 / train_class_probabilities
+    class_weights = class_weights / class_weights.sum()
 
     return train_dataset, val_dataset, initializer, unmasker, class_weights
 
@@ -84,18 +80,17 @@ def patch_soft_to_feature_soft(
     soft_patch: torch.Tensor,
     x: torch.Tensor,
 ) -> torch.Tensor:
-    """
-    Convert soft patch mask (B, mask_size) into soft feature mask in x space.
-
-    """
+    """Convert soft patch mask (B, mask_size) into soft feature mask."""
     # if len(x.shape) == 4:
     B, C, H, W = x.shape
     mask_size = soft_patch.shape[1]
-    mask_width = int(mask_size ** 0.5)
+    mask_width = int(mask_size**0.5)
     m = soft_patch.view(B, 1, mask_width, mask_width)
     patch_size_h = H // mask_width
     patch_size_w = W // mask_width
-    m = F.interpolate(m, scale_factor=(patch_size_h, patch_size_w), mode="nearest")
+    m = F.interpolate(
+        m, scale_factor=(patch_size_h, patch_size_w), mode="nearest"
+    )
     return m.expand(B, C, H, W)
 
     # assert len(x.shape) == 2
@@ -117,7 +112,10 @@ def selection_soft_to_feature_soft(
     n_contexts: int,
 ) -> torch.Tensor:
     out = torch.zeros(
-        soft_sel.shape[0], mask_size, device=soft_sel.device, dtype=soft_sel.dtype
+        soft_sel.shape[0],
+        mask_size,
+        device=soft_sel.device,
+        dtype=soft_sel.dtype,
     )
     out[:, :n_contexts] = soft_sel[:, [0]]
     if mask_size > n_contexts:
@@ -126,17 +124,18 @@ def selection_soft_to_feature_soft(
 
 
 def tie_first_k_linears_by_module(
-    predictor: nn.Module,
-    value_network: nn.Module,
-    k: int = 2
+    predictor: nn.Module, value_network: nn.Module, k: int = 2
 ) -> None:
     pred_linears = [m for m in predictor.modules() if isinstance(m, nn.Linear)]
-    val_linears  = [m for m in value_network.modules() if isinstance(m, nn.Linear)]
+    val_linears = [
+        m for m in value_network.modules() if isinstance(m, nn.Linear)
+    ]
     if len(pred_linears) < k or len(val_linears) < k:
-        raise ValueError(
+        message = (
             f"Need at least {k} Linear layers in each model. "
             f"Got predictor={len(pred_linears)}, value_network={len(val_linears)}"
         )
+        raise ValueError(message)
     for i in range(k):
         _replace_module(value_network, val_linears[i], pred_linears[i])
 
