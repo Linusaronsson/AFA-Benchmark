@@ -161,9 +161,7 @@ class GreedyDynamicSelection(nn.Module):
 
             # Set up optimizer and lr scheduler.
             opt = optim.Adam(
-                set(
-                    list(predictor.parameters()) + list(selector.parameters())
-                ),
+                list(predictor.parameters()) + list(selector.parameters()),
                 lr=lr,
             )
             scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -795,9 +793,7 @@ class CMIEstimator(nn.Module):
         n_selections = unmasker.get_n_selections(feature_shape)
 
         opt = optim.Adam(
-            set(
-                list(value_network.parameters()) + list(predictor.parameters())
-            ),
+            list(value_network.parameters()) + list(predictor.parameters()),
             lr=lr,
         )
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
