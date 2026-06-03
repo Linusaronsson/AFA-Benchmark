@@ -30,7 +30,7 @@ from afabench.components.unmaskers.utils import (
 )
 
 # from afabench.components.methods.rl.reward_functions import get_range_based_reward_fn
-# from afabench.components.methods.rl.shim2018.reward import get_shim2018_reward_fn
+# from afabench.components.methods.rl.jafa.reward import get_jafa_reward_fn
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.config_classes import (
     AFAMDPConfig,
@@ -278,7 +278,7 @@ class RLTrainer(ABC):
     ) -> dict[str, Any]:
         log.info(f"Running evaluation at batch {batch_idx}")
 
-        # Some methods (like shim2018) need to change their action spec to point to the eval environment
+        # Some methods (like jafa) need to change their action spec to point to the eval environment
         self._pre_eval()
 
         with (

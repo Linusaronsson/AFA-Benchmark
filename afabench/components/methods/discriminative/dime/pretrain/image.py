@@ -23,14 +23,14 @@ from afabench.core.bundle_system.bundle import (
     load_bundle,
     save_bundle,
 )
-from afabench.core.config_classes import Covert2023Pretraining2DConfig
+from afabench.core.config_classes import DIMEPretraining2DConfig
 from afabench.core.types import AFADataset  # noqa: TC001
 from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)
 
 
-def pretrain_image(cfg: Covert2023Pretraining2DConfig) -> None:
+def pretrain_image(cfg: DIMEPretraining2DConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -67,7 +67,6 @@ def pretrain_image(cfg: Covert2023Pretraining2DConfig) -> None:
     backbone, expansion = ResNet18Backbone(base)
     predictor = Predictor(backbone, expansion, num_classes=d_out).to(device)
 
-    # default 224x224 image, 14x14 mask grid (16 patch size)
     image_size = cfg.image_size
     patch_size = cfg.patch_size
     assert image_size % patch_size == 0, (
@@ -86,8 +85,9 @@ def pretrain_image(cfg: Covert2023Pretraining2DConfig) -> None:
     mask_layer = MaskLayer2d(
         mask_width=mask_width, patch_size=patch_size, append=False
     )
+    print("Pretraining predictor")
+    print("-" * 8)
     pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
-
     pretrain.fit(
         train_loader,
         val_loader,
@@ -101,7 +101,7 @@ def pretrain_image(cfg: Covert2023Pretraining2DConfig) -> None:
     )
 
     metadata = {
-        "model_type": "Covert2023Classifier",
+        "model_type": "DIMEClassifier",
         "pretrain_config": OmegaConf.to_container(cfg),
     }
     bundle_obj = GreedyAFAClassifier(
@@ -116,7 +116,7 @@ def pretrain_image(cfg: Covert2023Pretraining2DConfig) -> None:
         metadata=metadata,
     )
 
-    log.info(f"Covert2023 pretrained model saved to: {cfg.save_path}")
+    log.info(f"DIME pretrained model saved to: {cfg.save_path}")
 
     gc.collect()
     if torch.cuda.is_available():

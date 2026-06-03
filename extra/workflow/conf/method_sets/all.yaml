@@ -20,22 +20,22 @@ method_sets:
     - cae
     - permutation
   eddi:
-    - ma2018_builtin
-    - ma2018_external
+    - eddi_builtin
+    - eddi_external
   # Methods that we compare heatmaps for
   heatmap_comparison:
     - ol_with_mask
     - aaco
-    - covert2023
-    - ma2018_external
+    - gdfs
+    - eddi_external
     - jafa
   main:
   - jafa
   - odin_model_free
   - ol_without_mask
   - random_dummy
-  - covert2023
-  - ma2018_external
-  - gadgil2023
+  - gdfs
+  - eddi_external
+  - dime
   - cae
   - aaco

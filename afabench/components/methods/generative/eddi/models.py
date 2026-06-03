@@ -3,7 +3,7 @@ from typing import final, override
 import torch
 from torch import nn
 
-from afabench.components.methods.rl.zannone2019.models import PointNet
+from afabench.components.methods.rl.odin.models import PointNet
 from afabench.core.types import FeatureMask, MaskedFeatures
 
 type PartialVAEEncoding = tuple[

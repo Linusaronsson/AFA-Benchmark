@@ -1,0 +1,60 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - hydra: custom
+  - optional /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
+  - /components/masked_pretraining@_global_: default
+  - /components/masking_probabilities@_global_: simple
+  - _self_
+  - optional experiment@_global_: ???
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+supervised_learning:
+  early_stopping_min_delta: 1e-1
+
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+classifier_bundle_path: null # not needed for this method, but pipeline passes it to us
+save_path: ???
+device: cuda
+
+# Although EDDI paper has batch_size 100, we use the default of 128 for consistency, should not matter too much
+
+lr: 1e-3
+start_kl_scaling_factor: 0.1
+end_kl_scaling_factor: 0.1
+n_annealing_epoch_fraction: 1
+classifier_loss_scaling_factor: 1
+pointnet:
+  type: "pointnetplus" # ODIN paper does not mention which type they use
+  identity_size: 20 # EDDI (MNIST), not specified by odin
+  max_embedding_norm: 1.0
+  feature_map_encoder_num_cells: [500] # EDDI (MNIST)
+  feature_map_encoder_activation_class: "ReLU"
+  feature_map_encoder_dropout: 0.0
+  # output_size: 40 # always twice as large as latent size according to EDDI paper
+  output_size: 20 # odin
+encoder:
+  # num_cells: [500, 500, 200] # EDDI (MNIST)
+  num_cells: [20, 500, 200] # odin
+  activation_class: "ReLU"
+  dropout: 0.0
+partial_vae:
+  latent_size: 20 # EDDI (MNIST)
+  # decoder_num_cells: [200, 500, 500] # EDDI (MNIST)
+  decoder_num_cells: [500, 200] # odin (cube)
+  decoder_activation_class: "ReLU"
+  decoder_dropout: 0.0
+classifier:
+  num_cells: [32, 32] # odin paper does not say what this should be, so we use the same num_cells as the "common" classifier
+  activation_class: "ReLU"
+  dropout: 0.0
+seed: null
+use_wandb: false
+smoke_test: false

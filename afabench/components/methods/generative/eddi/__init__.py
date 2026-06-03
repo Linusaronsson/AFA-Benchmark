@@ -1,3 +1,3 @@
-from .afa_methods import Ma2018AFAMethod
+from .afa_methods import EDDIAFAMethod
 
-__all__ = ["Ma2018AFAMethod"]
+__all__ = ["EDDIAFAMethod"]

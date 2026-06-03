@@ -1,3 +1,3 @@
-from .afa_methods import CMIEstimator, Gadgil2023AFAMethod
+from .afa_methods import GDFSAFAMethod, GreedyDynamicSelection
 
-__all__ = ["CMIEstimator", "Gadgil2023AFAMethod"]
+__all__ = ["GDFSAFAMethod", "GreedyDynamicSelection"]

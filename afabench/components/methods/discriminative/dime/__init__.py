@@ -1,3 +1,3 @@
-from .afa_methods import Covert2023AFAMethod, GreedyDynamicSelection
+from .afa_methods import CMIEstimator, DIMEAFAMethod
 
-__all__ = ["Covert2023AFAMethod", "GreedyDynamicSelection"]
+__all__ = ["CMIEstimator", "DIMEAFAMethod"]

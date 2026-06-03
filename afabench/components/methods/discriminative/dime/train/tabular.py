@@ -17,19 +17,20 @@ from afabench.components.methods.discriminative.common.models import (
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer,
     afa_discriminative_training_prep,
+    tie_first_k_linears_by_module,
 )
 from afabench.components.methods.discriminative.dime.afa_methods import (
-    Covert2023AFAMethod,
-    GreedyDynamicSelection,
+    CMIEstimator,
+    DIMEAFAMethod,
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.config_classes import Covert2023TrainingConfig
+from afabench.core.config_classes import DIMETrainingConfig
 from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)
 
 
-def train_tabular(cfg: Covert2023TrainingConfig) -> None:
+def train_tabular(cfg: DIMETrainingConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
@@ -53,7 +54,6 @@ def train_tabular(cfg: Covert2023TrainingConfig) -> None:
         train_dataset, val_dataset, cfg.batch_size
     )
 
-    # Predictor network
     predictor, _ = load_bundle(
         Path(cfg.pretrained_model_bundle_path),
         map_location=device,
@@ -66,60 +66,73 @@ def train_tabular(cfg: Covert2023TrainingConfig) -> None:
     n_selections = unmasker.get_n_selections(torch.Size([d_in]))
     # assert n_selections == d_in
 
-    selector = MLP(
+    value_network = MLP(
         in_features=d_in * 2,
-        # out_features=d_in,
         out_features=n_selections,
         num_cells=cfg.hidden_units,
         activation_class=getattr(nn, cfg.activation),
         dropout=cfg.dropout,
     ).to(device)
 
-    # GDFS
+    # pred_linears = [m for m in predictor.modules() if isinstance(m, nn.Linear)]
+    # value_linears = [
+    #     m for m in value_network.modules() if isinstance(m, nn.Linear)
+    # ]
+    # msg = "Mismatch in number of linear layers."
+    # assert len(pred_linears) == len(value_linears), msg
+    # for i in range(len(cfg.hidden_units)):
+    #     value_linears[i].weight = pred_linears[i].weight
+    #     value_linears[i].bias = pred_linears[i].bias
+
+    tie_first_k_linears_by_module(predictor, value_network, k=2)
+
     mask_layer = MaskLayer(append=True)
-    gdfs = GreedyDynamicSelection(
-        selector=selector,
+
+    greedy_cmi_estimator = CMIEstimator(
+        value_network=value_network,
         predictor=predictor,
         mask_layer=mask_layer,
         initializer=initializer,
         unmasker=unmasker,
     ).to(device)
-
     feature_costs = train_dataset.get_feature_acquisition_costs()
-
-    gdfs.fit(
+    greedy_cmi_estimator.fit(
         train_loader,
         val_loader,
         lr=cfg.lr,
         nepochs=cfg.nepochs,
         max_features=cfg.hard_budget,
-        loss_fn=nn.CrossEntropyLoss(weight=class_weights),
+        eps=cfg.eps,
+        loss_fn=nn.CrossEntropyLoss(reduction="none", weight=class_weights),
+        val_loss_fn=None,
+        val_loss_mode=None,
+        eps_decay=cfg.eps_decay,
+        eps_steps=cfg.eps_steps,
         patience=cfg.patience,
-        verbose=True,
         feature_costs=feature_costs.to(device),
     )
 
-    # Build final method
-    afa_method = Covert2023AFAMethod(
-        selector=gdfs.selector.cpu(),
-        predictor=gdfs.predictor.cpu(),
+    afa_method = DIMEAFAMethod(
+        greedy_cmi_estimator.value_network.cpu(),
+        greedy_cmi_estimator.predictor.cpu(),
         device=torch.device("cpu"),
-        selector_hidden_layers=cfg.hidden_units,
+        value_network_hidden_layers=cfg.hidden_units,
         predictor_hidden_layers=cfg.hidden_units,
         dropout=cfg.dropout,
         modality="tabular",
         d_in=d_in,
         d_out=d_out,
-        selection_costs=unmasker.get_selection_costs(feature_costs),
         n_selections=n_selections,
+        selection_costs=unmasker.get_selection_costs(feature_costs),
     )
+
     save_bundle(
         obj=afa_method,
         path=Path(cfg.save_path),
         metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
     )
 
-    log.info(f"Covert2023 method saved to: {cfg.save_path}")
+    log.info(f"DIME method saved to: {cfg.save_path}")
 
     gc.collect()
     if torch.cuda.is_available():

@@ -168,7 +168,7 @@ soft_budget_params:
       - [0.125, null] # 30% observed
       - [0.2, null] # 30% observed
   odin_model_based: *odin
-  ma2018_builtin:
+  eddi_builtin:
     default: []
     cube_nonuniform_costs:
       - [null, 0.22]  # 45% observed
@@ -214,7 +214,7 @@ soft_budget_params:
       - [null, 0.0002]  # 40% observed
       - [null, 0.0008]  # 20% observed
       - [null, 0.033]  # 10% observed
-  ma2018_external:
+  eddi_external:
     default: []
     cube_nonuniform_costs:
       - [null, 0.01]  # 50% observed
@@ -260,7 +260,7 @@ soft_budget_params:
       - [null, 0.0005]  # 50% observed
       - [null, 0.01]  # 20% observed
       - [null, 0.1]  # 10% observed
-  covert2023:
+  gdfs:
     default: []
     cube_nonuniform_costs:
       - [null, 0.7]  # 50% observed
@@ -318,7 +318,7 @@ soft_budget_params:
       - [null, 1]
       - [null, 1.2]
       - [null, 1.6]
-  gadgil2023:
+  dime:
     default: []
     actg:
       - [null, 0.0005]

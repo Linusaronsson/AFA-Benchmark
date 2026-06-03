@@ -114,11 +114,11 @@ class SupervisedLearningConfig:
 
 # --- PRETRAINING MODELS ---
 
-# shim2018
+# jafa
 
 
 @dataclass
-class Shim2018EncoderConfig:
+class JAFAEncoderConfig:
     output_size: int
     reading_block_cells: list[int]
     writing_block_cells: list[int]
@@ -128,12 +128,12 @@ class Shim2018EncoderConfig:
 
 
 @dataclass
-class Shim2018ClassifierConfig:
+class JAFAClassifierConfig:
     num_cells: list[int]
 
 
 @dataclass
-class Shim2018PretrainConfig:
+class JAFAPretrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: (
@@ -147,20 +147,20 @@ class Shim2018PretrainConfig:
     min_masking_probability: float
     max_masking_probability: float
     lr: float
-    encoder: Shim2018EncoderConfig
-    classifier: Shim2018ClassifierConfig
+    encoder: JAFAEncoderConfig
+    classifier: JAFAClassifierConfig
     seed: int | None = None
     use_wandb: bool = False
     smoke_test: bool = False
 
 
-cs.store(name="pretrain_shim2018", node=Shim2018PretrainConfig)
+cs.store(name="pretrain_jafa", node=JAFAPretrainConfig)
 
-# zannone2019
+# odin
 
 
 @dataclass
-class Zannone2019PointNetConfig:
+class ODINPointNetConfig:
     type: str  # "pointnet" or "pointnetplus"
     identity_size: int
     max_embedding_norm: float
@@ -171,14 +171,14 @@ class Zannone2019PointNetConfig:
 
 
 @dataclass
-class Zannone2019EncoderConfig:
+class ODINEncoderConfig:
     num_cells: list[int]
     activation_class: str
     dropout: float
 
 
 @dataclass
-class Zannone2019PartialVAEConfig:
+class ODINPartialVAEConfig:
     latent_size: int
     decoder_num_cells: list[int]
     decoder_activation_class: str
@@ -186,14 +186,14 @@ class Zannone2019PartialVAEConfig:
 
 
 @dataclass
-class Zannone2019ClassifierConfig:
+class ODINClassifierConfig:
     num_cells: list[int]
     activation_class: str
     dropout: float
 
 
 @dataclass
-class Zannone2019PretrainConfig:
+class ODINPretrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: (
@@ -211,22 +211,22 @@ class Zannone2019PretrainConfig:
     end_kl_scaling_factor: float
     n_annealing_epoch_fraction: float  # fraction of `epochs`
     classifier_loss_scaling_factor: float
-    pointnet: Zannone2019PointNetConfig
-    encoder: Zannone2019EncoderConfig
-    partial_vae: Zannone2019PartialVAEConfig
-    classifier: Zannone2019ClassifierConfig
+    pointnet: ODINPointNetConfig
+    encoder: ODINEncoderConfig
+    partial_vae: ODINPartialVAEConfig
+    classifier: ODINClassifierConfig
     seed: int | None = None
     use_wandb: bool = False
     smoke_test: bool = False
 
 
-cs.store(name="pretrain_zannone2019", node=Zannone2019PretrainConfig)
+cs.store(name="pretrain_odin", node=ODINPretrainConfig)
 
-# kachuee2019
+# ol
 
 
 @dataclass
-class Kachuee2019PQModuleConfig:
+class OLPQModuleConfig:
     n_hiddens: list[
         int
         # hidden layers in P network. The hidden layers of the Q network are calculated from this.
@@ -238,14 +238,14 @@ class Kachuee2019PQModuleConfig:
 
 
 @dataclass
-class Kachuee2019PretrainConfig:
+class OLPretrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: (
         str | None
     )  # not needed for this method, but pipeline passes it to us
     save_path: str
-    unmasker: UnmaskerConfig  # kachuee2019 needs to know which unmasker we will use during training, since the unmasker determines the number of selections, which determines how many Q-values we output
+    unmasker: UnmaskerConfig  # ol needs to know which unmasker we will use during training, since the unmasker determines the number of selections, which determines how many Q-values we output
     device: str
 
     supervised_learning: SupervisedLearningConfig
@@ -253,13 +253,13 @@ class Kachuee2019PretrainConfig:
     min_masking_probability: float
     max_masking_probability: float
     lr: float
-    pq_module: Kachuee2019PQModuleConfig
+    pq_module: OLPQModuleConfig
     seed: int | None
     use_wandb: bool
     smoke_test: bool
 
 
-cs.store(name="pretrain_kachuee2019", node=Kachuee2019PretrainConfig)
+cs.store(name="pretrain_ol", node=OLPretrainConfig)
 
 
 # --- TRAINING METHODS ---
@@ -291,11 +291,11 @@ class AFAMDPConfig:
     n_agents: int = 1  # how many agents to train in parallel
 
 
-# shim2018
+# jafa
 
 
 @dataclass
-class Shim2018AgentConfig:
+class JAFAAgentConfig:
     # epsilon-greedy parameters
     eps_init: float
     eps_end: float
@@ -324,7 +324,7 @@ class Shim2018AgentConfig:
 
 
 @dataclass
-class Shim2018TrainConfig:
+class JAFATrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     pretrained_model_bundle_path: str
@@ -337,7 +337,7 @@ class Shim2018TrainConfig:
     mdp: AFAMDPConfig
     rl_training_loop: AFARLTrainingLoopConfig
     soft_budget_param: float | None
-    agent: Shim2018AgentConfig
+    agent: JAFAAgentConfig
     pretrained_model_lr: float
     activate_joint_training_after_fraction: float
     seed: int | None = None
@@ -349,13 +349,13 @@ class Shim2018TrainConfig:
     hard_budget: int | None = None
 
 
-cs.store(name="train_shim2018", node=Shim2018TrainConfig)
+cs.store(name="train_jafa", node=JAFATrainConfig)
 
-# ma2018
+# eddi
 
 
 @dataclass
-class Ma2018PointNetConfig:
+class EDDIPointNetConfig:
     identity_size: int = 20
     identity_network_num_cells: list[int] = field(
         default_factory=lambda: [20, 20]
@@ -368,7 +368,7 @@ class Ma2018PointNetConfig:
 
 
 @dataclass
-class Ma2018PartialVAEConfig:
+class EDDIPartialVAEConfig:
     lr: float = 1e-3
     patience: int = 5
     encoder_num_cells: list[int] = field(
@@ -382,7 +382,7 @@ class Ma2018PartialVAEConfig:
 
 
 @dataclass
-class Ma2018ClassifierConfig:
+class EDDIClassifierConfig:
     lr: float = 1e-3
     num_cells: list[int] = field(default_factory=lambda: [128, 128])
     dropout: float = 0.3
@@ -391,7 +391,7 @@ class Ma2018ClassifierConfig:
 
 
 @dataclass
-class Ma2018PretrainingConfig:
+class EDDIPretrainingConfig:
     dataset_artifact_name: str
     output_artifact_aliases: list[str] = field(default_factory=list)
 
@@ -405,22 +405,20 @@ class Ma2018PretrainingConfig:
     max_mask: float = 0.9
     epochs: int = 1000
 
-    pointnet: Ma2018PointNetConfig = field(
-        default_factory=Ma2018PointNetConfig
+    pointnet: EDDIPointNetConfig = field(default_factory=EDDIPointNetConfig)
+    partial_vae: EDDIPartialVAEConfig = field(
+        default_factory=EDDIPartialVAEConfig
     )
-    partial_vae: Ma2018PartialVAEConfig = field(
-        default_factory=Ma2018PartialVAEConfig
-    )
-    classifier: Ma2018ClassifierConfig = field(
-        default_factory=Ma2018ClassifierConfig
+    classifier: EDDIClassifierConfig = field(
+        default_factory=EDDIClassifierConfig
     )
 
 
-cs.store(name="pretrain_ma2018", node=Ma2018PretrainingConfig)
+cs.store(name="pretrain_eddi", node=EDDIPretrainingConfig)
 
 
 @dataclass
-class Ma2018TrainingConfig:
+class EDDITrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     pretrained_model_bundle_path: str
@@ -439,11 +437,11 @@ class Ma2018TrainingConfig:
     smoke_test: bool
 
 
-cs.store(name="train_ma2018", node=Ma2018TrainingConfig)
+cs.store(name="train_eddi", node=EDDITrainingConfig)
 
 
 @dataclass
-class Covert2023PretrainingConfig:
+class GDFSPretrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: str
@@ -469,11 +467,11 @@ class Covert2023PretrainingConfig:
     smoke_test: bool
 
 
-cs.store(name="pretrain_covert2023", node=Covert2023PretrainingConfig)
+cs.store(name="pretrain_gdfs", node=GDFSPretrainingConfig)
 
 
 @dataclass
-class Covert2023Pretraining2DConfig:
+class GDFSPretraining2DConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: str
@@ -499,11 +497,11 @@ class Covert2023Pretraining2DConfig:
     smoke_test: bool
 
 
-cs.store(name="pretrain_covert2023", node=Covert2023Pretraining2DConfig)
+cs.store(name="pretrain_gdfs", node=GDFSPretraining2DConfig)
 
 
 @dataclass
-class Covert2023TrainingConfig:
+class GDFSTrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: str
@@ -528,11 +526,11 @@ class Covert2023TrainingConfig:
     smoke_test: bool
 
 
-cs.store(name="train_covert2023", node=Covert2023TrainingConfig)
+cs.store(name="train_gdfs", node=GDFSTrainingConfig)
 
 
 @dataclass
-class Covert2023Training2DConfig:
+class GDFSTraining2DConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: str
@@ -557,11 +555,11 @@ class Covert2023Training2DConfig:
     smoke_test: bool
 
 
-cs.store(name="train_covert2023", node=Covert2023Training2DConfig)
+cs.store(name="train_gdfs", node=GDFSTraining2DConfig)
 
 
 @dataclass
-class Gadgil2023PretrainingConfig:
+class DIMEPretrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: str
@@ -587,11 +585,11 @@ class Gadgil2023PretrainingConfig:
     smoke_test: bool
 
 
-cs.store(name="pretrain_gadgil2023", node=Gadgil2023PretrainingConfig)
+cs.store(name="pretrain_dime", node=DIMEPretrainingConfig)
 
 
 @dataclass
-class Gadgil2023Pretraining2DConfig:
+class DIMEPretraining2DConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: str
@@ -617,11 +615,11 @@ class Gadgil2023Pretraining2DConfig:
     smoke_test: bool
 
 
-cs.store(name="pretrain_gadgil2023", node=Gadgil2023Pretraining2DConfig)
+cs.store(name="pretrain_dime", node=DIMEPretraining2DConfig)
 
 
 @dataclass
-class Gadgil2023TrainingConfig:
+class DIMETrainingConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: str
@@ -650,11 +648,11 @@ class Gadgil2023TrainingConfig:
     smoke_test: bool
 
 
-cs.store(name="train_gadgil2023", node=Gadgil2023TrainingConfig)
+cs.store(name="train_dime", node=DIMETrainingConfig)
 
 
 @dataclass
-class Gadgil2023Training2DConfig:
+class DIMETraining2DConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     classifier_bundle_path: str
@@ -682,7 +680,7 @@ class Gadgil2023Training2DConfig:
     smoke_test: bool
 
 
-cs.store(name="train_gadgil2023", node=Gadgil2023Training2DConfig)
+cs.store(name="train_dime", node=DIMETraining2DConfig)
 
 
 @dataclass
@@ -840,11 +838,11 @@ class SequentialDummyTrainConfig:
 
 cs.store(name="train_sequential_dummy", node=SequentialDummyTrainConfig)
 
-# zannone2019
+# odin
 
 
 @dataclass
-class Zannone2019AgentConfig:
+class ODINAgentConfig:
     # Value estimator parameters
     gamma: float
     lmbda: float
@@ -870,7 +868,7 @@ class Zannone2019AgentConfig:
 
 
 @dataclass
-class Zannone2019TrainConfig:
+class ODINTrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     pretrained_model_bundle_path: str
@@ -883,7 +881,7 @@ class Zannone2019TrainConfig:
     mdp: AFAMDPConfig
     rl_training_loop: AFARLTrainingLoopConfig
     soft_budget_param: float | None
-    agent: Zannone2019AgentConfig
+    agent: ODINAgentConfig
     additional_generation_fraction: float  # how much synthetic data to generate, as a multiple of the real data. So 1.0 means generate the same amount of data is real data, 2.0 is twice as much, etc.
     generation_batch_size: (
         int  # which batch size to use for artificial data generation
@@ -897,13 +895,13 @@ class Zannone2019TrainConfig:
     hard_budget: int | None = None
 
 
-cs.store(name="train_zannone2019", node=Zannone2019TrainConfig)
+cs.store(name="train_odin", node=ODINTrainConfig)
 
-# kachuee2019
+# ol
 
 
 @dataclass
-class Kachuee2019AgentConfig:
+class OLAgentConfig:
     # epsilon-greedy parameters
     eps_init: float
     eps_end: float
@@ -932,7 +930,7 @@ class Kachuee2019AgentConfig:
 
 
 @dataclass
-class Kachuee2019TrainConfig:
+class OLTrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
     pretrained_model_bundle_path: str
@@ -945,7 +943,7 @@ class Kachuee2019TrainConfig:
     mdp: AFAMDPConfig
     rl_training_loop: AFARLTrainingLoopConfig
     soft_budget_param: float | None
-    agent: Kachuee2019AgentConfig
+    agent: OLAgentConfig
     pretrained_model_lr: float
     activate_joint_training_after_fraction: float
     seed: int | None
@@ -955,7 +953,7 @@ class Kachuee2019TrainConfig:
     # whether replay buffer device should be the same as `device`. If False, use cpu.
     replay_buffer_device_same_as_device: bool
 
-    # Specific to kachuee2019
+    # Specific to ol
     reward_method: str  # one of {"softmax", "Bayesian-L1", "Bayesian-L2"}
     # how many samples to average over when calculating certainty for the reward
     mcdrop_samples: int
@@ -964,7 +962,7 @@ class Kachuee2019TrainConfig:
     hard_budget: int | None = None
 
 
-cs.store(name="train_kachuee2019", node=Kachuee2019TrainConfig)
+cs.store(name="train_ol", node=OLTrainConfig)
 # ACO
 
 

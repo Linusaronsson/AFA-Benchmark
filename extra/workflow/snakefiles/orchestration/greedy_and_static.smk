@@ -26,8 +26,8 @@ METHODS_WITHOUT_PRETRAINING_STAGE = [
     if not options["has_pretraining_stage"] and method in METHODS
 ]
 PRETRAIN_PROVIDER_BY_METHOD = {
-    "ma2018_external": "zannone2019",
-    "ma2018_builtin": "zannone2019",
+    "eddi_external": "odin",
+    "eddi_builtin": "odin",
 }
 
 METHODS_USING_FOREIGN_PRETRAIN = [
@@ -160,7 +160,7 @@ def pretrain_script(wildcards):
 
 def train_script(wildcards):
     suffix = "_image" if wildcards.dataset == "imagenette" else ""
-    base_method = "ma2018" if wildcards.method in {"ma2018_external", "ma2018_builtin"} else wildcards.method
+    base_method = "eddi" if wildcards.method in {"eddi_external", "eddi_builtin"} else wildcards.method
     return f"scripts/train/{base_method}{suffix}.py"
 
 rule all:
@@ -318,7 +318,7 @@ rule train_method_with_foreign_pretrained_model:
         train_dataset="extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
         val_dataset="extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
 
-        # Provider pretrained bundle, e.g. zannone2019 for ma2018
+        # Provider pretrained bundle, e.g. odin for eddi
         pretrained_model=lambda wildcards: (
             "extra/output/pretrained_models/"
             f"{PRETRAIN_PROVIDER_BY_METHOD[wildcards.method]}/"
@@ -370,7 +370,7 @@ rule train_method_with_foreign_pretrained_model:
     shell:
         r"""
         CLASSIFIER_ARG=""
-        if [ "{wildcards.method}" = "ma2018_external" ]; then
+        if [ "{wildcards.method}" = "eddi_external" ]; then
             CLASSIFIER_ARG="trained_classifier_bundle_path={input.trained_classifier}"
         fi
 
