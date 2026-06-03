@@ -1,6 +1,7 @@
 # AFA Benchmark
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![arXiv](https://img.shields.io/badge/arXiv-2508.14734-b31b1b.svg)](https://arxiv.org/abs/2508.14734)
+[![KDD 2026](https://img.shields.io/badge/KDD-2026-ff69b4.svg)](https://www.kdd.org/kdd2026/)
 
 **A comprehensive benchmark for Active Feature Acquisition (AFA) methods**
 
@@ -144,13 +145,14 @@ repository root and fix any reported issues.
 ## Citation
 If you use this benchmark in your research, please cite,
 ```bibtex
-@misc{schütz2025afabenchgenericframeworkbenchmarking,
-      title={AFABench: A Generic Framework for Benchmarking Active Feature Acquisition},
-      author={Valter Schütz and Han Wu and Reza Rezvan and Linus Aronsson and Morteza Haghir Chehreghani},
-      year={2025},
-      eprint={2508.14734},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2508.14734},
+@inproceedings{Schütz2026,
+    author = {Sch{\"u}tz, Valter and Wu, Han and Rezvan, Reza and Aronsson,
+              Linus and Haghir Chehreghani, Morteza},
+    title = {AFABench: A Generic Framework for Benchmarking Active Feature
+             Acquisition},
+    year = {2026},
+    booktitle = {Proceedings of the 32nd ACM SIGKDD Conference on Knowledge
+                 Discovery and Data Mining},
+    url = {https://doi.org/10.1145/3770855.3817493},
 }
 ```
