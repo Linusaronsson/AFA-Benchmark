@@ -13,6 +13,9 @@ from afabench.components.methods.discriminative.common.utils import (
 from afabench.components.methods.generative.eddi.afa_methods import (
     EDDIAFAMethod,
 )
+from afabench.components.methods.generative.eddi.config import (
+    EDDITrainingConfig,
+)
 from afabench.components.methods.rl.odin.models import (
     ODINPretrainingModel,  # noqa: TC001
 )
@@ -20,7 +23,6 @@ from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.bundle_system.torch_bundle import (
     TorchModelBundle,  # noqa: TC001
 )
-from afabench.core.config_classes import EDDITrainingConfig
 from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)

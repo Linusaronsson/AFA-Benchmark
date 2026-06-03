@@ -8,7 +8,7 @@ from jaxtyping import Float
 from torch import nn
 
 from afabench.components.methods.rl.common.utils import mask_data
-from afabench.core.config_classes import OLPQModuleConfig
+from afabench.components.methods.rl.ol.config import OLPQModuleConfig
 from afabench.core.types import (
     AFAClassifier,
     AFAPredictFn,

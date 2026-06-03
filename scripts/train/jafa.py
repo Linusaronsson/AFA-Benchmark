@@ -4,14 +4,6 @@ from typing import TYPE_CHECKING, Any, cast, override
 
 import hydra
 import torch
-from afabench.components.methods.rl.jafa.agents import JAFAAgent
-from afabench.components.methods.rl.jafa.models import (
-    JAFAAFAClassifier,
-    LitJAFAEmbedderClassifier,
-)
-from afabench.components.methods.rl.jafa.reward import (
-    get_jafa_reward_fn,
-)
 from omegaconf.omegaconf import OmegaConf
 from tensordict import TensorDictBase
 from torch import optim
@@ -21,8 +13,16 @@ from afabench.components.methods.rl.common.afa_methods import RLAFAMethod
 from afabench.components.methods.rl.common.agent_interface import Agent
 from afabench.components.methods.rl.common.custom_types import AFARewardFn
 from afabench.components.methods.rl.common.training import RLTrainer
+from afabench.components.methods.rl.jafa.agents import JAFAAgent
+from afabench.components.methods.rl.jafa.config import JAFATrainConfig
+from afabench.components.methods.rl.jafa.models import (
+    JAFAAFAClassifier,
+    LitJAFAEmbedderClassifier,
+)
+from afabench.components.methods.rl.jafa.reward import (
+    get_jafa_reward_fn,
+)
 from afabench.core.bundle_system.bundle import load_bundle
-from afabench.core.config_classes import JAFATrainConfig
 from afabench.core.types import AFAMethod
 from afabench.core.utils import set_seed
 

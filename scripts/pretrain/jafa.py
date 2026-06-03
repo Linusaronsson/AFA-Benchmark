@@ -6,15 +6,15 @@ from typing import Any, cast
 import hydra
 import lightning as pl
 import torch
+from omegaconf import OmegaConf
+
+from afabench.components.methods.rl.jafa.config import JAFAPretrainConfig
 from afabench.components.methods.rl.jafa.models import (
     JAFAEmbedder,
     JAFAMLPClassifier,
     LitJAFAEmbedderClassifier,
     ReadProcessEncoder,
 )
-from omegaconf import OmegaConf
-
-from afabench.core.config_classes import JAFAPretrainConfig
 from afabench.core.types import AFADataset
 from afabench.core.utils import (
     get_class_frequencies,

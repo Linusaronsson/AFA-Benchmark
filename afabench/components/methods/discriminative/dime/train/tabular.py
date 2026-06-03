@@ -23,8 +23,10 @@ from afabench.components.methods.discriminative.dime.afa_methods import (
     CMIEstimator,
     DIMEAFAMethod,
 )
+from afabench.components.methods.discriminative.dime.config import (
+    DIMETrainingConfig,
+)
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.config_classes import DIMETrainingConfig
 from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)

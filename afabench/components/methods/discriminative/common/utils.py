@@ -6,17 +6,15 @@ import torch.nn.functional as F
 from torch import nn
 from torch.distributions import Categorical, RelaxedOneHotCategorical
 
+from afabench.components.initializers.config import InitializerConfig
 from afabench.components.initializers.utils import (
     get_afa_initializer_from_config,
 )
+from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
 from afabench.core.bundle_system.bundle import load_bundle
-from afabench.core.config_classes import (
-    InitializerConfig,
-    UnmaskerConfig,
-)
 from afabench.core.types import (
     AFADataset,
     AFAInitializer,

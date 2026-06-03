@@ -6,19 +6,19 @@ from typing import Any, cast
 import hydra
 import lightning as pl
 import torch
-from afabench.components.methods.rl.odin.models import (
-    ODINPretrainingModel,
-    PartialVAE,
-    PointNet,
-    PointNetType,
-)
 from omegaconf import OmegaConf
 from torchrl.modules import MLP
 
 from afabench.components.methods.rl.common.utils import (
     str_to_activation_class_mapping,
 )
-from afabench.core.config_classes import ODINPretrainConfig
+from afabench.components.methods.rl.odin.config import ODINPretrainConfig
+from afabench.components.methods.rl.odin.models import (
+    ODINPretrainingModel,
+    PartialVAE,
+    PointNet,
+    PointNetType,
+)
 from afabench.core.types import AFADataset
 from afabench.core.utils import (
     get_class_frequencies,

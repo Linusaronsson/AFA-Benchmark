@@ -2,13 +2,13 @@ import torch
 from jaxtyping import Float
 from torch import Tensor
 
+from afabench.components.methods.rl.jafa.config import JAFAPretrainConfig
 from afabench.components.methods.rl.jafa.models import (
     JAFAEmbedder,
     JAFAMLPClassifier,
     LitJAFAEmbedderClassifier,
     ReadProcessEncoder,
 )
-from afabench.core.config_classes import JAFAPretrainConfig
 
 
 def get_jafa_model_from_config(

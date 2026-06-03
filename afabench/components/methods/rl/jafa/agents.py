@@ -16,8 +16,8 @@ from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 
 from afabench.components.methods.rl.common.agent_interface import Agent
 from afabench.components.methods.rl.common.utils import module_norm
+from afabench.components.methods.rl.jafa.config import JAFAAgentConfig
 from afabench.components.methods.rl.jafa.models import JAFAEmbedder
-from afabench.core.config_classes import JAFAAgentConfig
 from afabench.core.types import FeatureMask, MaskedFeatures
 
 

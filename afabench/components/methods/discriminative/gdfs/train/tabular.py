@@ -22,8 +22,10 @@ from afabench.components.methods.discriminative.gdfs.afa_methods import (
     GDFSAFAMethod,
     GreedyDynamicSelection,
 )
+from afabench.components.methods.discriminative.gdfs.config import (
+    GDFSTrainingConfig,
+)
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.config_classes import GDFSTrainingConfig
 from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)

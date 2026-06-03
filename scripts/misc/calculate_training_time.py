@@ -12,7 +12,7 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 
-from afabench.core.config_classes import TrainingTimeCalculationConfig
+from scripts.misc.config import TrainingTimeCalculationConfig
 
 
 class WandbArtifact(Protocol):

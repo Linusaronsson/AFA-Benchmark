@@ -15,13 +15,11 @@ from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
 from afabench.core.bundle_system.bundle import load_bundle
-from afabench.core.config_classes import (
-    EvalConfig,
-)
 from afabench.core.types import SupportsForcedAcquisition
 from afabench.core.utils import (
     set_seed,
 )
+from afabench.evaluation.config import EvalConfig
 from afabench.evaluation.eval import eval_afa_method
 
 if TYPE_CHECKING:

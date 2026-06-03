@@ -9,7 +9,7 @@ import hydra
 import torch
 import wandb
 
-from afabench.core.config_classes import PlotDownloadConfig
+from scripts.misc.config import PlotDownloadConfig
 
 
 class FigureArtifact(Protocol):

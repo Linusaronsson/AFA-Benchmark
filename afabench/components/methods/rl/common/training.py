@@ -13,11 +13,16 @@ from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
 
+from afabench.components.initializers.config import InitializerConfig
 from afabench.components.initializers.utils import (
     get_afa_initializer_from_config,
 )
 from afabench.components.methods.rl.common.afa_env import AFAEnv
 from afabench.components.methods.rl.common.agent_interface import Agent
+from afabench.components.methods.rl.common.config import (
+    AFAMDPConfig,
+    AFARLTrainingLoopConfig,
+)
 from afabench.components.methods.rl.common.custom_types import AFARewardFn
 from afabench.components.methods.rl.common.dataset_utils import (
     get_afa_dataset_fn,
@@ -25,6 +30,7 @@ from afabench.components.methods.rl.common.dataset_utils import (
 from afabench.components.methods.rl.common.utils import (
     get_eval_metrics,
 )
+from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
@@ -32,12 +38,6 @@ from afabench.components.unmaskers.utils import (
 # from afabench.components.methods.rl.reward_functions import get_range_based_reward_fn
 # from afabench.components.methods.rl.jafa.reward import get_jafa_reward_fn
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.config_classes import (
-    AFAMDPConfig,
-    AFARLTrainingLoopConfig,
-    InitializerConfig,
-    UnmaskerConfig,
-)
 from afabench.core.types import (
     AFADataset,
     AFAInitializer,
