@@ -24,10 +24,14 @@ uv sync
 
 ## Quickstart
 
+### Local execution, CPU only
+
+> **Note**: the number of generated jobs makes local execution impractical for a full run. We highly recommend SLURM execution instead.
+
 To run the pipeline locally with 8 cores, execute the following command at the repo root. It should produce plots at `extra/output/plot_results/`.
 
 ```shell
-WANDB_PROJECT=afabench uv run snakemake \
+uv run snakemake \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
     all \
     --configfile \
@@ -50,6 +54,83 @@ WANDB_PROJECT=afabench uv run snakemake \
 ```
 
 See the [pipeline explanation](docs/tutorials/pipeline_explanation.md) tutorial for details on how this pipeline works and how to customize it.
+
+### SLURM execution
+
+> **Note**: Before running, create a SLURM profile for your cluster in `extra/workflow/profiles/`. See the [SLURM integration](docs/tutorials/slurm_integration.md) tutorial for instructions.
+
+The only difference between CPU and GPU execution is which file in `extra/workflow/conf/methods/` we use.
+
+First run CPU methods up to and including evaluation:
+```shell
+uv run snakemake \
+    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    all_eval_method \
+    --profile extra/workflow/profiles/\<your_cpu_cluster\> \
+    --configfile \
+      extra/workflow/conf/eval_hard_budgets/all.yaml \
+      extra/workflow/conf/methods/cpu.yaml \
+      extra/workflow/conf/method_sets/all.yaml \
+      extra/workflow/conf/method_options/all.yaml \
+      extra/workflow/conf/pretrain_mappings/all.yaml \
+      extra/workflow/conf/soft_budget_params/all.yaml \
+      extra/workflow/conf/unmaskers/all.yaml \
+      extra/workflow/conf/classifier_names/all.yaml \
+      extra/workflow/conf/datasets/all.yaml \
+    --config \
+      eval_dataset_split=test \
+      "dataset_instance_indices=[0,1,2,3,4]" \
+      smoke_test=false \
+      use_wandb=true \
+      device=cpu
+```
+and then do the same for GPU methods:
+```shell
+uv run snakemake \
+    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    all_eval_method \
+    --profile extra/workflow/profiles/\<your_gpu_cluster\> \
+    --configfile \
+      extra/workflow/conf/eval_hard_budgets/all.yaml \
+      extra/workflow/conf/methods/gpu.yaml \
+      extra/workflow/conf/method_sets/all.yaml \
+      extra/workflow/conf/method_options/all.yaml \
+      extra/workflow/conf/pretrain_mappings/all.yaml \
+      extra/workflow/conf/soft_budget_params/all.yaml \
+      extra/workflow/conf/unmaskers/all.yaml \
+      extra/workflow/conf/classifier_names/all.yaml \
+      extra/workflow/conf/datasets/all.yaml \
+    --config \
+      eval_dataset_split=test \
+      "dataset_instance_indices=[0,1,2,3,4]" \
+      smoke_test=false \
+      use_wandb=true \
+      device=cuda
+```
+
+Finally, plot everything:
+```shell
+uv run snakemake \
+    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    all \
+    --profile extra/workflow/profiles/\<your_cpu_cluster\> \
+    --configfile \
+      extra/workflow/conf/eval_hard_budgets/all.yaml \
+      extra/workflow/conf/methods/all.yaml \
+      extra/workflow/conf/method_sets/all.yaml \
+      extra/workflow/conf/method_options/all.yaml \
+      extra/workflow/conf/pretrain_mappings/all.yaml \
+      extra/workflow/conf/soft_budget_params/all.yaml \
+      extra/workflow/conf/unmaskers/all.yaml \
+      extra/workflow/conf/classifier_names/all.yaml \
+      extra/workflow/conf/datasets/all.yaml \
+    --config \
+      eval_dataset_split=test \
+      "dataset_instance_indices=[0,1,2,3,4]" \
+      smoke_test=false \
+      use_wandb=true \
+      device=cpu
+```
 
 ## Features
 
