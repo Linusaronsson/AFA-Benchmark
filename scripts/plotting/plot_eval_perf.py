@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
-from typing import TYPE_CHECKING, final
+from typing import TYPE_CHECKING, cast, final
 
+import hydra
 import numpy as np
 import plotnine as p9
 import polars as pl
+from omegaconf import OmegaConf
 from plotnine import (
     aes,
     element_text,
@@ -26,15 +27,9 @@ from plotnine import (
 )
 from sklearn.metrics import accuracy_score, f1_score
 
-from afabench.eval.plotting_config import (
-    DATASET_NAME_MAPPING,
-    DATASET_SETS,
-    DATASETS_WITH_F_SCORE,
-    METHOD_COLOR_MAPPING,
-    METHOD_NAME_MAPPING,
-    PLOT_FONT_FAMILY,
-    PLOT_HEIGHT,
-    PLOT_WIDTH,
+from afabench.common.config_classes import (
+    PlotEvalPerfConfig,
+    PlottingDisplayConfig,
 )
 
 if TYPE_CHECKING:
@@ -59,8 +54,6 @@ SUBPLOT_TITLE_FONT_SIZE = 10
 
 EXCLUSION_MAPPING = {}
 
-DATASETS = DATASET_NAME_MAPPING.keys()
-
 NON_MYOPIC_METHODS = frozenset(
     {
         "aaco",
@@ -73,10 +66,27 @@ NON_MYOPIC_METHODS = frozenset(
     }
 )
 
-DATASET_NAME_MAPPING_INCLUDING_METRIC = {
-    dataset: f"{name} ({'F1' if dataset in DATASETS_WITH_F_SCORE else 'Accuracy'})"
-    for dataset, name in DATASET_NAME_MAPPING.items()
-}
+
+def get_method_color_mapping(
+    plotting_config: PlottingDisplayConfig,
+) -> dict[str, str]:
+    family_colors = plotting_config.method_family_color_schemes[
+        plotting_config.active_method_color_scheme
+    ]
+    return {
+        method: family_colors[family]
+        for method, family in plotting_config.method_policy_family_mapping.items()
+    }
+
+
+def get_dataset_name_mapping_including_metric(
+    plotting_config: PlottingDisplayConfig,
+) -> dict[str, str]:
+    datasets_with_f_score = set(plotting_config.datasets_with_f_score)
+    return {
+        dataset: f"{name} ({'F1' if dataset in datasets_with_f_score else 'Accuracy'})"
+        for dataset, name in plotting_config.dataset_name_mapping.items()
+    }
 
 
 def create_dummy_data() -> pl.DataFrame:  # noqa: C901
@@ -382,6 +392,7 @@ def get_plot(
     df: pl.DataFrame,
     x_col: str,
     x_label: str,
+    plotting_config: PlottingDisplayConfig,
     x_error_min: str | None = None,
     x_error_max: str | None = None,
     *,
@@ -404,38 +415,49 @@ def get_plot(
         figure_width: Figure width in inches (default: PLOT_WIDTH)
         figure_height: Figure height in inches (default: PLOT_HEIGHT)
     """
+    method_color_mapping = get_method_color_mapping(plotting_config)
+    dataset_name_mapping_including_metric = (
+        get_dataset_name_mapping_including_metric(plotting_config)
+    )
+
     # Apply name transforms
     processed_df = df.with_columns(
         dataset=pl.col("dataset").replace(
-            DATASET_NAME_MAPPING_INCLUDING_METRIC
+            dataset_name_mapping_including_metric
         ),
         policy_type=pl.when(pl.col("afa_method").is_in(NON_MYOPIC_METHODS))
         .then(pl.lit("Non-myopic"))
         .otherwise(pl.lit("Myopic")),
-        afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
+        afa_method=pl.col("afa_method").replace(
+            plotting_config.method_name_mapping
+        ),
     )
 
     # Get method order for legend
     if method_order is None:
-        method_order = list(METHOD_NAME_MAPPING.keys())
+        method_order = list(plotting_config.method_name_mapping.keys())
 
     # Get display names in order, filtering to only methods in the data
     available_methods = processed_df["afa_method"].unique().to_list()
     ordered_display_names = [
-        METHOD_NAME_MAPPING.get(orig, orig)
+        plotting_config.method_name_mapping.get(orig, orig)
         for orig in method_order
-        if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
+        if plotting_config.method_name_mapping.get(orig, orig)
+        in available_methods
     ]
     ordered_color_values = {
-        METHOD_NAME_MAPPING.get(orig, orig): METHOD_COLOR_MAPPING[orig]
+        plotting_config.method_name_mapping.get(
+            orig, orig
+        ): method_color_mapping[orig]
         for orig in method_order
-        if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
+        if plotting_config.method_name_mapping.get(orig, orig)
+        in available_methods
     }
     # Use provided dimensions or defaults
     if figure_width is None:
-        figure_width = PLOT_WIDTH
+        figure_width = plotting_config.plot_width
     if figure_height is None:
-        figure_height = PLOT_HEIGHT
+        figure_height = plotting_config.plot_height
 
     plot = (
         ggplot(
@@ -457,7 +479,7 @@ def get_plot(
         + theme(
             figure_size=(figure_width, figure_height),
             text=element_text(
-                family=PLOT_FONT_FAMILY,
+                family=plotting_config.plot_font_family,
                 size=PLOT_FONT_SIZE,
             ),
             strip_text=element_text(size=SUBPLOT_TITLE_FONT_SIZE),
@@ -501,6 +523,7 @@ def get_plot(
 
 def get_normal_hard_budget_plot(
     df: pl.DataFrame,
+    plotting_config: PlottingDisplayConfig,
     method_order: list[str] | None = None,
     figure_width: float | None = None,
     figure_height: float | None = None,
@@ -509,6 +532,7 @@ def get_normal_hard_budget_plot(
         df,
         x_col="eval_hard_budget",
         x_label="Hard budget",
+        plotting_config=plotting_config,
         use_line=True,
         method_order=method_order,
         figure_width=figure_width,
@@ -518,6 +542,7 @@ def get_normal_hard_budget_plot(
 
 def get_traj_hard_budget_plot(
     df: pl.DataFrame,
+    plotting_config: PlottingDisplayConfig,
     method_order: list[str] | None = None,
     figure_width: float | None = None,
     figure_height: float | None = None,
@@ -526,6 +551,7 @@ def get_traj_hard_budget_plot(
         df,
         x_col="n_selections_performed",
         x_label="Number of selections",
+        plotting_config=plotting_config,
         use_line=True,
         method_order=method_order,
         figure_width=figure_width,
@@ -536,6 +562,7 @@ def get_traj_hard_budget_plot(
 def get_soft_budget_plot(
     df: pl.DataFrame,
     mode: str,
+    plotting_config: PlottingDisplayConfig,
     method_order: list[str] | None = None,
     figure_width: float | None = None,
     figure_height: float | None = None,
@@ -545,6 +572,7 @@ def get_soft_budget_plot(
             df,
             x_col="mean_avg_accumulated_cost",
             x_label="Average cost accumulated per episode",
+            plotting_config=plotting_config,
             x_error_min="low_avg_accumulated_cost",
             x_error_max="high_avg_accumulated_cost",
             use_line=False,
@@ -557,6 +585,7 @@ def get_soft_budget_plot(
             df,
             x_col="mean_avg_accumulated_cost",
             x_label="Average cost accumulated per episode",
+            plotting_config=plotting_config,
             x_error_min=None,
             x_error_max=None,
             use_line=True,
@@ -570,6 +599,7 @@ def get_soft_budget_plot(
 
 def calculate_figure_dimensions(
     num_datasets: int,
+    plot_width: float,
     ncol: int = 4,
     subplot_height: float = 3.0,
 ) -> tuple[float, float]:
@@ -585,45 +615,23 @@ def calculate_figure_dimensions(
         Tuple of (width, height) for the figure
     """
     num_rows = (num_datasets + ncol - 1) // ncol
-    figure_width = PLOT_WIDTH
+    figure_width = plot_width
     figure_height = subplot_height * num_rows
     return figure_width, figure_height
 
 
-def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Generate evaluation plots from merged evaluation results.",
-    )
-    parser.add_argument(
-        "input",
-        type=Path,
-        help="Input CSV file with evaluation results.",
-    )
-    parser.add_argument(
-        "output_folder",
-        type=Path,
-        help="Output folder where plots will be saved",
-    )
-    parser.add_argument(
-        "--formats",
-        nargs="+",
-        default=["pdf"],
-        metavar="FORMAT",
-        help=(
-            "Output format(s) for plots (e.g. pdf svg png). "
-            "Multiple formats produce one file per format. Default: pdf"
-        ),
-    )
-    return parser.parse_args()
-
-
-def add_metric_column(df: pl.DataFrame) -> pl.DataFrame:
+def add_metric_column(
+    df: pl.DataFrame, plotting_config: PlottingDisplayConfig
+) -> pl.DataFrame:
     return df.with_columns(
-        mean_metric=pl.when(pl.col("dataset").is_in(DATASETS_WITH_F_SCORE))
+        mean_metric=pl.when(
+            pl.col("dataset").is_in(plotting_config.datasets_with_f_score)
+        )
         .then(pl.col("mean_f_score"))
         .otherwise(pl.col("mean_accuracy")),
-        std_metric=pl.when(pl.col("dataset").is_in(DATASETS_WITH_F_SCORE))
+        std_metric=pl.when(
+            pl.col("dataset").is_in(plotting_config.datasets_with_f_score)
+        )
         .then(pl.col("std_f_score"))
         .otherwise(pl.col("std_accuracy")),
     )
@@ -646,6 +654,7 @@ def assert_only_one_soft_budget_param_type(df: pl.DataFrame) -> pl.DataFrame:
 
 def process_df_only_stop_action_and_valid_prediction(
     df: pl.DataFrame,
+    plotting_config: PlottingDisplayConfig,
 ) -> pl.DataFrame | None:
     df_only_stop_action = df.filter(
         (pl.col("action_performed") == 0)
@@ -666,7 +675,7 @@ def process_df_only_stop_action_and_valid_prediction(
 
     # Datasets use different metrics
     var_metric_df_only_stop_action = add_metric_column(
-        var_metric_df_only_stop_action
+        var_metric_df_only_stop_action, plotting_config
     )
 
     # Add "low" and "high" versions of metrics to enable plotting of ranges
@@ -692,7 +701,9 @@ def filter_only_largest_budget(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def process_df_every_action(df: pl.DataFrame) -> pl.DataFrame | None:
+def process_df_every_action(
+    df: pl.DataFrame, plotting_config: PlottingDisplayConfig
+) -> pl.DataFrame | None:
     # Just like in process_df_only_stop_action, filter out null predictions
     df = df.filter(pl.col("predicted_class").is_not_null())
 
@@ -710,7 +721,9 @@ def process_df_every_action(df: pl.DataFrame) -> pl.DataFrame | None:
     )
 
     # Datasets use different metrics
-    var_metric_df_every_action = add_metric_column(var_metric_df_every_action)
+    var_metric_df_every_action = add_metric_column(
+        var_metric_df_every_action, plotting_config
+    )
 
     # Add "low" and "high" versions of metrics to enable plotting of ranges
     var_metric_df_every_action = var_metric_df_every_action.with_columns(
@@ -727,6 +740,7 @@ class EvaluationPlotter:
 
     input_path: Path
     output_folder: Path
+    plotting_config: PlottingDisplayConfig
     df: pl.DataFrame
     df_stop_action: pl.DataFrame | None
     df_traj: pl.DataFrame | None
@@ -735,6 +749,7 @@ class EvaluationPlotter:
         self,
         input_path: Path,
         output_folder: Path,
+        plotting_config: PlottingDisplayConfig,
         formats: Sequence[str] = ("pdf",),
     ) -> None:
         """
@@ -747,6 +762,7 @@ class EvaluationPlotter:
         """
         self.input_path = input_path
         self.output_folder = output_folder
+        self.plotting_config = plotting_config
         self.formats = formats
         self.df = pl.DataFrame()
         self.df_stop_action = None
@@ -782,7 +798,7 @@ class EvaluationPlotter:
 
         # Datasets use different metrics
         var_metric_df_only_stop_action = add_metric_column(
-            var_metric_df_only_stop_action
+            var_metric_df_only_stop_action, self.plotting_config
         )
 
         # Add "low" and "high" versions of metrics
@@ -823,7 +839,7 @@ class EvaluationPlotter:
 
         # Datasets use different metrics
         var_metric_df_every_action = add_metric_column(
-            var_metric_df_every_action
+            var_metric_df_every_action, self.plotting_config
         )
 
         # Add "low" and "high" versions of metrics
@@ -864,10 +880,13 @@ class EvaluationPlotter:
             # Calculate figure dimensions based on number of unique datasets
             num_datasets = df_stop_action_hard_budget["dataset"].n_unique()
             fig_width, fig_height = calculate_figure_dimensions(
-                num_datasets, subplot_height=SUBPLOT_HEIGHT
+                num_datasets,
+                plot_width=self.plotting_config.plot_width,
+                subplot_height=SUBPLOT_HEIGHT,
             )
             normal_hard_budget_plot = get_normal_hard_budget_plot(
                 df_stop_action_hard_budget,
+                plotting_config=self.plotting_config,
                 figure_width=fig_width,
                 figure_height=fig_height,
             )
@@ -887,17 +906,21 @@ class EvaluationPlotter:
             # Calculate figure dimensions based on number of unique datasets
             num_datasets = df_stop_action_soft_budget["dataset"].n_unique()
             fig_width, fig_height = calculate_figure_dimensions(
-                num_datasets, subplot_height=SUBPLOT_HEIGHT
+                num_datasets,
+                plot_width=self.plotting_config.plot_width,
+                subplot_height=SUBPLOT_HEIGHT,
             )
             soft_budget_plot_2d_errors = get_soft_budget_plot(
                 df_stop_action_soft_budget,
                 mode="2d_errors",
+                plotting_config=self.plotting_config,
                 figure_width=fig_width,
                 figure_height=fig_height,
             )
             soft_budget_plot_lines = get_soft_budget_plot(
                 df_stop_action_soft_budget,
                 mode="lines",
+                plotting_config=self.plotting_config,
                 figure_width=fig_width,
                 figure_height=fig_height,
             )
@@ -933,10 +956,13 @@ class EvaluationPlotter:
             # Calculate figure dimensions based on number of unique datasets
             num_datasets = df_traj_hard_budget["dataset"].n_unique()
             fig_width, fig_height = calculate_figure_dimensions(
-                num_datasets, subplot_height=SUBPLOT_HEIGHT
+                num_datasets,
+                plot_width=self.plotting_config.plot_width,
+                subplot_height=SUBPLOT_HEIGHT,
             )
             traj_hard_budget_plot = get_traj_hard_budget_plot(
                 df_traj_hard_budget,
+                plotting_config=self.plotting_config,
                 figure_width=fig_width,
                 figure_height=fig_height,
             )
@@ -950,19 +976,32 @@ class EvaluationPlotter:
     def generate_all_plots(self) -> None:
         """Generate all plots for each dataset set."""
         # One set of plots per dataset set
-        for dataset_set_name, dataset_set in DATASET_SETS.items():
+        for (
+            dataset_set_name,
+            dataset_set,
+        ) in self.plotting_config.dataset_sets.items():
             subfolder = self.output_folder / dataset_set_name
             subfolder.mkdir(parents=True, exist_ok=True)
 
-            self.produce_stop_action_plots(dataset_set, subfolder)
-            self.produce_trajectory_plots(dataset_set, subfolder)
+            self.produce_stop_action_plots(set(dataset_set), subfolder)
+            self.produce_trajectory_plots(set(dataset_set), subfolder)
 
 
-def main() -> None:
-    args = parse_args()
-    args.output_folder.mkdir(parents=True, exist_ok=True)
+@hydra.main(
+    version_base=None,
+    config_path="../../extra/conf/scripts/plotting/plot_eval_perf",
+    config_name="config",
+)
+def main(cfg: PlotEvalPerfConfig) -> None:
+    cfg = cast("PlotEvalPerfConfig", OmegaConf.to_object(cfg))
+    assert isinstance(cfg, PlotEvalPerfConfig)
 
-    plotter = EvaluationPlotter(args.input, args.output_folder, args.formats)
+    output_folder = Path(cfg.output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    plotter = EvaluationPlotter(
+        Path(cfg.input), output_folder, cfg.plotting, cfg.formats
+    )
     plotter.load_and_process()
     plotter.generate_all_plots()
 

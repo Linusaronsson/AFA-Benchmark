@@ -16,10 +16,6 @@ DATASETS_TO_TEST = [
     ("MiniBooNEDataset", {"root": "extra/data/misc/miniboone.csv"}),
     ("PhysionetDataset", {"root": "extra/data/misc/physionet.csv"}),
     ("FICODataset", {"path": "extra/data/misc/fico.csv"}),
-    (
-        "PharyngitisDataset",
-        {"path": "extra/data/misc/pharyngitis.xls"},
-    ),
     # No {(Fashion)MNISTDataset, ImagenetteDataset} because of image data and large size
     ("BankMarketingDataset", {"path": "extra/data/misc/bank-marketing.csv"}),
     ("CKDDataset", {"path": "extra/data/misc/chronic_kidney_disease.csv"}),
@@ -32,7 +28,6 @@ MANUAL_LOCAL_ONLY_DATASETS = {
     "DiabetesDataset",
     "MiniBooNEDataset",
     "PhysionetDataset",
-    "PharyngitisDataset",
 }
 
 
