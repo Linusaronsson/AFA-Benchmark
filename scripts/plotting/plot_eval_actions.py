@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import hydra
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from afabench.eval.plotting_config import (
-    DATASET_NAME_MAPPING,
-    METHOD_NAME_MAPPING,
-    PLOT_FONT_FAMILY,
+from afabench.common.config_classes import (
+    PlotEvalActionsConfig,
+    PlottingDisplayConfig,
 )
 
 if TYPE_CHECKING:
@@ -24,9 +24,6 @@ type Heatmap = Any
 
 PLOT_FONT_SIZE = 16
 PLOT_TITLE_FONT_SIZE = 18
-
-plt.rcParams["font.family"] = PLOT_FONT_FAMILY
-plt.rcParams["font.size"] = PLOT_FONT_SIZE
 
 
 def create_dummy_data() -> pl.DataFrame:
@@ -91,34 +88,6 @@ def create_dummy_data() -> pl.DataFrame:
 
 def read_parquet(input_path: Path) -> pl.DataFrame:
     return pl.read_parquet(input_path)
-
-
-def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Generate evaluation action heatmaps from results.",
-    )
-    parser.add_argument(
-        "input",
-        type=Path,
-        help="Input Parquet file with evaluation results.",
-    )
-    parser.add_argument(
-        "output_folder",
-        type=Path,
-        help="Output folder where plots will be saved",
-    )
-    parser.add_argument(
-        "--formats",
-        nargs="+",
-        default=["pdf"],
-        metavar="FORMAT",
-        help=(
-            "Output format(s) for plots (e.g. pdf svg png). "
-            "Multiple formats produce one file per format. Default: pdf"
-        ),
-    )
-    return parser.parse_args()
 
 
 def assert_only_one_soft_budget_param_type(
@@ -194,9 +163,10 @@ def format_heatmap_axes(
     max_action: float,
     max_time: float,
     method: str,
+    plotting_config: PlottingDisplayConfig,
 ) -> None:
     """Format and label axes for a heatmap subplot."""
-    method_name = METHOD_NAME_MAPPING.get(method, method)
+    method_name = plotting_config.method_name_mapping.get(method, method)
     ax.set_title(
         method_name,
         fontsize=PLOT_FONT_SIZE,
@@ -218,6 +188,7 @@ def produce_separate_plots(
     df: pl.DataFrame,
     output_folder: Path,
     budget_type: str,
+    plotting_config: PlottingDisplayConfig,
     formats: Sequence[str] = ("pdf",),
 ) -> None:
     """
@@ -293,7 +264,9 @@ def produce_separate_plots(
                 vmax=1.0,
             )
 
-            format_heatmap_axes(ax, global_max_action, global_max_time, method)
+            format_heatmap_axes(
+                ax, global_max_action, global_max_time, method, plotting_config
+            )
 
         # Hide any unused subplots
         for idx in range(num_methods, num_rows * num_cols):
@@ -301,7 +274,7 @@ def produce_separate_plots(
             col = idx % num_cols
             axes[row, col].set_visible(False)
 
-        dataset_display_name = DATASET_NAME_MAPPING.get(
+        dataset_display_name = plotting_config.dataset_name_mapping.get(
             dataset_name, dataset_name
         )
         fig.suptitle(
@@ -322,15 +295,26 @@ def produce_separate_plots(
         plt.close(fig)
 
 
-def main() -> None:
-    args = parse_args()
-    args.output_folder.mkdir(parents=True, exist_ok=True)
+@hydra.main(
+    version_base=None,
+    config_path="../../extra/conf/scripts/plotting/plot_eval_actions",
+    config_name="config",
+)
+def main(cfg: PlotEvalActionsConfig) -> None:
+    cfg = cast("PlotEvalActionsConfig", OmegaConf.to_object(cfg))
+    assert isinstance(cfg, PlotEvalActionsConfig)
 
-    evaluation_df = read_parquet(args.input)
+    plt.rcParams["font.family"] = cfg.plotting.plot_font_family
+    plt.rcParams["font.size"] = PLOT_FONT_SIZE
+
+    output_folder = Path(cfg.output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    evaluation_df = read_parquet(Path(cfg.input))
     evaluation_df = assert_only_one_soft_budget_param_type(evaluation_df)
 
-    hard_budget_folder = args.output_folder / "hard_budget"
-    soft_budget_folder = args.output_folder / "soft_budget"
+    hard_budget_folder = output_folder / "hard_budget"
+    soft_budget_folder = output_folder / "soft_budget"
 
     hard_budget_folder.mkdir(parents=True, exist_ok=True)
     soft_budget_folder.mkdir(parents=True, exist_ok=True)
@@ -348,13 +332,15 @@ def main() -> None:
         df=evaluation_df_hard_budget,
         output_folder=hard_budget_folder,
         budget_type="hard_budget",
-        formats=args.formats,
+        plotting_config=cfg.plotting,
+        formats=cfg.formats,
     )
     produce_separate_plots(
         df=evaluation_df_soft_budget,
         output_folder=soft_budget_folder,
         budget_type="soft_budget",
-        formats=args.formats,
+        plotting_config=cfg.plotting,
+        formats=cfg.formats,
     )
 
 

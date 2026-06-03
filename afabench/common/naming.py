@@ -14,7 +14,6 @@ _DATASET_KEY_ALIASES = {
     "ImagenetteDataset": "imagenette",
     "MiniBooNEDataset": "miniboone",
     "MNISTDataset": "mnist",
-    "PharyngitisDataset": "pharyngitis",
     "PhysionetDataset": "physionet",
     "SyntheticMNISTDataset": "synthetic_mnist",
 }

@@ -9,12 +9,14 @@ Expected input dataframe with columns:
 - time_eval (float): How long the evaluation took in seconds.
 """
 
-import argparse
 from pathlib import Path
+from typing import cast
 
+import hydra
 import numpy as np
 import plotnine as p9
 import polars as pl
+from omegaconf import OmegaConf
 from plotnine import (
     aes,
     coord_flip,
@@ -28,11 +30,9 @@ from plotnine import (
     theme,
 )
 
-from afabench.eval.plotting_config import (
-    COLOR_PALETTE_NAME,
-    DATASET_NAME_MAPPING,
-    METHOD_NAME_MAPPING,
-    PLOT_FONT_FAMILY,
+from afabench.common.config_classes import (
+    PlottingDisplayConfig,
+    PlotTotalTimeConfig,
 )
 
 PLOT_FONT_SIZE = 12
@@ -85,52 +85,23 @@ def read_parquet_safe(path: Path) -> pl.DataFrame:
     return df
 
 
-def parse_args() -> argparse.Namespace:
-    # Parse command line arguments
-    parser = argparse.ArgumentParser(
-        description="Plot the time that each method takes to pretrain, train and evaluate."
-    )
-    parser.add_argument(
-        "output_folder",
-        help="Output folder where the plot will be saved",
-        type=Path,
-    )
-    parser.add_argument(
-        "-i",
-        "--input",
-        help="Input parquet file with timing data. If not provided, uses mock data.",
-        default=None,
-    )
-    parser.add_argument(
-        "--formats",
-        nargs="+",
-        default=["pdf"],
-        metavar="FORMAT",
-        help=(
-            "Output format(s) for plots (e.g. pdf svg png). "
-            "Multiple formats produce one file per format. Default: pdf"
-        ),
-    )
-
-    args = parser.parse_args()
-    return args
-
-
-def common_plot_operations(p: p9.ggplot) -> p9.ggplot:
+def common_plot_operations(
+    p: p9.ggplot, plotting_config: PlottingDisplayConfig
+) -> p9.ggplot:
     return (
         p
         + coord_flip()
         + labs(x="Policy", y="Time (s)", fill="Stage")
         + theme(
             text=element_text(
-                family=PLOT_FONT_FAMILY,
+                family=plotting_config.plot_font_family,
                 size=PLOT_FONT_SIZE,
             )
         )
         + scale_x_discrete()
         + scale_fill_brewer(
             type="qual",
-            palette=COLOR_PALETTE_NAME,
+            palette=plotting_config.color_palette_name,
             labels={
                 "pretrain": "Pretraining",
                 "train": "Training",
@@ -166,11 +137,17 @@ def filter_common_datasets(df: pl.DataFrame) -> pl.DataFrame:
     return df.filter(pl.col("dataset").is_in(list(common_datasets)))
 
 
-def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
+def get_plots(
+    df: pl.DataFrame, plotting_config: PlottingDisplayConfig
+) -> tuple[p9.ggplot, p9.ggplot]:
     # Apply name transforms
     df = df.with_columns(
-        dataset=pl.col("dataset").replace(DATASET_NAME_MAPPING),
-        afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
+        dataset=pl.col("dataset").replace(
+            plotting_config.dataset_name_mapping
+        ),
+        afa_method=pl.col("afa_method").replace(
+            plotting_config.method_name_mapping
+        ),
     )
 
     # For averaging plot, only use datasets present in all methods
@@ -178,7 +155,10 @@ def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
 
     # Get display method order based on METHOD_NAME_MAPPING order.
     # After name transformation, values are already display names.
-    method_order = [METHOD_NAME_MAPPING.get(m, m) for m in METHOD_NAME_MAPPING]
+    method_order = [
+        plotting_config.method_name_mapping.get(m, m)
+        for m in plotting_config.method_name_mapping
+    ]
     # Reverse the order to match the desired display.
     method_order.reverse()
 
@@ -205,7 +185,7 @@ def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
         aes(x="afa_method", y="time", fill="stage"),
         stat="identity",
     )
-    averaged_plot = common_plot_operations(averaged_plot)
+    averaged_plot = common_plot_operations(averaged_plot, plotting_config)
 
     # Another one faceted over datasets (showing all datasets)
     dataset_plot = (
@@ -215,7 +195,7 @@ def get_plots(df: pl.DataFrame) -> tuple[p9.ggplot, p9.ggplot]:
         )
         + facet_wrap("dataset", nrow=2, scales="free_x")
     )
-    dataset_plot = common_plot_operations(dataset_plot)
+    dataset_plot = common_plot_operations(dataset_plot, plotting_config)
     return averaged_plot, dataset_plot
 
 
@@ -233,24 +213,34 @@ def unpivot(df: pl.DataFrame) -> pl.DataFrame:
     return df_long
 
 
-def main() -> None:
-    args = parse_args()
-    df = read_parquet_safe(args.input) if args.input else get_mock_df()
+@hydra.main(
+    version_base=None,
+    config_path="../../extra/conf/scripts/plotting/plot_total_time",
+    config_name="config",
+)
+def main(cfg: PlotTotalTimeConfig) -> None:
+    cfg = cast("PlotTotalTimeConfig", OmegaConf.to_object(cfg))
+    assert isinstance(cfg, PlotTotalTimeConfig)
+
+    df = read_parquet_safe(Path(cfg.input)) if cfg.input else get_mock_df()
 
     df_long = unpivot(df)
 
-    averaged_plot, dataset_plot = get_plots(df=df_long)
+    averaged_plot, dataset_plot = get_plots(
+        df=df_long, plotting_config=cfg.plotting
+    )
 
-    args.output_folder.mkdir(parents=True, exist_ok=True)
-    for fmt in args.formats:
+    output_folder = Path(cfg.output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+    for fmt in cfg.formats:
         averaged_plot.save(
-            args.output_folder / f"average_time.{fmt}",
+            output_folder / f"average_time.{fmt}",
             width=10,
             height=3,
             verbose=False,
         )
         dataset_plot.save(
-            args.output_folder / f"dataset_time.{fmt}",
+            output_folder / f"dataset_time.{fmt}",
             width=20,
             height=5,
             verbose=False,
