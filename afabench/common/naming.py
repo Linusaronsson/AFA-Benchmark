@@ -9,7 +9,6 @@ _DATASET_KEY_ALIASES = {
     "BankMarketingDataset": "bank_marketing",
     "CKDDataset": "ckd",
     "CubeNonUniformCostsDataset": "cube_nonuniform_costs",
-    "FICODataset": "fico",
     "FashionMNISTDataset": "fashion_mnist",
     "ImagenetteDataset": "imagenette",
     "MiniBooNEDataset": "miniboone",
