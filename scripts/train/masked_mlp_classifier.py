@@ -13,7 +13,7 @@ from afabench.components.classifiers.models import LitMaskedMLPClassifier
 from afabench.components.methods.rl.common.dataset_utils import (
     DataModuleFromDatasets,
 )
-from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.config_classes import TrainMaskedMLPClassifierConfig
 from afabench.core.naming import infer_dataset_key_from_class_name
 from afabench.core.utils import get_class_frequencies, set_seed

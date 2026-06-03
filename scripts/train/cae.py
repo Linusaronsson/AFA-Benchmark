@@ -7,7 +7,7 @@ from afabench.components.methods.static.cae.train.image import train_image
 from afabench.components.methods.static.cae.train.tabular import (
     train_tabular,
 )
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.config_classes import (
     CAETraining2DConfig,
     CAETrainingConfig,

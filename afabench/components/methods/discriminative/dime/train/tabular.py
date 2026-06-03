@@ -22,7 +22,7 @@ from afabench.components.methods.discriminative.dime.afa_methods import (
     Covert2023AFAMethod,
     GreedyDynamicSelection,
 )
-from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.config_classes import Covert2023TrainingConfig
 from afabench.core.utils import set_seed
 

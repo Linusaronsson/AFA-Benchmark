@@ -9,7 +9,7 @@ from afabench.components.methods.discriminative.dime.pretrain.image import (
 from afabench.components.methods.discriminative.dime.pretrain.tabular import (
     pretrain_tabular,
 )
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.config_classes import (
     Covert2023Pretraining2DConfig,
     Covert2023PretrainingConfig,

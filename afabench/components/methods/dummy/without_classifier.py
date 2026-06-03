@@ -14,8 +14,8 @@ from afabench.core.types import (
 
 
 @final
-class RandomDummyAFAMethod(AFAMethod):
-    """A dummy AFAMethod for testing purposes. Makes random AFA selections."""
+class RandomWithoutClassifierAFAMethod(AFAMethod):
+    """A simple baseline AFAMethod that makes random AFA selections and random predictions."""
 
     def __init__(
         self,
@@ -58,9 +58,8 @@ class RandomDummyAFAMethod(AFAMethod):
         If no available selections remain, outputs 0 even if prob_select_0 would not have triggered.
         """
         assert selection_mask is not None, (
-            "RandomDummyAFAMethod requires selection_mask to be provided"
+            "RandomWithoutClassifierAFAMethod requires selection_mask to be provided"
         )
-        # RandomDummyAFAMethod works with any feature shape since it only uses selection_mask
         original_device = masked_features.device
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
@@ -85,10 +84,8 @@ class RandomDummyAFAMethod(AFAMethod):
                     (~selection_mask[i]).nonzero(as_tuple=False).flatten()
                 )
                 if available.numel() == 0:
-                    # No available selections left, must output 0
                     selection[i, 0] = 0
                 else:
-                    # Pick one at random, add 1 for 1-based index
                     idx = torch.multinomial(
                         torch.ones(
                             available.numel(), device=masked_features.device
@@ -115,14 +112,12 @@ class RandomDummyAFAMethod(AFAMethod):
 
         batch_size = masked_features.shape[0]
 
-        # Pick a random class from the classes
         random_class_onehot = torch.randint(
             0,
             self.n_classes,
             (batch_size,),
             device=masked_features.device,
         )
-        # One-hot encode the random prediction
         random_class_onehot = torch.nn.functional.one_hot(
             random_class_onehot, num_classes=self.n_classes
         ).float()
@@ -164,13 +159,12 @@ class RandomDummyAFAMethod(AFAMethod):
     @property
     @override
     def cost_param(self) -> float:
-        # Probability of selecting 0 can be interpreted as a cost parameter
         return self.prob_select_0
 
 
 @final
-class SequentialDummyAFAMethod(AFAMethod):
-    """A dummy AFAMethod for testing purposes. Always chooses the next feature to observe in order, with a probability to stop."""
+class SequentialWithoutClassifierAFAMethod(AFAMethod):
+    """A simple baseline AFAMethod that selects features in order and makes random predictions."""
 
     def __init__(
         self,
@@ -196,10 +190,8 @@ class SequentialDummyAFAMethod(AFAMethod):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
-        # Requires the selection mask to be given so that we don't
-        # repeat selections and know which selection to perform next
         assert selection_mask is not None, (
-            "SequentialDummyAFAMethod requires selection_mask to be provided"
+            "SequentialWithoutClassifierAFAMethod requires selection_mask to be provided"
         )
         original_device = masked_features.device
 
@@ -211,8 +203,6 @@ class SequentialDummyAFAMethod(AFAMethod):
             torch.rand(batch_size, device=self._device) < self.prob_select_0
         )
 
-        # For each sample, find the first unperformed selection (if any)
-        # Use -1 to catch errors in case the logic is wrong
         selection = -1 * torch.ones(
             (batch_size,), dtype=torch.long, device=self._device
         )
@@ -221,9 +211,8 @@ class SequentialDummyAFAMethod(AFAMethod):
             if unperformed.numel() > 0:
                 selection[i] = unperformed[0] + 1
             else:
-                selection[i] = 0  # fallback if all selections are performed
+                selection[i] = 0
 
-        # Where select_0_mask is True, set selection to 0
         selection = torch.where(
             select_0_mask, torch.zeros_like(selection), selection
         )
@@ -245,14 +234,12 @@ class SequentialDummyAFAMethod(AFAMethod):
 
         batch_size = masked_features.shape[0]
 
-        # Pick a random class from the classes
         random_class_onehot = torch.randint(
             0,
             self.n_classes,
             (batch_size,),
             device=masked_features.device,
         )
-        # One-hot encode the random prediction
         random_class_onehot = torch.nn.functional.one_hot(
             random_class_onehot, num_classes=self.n_classes
         ).float()

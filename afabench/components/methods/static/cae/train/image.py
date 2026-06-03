@@ -24,7 +24,7 @@ from afabench.components.methods.static.common.static_methods import (
 from afabench.components.methods.static.common.utils import (
     make_masked_collate,
 )
-from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.config_classes import CAETraining2DConfig
 from afabench.core.types import AFADataset  # noqa: TC001
 from afabench.core.utils import set_seed

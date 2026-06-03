@@ -21,13 +21,13 @@ from afabench.components.methods.rl.shim2018.models import (
 from afabench.components.methods.rl.shim2018.reward import (
     get_shim2018_reward_fn,
 )
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.config_classes import Shim2018TrainConfig
 from afabench.core.types import AFAMethod
 from afabench.core.utils import set_seed
 
 if TYPE_CHECKING:
-    from afabench.core.torch_bundle import TorchModelBundle
+    from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 
 log = logging.getLogger(__name__)
 

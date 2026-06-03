@@ -11,8 +11,8 @@ from lightning.pytorch.loggers import WandbLogger
 from afabench.components.methods.rl.common.dataset_utils import (
     DataModuleFromDatasets,
 )
-from afabench.core.bundle import load_bundle, save_bundle
-from afabench.core.torch_bundle import TorchModelBundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.datasets.utils import flatten_features_collate
 
 if TYPE_CHECKING:

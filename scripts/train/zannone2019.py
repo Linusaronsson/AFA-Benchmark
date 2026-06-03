@@ -21,14 +21,14 @@ from afabench.components.methods.rl.zannone2019.models import (
 from afabench.components.methods.rl.zannone2019.reward import (
     get_zannone2019_reward_fn,
 )
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.config_classes import Zannone2019TrainConfig
 from afabench.core.types import AFAMethod, Features, Label
 from afabench.core.utils import set_seed
 from afabench.datasets.wrappers import ExtendedAFADataset
 
 if TYPE_CHECKING:
-    from afabench.core.torch_bundle import TorchModelBundle
+    from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 
 log = logging.getLogger(__name__)
 

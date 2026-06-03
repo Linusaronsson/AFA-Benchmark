@@ -18,7 +18,7 @@ from afabench.components.methods.discriminative.common.utils import (
     MaskLayer2d,
     afa_discriminative_training_prep,
 )
-from afabench.core.bundle import save_bundle
+from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.config_classes import TrainMaskedViTClassifierConfig
 from afabench.core.utils import set_seed
 

@@ -6,8 +6,8 @@ import pytest
 import torch
 from torch import nn
 
-from afabench.core.bundle import load_bundle, save_bundle
-from afabench.core.torch_bundle import TorchModelBundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 
 
 class SimpleLinearModel(nn.Module):

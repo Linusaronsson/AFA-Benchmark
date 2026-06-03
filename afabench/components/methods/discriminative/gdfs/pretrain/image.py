@@ -19,7 +19,7 @@ from afabench.components.methods.discriminative.common.models import (
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer2d,
 )
-from afabench.core.bundle import (
+from afabench.core.bundle_system.bundle import (
     load_bundle,
     save_bundle,
 )

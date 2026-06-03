@@ -10,11 +10,11 @@ from omegaconf import OmegaConf
 from afabench.components.initializers.utils import (
     get_afa_initializer_from_config,
 )
-from afabench.components.methods.dummy import RandomDummyAFAMethod
+from afabench.components.methods.dummy import RandomWithoutClassifierAFAMethod
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
-from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.config_classes import (
     RandomDummyTrainConfig,
 )
@@ -62,7 +62,7 @@ def main(cfg: RandomDummyTrainConfig) -> None:
 
     assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
 
-    afa_method = RandomDummyAFAMethod(
+    afa_method = RandomWithoutClassifierAFAMethod(
         device=torch.device("cpu"),
         n_classes=train_dataset.label_shape.numel(),
         prob_select_0=0.0

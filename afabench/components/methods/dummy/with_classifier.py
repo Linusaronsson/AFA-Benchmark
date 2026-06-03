@@ -16,7 +16,7 @@ from afabench.core.types import (
 
 
 @final
-class RandomSelectionAFAMethod(AFAMethod):
+class RandomWithClassifierAFAMethod(AFAMethod):
     """Select random unobserved features and delegate predictions to a classifier."""
 
     def __init__(
@@ -111,7 +111,7 @@ class RandomSelectionAFAMethod(AFAMethod):
 
 
 @final
-class SequentialSelectionAFAMethod(AFAMethod):
+class SequentialWithClassifierAFAMethod(AFAMethod):
     """Select the first unobserved feature and delegate predictions to a classifier."""
 
     def __init__(
