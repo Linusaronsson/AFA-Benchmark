@@ -840,42 +840,6 @@ class SequentialDummyTrainConfig:
 
 cs.store(name="train_sequential_dummy", node=SequentialDummyTrainConfig)
 
-# stop_baseline
-
-
-@dataclass
-class StopBaselineTrainConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    classifier_bundle_path: str
-    save_path: str
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
-    hard_budget: int | None
-    soft_budget_param: float | None
-
-    device: str
-    seed: int | None
-    use_wandb: bool = False
-    smoke_test: bool = False
-
-
-cs.store(name="train_stop_baseline", node=StopBaselineTrainConfig)
-
-# optimalcube
-
-
-@dataclass
-class OptimalCubeTrainConfig:
-    dataset_artifact_name: str
-    hard_budget: int  # not used, but pretend that it is
-    seed: int
-    output_artifact_aliases: list[str]
-
-
-cs.store(name="train_optimalcube", node=OptimalCubeTrainConfig)
-
-
 # zannone2019
 
 

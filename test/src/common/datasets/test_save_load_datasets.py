@@ -15,7 +15,6 @@ DATASETS_TO_TEST = [
     ("DiabetesDataset", {"root": "extra/data/misc/diabetes.csv"}),
     ("MiniBooNEDataset", {"root": "extra/data/misc/miniboone.csv"}),
     ("PhysionetDataset", {"root": "extra/data/misc/physionet.csv"}),
-    ("FICODataset", {"path": "extra/data/misc/fico.csv"}),
     # No {(Fashion)MNISTDataset, ImagenetteDataset} because of image data and large size
     ("BankMarketingDataset", {"path": "extra/data/misc/bank-marketing.csv"}),
     ("CKDDataset", {"path": "extra/data/misc/chronic_kidney_disease.csv"}),

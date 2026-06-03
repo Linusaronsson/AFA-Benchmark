@@ -17,8 +17,8 @@ REGISTERED_CLASSES = {
     "StaticBaseMethod": "afabench.static.static_methods.StaticBaseMethod",
     "SequentialDummyAFAMethod": "afabench.common.afa_methods.SequentialDummyAFAMethod",
     "RandomDummyAFAMethod": "afabench.common.afa_methods.RandomDummyAFAMethod",
-    "OptimalCubeAFAMethod": "afabench.common.afa_methods.OptimalCubeAFAMethod",
-    "StopBaselineMethod": "afabench.common.stop_baseline_method.StopBaselineMethod",
+    "RandomSelectionAFAMethod": "afabench.common.dummy_afa_methods.RandomSelectionAFAMethod",
+    "SequentialSelectionAFAMethod": "afabench.common.dummy_afa_methods.SequentialSelectionAFAMethod",
     # AFA Dataset Classes
     "CubeDataset": "afabench.common.datasets.datasets.CubeDataset",
     "CubeNonUniformCostsDataset": "afabench.common.datasets.datasets.CubeNonUniformCostsDataset",
@@ -33,7 +33,6 @@ REGISTERED_CLASSES = {
     "BankMarketingDataset": "afabench.common.datasets.datasets.BankMarketingDataset",
     "CKDDataset": "afabench.common.datasets.datasets.CKDDataset",
     "ACTG175Dataset": "afabench.common.datasets.datasets.ACTG175Dataset",
-    "FICODataset": "afabench.common.datasets.datasets.FICODataset",
     "ImagenetteDataset": "afabench.common.datasets.datasets.ImagenetteDataset",
     # AFA Classifier Classes
     "RandomDummyAFAClassifier": "afabench.common.classifiers.RandomDummyAFAClassifier",
@@ -51,7 +50,6 @@ REGISTERED_CLASSES = {
     # AFA Initializer Classes
     "ZeroInitializer": "afabench.common.initializers.ZeroInitializer",
     "FixedRandomInitializer": "afabench.common.initializers.FixedRandomInitializer",
-    "DynamicRandomInitializer": "afabench.common.initializers.DynamicRandomInitializer",
     "ManualInitializer": "afabench.common.initializers.ManualInitializer",
     "MutualInformationInitializer": "afabench.common.initializers.MutualInformationInitializer",
     "LeastInformativeInitializer": "afabench.common.initializers.LeastInformativeInitializer",

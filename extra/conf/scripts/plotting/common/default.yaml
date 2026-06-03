@@ -93,7 +93,6 @@ dataset_name_mapping:
   bank_marketing: BankMarketing
   ckd: CKD
   diabetes: Diabetes
-  fico: FICO
   fashion_mnist: FashionMNIST
   miniboone: MiniBooNE
   physionet: PhysioNet
@@ -123,7 +122,6 @@ dataset_sets:
     - ckd
     - mnist
     - cube_nonuniform_costs
-    - fico
   all:
     - cube
     - cube_without_noise
@@ -135,7 +133,6 @@ dataset_sets:
     - physionet
     - actg
     - fashion_mnist
-    - fico
     - imagenette
     - ckd
     - mnist
