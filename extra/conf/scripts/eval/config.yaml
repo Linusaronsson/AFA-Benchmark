@@ -7,7 +7,7 @@ defaults:
   - hydra: custom
   - components/initializers@initializer: ???
   - components/unmaskers@unmasker: ???
-  - override hydra/job_logging: colorlog
+  - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
   - _self_

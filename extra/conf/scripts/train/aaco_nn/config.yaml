@@ -9,7 +9,7 @@ defaults:
   - components/initializers@initializer: ???
   - components/unmaskers@unmasker: ???
   - optional experiment@_global_: ???
-  - override hydra/job_logging: colorlog
+  - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
