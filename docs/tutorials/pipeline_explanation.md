@@ -9,15 +9,15 @@ WANDB_PROJECT=afabench \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
     all \
     --configfile \
-      extra/workflow/conf/eval_hard_budgets.yaml \
-      extra/workflow/conf/methods.yaml \
-      extra/workflow/conf/method_sets.yaml \
-      extra/workflow/conf/method_options.yaml \
-      extra/workflow/conf/pretrain_mapping.yaml \
-      extra/workflow/conf/soft_budget_params.yaml \
-      extra/workflow/conf/unmaskers.yaml \
-      extra/workflow/conf/classifier_names.yaml \
-      extra/workflow/conf/datasets_main.yaml \
+      extra/workflow/conf/eval_hard_budgets/all.yaml \
+      extra/workflow/conf/methods/all.yaml \
+      extra/workflow/conf/method_sets/all.yaml \
+      extra/workflow/conf/method_options/all.yaml \
+      extra/workflow/conf/pretrain_mappings/all.yaml \
+      extra/workflow/conf/soft_budget_params/all.yaml \
+      extra/workflow/conf/unmaskers/all.yaml \
+      extra/workflow/conf/classifier_names/all.yaml \
+      extra/workflow/conf/datasets/all.yaml \
     --config \
       eval_dataset_split=val \
       "dataset_instance_indices=[0,1]" \
@@ -31,7 +31,7 @@ This will attempt to run 8 jobs in parallel locally on your computer, in order t
 
 ## Configuration overview
 
-All configuration files should be edited in place in `extra/workflow/conf/`. Below we discuss the meaning of each configuration file.
+Configuration files are organized into subdirectories under `extra/workflow/conf/`. Each subdirectory contains multiple named variants (e.g., `all.yaml`, `kdd26.yaml`). Pass the desired variant to `--configfile`. Below we discuss the meaning of each configuration group.
 
 ## Runtime configuration options
 
@@ -90,13 +90,13 @@ Enables smoke testing mode, where each script runs as fast as possible while sti
 
 ## Datasets
 
-The `datasets_main.yaml` file specifies which datasets are used.
+The `extra/workflow/conf/datasets/` directory contains dataset configuration files. Each file specifies which datasets are used in the pipeline.
 
 ## Unmaskers
 
-`unmaskers.yaml` is a mapping from datasets to unmaskers. The values correspond to files in `extra/conf/components/unmaskers`.
+`extra/workflow/conf/unmaskers/` contains files that map datasets to unmaskers. The values correspond to files in `extra/conf/components/unmaskers`.
 
-For example, if `unmaskers.yaml` contains
+For example, if `extra/workflow/conf/unmaskers/all.yaml` contains
 ```yaml
 unmaskers:
   default: direct
@@ -115,9 +115,9 @@ kwargs:
 
 ## Hard budgets
 
-`eval_hard_budgets.yaml` determines what hard budgets are used for each dataset **during evaluation**. Methods are free to use different budgets during training, see [below](#methods-and-their-soft-budget-parameters).
+`extra/workflow/conf/eval_hard_budgets/` determines what hard budgets are used for each dataset **during evaluation**. Methods are free to use different budgets during training, see [below](#methods-and-their-soft-budget-parameters).
 
-For example, `eval_hard_budgets.yaml` might contain
+For example, a file in `extra/workflow/conf/eval_hard_budgets/` might contain
 ```yaml
 eval_hard_budgets:
   default: [5, 10, 15]
@@ -129,19 +129,19 @@ Note that the `default` setting is used for all unlisted datasets, and that the 
 
 ## Methods and their soft-budget parameters
 
-The methods require the most configuration, and use the files
-- `methods.yaml`
-- `method_sets.yaml`
-- `pretrain_mapping.yaml`
-- `method_options.yaml`
-- `soft_budget_params.yaml`
+The methods require the most configuration, and use the directories
+- `extra/workflow/conf/methods/`
+- `extra/workflow/conf/method_sets/`
+- `extra/workflow/conf/pretrain_mappings/`
+- `extra/workflow/conf/method_options/`
+- `extra/workflow/conf/soft_budget_params/`
 
-`methods.yaml` is a list declaring which methods are included in the pipeline.
+`methods/` contains files listing which methods are included in the pipeline.
 
-`method_sets.yaml` defines *method sets*, which group related methods to prevent cluttered plots when visualizing results. Each method set gets its own separate plot.
+`method_sets/` contains files that define *method sets*, which group related methods to prevent cluttered plots when visualizing results. Each method set gets its own separate plot.
 
 Some methods require a pretraining stage. For such methods,
-`pretrain_mapping.yaml` provides the mapping to the pretraining script. For example, a `pretrain_mapping.yaml` file with contents
+`pretrain_mappings/` provides the mapping to the pretraining script. For example, a file in `extra/workflow/conf/pretrain_mappings/` with contents
 ```yaml
 pretrain_mapping:
   pvae:
@@ -150,7 +150,7 @@ pretrain_mapping:
 ```
 will define a model `pvae` which is produced by the `scripts/pretrain/odin.py` script. This can later be reused across different methods.
 
-For example, `method_options.yaml` contains miscellaneous options for each method. An example configuration:
+For example, a file in `extra/workflow/conf/method_options/` contains miscellaneous options for each method. An example configuration:
 ```yaml
 method_options:
   eddi_external:
@@ -180,11 +180,11 @@ defines two methods `eddi_external` and `odin_model_based` which both use the sa
 
 Usually during the *soft-budget* setting, the hard budget is disabled. `use_max_hard_budget_when_training_soft_budget` enforces the largest hard budget instead.
 
-Lastly, `soft_budget_params.yaml` contains the per-dataset soft-budget parameters for each method. Each soft-budget parameter is represented as a tuple `(train_soft_budget_param, eval_soft_budget_param)`. While the `default` key **can** be used, it is recommended to tune the values for each dataset due to sensitivity issues.
+Lastly, files in `extra/workflow/conf/soft_budget_params/` contain the per-dataset soft-budget parameters for each method. Each soft-budget parameter is represented as a tuple `(train_soft_budget_param, eval_soft_budget_param)`. While the `default` key **can** be used, it is recommended to tune the values for each dataset due to sensitivity issues.
 
 ## Classifiers
 
-During evaluation, we need predictions from an *external* classifier. `classifier_names.yaml` determines which classifier is used for which dataset. You can edit these mappings to test different classifiers on your datasets. For example,
+During evaluation, we need predictions from an *external* classifier. Files in `extra/workflow/conf/classifier_names/` determine which classifier is used for which dataset. You can edit these mappings to test different classifiers on your datasets. For example,
 ```yaml
 classifier_names:
   default: "masked_mlp_classifier"

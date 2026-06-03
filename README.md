@@ -1,4 +1,4 @@
-# AFA Benchmark
+# AFABench
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![arXiv](https://img.shields.io/badge/arXiv-2508.14734-b31b1b.svg)](https://arxiv.org/abs/2508.14734)
 [![KDD 2026](https://img.shields.io/badge/KDD-2026-ff69b4.svg)](https://www.kdd.org/kdd2026/)
@@ -31,15 +31,15 @@ WANDB_PROJECT=afabench uv run snakemake \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
     all \
     --configfile \
-      extra/workflow/conf/eval_hard_budgets.yaml \
-      extra/workflow/conf/methods.yaml \
-      extra/workflow/conf/method_sets.yaml \
-      extra/workflow/conf/method_options.yaml \
-      extra/workflow/conf/pretrain_mapping.yaml \
-      extra/workflow/conf/soft_budget_params.yaml \
-      extra/workflow/conf/unmaskers.yaml \
-      extra/workflow/conf/classifier_names.yaml \
-      extra/workflow/conf/datasets_main.yaml \
+      extra/workflow/conf/eval_hard_budgets/all.yaml \
+      extra/workflow/conf/methods/all.yaml \
+      extra/workflow/conf/method_sets/all.yaml \
+      extra/workflow/conf/method_options/all.yaml \
+      extra/workflow/conf/pretrain_mappings/all.yaml \
+      extra/workflow/conf/soft_budget_params/all.yaml \
+      extra/workflow/conf/unmaskers/all.yaml \
+      extra/workflow/conf/classifier_names/all.yaml \
+      extra/workflow/conf/datasets/all.yaml \
     --config \
       eval_dataset_split=test \
       "dataset_instance_indices=[0,1,2,3,4]" \
@@ -53,8 +53,9 @@ See the [pipeline explanation](docs/tutorials/pipeline_explanation.md) tutorial 
 
 ## Features
 
-- Easily readable and reproducible configuration using
-  [hydra](https://hydra.cc/) and [snakemake](https://snakemake.readthedocs.io/en/stable/).
+- Accesible configuration using
+  [hydra](https://hydra.cc/)
+- Reproducible pipeline using [snakemake](https://snakemake.readthedocs.io/en/stable/).
 - Modular design: rerun specific parts of the pipeline as needed.
 - Extensible framework: add custom datasets and AFA methods.
 
@@ -124,7 +125,9 @@ Learn more in our tutorials:
 
 ## Development
 
-We encourage researchers to fork this repository and implement their own methods. To follow the repo conventions, run
+We encourage researchers to fork this repository and implement their own methods. Take a look at the [tutorials](#tutorials) to get started.
+
+To follow repo conventions, run
 ```shell
 uv run just qa
 ```
@@ -134,13 +137,6 @@ which will
 - do linting and formatting with `ruff check --fix`
 - type checking with `basedpyright --warnings`
 - run tests with `pytest`
-
-## Contributing
-
-New files are expected to follow the project's linting, formatting, and type
-checking rules. Before opening a pull request, run `uv run just qa` from the
-repository root and fix any reported issues.
-
 
 ## Citation
 If you use this benchmark in your research, please cite,

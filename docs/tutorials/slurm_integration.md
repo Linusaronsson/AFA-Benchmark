@@ -32,15 +32,15 @@ WANDB_PROJECT=afabench \
     all \
     --profile extra/workflow/profiles/alvis_han \
     --configfile \
-      extra/workflow/conf/eval_hard_budgets.yaml \
-      extra/workflow/conf/methods.yaml \
-      extra/workflow/conf/method_sets.yaml \
-      extra/workflow/conf/method_options.yaml \
-      extra/workflow/conf/pretrain_mapping.yaml \
-      extra/workflow/conf/soft_budget_params.yaml \
-      extra/workflow/conf/unmaskers.yaml \
-      extra/workflow/conf/classifier_names.yaml \
-      extra/workflow/conf/datasets_main.yaml \
+      extra/workflow/conf/eval_hard_budgets/all.yaml \
+      extra/workflow/conf/methods/all.yaml \
+      extra/workflow/conf/method_sets/all.yaml \
+      extra/workflow/conf/method_options/all.yaml \
+      extra/workflow/conf/pretrain_mappings/all.yaml \
+      extra/workflow/conf/soft_budget_params/all.yaml \
+      extra/workflow/conf/unmaskers/all.yaml \
+      extra/workflow/conf/classifier_names/all.yaml \
+      extra/workflow/conf/datasets/all.yaml \
     --config \
       eval_dataset_split=val \
       "dataset_instance_indices=[0,1]" \
@@ -135,14 +135,14 @@ To create a profile for a new cluster:
    executor: slurm
    jobs: 9001
    latency-wait: 30
-   
+
    default-resources:
      slurm_partition: my_partition
      slurm_account: my_account
      runtime: 120
      cpus_per_task: 1
      mem_mb: 4000
-   
+
    set-resources:
      pretrain_model:
        runtime: 600
