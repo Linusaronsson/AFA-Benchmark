@@ -20,8 +20,8 @@ from torchrl.objectives import ClipPPOLoss, ValueEstimators
 
 from afabench.components.methods.rl.common.agent_interface import Agent
 from afabench.components.methods.rl.common.utils import module_norm
+from afabench.components.methods.rl.odin.config import ODINAgentConfig
 from afabench.components.methods.rl.odin.models import PointNet
-from afabench.core.config_classes import ODINAgentConfig
 from afabench.core.types import FeatureMask, MaskedFeatures
 
 

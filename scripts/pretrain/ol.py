@@ -6,16 +6,16 @@ from typing import Any, cast
 import hydra
 import lightning as pl
 import torch
+from omegaconf import OmegaConf
+
+from afabench.components.methods.rl.ol.config import OLPretrainConfig
 from afabench.components.methods.rl.ol.models import (
     LitOLPQModule,
     OLPQModule,
 )
-from omegaconf import OmegaConf
-
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
-from afabench.core.config_classes import OLPretrainConfig
 from afabench.core.types import AFADataset
 from afabench.core.utils import (
     get_class_frequencies,

@@ -10,7 +10,7 @@ import polars as pl
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from afabench.core.config_classes import (
+from scripts.plotting.config import (
     PlotEvalActionsConfig,
     PlottingDisplayConfig,
 )

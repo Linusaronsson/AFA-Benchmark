@@ -1,9 +1,9 @@
+from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.components.unmaskers.cube_nm_unmasker import CubeNMUnmasker
 from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.components.unmaskers.image_patch_unmasker import (
     ImagePatchUnmasker,
 )
-from afabench.core.config_classes import UnmaskerConfig
 from afabench.core.registry import get_class
 from afabench.core.types import AFAUnmasker
 

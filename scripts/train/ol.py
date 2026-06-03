@@ -5,17 +5,6 @@ from typing import TYPE_CHECKING, Any, cast, override
 
 import hydra
 import torch
-from afabench.components.methods.rl.ol.agents import (
-    OLAgent,
-)
-from afabench.components.methods.rl.ol.models import (
-    LitOLPQModule,
-    OLAFAClassifier,
-    OLPQModule,
-)
-from afabench.components.methods.rl.ol.reward import (
-    get_ol_reward_fn,
-)
 from omegaconf.omegaconf import OmegaConf
 from tensordict import TensorDict, TensorDictBase
 from torch import optim
@@ -27,10 +16,19 @@ from afabench.components.methods.rl.common.custom_types import AFARewardFn
 from afabench.components.methods.rl.common.training import (
     RLTrainer,
 )
-from afabench.core.bundle_system.bundle import load_bundle
-from afabench.core.config_classes import (
-    OLTrainConfig,
+from afabench.components.methods.rl.ol.agents import (
+    OLAgent,
 )
+from afabench.components.methods.rl.ol.config import OLTrainConfig
+from afabench.components.methods.rl.ol.models import (
+    LitOLPQModule,
+    OLAFAClassifier,
+    OLPQModule,
+)
+from afabench.components.methods.rl.ol.reward import (
+    get_ol_reward_fn,
+)
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.types import AFAMethod
 from afabench.core.utils import (
     set_seed,

@@ -7,11 +7,11 @@ import torch
 from omegaconf import OmegaConf
 
 from afabench.components.methods.oracle import create_aaco_method
+from afabench.components.methods.oracle.aaco.config import AACOTrainConfig
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.config_classes import AACOTrainConfig
 from afabench.core.naming import infer_dataset_key_from_class_name
 from afabench.core.utils import set_seed
 

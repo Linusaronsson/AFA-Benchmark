@@ -13,13 +13,11 @@ from afabench.components.initializers.utils import (
 from afabench.components.methods.dummy import (
     SequentialWithoutClassifierAFAMethod,
 )
+from afabench.components.methods.dummy.config import SequentialDummyTrainConfig
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.config_classes import (
-    SequentialDummyTrainConfig,
-)
 from afabench.core.utils import (
     initialize_wandb_run,
     set_seed,

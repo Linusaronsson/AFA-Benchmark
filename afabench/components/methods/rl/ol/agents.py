@@ -19,10 +19,10 @@ from torchrl.modules import EGreedyModule, QValueModule
 from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
 
 from afabench.components.methods.rl.common.agent_interface import Agent
+from afabench.components.methods.rl.ol.config import OLAgentConfig
 from afabench.components.methods.rl.ol.models import (
     OLPQModule,
 )
-from afabench.core.config_classes import OLAgentConfig
 from afabench.core.types import FeatureMask, MaskedFeatures
 
 

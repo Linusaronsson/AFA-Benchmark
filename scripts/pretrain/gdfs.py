@@ -3,6 +3,10 @@ from typing import cast
 
 import hydra
 
+from afabench.components.methods.discriminative.gdfs.config import (
+    GDFSPretraining2DConfig,
+    GDFSPretrainingConfig,
+)
 from afabench.components.methods.discriminative.gdfs.pretrain.image import (
     pretrain_image,
 )
@@ -10,10 +14,6 @@ from afabench.components.methods.discriminative.gdfs.pretrain.tabular import (
     pretrain_tabular,
 )
 from afabench.core.bundle_system.bundle import load_bundle
-from afabench.core.config_classes import (
-    GDFSPretraining2DConfig,
-    GDFSPretrainingConfig,
-)
 
 IMAGE_DATASET_CLASSNAMES = {
     "ImagenetteDataset",

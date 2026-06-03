@@ -21,10 +21,8 @@ if TYPE_CHECKING:
     from afabench.core.types import Features, Label
 
 
-from afabench.core.config_classes import (
-    SupervisedLearningConfig,
-)
 from afabench.core.types import AFADataset
+from afabench.training.config import SupervisedLearningConfig
 
 log = logging.getLogger(__name__)
 

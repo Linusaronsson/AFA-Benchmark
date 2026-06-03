@@ -4,16 +4,6 @@ from typing import TYPE_CHECKING, Any, cast, override
 
 import hydra
 import torch
-from afabench.components.methods.rl.odin.agents import (
-    ODINAgent,
-)
-from afabench.components.methods.rl.odin.models import (
-    ODINAFAClassifier,
-    ODINPretrainingModel,
-)
-from afabench.components.methods.rl.odin.reward import (
-    get_odin_reward_fn,
-)
 from omegaconf.omegaconf import OmegaConf
 from torch.nn import functional as F
 
@@ -21,8 +11,18 @@ from afabench.components.methods.rl.common.afa_methods import RLAFAMethod
 from afabench.components.methods.rl.common.agent_interface import Agent
 from afabench.components.methods.rl.common.custom_types import AFARewardFn
 from afabench.components.methods.rl.common.training import RLTrainer
+from afabench.components.methods.rl.odin.agents import (
+    ODINAgent,
+)
+from afabench.components.methods.rl.odin.config import ODINTrainConfig
+from afabench.components.methods.rl.odin.models import (
+    ODINAFAClassifier,
+    ODINPretrainingModel,
+)
+from afabench.components.methods.rl.odin.reward import (
+    get_odin_reward_fn,
+)
 from afabench.core.bundle_system.bundle import load_bundle
-from afabench.core.config_classes import ODINTrainConfig
 from afabench.core.types import AFAMethod, Features, Label
 from afabench.core.utils import set_seed
 from afabench.datasets.wrappers import ExtendedAFADataset

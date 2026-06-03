@@ -9,12 +9,9 @@ import torch
 from omegaconf import OmegaConf
 
 from afabench.core.bundle_system.bundle import save_bundle
-from afabench.core.config_classes import (
-    DatasetGenerationConfig,
-    SplitRatioConfig,
-)
 from afabench.core.registry import get_class
 from afabench.core.types import AFADataset
+from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
 
 log = logging.getLogger(__name__)
 

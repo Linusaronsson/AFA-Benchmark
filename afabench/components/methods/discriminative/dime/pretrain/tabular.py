@@ -16,11 +16,13 @@ from afabench.components.methods.discriminative.common.models import (
     MaskingPretrainer,
 )
 from afabench.components.methods.discriminative.common.utils import MaskLayer
+from afabench.components.methods.discriminative.dime.config import (
+    DIMEPretrainingConfig,
+)
 from afabench.core.bundle_system.bundle import (
     load_bundle,
     save_bundle,
 )
-from afabench.core.config_classes import DIMEPretrainingConfig
 from afabench.core.naming import infer_dataset_key_from_class_name
 from afabench.core.utils import (
     get_class_frequencies,

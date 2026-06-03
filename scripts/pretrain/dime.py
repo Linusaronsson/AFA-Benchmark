@@ -3,6 +3,10 @@ from typing import cast
 
 import hydra
 
+from afabench.components.methods.discriminative.dime.config import (
+    DIMEPretraining2DConfig,
+    DIMEPretrainingConfig,
+)
 from afabench.components.methods.discriminative.dime.pretrain.image import (
     pretrain_image,
 )
@@ -10,10 +14,6 @@ from afabench.components.methods.discriminative.dime.pretrain.tabular import (
     pretrain_tabular,
 )
 from afabench.core.bundle_system.bundle import load_bundle
-from afabench.core.config_classes import (
-    DIMEPretraining2DConfig,
-    DIMEPretrainingConfig,
-)
 
 IMAGE_DATASET_CLASSNAMES = {
     "ImagenetteDataset",

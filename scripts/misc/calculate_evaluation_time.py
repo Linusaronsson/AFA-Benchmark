@@ -12,7 +12,7 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 
-from afabench.core.config_classes import EvaluationTimeCalculationConfig
+from scripts.misc.config import EvaluationTimeCalculationConfig
 
 
 class EvalArtifact(Protocol):

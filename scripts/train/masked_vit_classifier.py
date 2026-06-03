@@ -10,6 +10,9 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from afabench.components.classifiers import WrappedMaskedViTClassifier
+from afabench.components.classifiers.config import (
+    TrainMaskedViTClassifierConfig,
+)
 from afabench.components.classifiers.models import (
     MaskedViTClassifier,
     MaskedViTTrainer,
@@ -19,7 +22,6 @@ from afabench.components.methods.discriminative.common.utils import (
     afa_discriminative_training_prep,
 )
 from afabench.core.bundle_system.bundle import save_bundle
-from afabench.core.config_classes import TrainMaskedViTClassifierConfig
 from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)

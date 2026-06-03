@@ -18,13 +18,15 @@ from afabench.components.methods.discriminative.common.datasets import (
 from afabench.components.methods.discriminative.common.utils import (
     afa_discriminative_training_prep,
 )
+from afabench.components.methods.static.pt.config import (
+    PermutationTrainingConfig,
+)
 from afabench.components.methods.static.pt.models import BaseModel
 from afabench.components.methods.static.pt.static_methods import (
     StaticBaseMethod,
 )
 from afabench.components.methods.static.pt.utils import transform_dataset
 from afabench.core.bundle_system.bundle import save_bundle
-from afabench.core.config_classes import PermutationTrainingConfig
 from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)

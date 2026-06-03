@@ -19,11 +19,13 @@ from afabench.components.methods.discriminative.common.models import (
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer2d,
 )
+from afabench.components.methods.discriminative.gdfs.config import (
+    GDFSPretraining2DConfig,
+)
 from afabench.core.bundle_system.bundle import (
     load_bundle,
     save_bundle,
 )
-from afabench.core.config_classes import GDFSPretraining2DConfig
 from afabench.core.types import AFADataset  # noqa: TC001
 from afabench.core.utils import set_seed
 

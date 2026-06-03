@@ -4,8 +4,9 @@ from typing import Self
 import pytest
 import torch
 
+from afabench.components.initializers.config import InitializerConfig
 from afabench.components.methods.discriminative.common import utils
-from afabench.core.config_classes import InitializerConfig, UnmaskerConfig
+from afabench.components.unmaskers.config import UnmaskerConfig
 
 
 class FakeDataset:

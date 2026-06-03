@@ -32,7 +32,9 @@ from afabench.core.naming import infer_dataset_key_from_class_name
 from afabench.core.utils import set_seed
 
 if TYPE_CHECKING:
-    from afabench.core.config_classes import AACONNTrainConfig
+    from afabench.components.methods.oracle.aaco.config import (
+        AACONNTrainConfig,
+    )
 
 logger = logging.getLogger(__name__)
 

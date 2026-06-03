@@ -1,3 +1,4 @@
+from afabench.components.initializers.config import InitializerConfig
 from afabench.components.initializers.fixed_random_initializer import (
     FixedRandomInitializer,
 )
@@ -16,7 +17,6 @@ from afabench.components.initializers.random_initializer import (
 from afabench.components.initializers.zero_initializer import (
     ZeroInitializer,
 )
-from afabench.core.config_classes import InitializerConfig
 from afabench.core.registry import get_class
 from afabench.core.types import AFAInitializer
 

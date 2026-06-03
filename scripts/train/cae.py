@@ -3,15 +3,15 @@ from typing import cast
 
 import hydra
 
+from afabench.components.methods.static.cae.config import (
+    CAETraining2DConfig,
+    CAETrainingConfig,
+)
 from afabench.components.methods.static.cae.train.image import train_image
 from afabench.components.methods.static.cae.train.tabular import (
     train_tabular,
 )
 from afabench.core.bundle_system.bundle import load_bundle
-from afabench.core.config_classes import (
-    CAETraining2DConfig,
-    CAETrainingConfig,
-)
 
 IMAGE_DATASET_CLASSNAMES = {
     "ImagenetteDataset",

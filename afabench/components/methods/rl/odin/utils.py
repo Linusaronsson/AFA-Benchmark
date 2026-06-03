@@ -6,13 +6,13 @@ from torchrl.modules import MLP
 from afabench.components.methods.rl.common.utils import (
     str_to_activation_class_mapping,
 )
+from afabench.components.methods.rl.odin.config import ODINPretrainConfig
 from afabench.components.methods.rl.odin.models import (
     ODINPretrainingModel,
     PartialVAE,
     PointNet,
     PointNetType,
 )
-from afabench.core.config_classes import ODINPretrainConfig
 
 
 def get_odin_model_from_config(
