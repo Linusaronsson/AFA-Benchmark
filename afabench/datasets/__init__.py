@@ -1,3 +1,4 @@
+from .aliases import DATASET_KEY_ALIASES
 from .datasets import (
     ACTG175Dataset,
     BankMarketingDataset,
@@ -15,6 +16,7 @@ from .datasets import (
 )
 
 __all__ = [
+    "DATASET_KEY_ALIASES",
     "ACTG175Dataset",
     "BankMarketingDataset",
     "CKDDataset",

@@ -8,8 +8,6 @@ from typing import Protocol, Self, runtime_checkable
 import torch
 from jaxtyping import Bool, Float, Integer
 
-from afabench.core.naming import infer_dataset_key_from_class_name
-
 logger = logging.getLogger(__name__)
 
 type Features = Float[torch.Tensor, "*batch *feature_shape"]
@@ -31,6 +29,10 @@ type AFASelection = Integer[torch.Tensor, "*batch 1"]
 
 
 def _infer_dataset_key(dataset: object) -> str:
+    from afabench.core.naming import (  # noqa: PLC0415
+        infer_dataset_key_from_class_name,
+    )
+
     return infer_dataset_key_from_class_name(dataset.__class__.__name__)
 
 
