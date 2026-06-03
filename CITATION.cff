@@ -1,0 +1,44 @@
+cff-version: 1.2.0
+message: >-
+  If you use this benchmark in your research, please cite the AFABench
+  conference paper.
+title: "AFABench: A Generic Framework for Benchmarking Active Feature Acquisition"
+type: software
+authors:
+  - family-names: "Schütz"
+    given-names: "Valter"
+    email: "valterschutz@proton.me"
+  - family-names: "Wu"
+    given-names: "Han"
+    email: "hanwu@chalmers.se"
+  - family-names: "Rezvan"
+    given-names: "Reza"
+    email: "rezvan@chalmers.se"
+  - family-names: "Aronsson"
+    given-names: "Linus"
+    email: "linaro@chalmers.se"
+  - family-names: "Haghir Chehreghani"
+    given-names: "Morteza"
+version: "1.0.0"
+license: "MIT"
+repository-code: "https://github.com/Linusaronsson/AFA-Benchmark"
+preferred-citation:
+  type: conference-paper
+  authors:
+    - family-names: "Schütz"
+      given-names: "Valter"
+    - family-names: "Wu"
+      given-names: "Han"
+    - family-names: "Rezvan"
+      given-names: "Reza"
+    - family-names: "Aronsson"
+      given-names: "Linus"
+    - family-names: "Haghir Chehreghani"
+      given-names: "Morteza"
+  title: "AFABench: A Generic Framework for Benchmarking Active Feature Acquisition"
+  year: 2026
+  collection-title: >-
+    Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and
+    Data Mining
+  doi: "10.1145/3770855.3817493"
+  url: "https://doi.org/10.1145/3770855.3817493"
