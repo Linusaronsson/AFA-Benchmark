@@ -8,13 +8,13 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.common.bundle import save_bundle
-from afabench.common.config_classes import (
+from afabench.core.bundle import save_bundle
+from afabench.core.config_classes import (
     DatasetGenerationConfig,
     SplitRatioConfig,
 )
-from afabench.common.custom_types import AFADataset
-from afabench.common.registry import get_class
+from afabench.core.registry import get_class
+from afabench.core.types import AFADataset
 
 log = logging.getLogger(__name__)
 

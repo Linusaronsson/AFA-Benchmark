@@ -8,7 +8,7 @@ Datasets in AFA-Benchmark are serialized as **bundles** (directories containing 
 
 ### 1. Define a dataset class
 
-Define a dataset class in `afabench/common/datasets/datasets.py` that implements the `AFADataset` protocol.
+Define a dataset class in `afabench/datasets/datasets.py` that implements the `AFADataset` protocol.
 
 **Minimal example:**
 
@@ -99,12 +99,12 @@ The `class_name` must match the name of your dataset class, and `kwargs` are pas
 
 ### 3. Register the dataset class
 
-Add your dataset class to the `REGISTERED_CLASSES` dictionary in `afabench/common/registry.py`:
+Add your dataset class to the `REGISTERED_CLASSES` dictionary in `afabench/core/registry.py`:
 
 ```python
 REGISTERED_CLASSES = {
     # ... existing entries ...
-    "MyDataset": "afabench.common.datasets.datasets.MyDataset",
+    "MyDataset": "afabench.datasets.datasets.MyDataset",
 }
 ```
 
@@ -127,7 +127,7 @@ datasets:
 
 ### 5. Add a readable name
 
-(Optional but recommended) Add a display name in `DATASET_NAME_MAPPING` in `afabench/eval/plotting_config.py`:
+(Optional but recommended) Add a display name in `DATASET_NAME_MAPPING` in `afabench/evaluation/plotting_config.py`:
 
 ```python
 DATASET_NAME_MAPPING = {
@@ -138,7 +138,7 @@ DATASET_NAME_MAPPING = {
 
 ### 6. Add to dataset sets
 
-(Optional but recommended) Add your dataset to one or more *dataset sets* in `DATASET_SETS` in `afabench/eval/plotting_config.py`. Dataset sets group datasets for organized plotting:
+(Optional but recommended) Add your dataset to one or more *dataset sets* in `DATASET_SETS` in `afabench/evaluation/plotting_config.py`. Dataset sets group datasets for organized plotting:
 
 ```python
 DATASET_SETS = {

@@ -9,23 +9,23 @@ import torch
 from omegaconf import OmegaConf
 from torchrl.modules import MLP
 
-from afabench.afa_rl.common.utils import (
+from afabench.components.methods.rl.common.utils import (
     str_to_activation_class_mapping,
 )
-from afabench.afa_rl.zannone2019.models import (
+from afabench.components.methods.rl.zannone2019.models import (
     PartialVAE,
     PointNet,
     PointNetType,
     Zannone2019PretrainingModel,
 )
-from afabench.common.config_classes import Zannone2019PretrainConfig
-from afabench.common.custom_types import AFADataset
-from afabench.common.supervised_learning import supervised_learning
-from afabench.common.utils import (
+from afabench.core.config_classes import Zannone2019PretrainConfig
+from afabench.core.types import AFADataset
+from afabench.core.utils import (
     get_class_frequencies,
     initialize_wandb_run,
     set_seed,
 )
+from afabench.training.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
 

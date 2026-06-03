@@ -1,11 +1,11 @@
 import polars as pl
 import torch
 
-from afabench.common.custom_types import (
+from afabench.core.types import (
     Features,
     Label,
 )
-from afabench.eval.eval import process_batch
+from afabench.evaluation.eval import process_batch
 from afabench.testing.helpers import (
     get_deterministic_action_fn,
     get_deterministic_afa_predict_fn,

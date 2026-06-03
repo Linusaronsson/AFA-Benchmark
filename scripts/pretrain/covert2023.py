@@ -3,14 +3,14 @@ from typing import cast
 
 import hydra
 
-from afabench.afa_discriminative.pretrain.covert2023_image import (
+from afabench.components.methods.discriminative.dime.pretrain.image import (
     pretrain_image,
 )
-from afabench.afa_discriminative.pretrain.covert2023_tabular import (
+from afabench.components.methods.discriminative.dime.pretrain.tabular import (
     pretrain_tabular,
 )
-from afabench.common.bundle import load_bundle
-from afabench.common.config_classes import (
+from afabench.core.bundle import load_bundle
+from afabench.core.config_classes import (
     Covert2023Pretraining2DConfig,
     Covert2023PretrainingConfig,
 )

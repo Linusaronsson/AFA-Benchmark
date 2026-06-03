@@ -1,7 +1,7 @@
 import torch
 
-from afabench.common.afa_methods import SequentialDummyAFAMethod
-from afabench.common.custom_types import (
+from afabench.components.methods.dummy import SequentialDummyAFAMethod
+from afabench.core.types import (
     AFASelection,
     FeatureMask,
     Features,
@@ -9,7 +9,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.eval.eval import process_batch
+from afabench.evaluation.eval import process_batch
 
 
 def test_sequential_dummy_method_always_selects_0() -> None:

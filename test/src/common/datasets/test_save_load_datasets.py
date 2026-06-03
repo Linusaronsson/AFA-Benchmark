@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 import torch
 
-from afabench.common.registry import get_class
+from afabench.core.registry import get_class
 
 pytestmark = pytest.mark.optional
 

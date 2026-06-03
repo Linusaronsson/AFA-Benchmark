@@ -6,15 +6,17 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.afa_oracle import create_aaco_method
-from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.config_classes import AACOTrainConfig
-from afabench.common.naming import infer_dataset_key_from_class_name
-from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import set_seed
+from afabench.components.methods.oracle import create_aaco_method
+from afabench.components.unmaskers.utils import (
+    get_afa_unmasker_from_config,
+)
+from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.config_classes import AACOTrainConfig
+from afabench.core.naming import infer_dataset_key_from_class_name
+from afabench.core.utils import set_seed
 
 if TYPE_CHECKING:
-    from afabench.common.custom_types import AFADataset
+    from afabench.core.types import AFADataset
 
 logger = logging.getLogger(__name__)
 

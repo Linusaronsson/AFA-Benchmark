@@ -8,19 +8,21 @@ import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger
 
-from afabench.afa_rl.common.dataset_utils import DataModuleFromDatasets
-from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.classifiers import WrappedMaskedMLPClassifier
-from afabench.common.config_classes import TrainMaskedMLPClassifierConfig
-from afabench.common.datasets.utils import flatten_features_collate
-from afabench.common.models import LitMaskedMLPClassifier
-from afabench.common.naming import infer_dataset_key_from_class_name
-from afabench.common.utils import get_class_frequencies, set_seed
+from afabench.components.classifiers import WrappedMaskedMLPClassifier
+from afabench.components.classifiers.models import LitMaskedMLPClassifier
+from afabench.components.methods.rl.common.dataset_utils import (
+    DataModuleFromDatasets,
+)
+from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.config_classes import TrainMaskedMLPClassifierConfig
+from afabench.core.naming import infer_dataset_key_from_class_name
+from afabench.core.utils import get_class_frequencies, set_seed
+from afabench.datasets.utils import flatten_features_collate
 
 if TYPE_CHECKING:
     from torch.utils.data import Dataset
 
-    from afabench.common.custom_types import AFADataset, Features, Label
+    from afabench.core.types import AFADataset, Features, Label
 
 log = logging.getLogger(__name__)
 

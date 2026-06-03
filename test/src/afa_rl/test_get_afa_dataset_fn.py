@@ -1,6 +1,8 @@
 import torch
 
-from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
+from afabench.components.methods.rl.common.dataset_utils import (
+    get_afa_dataset_fn,
+)
 
 
 def test_get_afa_dataset_fn() -> None:

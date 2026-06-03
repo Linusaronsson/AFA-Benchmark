@@ -13,24 +13,26 @@ from typing import TYPE_CHECKING, Any, cast
 import hydra
 import torch
 
-from afabench.afa_oracle import (
+from afabench.components.initializers.utils import (
+    get_afa_initializer_from_config,
+)
+from afabench.components.methods.oracle import (
     AACOPolicyNetwork,
     create_aaco_nn_method,
     create_rollout_data_loaders,
     generate_aaco_rollouts,
     train_policy_network,
 )
-from afabench.afa_oracle.afa_methods import AACOAFAMethod
-from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.initializers.utils import (
-    get_afa_initializer_from_config,
+from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
+from afabench.components.unmaskers.utils import (
+    get_afa_unmasker_from_config,
 )
-from afabench.common.naming import infer_dataset_key_from_class_name
-from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import set_seed
+from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.naming import infer_dataset_key_from_class_name
+from afabench.core.utils import set_seed
 
 if TYPE_CHECKING:
-    from afabench.common.config_classes import AACONNTrainConfig
+    from afabench.core.config_classes import AACONNTrainConfig
 
 logger = logging.getLogger(__name__)
 

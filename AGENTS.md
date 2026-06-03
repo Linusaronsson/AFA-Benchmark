@@ -122,8 +122,8 @@ uv sync
   import torch
   from jaxtyping import Float
 
-  from afabench.common.bundle import Bundle
-  from afabench.common.registry import Registry
+  from afabench.core.bundle import Bundle
+  from afabench.core.registry import Registry
   ```
 
 ### Type Annotations
@@ -209,13 +209,13 @@ uv sync
 
 ### Code Organization
 
-- **Registry pattern:** Use `afabench.common.registry.Registry` for extensible components
-- **Bundle system:** Use `afabench.common.bundle.Bundle` for serialization
+- **Registry pattern:** Use `afabench.core.registry.Registry` for extensible components
+- **Bundle system:** Use `afabench.core.bundle.Bundle` for serialization
 - **Configuration:** Use Hydra configs with dataclasses in `config_classes.py`
 - **Type definitions:** Define reusable type aliases at module level
 - Example:
   ```python
-  from afabench.common.registry import Registry
+  from afabench.core.registry import Registry
 
   my_registry: Registry[MyClass] = Registry()
 

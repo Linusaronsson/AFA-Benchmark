@@ -6,11 +6,11 @@ import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from afabench.common.bundle import load_bundle
-from afabench.common.registry import get_class
+from afabench.core.bundle import load_bundle
+from afabench.core.registry import get_class
 
 if TYPE_CHECKING:
-    from afabench.common.custom_types import AFAInitializer, AFAUnmasker
+    from afabench.core.types import AFAInitializer, AFAUnmasker
 
 HF_REPO_ID = "afabench/checkpoints"
 
@@ -90,7 +90,7 @@ def _download_and_extract(
     repo_id: str,
     cache_dir: Path | None,
 ) -> Path:
-    from huggingface_hub import hf_hub_download
+    from huggingface_hub import hf_hub_download  # noqa: PLC0415
 
     zip_path = Path(
         hf_hub_download(

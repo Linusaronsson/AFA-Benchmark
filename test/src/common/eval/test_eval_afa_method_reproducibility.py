@@ -6,7 +6,7 @@ import pandas as pd
 import torch
 from torch.utils.data import Dataset
 
-from afabench.common.custom_types import (
+from afabench.core.types import (
     AFAAction,
     AFASelection,
     FeatureMask,
@@ -15,7 +15,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.eval.eval import eval_afa_method
+from afabench.evaluation.eval import eval_afa_method
 
 
 class DummyDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):

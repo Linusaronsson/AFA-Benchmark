@@ -7,24 +7,28 @@ import torch
 from omegaconf.omegaconf import OmegaConf
 from torch.nn import functional as F
 
-from afabench.afa_rl.common.afa_methods import RLAFAMethod
-from afabench.afa_rl.common.agent_interface import Agent
-from afabench.afa_rl.common.custom_types import AFARewardFn
-from afabench.afa_rl.common.training import RLTrainer
-from afabench.afa_rl.zannone2019.agents import Zannone2019Agent
-from afabench.afa_rl.zannone2019.models import (
+from afabench.components.methods.rl.common.afa_methods import RLAFAMethod
+from afabench.components.methods.rl.common.agent_interface import Agent
+from afabench.components.methods.rl.common.custom_types import AFARewardFn
+from afabench.components.methods.rl.common.training import RLTrainer
+from afabench.components.methods.rl.zannone2019.agents import (
+    Zannone2019Agent,
+)
+from afabench.components.methods.rl.zannone2019.models import (
     Zannone2019AFAClassifier,
     Zannone2019PretrainingModel,
 )
-from afabench.afa_rl.zannone2019.reward import get_zannone2019_reward_fn
-from afabench.common.bundle import load_bundle
-from afabench.common.config_classes import Zannone2019TrainConfig
-from afabench.common.custom_types import AFAMethod, Features, Label
-from afabench.common.datasets.wrappers import ExtendedAFADataset
-from afabench.common.utils import set_seed
+from afabench.components.methods.rl.zannone2019.reward import (
+    get_zannone2019_reward_fn,
+)
+from afabench.core.bundle import load_bundle
+from afabench.core.config_classes import Zannone2019TrainConfig
+from afabench.core.types import AFAMethod, Features, Label
+from afabench.core.utils import set_seed
+from afabench.datasets.wrappers import ExtendedAFADataset
 
 if TYPE_CHECKING:
-    from afabench.common.torch_bundle import TorchModelBundle
+    from afabench.core.torch_bundle import TorchModelBundle
 
 log = logging.getLogger(__name__)
 

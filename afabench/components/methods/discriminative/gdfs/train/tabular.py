@@ -1,0 +1,140 @@
+import gc
+import logging
+from pathlib import Path
+from typing import cast
+
+import torch
+from omegaconf import OmegaConf
+from torch import nn
+from torchrl.modules import MLP
+
+from afabench.components.methods.discriminative.common.datasets import (
+    prepare_datasets,
+)
+from afabench.components.methods.discriminative.common.models import (
+    GreedyAFAClassifier,  # noqa: TC001
+)
+from afabench.components.methods.discriminative.common.utils import (
+    MaskLayer,
+    afa_discriminative_training_prep,
+    tie_first_k_linears_by_module,
+)
+from afabench.components.methods.discriminative.gdfs.afa_methods import (
+    CMIEstimator,
+    Gadgil2023AFAMethod,
+)
+from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.config_classes import Gadgil2023TrainingConfig
+from afabench.core.utils import set_seed
+
+log = logging.getLogger(__name__)
+
+
+def train_tabular(cfg: Gadgil2023TrainingConfig) -> None:
+    log.debug(cfg)
+    set_seed(cfg.seed)
+    device = torch.device(cfg.device)
+    torch.set_float32_matmul_precision("medium")
+    if cfg.smoke_test:
+        cfg.nepochs = 1
+        cfg.patience = 1
+
+    train_dataset, val_dataset, initializer, unmasker, class_weights = (
+        afa_discriminative_training_prep(
+            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
+            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
+            initializer_cfg=cfg.initializer,
+            unmasker_cfg=cfg.unmasker,
+        )
+    )
+    assert class_weights is not None
+    class_weights = class_weights.to(device)
+
+    train_loader, val_loader, d_in, d_out = prepare_datasets(
+        train_dataset, val_dataset, cfg.batch_size
+    )
+
+    predictor, _ = load_bundle(
+        Path(cfg.pretrained_model_bundle_path),
+        map_location=device,
+    )
+    classifier_bundle = cast(
+        "GreedyAFAClassifier",
+        cast("object", predictor),
+    )
+    predictor = classifier_bundle.predictor.to(device)
+    n_selections = unmasker.get_n_selections(torch.Size([d_in]))
+    # assert n_selections == d_in
+
+    value_network = MLP(
+        in_features=d_in * 2,
+        out_features=n_selections,
+        num_cells=cfg.hidden_units,
+        activation_class=getattr(nn, cfg.activation),
+        dropout=cfg.dropout,
+    ).to(device)
+
+    # pred_linears = [m for m in predictor.modules() if isinstance(m, nn.Linear)]
+    # value_linears = [
+    #     m for m in value_network.modules() if isinstance(m, nn.Linear)
+    # ]
+    # msg = "Mismatch in number of linear layers."
+    # assert len(pred_linears) == len(value_linears), msg
+    # for i in range(len(cfg.hidden_units)):
+    #     value_linears[i].weight = pred_linears[i].weight
+    #     value_linears[i].bias = pred_linears[i].bias
+
+    tie_first_k_linears_by_module(predictor, value_network, k=2)
+
+    mask_layer = MaskLayer(append=True)
+
+    greedy_cmi_estimator = CMIEstimator(
+        value_network=value_network,
+        predictor=predictor,
+        mask_layer=mask_layer,
+        initializer=initializer,
+        unmasker=unmasker,
+    ).to(device)
+    feature_costs = train_dataset.get_feature_acquisition_costs()
+    greedy_cmi_estimator.fit(
+        train_loader,
+        val_loader,
+        lr=cfg.lr,
+        nepochs=cfg.nepochs,
+        max_features=cfg.hard_budget,
+        eps=cfg.eps,
+        loss_fn=nn.CrossEntropyLoss(reduction="none", weight=class_weights),
+        val_loss_fn=None,
+        val_loss_mode=None,
+        eps_decay=cfg.eps_decay,
+        eps_steps=cfg.eps_steps,
+        patience=cfg.patience,
+        feature_costs=feature_costs.to(device),
+    )
+
+    afa_method = Gadgil2023AFAMethod(
+        greedy_cmi_estimator.value_network.cpu(),
+        greedy_cmi_estimator.predictor.cpu(),
+        device=torch.device("cpu"),
+        value_network_hidden_layers=cfg.hidden_units,
+        predictor_hidden_layers=cfg.hidden_units,
+        dropout=cfg.dropout,
+        modality="tabular",
+        d_in=d_in,
+        d_out=d_out,
+        n_selections=n_selections,
+        selection_costs=unmasker.get_selection_costs(feature_costs),
+    )
+
+    save_bundle(
+        obj=afa_method,
+        path=Path(cfg.save_path),
+        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+    )
+
+    log.info(f"Gadgil2023 method saved to: {cfg.save_path}")
+
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()

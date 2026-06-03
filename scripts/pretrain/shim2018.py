@@ -8,20 +8,20 @@ import lightning as pl
 import torch
 from omegaconf import OmegaConf
 
-from afabench.afa_rl.shim2018.models import (
+from afabench.components.methods.rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
     ReadProcessEncoder,
     Shim2018Embedder,
     Shim2018MLPClassifier,
 )
-from afabench.common.config_classes import Shim2018PretrainConfig
-from afabench.common.custom_types import AFADataset
-from afabench.common.supervised_learning import supervised_learning
-from afabench.common.utils import (
+from afabench.core.config_classes import Shim2018PretrainConfig
+from afabench.core.types import AFADataset
+from afabench.core.utils import (
     get_class_frequencies,
     initialize_wandb_run,
     set_seed,
 )
+from afabench.training.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ Every object that needs to be saved/loaded follows the same format.
 
 ## Usage
 
-Use `afabench.common.bundle.save_bundle()` to save bundles and `afabench.common.bundle.load_bundle()` to load bundles.
+Use `afabench.core.bundle.save_bundle()` to save bundles and `afabench.core.bundle.load_bundle()` to load bundles.
 
 ## Format specification
 
@@ -38,19 +38,19 @@ The manifest contains essential information for reconstructing the object and op
 ```
 
 - `bundle_version`: The version of the bundle specification/protocol.
-- `class_name`: A globally unique string that identifies the object's class; used to look up the appropriate class with `afabench.common.registry.get_class()`.
+- `class_name`: A globally unique string that identifies the object's class; used to look up the appropriate class with `afabench.core.registry.get_class()`.
 - `class_version`: The object's own version, following Semantic Versioning (SemVer). Major version differences indicate incompatibility.
 - `metadata`: Optional, arbitrary information about the object.
 
 ## Registering classes for deserialization
 
-When `load_bundle()` reads a manifest, it needs to know which Python class corresponds to the `class_name` in the manifest. This mapping is defined in `afabench/common/registry.py` in the `REGISTERED_CLASSES` dictionary:
+When `load_bundle()` reads a manifest, it needs to know which Python class corresponds to the `class_name` in the manifest. This mapping is defined in `afabench/core/registry.py` in the `REGISTERED_CLASSES` dictionary:
 
 ```python
 REGISTERED_CLASSES = {
     "MyClass": "my_module.submodule.MyClass",
-    "MyDataset": "afabench.common.datasets.datasets.MyDataset",
-    "RandomDummyAFAMethod": "afabench.common.afa_methods.RandomDummyAFAMethod",
+    "MyDataset": "afabench.datasets.datasets.MyDataset",
+    "RandomDummyAFAMethod": "afabench.components.methods.dummy.RandomDummyAFAMethod",
     # ... more entries ...
 }
 ```
@@ -74,7 +74,7 @@ class MyClass:
 
     def save(self, path: Path) -> None:
         """Save object data to the bundle's data/ folder.
-        
+
         The path parameter is the data/ folder itself.
         """
         path.mkdir(parents=True, exist_ok=True)
@@ -89,7 +89,7 @@ class MyClass:
     @classmethod
     def load(cls, path: Path) -> Self:
         """Load object from the bundle's data/ folder.
-        
+
         The path parameter is the data/ folder itself.
         """
         import json
@@ -102,4 +102,3 @@ class MyClass:
 ```
 
 The `path` parameter passed to `save()` and `load()` is the `data/` folder itself, not the bundle root. Save and load files relative to this `path`.
-

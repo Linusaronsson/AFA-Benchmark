@@ -7,21 +7,25 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.common.afa_methods import RandomDummyAFAMethod
-from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.config_classes import (
+from afabench.components.initializers.utils import (
+    get_afa_initializer_from_config,
+)
+from afabench.components.methods.dummy import RandomDummyAFAMethod
+from afabench.components.unmaskers.utils import (
+    get_afa_unmasker_from_config,
+)
+from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.config_classes import (
     RandomDummyTrainConfig,
 )
-from afabench.common.initializers.utils import get_afa_initializer_from_config
-from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import (
+from afabench.core.utils import (
     initialize_wandb_run,
     set_seed,
 )
-from afabench.eval.eval import eval_afa_method
+from afabench.evaluation.eval import eval_afa_method
 
 if TYPE_CHECKING:
-    from afabench.common.custom_types import AFADataset
+    from afabench.core.types import AFADataset
 
 log = logging.getLogger(__name__)
 
