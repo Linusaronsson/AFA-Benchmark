@@ -1,15 +1,8 @@
 methods:
-  - jafa
-  - odin_model_free
-  - odin_model_based
   - ol_without_mask
   - ol_with_mask
   - random_dummy
   - sequential_dummy
-  - gdfs
-  - eddi_builtin
-  - eddi_external
-  - dime
   - cae
   - permutation
   - aaco
