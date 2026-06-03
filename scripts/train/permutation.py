@@ -12,14 +12,20 @@ from torchmetrics import AUROC
 from torchrl.modules import MLP
 from tqdm import tqdm
 
-from afabench.afa_discriminative.datasets import prepare_datasets
-from afabench.afa_discriminative.utils import afa_discriminative_training_prep
-from afabench.common.bundle import save_bundle
-from afabench.common.config_classes import PermutationTrainingConfig
-from afabench.common.utils import set_seed
-from afabench.static.models import BaseModel
-from afabench.static.static_methods import StaticBaseMethod
-from afabench.static.utils import transform_dataset
+from afabench.components.methods.discriminative.common.datasets import (
+    prepare_datasets,
+)
+from afabench.components.methods.discriminative.common.utils import (
+    afa_discriminative_training_prep,
+)
+from afabench.components.methods.static.pt.models import BaseModel
+from afabench.components.methods.static.pt.static_methods import (
+    StaticBaseMethod,
+)
+from afabench.components.methods.static.pt.utils import transform_dataset
+from afabench.core.bundle import save_bundle
+from afabench.core.config_classes import PermutationTrainingConfig
+from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)
 

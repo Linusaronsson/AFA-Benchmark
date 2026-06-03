@@ -2,7 +2,9 @@ from unittest import TestCase
 
 import torch
 
-from afabench.afa_rl.common.dataset_utils import get_wrapped_batch
+from afabench.components.methods.rl.common.dataset_utils import (
+    get_wrapped_batch,
+)
 
 
 class TestDatasets(TestCase):

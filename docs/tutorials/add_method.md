@@ -24,12 +24,12 @@ import hydra
 from omegaconf import OmegaConf
 from torch import nn
 
-from afabench.common.bundle import save_bundle
-from afabench.common.config_classes import (
+from afabench.core.bundle import save_bundle
+from afabench.core.config_classes import (
     ExamplePretrainConfig,
 )
-from afabench.common.torch_bundle import TorchModelBundle
-from afabench.common.utils import (
+from afabench.core.torch_bundle import TorchModelBundle
+from afabench.core.utils import (
     initialize_wandb_run,
 )
 
@@ -64,7 +64,7 @@ if __name__ == "__main__":
     main()
 ```
 
-See the `pretrain_model` rule in `training.smk` for arguments that the script is required to support. Since the arguments are passed without dashes, you are encouraged to use Hydra for the script configuration. Place your pretrain configuration class in `afabench/common/config._classes.py`:
+See the `pretrain_model` rule in `training.smk` for arguments that the script is required to support. Since the arguments are passed without dashes, you are encouraged to use Hydra for the script configuration. Place your pretrain configuration class in `afabench/core/config_classes.py`:
 
 ```python
 @dataclass
@@ -136,21 +136,21 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.common.afa_methods import RandomDummyAFAMethod
-from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.config_classes import (
+from afabench.components.methods.dummy import RandomDummyAFAMethod
+from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.config_classes import (
     ExampleTrainConfig,
 )
-from afabench.common.initializers.utils import get_afa_initializer_from_config
-from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import (
+from afabench.components.initializers.utils import get_afa_initializer_from_config
+from afabench.components.unmaskers.utils import get_afa_unmasker_from_config
+from afabench.core.utils import (
     initialize_wandb_run,
     set_seed,
 )
-from afabench.eval.eval import eval_afa_method
+from afabench.evaluation.eval import eval_afa_method
 
 if TYPE_CHECKING:
-    from afabench.common.custom_types import AFADataset
+    from afabench.core.types import AFADataset
 
 log = logging.getLogger(__name__)
 
@@ -226,7 +226,7 @@ if __name__ == "__main__":
     main()
 ```
 
-Note that this is almost identical to `scripts/train/random_dummy.py`. Had we used a different class than `RandomAFAMethod` to represent our method, we would also have to add it to the registry object `REGISTERED_CLASSES` in `afabench/common/registry.py`. However, there is already an entry for `"RandomDummyAFAMethod": "afabench.common.afa_methods.RandomDummyAFAMethod"`.
+Note that this is almost identical to `scripts/train/random_dummy.py`. Had we used a different class than `RandomAFAMethod` to represent our method, we would also have to add it to the registry object `REGISTERED_CLASSES` in `afabench/core/registry.py`. However, there is already an entry for `"RandomDummyAFAMethod": "afabench.components.methods.dummy.RandomDummyAFAMethod"`.
 
 Similar to before, you have to configure a config dataclass in `config_classes.py`:
 ```python
@@ -318,7 +318,7 @@ This declaration ensures that soft-budget parameters are only passed to the meth
 
 ### 4. Visualization options
 
-Choose how the method should be displayed in plots by adding an entry to `METHOD_NAME_MAPPING` in `afabench/eval/plotting_config.py`. For example, we may add
+Choose how the method should be displayed in plots by adding an entry to `METHOD_NAME_MAPPING` in `afabench/evaluation/plotting_config.py`. For example, we may add
 ```python
 "example_method": "Example"
 ```

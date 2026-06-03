@@ -8,19 +8,21 @@ import lightning as pl
 import torch
 from omegaconf import OmegaConf
 
-from afabench.afa_rl.kachuee2019.models import (
+from afabench.components.methods.rl.kachuee2019.models import (
     Kachuee2019PQModule,
     LitKachuee2019PQModule,
 )
-from afabench.common.config_classes import Kachuee2019PretrainConfig
-from afabench.common.custom_types import AFADataset
-from afabench.common.supervised_learning import supervised_learning
-from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import (
+from afabench.components.unmaskers.utils import (
+    get_afa_unmasker_from_config,
+)
+from afabench.core.config_classes import Kachuee2019PretrainConfig
+from afabench.core.types import AFADataset
+from afabench.core.utils import (
     get_class_frequencies,
     initialize_wandb_run,
     set_seed,
 )
+from afabench.training.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
 

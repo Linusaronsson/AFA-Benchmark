@@ -7,15 +7,19 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.afa_discriminative.utils import afa_discriminative_training_prep
-from afabench.afa_generative.afa_methods import Ma2018AFAMethod
-from afabench.afa_rl.zannone2019.models import (
+from afabench.components.methods.discriminative.common.utils import (
+    afa_discriminative_training_prep,
+)
+from afabench.components.methods.generative.eddi.afa_methods import (
+    Ma2018AFAMethod,
+)
+from afabench.components.methods.rl.zannone2019.models import (
     Zannone2019PretrainingModel,  # noqa: TC001
 )
-from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.config_classes import Ma2018TrainingConfig
-from afabench.common.torch_bundle import TorchModelBundle  # noqa: TC001
-from afabench.common.utils import set_seed
+from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.config_classes import Ma2018TrainingConfig
+from afabench.core.torch_bundle import TorchModelBundle  # noqa: TC001
+from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)
 

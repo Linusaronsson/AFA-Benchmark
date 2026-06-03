@@ -30,7 +30,7 @@ from plotnine import (
     theme,
 )
 
-from afabench.common.config_classes import (
+from afabench.core.config_classes import (
     PlottingDisplayConfig,
     PlotTotalTimeConfig,
 )

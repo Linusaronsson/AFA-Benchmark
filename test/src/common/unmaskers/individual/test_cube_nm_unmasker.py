@@ -3,7 +3,7 @@ from typing import Any
 import pytest
 import torch
 
-from afabench.common.unmaskers.cube_nm_unmasker import CubeNMUnmasker
+from afabench.components.unmaskers.cube_nm_unmasker import CubeNMUnmasker
 
 
 @pytest.fixture

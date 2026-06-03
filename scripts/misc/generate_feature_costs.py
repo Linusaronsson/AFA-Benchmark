@@ -10,10 +10,10 @@ import numpy as np
 from numpy.typing import NDArray
 from omegaconf import DictConfig, OmegaConf
 
-from afabench.common.registry import get_class
+from afabench.core.registry import get_class
 
 if TYPE_CHECKING:
-    from afabench.common.custom_types import AFADataset
+    from afabench.core.types import AFADataset
 
 type CostArray = NDArray[np.floating]
 

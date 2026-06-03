@@ -5,9 +5,7 @@
   ],
   "exclude": [
     "**/node_modules",
-    "**/__pycache__",
-    "notebooks",
-    "scripts/misc/notebook.py"
+    "**/__pycache__"
   ],
   "strict": [],
   "ignore": [],

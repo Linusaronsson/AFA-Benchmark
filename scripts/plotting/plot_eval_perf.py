@@ -27,7 +27,7 @@ from plotnine import (
 )
 from sklearn.metrics import accuracy_score, f1_score
 
-from afabench.common.config_classes import (
+from afabench.core.config_classes import (
     PlotEvalPerfConfig,
     PlottingDisplayConfig,
 )

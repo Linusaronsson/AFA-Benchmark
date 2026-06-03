@@ -1,6 +1,6 @@
 import torch
 
-from afabench.eval.eval import override_stop_with_first_selection
+from afabench.evaluation.eval import override_stop_with_first_selection
 
 
 def test_only_overrides_stop_actions() -> None:

@@ -2,8 +2,8 @@ from pathlib import Path
 
 import torch
 
-from afabench.common.classifiers import UniformDummyAFAClassifier
-from afabench.common.dummy_afa_methods import (
+from afabench.components.classifiers import UniformDummyAFAClassifier
+from afabench.components.methods.selection import (
     RandomSelectionAFAMethod,
     SequentialSelectionAFAMethod,
 )

@@ -8,23 +8,27 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 
-from afabench.common.bundle import load_bundle
-from afabench.common.config_classes import (
+from afabench.components.initializers.utils import (
+    get_afa_initializer_from_config,
+)
+from afabench.components.unmaskers.utils import (
+    get_afa_unmasker_from_config,
+)
+from afabench.core.bundle import load_bundle
+from afabench.core.config_classes import (
     EvalConfig,
 )
-from afabench.common.custom_types import SupportsForcedAcquisition
-from afabench.common.initializers.utils import get_afa_initializer_from_config
-from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import (
+from afabench.core.types import SupportsForcedAcquisition
+from afabench.core.utils import (
     set_seed,
 )
-from afabench.eval.eval import eval_afa_method
+from afabench.evaluation.eval import eval_afa_method
 
 if TYPE_CHECKING:
     import pandas as pd
     from wandb.sdk.wandb_run import Run
 
-    from afabench.common.custom_types import (
+    from afabench.core.types import (
         AFAClassifier,
         AFADataset,
         AFAInitializer,

@@ -9,23 +9,25 @@ from tensordict import TensorDictBase
 from torch import optim
 from torch.nn import functional as F
 
-from afabench.afa_rl.common.afa_methods import RLAFAMethod
-from afabench.afa_rl.common.agent_interface import Agent
-from afabench.afa_rl.common.custom_types import AFARewardFn
-from afabench.afa_rl.common.training import RLTrainer
-from afabench.afa_rl.shim2018.agents import Shim2018Agent
-from afabench.afa_rl.shim2018.models import (
+from afabench.components.methods.rl.common.afa_methods import RLAFAMethod
+from afabench.components.methods.rl.common.agent_interface import Agent
+from afabench.components.methods.rl.common.custom_types import AFARewardFn
+from afabench.components.methods.rl.common.training import RLTrainer
+from afabench.components.methods.rl.shim2018.agents import Shim2018Agent
+from afabench.components.methods.rl.shim2018.models import (
     LitShim2018EmbedderClassifier,
     Shim2018AFAClassifier,
 )
-from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
-from afabench.common.bundle import load_bundle
-from afabench.common.config_classes import Shim2018TrainConfig
-from afabench.common.custom_types import AFAMethod
-from afabench.common.utils import set_seed
+from afabench.components.methods.rl.shim2018.reward import (
+    get_shim2018_reward_fn,
+)
+from afabench.core.bundle import load_bundle
+from afabench.core.config_classes import Shim2018TrainConfig
+from afabench.core.types import AFAMethod
+from afabench.core.utils import set_seed
 
 if TYPE_CHECKING:
-    from afabench.common.torch_bundle import TorchModelBundle
+    from afabench.core.torch_bundle import TorchModelBundle
 
 log = logging.getLogger(__name__)
 

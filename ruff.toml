@@ -64,8 +64,6 @@ ignore = [
   # (F)
   "F722",  # forward-annotation-syntax-error. Allows us to use jaxtyping to annotate shapes.
   "CPY001",  # missing-copyright-notice
-  # Pandas (PD)
-  "PD901", # pandas-df-variable-name
 ]
 extend-safe-fixes = [
   "D200",

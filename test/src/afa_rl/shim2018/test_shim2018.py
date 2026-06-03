@@ -49,20 +49,20 @@
 # from torch import Tensor
 # from torchrl.envs import check_env_specs
 
-# from afabench.afa_rl.afa_env import AFAEnv
-# from afabench.afa_rl.datasets import get_afa_dataset_fn
-# from afabench.afa_rl.shim2018.agents import Shim2018Agent
-# from afabench.afa_rl.shim2018.models import (
+# from afabench.components.methods.rl.afa_env import AFAEnv
+# from afabench.components.methods.rl.datasets import get_afa_dataset_fn
+# from afabench.components.methods.rl.shim2018.agents import Shim2018Agent
+# from afabench.components.methods.rl.shim2018.models import (
 #     Shim2018AFAPredictFn,
 # )
-# from afabench.afa_rl.shim2018.reward import get_shim2018_reward_fn
-# from afabench.afa_rl.shim2018.shim2018_testing_configs import (
+# from afabench.components.methods.rl.shim2018.reward import get_shim2018_reward_fn
+# from afabench.components.methods.rl.shim2018.shim2018_testing_configs import (
 #     get_all_test_config_names,
 #     get_basic_pretrain_config,
 #     get_test_config,
 # )
-# from afabench.afa_rl.shim2018.utils import get_shim2018_model_from_config
-# from afabench.common.custom_types import (
+# from afabench.components.methods.rl.shim2018.utils import get_shim2018_model_from_config
+# from afabench.core.types import (
 #     AFAAction,
 #     FeatureMask,
 #     Features,
@@ -70,9 +70,9 @@
 #     MaskedFeatures,
 #     SelectionMask,
 # )
-# from afabench.common.initializers.utils import get_afa_initializer_from_config
-# from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-# from afabench.common.utils import get_class_frequencies, set_seed
+# from afabench.components.initializers.utils import get_afa_initializer_from_config
+# from afabench.components.unmaskers.utils import get_afa_unmasker_from_config
+# from afabench.core.utils import get_class_frequencies, set_seed
 
 
 # def create_synthetic_dataset(
@@ -284,7 +284,7 @@
 #         )
 
 #         # Create agent
-#         from afabench.afa_rl.shim2018.shim2018_testing_configs import (
+#         from afabench.components.methods.rl.shim2018.shim2018_testing_configs import (
 #             get_basic_agent_config,
 #         )
 
@@ -586,7 +586,7 @@
 #             dtype=torch.int64,
 #         )
 
-#         from afabench.afa_rl.shim2018.shim2018_testing_configs import (
+#         from afabench.components.methods.rl.shim2018.shim2018_testing_configs import (
 #             get_basic_agent_config,
 #         )
 

@@ -5,9 +5,9 @@ from typing import Any, cast
 import hydra
 import torch
 
-from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.config_classes import ResaveConfig
-from afabench.common.custom_types import AFAMethod  # noqa: TC001
+from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.config_classes import ResaveConfig
+from afabench.core.types import AFAMethod  # noqa: TC001
 
 log = logging.getLogger(__name__)
 

@@ -3,10 +3,14 @@ from typing import cast
 
 import hydra
 
-from afabench.afa_discriminative.train.gadgil2023_image import train_image
-from afabench.afa_discriminative.train.gadgil2023_tabular import train_tabular
-from afabench.common.bundle import load_bundle
-from afabench.common.config_classes import (
+from afabench.components.methods.discriminative.gdfs.train.image import (
+    train_image,
+)
+from afabench.components.methods.discriminative.gdfs.train.tabular import (
+    train_tabular,
+)
+from afabench.core.bundle import load_bundle
+from afabench.core.config_classes import (
     Gadgil2023Training2DConfig,
     Gadgil2023TrainingConfig,
 )

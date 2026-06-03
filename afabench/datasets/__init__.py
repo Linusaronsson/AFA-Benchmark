@@ -1,0 +1,31 @@
+from .datasets import (
+    ACTG175Dataset,
+    BankMarketingDataset,
+    CKDDataset,
+    CubeDataset,
+    CubeNMDataset,
+    CubeNonUniformCostsDataset,
+    DiabetesDataset,
+    FashionMNISTDataset,
+    ImagenetteDataset,
+    MiniBooNEDataset,
+    MNISTDataset,
+    PhysionetDataset,
+    SyntheticMNISTDataset,
+)
+
+__all__ = [
+    "ACTG175Dataset",
+    "BankMarketingDataset",
+    "CKDDataset",
+    "CubeDataset",
+    "CubeNMDataset",
+    "CubeNonUniformCostsDataset",
+    "DiabetesDataset",
+    "FashionMNISTDataset",
+    "ImagenetteDataset",
+    "MNISTDataset",
+    "MiniBooNEDataset",
+    "PhysionetDataset",
+    "SyntheticMNISTDataset",
+]

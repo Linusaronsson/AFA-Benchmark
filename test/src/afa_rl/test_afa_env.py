@@ -1,14 +1,20 @@
 import torch
 
-from afabench.afa_rl.common.afa_env import AFAEnv
-from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
-from afabench.afa_rl.common.reward_functions import get_fixed_reward_reward_fn
-from afabench.common.initializers.fixed_random_initializer import (
+from afabench.components.initializers.fixed_random_initializer import (
     FixedRandomInitializer,
 )
-from afabench.common.initializers.manual_initializer import ManualInitializer
-from afabench.common.unmaskers import ImagePatchUnmasker
-from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
+from afabench.components.initializers.manual_initializer import (
+    ManualInitializer,
+)
+from afabench.components.methods.rl.common.afa_env import AFAEnv
+from afabench.components.methods.rl.common.dataset_utils import (
+    get_afa_dataset_fn,
+)
+from afabench.components.methods.rl.common.reward_functions import (
+    get_fixed_reward_reward_fn,
+)
+from afabench.components.unmaskers import ImagePatchUnmasker
+from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
 
 
 def test_initializer_and_unmasker_integration() -> None:

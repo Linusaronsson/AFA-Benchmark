@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from afabench.common.custom_types import (
+from afabench.core.types import (
     AFAAction,
     AFASelection,
     FeatureMask,
@@ -10,7 +10,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.eval.eval import AFAStepResult, single_afa_step
+from afabench.evaluation.eval import AFAStepResult, single_afa_step
 
 
 def assert_tensor_matches(

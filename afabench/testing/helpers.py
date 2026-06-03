@@ -1,7 +1,7 @@
 import torch
 from torch.nn import functional as F
 
-from afabench.common.custom_types import (
+from afabench.core.types import (
     AFAAction,
     AFAActionFn,
     AFAPredictFn,

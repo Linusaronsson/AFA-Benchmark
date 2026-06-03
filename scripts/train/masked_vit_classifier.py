@@ -9,15 +9,18 @@ from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
 
-from afabench.afa_discriminative.utils import (
+from afabench.components.classifiers import WrappedMaskedViTClassifier
+from afabench.components.classifiers.models import (
+    MaskedViTClassifier,
+    MaskedViTTrainer,
+)
+from afabench.components.methods.discriminative.common.utils import (
     MaskLayer2d,
     afa_discriminative_training_prep,
 )
-from afabench.common.bundle import save_bundle
-from afabench.common.classifiers import WrappedMaskedViTClassifier
-from afabench.common.config_classes import TrainMaskedViTClassifierConfig
-from afabench.common.models import MaskedViTClassifier, MaskedViTTrainer
-from afabench.common.utils import set_seed
+from afabench.core.bundle import save_bundle
+from afabench.core.config_classes import TrainMaskedViTClassifierConfig
+from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)
 

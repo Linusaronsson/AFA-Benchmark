@@ -3,7 +3,7 @@ from collections.abc import Sequence
 import pandas as pd
 import torch
 
-from afabench.common.custom_types import (
+from afabench.core.types import (
     AFAAction,
     AFAActionFn,
     AFAUnmaskFn,
@@ -12,7 +12,7 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.eval.eval import process_batch
+from afabench.evaluation.eval import process_batch
 
 
 def assert_where_selections_there_cost(

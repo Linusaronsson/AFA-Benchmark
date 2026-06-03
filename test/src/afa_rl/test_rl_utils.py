@@ -1,6 +1,6 @@
 import torch
 
-from afabench.afa_rl.common.utils import (
+from afabench.components.methods.rl.common.utils import (
     get_1d_identity,
     get_2d_identity,
     get_feature_set,
