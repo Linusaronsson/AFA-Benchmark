@@ -12,7 +12,7 @@ import torch
 # Add the project root to the path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 
 if TYPE_CHECKING:
     from afabench.core.types import AFADataset

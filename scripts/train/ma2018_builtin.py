@@ -16,9 +16,11 @@ from afabench.components.methods.generative.eddi.afa_methods import (
 from afabench.components.methods.rl.zannone2019.models import (
     Zannone2019PretrainingModel,  # noqa: TC001
 )
-from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.torch_bundle import (
+    TorchModelBundle,  # noqa: TC001
+)
 from afabench.core.config_classes import Ma2018TrainingConfig
-from afabench.core.torch_bundle import TorchModelBundle  # noqa: TC001
 from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)

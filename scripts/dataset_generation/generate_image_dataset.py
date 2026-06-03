@@ -8,7 +8,7 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.core.bundle import save_bundle
+from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.config_classes import (
     DatasetGenerationConfig,
     SplitRatioConfig,

@@ -6,7 +6,7 @@ import zipfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.registry import get_class
 
 if TYPE_CHECKING:

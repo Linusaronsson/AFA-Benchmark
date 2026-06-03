@@ -6,7 +6,7 @@ from typing import Any, Self, override
 import torch
 from torch import nn
 
-from afabench.core.bundle import Loadeable, Saveable
+from afabench.core.bundle_system.bundle import Loadeable, Saveable
 
 
 class TorchModelBundle(Saveable, Loadeable):

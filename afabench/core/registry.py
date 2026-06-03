@@ -15,10 +15,15 @@ REGISTERED_CLASSES = {
     "AACOAFAMethod": "afabench.components.methods.oracle.aaco.afa_methods.AACOAFAMethod",
     "AACONNAFAMethod": "afabench.components.methods.oracle.aaco.nn.AACONNAFAMethod",
     "StaticBaseMethod": "afabench.components.methods.static.pt.StaticBaseMethod",
-    "SequentialDummyAFAMethod": "afabench.components.methods.dummy.SequentialDummyAFAMethod",
-    "RandomDummyAFAMethod": "afabench.components.methods.dummy.RandomDummyAFAMethod",
-    "RandomSelectionAFAMethod": "afabench.components.methods.selection.RandomSelectionAFAMethod",
-    "SequentialSelectionAFAMethod": "afabench.components.methods.selection.SequentialSelectionAFAMethod",
+    "RandomWithoutClassifierAFAMethod": "afabench.components.methods.dummy.without_classifier.RandomWithoutClassifierAFAMethod",
+    "SequentialWithoutClassifierAFAMethod": "afabench.components.methods.dummy.without_classifier.SequentialWithoutClassifierAFAMethod",
+    "RandomWithClassifierAFAMethod": "afabench.components.methods.dummy.with_classifier.RandomWithClassifierAFAMethod",
+    "SequentialWithClassifierAFAMethod": "afabench.components.methods.dummy.with_classifier.SequentialWithClassifierAFAMethod",
+    # Legacy aliases for backward compatibility with saved bundles
+    "RandomDummyAFAMethod": "afabench.components.methods.dummy.without_classifier.RandomWithoutClassifierAFAMethod",
+    "SequentialDummyAFAMethod": "afabench.components.methods.dummy.without_classifier.SequentialWithoutClassifierAFAMethod",
+    "RandomSelectionAFAMethod": "afabench.components.methods.dummy.with_classifier.RandomWithClassifierAFAMethod",
+    "SequentialSelectionAFAMethod": "afabench.components.methods.dummy.with_classifier.SequentialWithClassifierAFAMethod",
     # AFA Dataset Classes
     "CubeDataset": "afabench.datasets.datasets.CubeDataset",
     "CubeNonUniformCostsDataset": "afabench.datasets.datasets.CubeNonUniformCostsDataset",
@@ -55,7 +60,7 @@ REGISTERED_CLASSES = {
     "LeastInformativeInitializer": "afabench.components.initializers.LeastInformativeInitializer",
     "RandomInitializer": "afabench.components.initializers.RandomInitializer",
     # General PyTorch Model Bundle
-    "TorchModelBundle": "afabench.core.torch_bundle.TorchModelBundle",
+    "TorchModelBundle": "afabench.core.bundle_system.torch_bundle.TorchModelBundle",
 }
 
 

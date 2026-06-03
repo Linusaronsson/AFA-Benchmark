@@ -1,7 +1,9 @@
-from .dummy import (
+from .with_classifier import (
     RandomWithClassifierAFAMethod,
-    RandomWithoutClassifierAFAMethod,
     SequentialWithClassifierAFAMethod,
+)
+from .without_classifier import (
+    RandomWithoutClassifierAFAMethod,
     SequentialWithoutClassifierAFAMethod,
 )
 

@@ -5,7 +5,7 @@ from typing import Any, cast
 import hydra
 import torch
 
-from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.config_classes import ResaveConfig
 from afabench.core.types import AFAMethod  # noqa: TC001
 

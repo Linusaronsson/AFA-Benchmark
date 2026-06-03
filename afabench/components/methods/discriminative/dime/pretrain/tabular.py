@@ -16,7 +16,7 @@ from afabench.components.methods.discriminative.common.models import (
     MaskingPretrainer,
 )
 from afabench.components.methods.discriminative.common.utils import MaskLayer
-from afabench.core.bundle import (
+from afabench.core.bundle_system.bundle import (
     load_bundle,
     save_bundle,
 )

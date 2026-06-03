@@ -10,11 +10,13 @@ from omegaconf import OmegaConf
 from afabench.components.initializers.utils import (
     get_afa_initializer_from_config,
 )
-from afabench.components.methods.dummy import SequentialDummyAFAMethod
+from afabench.components.methods.dummy import (
+    SequentialWithoutClassifierAFAMethod,
+)
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
-from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.config_classes import (
     SequentialDummyTrainConfig,
 )
@@ -57,14 +59,14 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
     train_dataset = cast("AFADataset", cast("object", train_dataset))
 
     assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
-    # SequentialDummyAFAMethod works with any feature shape since it only uses selection_mask
+    # SequentialWithoutClassifierAFAMethod works with any feature shape since it only uses selection_mask
     n_features = torch.prod(torch.tensor(train_dataset.feature_shape)).item()
     n_classes = train_dataset.label_shape[-1]
 
     log.info(f"Features: {n_features}, Classes: {n_classes}")
     log.info(f"Training samples: {len(train_dataset)}")
 
-    afa_method = SequentialDummyAFAMethod(
+    afa_method = SequentialWithoutClassifierAFAMethod(
         device=torch.device("cpu"),
         n_classes=n_classes,
         prob_select_0=0.0
@@ -98,7 +100,7 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
         obj=afa_method,
         path=Path(cfg.save_path),
         metadata={
-            "method_class_name": "SequentialDummyAFAMethod",
+            "method_class_name": "SequentialWithoutClassifierAFAMethod",
             "dataset_class_name": dataset_manifest["class_name"],
             "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
             # "split_idx": dataset_metadata["split_idx"],

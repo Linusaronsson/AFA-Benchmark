@@ -5,7 +5,7 @@ from typing import cast, override
 import torch
 from torch import nn
 
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.types import (
     AFAAction,
     AFAClassifier,

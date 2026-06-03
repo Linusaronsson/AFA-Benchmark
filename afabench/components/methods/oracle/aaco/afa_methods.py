@@ -10,7 +10,7 @@ from afabench.components.methods.oracle.aaco.utils import (
     flatten_for_aaco,
     uses_patch_selection,
 )
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.registry import get_class
 from afabench.core.types import (
     AFAAction,

@@ -23,7 +23,7 @@ from afabench.components.methods.static.pt.static_methods import (
     StaticBaseMethod,
 )
 from afabench.components.methods.static.pt.utils import transform_dataset
-from afabench.core.bundle import save_bundle
+from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.config_classes import PermutationTrainingConfig
 from afabench.core.utils import set_seed
 

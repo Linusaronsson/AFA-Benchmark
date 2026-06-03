@@ -9,7 +9,7 @@ from afabench.components.methods.discriminative.gdfs.pretrain.image import (
 from afabench.components.methods.discriminative.gdfs.pretrain.tabular import (
     pretrain_tabular,
 )
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.config_classes import (
     Gadgil2023Pretraining2DConfig,
     Gadgil2023PretrainingConfig,

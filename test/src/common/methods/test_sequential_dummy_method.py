@@ -1,6 +1,8 @@
 import torch
 
-from afabench.components.methods.dummy import SequentialDummyAFAMethod
+from afabench.components.methods.dummy import (
+    SequentialWithoutClassifierAFAMethod,
+)
 from afabench.core.types import (
     AFASelection,
     FeatureMask,
@@ -13,8 +15,8 @@ from afabench.evaluation.eval import process_batch
 
 
 def test_sequential_dummy_method_always_selects_0() -> None:
-    """Test that setting prob_select_0=1 in SequentialDummyAFAMethod always performs the 0 action."""
-    method = SequentialDummyAFAMethod(
+    """Test that setting prob_select_0=1 in SequentialWithoutClassifierAFAMethod always performs the 0 action."""
+    method = SequentialWithoutClassifierAFAMethod(
         n_classes=2,
         prob_select_0=1.0,
         device=torch.device("cpu"),

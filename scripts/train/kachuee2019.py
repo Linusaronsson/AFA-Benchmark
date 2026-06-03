@@ -27,7 +27,7 @@ from afabench.components.methods.rl.kachuee2019.models import (
 from afabench.components.methods.rl.kachuee2019.reward import (
     get_kachuee2019_reward_fn,
 )
-from afabench.core.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.config_classes import (
     Kachuee2019TrainConfig,
 )
@@ -37,7 +37,7 @@ from afabench.core.utils import (
 )
 
 if TYPE_CHECKING:
-    from afabench.core.torch_bundle import TorchModelBundle
+    from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 
 log = logging.getLogger(__name__)
 

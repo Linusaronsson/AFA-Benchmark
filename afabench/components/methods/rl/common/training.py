@@ -31,7 +31,7 @@ from afabench.components.unmaskers.utils import (
 
 # from afabench.components.methods.rl.reward_functions import get_range_based_reward_fn
 # from afabench.components.methods.rl.shim2018.reward import get_shim2018_reward_fn
-from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.config_classes import (
     AFAMDPConfig,
     AFARLTrainingLoopConfig,

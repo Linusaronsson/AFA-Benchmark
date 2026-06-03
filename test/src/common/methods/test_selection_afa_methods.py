@@ -3,15 +3,15 @@ from pathlib import Path
 import torch
 
 from afabench.components.classifiers import UniformDummyAFAClassifier
-from afabench.components.methods.selection import (
-    RandomSelectionAFAMethod,
-    SequentialSelectionAFAMethod,
+from afabench.components.methods.dummy import (
+    RandomWithClassifierAFAMethod,
+    SequentialWithClassifierAFAMethod,
 )
 
 
 def test_random_selection_method_selects_unobserved_feature() -> None:
     classifier = UniformDummyAFAClassifier(n_classes=3)
-    method = RandomSelectionAFAMethod(classifier)
+    method = RandomWithClassifierAFAMethod(classifier)
     feature_mask = torch.tensor([[True, False, True]])
 
     selection = method.act(
@@ -24,7 +24,7 @@ def test_random_selection_method_selects_unobserved_feature() -> None:
 
 def test_random_selection_method_stops_when_all_features_observed() -> None:
     classifier = UniformDummyAFAClassifier(n_classes=3)
-    method = RandomSelectionAFAMethod(classifier)
+    method = RandomWithClassifierAFAMethod(classifier)
     feature_mask = torch.ones((2, 3), dtype=torch.bool)
 
     selection = method.act(
@@ -39,7 +39,7 @@ def test_sequential_selection_method_selects_first_unobserved_feature() -> (
     None
 ):
     classifier = UniformDummyAFAClassifier(n_classes=3)
-    method = SequentialSelectionAFAMethod(classifier)
+    method = SequentialWithClassifierAFAMethod(classifier)
     feature_mask = torch.tensor(
         [
             [True, False, False],
@@ -57,7 +57,7 @@ def test_sequential_selection_method_selects_first_unobserved_feature() -> (
 
 def test_selection_methods_use_classifier_for_prediction() -> None:
     classifier = UniformDummyAFAClassifier(n_classes=3)
-    method = SequentialSelectionAFAMethod(classifier)
+    method = SequentialWithClassifierAFAMethod(classifier)
 
     prediction = method.predict(
         masked_features=torch.zeros((2, 3)),
@@ -69,10 +69,10 @@ def test_selection_methods_use_classifier_for_prediction() -> None:
 
 def test_selection_method_roundtrip(tmp_path: Path) -> None:
     classifier = UniformDummyAFAClassifier(n_classes=3)
-    method = RandomSelectionAFAMethod(classifier)
+    method = RandomWithClassifierAFAMethod(classifier)
 
     method.save(tmp_path)
-    loaded = RandomSelectionAFAMethod.load(tmp_path, torch.device("cpu"))
+    loaded = RandomWithClassifierAFAMethod.load(tmp_path, torch.device("cpu"))
 
     prediction = loaded.predict(
         masked_features=torch.zeros((2, 3)),

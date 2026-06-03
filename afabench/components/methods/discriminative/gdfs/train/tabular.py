@@ -23,7 +23,7 @@ from afabench.components.methods.discriminative.gdfs.afa_methods import (
     CMIEstimator,
     Gadgil2023AFAMethod,
 )
-from afabench.core.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.config_classes import Gadgil2023TrainingConfig
 from afabench.core.utils import set_seed
 
