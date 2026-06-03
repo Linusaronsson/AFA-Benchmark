@@ -112,12 +112,7 @@ This allows methods to deserialize your dataset from bundles during training and
 
 ### 4. Add to the Snakemake pipeline
 
-List your dataset in one of the dataset configuration files in `extra/workflow/conf/`. Common options are:
-
-- `datasets_main.yaml` - Main production datasets
-- `datasets_full.yaml` - Full set including experimental datasets
-
-For example, in `datasets_main.yaml`:
+List your dataset in one of the dataset configuration files in `extra/workflow/conf/datasets/`. For example, in `extra/workflow/conf/datasets/all.yaml`:
 
 ```yaml
 datasets:
@@ -127,30 +122,26 @@ datasets:
 
 ### 5. Add a readable name
 
-(Optional but recommended) Add a display name in `DATASET_NAME_MAPPING` in `afabench/evaluation/plotting_config.py`:
+(Optional but recommended) Add a display name to `dataset_name_mapping` in `extra/conf/scripts/plotting/common/default.yaml`:
 
-```python
-DATASET_NAME_MAPPING = {
-    # ... existing entries ...
-    "my_dataset": "My Dataset Display Name",
-}
+```yaml
+dataset_name_mapping:
+  # ... existing entries ...
+  my_dataset: My Dataset Display Name
 ```
 
 ### 6. Add to dataset sets
 
-(Optional but recommended) Add your dataset to one or more *dataset sets* in `DATASET_SETS` in `afabench/evaluation/plotting_config.py`. Dataset sets group datasets for organized plotting:
+(Optional but recommended) Add your dataset to one or more *dataset sets* in `dataset_sets` in `extra/conf/scripts/plotting/common/default.yaml`. Dataset sets group datasets for organized plotting:
 
-```python
-DATASET_SETS = {
-    "set1": {
-        # ... existing datasets ...
-        "my_dataset",
-    },
-    "all": {
-        # ... existing datasets ...
-        "my_dataset",
-    },
-}
+```yaml
+dataset_sets:
+  set1:
+    # ... existing datasets ...
+    - my_dataset
+  all:
+    # ... existing datasets ...
+    - my_dataset
 ```
 
-If your dataset is not in any set, the pipeline will still generate and train on it, but plots won't be generated for it. Adding it to the `"all"` set is typically sufficient.
+If your dataset is not in any set, the pipeline will still generate and train on it, but plots won't be generated for it. Adding it to the `all` set is typically sufficient.

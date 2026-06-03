@@ -111,7 +111,7 @@ use_wandb: false
 smoke_test: false
 ```
 
-The pipeline has its own concept of what a "pretrained model" is, so you should update `extra/workflow/conf/pretrain_mapping.yaml`:
+The pipeline has its own concept of what a "pretrained model" is, so you should update the relevant file in `extra/workflow/conf/pretrain_mappings/` (e.g., `all.yaml`):
 ```yaml
 pretrain_mapping:
     example_model:
@@ -286,9 +286,9 @@ smoke_test: false
 
 ## Integrating method in pipeline
 
-So far, we have only created scripts that work individually, but these scripts will not yet run automatically when we execute the pipeline. `extra/workflow/conf/methods.yaml` contains a list of all methods that the pipeline will run. Let's call the new method `example_method`, so add `- example_method` as a new line.
+So far, we have only created scripts that work individually, but these scripts will not yet run automatically when we execute the pipeline. The relevant file in `extra/workflow/conf/methods/` (e.g., `all.yaml`) contains a list of all methods that the pipeline will run. Let's call the new method `example_method`, so add `- example_method` as a new line.
 
-Next, add your method options to `extra/workflow/conf/method_options.yaml`.
+Next, add your method options to the relevant file in `extra/workflow/conf/method_options/` (e.g., `all.yaml`).
 ```yaml
 example_method:
   pretrained_model_name: "example_model"
@@ -303,7 +303,7 @@ This assumes that the method supports training on all datasets except Imagenette
 
 ### 3. Configuring soft budgets
 
-We need to define reasonable soft-budget parameters for our method, which we do in `extra/workflow/conf/soft_budget_params.yaml`. For this method, the soft-budget parameter corresponds to the probability of choosing the stop action. For simplicity, let us define values that are reused across all datasets:
+We need to define reasonable soft-budget parameters for our method, which we do in the relevant file in `extra/workflow/conf/soft_budget_params/` (e.g., `all.yaml`). For this method, the soft-budget parameter corresponds to the probability of choosing the stop action. For simplicity, let us define values that are reused across all datasets:
 ```yaml
 soft_budget_params:
   example_method:
@@ -318,12 +318,14 @@ This declaration ensures that soft-budget parameters are only passed to the meth
 
 ### 4. Visualization options
 
-Choose how the method should be displayed in plots by adding an entry to `METHOD_NAME_MAPPING` in `afabench/evaluation/plotting_config.py`. For example, we may add
-```python
-"example_method": "Example"
+Choose how the method should be displayed in plots by adding an entry to `method_name_mapping` in `extra/conf/scripts/plotting/common/default.yaml`. For example:
+```yaml
+method_name_mapping:
+  # ... existing entries ...
+  example_method: Example
 ```
 
-Also decide if you want to compare the method with any specific other methods. In this case, we decide to only add it to the main results plot, so we add it to the `main` method set in `extra/workflow/conf/method_sets.yaml`.
+Also decide if you want to compare the method with any specific other methods. In this case, we decide to only add it to the main results plot, so we add it to the `main` method set in the relevant file in `extra/workflow/conf/method_sets/` (e.g., `all.yaml`).
 ```yaml
 method_sets:
     main:
@@ -340,15 +342,15 @@ uv run snakemake \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
     all \
     --configfile \
-      extra/workflow/conf/eval_hard_budgets.yaml \
-      extra/workflow/conf/methods.yaml \
-      extra/workflow/conf/method_sets.yaml \
-      extra/workflow/conf/method_options.yaml \
-      extra/workflow/conf/pretrain_mapping.yaml \
-      extra/workflow/conf/soft_budget_params.yaml \
-      extra/workflow/conf/unmaskers.yaml \
-      extra/workflow/conf/classifier_names.yaml \
-      extra/workflow/conf/datasets_main.yaml \
+      extra/workflow/conf/eval_hard_budgets/all.yaml \
+      extra/workflow/conf/methods/all.yaml \
+      extra/workflow/conf/method_sets/all.yaml \
+      extra/workflow/conf/method_options/all.yaml \
+      extra/workflow/conf/pretrain_mappings/all.yaml \
+      extra/workflow/conf/soft_budget_params/all.yaml \
+      extra/workflow/conf/unmaskers/all.yaml \
+      extra/workflow/conf/classifier_names/all.yaml \
+      extra/workflow/conf/datasets/all.yaml \
     --config \
       "methods=[example_method]" \
       "datasets=[cube, actg]" \
