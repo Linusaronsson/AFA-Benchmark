@@ -7,7 +7,7 @@ defaults:
     - _self_
     - dataset@_global_: cube
     - optional experiment@_global_: ???
-    - override hydra/job_logging: colorlog
+    - override hydra/job_logging: output_dir_colorlog
     - override hydra/hydra_logging: colorlog
     - override hydra/launcher: valter_slurm
 
