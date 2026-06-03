@@ -1,0 +1,41 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - hydra: custom
+  - optional /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
+  - /components/masked_pretraining@_global_: default
+  - /components/masking_probabilities@_global_: simple
+  - _self_
+  - optional experiment@_global_: ???
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+
+supervised_learning:
+  early_stopping_min_delta: 1e-2
+
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+classifier_bundle_path: null # not needed for this method, but pipeline passes it to us
+save_path: ???
+device: cuda
+
+lr: 1e-3
+encoder:
+  output_size: 16 # jafa paper
+  reading_block_cells: [32, 32] # jafa paper
+  writing_block_cells: [32, 32] # not specified by jafa paper, assume it is the same as reading_block_cells
+  memory_size: 16 # jafa paper
+  processing_steps: 5 # original set encoding paper
+  dropout: 0.0
+classifier:
+  num_cells: [32, 32] # jafa paper (cube dataset)
+
+seed: null
+use_wandb: false
+smoke_test: false

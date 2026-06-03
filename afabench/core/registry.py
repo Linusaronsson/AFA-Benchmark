@@ -9,9 +9,9 @@
 REGISTERED_CLASSES = {
     # AFA Method Classes
     "RLAFAMethod": "afabench.components.methods.rl.common.afa_methods.RLAFAMethod",
-    "Covert2023AFAMethod": "afabench.components.methods.discriminative.dime.afa_methods.Covert2023AFAMethod",
-    "Gadgil2023AFAMethod": "afabench.components.methods.discriminative.gdfs.afa_methods.Gadgil2023AFAMethod",
-    "Ma2018AFAMethod": "afabench.components.methods.generative.eddi.afa_methods.Ma2018AFAMethod",
+    "GDFSAFAMethod": "afabench.components.methods.discriminative.gdfs.afa_methods.GDFSAFAMethod",
+    "DIMEAFAMethod": "afabench.components.methods.discriminative.dime.afa_methods.DIMEAFAMethod",
+    "EDDIAFAMethod": "afabench.components.methods.generative.eddi.afa_methods.EDDIAFAMethod",
     "AACOAFAMethod": "afabench.components.methods.oracle.aaco.afa_methods.AACOAFAMethod",
     "AACONNAFAMethod": "afabench.components.methods.oracle.aaco.nn.AACONNAFAMethod",
     "StaticBaseMethod": "afabench.components.methods.static.pt.StaticBaseMethod",
@@ -44,9 +44,9 @@ REGISTERED_CLASSES = {
     "UniformDummyAFAClassifier": "afabench.components.classifiers.UniformDummyAFAClassifier",
     "WrappedMaskedMLPClassifier": "afabench.components.classifiers.WrappedMaskedMLPClassifier",
     "WrappedMaskedViTClassifier": "afabench.components.classifiers.WrappedMaskedViTClassifier",
-    "Shim2018AFAClassifier": "afabench.components.methods.rl.shim2018.models.Shim2018AFAClassifier",
-    "Zannone2019AFAClassifier": "afabench.components.methods.rl.zannone2019.models.Zannone2019AFAClassifier",
-    "Kachuee2019AFAClassifier": "afabench.components.methods.rl.kachuee2019.models.Kachuee2019AFAClassifier",
+    "JAFAAFAClassifier": "afabench.components.methods.rl.jafa.models.JAFAAFAClassifier",
+    "ODINAFAClassifier": "afabench.components.methods.rl.odin.models.ODINAFAClassifier",
+    "OLAFAClassifier": "afabench.components.methods.rl.ol.models.OLAFAClassifier",
     "GreedyAFAClassifier": "afabench.components.methods.discriminative.common.models.GreedyAFAClassifier",
     # AFA Unmasker Classes
     "DirectUnmasker": "afabench.components.unmaskers.DirectUnmasker",

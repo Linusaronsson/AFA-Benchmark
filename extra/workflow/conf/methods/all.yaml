@@ -7,10 +7,10 @@ methods:
   - ol_with_mask
   - random_dummy
   - sequential_dummy
-  - covert2023
-  - ma2018_builtin
-  - ma2018_external
-  - gadgil2023
+  - gdfs
+  - eddi_builtin
+  - eddi_external
+  - dime
   - cae
   - permutation
   - aaco

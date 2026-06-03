@@ -8,9 +8,9 @@ method_options:
     train_script_name: "aaco_nn"
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
     soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
-  ma2018_builtin:
+  eddi_builtin:
     pretrained_model_name: "pvae"
-    train_script_name: "ma2018_builtin"
+    train_script_name: "eddi_builtin"
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 8
@@ -21,9 +21,9 @@ method_options:
         7: 20
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
     soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
-  ma2018_external:
+  eddi_external:
     pretrained_model_name: "pvae"
-    train_script_name: "ma2018_external"
+    train_script_name: "eddi_external"
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 8
@@ -34,9 +34,9 @@ method_options:
         7: 20
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
     soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
-  covert2023:
+  gdfs:
     pretrained_model_name: "gdfs"
-    train_script_name: "covert2023"
+    train_script_name: "gdfs"
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 32
@@ -45,9 +45,9 @@ method_options:
         2: 20
         4: 20
         7: 20
-  gadgil2023:
+  dime:
     pretrained_model_name: "dime"
-    train_script_name: "gadgil2023"
+    train_script_name: "dime"
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 32
@@ -76,14 +76,14 @@ method_options:
     soft_budget_ignored_datasets: [cube_nm, cube_nm_without_noise, imagenette]
   jafa:
     pretrained_model_name: "jafa"
-    train_script_name: "shim2018"
+    train_script_name: "jafa"
     eval_batch_size: &rl_eval_batch_size
       default: 128
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette, mnist, fashion_mnist] # (fashion)_mnist needs more tuning
   odin_model_based:
     pretrained_model_name: "pvae"
-    train_script_name: "zannone2019"
+    train_script_name: "odin"
     method_specific_params:
       - "additional_generation_fraction=1.0"
     eval_batch_size: *rl_eval_batch_size
@@ -91,7 +91,7 @@ method_options:
     soft_budget_ignored_datasets: [imagenette, mnist] # mnist too difficult to tune
   odin_model_free:
     pretrained_model_name: "pvae"
-    train_script_name: "zannone2019"
+    train_script_name: "odin"
     method_specific_params:
       - "additional_generation_fraction=0.0"
     eval_batch_size: *rl_eval_batch_size
@@ -99,13 +99,13 @@ method_options:
     soft_budget_ignored_datasets: [imagenette, mnist] # mnist too difficult to tune
   ol_without_mask:
     pretrained_model_name: "ol_without_mask"
-    train_script_name: "kachuee2019"
+    train_script_name: "ol"
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   ol_with_mask:
     pretrained_model_name: "ol_with_mask"
-    train_script_name: "kachuee2019"
+    train_script_name: "ol"
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]

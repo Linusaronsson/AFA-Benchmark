@@ -405,7 +405,7 @@ class GreedyDynamicSelection(nn.Module):
         restore_parameters(predictor, best_zerotemp_predictor)
 
 
-class Covert2023AFAMethod(AFAMethod):
+class GDFSAFAMethod(AFAMethod):
     def __init__(
         self,
         selector: nn.Module,
@@ -1074,7 +1074,7 @@ class CMIEstimator(nn.Module):
         restore_parameters(predictor, best_predictor)
 
 
-class Gadgil2023AFAMethod(AFAMethod):
+class DIMEAFAMethod(AFAMethod):
     def __init__(
         self,
         value_network: nn.Module,

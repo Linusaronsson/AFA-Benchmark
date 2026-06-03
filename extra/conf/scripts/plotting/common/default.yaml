@@ -3,10 +3,10 @@ plot_height: 5
 plot_font_family: Libertinus Serif
 
 method_name_mapping:
-  ma2018_external: EDDI
-  ma2018_builtin: EDDI(builtin)
-  covert2023: GDFS
-  gadgil2023: DIME
+  eddi_external: EDDI
+  eddi_builtin: EDDI(builtin)
+  gdfs: GDFS
+  dime: DIME
   jafa: JAFA
   ol_with_mask: OL(with-mask)
   ol_without_mask: OL(without-mask)
@@ -20,10 +20,10 @@ method_name_mapping:
   sequential_dummy: Sequential dummy
 
 method_policy_family_mapping:
-  ma2018_external: ma2018
-  ma2018_builtin: ma2018
-  covert2023: covert2023
-  gadgil2023: gadgil2023
+  eddi_external: eddi
+  eddi_builtin: eddi
+  gdfs: gdfs
+  dime: dime
   jafa: jafa
   ol_with_mask: ol
   ol_without_mask: ol
@@ -38,9 +38,9 @@ method_policy_family_mapping:
 
 method_family_color_schemes:
   tol_muted:
-    ma2018: '#332288'
-    covert2023: '#88CCEE'
-    gadgil2023: '#44AA99'
+    eddi: '#332288'
+    gdfs: '#88CCEE'
+    dime: '#44AA99'
     jafa: '#117733'
     ol: '#999933'
     odin: '#DDCC77'
@@ -48,9 +48,9 @@ method_family_color_schemes:
     static: '#882255'
     dummy: '#AA4499'
   colorbrewer_set1:
-    ma2018: '#E41A1C'
-    covert2023: '#377EB8'
-    gadgil2023: '#4DAF4A'
+    eddi: '#E41A1C'
+    gdfs: '#377EB8'
+    dime: '#4DAF4A'
     jafa: '#984EA3'
     ol: '#FF7F00'
     odin: '#FFFF33'
@@ -58,9 +58,9 @@ method_family_color_schemes:
     static: '#F781BF'
     dummy: '#999999'
   colorbrewer_set2:
-    ma2018: '#66C2A5'
-    covert2023: '#FC8D62'
-    gadgil2023: '#8DA0CB'
+    eddi: '#66C2A5'
+    gdfs: '#FC8D62'
+    dime: '#8DA0CB'
     jafa: '#E78AC3'
     ol: '#A6D854'
     odin: '#FFD92F'
@@ -68,9 +68,9 @@ method_family_color_schemes:
     static: '#B3B3B3'
     dummy: '#B3B3B3'
   colorbrewer_dark2:
-    ma2018: '#1B9E77'
-    covert2023: '#D95F02'
-    gadgil2023: '#7570B3'
+    eddi: '#1B9E77'
+    gdfs: '#D95F02'
+    dime: '#7570B3'
     jafa: '#E7298A'
     ol: '#66A61E'
     odin: '#E6AB02'

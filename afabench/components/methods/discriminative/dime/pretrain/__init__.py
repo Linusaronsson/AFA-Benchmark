@@ -1,1 +1,1 @@
-"""DIME pretraining entrypoints."""
+"""GDFS pretraining entrypoints."""

@@ -20,7 +20,7 @@ from afabench.core.bundle_system.bundle import (
     load_bundle,
     save_bundle,
 )
-from afabench.core.config_classes import Gadgil2023PretrainingConfig
+from afabench.core.config_classes import GDFSPretrainingConfig
 from afabench.core.naming import infer_dataset_key_from_class_name
 from afabench.core.utils import (
     get_class_frequencies,
@@ -30,7 +30,7 @@ from afabench.core.utils import (
 log = logging.getLogger(__name__)
 
 
-def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
+def pretrain_tabular(cfg: GDFSPretrainingConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -47,6 +47,7 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     dataset_name = infer_dataset_key_from_class_name(
         train_manifest["class_name"]
     )
+    print(dataset_name)
     _, train_labels = train_dataset.get_all_data()  # pyright: ignore[reportAttributeAccessIssue]
     train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (
@@ -81,10 +82,9 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     }
 
     mask_layer = MaskLayer(append=True)
-    print("Pretraining predictor")
-    print("-" * 8)
-    pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
-    pretrain.fit(
+    pretrainer = MaskingPretrainer(predictor, mask_layer).to(device)
+
+    pretrainer.fit(
         train_loader,
         val_loader,
         lr=cfg.lr,
@@ -97,7 +97,7 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
     )
 
     metadata = {
-        "model_type": "Gadgil2023Classifier",
+        "model_type": "GDFSClassifier",
         "dataset_name": dataset_name,
         "pretrain_config": OmegaConf.to_container(cfg),
     }
@@ -106,13 +106,14 @@ def pretrain_tabular(cfg: Gadgil2023PretrainingConfig) -> None:
         architecture=architecture,
         device=torch.device("cpu"),
     )
+
     save_bundle(
         obj=bundle_obj,
         path=Path(cfg.save_path),
         metadata=metadata,
     )
 
-    log.info(f"Gadgil2023 pretrained model saved to: {cfg.save_path}")
+    log.info(f"GDFS pretrained model saved to: {cfg.save_path}")
 
     gc.collect()
     if torch.cuda.is_available():

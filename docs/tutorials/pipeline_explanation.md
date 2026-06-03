@@ -145,17 +145,17 @@ Some methods require a pretraining stage. For such methods,
 ```yaml
 pretrain_mapping:
   pvae:
-    pretrain_script_name: "zannone2019"
+    pretrain_script_name: "odin"
     pretrain_params: []
 ```
-will define a model `pvae` which is produced by the `scripts/pretrain/zannone2019.py` script. This can later be reused across different methods.
+will define a model `pvae` which is produced by the `scripts/pretrain/odin.py` script. This can later be reused across different methods.
 
 For example, `method_options.yaml` contains miscellaneous options for each method. An example configuration:
 ```yaml
 method_options:
-  ma2018_external:
+  eddi_external:
     pretrained_model_name: "pvae"
-    train_script_name: "ma2018_external"
+    train_script_name: "eddi_external"
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 8
@@ -168,7 +168,7 @@ method_options:
     soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   odin_model_based:
     pretrained_model_name: "pvae"
-    train_script_name: "zannone2019"
+    train_script_name: "odin"
     method_specific_params:
       - "additional_generation_fraction=1.0"
     eval_batch_size:
@@ -176,7 +176,7 @@ method_options:
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette, mnist]
 ```
-defines two methods `ma2018_external` and `odin_model_based` which both use the same pretrained `pvae` model. Furthermore, they use different batch sizes during evaluation and ignore some datasets. `ma2018_external` is a bit special, in that it trains with a different hard budget during training compared to evaluation.
+defines two methods `eddi_external` and `odin_model_based` which both use the same pretrained `pvae` model. Furthermore, they use different batch sizes during evaluation and ignore some datasets. `eddi_external` is a bit special, in that it trains with a different hard budget during training compared to evaluation.
 
 Usually during the *soft-budget* setting, the hard budget is disabled. `use_max_hard_budget_when_training_soft_budget` enforces the largest hard budget instead.
 

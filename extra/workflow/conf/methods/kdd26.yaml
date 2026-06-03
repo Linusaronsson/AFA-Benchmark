@@ -3,8 +3,8 @@ methods:
   - jafa
   - odin_model_based
   - ol_with_mask
-  - covert2023
-  - ma2018_external
-  - gadgil2023
+  - gdfs
+  - eddi_external
+  - dime
   - cae
   - aaco

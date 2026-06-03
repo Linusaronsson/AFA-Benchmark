@@ -2,7 +2,7 @@
 Plot the time that each method takes to pretrain, train and evaluate, averaged over all datasets and seeds.
 
 Expected input dataframe with columns:
-- afa_method (str): Which method was evaluated. For example "shim2018" or "zannone2019".
+- afa_method (str): Which method was evaluated. For example "jafa" or "odin".
 - dataset (str): Which dataset the method was evaluated on. For example "cube_nm" or "mnist".
 - time_pretrain (float | null): How long the pretraining (if applicable) took in seconds.
 - time_train (float | null): How long the training (if applicable) took in seconds.
@@ -40,7 +40,7 @@ PLOT_FONT_SIZE = 12
 
 def get_mock_df() -> pl.DataFrame:
     """Generate mock dataframe for testing."""
-    methods = ["shim2018", "zannone2019"]
+    methods = ["jafa", "odin"]
     datasets = ["cube", "cube_nm"]
     seeds = list(range(1, 6))
 

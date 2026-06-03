@@ -11,7 +11,6 @@ from torch.utils.data import DataLoader
 from afabench.components.methods.discriminative.common.models import (
     ConvNet,
     GreedyAFAClassifier,
-    Predictor,
     ResNet18Backbone,
     resnet18,
     resnet50,
@@ -21,17 +20,17 @@ from afabench.components.methods.discriminative.common.utils import (
     afa_discriminative_training_prep,
 )
 from afabench.components.methods.discriminative.gdfs.afa_methods import (
-    CMIEstimator,
-    Gadgil2023AFAMethod,
+    GDFSAFAMethod,
+    GreedyDynamicSelection,
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.config_classes import Gadgil2023Training2DConfig
+from afabench.core.config_classes import GDFSTraining2DConfig
 from afabench.core.utils import set_seed
 
 log = logging.getLogger(__name__)
 
 
-def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
+def train_image(cfg: GDFSTraining2DConfig) -> None:
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -48,7 +47,6 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
             unmasker_cfg=cfg.unmasker,
         )
     )
-    d_out = train_dataset.label_shape[0]
     train_loader = DataLoader(
         train_dataset,  # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
@@ -62,6 +60,7 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
         shuffle=False,
         pin_memory=True,
     )
+    d_out = train_dataset.label_shape[0]
 
     if cfg.backbone_type == "resnet18":
         base = resnet18(pretrained=True)
@@ -70,7 +69,8 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
     else:
         msg = f"Unsupported backbone type: {cfg.backbone_type}"
         raise ValueError(msg)
-    _, expansion = ResNet18Backbone(base)
+    backbone, expansion = ResNet18Backbone(base)
+
     classifier_bundle, _ = load_bundle(
         Path(cfg.pretrained_model_bundle_path),
         map_location=device,
@@ -79,13 +79,7 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
         "GreedyAFAClassifier",
         cast("object", classifier_bundle),
     )
-    predictor = classifier_bundle.predictor
-    predictor = cast(
-        "Predictor",
-        cast("object", predictor),
-    )
-    predictor = predictor.to(device)
-    shared_backbone = predictor.backbone
+    predictor = classifier_bundle.predictor.to(device)
 
     arch = classifier_bundle.architecture
     image_size = arch["image_size"]
@@ -97,49 +91,43 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
     n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
     assert n_selections == n_patches
 
-    value_network = ConvNet(shared_backbone, expansion).to(device)
-
+    selector = ConvNet(backbone, expansion).to(device)
     mask_layer = MaskLayer2d(
         mask_width=mask_width, patch_size=patch_size, append=False
     )
     x0, _ = next(iter(train_loader))
     with torch.no_grad():
-        logits0 = value_network(
+        logits0 = selector(
             mask_layer(
                 x0.to(device), torch.zeros(len(x0), n_patches, device=device)
             )
         )
     assert logits0.shape[1] == n_patches, (
-        f"Value Network outputs {logits0.shape[1]} != n_patches {n_patches}"
+        f"Selector outputs {logits0.shape[1]} != n_patches {n_patches}"
     )
 
-    greedy_cmi_estimator = CMIEstimator(
-        value_network=value_network,
+    gdfs = GreedyDynamicSelection(
+        selector=selector,
         predictor=predictor,
         mask_layer=mask_layer,
         initializer=initializer,
         unmasker=unmasker,
     ).to(device)
-    greedy_cmi_estimator.fit(
+    gdfs.fit(
         train_loader,
         val_loader,
         lr=cfg.lr,
         min_lr=cfg.min_lr,
         nepochs=cfg.nepochs,
         max_features=cfg.hard_budget,
-        eps=cfg.eps,
-        loss_fn=nn.CrossEntropyLoss(reduction="none"),
-        val_loss_fn=None,
-        val_loss_mode=None,
-        eps_decay=cfg.eps_decay,
-        eps_steps=cfg.eps_steps,
+        loss_fn=nn.CrossEntropyLoss(),
         patience=cfg.patience,
-        feature_costs=None,
+        verbose=True,
     )
 
-    afa_method = Gadgil2023AFAMethod(
-        value_network=greedy_cmi_estimator.value_network.cpu(),
-        predictor=greedy_cmi_estimator.predictor.cpu(),
+    afa_method = GDFSAFAMethod(
+        selector=gdfs.selector.cpu(),
+        predictor=gdfs.predictor.cpu(),
         device=torch.device("cpu"),
         modality="image",
         n_patches=n_patches,
@@ -156,9 +144,9 @@ def train_image(cfg: Gadgil2023Training2DConfig) -> None:  # noqa: PLR0915
         metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
     )
 
-    log.info(f"Gadgil2023 method saved to: {cfg.save_path}")
+    log.info(f"GDFS method saved to: {cfg.save_path}")
 
-    gc.collect()  # Force Python GC
+    gc.collect()
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-        torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()

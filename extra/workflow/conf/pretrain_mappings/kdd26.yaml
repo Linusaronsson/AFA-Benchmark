@@ -9,19 +9,19 @@
 
 pretrain_mapping:
   pvae:
-    pretrain_script_name: "zannone2019"
+    pretrain_script_name: "odin"
     pretrain_params: []
 
   jafa:
-    pretrain_script_name: "shim2018"
+    pretrain_script_name: "jafa"
     pretrain_params: []
 
   ol_without_mask:
-    pretrain_script_name: "kachuee2019"
+    pretrain_script_name: "ol"
     pretrain_params: ["pq_module.use_feature_mask=false"]
 
   ol_with_mask:
-    pretrain_script_name: "kachuee2019"
+    pretrain_script_name: "ol"
     pretrain_params: ["pq_module.use_feature_mask=true"]
 
   aaco:
@@ -29,16 +29,16 @@ pretrain_mapping:
     pretrain_params: []
 
   gdfs:
-    pretrain_script_name: "covert2023"
+    pretrain_script_name: "gdfs"
     pretrain_params: []
 
   dime:
-    pretrain_script_name: "gadgil2023"
+    pretrain_script_name: "dime"
     pretrain_params: []
 
   # Example: If you need a variant with specific parameters
   # pvae_custom:
-  #   pretrain_script_name: "zannone2019"
+  #   pretrain_script_name: "odin"
   #   pretrain_params:
   #     - "arg1=42"
   #     - "arg2=100"

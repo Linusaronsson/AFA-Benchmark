@@ -17,7 +17,7 @@ from afabench.core.types import (
 )
 
 
-class Ma2018AFAMethod(AFAMethod):
+class EDDIAFAMethod(AFAMethod):
     def __init__(
         self,
         sampler: nn.Module,
@@ -247,7 +247,7 @@ class Ma2018AFAMethod(AFAMethod):
 
     @classmethod
     @override
-    def load(cls, path: Path, device: torch.device) -> "Ma2018AFAMethod":
+    def load(cls, path: Path, device: torch.device) -> "EDDIAFAMethod":
         checkpoint = torch.load(
             str(path / "model.pt"), map_location=device, weights_only=False
         )
@@ -300,7 +300,7 @@ class Ma2018AFAMethod(AFAMethod):
         )
 
     @override
-    def to(self, device: torch.device) -> "Ma2018AFAMethod":
+    def to(self, device: torch.device) -> "EDDIAFAMethod":
         self.sampler = self.sampler.to(device)
         self.predictor = self.predictor.to(device)
         if self.classifier is not None:
