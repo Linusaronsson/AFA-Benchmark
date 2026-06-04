@@ -3,7 +3,7 @@ import logging
 import hydra
 
 from afabench.components.methods.oracle.aaco.config import AACOTrainConfig
-from scripts.train_method.aaco import run
+from afabench.components.methods.oracle.aaco.train import run
 
 logger = logging.getLogger(__name__)
 

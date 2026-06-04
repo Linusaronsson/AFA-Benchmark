@@ -23,6 +23,7 @@ from afabench.core.utils import (
     set_seed,
 )
 from afabench.evaluation.eval import eval_afa_method
+from afabench.training.smoke_test import eval_settings
 
 if TYPE_CHECKING:
     from afabench.core.types import AFADataset
@@ -77,6 +78,11 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
 
     # Create unmasker
     unmasker = get_afa_unmasker_from_config(cfg.unmasker)
+    only_n_samples, batch_size = eval_settings(
+        smoke_test=cfg.smoke_test,
+        default_n_samples=100,
+        default_batch_size=10,
+    )
 
     # Check that everything works together by doing some evaluation
     eval_afa_method(
@@ -89,8 +95,8 @@ def main(cfg: SequentialDummyTrainConfig) -> None:
         dataset=train_dataset,
         external_afa_predict_fn=None,
         builtin_afa_predict_fn=afa_method.predict,
-        only_n_samples=100,
-        batch_size=10,
+        only_n_samples=only_n_samples,
+        batch_size=batch_size,
     )
 
     # Save artifact to filesystem
