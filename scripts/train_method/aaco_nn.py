@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
+from omegaconf import OmegaConf
 
 from afabench.components.initializers.utils import (
     get_afa_initializer_from_config,
@@ -136,6 +137,7 @@ def _resolve_rollout_max(cfg: AACONNTrainConfig) -> int | None:
     config_name="config",
 )
 def main(cfg: AACONNTrainConfig) -> None:
+    cfg = cast("AACONNTrainConfig", OmegaConf.to_object(cfg))
     logger.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")

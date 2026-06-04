@@ -1,5 +1,6 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
@@ -34,6 +35,7 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: EDDITrainingConfig) -> None:
+    cfg = cast("EDDITrainingConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
@@ -73,7 +75,7 @@ def main(cfg: EDDITrainingConfig) -> None:
     save_bundle(
         obj=afa_method,
         path=Path(cfg.save_path),
-        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+        metadata={"config": asdict(cfg)},
     )
 
     log.info(f"EDDI method saved to: {cfg.save_path}")

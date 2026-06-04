@@ -1,10 +1,10 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
 import torch
-from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
 from torchrl.modules import MLP
@@ -15,7 +15,10 @@ from afabench.components.methods.discriminative.common.datasets import (
 from afabench.components.methods.discriminative.common.utils import (
     afa_discriminative_training_prep,
 )
-from afabench.components.methods.static.cae.config import CAETrainingConfig
+from afabench.components.methods.static.cae.config import (
+    CAETabularArchitectureConfig,
+    CAETrainingConfig,
+)
 from afabench.components.methods.static.common.models import BaseModel
 from afabench.components.methods.static.common.static_methods import (
     ConcreteMask,
@@ -31,14 +34,15 @@ log = logging.getLogger(__name__)
 
 def train_tabular(cfg: CAETrainingConfig) -> None:
     log.debug(cfg)
-    print(OmegaConf.to_yaml(cfg))
+    assert isinstance(cfg.architecture, CAETabularArchitectureConfig)
+    print(str(cfg))
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
     if cfg.smoke_test:
-        cfg.selector.nepochs = 1
-        cfg.selector.patience = 1
-        cfg.classifier.nepochs = 1
+        cfg.architecture.selector.nepochs = 1
+        cfg.architecture.selector.patience = 1
+        cfg.architecture.classifier.nepochs = 1
 
     train_dataset, val_dataset, _, _, class_weights = (
         afa_discriminative_training_prep(
@@ -57,7 +61,7 @@ def train_tabular(cfg: CAETrainingConfig) -> None:
     model = MLP(
         in_features=d_in,
         out_features=d_out,
-        num_cells=cfg.selector.num_cells,
+        num_cells=cfg.architecture.selector.num_cells,
         activation_class=nn.ReLU,
     )
     selector_layer = ConcreteMask(d_in, cfg.hard_budget)
@@ -68,10 +72,10 @@ def train_tabular(cfg: CAETrainingConfig) -> None:
     diff_selector.fit(
         train_loader,
         val_loader,
-        lr=cfg.selector.lr,
-        nepochs=cfg.selector.nepochs,
+        lr=cfg.architecture.selector.lr,
+        nepochs=cfg.architecture.selector.nepochs,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
-        patience=cfg.selector.patience,
+        patience=cfg.architecture.selector.patience,
         verbose=False,
     )
 
@@ -117,15 +121,15 @@ def train_tabular(cfg: CAETrainingConfig) -> None:
         model = MLP(
             in_features=num,
             out_features=d_out,
-            num_cells=cfg.classifier.num_cells,
+            num_cells=cfg.architecture.classifier.num_cells,
             activation_class=nn.ReLU,
         )
         predictor = BaseModel(model).to(device)
         predictor.fit(
             train_subset_loader,
             val_subset_loader,
-            lr=cfg.classifier.lr,
-            nepochs=cfg.classifier.nepochs,
+            lr=cfg.architecture.classifier.lr,
+            nepochs=cfg.architecture.classifier.nepochs,
             loss_fn=nn.CrossEntropyLoss(weight=class_weights),
             verbose=False,
         )
@@ -137,7 +141,7 @@ def train_tabular(cfg: CAETrainingConfig) -> None:
     save_bundle(
         obj=static_method,
         path=Path(cfg.save_path),
-        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+        metadata={"config": asdict(cfg)},
     )
     log.info(f"CAE method saved to: {cfg.save_path}")
 

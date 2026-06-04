@@ -1,10 +1,10 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 import torch
-from omegaconf import OmegaConf
 from torch import nn
 from torchrl.modules import MLP
 
@@ -18,6 +18,7 @@ from afabench.components.methods.discriminative.common.models import (
 from afabench.components.methods.discriminative.common.utils import MaskLayer
 from afabench.components.methods.discriminative.gdfs.config import (
     GDFSPretrainingConfig,
+    GDFSTabularArchitectureConfig,
 )
 from afabench.core.bundle_system.bundle import (
     load_bundle,
@@ -34,6 +35,7 @@ log = logging.getLogger(__name__)
 
 def pretrain_tabular(cfg: GDFSPretrainingConfig) -> None:
     log.debug(cfg)
+    assert isinstance(cfg.architecture, GDFSTabularArchitectureConfig)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
@@ -63,9 +65,9 @@ def pretrain_tabular(cfg: GDFSPretrainingConfig) -> None:
 
     in_features: int = int(d_in * 2)
     out_features: int = int(d_out)
-    hidden_units = cfg.hidden_units
-    activation_name: str = cfg.activation
-    dropout: float = float(cfg.dropout)
+    hidden_units = cfg.architecture.hidden_units
+    activation_name: str = cfg.architecture.activation
+    dropout: float = float(cfg.architecture.dropout)
 
     predictor = MLP(
         in_features=in_features,
@@ -101,7 +103,7 @@ def pretrain_tabular(cfg: GDFSPretrainingConfig) -> None:
     metadata = {
         "model_type": "GDFSClassifier",
         "dataset_name": dataset_name,
-        "pretrain_config": OmegaConf.to_container(cfg),
+        "pretrain_config": asdict(cfg),
     }
     bundle_obj = GreedyAFAClassifier(
         predictor=predictor,

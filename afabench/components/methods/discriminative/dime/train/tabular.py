@@ -1,10 +1,10 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
 import torch
-from omegaconf import OmegaConf
 from torch import nn
 from torchrl.modules import MLP
 
@@ -24,6 +24,7 @@ from afabench.components.methods.discriminative.dime.afa_methods import (
     DIMEAFAMethod,
 )
 from afabench.components.methods.discriminative.dime.config import (
+    DIMETabularArchitectureConfig,
     DIMETrainingConfig,
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
@@ -34,13 +35,13 @@ log = logging.getLogger(__name__)
 
 def train_tabular(cfg: DIMETrainingConfig) -> None:
     log.debug(cfg)
+    assert isinstance(cfg.architecture, DIMETabularArchitectureConfig)
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
     if cfg.smoke_test:
         cfg.nepochs = 1
         cfg.patience = 1
-
     train_dataset, val_dataset, initializer, unmasker, class_weights = (
         afa_discriminative_training_prep(
             train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
@@ -51,11 +52,9 @@ def train_tabular(cfg: DIMETrainingConfig) -> None:
     )
     assert class_weights is not None
     class_weights = class_weights.to(device)
-
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
-
     predictor, _ = load_bundle(
         Path(cfg.pretrained_model_bundle_path),
         map_location=device,
@@ -66,30 +65,15 @@ def train_tabular(cfg: DIMETrainingConfig) -> None:
     )
     predictor = classifier_bundle.predictor.to(device)
     n_selections = unmasker.get_n_selections(torch.Size([d_in]))
-    # assert n_selections == d_in
-
     value_network = MLP(
         in_features=d_in * 2,
         out_features=n_selections,
-        num_cells=cfg.hidden_units,
-        activation_class=getattr(nn, cfg.activation),
-        dropout=cfg.dropout,
+        num_cells=cfg.architecture.hidden_units,
+        activation_class=getattr(nn, cfg.architecture.activation),
+        dropout=cfg.architecture.dropout,
     ).to(device)
-
-    # pred_linears = [m for m in predictor.modules() if isinstance(m, nn.Linear)]
-    # value_linears = [
-    #     m for m in value_network.modules() if isinstance(m, nn.Linear)
-    # ]
-    # msg = "Mismatch in number of linear layers."
-    # assert len(pred_linears) == len(value_linears), msg
-    # for i in range(len(cfg.hidden_units)):
-    #     value_linears[i].weight = pred_linears[i].weight
-    #     value_linears[i].bias = pred_linears[i].bias
-
     tie_first_k_linears_by_module(predictor, value_network, k=2)
-
     mask_layer = MaskLayer(append=True)
-
     greedy_cmi_estimator = CMIEstimator(
         value_network=value_network,
         predictor=predictor,
@@ -113,29 +97,25 @@ def train_tabular(cfg: DIMETrainingConfig) -> None:
         patience=cfg.patience,
         feature_costs=feature_costs.to(device),
     )
-
     afa_method = DIMEAFAMethod(
         greedy_cmi_estimator.value_network.cpu(),
         greedy_cmi_estimator.predictor.cpu(),
         device=torch.device("cpu"),
-        value_network_hidden_layers=cfg.hidden_units,
-        predictor_hidden_layers=cfg.hidden_units,
-        dropout=cfg.dropout,
+        value_network_hidden_layers=cfg.architecture.hidden_units,
+        predictor_hidden_layers=cfg.architecture.hidden_units,
+        dropout=cfg.architecture.dropout,
         modality="tabular",
         d_in=d_in,
         d_out=d_out,
         n_selections=n_selections,
         selection_costs=unmasker.get_selection_costs(feature_costs),
     )
-
     save_bundle(
         obj=afa_method,
         path=Path(cfg.save_path),
-        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+        metadata={"config": asdict(cfg)},
     )
-
     log.info(f"DIME method saved to: {cfg.save_path}")
-
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()

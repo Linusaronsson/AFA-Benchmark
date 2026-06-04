@@ -4,6 +4,7 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - pretrain_odin
   - hydra: custom
   - optional /components/initializers@initializer: ???
   - /components/unmaskers@unmasker: ???

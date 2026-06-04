@@ -1,7 +1,8 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import hydra
 import torch
@@ -35,15 +36,14 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: RandomDummyTrainConfig) -> None:
+    cfg = cast("RandomDummyTrainConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
     if cfg.use_wandb:
         run = initialize_wandb_run(
-            cfg=cast(
-                "dict[str,Any]", OmegaConf.to_container(cfg, resolve=True)
-            ),
+            cfg=asdict(cfg),
             job_type="pretraining",
             tags=["random_dummy"],
         )

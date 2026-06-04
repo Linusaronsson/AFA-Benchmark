@@ -1,10 +1,10 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 import torch
-from omegaconf import OmegaConf
 from torch import nn
 from torchrl.modules import MLP
 
@@ -18,6 +18,7 @@ from afabench.components.methods.discriminative.common.models import (
 from afabench.components.methods.discriminative.common.utils import MaskLayer
 from afabench.components.methods.discriminative.dime.config import (
     DIMEPretrainingConfig,
+    DIMETabularArchitectureConfig,
 )
 from afabench.core.bundle_system.bundle import (
     load_bundle,
@@ -34,18 +35,17 @@ log = logging.getLogger(__name__)
 
 def pretrain_tabular(cfg: DIMEPretrainingConfig) -> None:
     log.debug(cfg)
+    assert isinstance(cfg.architecture, DIMETabularArchitectureConfig)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
     if cfg.smoke_test:
         cfg.nepochs = 1
         cfg.patience = 1
-
     train_dataset, train_manifest = load_bundle(
         Path(cfg.train_dataset_bundle_path)
     )
     val_dataset, _ = load_bundle(Path(cfg.val_dataset_bundle_path))
-
     dataset_name = infer_dataset_key_from_class_name(
         train_manifest["class_name"]
     )
@@ -55,17 +55,14 @@ def pretrain_tabular(cfg: DIMEPretrainingConfig) -> None:
         len(train_class_probabilities) * train_class_probabilities
     )
     class_weights = class_weights.to(device)
-
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
     )
-
     in_features: int = int(d_in * 2)
     out_features: int = int(d_out)
-    hidden_units = cfg.hidden_units
-    activation_name: str = cfg.activation
-    dropout: float = float(cfg.dropout)
-
+    hidden_units = cfg.architecture.hidden_units
+    activation_name: str = cfg.architecture.activation
+    dropout: float = float(cfg.architecture.dropout)
     predictor = MLP(
         in_features=in_features,
         out_features=out_features,
@@ -81,7 +78,6 @@ def pretrain_tabular(cfg: DIMEPretrainingConfig) -> None:
         "activation": activation_name,
         "dropout": dropout,
     }
-
     mask_layer = MaskLayer(append=True)
     print("Pretraining predictor")
     print("-" * 8)
@@ -97,11 +93,10 @@ def pretrain_tabular(cfg: DIMEPretrainingConfig) -> None:
         min_mask=cfg.min_masking_probability,
         max_mask=cfg.max_masking_probability,
     )
-
     metadata = {
         "model_type": "DIMEClassifier",
         "dataset_name": dataset_name,
-        "pretrain_config": OmegaConf.to_container(cfg),
+        "pretrain_config": asdict(cfg),
     }
     bundle_obj = GreedyAFAClassifier(
         predictor=predictor,
@@ -113,9 +108,7 @@ def pretrain_tabular(cfg: DIMEPretrainingConfig) -> None:
         path=Path(cfg.save_path),
         metadata=metadata,
     )
-
     log.info(f"DIME pretrained model saved to: {cfg.save_path}")
-
     gc.collect()
     if torch.cuda.is_available():
         torch.cuda.empty_cache()

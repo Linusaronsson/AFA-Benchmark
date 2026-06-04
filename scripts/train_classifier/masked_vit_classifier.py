@@ -1,7 +1,8 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import hydra
 import timm
@@ -34,6 +35,7 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: TrainMaskedViTClassifierConfig) -> None:
+    cfg = cast("TrainMaskedViTClassifierConfig", OmegaConf.to_object(cfg))
     log.info(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -42,9 +44,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     wandb_run = None
     if cfg.use_wandb:
         wandb_run = initialize_wandb_run(
-            cfg=cast(
-                "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-            ),
+            cfg=asdict(cfg),
             job_type="classifier_training",
             tags=["masked_vit_classifier"],
         )
@@ -109,7 +109,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     save_bundle(
         obj=wrapped_classifier,
         path=Path(cfg.save_path),
-        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+        metadata={"config": asdict(cfg)},
     )
 
     log.info(f"Masked ViT classifier saved to: {cfg.save_path}")

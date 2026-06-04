@@ -269,6 +269,7 @@ class AFAEvaluator:
     config_name="config",
 )
 def main(cfg: EvalConfig) -> None:
+    cfg = cast("EvalConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")

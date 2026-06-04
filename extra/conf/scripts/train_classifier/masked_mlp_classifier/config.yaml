@@ -4,6 +4,7 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - train_masked_mlp_classifier
   - hydra: custom
   - /components/initializers@initializer: ???
   - /components/unmaskers@unmasker: ???

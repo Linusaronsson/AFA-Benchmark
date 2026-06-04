@@ -4,6 +4,7 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - train_jafa
   - hydra: custom
   - /components/initializers@initializer: ???
   - /components/unmaskers@unmasker: ???

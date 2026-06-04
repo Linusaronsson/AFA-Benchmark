@@ -1,10 +1,10 @@
-from pathlib import Path
 from typing import cast
 
 import hydra
+from omegaconf import OmegaConf
 
 from afabench.components.methods.discriminative.gdfs.config import (
-    GDFSTraining2DConfig,
+    GDFSImageArchitectureConfig,
     GDFSTrainingConfig,
 )
 from afabench.components.methods.discriminative.gdfs.train.image import (
@@ -13,11 +13,6 @@ from afabench.components.methods.discriminative.gdfs.train.image import (
 from afabench.components.methods.discriminative.gdfs.train.tabular import (
     train_tabular,
 )
-from afabench.core.bundle_system.bundle import load_bundle
-
-IMAGE_DATASET_CLASSNAMES = {
-    "ImagenetteDataset",
-}
 
 
 @hydra.main(
@@ -25,14 +20,12 @@ IMAGE_DATASET_CLASSNAMES = {
     config_path="../../extra/conf/scripts/train_method/gdfs",
     config_name="config",
 )
-def main(cfg: GDFSTrainingConfig | GDFSTraining2DConfig) -> None:
-    _, manifest = load_bundle(Path(cfg.train_dataset_bundle_path))
-    cls = manifest.get("class_name", "")
-
-    if cls in IMAGE_DATASET_CLASSNAMES:
-        train_image(cast("GDFSTraining2DConfig", cfg))
+def main(cfg: GDFSTrainingConfig) -> None:
+    cfg = cast("GDFSTrainingConfig", OmegaConf.to_object(cfg))
+    if isinstance(cfg.architecture, GDFSImageArchitectureConfig):
+        train_image(cfg)
     else:
-        train_tabular(cast("GDFSTrainingConfig", cfg))
+        train_tabular(cfg)
 
 
 if __name__ == "__main__":

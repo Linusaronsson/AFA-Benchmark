@@ -104,13 +104,13 @@ def generate_and_save_image_split(
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
+    cfg = cast("DatasetGenerationConfig", OmegaConf.to_object(cfg))
     dataset_class = get_class(cfg.dataset.class_name)
 
     for instance_idx, seed in zip(
         cfg.instance_indices, cfg.seeds, strict=True
     ):
-        raw_kwargs = OmegaConf.to_container(cfg.dataset.kwargs, resolve=True)
-        base_kwargs = cast("dict[str, Any]", raw_kwargs)
+        base_kwargs = cfg.dataset.kwargs
         if dataset_class.accepts_seed():
             dataset_kwargs: dict[str, Any] = base_kwargs | {"seed": seed}
         else:

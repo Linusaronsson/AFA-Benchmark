@@ -1,6 +1,8 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
+from typing import cast
 
 import hydra
 import numpy as np
@@ -38,6 +40,7 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: PermutationTrainingConfig) -> None:
+    cfg = cast("PermutationTrainingConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     print(OmegaConf.to_yaml(cfg))
     set_seed(cfg.seed)
@@ -143,7 +146,7 @@ def main(cfg: PermutationTrainingConfig) -> None:
     save_bundle(
         obj=static_method,
         path=Path(cfg.save_path),
-        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+        metadata={"config": asdict(cfg)},
     )
     log.info(f"Permutation method saved to: {cfg.save_path}")
 

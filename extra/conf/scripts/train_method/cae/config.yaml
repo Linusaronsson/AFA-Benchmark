@@ -4,9 +4,11 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - train_cae
   - hydra: custom
   - /components/initializers@initializer: ???
   - /components/unmaskers@unmasker: ???
+  - /components/cae_architecture@architecture: ???
   - _self_
   - optional experiment@_global_: ???
   - override hydra/job_logging: output_dir_colorlog

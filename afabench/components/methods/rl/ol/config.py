@@ -38,6 +38,7 @@ class OLPretrainConfig:
     seed: int | None
     use_wandb: bool
     smoke_test: bool
+    initializer: InitializerConfig | None = None
 
 
 cs.store(name="pretrain_ol", node=OLPretrainConfig)

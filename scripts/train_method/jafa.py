@@ -1,4 +1,5 @@
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
 
@@ -214,6 +215,7 @@ class JAFARLTrainer(RLTrainer):
     config_name="config",
 )
 def main(cfg: JAFATrainConfig) -> None:
+    cfg = cast("JAFATrainConfig", OmegaConf.to_object(cfg))
     cfg = method_specific_init(cfg)
 
     trainer = JAFARLTrainer(
@@ -225,7 +227,7 @@ def main(cfg: JAFATrainConfig) -> None:
         n_agents=cfg.mdp.n_agents,
         seed=cfg.seed,
         device=cfg.device if cfg.device is not None else torch.device("cpu"),
-        cfg=cast("dict[str,Any]", OmegaConf.to_container(cfg)),
+        cfg=asdict(cfg),
         use_wandb=cfg.use_wandb,
         typed_cfg=cfg,
     )

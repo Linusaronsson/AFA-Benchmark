@@ -67,9 +67,11 @@ class ODINPretrainConfig:
     encoder: ODINEncoderConfig
     partial_vae: ODINPartialVAEConfig
     classifier: ODINClassifierConfig
+    unmasker: UnmaskerConfig
     seed: int | None = None
     use_wandb: bool = False
     smoke_test: bool = False
+    initializer: InitializerConfig | None = None
 
 
 cs.store(name="pretrain_odin", node=ODINPretrainConfig)

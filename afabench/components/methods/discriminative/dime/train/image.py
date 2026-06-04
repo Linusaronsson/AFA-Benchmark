@@ -1,10 +1,10 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
 import torch
-from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
 
@@ -25,7 +25,8 @@ from afabench.components.methods.discriminative.dime.afa_methods import (
     DIMEAFAMethod,
 )
 from afabench.components.methods.discriminative.dime.config import (
-    DIMETraining2DConfig,
+    DIMEImageArchitectureConfig,
+    DIMETrainingConfig,
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.utils import set_seed
@@ -33,15 +34,15 @@ from afabench.core.utils import set_seed
 log = logging.getLogger(__name__)
 
 
-def train_image(cfg: DIMETraining2DConfig) -> None:  # noqa: PLR0915
+def train_image(cfg: DIMETrainingConfig) -> None:  # noqa: PLR0915
     log.debug(cfg)
+    assert isinstance(cfg.architecture, DIMEImageArchitectureConfig)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
     if cfg.smoke_test:
         cfg.nepochs = 1
         cfg.patience = 1
-
     train_dataset, val_dataset, initializer, unmasker, _ = (
         afa_discriminative_training_prep(
             train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
@@ -64,13 +65,13 @@ def train_image(cfg: DIMETraining2DConfig) -> None:  # noqa: PLR0915
         shuffle=False,
         pin_memory=True,
     )
-
-    if cfg.backbone_type == "resnet18":
+    backbone_type = cfg.architecture.backbone_type
+    if backbone_type == "resnet18":
         base = resnet18(pretrained=True)
-    elif cfg.backbone_type == "resnet50":
+    elif backbone_type == "resnet50":
         base = resnet50(pretrained=True)
     else:
-        msg = f"Unsupported backbone type: {cfg.backbone_type}"
+        msg = f"Unsupported backbone type: {backbone_type}"
         raise ValueError(msg)
     _, expansion = ResNet18Backbone(base)
     classifier_bundle, _ = load_bundle(
@@ -88,19 +89,15 @@ def train_image(cfg: DIMETraining2DConfig) -> None:  # noqa: PLR0915
     )
     predictor = predictor.to(device)
     shared_backbone = predictor.backbone
-
     arch = classifier_bundle.architecture
     image_size = arch["image_size"]
     patch_size = arch["patch_size"]
     assert image_size % patch_size == 0
     mask_width = arch["mask_width"]
     n_patches = int(mask_width) ** 2
-
     n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
     assert n_selections == n_patches
-
     value_network = ConvNet(shared_backbone, expansion).to(device)
-
     mask_layer = MaskLayer2d(
         mask_width=mask_width, patch_size=patch_size, append=False
     )
@@ -114,7 +111,6 @@ def train_image(cfg: DIMETraining2DConfig) -> None:  # noqa: PLR0915
     assert logits0.shape[1] == n_patches, (
         f"Value Network outputs {logits0.shape[1]} != n_patches {n_patches}"
     )
-
     greedy_cmi_estimator = CMIEstimator(
         value_network=value_network,
         predictor=predictor,
@@ -122,6 +118,7 @@ def train_image(cfg: DIMETraining2DConfig) -> None:  # noqa: PLR0915
         initializer=initializer,
         unmasker=unmasker,
     ).to(device)
+    assert cfg.min_lr is not None, "min_lr must be set for image training"
     greedy_cmi_estimator.fit(
         train_loader,
         val_loader,
@@ -138,7 +135,6 @@ def train_image(cfg: DIMETraining2DConfig) -> None:  # noqa: PLR0915
         patience=cfg.patience,
         feature_costs=None,
     )
-
     afa_method = DIMEAFAMethod(
         value_network=greedy_cmi_estimator.value_network.cpu(),
         predictor=greedy_cmi_estimator.predictor.cpu(),
@@ -146,21 +142,18 @@ def train_image(cfg: DIMETraining2DConfig) -> None:  # noqa: PLR0915
         modality="image",
         n_patches=n_patches,
         d_out=d_out,
-        backbone_type=cfg.backbone_type,
+        backbone_type=backbone_type,
     )
     afa_method.image_size = image_size
     afa_method.patch_size = patch_size
     afa_method.mask_width = mask_width
-
     save_bundle(
         obj=afa_method,
         path=Path(cfg.save_path),
-        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+        metadata={"config": asdict(cfg)},
     )
-
     log.info(f"DIME method saved to: {cfg.save_path}")
-
-    gc.collect()  # Force Python GC
+    gc.collect()
     if torch.cuda.is_available():
-        torch.cuda.empty_cache()  # Release cached memory held by PyTorch CUDA allocator
-        torch.cuda.synchronize()  # Optional, wait for CUDA ops to finish
+        torch.cuda.empty_cache()
+        torch.cuda.synchronize()
