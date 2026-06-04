@@ -1,0 +1,12 @@
+# @package _global_
+dataset_artifact_name: "afa-team/afa-benchmark/CubeNM_split_1:latest"
+
+aco:
+  k_neighbors: 5
+  acquisition_cost: 0.05
+  hide_val: 0.0
+  evaluate_final_performance: true
+  eval_only_n_samples: null
+
+seed: 42
+device: "cuda"
