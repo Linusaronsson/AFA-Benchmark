@@ -1,12 +1,13 @@
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import lightning as pl
 import torch
 from lightning.pytorch.callbacks import ModelCheckpoint
-from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.loggers import CSVLogger, WandbLogger
+from omegaconf import OmegaConf
 
 from afabench.components.classifiers import WrappedMaskedMLPClassifier
 from afabench.components.classifiers.config import (
@@ -18,7 +19,11 @@ from afabench.components.methods.rl.common.dataset_utils import (
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.naming import infer_dataset_key_from_class_name
-from afabench.core.utils import get_class_frequencies, set_seed
+from afabench.core.utils import (
+    get_class_frequencies,
+    initialize_wandb_run,
+    set_seed,
+)
 from afabench.datasets.utils import flatten_features_collate
 
 if TYPE_CHECKING:
@@ -39,6 +44,15 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
+
+    if cfg.use_wandb:
+        _run = initialize_wandb_run(
+            cfg=cast(
+                "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+            ),
+            job_type="classifier_training",
+            tags=["masked_mlp_classifier"],
+        )
 
     # Handle smoke test
     if cfg.smoke_test:
@@ -96,10 +110,15 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
 
     log_dir = Path(cfg.save_path).parent / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
+    trainer_logger = (
+        WandbLogger(save_dir="extra/logs/wandb")
+        if cfg.use_wandb
+        else CSVLogger(save_dir=str(log_dir), name="masked_mlp_classifier")
+    )
 
     trainer = pl.Trainer(
         max_epochs=cfg.epochs,
-        logger=CSVLogger(save_dir=str(log_dir), name="masked_mlp_classifier"),
+        logger=trainer_logger,
         accelerator=cfg.device,
         devices=1,
         callbacks=[checkpoint_callback],
