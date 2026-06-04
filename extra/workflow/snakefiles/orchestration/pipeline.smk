@@ -44,9 +44,8 @@ Config files (--configfile):
      soft_budget_ignored_datasets: [dataset1, dataset2, ...]
      When set, soft budget combinations are excluded for those datasets.
 
-     Note: Pretraining is skipped for datasets ignored by BOTH hard and soft
-     budgets (i.e., a dataset is pretrained only if at least one budget type
-     is used for that dataset/method combination).
+     Note: Pretraining is skipped per pretrained model for datasets ignored by
+     BOTH hard and soft budgets across all methods that consume that model.
 """
 
 import os
@@ -92,6 +91,7 @@ EVAL_BATCH_SIZES = _config["EVAL_BATCH_SIZES"]
 HARD_BUDGET_IGNORED_DATASETS = _config["HARD_BUDGET_IGNORED_DATASETS"]
 SOFT_BUDGET_IGNORED_DATASETS = _config["SOFT_BUDGET_IGNORED_DATASETS"]
 DATASETS_USED_PER_METHOD = _config["DATASETS_USED_PER_METHOD"]
+DATASETS_USED_PER_PRETRAIN_NAME = _config["DATASETS_USED_PER_PRETRAIN_NAME"]
 HEATMAP_METHOD_SET = "heatmap_comparison"
 
 include: "../rules/dataset_generation.smk"
