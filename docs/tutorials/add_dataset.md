@@ -8,12 +8,25 @@ Datasets in AFA-Benchmark are serialized as **bundles** (directories containing 
 
 ### 1. Define a dataset class
 
-Define a dataset class in `afabench/datasets/datasets.py` that implements the `AFADataset` protocol.
+Define a dataset class in `afabench/datasets/datasets.py` that implements the `AFADataset` protocol from `afabench/core/types.py`.
 
 **Minimal example:**
 
 
 ```python
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Self, override
+
+import torch
+import torch.nn.functional as F
+from torch import Tensor
+from torch.utils.data import Dataset
+
+from afabench.core.types import AFADataset
+from afabench.datasets.utils import default_create_subset
+
+
 class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @classmethod
     @override
@@ -34,17 +47,14 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def create_subset(self, indices: Sequence[int]) -> Self:
         return default_create_subset(self, indices)
 
-    def __init__(
-        self,
-        n_samples: int
-    ):
+    def __init__(self, n_samples: int):
         super().__init__()
         self.n_samples = n_samples
 
         self.features = torch.randn(n_samples, 5)
         self.labels = F.one_hot(
             torch.randint(low=0, high=3, size=(self.n_samples,)),
-            num_classes=3
+            num_classes=3,
         ).float()
 
     @override
@@ -52,7 +62,7 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return self.features[idx], self.labels[idx]
 
     @override
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.features)
 
     @override
@@ -67,7 +77,7 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "labels": self.labels,
                 "config": {
                     "n_samples": self.n_samples,
-                }
+                },
             },
             path / "dataset.pt",
         )
@@ -84,6 +94,8 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return obj
 ```
 
+If your dataset is synthetic and should vary by dataset instance, make `accepts_seed()` return `True` and add a `seed` argument to `__init__`. The dataset generation script will pass one seed per instance automatically.
+
 ### 2. Create an entry in dataset generation config
 
 Create a config file in `extra/conf/scripts/dataset_generation/dataset/` (e.g., `my_dataset.yaml`) to specify how the dataset should be generated:
@@ -95,7 +107,7 @@ kwargs:
   # Add other constructor arguments as needed
 ```
 
-The `class_name` must match the name of your dataset class, and `kwargs` are passed to the `__init__` method.
+The `class_name` must match the name of your dataset class in the registry, and `kwargs` are passed to the `__init__` method. The file name is the Hydra dataset key used by the pipeline, so the example above is selected with `dataset=my_dataset`.
 
 ### 3. Register the dataset class
 
@@ -108,7 +120,7 @@ REGISTERED_CLASSES = {
 }
 ```
 
-This allows methods to deserialize your dataset from bundles during training and evaluation.
+This allows the dataset generation script and methods to deserialize your dataset from bundles during training and evaluation via `afabench.core.registry.get_class()`.
 
 ### 4. Add to the Snakemake pipeline
 
@@ -119,6 +131,8 @@ datasets:
   - my_dataset
   # ... other datasets ...
 ```
+
+The pipeline will generate `train.bundle`, `val.bundle`, and `test.bundle` under `extra/output/datasets/my_dataset/{instance_idx}/` for each selected dataset instance.
 
 ### 5. Add a readable name
 
