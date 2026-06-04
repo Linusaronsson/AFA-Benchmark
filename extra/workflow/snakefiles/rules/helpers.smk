@@ -63,8 +63,7 @@ rule all_pretrain_models:
                             "model.bundle"
             )
             for pretrain_name in PRETRAIN_NAMES
-            for method in METHODS_WITH_PRETRAINING_STAGE
-            for dataset in DATASETS_USED_PER_METHOD[method]
+            for dataset in DATASETS_USED_PER_PRETRAIN_NAME[pretrain_name]
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
         ]
 

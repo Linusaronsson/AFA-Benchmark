@@ -293,6 +293,11 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         hard_budget_ignored_datasets,
         soft_budget_ignored_datasets,
     )
+    datasets_used_per_pretrain_name = _compute_datasets_used_per_pretrain_name(
+        pretrain_names,
+        method_to_pretrained_model,
+        datasets_used_per_method,
+    )
 
     return {
         "NO_PRETRAIN_STR": NO_PRETRAIN_STR,
@@ -323,6 +328,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         "HARD_BUDGET_IGNORED_DATASETS": hard_budget_ignored_datasets,
         "SOFT_BUDGET_IGNORED_DATASETS": soft_budget_ignored_datasets,
         "DATASETS_USED_PER_METHOD": datasets_used_per_method,
+        "DATASETS_USED_PER_PRETRAIN_NAME": datasets_used_per_pretrain_name,
     }
 
 
@@ -496,5 +502,24 @@ def _compute_datasets_used_per_method(
             if not (dataset in hard_ignored and dataset in soft_ignored)
         ]
         datasets_used[method] = used_datasets
+
+    return datasets_used
+
+
+def _compute_datasets_used_per_pretrain_name(
+    pretrain_names: Sequence[str],
+    method_to_pretrained_model: Mapping[str, str],
+    datasets_used_per_method: Mapping[str, Sequence[str]],
+) -> dict[str, list[str]]:
+    """Compute which datasets are needed for each shared pretrained model."""
+    datasets_used = {pretrain_name: [] for pretrain_name in pretrain_names}
+
+    for method, pretrain_name in method_to_pretrained_model.items():
+        if pretrain_name not in datasets_used:
+            continue
+
+        for dataset in datasets_used_per_method[method]:
+            if dataset not in datasets_used[pretrain_name]:
+                datasets_used[pretrain_name].append(dataset)
 
     return datasets_used
