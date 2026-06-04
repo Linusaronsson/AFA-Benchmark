@@ -1,6 +1,7 @@
 import gc
 import logging
 from pathlib import Path
+from typing import Any, cast
 
 import hydra
 import timm
@@ -22,7 +23,7 @@ from afabench.components.methods.discriminative.common.utils import (
     afa_discriminative_training_prep,
 )
 from afabench.core.bundle_system.bundle import save_bundle
-from afabench.core.utils import set_seed
+from afabench.core.utils import initialize_wandb_run, set_seed
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +38,17 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
+
+    wandb_run = None
+    if cfg.use_wandb:
+        wandb_run = initialize_wandb_run(
+            cfg=cast(
+                "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
+            ),
+            job_type="classifier_training",
+            tags=["masked_vit_classifier"],
+        )
+
     if cfg.smoke_test:
         cfg.epochs = 1
         cfg.patience = 1
@@ -84,6 +96,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         min_mask=cfg.min_masking_probability,
         max_mask=cfg.max_masking_probability,
         logger=log,
+        metric_logger=wandb_run.log if wandb_run is not None else None,
     )
 
     wrapped_classifier = WrappedMaskedViTClassifier(

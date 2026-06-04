@@ -283,6 +283,7 @@ class MaskedViTTrainer(nn.Module):
         min_mask: float = 0.1,
         max_mask: float = 0.9,
         logger: logging.Logger | None = None,
+        metric_logger: Callable[[dict[str, float]], None] | None = None,
     ) -> None:
         assert val_loss_fn is not None
         assert val_loss_mode in ["min", "max"]
@@ -362,6 +363,16 @@ class MaskedViTTrainer(nn.Module):
                     val_loss,
                     val_accuracy,
                 )
+                if metric_logger is not None:
+                    metric_logger(
+                        {
+                            "epoch": epoch,
+                            "train_loss": avg_train_loss,
+                            "val_loss": val_loss,
+                            "val_accuracy": val_accuracy,
+                            "lr": opt.param_groups[0]["lr"],
+                        }
+                    )
 
             scheduler.step(val_loss)
 
