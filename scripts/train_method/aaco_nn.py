@@ -132,7 +132,7 @@ def _resolve_rollout_max(cfg: AACONNTrainConfig) -> int | None:
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/aaco_nn",
+    config_path="../../extra/conf/scripts/train_method/aaco_nn",
     config_name="config",
 )
 def main(cfg: AACONNTrainConfig) -> None:

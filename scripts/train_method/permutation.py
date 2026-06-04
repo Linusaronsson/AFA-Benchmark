@@ -34,7 +34,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/permutation",
+    config_path="../../extra/conf/scripts/train_method/permutation",
     config_name="config",
 )
 def main(cfg: PermutationTrainingConfig) -> None:

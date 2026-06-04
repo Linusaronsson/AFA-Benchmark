@@ -22,6 +22,12 @@ Most stages use the `config/all` profile. The train/evaluate stages use
 across CPU and GPU partitions. Set `device` manually to choose where each
 stage runs.
 
+To quickly verify that the pipeline works, add `smoke_test=true` to the
+`--config` arguments. This keeps the same pipeline targets, but passes the
+smoke-test setting to the scripts so they use faster validation settings. The
+resulting metrics are only useful for checking execution and will not be
+meaningful benchmark results.
+
 ## 1. Generate datasets (CPU)
 
 ```shell

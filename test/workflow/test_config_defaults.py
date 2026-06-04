@@ -2,6 +2,8 @@ import importlib.util
 from pathlib import Path
 from types import ModuleType
 
+from omegaconf import OmegaConf
+
 
 def test_load_config_uses_pipeline_defaults() -> None:
     config_module = _load_workflow_config_module()
@@ -12,6 +14,21 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert loaded_config["DATASET_INSTANCE_INDICES"] == (0, 1, 2, 3, 4)
     assert loaded_config["SMOKE_TEST"] is False
     assert loaded_config["USE_WANDB"] is True
+
+
+def test_direct_unmasker_kwargs_are_empty_mapping() -> None:
+    config_path = (
+        Path(__file__).parents[2]
+        / "extra"
+        / "conf"
+        / "components"
+        / "unmaskers"
+        / "direct.yaml"
+    )
+
+    config = OmegaConf.load(config_path)
+
+    assert dict(config.kwargs) == {}
 
 
 def _load_workflow_config_module() -> ModuleType:

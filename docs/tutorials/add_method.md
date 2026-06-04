@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/pretrain/example",
+    config_path="../../extra/conf/scripts/pretrain_model/example",
     config_name="config",
 )
 def main(cfg: ExamplePretrainConfig) -> None:
@@ -89,7 +89,7 @@ class ExamplePretrainConfig:
 cs.store(name="pretrain_example", node=ExamplePretrainConfig)
 ```
 
-You also need to configure (optional) default values for the script, which you do in `extra/conf/scripts/pretrain/example/config.yaml`:
+You also need to configure (optional) default values for the script, which you do in `extra/conf/scripts/pretrain_model/example/config.yaml`:
 ```yaml
 hydra:
   searchpath:
@@ -161,7 +161,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/example",
+    config_path="../../extra/conf/scripts/train_method/example",
     config_name="config",
 )
 def main(cfg: ExampleTrainConfig) -> None:
@@ -282,7 +282,7 @@ class ExampleTrainConfig:
 
 cs.store(name="train_example", node=ExampleTrainConfig)
 ```
-and also create an instance of it at `extra/conf/scripts/train/example/config.yaml`:
+and also create an instance of it at `extra/conf/scripts/train_method/example/config.yaml`:
 ```yaml
 hydra:
   searchpath:

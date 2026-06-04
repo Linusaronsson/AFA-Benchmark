@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/random_dummy",
+    config_path="../../extra/conf/scripts/train_method/random_dummy",
     config_name="config",
 )
 def main(cfg: RandomDummyTrainConfig) -> None:

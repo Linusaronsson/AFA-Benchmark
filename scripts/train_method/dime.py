@@ -22,7 +22,7 @@ IMAGE_DATASET_CLASSNAMES = {
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/dime",
+    config_path="../../extra/conf/scripts/train_method/dime",
     config_name="config",
 )
 def main(cfg: DIMETrainingConfig | DIMETraining2DConfig) -> None:

@@ -122,7 +122,7 @@ def get_odin_model_fn(
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/pretrain/odin",
+    config_path="../../extra/conf/scripts/pretrain_model/odin",
     config_name="config",
 )
 def main(cfg: ODINPretrainConfig) -> None:

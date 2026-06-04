@@ -6,7 +6,7 @@ from afabench.components.methods.oracle.aaco.train import run
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/aaco",
+    config_path="../../extra/conf/scripts/train_method/aaco",
     config_name="config",
 )
 def main(cfg: AACOTrainConfig) -> None:

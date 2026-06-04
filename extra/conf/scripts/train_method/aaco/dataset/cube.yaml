@@ -1,0 +1,13 @@
+dataset_artifact_name: ???
+
+aco:
+  k_neighbors: 5
+  acquisition_cost: 0.05
+  hide_val: 0.0
+
+  # Evaluation settings
+  evaluate_final_performance: true
+  eval_only_n_samples: null
+
+seed: 42
+device: "cpu"

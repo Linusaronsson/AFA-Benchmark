@@ -1,4 +1,3 @@
-# Same as cube_nm_3ctx, except use_cheap_context_features=true and n_contexts=5
 class_name: "CubeNMDataset"
 kwargs:
   n_samples: 1000
