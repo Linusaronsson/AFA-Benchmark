@@ -144,7 +144,7 @@ pretrain_mapping:
     pretrain_script_name: "odin"
     pretrain_params: []
 ```
-will define a model `pvae` which is produced by the `scripts/pretrain/odin.py` script. This can later be reused across different methods.
+will define a model `pvae` which is produced by the `scripts/pretrain_model/odin.py` script. This can later be reused across different methods.
 
 For example, a file in `extra/workflow/conf/method_options/` contains miscellaneous options for each method. An example configuration:
 ```yaml

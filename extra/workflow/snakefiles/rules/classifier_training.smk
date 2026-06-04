@@ -50,7 +50,7 @@ rule train_classifier:
         shell_exec="bash"
     shell:
         """
-        python scripts/train/{params.script_name}.py \
+        python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
             save_path={output} \
@@ -86,7 +86,7 @@ rule train_classifier_for_method:
         shell_exec="bash"
     shell:
         """
-        python scripts/train/{params.script_name}.py \
+        python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
             save_path={output} \

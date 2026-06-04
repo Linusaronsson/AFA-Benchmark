@@ -51,7 +51,7 @@ rule pretrain_model:
     shell:
         """
         START_TIME=$(date +%s.%N)
-        python scripts/pretrain/{params.script_name}.py \
+        python scripts/pretrain_model/{params.script_name}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
             classifier_bundle_path={input[2]} \
@@ -119,7 +119,7 @@ rule train_method_with_pretrained_model:
     shell:
         """
         START_TIME=$(date +%s.%N)
-        python scripts/train/{params.script_name}.py \
+        python scripts/train_method/{params.script_name}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
             pretrained_model_bundle_path={input[2]} \
@@ -181,7 +181,7 @@ rule train_method_without_pretrained_model:
     shell:
         """
         START_TIME=$(date +%s.%N)
-        python scripts/train/{params.script_name}.py \
+        python scripts/train_method/{params.script_name}.py \
             train_dataset_bundle_path={input[0]} \
             val_dataset_bundle_path={input[1]} \
             classifier_bundle_path={input[2]} \
