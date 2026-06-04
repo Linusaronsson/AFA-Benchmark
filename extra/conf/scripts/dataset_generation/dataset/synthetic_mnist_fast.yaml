@@ -1,5 +1,0 @@
-class_name: "SyntheticMNISTDataset"
-kwargs:
-  n_samples: 100  # Very small for fast testing
-  noise_std: 0.1
-  pattern_intensity: 0.8

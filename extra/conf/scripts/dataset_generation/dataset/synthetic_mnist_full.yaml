@@ -1,5 +1,0 @@
-class_name: "SyntheticMNISTDataset"
-kwargs:
-  n_samples: 60000 # Full MNIST training set size - WARNING: Uses ~200MB RAM and takes several minutes to generate
-  noise_std: 0.1
-  pattern_intensity: 0.8
