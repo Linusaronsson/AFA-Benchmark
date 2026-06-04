@@ -35,6 +35,11 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _lightning_log_dir(save_path: str) -> Path:
+    save_path_parts = Path(save_path).with_suffix("").parts
+    return Path("extra/logs/lightning/train_classifier", *save_path_parts)
+
+
 @hydra.main(
     version_base=None,
     config_path="../../extra/conf/scripts/train_classifier/masked_mlp_classifier",
@@ -108,7 +113,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         mode="min",
     )
 
-    log_dir = Path(cfg.save_path).parent / "logs"
+    log_dir = _lightning_log_dir(cfg.save_path)
     log_dir.mkdir(parents=True, exist_ok=True)
     trainer_logger = (
         WandbLogger(save_dir="extra/logs/wandb")
