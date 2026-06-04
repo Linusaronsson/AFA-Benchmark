@@ -18,8 +18,8 @@ train_dataset_path: ???
 val_dataset_path: ???
 save_path: ???
 
-device: null
-seed: null
+device: ???
+seed: ???
 
 use_wandb: false
 smoke_test: false
