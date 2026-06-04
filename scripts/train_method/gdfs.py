@@ -22,7 +22,7 @@ IMAGE_DATASET_CLASSNAMES = {
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/gdfs",
+    config_path="../../extra/conf/scripts/train_method/gdfs",
     config_name="config",
 )
 def main(cfg: GDFSTrainingConfig | GDFSTraining2DConfig) -> None:

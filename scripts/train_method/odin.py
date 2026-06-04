@@ -204,7 +204,7 @@ class ODINRLTrainer(RLTrainer):
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/odin",
+    config_path="../../extra/conf/scripts/train_method/odin",
     config_name="config",
 )
 def main(cfg: ODINTrainConfig) -> None:

@@ -20,7 +20,7 @@ IMAGE_DATASET_CLASSNAMES = {
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/cae",
+    config_path="../../extra/conf/scripts/train_method/cae",
     config_name="config",
 )
 def main(cfg: CAETrainingConfig | CAETraining2DConfig) -> None:

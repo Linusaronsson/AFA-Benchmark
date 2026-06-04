@@ -255,7 +255,7 @@ class OLRLTrainer(RLTrainer):
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/ol",
+    config_path="../../extra/conf/scripts/train_method/ol",
     config_name="config",
 )
 def main(cfg: OLTrainConfig) -> None:

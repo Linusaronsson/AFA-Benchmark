@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/classifiers/masked_mlp_classifier",
+    config_path="../../extra/conf/scripts/train_classifier/masked_mlp_classifier",
     config_name="config",
 )
 def main(cfg: TrainMaskedMLPClassifierConfig) -> None:

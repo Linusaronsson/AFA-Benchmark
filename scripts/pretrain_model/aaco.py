@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/aaco",
+    config_path="../../extra/conf/scripts/pretrain_model/aaco",
     config_name="config",
 )
 def main(cfg: AACOTrainConfig) -> None:

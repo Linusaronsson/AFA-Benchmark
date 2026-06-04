@@ -60,7 +60,7 @@ def get_ol_model_fn(
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/pretrain/ol",
+    config_path="../../extra/conf/scripts/pretrain_model/ol",
     config_name="config",
 )
 def main(cfg: OLPretrainConfig) -> None:

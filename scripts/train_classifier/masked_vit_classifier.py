@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/classifiers/masked_vit_classifier",
+    config_path="../../extra/conf/scripts/train_classifier/masked_vit_classifier",
     config_name="config",
 )
 def main(cfg: TrainMaskedViTClassifierConfig) -> None:
