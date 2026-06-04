@@ -1,17 +1,60 @@
 """
-No-train orchestration pipeline.
+No-eval orchestration pipeline.
 
 This variant skips dataset generation, classifier training, method training, and
-evaluation rules and only runs transformation/aggregation/plotting on existing
-outputs.
+evaluation rules. It only runs transformation, aggregation, and plotting rules
+for existing evaluation outputs.
 
-Runtime filters (--config):
-    methods, method_sets, datasets, dataset_instance_indices, initializer,
-    eval_dataset_split.
+Runtime filters (--config, select subsets to run):
+    methods (list[str], required): Subset of methods from method_options.yaml
+    datasets (list[str], required): Subset of datasets to run
+    dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of
+        random seeds
+    device (str, default='cpu'): Device for configured downstream rules
+    use_wandb (bool, default=True): Enable W&B logging
+    smoke_test (bool, default=False): Run smoke tests
+    initializer (str, default='cold'): Initialization strategy
+    eval_dataset_split (str, default='test'): Dataset split for existing
+        evaluation outputs
 
 Output namespacing:
-    - Initializer-dependent artifacts are expected under
-      `initializer-<initializer>` paths.
+    - All initializer-dependent artifacts are stored under
+      `initializer-<initializer>` to allow side-by-side comparisons
+      (for example `cold` vs `missingness`) without overwriting.
+
+Config files (--configfile):
+    Fixed definitions:
+        method_options.yaml,
+        pretrain_mapping.yaml,
+        methods.yaml
+        classifier_names.yaml
+    Runtime params:
+        eval_hard_budgets.yaml,
+        soft_budget_params_*.yaml,
+        unmaskers.yaml
+
+    Note: method_options.yaml can include eval_to_train_hard_budget_mapping to
+    specify different budgets for training vs evaluation per method/dataset.
+
+    Note: method_options.yaml can include eval_batch_size to specify different
+    batch sizes for evaluation per method and dataset. Format:
+        eval_batch_size:
+          default: <batch_size>
+          <dataset_name>: <batch_size>
+
+    Note: method_options.yaml can include hard_budget_ignored_datasets to skip
+    hard budget training/evaluation for specific datasets per method. Format:
+        hard_budget_ignored_datasets: [dataset1, dataset2, ...]
+    When set, hard budget combinations are excluded for those datasets.
+
+    Note: method_options.yaml can include soft_budget_ignored_datasets to skip
+    soft budget training/evaluation for specific datasets per method. Format:
+     soft_budget_ignored_datasets: [dataset1, dataset2, ...]
+     When set, soft budget combinations are excluded for those datasets.
+
+     Note: Pretraining is skipped for datasets ignored by BOTH hard and soft
+     budgets (i.e., a dataset is pretrained only if at least one budget type
+     is used for that dataset/method combination).
 """
 
 import os
