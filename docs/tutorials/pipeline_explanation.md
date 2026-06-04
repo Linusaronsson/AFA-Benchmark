@@ -6,20 +6,8 @@ The whole pipeline is executable with the following command:
 ```shell
 WANDB_PROJECT=afabench \
   uv run snakemake \
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    --profile extra/workflow/profiles/config/all \
     all \
-    --configfile \
-      extra/workflow/conf/eval_hard_budgets/all.yaml \
-      extra/workflow/conf/methods/all.yaml \
-      extra/workflow/conf/method_sets/all.yaml \
-      extra/workflow/conf/method_options/all.yaml \
-      extra/workflow/conf/pretrain_mappings/all.yaml \
-      extra/workflow/conf/soft_budget_params/all.yaml \
-      extra/workflow/conf/unmaskers/all.yaml \
-      extra/workflow/conf/classifier_names/all.yaml \
-      extra/workflow/conf/datasets/all.yaml \
-    --config \
-      device=cpu \
     --jobs 8
 ```
 
@@ -27,7 +15,15 @@ This will attempt to run 8 jobs in parallel locally on your computer, in order t
 
 ## Configuration overview
 
-Configuration files are organized into subdirectories under `extra/workflow/conf/`. Each subdirectory contains multiple named variants (e.g., `all.yaml`, `kdd26.yaml`). Pass the desired variant to `--configfile`. Below we discuss the meaning of each configuration group.
+Configuration files are organized into subdirectories under
+`extra/workflow/conf/`. Each subdirectory contains multiple named variants
+(e.g., `all.yaml`, `kdd26.yaml`). The command above uses the
+`extra/workflow/profiles/config/all` profile, which bundles the commonly used
+`all.yaml` config files and the pipeline Snakefile. Use
+`extra/workflow/profiles/config/cpu_methods`,
+`extra/workflow/profiles/config/gpu_methods`, or
+`extra/workflow/profiles/config/kdd26` when you want those preset config
+combinations instead. Below we discuss the meaning of each configuration group.
 
 ## Runtime configuration options
 

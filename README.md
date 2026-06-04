@@ -24,11 +24,9 @@ uv sync
 
 ## Quickstart
 
-### Local execution, CPU only
-
-> **Note**: the number of generated jobs makes local execution impractical for a full run. We highly recommend SLURM execution instead.
-
-To run the pipeline locally with 8 cores, execute the following command at the repo root. It should produce plots at `extra/output/plot_results/`.
+Local execution is not recommended for reproducing the full benchmark because
+the pipeline generates a large number of jobs. If you still want to run it
+locally with 8 CPU cores, execute this command from the repo root:
 
 ```shell
 uv run snakemake \
@@ -49,72 +47,9 @@ uv run snakemake \
     --jobs 8
 ```
 
-See the [pipeline explanation](docs/tutorials/pipeline_explanation.md) tutorial for details on how this pipeline works and how to customize it.
-
-### SLURM execution
-
-> **Note**: Before running, create a SLURM profile for your cluster in `extra/workflow/profiles/`. See the [SLURM integration](docs/tutorials/slurm_integration.md) tutorial for instructions.
-
-The only difference between CPU and GPU execution is which file in `extra/workflow/conf/methods/` we use.
-
-First run CPU methods up to and including evaluation:
-```shell
-uv run snakemake \
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
-    all_eval_methods \
-    --profile extra/workflow/profiles/\<your_cpu_cluster\> \
-    --configfile \
-      extra/workflow/conf/eval_hard_budgets/all.yaml \
-      extra/workflow/conf/methods/cpu.yaml \
-      extra/workflow/conf/method_sets/all.yaml \
-      extra/workflow/conf/method_options/all.yaml \
-      extra/workflow/conf/pretrain_mappings/all.yaml \
-      extra/workflow/conf/soft_budget_params/all.yaml \
-      extra/workflow/conf/unmaskers/all.yaml \
-      extra/workflow/conf/classifier_names/all.yaml \
-      extra/workflow/conf/datasets/all.yaml \
-    --config \
-      device=cpu
-```
-and then do the same for GPU methods:
-```shell
-uv run snakemake \
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
-    all_eval_methods \
-    --profile extra/workflow/profiles/\<your_gpu_cluster\> \
-    --configfile \
-      extra/workflow/conf/eval_hard_budgets/all.yaml \
-      extra/workflow/conf/methods/gpu.yaml \
-      extra/workflow/conf/method_sets/all.yaml \
-      extra/workflow/conf/method_options/all.yaml \
-      extra/workflow/conf/pretrain_mappings/all.yaml \
-      extra/workflow/conf/soft_budget_params/all.yaml \
-      extra/workflow/conf/unmaskers/all.yaml \
-      extra/workflow/conf/classifier_names/all.yaml \
-      extra/workflow/conf/datasets/all.yaml \
-    --config \
-      device=cuda
-```
-
-Finally, plot everything:
-```shell
-uv run snakemake \
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
-    all \
-    --profile extra/workflow/profiles/\<your_cpu_cluster\> \
-    --configfile \
-      extra/workflow/conf/eval_hard_budgets/all.yaml \
-      extra/workflow/conf/methods/all.yaml \
-      extra/workflow/conf/method_sets/all.yaml \
-      extra/workflow/conf/method_options/all.yaml \
-      extra/workflow/conf/pretrain_mappings/all.yaml \
-      extra/workflow/conf/soft_budget_params/all.yaml \
-      extra/workflow/conf/unmaskers/all.yaml \
-      extra/workflow/conf/classifier_names/all.yaml \
-      extra/workflow/conf/datasets/all.yaml \
-    --config \
-      device=cpu
-```
+To reproduce the full benchmark results, use SLURM instead. See the
+[reproducing full results](docs/tutorials/reproduce_full_results.md) tutorial
+for the exact commands.
 
 ## Features
 
@@ -184,6 +119,7 @@ for accurate diagnosis with minimal cost. See the following survey for details: 
 ## Tutorials
 
 Learn more in our tutorials:
+  - [Reproducing full results](docs/tutorials/reproduce_full_results.md)
   - [Pipeline explanation](docs/tutorials/pipeline_explanation.md)
   - [Adding a new dataset](docs/tutorials/add_dataset.md)
   - [Adding a new method](docs/tutorials/add_method.md)
