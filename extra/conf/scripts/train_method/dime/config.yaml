@@ -20,8 +20,8 @@ val_dataset_bundle_path: ???
 classifier_bundle_path: ???
 pretrained_model_bundle_path: ???
 save_path: ???
-device: null
-seed: null
+device: ???
+seed: ???
 
 hard_budget: null
 soft_budget_param: null
