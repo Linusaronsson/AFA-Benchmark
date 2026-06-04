@@ -45,10 +45,6 @@ uv run snakemake \
       extra/workflow/conf/classifier_names/all.yaml \
       extra/workflow/conf/datasets/all.yaml \
     --config \
-      eval_dataset_split=test \
-      "dataset_instance_indices=[0,1,2,3,4]" \
-      smoke_test=false \
-      use_wandb=true \
       device=cpu \
     --jobs 8
 ```
@@ -78,10 +74,6 @@ uv run snakemake \
       extra/workflow/conf/classifier_names/all.yaml \
       extra/workflow/conf/datasets/all.yaml \
     --config \
-      eval_dataset_split=test \
-      "dataset_instance_indices=[0,1,2,3,4]" \
-      smoke_test=false \
-      use_wandb=true \
       device=cpu
 ```
 and then do the same for GPU methods:
@@ -101,10 +93,6 @@ uv run snakemake \
       extra/workflow/conf/classifier_names/all.yaml \
       extra/workflow/conf/datasets/all.yaml \
     --config \
-      eval_dataset_split=test \
-      "dataset_instance_indices=[0,1,2,3,4]" \
-      smoke_test=false \
-      use_wandb=true \
       device=cuda
 ```
 
@@ -125,10 +113,6 @@ uv run snakemake \
       extra/workflow/conf/classifier_names/all.yaml \
       extra/workflow/conf/datasets/all.yaml \
     --config \
-      eval_dataset_split=test \
-      "dataset_instance_indices=[0,1,2,3,4]" \
-      smoke_test=false \
-      use_wandb=true \
       device=cpu
 ```
 

@@ -2,12 +2,12 @@
 Runtime filters (--config, select subsets to run):
     methods (list[str], required): Subset of methods from method_options.yaml
     datasets (list[str], required): Subset of datasets to run
-    dataset_instance_indices (list[int], default=[0,1]): Subset of random seeds
+    dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
     device (str, default='cpu'): Device for training
-    use_wandb (bool, default=False): Enable W&B logging
+    use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy
-    eval_dataset_split (str, default='val'): Dataset split for evaluation
+    eval_dataset_split (str, default='test'): Dataset split for evaluation
 
 Output namespacing:
     - All initializer-dependent artifacts are stored under

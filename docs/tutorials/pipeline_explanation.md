@@ -19,10 +19,6 @@ WANDB_PROJECT=afabench \
       extra/workflow/conf/classifier_names/all.yaml \
       extra/workflow/conf/datasets/all.yaml \
     --config \
-      eval_dataset_split=val \
-      "dataset_instance_indices=[0,1]" \
-      smoke_test=false \
-      use_wandb=true \
       device=cpu \
     --jobs 8
 ```
@@ -41,16 +37,16 @@ The `--config` section of the pipeline command allows you to customize how the p
 
 Specifies which dataset split to use during evaluation.
 
-- **Default:** `val`
+- **Default:** `test`
 - **Valid values:** `train`, `val`, `test`
-- **Example:** `eval_dataset_split=test` to evaluate on the test set instead of validation set
+- **Example:** `eval_dataset_split=val` to evaluate on the validation set instead of the test set
 
 ### `dataset_instance_indices`
 
 Specifies which random seed instances to run. This allows you to run a subset of the experiments. Each index corresponds to a different random seed for dataset generation, model initialization, and training.
 
-- **Default:** `[0,1]`
-- **Example:** `dataset_instance_indices=[0,1,2,3,4]` to run 5 different seeds
+- **Default:** `[0,1,2,3,4]`
+- **Example:** `dataset_instance_indices=[0,1]` to run two different seeds
 - **Use case:** Use fewer instances for faster debugging, more instances for more robust results
 
 ### `device`
@@ -76,9 +72,9 @@ Controls the number of jobs Snakemake runs in parallel. This is not a `--config`
 
 Enables or disables [Weights & Biases](https://wandb.ai/) integration for logging metrics.
 
-- **Default:** `false`
-- **Example:** `use_wandb=true` to enable W&B logging
-- **Requirement:** You must run `uv run wandb login` before using this option
+- **Default:** `true`
+- **Example:** `use_wandb=false` to disable W&B logging
+- **Requirement:** You must run `uv run wandb login` before using W&B
 - **Note:** Also set the `WANDB_PROJECT` environment variable (shown in the example command)
 
 ### `smoke_test`

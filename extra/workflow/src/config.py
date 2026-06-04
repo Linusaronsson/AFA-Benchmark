@@ -46,13 +46,15 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     # Basic Configuration
     # ========================================================================
 
-    dataset_instance_indices = config.get("dataset_instance_indices", (0, 1))
+    dataset_instance_indices = config.get(
+        "dataset_instance_indices", (0, 1, 2, 3, 4)
+    )
     initializer = config.get("initializer", "cold")
     eval_dataset_split = config.get(
         "eval_dataset_split", "test"
     )  # switch to val while developing, and train if debugging
     device = config.get("device", "cpu")
-    use_wandb = config.get("use_wandb", False)
+    use_wandb = config.get("use_wandb", True)
     smoke_test = config.get("smoke_test", False)
 
     # ========================================================================

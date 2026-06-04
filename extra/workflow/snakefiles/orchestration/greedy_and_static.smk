@@ -4,9 +4,11 @@ from datetime import datetime
 
 NO_PRETRAIN_STR = "NO_PRETRAIN"
 
-DATASET_INSTANCE_INDICES = config.get("dataset_instance_indices", (0, 1))
+DATASET_INSTANCE_INDICES = config.get(
+    "dataset_instance_indices", (0, 1, 2, 3, 4)
+)
 INITIALIZER = config.get("initializer", "cold")
-EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "val")
+EVAL_DATASET_SPLIT = config.get("eval_dataset_split", "test")
 DEVICE = config.get("device", "cpu")
 
 METHOD_OPTIONS = config.get("method_options", None)
