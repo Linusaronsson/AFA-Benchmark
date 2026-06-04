@@ -61,7 +61,7 @@ First run CPU methods up to and including evaluation:
 ```shell
 uv run snakemake \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
-    all_eval_method \
+    all_eval_methods \
     --profile extra/workflow/profiles/\<your_cpu_cluster\> \
     --configfile \
       extra/workflow/conf/eval_hard_budgets/all.yaml \
@@ -80,7 +80,7 @@ and then do the same for GPU methods:
 ```shell
 uv run snakemake \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
-    all_eval_method \
+    all_eval_methods \
     --profile extra/workflow/profiles/\<your_gpu_cluster\> \
     --configfile \
       extra/workflow/conf/eval_hard_budgets/all.yaml \
