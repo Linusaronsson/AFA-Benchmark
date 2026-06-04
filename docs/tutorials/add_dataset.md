@@ -1,10 +1,10 @@
-# Adding a New Dataset
+# Adding a new dataset
 
 ## Overview
 
 Datasets in AFA-Benchmark are serialized as **bundles** (directories containing the dataset data and metadata) and are deserialized by methods during training and evaluation. To add a new dataset to the benchmark, you need to define a dataset class, configure how it's generated, register it for deserialization, and integrate it with the pipeline and plotting system.
 
-## Step-by-Step Guide
+## Step-by-step guide
 
 ### 1. Define a dataset class
 

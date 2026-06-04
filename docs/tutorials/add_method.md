@@ -1,4 +1,4 @@
-# Adding a New Method
+# Adding a new method
 
 ## Overview
 
@@ -10,7 +10,7 @@ To add a new Active Feature Acquisition (AFA) method to the benchmark, you need 
 
 This tutorial assumes your method requires a pretraining stage. Our example method will be called `Example` and will output random actions. You can reference the `RandomWithoutClassifierAFAMethod` implementation in the codebase to understand the AFA method interface.
 
-## Step-by-Step Guide
+## Step-by-step guide
 
 ### 1. Pretraining a model
 
@@ -315,7 +315,7 @@ use_wandb: false
 smoke_test: false
 ```
 
-## Integrating method in pipeline
+## Integrating the method into the pipeline
 
 So far, we have only created scripts that work individually, but these scripts will not yet run automatically when we execute the pipeline. The relevant file in `extra/workflow/conf/methods/` (e.g., `all.yaml`) contains a list of all methods that the pipeline will run. Let's call the new method `example_method`, so add it as a new list item:
 
@@ -381,21 +381,10 @@ method_sets:
 Let us run the pipeline locally using 8 cores, with only the new method and two datasets:
 ```shell
 uv run snakemake \
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    --profile extra/workflow/profiles/config/all \
     all \
-    --configfile \
-      extra/workflow/conf/eval_hard_budgets/all.yaml \
-      extra/workflow/conf/methods/all.yaml \
-      extra/workflow/conf/method_sets/all.yaml \
-      extra/workflow/conf/method_options/all.yaml \
-      extra/workflow/conf/pretrain_mappings/all.yaml \
-      extra/workflow/conf/soft_budget_params/all.yaml \
-      extra/workflow/conf/unmaskers/all.yaml \
-      extra/workflow/conf/classifier_names/all.yaml \
-      extra/workflow/conf/datasets/all.yaml \
     --config \
       "methods=[example_method]" \
       "datasets=[cube, actg]" \
-      device=cpu \
     --jobs 8
 ```
