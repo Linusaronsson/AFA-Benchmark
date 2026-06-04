@@ -196,14 +196,14 @@ The currently available `all_X` rules are:
 
 | Rule | Purpose |
 |------|---------|
-| `all_generate_dataset` | Generate all dataset splits (train/val/test) |
-| `all_train_classifier` | Train classifiers for all datasets |
-| `all_pretrain_model` | Pretrain models for all methods that require it |
-| `all_train_method` | Train all methods across all datasets and budget configurations |
-| `all_eval_method` | Evaluate all trained methods and produce evaluation results |
+| `all_generate_datasets` | Generate all dataset splits (train/val/test) |
+| `all_train_classifiers` | Train classifiers for all datasets |
+| `all_pretrain_models` | Pretrain models for all methods that require it |
+| `all_train_methods` | Train all methods across all datasets and budget configurations |
+| `all_eval_methods` | Evaluate all trained methods and produce evaluation results |
 
 To use one of these rules, replace `all` with the desired rule name in the command above. For example, to only generate datasets and train classifiers without training methods, use:
 
 ```shell
-uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk all_train_classifier ...
+uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk all_train_classifiers ...
 ```

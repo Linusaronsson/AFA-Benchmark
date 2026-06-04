@@ -22,7 +22,17 @@ rule all:
             f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"
         ]
 
-rule all_train_classifier:
+rule all_generate_datasets:
+    input:
+        [
+            f"extra/output/datasets/{dataset}/{dataset_instance_idx}/{split}.bundle"
+            for dataset in DATASETS
+            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for split in ["train", "val", "test"]
+        ]
+
+
+rule all_train_classifiers:
     input:
         [
             (
@@ -42,7 +52,7 @@ rule all_train_classifier:
         ]
 
 
-rule all_pretrain_model:
+rule all_pretrain_models:
     input:
         [
             (
@@ -59,7 +69,7 @@ rule all_pretrain_model:
         ]
 
 
-rule all_train_method:
+rule all_train_methods:
     input:
         [
             (
@@ -94,7 +104,7 @@ rule all_train_method:
             for (train_hard_budget, _eval_hard_budget, train_soft_budget_param, _eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ]
 
-rule all_eval_method:
+rule all_eval_methods:
     input:
         [
             (
