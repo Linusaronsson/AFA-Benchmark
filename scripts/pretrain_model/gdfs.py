@@ -1,10 +1,10 @@
-from pathlib import Path
 from typing import cast
 
 import hydra
+from omegaconf import OmegaConf
 
 from afabench.components.methods.discriminative.gdfs.config import (
-    GDFSPretraining2DConfig,
+    GDFSImageArchitectureConfig,
     GDFSPretrainingConfig,
 )
 from afabench.components.methods.discriminative.gdfs.pretrain.image import (
@@ -13,11 +13,6 @@ from afabench.components.methods.discriminative.gdfs.pretrain.image import (
 from afabench.components.methods.discriminative.gdfs.pretrain.tabular import (
     pretrain_tabular,
 )
-from afabench.core.bundle_system.bundle import load_bundle
-
-IMAGE_DATASET_CLASSNAMES = {
-    "ImagenetteDataset",
-}
 
 
 @hydra.main(
@@ -25,16 +20,12 @@ IMAGE_DATASET_CLASSNAMES = {
     config_path="../../extra/conf/scripts/pretrain_model/gdfs",
     config_name="config",
 )
-def main(
-    cfg: GDFSPretrainingConfig | GDFSPretraining2DConfig,
-) -> None:
-    _, manifest = load_bundle(Path(cfg.train_dataset_bundle_path))
-    cls = manifest.get("class_name", "")
-
-    if cls in IMAGE_DATASET_CLASSNAMES:
-        pretrain_image(cast("GDFSPretraining2DConfig", cfg))
+def main(cfg: GDFSPretrainingConfig) -> None:
+    cfg = cast("GDFSPretrainingConfig", OmegaConf.to_object(cfg))
+    if isinstance(cfg.architecture, GDFSImageArchitectureConfig):
+        pretrain_image(cfg)
     else:
-        pretrain_tabular(cast("GDFSPretrainingConfig", cfg))
+        pretrain_tabular(cfg)
 
 
 if __name__ == "__main__":

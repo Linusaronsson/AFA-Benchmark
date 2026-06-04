@@ -4,6 +4,7 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - train_aaco_nn
   - hydra: custom
   - _self_
   - components/initializers@initializer: ???

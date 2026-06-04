@@ -1,6 +1,7 @@
 import logging
+from dataclasses import asdict
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import hydra
 import lightning as pl
@@ -40,6 +41,7 @@ log = logging.getLogger(__name__)
     config_name="config",
 )
 def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
+    cfg = cast("TrainMaskedMLPClassifierConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
@@ -47,9 +49,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
 
     if cfg.use_wandb:
         _run = initialize_wandb_run(
-            cfg=cast(
-                "dict[str, Any]", OmegaConf.to_container(cfg, resolve=True)
-            ),
+            cfg=asdict(cfg),
             job_type="classifier_training",
             tags=["masked_mlp_classifier"],
         )

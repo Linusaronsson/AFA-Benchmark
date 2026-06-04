@@ -43,9 +43,11 @@ class JAFAPretrainConfig:
     lr: float
     encoder: JAFAEncoderConfig
     classifier: JAFAClassifierConfig
+    unmasker: UnmaskerConfig
     seed: int | None = None
     use_wandb: bool = False
     smoke_test: bool = False
+    initializer: InitializerConfig | None = None
 
 
 cs.store(name="pretrain_jafa", node=JAFAPretrainConfig)

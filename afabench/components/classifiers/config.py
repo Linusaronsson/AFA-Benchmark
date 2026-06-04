@@ -32,6 +32,7 @@ class TrainMaskedMLPClassifierConfig:
     device: str
     use_wandb: bool = False
     smoke_test: bool = False
+    eval_only_n_samples: int | None = None
 
 
 cs.store(

@@ -1,11 +1,11 @@
 import gc
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import cast
 
 import numpy as np
 import torch
-from omegaconf import OmegaConf
 from torch import nn
 from torch.utils.data import DataLoader
 
@@ -15,7 +15,10 @@ from afabench.components.methods.discriminative.common.models import (
     resnet18,
     resnet50,
 )
-from afabench.components.methods.static.cae.config import CAETraining2DConfig
+from afabench.components.methods.static.cae.config import (
+    CAEImageArchitectureConfig,
+    CAETrainingConfig,
+)
 from afabench.components.methods.static.common.models import BaseModel
 from afabench.components.methods.static.common.static_methods import (
     ConcreteMask2d,
@@ -32,16 +35,17 @@ from afabench.core.utils import set_seed
 log = logging.getLogger(__name__)
 
 
-def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
+def train_image(cfg: CAETrainingConfig) -> None:  # noqa: PLR0915
     log.debug(cfg)
-    print(OmegaConf.to_yaml(cfg))
+    assert isinstance(cfg.architecture, CAEImageArchitectureConfig)
+    print(str(cfg))
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
     if cfg.smoke_test:
-        cfg.selector.nepochs = 1
-        cfg.selector.patience = 1
-        cfg.classifier.nepochs = 1
+        cfg.architecture.selector.nepochs = 1
+        cfg.architecture.selector.patience = 1
+        cfg.architecture.classifier.nepochs = 1
 
     train_dataset, _ = load_bundle(Path(cfg.train_dataset_bundle_path))
     train_dataset = cast("AFADataset", cast("object", train_dataset))
@@ -61,19 +65,20 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
         shuffle=False,
         pin_memory=True,
     )
-    image_size = cfg.image_size
-    patch_size = cfg.patch_size
+    image_size = cfg.architecture.image_size
+    patch_size = cfg.architecture.patch_size
     assert image_size % patch_size == 0, (
         "image_size must be divisible by patch_size"
     )
     mask_width = image_size // patch_size
 
-    if cfg.backbone_type == "resnet18":
+    backbone_type = cfg.architecture.backbone_type
+    if backbone_type == "resnet18":
         base = resnet18(pretrained=True)
-    elif cfg.backbone_type == "resnet50":
+    elif backbone_type == "resnet50":
         base = resnet50(pretrained=True)
     else:
-        msg = f"Unsupported backbone type: {cfg.backbone_type}"
+        msg = f"Unsupported backbone type: {backbone_type}"
         raise ValueError(msg)
     backbone, expansion = ResNet18Backbone(base)
     model = Predictor(backbone, expansion, num_classes=d_out).to(device)
@@ -89,10 +94,10 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
     diff_selector.fit(
         train_loader,
         val_loader,
-        lr=cfg.selector.lr,
-        nepochs=cfg.selector.nepochs,
+        lr=cfg.architecture.selector.lr,
+        nepochs=cfg.architecture.selector.nepochs,
         loss_fn=nn.CrossEntropyLoss(),
-        patience=cfg.selector.patience,
+        patience=cfg.architecture.selector.patience,
         verbose=True,
     )
 
@@ -125,7 +130,6 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
         )
         idx = torch.as_tensor(selected_patches, dtype=torch.long, device="cpu")
         patch_mask[idx] = 1.0
-        # Assume [B, C, H, W] input
         patch_mask = (
             patch_mask.view(mask_width, mask_width).unsqueeze(0).unsqueeze(0)
         )
@@ -150,7 +154,7 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
             collate_fn=make_masked_collate(patch_mask),
         )
 
-        if cfg.backbone_type == "resnet18":
+        if backbone_type == "resnet18":
             base = resnet18(pretrained=True)
         else:
             base = resnet50(pretrained=True)
@@ -160,8 +164,8 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
         predictor.fit(
             masked_train_loader,
             masked_val_loader,
-            lr=cfg.classifier.lr,
-            nepochs=cfg.classifier.nepochs,
+            lr=cfg.architecture.classifier.lr,
+            nepochs=cfg.architecture.classifier.nepochs,
             loss_fn=nn.CrossEntropyLoss(),
             verbose=True,
         )
@@ -179,7 +183,7 @@ def train_image(cfg: CAETraining2DConfig) -> None:  # noqa: PLR0915
     save_bundle(
         obj=static_method,
         path=Path(cfg.save_path),
-        metadata={"config": OmegaConf.to_container(cfg, resolve=True)},
+        metadata={"config": asdict(cfg)},
     )
     log.info(f"CAE method saved to: {cfg.save_path}")
 

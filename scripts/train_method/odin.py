@@ -1,4 +1,5 @@
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
 
@@ -208,6 +209,7 @@ class ODINRLTrainer(RLTrainer):
     config_name="config",
 )
 def main(cfg: ODINTrainConfig) -> None:
+    cfg = cast("ODINTrainConfig", OmegaConf.to_object(cfg))
     cfg = method_specific_init(cfg)
 
     trainer = ODINRLTrainer(
@@ -219,7 +221,7 @@ def main(cfg: ODINTrainConfig) -> None:
         n_agents=cfg.mdp.n_agents,
         seed=cfg.seed,
         device=cfg.device if cfg.device is not None else torch.device("cpu"),
-        cfg=cast("dict[str,Any]", OmegaConf.to_container(cfg)),
+        cfg=asdict(cfg),
         use_wandb=cfg.use_wandb,
         typed_cfg=cfg,
     )

@@ -1,10 +1,10 @@
-from pathlib import Path
 from typing import cast
 
 import hydra
+from omegaconf import OmegaConf
 
 from afabench.components.methods.discriminative.dime.config import (
-    DIMEPretraining2DConfig,
+    DIMEImageArchitectureConfig,
     DIMEPretrainingConfig,
 )
 from afabench.components.methods.discriminative.dime.pretrain.image import (
@@ -13,11 +13,6 @@ from afabench.components.methods.discriminative.dime.pretrain.image import (
 from afabench.components.methods.discriminative.dime.pretrain.tabular import (
     pretrain_tabular,
 )
-from afabench.core.bundle_system.bundle import load_bundle
-
-IMAGE_DATASET_CLASSNAMES = {
-    "ImagenetteDataset",
-}
 
 
 @hydra.main(
@@ -25,16 +20,12 @@ IMAGE_DATASET_CLASSNAMES = {
     config_path="../../extra/conf/scripts/pretrain_model/dime",
     config_name="config",
 )
-def main(
-    cfg: DIMEPretrainingConfig | DIMEPretraining2DConfig,
-) -> None:
-    _, manifest = load_bundle(Path(cfg.train_dataset_bundle_path))
-    cls = manifest.get("class_name", "")
-
-    if cls in IMAGE_DATASET_CLASSNAMES:
-        pretrain_image(cast("DIMEPretraining2DConfig", cfg))
+def main(cfg: DIMEPretrainingConfig) -> None:
+    cfg = cast("DIMEPretrainingConfig", OmegaConf.to_object(cfg))
+    if isinstance(cfg.architecture, DIMEImageArchitectureConfig):
+        pretrain_image(cfg)
     else:
-        pretrain_tabular(cast("DIMEPretrainingConfig", cfg))
+        pretrain_tabular(cfg)
 
 
 if __name__ == "__main__":

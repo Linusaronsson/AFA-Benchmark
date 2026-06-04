@@ -1,7 +1,8 @@
 import logging
 from collections.abc import Callable
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any, cast
+from typing import cast
 
 import hydra
 import lightning as pl
@@ -67,6 +68,7 @@ def get_jafa_model_fn(
     config_name="config",
 )
 def main(cfg: JAFAPretrainConfig) -> None:
+    cfg = cast("JAFAPretrainConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.cuda.empty_cache()
@@ -74,9 +76,7 @@ def main(cfg: JAFAPretrainConfig) -> None:
 
     if cfg.use_wandb:
         _run = initialize_wandb_run(
-            cfg=cast(
-                "dict[str,Any]", OmegaConf.to_container(cfg, resolve=True)
-            ),
+            cfg=asdict(cfg),
             job_type="pretraining",
             tags=["jafa"],
         )
@@ -101,7 +101,7 @@ def main(cfg: JAFAPretrainConfig) -> None:
         metadata_to_save_in_bundle={
             "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
             "seed": cfg.seed,
-            "config": OmegaConf.to_container(cfg, resolve=True),
+            "config": asdict(cfg),
         },
     )
 
