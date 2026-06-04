@@ -14,7 +14,7 @@ This tutorial assumes your method requires a pretraining stage. Our example meth
 
 ### 1. Pretraining a model
 
-Create a pretraining script at `scripts/pretrain/example.py`:
+Create a pretraining script at `scripts/pretrain_model/example.py`:
 ```python
 import logging
 from pathlib import Path
@@ -126,13 +126,13 @@ pretrain_mapping:
   # other models...
 ```
 
-This defines a pretrained model called `example_model`, which your method will later depend on. The `pretrain_script_name` refers to files in `scripts/pretrain/`.
+This defines a pretrained model called `example_model`, which your method will later depend on. The `pretrain_script_name` refers to files in `scripts/pretrain_model/`.
 
 ### 2. Training a method
 
 You cannot yet run the pretraining stage, since the pipeline works backwards from which *methods* need to be trained.
 
-Add a training script at `scripts/train/example.py`:
+Add a training script at `scripts/train_method/example.py`:
 ```python
 import logging
 from pathlib import Path
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     main()
 ```
 
-Note that this is almost identical to `scripts/train/random_dummy.py`. Had we used a different class than `RandomWithoutClassifierAFAMethod` to represent our method, we would also have to add it to the registry object `REGISTERED_CLASSES` in `afabench/core/registry.py`. However, there is already an entry for `"RandomWithoutClassifierAFAMethod": "afabench.components.methods.dummy.without_classifier.RandomWithoutClassifierAFAMethod"`.
+Note that this is almost identical to `scripts/train_method/random_dummy.py`. Had we used a different class than `RandomWithoutClassifierAFAMethod` to represent our method, we would also have to add it to the registry object `REGISTERED_CLASSES` in `afabench/core/registry.py`. However, there is already an entry for `"RandomWithoutClassifierAFAMethod": "afabench.components.methods.dummy.without_classifier.RandomWithoutClassifierAFAMethod"`.
 
 Similar to before, you have to configure a config dataclass in `afabench/components/methods/example/config.py`:
 ```python
