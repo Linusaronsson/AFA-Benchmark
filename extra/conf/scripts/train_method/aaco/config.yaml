@@ -7,7 +7,6 @@ defaults:
   - train_aaco
   - hydra: custom
   - _self_
-  - dataset@_global_: cube
   - components/initializers@initializer: ???
   - components/unmaskers@unmasker: ???
   - optional experiment@_global_: ???
