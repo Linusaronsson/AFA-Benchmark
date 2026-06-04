@@ -11,9 +11,9 @@ Notes:
 Runtime filters (--config):
     methods (list[str], required): Subset of methods from method_options.yaml
     datasets (list[str], required): Subset of datasets to run
-    dataset_instance_indices (list[int], default=[0,1]): Subset of seeds
+    dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of seeds
     device (str, default='cpu'): Device for training
-    use_wandb (bool, default=False): Enable W&B logging
+    use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy
     eval_dataset_split (str, default='test'): Dataset split for evaluation

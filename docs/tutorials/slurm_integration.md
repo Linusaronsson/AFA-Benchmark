@@ -31,10 +31,6 @@ uv run snakemake \
       extra/workflow/conf/classifier_names/all.yaml \
       extra/workflow/conf/datasets/all.yaml \
     --config \
-      eval_dataset_split=val \
-      "dataset_instance_indices=[0,1]" \
-      smoke_test=false \
-      use_wandb=true \
       device=cuda
 ```
 

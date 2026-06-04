@@ -14,7 +14,7 @@ Usage:
 DATASET_PATH_PREFIX = config.get("dataset_path_prefix", "extra/data")
 OUTPUT_PATH_PREFIX = config.get("output_path_prefix", "extra/output/classifiers")
 DEVICE = config.get("device", "cpu")
-USE_WANDB = config.get("use_wandb", False)
+USE_WANDB = config.get("use_wandb", True)
 SMOKE_TEST = config.get("smoke_test", False)
 
 # Datasets to process (required)
