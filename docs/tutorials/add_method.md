@@ -359,6 +359,5 @@ uv run snakemake \
       smoke_test=true \
       use_wandb=false \
       device=cpu \
-    --jobs 8 \
-    --keep-going
+    --jobs 8
 ```
