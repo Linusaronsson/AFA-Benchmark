@@ -30,7 +30,7 @@ from plotnine import (
     theme,
 )
 
-from scripts.plotting.config import PlottingDisplayConfig, PlotTotalTimeConfig
+from afabench.plotting.config import PlottingDisplayConfig, PlotTotalTimeConfig
 
 PLOT_FONT_SIZE = 12
 

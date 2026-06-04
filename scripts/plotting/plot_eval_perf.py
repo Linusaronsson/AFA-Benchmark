@@ -27,7 +27,7 @@ from plotnine import (
 )
 from sklearn.metrics import accuracy_score, f1_score
 
-from scripts.plotting.config import PlotEvalPerfConfig, PlottingDisplayConfig
+from afabench.plotting.config import PlotEvalPerfConfig, PlottingDisplayConfig
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
