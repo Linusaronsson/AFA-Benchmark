@@ -30,6 +30,7 @@ from afabench.components.methods.discriminative.gdfs.config import (
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.utils import set_seed
+from afabench.training.smoke_test import dataset_subset
 
 log = logging.getLogger(__name__)
 
@@ -68,14 +69,14 @@ def train_image(
         )
     )
     train_loader = DataLoader(
-        train_dataset,  # pyright: ignore[reportArgumentType]
+        dataset_subset(train_dataset, smoke_test=cfg.smoke_test),  # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
         shuffle=True,
         pin_memory=True,
         drop_last=True,
     )
     val_loader = DataLoader(
-        val_dataset,  # pyright: ignore[reportArgumentType]
+        dataset_subset(val_dataset, smoke_test=cfg.smoke_test),  # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
         shuffle=False,
         pin_memory=True,
@@ -130,6 +131,7 @@ def train_image(
         max_features=cfg.hard_budget,
         loss_fn=nn.CrossEntropyLoss(),
         patience=cfg.patience,
+        temp_steps=1 if cfg.smoke_test else 5,
         verbose=True,
         metric_logger=metric_logger,
         metric_prefix="gdfs",
