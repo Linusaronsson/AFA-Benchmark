@@ -50,6 +50,15 @@ def _apply_model_mask(
     return mask_layer(features, feature_mask)
 
 
+def _append_flat_mask(
+    masked_features: torch.Tensor, feature_mask: torch.Tensor
+) -> torch.Tensor:
+    if masked_features.dim() > 2:
+        masked_features = masked_features.flatten(start_dim=1)
+        feature_mask = feature_mask.flatten(start_dim=1)
+    return torch.cat([masked_features, feature_mask], dim=1)
+
+
 class GreedyDynamicSelection(nn.Module):
     """
     Greedy adaptive feature selection.
@@ -472,7 +481,7 @@ class GDFSAFAMethod(AFAMethod):
         feature_shape: torch.Size | None = None,
     ) -> Label:
         if self.modality == "tabular":
-            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            x_masked = _append_flat_mask(masked_features, feature_mask)
             pred = self.predictor(x_masked)
         else:
             pred = self.predictor(masked_features)
@@ -489,8 +498,8 @@ class GDFSAFAMethod(AFAMethod):
     ) -> AFAAction:
         with torch.no_grad():
             if self.modality == "tabular":
-                x_masked_pred = torch.cat(
-                    [masked_features, feature_mask], dim=1
+                x_masked_pred = _append_flat_mask(
+                    masked_features, feature_mask
                 )
                 pred = self.predictor(x_masked_pred)
             else:
@@ -500,7 +509,7 @@ class GDFSAFAMethod(AFAMethod):
             stop_mask = entropy < self.lambda_threshold
 
         if self.modality == "tabular":
-            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            x_masked = _append_flat_mask(masked_features, feature_mask)
             logits = self.selector(x_masked).flatten(1)
             # TODO: currently assume that if we use CubeNMUnmasker, then we
             # have a non-None selection mask

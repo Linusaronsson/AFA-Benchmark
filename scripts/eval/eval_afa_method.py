@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING, Any, cast, final
 
 import hydra
 import torch
-import wandb
 from omegaconf import OmegaConf
 
+import wandb
 from afabench.components.initializers.utils import (
     get_afa_initializer_from_config,
 )
