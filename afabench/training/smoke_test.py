@@ -22,9 +22,19 @@ def eval_settings(
         return default_n_samples, default_batch_size
 
     log.info("Smoke test detected.")
-    batch_size = min(default_batch_size, SMOKE_TEST_BATCH_SIZE)
+    batch_size = training_batch_size(
+        smoke_test=smoke_test,
+        default_batch_size=default_batch_size,
+    )
     n_samples = min(default_n_samples, batch_size * SMOKE_TEST_N_BATCHES)
     return n_samples, batch_size
+
+
+def training_batch_size(*, smoke_test: bool, default_batch_size: int) -> int:
+    if not smoke_test:
+        return default_batch_size
+
+    return min(default_batch_size, SMOKE_TEST_BATCH_SIZE)
 
 
 def training_subset(

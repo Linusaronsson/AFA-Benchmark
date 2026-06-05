@@ -3,6 +3,7 @@ import torch
 from afabench.training.smoke_test import (
     dataset_subset,
     eval_settings,
+    training_batch_size,
     training_subset,
 )
 
@@ -64,6 +65,24 @@ def test_eval_settings_use_two_batches_for_smoke_test() -> None:
     )
 
     assert only_n_samples / batch_size == 2
+
+
+def test_training_batch_size_keeps_default_without_smoke_test() -> None:
+    batch_size = training_batch_size(
+        smoke_test=False,
+        default_batch_size=128,
+    )
+
+    assert batch_size == 128
+
+
+def test_training_batch_size_reduces_work_for_smoke_test() -> None:
+    batch_size = training_batch_size(
+        smoke_test=True,
+        default_batch_size=128,
+    )
+
+    assert batch_size == 2
 
 
 def test_training_subset_keeps_all_rows_without_smoke_test() -> None:

@@ -30,7 +30,7 @@ from afabench.components.methods.discriminative.gdfs.config import (
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.utils import set_seed
-from afabench.training.smoke_test import dataset_subset
+from afabench.training.smoke_test import dataset_subset, training_batch_size
 
 log = logging.getLogger(__name__)
 
@@ -68,16 +68,20 @@ def train_image(
             unmasker_cfg=cfg.unmasker,
         )
     )
+    batch_size = training_batch_size(
+        smoke_test=cfg.smoke_test,
+        default_batch_size=cfg.batch_size,
+    )
     train_loader = DataLoader(
         dataset_subset(train_dataset, smoke_test=cfg.smoke_test),  # pyright: ignore[reportArgumentType]
-        batch_size=cfg.batch_size,
+        batch_size=batch_size,
         shuffle=True,
         pin_memory=True,
         drop_last=True,
     )
     val_loader = DataLoader(
         dataset_subset(val_dataset, smoke_test=cfg.smoke_test),  # pyright: ignore[reportArgumentType]
-        batch_size=cfg.batch_size,
+        batch_size=batch_size,
         shuffle=False,
         pin_memory=True,
     )

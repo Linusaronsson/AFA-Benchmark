@@ -3,7 +3,7 @@ from typing import Any
 from torch.utils.data import DataLoader
 
 from afabench.core.types import AFADataset
-from afabench.training.smoke_test import dataset_subset
+from afabench.training.smoke_test import dataset_subset, training_batch_size
 
 
 def prepare_datasets(
@@ -18,6 +18,10 @@ def prepare_datasets(
     d_out = train_dataset.label_shape[0]
     train_dataset = dataset_subset(train_dataset, smoke_test=smoke_test)
     val_dataset = dataset_subset(val_dataset, smoke_test=smoke_test)
+    batch_size = training_batch_size(
+        smoke_test=smoke_test,
+        default_batch_size=batch_size,
+    )
 
     # Create new datasets with converted data format
     class ConvertedDataset:
