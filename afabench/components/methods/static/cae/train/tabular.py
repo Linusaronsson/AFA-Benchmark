@@ -1,5 +1,6 @@
 import gc
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 
@@ -32,7 +33,10 @@ from afabench.core.utils import set_seed
 log = logging.getLogger(__name__)
 
 
-def train_tabular(cfg: CAETrainingConfig) -> None:
+def train_tabular(
+    cfg: CAETrainingConfig,
+    metric_logger: Callable[[dict[str, float]], None] | None = None,
+) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, CAETabularArchitectureConfig)
     assert cfg.device is not None, "device must be configured"
@@ -79,6 +83,8 @@ def train_tabular(cfg: CAETrainingConfig) -> None:
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         patience=cfg.architecture.selector.patience,
         verbose=False,
+        metric_logger=metric_logger,
+        metric_prefix="cae_selector",
     )
 
     logits = selector_layer.logits.cpu().data.numpy()
@@ -134,6 +140,8 @@ def train_tabular(cfg: CAETrainingConfig) -> None:
             nepochs=cfg.architecture.classifier.nepochs,
             loss_fn=nn.CrossEntropyLoss(weight=class_weights),
             verbose=False,
+            metric_logger=metric_logger,
+            metric_prefix=f"cae_classifier/{num}_features",
         )
 
         predictors[num] = model

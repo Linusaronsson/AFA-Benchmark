@@ -7,6 +7,7 @@ Trains a neural network policy via behavioral cloning.
 from __future__ import annotations
 
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -31,7 +32,7 @@ from afabench.components.unmaskers.utils import (
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.naming import infer_dataset_key_from_class_name
-from afabench.core.utils import set_seed
+from afabench.core.utils import initialize_wandb_run, set_seed
 
 if TYPE_CHECKING:
     from afabench.components.methods.oracle.aaco.config import (
@@ -143,6 +144,13 @@ def main(cfg: AACONNTrainConfig) -> None:
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
+    wandb_run = None
+    if cfg.use_wandb:
+        wandb_run = initialize_wandb_run(
+            cfg=asdict(cfg),
+            job_type="training",
+            tags=["aaco_nn"],
+        )
 
     _configure_smoke_test(cfg)
     aaco_method, force_acquisition = _load_aaco_method(cfg, device)
@@ -206,6 +214,7 @@ def main(cfg: AACONNTrainConfig) -> None:
         learning_rate=cfg.learning_rate,
         patience=cfg.early_stopping_patience,
         device=device,
+        metric_logger=wandb_run.log if wandb_run is not None else None,
     )
     logger.info("Training complete")
 

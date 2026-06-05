@@ -24,7 +24,7 @@ from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.bundle_system.torch_bundle import (
     TorchModelBundle,  # noqa: TC001
 )
-from afabench.core.utils import set_seed
+from afabench.core.utils import initialize_wandb_run, set_seed
 
 log = logging.getLogger(__name__)
 
@@ -37,6 +37,13 @@ log = logging.getLogger(__name__)
 def main(cfg: EDDITrainingConfig) -> None:
     cfg = cast("EDDITrainingConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
+    if cfg.use_wandb:
+        _run = initialize_wandb_run(
+            cfg=asdict(cfg),
+            job_type="training",
+            tags=["eddi_builtin"],
+        )
+
     assert cfg.device is not None, "device must be configured"
     set_seed(cfg.seed)
     device = torch.device(cfg.device)

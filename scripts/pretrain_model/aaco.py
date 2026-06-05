@@ -1,4 +1,5 @@
 import logging
+from dataclasses import asdict
 from typing import cast
 
 import hydra
@@ -6,6 +7,7 @@ from omegaconf import OmegaConf
 
 from afabench.components.methods.oracle.aaco.config import AACOTrainConfig
 from afabench.components.methods.oracle.aaco.train import run
+from afabench.core.utils import initialize_wandb_run
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +20,13 @@ logger = logging.getLogger(__name__)
 def main(cfg: AACOTrainConfig) -> None:
     cfg = cast("AACOTrainConfig", OmegaConf.to_object(cfg))
     logger.debug(cfg)
+    if cfg.use_wandb:
+        _run = initialize_wandb_run(
+            cfg=asdict(cfg),
+            job_type="pretraining",
+            tags=["aaco"],
+        )
+
     run(cfg)
 
 

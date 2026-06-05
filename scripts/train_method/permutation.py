@@ -29,7 +29,7 @@ from afabench.components.methods.static.pt.static_methods import (
 )
 from afabench.components.methods.static.pt.utils import transform_dataset
 from afabench.core.bundle_system.bundle import save_bundle
-from afabench.core.utils import set_seed
+from afabench.core.utils import initialize_wandb_run, set_seed
 
 log = logging.getLogger(__name__)
 
@@ -47,9 +47,17 @@ def _get_required_training_settings(
     config_path="../../extra/conf/scripts/train_method/permutation",
     config_name="config",
 )
-def main(cfg: PermutationTrainingConfig) -> None:
+def main(cfg: PermutationTrainingConfig) -> None:  # noqa: PLR0915
     cfg = cast("PermutationTrainingConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
+    wandb_run = None
+    if cfg.use_wandb:
+        wandb_run = initialize_wandb_run(
+            cfg=asdict(cfg),
+            job_type="training",
+            tags=["permutation"],
+        )
+
     device_name, hard_budget = _get_required_training_settings(cfg)
     set_seed(cfg.seed)
     device = torch.device(device_name)
@@ -96,6 +104,8 @@ def main(cfg: PermutationTrainingConfig) -> None:
         nepochs=cfg.selector.nepochs,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         verbose=False,
+        metric_logger=wandb_run.log if wandb_run is not None else None,
+        metric_prefix="permutation_selector",
     )
 
     permutation_importance = np.zeros(d_in)
@@ -145,6 +155,8 @@ def main(cfg: PermutationTrainingConfig) -> None:
             nepochs=cfg.classifier.nepochs,
             loss_fn=nn.CrossEntropyLoss(weight=class_weights),
             verbose=False,
+            metric_logger=wandb_run.log if wandb_run is not None else None,
+            metric_prefix=f"permutation_classifier/{num}_features",
         )
 
         predictors[num] = model

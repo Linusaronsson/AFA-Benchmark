@@ -23,7 +23,7 @@ class BaseModel(nn.Module):
             return y.argmax(dim=-1).long()
         return y.long()
 
-    def fit(  # noqa: C901
+    def fit(  # noqa: C901, PLR0915
         self,
         train_loader: BatchLoader,
         val_loader: BatchLoader,
@@ -37,6 +37,8 @@ class BaseModel(nn.Module):
         min_lr: float = 1e-6,
         early_stopping_epochs: int | None = None,
         verbose: bool = True,  # noqa: FBT002
+        metric_logger: Callable[[dict[str, float]], None] | None = None,
+        metric_prefix: str = "static_classifier",
     ) -> None:
         """Train model."""
         # Verify arguments.
@@ -70,8 +72,11 @@ class BaseModel(nn.Module):
         for epoch in range(nepochs):
             # Switch model to training mode.
             model.train()
+            epoch_train_loss = 0.0
+            train_batches = 0
 
             for x_batch, y_batch in train_loader:
+                train_batches += 1
                 # Move to device.
                 x = x_batch.to(device)
                 y = self._to_class_indices(y_batch).to(device)
@@ -84,6 +89,9 @@ class BaseModel(nn.Module):
                 loss.backward()
                 opt.step()
                 model.zero_grad()
+                epoch_train_loss += loss.item()
+
+            train_loss = epoch_train_loss / train_batches
 
             # Calculate validation loss.
             model.eval()
@@ -111,6 +119,15 @@ class BaseModel(nn.Module):
             if verbose:
                 print(f"{'-' * 8}Epoch {epoch + 1}{'-' * 8}")
                 print(f"Val loss = {val_loss:.4f}\n")
+
+            if metric_logger is not None:
+                metric_logger(
+                    {
+                        f"{metric_prefix}/epoch": float(epoch + 1),
+                        f"{metric_prefix}/train_loss": float(train_loss),
+                        f"{metric_prefix}/val_loss": float(val_loss),
+                    }
+                )
 
             # Update scheduler.
             scheduler.step(val_loss)

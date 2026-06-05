@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Self, cast, final, override
@@ -384,6 +385,7 @@ def train_policy_network(
     learning_rate: float,
     patience: int,
     device: torch.device,
+    metric_logger: Callable[[dict[str, float]], None] | None = None,
 ) -> AACOPolicyNetwork:
     """Train the policy network via behavioral cloning."""
     policy_network = policy_network.to(device)
@@ -409,6 +411,16 @@ def train_policy_network(
             f"Train Loss={train_loss:.4f}, Train Acc={train_acc:.4f}, "
             f"Val Loss={val_loss:.4f}, Val Acc={val_acc:.4f}"
         )
+        if metric_logger is not None:
+            metric_logger(
+                {
+                    "aaco_nn/epoch": float(epoch + 1),
+                    "aaco_nn/train_loss": train_loss,
+                    "aaco_nn/train_accuracy": train_acc,
+                    "aaco_nn/val_loss": val_loss,
+                    "aaco_nn/val_accuracy": val_acc,
+                }
+            )
 
         if val_loss < best_val_loss:
             best_val_loss = val_loss

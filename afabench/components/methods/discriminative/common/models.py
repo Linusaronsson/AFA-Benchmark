@@ -230,6 +230,8 @@ class MaskingPretrainer(nn.Module):
         verbose=True,
         min_mask=0.1,
         max_mask=0.9,
+        metric_logger: Callable[[dict[str, float]], None] | None = None,
+        metric_prefix: str = "masked_classifier",
     ):
         """Train model."""
         # Verify arguments.
@@ -318,6 +320,15 @@ class MaskingPretrainer(nn.Module):
                 print(f"{'-' * 8}Epoch {epoch + 1}{'-' * 8}")
                 print(f"Train loss = {avg_train:.4f}\n")
                 print(f"Val loss = {val_loss:.4f}\n")
+
+            if metric_logger is not None:
+                metric_logger(
+                    {
+                        f"{metric_prefix}/epoch": float(epoch + 1),
+                        f"{metric_prefix}/train_loss": float(avg_train),
+                        f"{metric_prefix}/val_loss": float(val_loss),
+                    }
+                )
 
             # Update scheduler.
             scheduler.step(val_loss)
