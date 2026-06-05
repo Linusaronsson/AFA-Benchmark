@@ -91,7 +91,6 @@ class ODINAgentConfig:
     num_epochs: int
     lr: float
     max_grad_norm: float
-    replay_buffer_batch_size: int
 
     value_num_cells: list[int]
     value_dropout: float
