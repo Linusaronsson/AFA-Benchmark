@@ -22,6 +22,7 @@ from afabench.core.utils import (
 )
 from afabench.evaluation.config import EvalConfig
 from afabench.evaluation.eval import eval_afa_method
+from afabench.training.smoke_test import eval_settings
 
 if TYPE_CHECKING:
     import pandas as pd
@@ -148,9 +149,18 @@ class AFAEvaluator:
 
     def _smoke_test_override(self) -> None:
         if self._cfg.smoke_test:
-            log.info("Smoke test detected.")
-            self._cfg.eval_only_n_samples = 10
-            self._cfg.batch_size = 2
+            default_n_samples = (
+                self._cfg.eval_only_n_samples
+                if self._cfg.eval_only_n_samples is not None
+                else self._cfg.batch_size * 2
+            )
+            self._cfg.eval_only_n_samples, self._cfg.batch_size = (
+                eval_settings(
+                    smoke_test=True,
+                    default_n_samples=default_n_samples,
+                    default_batch_size=self._cfg.batch_size,
+                )
+            )
 
     def _set_seeds(self) -> None:
         # Set the seed of everything
