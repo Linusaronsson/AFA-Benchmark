@@ -1,5 +1,5 @@
 # pyright: reportImplicitOverride=false, reportUnannotatedClassAttribute=false
-# ruff: noqa: ANN001, ANN003, ANN201, ANN202, B007, C901, D401, EM101, EM102, FBT002, I001, N802, PERF401, PLR0912, PLR0915, PLR1704, PLW2901, PTH118, TRY003, UP008, UP035
+# ruff: noqa: ANN001, ANN003, ANN201, ANN202, B007, C901, D401, EM101, EM102, FBT002, I001, N802, PERF401, PLR0915, PLR1704, PLW2901, PTH118, TRY003, UP008, UP035
 import math
 import os
 from copy import deepcopy
@@ -203,6 +203,17 @@ class MaskingPretrainer(nn.Module):
             return y.argmax(dim=-1).long()
         return y.long()
 
+    def _random_mask(self, x: torch.Tensor, p: float) -> torch.Tensor:
+        device = x.device
+        if x.dim() != 4:
+            _, m, _ = mask_data(x, p)
+            return m
+
+        n = self.mask_layer.mask_size
+        if n is None:
+            return (torch.rand(x.shape, device=device) < p).float()
+        return (torch.rand(x.size(0), n, device=device) < p).float()
+
     def fit(
         self,
         train_loader,
@@ -260,11 +271,7 @@ class MaskingPretrainer(nn.Module):
 
                 # Generate missingness.
                 p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
-                if x.dim() == 4:
-                    n = self.mask_layer.mask_size
-                    m = (torch.rand(x.size(0), n, device=device) < p).float()
-                else:
-                    _, m, _ = mask_data(x, p)
+                m = self._random_mask(x, p)
 
                 # Calculate loss.
                 x_masked = mask_layer(x, m)
@@ -295,13 +302,7 @@ class MaskingPretrainer(nn.Module):
                     p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
 
                     # Calculate prediction.
-                    if x.dim() == 4:
-                        n = self.mask_layer.mask_size
-                        m = (
-                            torch.rand(x.size(0), n, device=device) < p
-                        ).float()
-                    else:
-                        _, m, _ = mask_data(x, p)
+                    m = self._random_mask(x, p)
                     x_masked = mask_layer(x, m)
                     pred = model(x_masked)
                     pred_list.append(pred)

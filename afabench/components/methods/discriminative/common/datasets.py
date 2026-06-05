@@ -11,7 +11,7 @@ def prepare_datasets(
     batch_size: int,
 ) -> tuple[DataLoader[Any], DataLoader[Any], int, int]:
     # Get dimensions using shape properties
-    d_in = train_dataset.feature_shape[0]
+    d_in = train_dataset.feature_shape.numel()
     d_out = train_dataset.label_shape[0]
 
     # Create new datasets with converted data format
