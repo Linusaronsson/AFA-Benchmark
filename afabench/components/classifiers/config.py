@@ -58,8 +58,8 @@ class TrainMaskedViTClassifierConfig:
     min_lr: float
 
     lr: float
-    seed: int
-    device: str
+    seed: int | None
+    device: str | None
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
 

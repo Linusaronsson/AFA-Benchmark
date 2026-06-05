@@ -35,6 +35,8 @@ log = logging.getLogger(__name__)
 def train_tabular(cfg: GDFSTrainingConfig) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, GDFSTabularArchitectureConfig)
+    assert cfg.device is not None, "device must be configured"
+    assert cfg.hard_budget is not None, "hard_budget must be configured"
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")

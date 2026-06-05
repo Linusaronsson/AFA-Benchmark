@@ -47,8 +47,8 @@ class GDFSPretrainingConfig:
     save_path: str
 
     batch_size: int
-    seed: int
-    device: str
+    seed: int | None
+    device: str | None
     lr: float
     nepochs: int
     patience: int
@@ -77,12 +77,12 @@ class GDFSTrainingConfig:
 
     batch_size: int
     lr: float
-    hard_budget: int
+    hard_budget: int | None
     soft_budget_param: float | None
     nepochs: int
     patience: int
-    device: str
-    seed: int
+    device: str | None
+    seed: int | None
 
     architecture: GDFSArchitectureConfig
 

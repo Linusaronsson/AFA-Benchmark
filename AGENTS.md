@@ -28,6 +28,15 @@ uv run pytest .
 
 ## Build, Lint & Test Commands
 
+### Required Final Verification
+
+Run `just qa` before reporting any code change as complete. This is the
+project's source of truth for quality because it runs formatting, linting,
+type checking, and tests together. Focused checks are useful while iterating,
+but they are not a substitute for `just qa` unless the user explicitly asks to
+skip it or a concrete blocker prevents running it. If `just qa` fails, fix the
+failure before finishing or clearly report the unresolved failure.
+
 ### Formatting & Linting
 
 ```bash
@@ -275,11 +284,12 @@ extra/                     # Non-source files
    - Add tests for new functionality in `test/` directory
    - Use type hints with jaxtyping for tensors
 
-3. **Before committing:**
+3. **Before finishing or committing code changes:**
    ```bash
-   just qa                 # Run all quality checks
+   just qa                 # Required final quality gate
    ```
-   Or individually:
+   Individual commands are only for iteration and debugging, not a replacement
+   for the final `just qa` run:
    ```bash
    uv run ruff format .
    uv run ruff check . --fix

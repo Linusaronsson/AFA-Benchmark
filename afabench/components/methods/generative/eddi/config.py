@@ -79,10 +79,10 @@ class EDDITrainingConfig:
     classifier_bundle_path: str
     save_path: str
 
-    hard_budget: int
+    hard_budget: int | None
     soft_budget_param: float | None
-    device: str
-    seed: int
+    device: str | None
+    seed: int | None
 
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
