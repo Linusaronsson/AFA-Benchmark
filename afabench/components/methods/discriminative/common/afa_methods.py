@@ -1131,7 +1131,7 @@ class DIMEAFAMethod(AFAMethod):
         feature_shape: torch.Size | None = None,
     ) -> Label:
         if self.modality == "tabular":
-            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            x_masked = _append_flat_mask(masked_features, feature_mask)
             pred = self.predictor(x_masked)
         else:
             pred = self.predictor(masked_features)
@@ -1147,7 +1147,7 @@ class DIMEAFAMethod(AFAMethod):
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
         if self.modality == "tabular":
-            x_masked = torch.cat([masked_features, feature_mask], dim=1)
+            x_masked = _append_flat_mask(masked_features, feature_mask)
             # pred = self.predict(masked_features, feature_mask)
             pred = self.predictor(x_masked)
             entropy = get_entropy(pred).unsqueeze(1)
