@@ -7,10 +7,10 @@ from typing import Any
 
 import numpy as np
 import torch
+import wandb
 from torch import nn
 from wandb.sdk.wandb_run import Run
 
-import wandb
 from afabench.core.types import FeatureMask, Label, MaskedFeatures
 
 logger = logging.getLogger(__name__)
