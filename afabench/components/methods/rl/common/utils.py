@@ -3,12 +3,12 @@ from collections.abc import Callable
 from typing import Any
 
 import torch
-import wandb
 from jaxtyping import Float, Integer
 from tensordict import TensorDictBase
 from torch import Tensor, nn
 from torch.nn import functional as F
 
+import wandb
 from afabench.components.methods.rl.common.custom_types import FeatureSet
 from afabench.core.types import (
     AFADataset,
