@@ -1,5 +1,6 @@
 import gc
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import cast
@@ -35,7 +36,10 @@ from afabench.core.utils import set_seed
 log = logging.getLogger(__name__)
 
 
-def train_image(cfg: CAETrainingConfig) -> None:  # noqa: PLR0915
+def train_image(  # noqa: PLR0915
+    cfg: CAETrainingConfig,
+    metric_logger: Callable[[dict[str, float]], None] | None = None,
+) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, CAEImageArchitectureConfig)
     assert cfg.device is not None, "device must be configured"
@@ -101,6 +105,8 @@ def train_image(cfg: CAETrainingConfig) -> None:  # noqa: PLR0915
         loss_fn=nn.CrossEntropyLoss(),
         patience=cfg.architecture.selector.patience,
         verbose=True,
+        metric_logger=metric_logger,
+        metric_prefix="cae_selector",
     )
 
     logits = selector_layer.logits.cpu().data.numpy()
@@ -170,6 +176,8 @@ def train_image(cfg: CAETrainingConfig) -> None:  # noqa: PLR0915
             nepochs=cfg.architecture.classifier.nepochs,
             loss_fn=nn.CrossEntropyLoss(),
             verbose=True,
+            metric_logger=metric_logger,
+            metric_prefix=f"cae_classifier/{num}_features",
         )
 
         predictors[num] = model

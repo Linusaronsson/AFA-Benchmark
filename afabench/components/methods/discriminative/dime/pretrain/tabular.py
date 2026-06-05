@@ -1,5 +1,6 @@
 import gc
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -33,7 +34,10 @@ from afabench.core.utils import (
 log = logging.getLogger(__name__)
 
 
-def pretrain_tabular(cfg: DIMEPretrainingConfig) -> None:
+def pretrain_tabular(
+    cfg: DIMEPretrainingConfig,
+    metric_logger: Callable[[dict[str, float]], None] | None = None,
+) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, DIMETabularArchitectureConfig)
     assert cfg.device is not None, "device must be configured"
@@ -93,6 +97,8 @@ def pretrain_tabular(cfg: DIMEPretrainingConfig) -> None:
         verbose=True,
         min_mask=cfg.min_masking_probability,
         max_mask=cfg.max_masking_probability,
+        metric_logger=metric_logger,
+        metric_prefix="dime_pretrain",
     )
     metadata = {
         "model_type": "DIMEClassifier",

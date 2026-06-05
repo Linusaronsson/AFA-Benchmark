@@ -1,5 +1,6 @@
 import gc
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import cast
@@ -33,7 +34,10 @@ from afabench.core.utils import set_seed
 log = logging.getLogger(__name__)
 
 
-def train_tabular(cfg: DIMETrainingConfig) -> None:
+def train_tabular(
+    cfg: DIMETrainingConfig,
+    metric_logger: Callable[[dict[str, float]], None] | None = None,
+) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, DIMETabularArchitectureConfig)
     assert cfg.device is not None, "device must be configured"
@@ -98,6 +102,8 @@ def train_tabular(cfg: DIMETrainingConfig) -> None:
         eps_steps=cfg.eps_steps,
         patience=cfg.patience,
         feature_costs=feature_costs.to(device),
+        metric_logger=metric_logger,
+        metric_prefix="dime",
     )
     afa_method = DIMEAFAMethod(
         greedy_cmi_estimator.value_network.cpu(),

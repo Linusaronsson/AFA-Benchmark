@@ -1,5 +1,6 @@
 import gc
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import cast
@@ -32,7 +33,10 @@ from afabench.core.utils import set_seed
 log = logging.getLogger(__name__)
 
 
-def train_tabular(cfg: GDFSTrainingConfig) -> None:
+def train_tabular(
+    cfg: GDFSTrainingConfig,
+    metric_logger: Callable[[dict[str, float]], None] | None = None,
+) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, GDFSTabularArchitectureConfig)
     assert cfg.device is not None, "device must be configured"
@@ -92,6 +96,8 @@ def train_tabular(cfg: GDFSTrainingConfig) -> None:
         patience=cfg.patience,
         verbose=True,
         feature_costs=feature_costs.to(device),
+        metric_logger=metric_logger,
+        metric_prefix="gdfs",
     )
     afa_method = GDFSAFAMethod(
         selector=gdfs.selector.cpu(),

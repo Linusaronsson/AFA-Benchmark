@@ -1,4 +1,4 @@
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from copy import deepcopy
 from pathlib import Path
 from typing import Literal, Self, override
@@ -112,6 +112,8 @@ class DifferentiableSelector(nn.Module):
         end_temp: float = 0.01,
         temp_steps: int = 10,
         verbose: bool = True,  # noqa: FBT002
+        metric_logger: Callable[[dict[str, float]], None] | None = None,
+        metric_prefix: str = "static_selector",
     ) -> None:
         """Train model to perform global feature selection."""
         # Verify arguments.
@@ -158,8 +160,11 @@ class DifferentiableSelector(nn.Module):
             for epoch in range(nepochs):
                 # Switch model to training mode.
                 model.train()
+                epoch_train_loss = 0.0
+                train_batches = 0
 
                 for x_batch, y_batch in train_loader:
+                    train_batches += 1
                     # Move to device.
                     x = x_batch.to(device)
                     y = self._to_class_indices(y_batch).to(device)
@@ -176,6 +181,9 @@ class DifferentiableSelector(nn.Module):
                     opt.step()
                     model.zero_grad()
                     selector_layer.zero_grad()
+                    epoch_train_loss += loss.item()
+
+                train_loss = epoch_train_loss / train_batches
 
                 # Reinitialize logits as necessary.
                 logits = selector_layer.logits
@@ -229,6 +237,23 @@ class DifferentiableSelector(nn.Module):
                     )
                     print(
                         f"Val loss = {val_loss:.4f}, Zero-temp loss = {val_hard_loss:.4f}\n"
+                    )
+
+                if metric_logger is not None:
+                    metric_logger(
+                        {
+                            f"{metric_prefix}/epoch": float(
+                                epoch + 1 + total_epochs
+                            ),
+                            f"{metric_prefix}/temperature": float(temp),
+                            f"{metric_prefix}/train_loss": float(train_loss),
+                            f"{metric_prefix}/val_loss": float(
+                                val_loss.mean().item()
+                            ),
+                            f"{metric_prefix}/val_hard_loss": float(
+                                val_hard_loss.mean().item()
+                            ),
+                        }
                     )
 
                 # Update scheduler.

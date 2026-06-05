@@ -1,5 +1,6 @@
 import gc
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import cast
@@ -44,7 +45,10 @@ def _load_backbone(backbone_type: str) -> tuple[torch.nn.Module, int]:
     return ResNet18Backbone(base)
 
 
-def train_image(cfg: GDFSTrainingConfig) -> None:
+def train_image(
+    cfg: GDFSTrainingConfig,
+    metric_logger: Callable[[dict[str, float]], None] | None = None,
+) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, GDFSImageArchitectureConfig)
     assert cfg.device is not None, "device must be configured"
@@ -127,6 +131,8 @@ def train_image(cfg: GDFSTrainingConfig) -> None:
         loss_fn=nn.CrossEntropyLoss(),
         patience=cfg.patience,
         verbose=True,
+        metric_logger=metric_logger,
+        metric_prefix="gdfs",
     )
     afa_method = GDFSAFAMethod(
         selector=gdfs.selector.cpu(),

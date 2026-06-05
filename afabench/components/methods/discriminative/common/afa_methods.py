@@ -1,4 +1,5 @@
 import math
+from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
 from typing import Self, override
@@ -117,6 +118,8 @@ class GreedyDynamicSelection(nn.Module):
         argmax: bool = False,  # noqa: FBT002
         verbose: bool = True,  # noqa: FBT002
         feature_costs: torch.Tensor | None = None,
+        metric_logger: Callable[[dict[str, float]], None] | None = None,
+        metric_prefix: str = "gdfs",
     ) -> None:
         """Train model to perform greedy adaptive feature selection."""
         # Verify arguments.
@@ -274,7 +277,9 @@ class GreedyDynamicSelection(nn.Module):
                     # Take gradient step.
                     opt.step()
 
-                # avg_train = epoch_train_loss / len(train_loader)
+                avg_train = epoch_train_loss / (
+                    len(train_loader) * max_features
+                )
 
                 # Calculate validation loss.
                 selector.eval()
@@ -367,6 +372,23 @@ class GreedyDynamicSelection(nn.Module):
                     )
                     print(
                         f"Val loss = {val_loss:.4f}, Zero-temp loss = {val_hard_loss:.4f}\n"
+                    )
+
+                if metric_logger is not None:
+                    metric_logger(
+                        {
+                            f"{metric_prefix}/epoch": float(
+                                epoch + 1 + total_epochs
+                            ),
+                            f"{metric_prefix}/temperature": float(temp),
+                            f"{metric_prefix}/train_loss": float(avg_train),
+                            f"{metric_prefix}/val_loss": float(
+                                val_loss.mean().item()
+                            ),
+                            f"{metric_prefix}/val_hard_loss": float(
+                                val_hard_loss.mean().item()
+                            ),
+                        }
                     )
 
                 # Update scheduler.
@@ -750,6 +772,8 @@ class CMIEstimator(nn.Module):
         feature_costs: torch.Tensor | None = None,
         cmi_scaling: str = "bounded",
         verbose: bool = True,  # noqa: FBT002
+        metric_logger: Callable[[dict[str, float]], None] | None = None,
+        metric_prefix: str = "cmi_estimator",
     ) -> None:
         if val_loss_fn is None:
             val_loss_fn = loss_fn
@@ -924,6 +948,9 @@ class CMIEstimator(nn.Module):
                 value_losses.append(value_network_loss_total / max_features)
                 pred_losses.append(pred_loss_total / (max_features + 1))
 
+            train_value_loss = torch.stack(value_losses).mean()
+            train_pred_loss = torch.stack(pred_losses).mean()
+
             # Calculate validation loss.
             value_network.eval()
             predictor.eval()
@@ -997,11 +1024,11 @@ class CMIEstimator(nn.Module):
                 # Calculate mean loss.
                 y_val = torch.cat(val_targets)
                 preds_cat = [torch.cat(p) for p in val_preds]
-                pred_losses = [loss_fn(p, y_val).mean() for p in preds_cat]
+                val_pred_losses = [loss_fn(p, y_val).mean() for p in preds_cat]
                 val_scores = [val_loss_fn(p, y_val) for p in preds_cat]
-                val_loss_mean = torch.stack(pred_losses).mean()
+                val_loss_mean = torch.stack(val_pred_losses).mean()
                 val_perf_mean = torch.stack(val_scores).mean()
-                val_loss_final = pred_losses[-1]
+                val_loss_final = val_pred_losses[-1]
                 val_perf_final = val_scores[-1]
 
             # log_payload = {
@@ -1029,6 +1056,32 @@ class CMIEstimator(nn.Module):
                 print(f"Loss Val/Final = {val_loss_final}")
                 print(f"Perf Val/Final = {val_perf_final}")
                 print(f"Eps Value = {eps}\n")
+
+            if metric_logger is not None:
+                metric_logger(
+                    {
+                        f"{metric_prefix}/epoch": float(epoch + 1),
+                        f"{metric_prefix}/train_value_loss": float(
+                            train_value_loss.item()
+                        ),
+                        f"{metric_prefix}/train_predictor_loss": float(
+                            train_pred_loss.item()
+                        ),
+                        f"{metric_prefix}/val_loss_mean": float(
+                            val_loss_mean.mean().item()
+                        ),
+                        f"{metric_prefix}/val_perf_mean": float(
+                            val_perf_mean.mean().item()
+                        ),
+                        f"{metric_prefix}/val_loss_final": float(
+                            val_loss_final.mean().item()
+                        ),
+                        f"{metric_prefix}/val_perf_final": float(
+                            val_perf_final.mean().item()
+                        ),
+                        f"{metric_prefix}/epsilon": float(eps),
+                    }
+                )
 
             # Update scheduler.
             scheduler.step(val_perf_mean)

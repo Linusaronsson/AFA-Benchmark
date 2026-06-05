@@ -1,5 +1,6 @@
 import gc
 import logging
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import cast
@@ -34,7 +35,10 @@ from afabench.core.utils import set_seed
 log = logging.getLogger(__name__)
 
 
-def train_image(cfg: DIMETrainingConfig) -> None:  # noqa: PLR0915
+def train_image(  # noqa: PLR0915
+    cfg: DIMETrainingConfig,
+    metric_logger: Callable[[dict[str, float]], None] | None = None,
+) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, DIMEImageArchitectureConfig)
     assert cfg.device is not None, "device must be configured"
@@ -136,6 +140,8 @@ def train_image(cfg: DIMETrainingConfig) -> None:  # noqa: PLR0915
         eps_steps=cfg.eps_steps,
         patience=cfg.patience,
         feature_costs=None,
+        metric_logger=metric_logger,
+        metric_prefix="dime",
     )
     afa_method = DIMEAFAMethod(
         value_network=greedy_cmi_estimator.value_network.cpu(),
