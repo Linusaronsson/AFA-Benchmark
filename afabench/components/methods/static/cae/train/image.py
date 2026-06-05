@@ -38,6 +38,8 @@ log = logging.getLogger(__name__)
 def train_image(cfg: CAETrainingConfig) -> None:  # noqa: PLR0915
     log.debug(cfg)
     assert isinstance(cfg.architecture, CAEImageArchitectureConfig)
+    assert cfg.device is not None, "device must be configured"
+    assert cfg.hard_budget is not None, "hard_budget must be configured"
     print(str(cfg))
     set_seed(cfg.seed)
     device = torch.device(cfg.device)

@@ -34,6 +34,14 @@ from afabench.core.utils import set_seed
 log = logging.getLogger(__name__)
 
 
+def _get_required_training_settings(
+    cfg: PermutationTrainingConfig,
+) -> tuple[str, int]:
+    assert cfg.device is not None, "device must be configured"
+    assert cfg.hard_budget is not None, "hard_budget must be configured"
+    return cfg.device, cfg.hard_budget
+
+
 @hydra.main(
     version_base=None,
     config_path="../../extra/conf/scripts/train_method/permutation",
@@ -42,9 +50,9 @@ log = logging.getLogger(__name__)
 def main(cfg: PermutationTrainingConfig) -> None:
     cfg = cast("PermutationTrainingConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
-    print(OmegaConf.to_yaml(cfg))
+    device_name, hard_budget = _get_required_training_settings(cfg)
     set_seed(cfg.seed)
-    device = torch.device(cfg.device)
+    device = torch.device(device_name)
     torch.set_float32_matmul_precision("medium")
     if cfg.smoke_test:
         cfg.selector.nepochs = 1
@@ -72,7 +80,7 @@ def main(cfg: PermutationTrainingConfig) -> None:
 
     predictors: dict[int, nn.Module] = {}
     selected_history: dict[int, list[int]] = {}
-    num_features = list(range(1, cfg.hard_budget + 1))
+    num_features = list(range(1, hard_budget + 1))
 
     model = MLP(
         in_features=d_in,

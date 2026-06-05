@@ -37,6 +37,7 @@ log = logging.getLogger(__name__)
 def main(cfg: EDDITrainingConfig) -> None:
     cfg = cast("EDDITrainingConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
+    assert cfg.device is not None, "device must be configured"
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     train_dataset, _, _, unmasker, class_weights = (

@@ -37,6 +37,7 @@ log = logging.getLogger(__name__)
 def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     cfg = cast("TrainMaskedViTClassifierConfig", OmegaConf.to_object(cfg))
     log.info(OmegaConf.to_yaml(cfg))
+    assert cfg.device is not None, "device must be configured"
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)

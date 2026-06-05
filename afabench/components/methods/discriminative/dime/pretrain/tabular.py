@@ -36,6 +36,7 @@ log = logging.getLogger(__name__)
 def pretrain_tabular(cfg: DIMEPretrainingConfig) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, DIMETabularArchitectureConfig)
+    assert cfg.device is not None, "device must be configured"
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)

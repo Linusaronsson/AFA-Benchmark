@@ -20,10 +20,10 @@ class PermutationTrainingConfig:
     save_path: str
 
     batch_size: int
-    hard_budget: int
+    hard_budget: int | None
     soft_budget_param: float | None
-    device: str
-    seed: int
+    device: str | None
+    seed: int | None
 
     initializer: InitializerConfig
     unmasker: UnmaskerConfig
