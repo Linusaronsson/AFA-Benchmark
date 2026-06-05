@@ -15,6 +15,102 @@ from afabench.core.types import (
     MaskedFeatures,
     SelectionMask,
 )
+from afabench.core.utils import flatten_afa_input
+
+
+def _flat_feature_shape(n_features: int) -> torch.Size:
+    return torch.Size([n_features])
+
+
+def _flatten_inputs(
+    masked_features: MaskedFeatures,
+    feature_mask: FeatureMask,
+    label: Label | None,
+    feature_shape: torch.Size | None,
+) -> tuple[MaskedFeatures, FeatureMask, Label | None, torch.Size]:
+    if feature_shape is None:
+        batch_shape = torch.Size(masked_features.shape[:-1])
+        return masked_features, feature_mask, label, batch_shape
+
+    batch_shape = torch.Size(masked_features.shape[: -len(feature_shape)])
+    flat_masked_features, flat_feature_mask, flat_label = flatten_afa_input(
+        masked_features, feature_mask, label, feature_shape
+    )
+    return flat_masked_features, flat_feature_mask, flat_label, batch_shape
+
+
+def _patch_add_masks(
+    n_selections: int,
+    feature_shape: torch.Size,
+    device: torch.device,
+) -> torch.Tensor:
+    assert len(feature_shape) in (2, 3)
+    if len(feature_shape) == 3:
+        n_channels, height, width = feature_shape
+    else:
+        n_channels = 1
+        height, width = feature_shape
+
+    mask_width = int(n_selections**0.5)
+    assert mask_width * mask_width == n_selections
+    assert height % mask_width == 0
+    assert width % mask_width == 0
+    patch_height = height // mask_width
+    patch_width = width // mask_width
+    add_masks = torch.zeros(
+        n_selections,
+        n_channels,
+        height,
+        width,
+        device=device,
+        dtype=torch.bool,
+    )
+    for patch_idx in range(n_selections):
+        row = patch_idx // mask_width
+        col = patch_idx % mask_width
+        add_masks[
+            patch_idx,
+            :,
+            row * patch_height : (row + 1) * patch_height,
+            col * patch_width : (col + 1) * patch_width,
+        ] = True
+    return add_masks.flatten(start_dim=1)
+
+
+def _selection_add_masks(
+    n_selections: int,
+    n_features: int,
+    n_contexts: int | None,
+    feature_shape: torch.Size | None,
+    device: torch.device,
+) -> torch.Tensor:
+    if n_selections == n_features:
+        return torch.eye(n_features, device=device, dtype=torch.bool)
+    if (
+        feature_shape is not None
+        and len(feature_shape) in (2, 3)
+        and n_selections < n_features
+    ):
+        return _patch_add_masks(n_selections, feature_shape, device)
+    if n_contexts is None:
+        msg = "n_contexts must be set when using context selection."
+        raise ValueError(msg)
+    expected = 1 + (n_features - n_contexts)
+    if n_selections != expected:
+        msg = (
+            f"Got n_sel={n_selections}, expected {expected} "
+            f"for n_contexts={n_contexts}."
+        )
+        raise ValueError(msg)
+    add_masks = torch.zeros(
+        n_selections, n_features, device=device, dtype=torch.bool
+    )
+    add_masks[0, :n_contexts] = True
+    remaining = n_features - n_contexts
+    add_masks[1:, n_contexts:] = torch.eye(
+        remaining, device=device, dtype=torch.bool
+    )
+    return add_masks
 
 
 class EDDIAFAMethod(AFAMethod):
@@ -66,10 +162,18 @@ class EDDIAFAMethod(AFAMethod):
     ) -> Label:
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
-        B, _ = masked_features.shape
-        zeros_label = torch.zeros(B, self.num_classes, device=self._device)
+        masked_features, feature_mask, _label, batch_shape = _flatten_inputs(
+            masked_features, feature_mask, label, feature_shape
+        )
+        batch_size, _n_features = masked_features.shape
+        zeros_label = torch.zeros(
+            batch_size, self.num_classes, device=self._device
+        )
         zeros_mask = torch.zeros(
-            B, self.num_classes, device=self._device, dtype=feature_mask.dtype
+            batch_size,
+            self.num_classes,
+            device=self._device,
+            dtype=feature_mask.dtype,
         )
         augmented_masked_feature = torch.cat(
             [masked_features, zeros_label], dim=-1
@@ -89,12 +193,12 @@ class EDDIAFAMethod(AFAMethod):
             logits = self.predictor(z)
             probs = logits.softmax(dim=-1)
             probs = (
-                probs.view(B, self.num_mc_samples, -1)
+                probs.view(batch_size, self.num_mc_samples, -1)
                 .transpose(0, 1)
                 .contiguous()
             )
             probs_mean = probs.mean(dim=0)
-        return probs_mean
+        return probs_mean.view(*batch_shape, self.num_classes)
 
     @override
     def act(  # noqa: PLR0915
@@ -108,11 +212,19 @@ class EDDIAFAMethod(AFAMethod):
         device = self._device
         masked_features = masked_features.to(self._device)
         feature_mask = feature_mask.to(self._device)
-        B, F = masked_features.shape
-        S = self.num_mc_samples
-        zeros_label = torch.zeros(B, self.num_classes, device=self._device)
+        masked_features, feature_mask, _label, batch_shape = _flatten_inputs(
+            masked_features, feature_mask, label, feature_shape
+        )
+        batch_size, n_features = masked_features.shape
+        n_mc_samples = self.num_mc_samples
+        zeros_label = torch.zeros(
+            batch_size, self.num_classes, device=self._device
+        )
         zeros_mask = torch.zeros(
-            B, self.num_classes, device=self._device, dtype=feature_mask.dtype
+            batch_size,
+            self.num_classes,
+            device=self._device,
+            dtype=feature_mask.dtype,
         )
         augmented_masked_feature = torch.cat(
             [masked_features, zeros_label], dim=-1
@@ -122,48 +234,55 @@ class EDDIAFAMethod(AFAMethod):
         ).to(self._device)
 
         with torch.no_grad():
-            x_rep = augmented_masked_feature.repeat_interleave(S, dim=0)
-            m_rep = augmented_feature_mask.repeat_interleave(S, dim=0)
+            x_rep = augmented_masked_feature.repeat_interleave(
+                n_mc_samples, dim=0
+            )
+            m_rep = augmented_feature_mask.repeat_interleave(
+                n_mc_samples, dim=0
+            )
             _, _, _, z_base, x_full = self.sampler.forward(x_rep, m_rep)
             if self.classifier is None:
                 logits_base = self.predictor(z_base)
-                probs_base = self._logits_to_probs(logits_base).view(S, B, -1)
+                probs_base = self._logits_to_probs(logits_base).view(
+                    n_mc_samples, batch_size, -1
+                )
                 base_probs = probs_base.mean(dim=0)
             else:
                 # TODO: make sure classifier always returns probabilities
                 base_probs = self.classifier(
                     masked_features=masked_features,
                     feature_mask=feature_mask,
-                    feature_shape=feature_shape,
+                    feature_shape=_flat_feature_shape(n_features),
                 )
-        x_full = x_full.view(S, B, -1)[:, :, :F]
+        x_full = x_full.view(n_mc_samples, batch_size, -1)[:, :, :n_features]
         missing = ~feature_mask.bool()
-        x_filled = masked_features.unsqueeze(0).expand(S, B, F).clone()
+        x_filled = (
+            masked_features.unsqueeze(0)
+            .expand(n_mc_samples, batch_size, n_features)
+            .clone()
+        )
         x_filled[:, missing] = x_full[:, missing]
         # (S, B, F+num_classes)
         x_full = torch.cat(
-            [x_filled, zeros_label.unsqueeze(0).expand(S, B, -1)], dim=-1
+            [
+                x_filled,
+                zeros_label.unsqueeze(0).expand(n_mc_samples, batch_size, -1),
+            ],
+            dim=-1,
         )
-        n_sel = selection_mask.shape[1] if selection_mask is not None else F
-        if n_sel == F:
-            add_masks = torch.eye(F, device=device, dtype=torch.bool)
+        selection_mask_flat = None
+        if selection_mask is not None:
+            n_sel = selection_mask.shape[-1]
+            selection_mask_flat = selection_mask.view(-1, n_sel).to(device)
         else:
-            if self.n_contexts is None:
-                msg = "n_contexts must be set when using context selection."
-                raise ValueError(msg)
-            expected = 1 + (F - self.n_contexts)
-            if n_sel != expected:
-                msg = (
-                    f"Got n_sel={n_sel}, expected {expected} "
-                    f"for n_contexts={self.n_contexts}."
-                )
-                raise ValueError(msg)
-            add_masks = torch.zeros(n_sel, F, device=device, dtype=torch.bool)
-            add_masks[0, : self.n_contexts] = True
-            rem = F - self.n_contexts
-            add_masks[1:, self.n_contexts :] = torch.eye(
-                rem, device=device, dtype=torch.bool
-            )
+            n_sel = n_features
+        add_masks = _selection_add_masks(
+            n_selections=n_sel,
+            n_features=n_features,
+            n_contexts=self.n_contexts,
+            feature_shape=feature_shape,
+            device=device,
+        )
 
         # feature_indices = torch.eye(
         #     F, device=device, dtype=torch.bool
@@ -171,47 +290,58 @@ class EDDIAFAMethod(AFAMethod):
         mask_features_all = feature_mask.bool().unsqueeze(
             1
         ) | add_masks.unsqueeze(0)
-        mask_features_flat = mask_features_all.reshape(B * n_sel, F).to(
-            feature_mask.dtype
+        mask_features_flat = mask_features_all.reshape(
+            batch_size * n_sel, n_features
+        ).to(feature_mask.dtype)
+        mask_label_all = zeros_mask.unsqueeze(1).expand(batch_size, n_sel, -1)
+        mask_label_flat = mask_label_all.reshape(
+            batch_size * n_sel, self.num_classes
         )
-        mask_label_all = zeros_mask.unsqueeze(1).expand(B, n_sel, -1)
-        mask_label_flat = mask_label_all.reshape(B * n_sel, self.num_classes)
         # (B*n_sel, (F+num_classes))
         mask_tests = torch.cat([mask_features_flat, mask_label_flat], dim=1)
         # (S*B*n_sel, (F+num_classes))
         mask_tests_rep = (
             mask_tests.unsqueeze(0)
-            .expand(S, -1, -1)
-            .reshape(S * B * n_sel, F + self.num_classes)
+            .expand(n_mc_samples, -1, -1)
+            .reshape(
+                n_mc_samples * batch_size * n_sel,
+                n_features + self.num_classes,
+            )
         )
-        x_rep = x_full.unsqueeze(2).expand(S, B, n_sel, F + self.num_classes)
-        x_rep = x_rep.reshape(S * B * n_sel, F + self.num_classes)
+        x_rep = x_full.unsqueeze(2).expand(
+            n_mc_samples, batch_size, n_sel, n_features + self.num_classes
+        )
+        x_rep = x_rep.reshape(
+            n_mc_samples * batch_size * n_sel, n_features + self.num_classes
+        )
         x_masks = x_rep * mask_tests_rep
         with torch.no_grad():
             if self.classifier is None:
                 _, _, _, z_all, _ = self.sampler(x_masks, mask_tests_rep)
                 logits_all = self.predictor(z_all)
                 preds_all = self._logits_to_probs(logits_all).view(
-                    S, B * n_sel, -1
+                    n_mc_samples, batch_size * n_sel, -1
                 )
             else:
-                x_masks_raw = x_masks[:, :F]
-                mask_tests_raw = mask_tests_rep[:, :F]
+                x_masks_raw = x_masks[:, :n_features]
+                mask_tests_raw = mask_tests_rep[:, :n_features]
                 preds_flat = self.classifier(
                     masked_features=x_masks_raw,
                     feature_mask=mask_tests_raw,
-                    feature_shape=feature_shape,
+                    feature_shape=_flat_feature_shape(n_features),
                 )
-                preds_all = preds_flat.view(S, B * n_sel, -1)
+                preds_all = preds_flat.view(
+                    n_mc_samples, batch_size * n_sel, -1
+                )
 
         # S: num_mc_samples
         num_samples, _batch_selections, C = preds_all.shape
         # 1/n Σ p(y|x_s, x_i^j)
         base_probs_flat = (
             base_probs.unsqueeze(1)
-            .expand(B, n_sel, C)
-            .reshape(1, B * n_sel, C)
-            .expand(num_samples, B * n_sel, C)
+            .expand(batch_size, n_sel, C)
+            .reshape(1, batch_size * n_sel, C)
+            .expand(num_samples, batch_size * n_sel, C)
         )
         # mean_preds = preds_all.mean(dim=0)
         # KL(p_s || mean), (S, B*n_sel)
@@ -221,11 +351,13 @@ class EDDIAFAMethod(AFAMethod):
         ).sum(dim=-1)
         kl_mean_flat = kl_all.mean(dim=0)
 
-        scores = kl_mean_flat.view(B, n_sel)
+        scores = kl_mean_flat.view(batch_size, n_sel)
         # avoid choosing the already masked features
-        if selection_mask is not None:
-            assert scores.shape == selection_mask.shape
-            scores = scores.masked_fill(selection_mask.bool(), float("-inf"))
+        if selection_mask_flat is not None:
+            assert scores.shape == selection_mask_flat.shape
+            scores = scores.masked_fill(
+                selection_mask_flat.bool(), float("-inf")
+            )
         else:
             assert scores.shape == feature_mask.shape
             scores = scores.masked_fill(feature_mask.bool(), float("-inf"))
@@ -243,7 +375,7 @@ class EDDIAFAMethod(AFAMethod):
         stop_mask = stop_mask | (best_scores < -1e5)
         selections = (best_idx + 1).to(torch.long).unsqueeze(-1)
         selections = selections.masked_fill(stop_mask.unsqueeze(-1), 0)
-        return selections
+        return selections.view(*batch_shape, 1)
 
     @classmethod
     @override
