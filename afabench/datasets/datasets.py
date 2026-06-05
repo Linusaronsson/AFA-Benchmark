@@ -1,3 +1,4 @@
+import copy
 import tarfile
 import urllib.request
 from collections.abc import Callable, Sequence
@@ -1435,7 +1436,9 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     @override
     def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
+        subset = copy.deepcopy(self)
+        subset.indices = self.indices[list(indices)].clone()
+        return subset
 
     @property
     @override
