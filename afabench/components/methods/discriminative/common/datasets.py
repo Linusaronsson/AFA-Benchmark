@@ -3,16 +3,21 @@ from typing import Any
 from torch.utils.data import DataLoader
 
 from afabench.core.types import AFADataset
+from afabench.training.smoke_test import dataset_subset
 
 
 def prepare_datasets(
     train_dataset,  # noqa: ANN001
     val_dataset,  # noqa: ANN001
     batch_size: int,
+    *,
+    smoke_test: bool = False,
 ) -> tuple[DataLoader[Any], DataLoader[Any], int, int]:
     # Get dimensions using shape properties
     d_in = train_dataset.feature_shape.numel()
     d_out = train_dataset.label_shape[0]
+    train_dataset = dataset_subset(train_dataset, smoke_test=smoke_test)
+    val_dataset = dataset_subset(val_dataset, smoke_test=smoke_test)
 
     # Create new datasets with converted data format
     class ConvertedDataset:

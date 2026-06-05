@@ -2,6 +2,8 @@ import logging
 
 import torch
 
+from afabench.core.types import AFADataset
+
 log = logging.getLogger(__name__)
 
 SMOKE_TEST_BATCH_SIZE = 2
@@ -39,3 +41,14 @@ def training_subset(
         X_train[:SMOKE_TEST_N_TRAINING_SAMPLES],
         y_train[:SMOKE_TEST_N_TRAINING_SAMPLES],
     )
+
+
+def dataset_subset[DatasetT: AFADataset](
+    dataset: DatasetT, *, smoke_test: bool
+) -> DatasetT:
+    if not smoke_test:
+        return dataset
+
+    log.info("Smoke test detected.")
+    n_samples = min(len(dataset), SMOKE_TEST_N_SAMPLES)
+    return dataset.create_subset(range(n_samples))

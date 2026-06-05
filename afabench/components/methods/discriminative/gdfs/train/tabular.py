@@ -58,7 +58,10 @@ def train_tabular(
     assert class_weights is not None
     class_weights = class_weights.to(device)
     train_loader, val_loader, d_in, d_out = prepare_datasets(
-        train_dataset, val_dataset, cfg.batch_size
+        train_dataset,
+        val_dataset,
+        cfg.batch_size,
+        smoke_test=cfg.smoke_test,
     )
     predictor, _ = load_bundle(
         Path(cfg.pretrained_model_bundle_path),
@@ -94,6 +97,7 @@ def train_tabular(
         max_features=cfg.hard_budget,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
         patience=cfg.patience,
+        temp_steps=1 if cfg.smoke_test else 5,
         verbose=True,
         feature_costs=feature_costs.to(device),
         metric_logger=metric_logger,
