@@ -40,6 +40,16 @@ from afabench.core.types import (
 )
 
 
+def _apply_model_mask(
+    mask_layer: MaskLayer | MaskLayer2d,
+    features: torch.Tensor,
+    feature_mask: torch.Tensor,
+) -> torch.Tensor:
+    if isinstance(mask_layer, MaskLayer2d) and features.dim() == 4:
+        return features * feature_mask
+    return mask_layer(features, feature_mask)
+
+
 class GreedyDynamicSelection(nn.Module):
     """
     Greedy adaptive feature selection.
@@ -124,10 +134,8 @@ class GreedyDynamicSelection(nn.Module):
         if mask_layer.mask_size is not None:
             mask_size = int(mask_layer.mask_size)
         else:
-            # Must be tabular (1d data).
             x, _ = next(iter(val_loader))
-            assert len(x.shape) == 2
-            mask_size = x.shape[1]
+            mask_size = x.shape[1:].numel()
 
         x0, _ = next(iter(val_loader))
         x0 = x0.to(device)
@@ -205,11 +213,7 @@ class GreedyDynamicSelection(nn.Module):
                     for _ in range(max_features):
                         # Evaluate selector model.
                         # x_masked = mask_layer(x, m_feat)
-                        if len(x.shape) == 4:
-                            # Always set append=False for image data
-                            x_masked = x * m_feat
-                        else:
-                            x_masked = mask_layer(x, m_feat)
+                        x_masked = _apply_model_mask(mask_layer, x, m_feat)
                         logits = selector(x_masked).flatten(1)
                         # since not a probability, do exp(logits)/cost <-> logits / log_cost
                         logits_cost = logits - log_cost
@@ -230,10 +234,9 @@ class GreedyDynamicSelection(nn.Module):
                         m_soft_feat = torch.maximum(m_feat, soft_feat)
 
                         # Evaluate predictor model.
-                        if len(x.shape) == 4:
-                            x_masked = x * m_soft_feat
-                        else:
-                            x_masked = mask_layer(x, m_soft_feat)
+                        x_masked = _apply_model_mask(
+                            mask_layer, x, m_soft_feat
+                        )
                         pred = predictor(x_masked)
 
                         # Calculate loss.
@@ -290,10 +293,7 @@ class GreedyDynamicSelection(nn.Module):
 
                         for _ in range(max_features):
                             # Evaluate selector model.
-                            if len(x.shape) == 4:
-                                x_masked = x * m_feat
-                            else:
-                                x_masked = mask_layer(x, m_feat)
+                            x_masked = _apply_model_mask(mask_layer, x, m_feat)
                             logits = selector(x_masked).flatten(1)
                             logits_cost = logits - log_cost
                             logits_cost = logits_cost - 1e6 * m_sel
@@ -328,17 +328,13 @@ class GreedyDynamicSelection(nn.Module):
                             ).to(dtype=x.dtype)
 
                             # Evaluate predictor with soft sample.
-                            if len(x.shape) == 4:
-                                x_masked = x * m_soft_feat
-                            else:
-                                x_masked = mask_layer(x, m_soft_feat)
+                            x_masked = _apply_model_mask(
+                                mask_layer, x, m_soft_feat
+                            )
                             pred = predictor(x_masked)
 
                             # Evaluate predictor with hard sample.
-                            if len(x.shape) == 4:
-                                x_masked = x * m_feat
-                            else:
-                                x_masked = mask_layer(x, m_feat)
+                            x_masked = _apply_model_mask(mask_layer, x, m_feat)
                             hard_pred = predictor(x_masked)
 
                             # Append predictions and labels.
@@ -768,10 +764,8 @@ class CMIEstimator(nn.Module):
         if mask_layer.mask_size is not None:
             mask_size = int(mask_layer.mask_size)
         else:
-            # Must be tabular (1d data).
             x, y = next(iter(val_loader))
-            assert len(x.shape) == 2
-            mask_size = x.shape[1]
+            mask_size = x.shape[1:].numel()
 
         x0, _ = next(iter(val_loader))
         x0 = x0.to(device)
@@ -839,10 +833,7 @@ class CMIEstimator(nn.Module):
                 pred_loss_total = 0
 
                 # Predictor loss with initial features.
-                if len(x.shape) == 4:
-                    x_masked = x * m_feat
-                else:
-                    x_masked = mask_layer(x, m_feat)
+                x_masked = _apply_model_mask(mask_layer, x, m_feat)
                 pred_without_next_feature = predictor(x_masked)
                 loss_without_next_feature = loss_fn(
                     pred_without_next_feature, y
@@ -856,10 +847,7 @@ class CMIEstimator(nn.Module):
 
                 for _ in range(max_features):
                     # Estimate CMI using value network.
-                    if len(x.shape) == 4:
-                        x_masked = x * m_feat
-                    else:
-                        x_masked = mask_layer(x, m_feat)
+                    x_masked = _apply_model_mask(mask_layer, x, m_feat)
                     if cmi_scaling == "bounded":
                         entropy = get_entropy(
                             pred_without_next_feature
@@ -895,10 +883,7 @@ class CMIEstimator(nn.Module):
                         selection_mask=m_sel,
                         feature_shape=feature_shape,
                     )
-                    if len(x.shape) == 4:
-                        x_masked = x * m_feat
-                    else:
-                        x_masked = self.mask_layer(x, m_feat)
+                    x_masked = _apply_model_mask(self.mask_layer, x, m_feat)
                     pred_with_next_feature = predictor(x_masked)
                     loss_with_next_feature = loss_fn(pred_with_next_feature, y)
 
@@ -952,19 +937,13 @@ class CMIEstimator(nn.Module):
                         feature_shape=feature_shape,
                     ).to(device)
                     m_feat = init_mask_bool.to(dtype=x.dtype)
-                    if len(x.shape) == 4:
-                        x_masked = x * m_feat
-                    else:
-                        x_masked = self.mask_layer(x, m_feat)
+                    x_masked = _apply_model_mask(self.mask_layer, x, m_feat)
                     pred = predictor(x_masked)
                     val_preds[0].append(pred)
 
                     for i in range(1, max_features + 1):
                         # Estimate CMI using value network.
-                        if len(x.shape) == 4:
-                            x_masked = x * m_feat
-                        else:
-                            x_masked = mask_layer(x, m_feat)
+                        x_masked = _apply_model_mask(mask_layer, x, m_feat)
                         if cmi_scaling == "bounded":
                             entropy = get_entropy(pred).unsqueeze(1)
                             pred_cmi = (
@@ -998,10 +977,9 @@ class CMIEstimator(nn.Module):
                         )
 
                         # Make prediction.
-                        if len(x.shape) == 4:
-                            x_masked = x * m_feat
-                        else:
-                            x_masked = self.mask_layer(x, m_feat)
+                        x_masked = _apply_model_mask(
+                            self.mask_layer, x, m_feat
+                        )
                         pred = self.predictor(x_masked)
                         val_preds[i].append(pred)
 

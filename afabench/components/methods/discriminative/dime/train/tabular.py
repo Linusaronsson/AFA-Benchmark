@@ -64,7 +64,7 @@ def train_tabular(cfg: DIMETrainingConfig) -> None:
         cast("object", predictor),
     )
     predictor = classifier_bundle.predictor.to(device)
-    n_selections = unmasker.get_n_selections(torch.Size([d_in]))
+    n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
     value_network = MLP(
         in_features=d_in * 2,
         out_features=n_selections,

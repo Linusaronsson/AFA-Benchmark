@@ -169,6 +169,9 @@ class MaskLayer(nn.Module):
     def forward(self, x: torch.Tensor, m: torch.Tensor) -> torch.Tensor:
         out = x * m
         if self.append:
+            if out.dim() > 2:
+                out = out.flatten(start_dim=1)
+                m = m.flatten(start_dim=1)
             out: torch.Tensor = torch.cat([out, m], dim=1)
         return out
 
