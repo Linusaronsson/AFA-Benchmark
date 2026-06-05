@@ -1,4 +1,5 @@
 import logging
+from dataclasses import asdict
 from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, final
@@ -135,10 +136,7 @@ class AFAEvaluator:
         if self._cfg.use_wandb:
             self._wandb_run = wandb.init(
                 job_type="evaluation",
-                config=cast(
-                    "dict[str, Any]",
-                    OmegaConf.to_container(self._cfg, resolve=True),
-                ),
+                config=asdict(self._cfg),
                 dir="extra/logs/wandb",
             )
             log.info(

@@ -1,6 +1,7 @@
 """Tests whether the ReadProcessEncoder class behaves as expected."""
 
 import torch
+
 from afabench.components.methods.rl.jafa.models import (
     ReadProcessEncoder,
 )

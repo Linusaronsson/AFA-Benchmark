@@ -14,7 +14,7 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-import afabench.components.methods.oracle.aaco.config  # noqa: F401
+import afabench.components.methods.oracle.aaco.config  # noqa: F401  # pyright: ignore[reportUnusedImport]
 from afabench.components.initializers.utils import (
     get_afa_initializer_from_config,
 )
