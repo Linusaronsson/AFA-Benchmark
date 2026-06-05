@@ -5,7 +5,9 @@ import torch
 log = logging.getLogger(__name__)
 
 SMOKE_TEST_BATCH_SIZE = 2
-SMOKE_TEST_N_SAMPLES = 10
+SMOKE_TEST_N_BATCHES = 2
+SMOKE_TEST_N_SAMPLES = SMOKE_TEST_BATCH_SIZE * SMOKE_TEST_N_BATCHES
+SMOKE_TEST_N_TRAINING_SAMPLES = 10
 
 
 def eval_settings(
@@ -18,7 +20,9 @@ def eval_settings(
         return default_n_samples, default_batch_size
 
     log.info("Smoke test detected.")
-    return SMOKE_TEST_N_SAMPLES, SMOKE_TEST_BATCH_SIZE
+    batch_size = min(default_batch_size, SMOKE_TEST_BATCH_SIZE)
+    n_samples = min(default_n_samples, batch_size * SMOKE_TEST_N_BATCHES)
+    return n_samples, batch_size
 
 
 def training_subset(
@@ -31,4 +35,7 @@ def training_subset(
         return X_train, y_train
 
     log.info("Smoke test detected.")
-    return X_train[:SMOKE_TEST_N_SAMPLES], y_train[:SMOKE_TEST_N_SAMPLES]
+    return (
+        X_train[:SMOKE_TEST_N_TRAINING_SAMPLES],
+        y_train[:SMOKE_TEST_N_TRAINING_SAMPLES],
+    )

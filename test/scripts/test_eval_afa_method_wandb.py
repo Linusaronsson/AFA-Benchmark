@@ -57,7 +57,17 @@ def test_init_wandb_accepts_dataclass_config(
     }
 
 
-def eval_config(*, use_wandb: bool) -> EvalConfig:
+def test_smoke_test_override_uses_two_batches() -> None:
+    cfg = eval_config(use_wandb=False, smoke_test=True)
+    evaluator = AFAEvaluator(cfg)
+
+    evaluator._smoke_test_override()  # noqa: SLF001
+
+    assert cfg.eval_only_n_samples == 4
+    assert cfg.batch_size == 2
+
+
+def eval_config(*, use_wandb: bool, smoke_test: bool = False) -> EvalConfig:
     return EvalConfig(
         method_bundle_path="method.bundle",
         unmasker=UnmaskerConfig(class_name="DirectUnmasker", kwargs={}),
@@ -70,4 +80,5 @@ def eval_config(*, use_wandb: bool) -> EvalConfig:
         eval_only_n_samples=None,
         batch_size=8,
         use_wandb=use_wandb,
+        smoke_test=smoke_test,
     )

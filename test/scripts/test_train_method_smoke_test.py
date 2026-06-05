@@ -20,7 +20,17 @@ def test_eval_settings_reduce_work_for_smoke_test() -> None:
         default_batch_size=10,
     )
 
-    assert settings == (10, 2)
+    assert settings == (4, 2)
+
+
+def test_eval_settings_use_two_batches_for_smoke_test() -> None:
+    only_n_samples, batch_size = eval_settings(
+        smoke_test=True,
+        default_n_samples=100,
+        default_batch_size=8,
+    )
+
+    assert only_n_samples / batch_size == 2
 
 
 def test_training_subset_keeps_all_rows_without_smoke_test() -> None:
