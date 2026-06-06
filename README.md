@@ -3,7 +3,7 @@
 [![arXiv](https://img.shields.io/badge/arXiv-2508.14734-b31b1b.svg)](https://arxiv.org/abs/2508.14734)
 [![KDD 2026](https://img.shields.io/badge/KDD-2026-ff69b4.svg)](https://www.kdd.org/kdd2026/)
 
-**A comprehensive benchmark for Active Feature Acquisition (AFA) methods**
+**A benchmark for Active Feature Acquisition (AFA) methods**
 
 Compare state-of-the-art algorithms for sequential feature selection in
 scenarios where acquiring features is costly. Includes implementations of
