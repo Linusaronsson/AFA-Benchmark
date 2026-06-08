@@ -45,7 +45,7 @@ rule eval_method:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_data.csv",
+                            "eval_data.parquet",
         f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
             "instance_idx-{dataset_instance_idx}/"

@@ -1,6 +1,10 @@
 import argparse
 import ast
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Sized
 
 import polars as pl
 
@@ -11,12 +15,18 @@ def parse_nullable(s: str) -> str | None:
     return s
 
 
+def count_selections(selections: object) -> int:
+    if isinstance(selections, str):
+        return len(ast.literal_eval(selections))
+    return len(cast("Sized", selections))
+
+
 def main() -> None:
     """Transform evaluation data in a single pipeline."""
     parser = argparse.ArgumentParser(
         description="Transform evaluation data in a single pipeline"
     )
-    parser.add_argument("--input_path", type=Path, help="Input CSV path")
+    parser.add_argument("--input_path", type=Path, help="Input parquet path")
     parser.add_argument("--output_path", type=Path, help="Output parquet path")
     parser.add_argument("--method", type=str, help="AFA method name")
     parser.add_argument("--dataset", type=str, help="Dataset name")
@@ -48,30 +58,33 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    df = pl.read_csv(
-        args.input_path,
-        schema={
-            "prev_selections_performed": pl.String,
-            "action_performed": pl.UInt64,
-            "builtin_predicted_class": pl.UInt64,
-            "external_predicted_class": pl.UInt64,
-            "true_class": pl.UInt64,
-            "accumulated_cost": pl.Float64,
-            "idx": pl.UInt64,
-            "forced_stop": pl.Boolean,
-            "eval_seed": pl.UInt64,
-            "eval_hard_budget": pl.Float64,
-        },
-        null_values=["null"],
+    df = pl.read_parquet(args.input_path).with_columns(
+        action_performed=pl.col("action_performed").cast(
+            pl.UInt64, strict=False
+        ),
+        builtin_predicted_class=pl.col("builtin_predicted_class").cast(
+            pl.UInt64, strict=False
+        ),
+        external_predicted_class=pl.col("external_predicted_class").cast(
+            pl.UInt64, strict=False
+        ),
+        true_class=pl.col("true_class").cast(pl.UInt64, strict=False),
+        accumulated_cost=pl.col("accumulated_cost").cast(
+            pl.Float64, strict=False
+        ),
+        idx=pl.col("idx").cast(pl.UInt64, strict=False),
+        forced_stop=pl.col("forced_stop").cast(pl.Boolean, strict=False),
+        eval_seed=pl.col("eval_seed").cast(pl.UInt64, strict=False),
+        eval_hard_budget=pl.col("eval_hard_budget").cast(
+            pl.Float64, strict=False
+        ),
     )
 
     # Change prev_selections_performed (a history of selections) to instead just be the number of selections performed, which is the same as the time step
     df = df.with_columns(
         n_selections_performed=pl.col(
             "prev_selections_performed"
-        ).map_elements(
-            lambda x: len(ast.literal_eval(x)), return_dtype=pl.UInt64
-        )
+        ).map_elements(count_selections, return_dtype=pl.UInt64)
     ).drop("prev_selections_performed")
 
     # Pivot long on classifier type

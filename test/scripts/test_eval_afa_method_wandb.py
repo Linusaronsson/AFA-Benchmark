@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import pandas as pd
 import pytest
 
 from afabench.components.initializers.config import InitializerConfig
@@ -65,6 +68,44 @@ def test_smoke_test_override_uses_two_batches() -> None:
 
     assert cfg.eval_only_n_samples == 4
     assert cfg.batch_size == 2
+
+
+def test_save_writes_parquet(tmp_path: Path) -> None:
+    save_path = tmp_path / "eval.parquet"
+    cfg = eval_config(use_wandb=False)
+    cfg.save_path = str(save_path)
+    evaluator = AFAEvaluator(cfg)
+    evaluator._df_eval = pd.DataFrame(  # noqa: SLF001
+        {
+            "prev_selections_performed": [[0], []],
+            "action_performed": [1, 0],
+            "builtin_predicted_class": [None, None],
+            "external_predicted_class": [1, 0],
+            "true_class": [1, 0],
+            "accumulated_cost": [1.0, 0.0],
+            "idx": [0, 1],
+            "forced_stop": [False, False],
+            "eval_seed": [1, 1],
+            "eval_hard_budget": [None, None],
+        }
+    )
+
+    evaluator._save()  # noqa: SLF001
+
+    saved = pd.read_parquet(save_path)
+    saved_records = normalize_selection_records(saved)
+    expected_records = normalize_selection_records(evaluator._df_eval)  # noqa: SLF001
+    assert saved_records == expected_records
+
+
+def normalize_selection_records(
+    df: pd.DataFrame,
+) -> list[dict[str, object]]:
+    records = df.to_dict("records")
+    for record in records:
+        selections = record["prev_selections_performed"]
+        record["prev_selections_performed"] = list(selections)
+    return records
 
 
 def eval_config(*, use_wandb: bool, smoke_test: bool = False) -> EvalConfig:
