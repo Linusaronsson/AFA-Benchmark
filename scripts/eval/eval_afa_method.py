@@ -258,12 +258,10 @@ class AFAEvaluator:
 
     def _save(self) -> None:
         assert self._df_eval is not None
-        # Save CSV directly
-        csv_path = Path(self._cfg.save_path)
-        csv_path.parent.mkdir(parents=True, exist_ok=True)
-        # Use explicit null strings to avoid missing values in the pipeline.
-        self._df_eval.to_csv(csv_path, index=False, na_rep="null")
-        log.info(f"Saved evaluation data to CSV at: {csv_path}")
+        save_path = Path(self._cfg.save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        self._df_eval.to_parquet(save_path, index=False)
+        log.info(f"Saved evaluation data to Parquet at: {save_path}")
 
         log.info(f"Evaluation results saved to: {self._cfg.save_path}")
 

@@ -29,7 +29,7 @@ rule transform_eval_data:
                         "eval_seed-{eval_seed}+"
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_data.csv",
+                            "eval_data.parquet",
     output:
         f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"

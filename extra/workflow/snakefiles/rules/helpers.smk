@@ -117,7 +117,7 @@ rule all_eval_methods:
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
+                                    f"eval_data.parquet"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
@@ -136,7 +136,7 @@ rule all_eval_methods:
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
+                                    f"eval_data.parquet"
             )
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
