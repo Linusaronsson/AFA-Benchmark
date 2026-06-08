@@ -53,7 +53,7 @@ for the exact commands.
 
 ## Features
 
-- Accesible configuration using
+- Accessible configuration using
   [hydra](https://hydra.cc/)
 - Reproducible pipeline using [snakemake](https://snakemake.readthedocs.io/en/stable/).
 - Modular design: rerun specific parts of the pipeline as needed.
