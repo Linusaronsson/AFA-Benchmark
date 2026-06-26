@@ -190,7 +190,7 @@ rule time_df_with_pretrain:
     input:
         lambda wildcards: _resolve_time_input(
             (
-                f"extra/output/pretrained_models/{TRAIN_INITIALIZER_TAG}/"
+                f"extra/output/pretrained_models/{_pretrained_model_initializer_tag_for_method(wildcards.method)}/"
                 f"{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
                 f"dataset-{wildcards.dataset}+"
                 f"instance_idx-{wildcards.dataset_instance_idx}/"

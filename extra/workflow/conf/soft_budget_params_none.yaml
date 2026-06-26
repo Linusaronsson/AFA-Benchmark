@@ -11,6 +11,8 @@ soft_budget_params:
     default: []
   aaco_dr:
     default: []
+  aaco_pvae_restore_actions:
+    default: []
   jafa:
     default: []
   gadgil2023:

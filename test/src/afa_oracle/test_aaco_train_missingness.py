@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from pathlib import Path
+from typing import TYPE_CHECKING, cast
+
 import torch
 
 from afabench.afa_oracle.aaco_core import AACOOracle
@@ -8,9 +11,17 @@ from afabench.common.initializers.cube_nm_ar_initializer import (
 )
 from afabench.common.initializers.random_initializer import RandomInitializer
 from scripts.train.aaco import (
+    _apply_pvae_action_restoration,
     _apply_train_missingness,
     _derive_train_support_masks,
+    _prepare_train_matrix,
 )
+
+if TYPE_CHECKING:
+    from afabench.afa_rl.zannone2019.models import (
+        Zannone2019PretrainingModel,
+    )
+    from afabench.common.config_classes import InitializerConfig
 
 
 class _MaskAwareToyClassifier:
@@ -30,6 +41,37 @@ class _MaskAwareToyClassifier:
         probs[~positive_class & has_second_feature] = torch.tensor([0.1, 0.9])
         probs[~positive_class & ~has_second_feature] = torch.tensor([0.4, 0.6])
         return probs
+
+
+class _ToyPVAE:
+    n_classes: int = 2
+
+    def __init__(self) -> None:
+        self.seen_masked_features: torch.Tensor | None = None
+        self.seen_feature_mask: torch.Tensor | None = None
+        self.seen_n_classes: int | None = None
+        self.seen_label: torch.Tensor | None = None
+
+    def masked_reconstruction(
+        self,
+        masked_features: torch.Tensor,
+        feature_mask: torch.Tensor,
+        n_classes: int,
+        label: torch.Tensor | None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        self.seen_masked_features = masked_features.clone()
+        self.seen_feature_mask = feature_mask.clone()
+        self.seen_n_classes = n_classes
+        self.seen_label = label
+        reconstructed = torch.tensor(
+            [[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]],
+            dtype=masked_features.dtype,
+            device=masked_features.device,
+        )
+        z = torch.zeros(
+            (masked_features.shape[0], 1), device=masked_features.device
+        )
+        return z, reconstructed
 
 
 def test_random_initializer_keeps_full_training_support_for_aaco() -> None:
@@ -119,6 +161,104 @@ def test_aaco_missingness_uses_training_support_not_start_mask() -> None:
     assert torch.equal(mask_aware_filled, zero_filled)
     assert mask_aware_mask is not None
     assert torch.equal(mask_aware_mask, train_support_mask)
+
+
+def test_aaco_pvae_restoration_imputes_blocked_features_and_restores_support() -> (
+    None
+):
+    x_train = torch.tensor(
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        dtype=torch.float32,
+    )
+    train_support_mask = cast(
+        "torch.BoolTensor",
+        torch.tensor(
+            [[True, False, True], [False, True, False]],
+            dtype=torch.bool,
+        ),
+    )
+    pvae = _ToyPVAE()
+
+    restored, observed_mask = _apply_pvae_action_restoration(
+        x_train=x_train,
+        train_support_mask=train_support_mask,
+        pvae_model=cast(
+            "Zannone2019PretrainingModel",
+            cast("object", pvae),
+        ),
+        hide_val=0.0,
+    )
+
+    expected = torch.tensor(
+        [[1.0, 20.0, 3.0], [40.0, 5.0, 60.0]],
+        dtype=torch.float32,
+    )
+    assert torch.equal(restored, expected)
+    assert observed_mask is None
+    assert pvae.seen_label is None
+    assert pvae.seen_n_classes == pvae.n_classes
+    assert pvae.seen_feature_mask is not None
+    assert torch.equal(pvae.seen_feature_mask, train_support_mask)
+    assert pvae.seen_masked_features is not None
+    assert torch.equal(
+        pvae.seen_masked_features,
+        torch.tensor(
+            [[1.0, 0.0, 3.0], [0.0, 5.0, 0.0]],
+            dtype=torch.float32,
+        ),
+    )
+
+
+def test_prepare_train_matrix_accepts_hydra_string_pvae_path(
+    monkeypatch,  # noqa: ANN001
+) -> None:
+    x_train = torch.tensor(
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        dtype=torch.float32,
+    )
+    support = torch.tensor(
+        [[True, False, True], [False, True, False]],
+        dtype=torch.bool,
+    )
+
+    monkeypatch.setattr(
+        "scripts.train.aaco.get_afa_initializer_from_config",
+        lambda _cfg: None,
+    )
+    monkeypatch.setattr(
+        "scripts.train.aaco._derive_train_support_masks",
+        lambda _initializer, **_kwargs: (support, support),
+    )
+
+    seen_path: Path | None = None
+
+    def _fake_load_pvae(path: Path, *, device: torch.device) -> _ToyPVAE:
+        nonlocal seen_path
+        del device
+        seen_path = path
+        return _ToyPVAE()
+
+    monkeypatch.setattr("scripts.train.aaco._load_pvae_model", _fake_load_pvae)
+
+    restored, observed_mask, _initial_fraction, _support_fraction = (
+        _prepare_train_matrix(
+            x_train=x_train,
+            feature_shape=torch.Size((3,)),
+            initializer_cfg=cast("InitializerConfig", cast("object", None)),
+            seed=0,
+            mode="pvae_restore_actions",
+            hide_val=0.0,
+            device=torch.device("cpu"),
+            pretrained_model_bundle_path="pvae.bundle",
+        )
+    )
+
+    assert seen_path == Path("pvae.bundle")
+    assert observed_mask is None
+    assert torch.equal(
+        restored,
+        torch.tensor([[1.0, 20.0, 3.0], [40.0, 5.0, 60.0]]),
+    )
 
 
 def test_aaco_dr_reweights_supported_neighbors_toward_full_candidate_loss() -> (

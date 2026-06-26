@@ -20,3 +20,4 @@ methods:
   - aaco_zero_fill
   - aaco_mask_aware
   - aaco_dr
+  - aaco_pvae_restore_actions

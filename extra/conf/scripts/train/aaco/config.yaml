@@ -44,6 +44,7 @@ aco:
 train_dataset_bundle_path: ???
 val_dataset_bundle_path: ???
 classifier_bundle_path: ???
+pretrained_model_bundle_path: null
 save_path: ???
 
 # ============================================================================
@@ -66,8 +67,12 @@ hard_budget: null
 # mask_aware: zero-fill training-time forbidden features and pass the resulting
 #             training-support mask to the oracle so KNN/scoring use only
 #             shared available training features
+# pvae_restore_actions: use a pretrained PVAE to impute training-time forbidden
+#                       features, then fit AACO as if the full action space were
+#                       available. Requires pretrained_model_bundle_path.
 # For initializers without forbidden training features (e.g. cold),
-# zero_fill/impute_mean/mask_aware collapse to the full-train control.
+# zero_fill/impute_mean/mask_aware/pvae_restore_actions collapse to the
+# full-train control.
 train_missing_mode: "full"
 
 # ============================================================================

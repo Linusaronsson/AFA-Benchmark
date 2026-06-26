@@ -87,7 +87,7 @@ rule train_method_with_pretrained_model:
 
         # Pretrained model
         lambda wildcards: (
-            f"extra/output/pretrained_models/{TRAIN_INITIALIZER_TAG}/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
+            f"extra/output/pretrained_models/{_pretrained_model_initializer_tag_for_method(wildcards.method)}/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
                 f"dataset-{wildcards.dataset}+"
                 f"instance_idx-{wildcards.dataset_instance_idx}/"
                     f"pretrain_seed-{wildcards.pretrain_seed}/"

@@ -56,6 +56,10 @@ PUBLICATION_METHOD_SPECS: dict[str, dict[str, str | None]] = {
         "baseline_label": None,
         "curve_label": "AACO + DR",
     },
+    "aaco_pvae_restore_actions": {
+        "baseline_label": None,
+        "curve_label": "AACO + PVAE restore",
+    },
     "ol_with_mask": {
         "baseline_label": "OL-MFRL baseline",
         "curve_label": "OL-MFRL + block-only",
@@ -68,6 +72,7 @@ CURVE_LABEL_ORDER = [
     "AACO + zero-fill",
     "AACO + mask-aware",
     "AACO + DR",
+    "AACO + PVAE restore",
     "OL-MFRL + block-only",
 ]
 
@@ -89,6 +94,7 @@ NON_MYOPIC_METHODS = frozenset(
         "aaco_mask_aware",
         "aaco_marf",
         "aaco_nn",
+        "aaco_pvae_restore_actions",
         "aaco_zero_fill",
         "cube_nm_ar_oracle",
         "jafa",
@@ -107,6 +113,7 @@ POLICY_LABEL_ORDER = [
     "AACO + zero-fill",
     "AACO + mask-aware",
     "AACO + DR",
+    "AACO + PVAE restore",
     "OL-MFRL baseline",
     "OL-MFRL + block-only",
 ]
@@ -128,6 +135,7 @@ REFERENCE_METHODS = {
     "aaco_zero_fill": "aaco_full",
     "aaco_mask_aware": "aaco_full",
     "aaco_dr": "aaco_full",
+    "aaco_pvae_restore_actions": "aaco_full",
     "ol_with_mask": "ol_with_mask",
 }
 

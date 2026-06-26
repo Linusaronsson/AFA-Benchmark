@@ -44,6 +44,15 @@ method_options:
       - "aco.dr_max_weight=20.0"
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
+  aaco_pvae_restore_actions:
+    pretrained_model_name: "pvae"
+    pretrained_model_initializer: "cold"
+    train_script_name: "aaco"
+    compute_platform: cpu
+    method_specific_params:
+      - "train_missing_mode=pvae_restore_actions"
+    hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"

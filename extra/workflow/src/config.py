@@ -195,6 +195,11 @@ def load_config(config):
         for method, options in method_options.items()
         if method in methods and "pretrained_model_name" in options
     }
+    method_to_pretrained_model_initializer = {
+        method: options.get("pretrained_model_initializer", train_initializer)
+        for method, options in method_options.items()
+        if method in methods and "pretrained_model_name" in options
+    }
 
     # Filter pretrain_names to only include those needed by selected methods
     pretrain_names_needed = set(method_to_pretrained_model.values())
@@ -389,6 +394,9 @@ def load_config(config):
             method_to_classifier_bundle_method
         ),
         "METHOD_TO_PRETRAINED_MODEL": method_to_pretrained_model,
+        "METHOD_TO_PRETRAINED_MODEL_INITIALIZER": (
+            method_to_pretrained_model_initializer
+        ),
         "METHOD_SPECIFIC_PARAMS": method_specific_params,
         "DATASETS": datasets,
         "UNMASKERS": unmaskers,

@@ -48,6 +48,7 @@ METHOD_NAME_MAPPING = {
     "aaco_impute_mean": "AACO-OC (mean-impute train)",
     "aaco_mask_aware": "AACO-OC (mask-aware train)",
     "aaco_dr": "AACO-OC-DR",
+    "aaco_pvae_restore_actions": "AACO-OC (PVAE restore)",
     "cube_nm_ar_oracle": "CUBE-NM-AR oracle",
 }
 
@@ -86,6 +87,20 @@ DATASETS_WITH_F_SCORE = ["physionet", "bank_marketing"]
 
 # Dataset groupings for organized plotting
 DATASET_SETS = {
+    "thesis_main": {
+        "actg",
+        "bank_marketing",
+        "ckd",
+        "cube",
+        "cube_nm",
+        "cube_nm_without_noise",
+        "diabetes",
+        "fashion_mnist",
+        "imagenette",
+        "mnist",
+        "miniboone",
+        "physionet",
+    },
     "cube_nm_pair": {
         "cube_nm",
         "cube_nm_without_noise",

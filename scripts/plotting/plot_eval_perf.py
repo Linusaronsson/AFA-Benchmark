@@ -22,7 +22,6 @@ from plotnine import (
     scale_linetype_manual,
     theme,
 )
-from sklearn.metrics import accuracy_score, f1_score
 
 from afabench.common.naming import LEGACY_DATASET_KEY_ALIASES
 from afabench.common.parquet import collect_streaming, scan_parquet
@@ -68,6 +67,7 @@ NON_MYOPIC_METHODS = frozenset(
         "aaco_mask_aware",
         "aaco_marf",
         "aaco_nn",
+        "aaco_pvae_restore_actions",
         "aaco_zero_fill",
         "cube_nm_ar_oracle",
         "jafa",
@@ -85,8 +85,11 @@ COMPARE_INIT_ONLY_METHODS = frozenset(
         "aaco_zero_fill",
         "aaco_mask_aware",
         "aaco_dr",
+        "aaco_pvae_restore_actions",
     }
 )
+
+THESIS_EXCLUDED_METHODS = frozenset({"cae", "permutation"})
 
 DATASET_NAME_MAPPING_INCLUDING_METRIC = {
     dataset: f"{name} ({'F1' if dataset in DATASETS_WITH_F_SCORE else 'Accuracy'})"
@@ -181,102 +184,7 @@ def create_dummy_data() -> pl.DataFrame:  # noqa: C901
     )
 
 
-def get_metrics_at_stop_action(df: pl.DataFrame) -> pl.DataFrame:
-    return df.group_by(
-        "afa_method",
-        "dataset",
-        "train_seed",
-        "eval_seed",
-        "eval_hard_budget",
-        "soft_budget_param",
-    ).map_groups(
-        lambda group_df: pl.DataFrame(
-            {
-                "afa_method": [group_df["afa_method"].first()],
-                "dataset": [group_df["dataset"].first()],
-                "train_seed": [group_df["train_seed"].first()],
-                "eval_seed": [group_df["eval_seed"].first()],
-                "eval_hard_budget": [group_df["eval_hard_budget"].first()],
-                "soft_budget_param": [group_df["soft_budget_param"].first()],
-                "accuracy": [
-                    accuracy_score(
-                        group_df["true_class"], group_df["predicted_class"]
-                    )
-                ],
-                "f_score": [
-                    f1_score(
-                        group_df["true_class"],
-                        group_df["predicted_class"],
-                        average="macro",
-                    )
-                ],
-                "avg_accumulated_cost": [group_df["accumulated_cost"].mean()],
-            },
-            schema={
-                "afa_method": pl.String,
-                "dataset": pl.String,
-                "train_seed": pl.Int64,
-                "eval_seed": pl.Int64,
-                "eval_hard_budget": pl.Float64,
-                "soft_budget_param": pl.Float64,
-                "accuracy": pl.Float64,
-                "f_score": pl.Float64,
-                "avg_accumulated_cost": pl.Float64,
-            },
-        )
-    )
-
-
-def get_metrics_at_every_action(df: pl.DataFrame) -> pl.DataFrame:
-    return df.group_by(
-        "afa_method",
-        "dataset",
-        "train_seed",
-        "eval_seed",
-        "eval_hard_budget",
-        "soft_budget_param",
-        "n_selections_performed",
-    ).map_groups(
-        lambda group_df: pl.DataFrame(
-            {
-                "afa_method": [group_df["afa_method"].first()],
-                "dataset": [group_df["dataset"].first()],
-                "train_seed": [group_df["train_seed"].first()],
-                "eval_seed": [group_df["eval_seed"].first()],
-                "eval_hard_budget": [group_df["eval_hard_budget"].first()],
-                "soft_budget_param": [group_df["soft_budget_param"].first()],
-                "n_selections_performed": [
-                    group_df["n_selections_performed"].first()
-                ],
-                "accuracy": [
-                    accuracy_score(
-                        group_df["true_class"], group_df["predicted_class"]
-                    )
-                ],
-                "f_score": [
-                    f1_score(
-                        group_df["true_class"],
-                        group_df["predicted_class"],
-                        average="macro",
-                    )
-                ],
-            },
-            schema={
-                "afa_method": pl.String,
-                "dataset": pl.String,
-                "train_seed": pl.Int64,
-                "eval_seed": pl.Int64,
-                "eval_hard_budget": pl.Float64,
-                "soft_budget_param": pl.Float64,
-                "n_selections_performed": pl.UInt64,
-                "accuracy": pl.Float64,
-                "f_score": pl.Float64,
-            },
-        )
-    )
-
-
-def read_parquet(input_csv_path: Path) -> pl.DataFrame:
+def read_parquet(input_csv_path: Path) -> pl.LazyFrame:
     data = scan_parquet(input_csv_path)
     dtypes = {
         "action_performed": pl.UInt64,
@@ -296,29 +204,113 @@ def read_parquet(input_csv_path: Path) -> pl.DataFrame:
     }
     available_columns = set(data.collect_schema().names())
     selected_columns = sorted(available_columns.intersection(dtypes))
-    df = collect_streaming(data.select(selected_columns))
+    lazy_frame = data.select(selected_columns)
     casts = [
         pl.col(name).cast(dtype, strict=False)
         for name, dtype in dtypes.items()
-        if name in df.columns
+        if name in selected_columns
     ]
     if casts:
-        df = df.with_columns(casts)
-    return df.with_columns(
+        lazy_frame = lazy_frame.with_columns(casts)
+    return lazy_frame.with_columns(
         dataset=pl.col("dataset").replace(LEGACY_DATASET_KEY_ALIASES)
     )
 
 
 def filter_compare_init_only_methods(
-    dataframe: pl.DataFrame,
-) -> pl.DataFrame:
+    dataframe: pl.LazyFrame,
+) -> pl.LazyFrame:
     return dataframe.filter(
         ~pl.col("afa_method").is_in(COMPARE_INIT_ONLY_METHODS)
     )
 
 
-def get_variance_of_metrics_and_cost(df: pl.DataFrame) -> pl.DataFrame:
-    df = df.group_by(
+def _macro_f1_lazy(
+    lazy_frame: pl.LazyFrame,
+    group_cols: list[str],
+) -> pl.LazyFrame:
+    true_counts = (
+        lazy_frame.group_by([*group_cols, "true_class"])
+        .agg(true_count=pl.len())
+        .rename({"true_class": "class_label"})
+    )
+    pred_counts = (
+        lazy_frame.group_by([*group_cols, "predicted_class"])
+        .agg(pred_count=pl.len())
+        .rename({"predicted_class": "class_label"})
+    )
+    tp_counts = (
+        lazy_frame.filter(pl.col("true_class") == pl.col("predicted_class"))
+        .group_by([*group_cols, "true_class"])
+        .agg(tp=pl.len())
+        .rename({"true_class": "class_label"})
+    )
+    join_cols = [*group_cols, "class_label"]
+    classes = pl.concat(
+        [
+            true_counts.select(join_cols),
+            pred_counts.select(join_cols),
+        ]
+    ).unique()
+    per_class = (
+        classes.join(true_counts, on=join_cols, how="left", nulls_equal=True)
+        .join(pred_counts, on=join_cols, how="left", nulls_equal=True)
+        .join(tp_counts, on=join_cols, how="left", nulls_equal=True)
+        .with_columns(
+            pl.col("true_count").fill_null(0),
+            pl.col("pred_count").fill_null(0),
+            pl.col("tp").fill_null(0),
+        )
+        .with_columns(
+            fp=pl.col("pred_count") - pl.col("tp"),
+            fn=pl.col("true_count") - pl.col("tp"),
+        )
+        .with_columns(
+            denominator=2 * pl.col("tp") + pl.col("fp") + pl.col("fn")
+        )
+        .with_columns(
+            f1=pl.when(pl.col("denominator") > 0)
+            .then(2 * pl.col("tp") / pl.col("denominator"))
+            .otherwise(0.0)
+        )
+    )
+    return per_class.group_by(group_cols).agg(f_score=pl.col("f1").mean())
+
+
+def _f1_for_metric_datasets_lazy(
+    lazy_frame: pl.LazyFrame,
+    group_cols: list[str],
+) -> pl.LazyFrame:
+    return _macro_f1_lazy(
+        lazy_frame.filter(pl.col("dataset").is_in(DATASETS_WITH_F_SCORE)),
+        group_cols,
+    )
+
+
+def get_metrics_lazy(
+    lazy_frame: pl.LazyFrame,
+    group_cols: list[str],
+    *,
+    include_cost: bool,
+) -> pl.LazyFrame:
+    metric_exprs = [
+        (pl.col("true_class") == pl.col("predicted_class"))
+        .mean()
+        .alias("accuracy")
+    ]
+    if include_cost:
+        metric_exprs.append(
+            pl.col("accumulated_cost").mean().alias("avg_accumulated_cost")
+        )
+    accuracy_df = lazy_frame.group_by(group_cols).agg(metric_exprs)
+    f1_df = _f1_for_metric_datasets_lazy(lazy_frame, group_cols)
+    return accuracy_df.join(f1_df, on=group_cols, how="left", nulls_equal=True)
+
+
+def get_variance_of_metrics_and_cost(
+    metrics: pl.LazyFrame,
+) -> pl.DataFrame:
+    aggregated = metrics.group_by(
         "afa_method", "dataset", "eval_hard_budget", "soft_budget_param"
     ).agg(
         mean_accuracy=pl.col("accuracy").mean(),
@@ -328,11 +320,11 @@ def get_variance_of_metrics_and_cost(df: pl.DataFrame) -> pl.DataFrame:
         mean_avg_accumulated_cost=pl.col("avg_accumulated_cost").mean(),
         std_avg_accumulated_cost=pl.col("avg_accumulated_cost").std(),
     )
-    return df
+    return collect_streaming(aggregated)
 
 
-def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
-    df = df.group_by(
+def get_variance_of_metrics(metrics: pl.LazyFrame) -> pl.DataFrame:
+    aggregated = metrics.group_by(
         "afa_method",
         "dataset",
         "eval_hard_budget",
@@ -344,10 +336,10 @@ def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
         mean_f_score=pl.col("f_score").mean(),
         std_f_score=pl.col("f_score").std(),
     )
-    return df
+    return collect_streaming(aggregated)
 
 
-def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
+def apply_exclusions(dataframe: pl.DataFrame) -> pl.DataFrame:
     """
     Apply exclusion mappings to filter out methods under specific conditions.
 
@@ -366,14 +358,14 @@ def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
     only methods present are odin_model_based and odin_model_free.
 
     Args:
-        df: Input dataframe with 'afa_method' and 'dataset' columns
+        dataframe: Input dataframe with 'afa_method' and 'dataset' columns
 
     Returns:
         Filtered dataframe with exclusions applied
     """
     # Get unique combinations of method and dataset in the input
     method_dataset_pairs = (
-        df.select(["afa_method", "dataset"]).unique().to_dicts()
+        dataframe.select(["afa_method", "dataset"]).unique().to_dicts()
     )
 
     # Check each (method, dataset) pair and filter if needed
@@ -386,7 +378,7 @@ def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
         if key in EXCLUSION_MAPPING:
             # Get the set of methods present for this dataset
             methods_in_dataset = frozenset(
-                df.filter(pl.col("dataset") == dataset)["afa_method"]
+                dataframe.filter(pl.col("dataset") == dataset)["afa_method"]
                 .unique()
                 .to_list()
             )
@@ -396,14 +388,14 @@ def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
 
             # Only exclude if methods_in_dataset doesn't match any allowed combo
             if methods_in_dataset not in allowed_combinations:
-                df = df.filter(
+                dataframe = dataframe.filter(
                     ~(
                         (pl.col("afa_method") == method)
                         & (pl.col("dataset") == dataset)
                     )
                 )
 
-    return df
+    return dataframe
 
 
 def get_plot(
@@ -437,6 +429,9 @@ def get_plot(
         dataset=pl.col("dataset").replace(
             DATASET_NAME_MAPPING_INCLUDING_METRIC
         ),
+        policy_type=pl.when(pl.col("afa_method").is_in(NON_MYOPIC_METHODS))
+        .then(pl.lit("Non-myopic"))
+        .otherwise(pl.lit("Myopic")),
         afa_method=pl.col("afa_method").replace(METHOD_NAME_MAPPING),
     )
 
@@ -451,12 +446,6 @@ def get_plot(
         for orig in method_order
         if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
     ]
-    ordered_line_types = [
-        "dotted" if orig in NON_MYOPIC_METHODS else "solid"
-        for orig in method_order
-        if METHOD_NAME_MAPPING.get(orig, orig) in available_methods
-    ]
-
     # Use provided dimensions or defaults
     if figure_width is None:
         figure_width = PLOT_WIDTH
@@ -504,11 +493,11 @@ def get_plot(
             size=0.0,
             show_legend=False,
         )
-        plot += geom_line(aes(linetype="afa_method"))
+        plot += geom_line(aes(linetype="policy_type"))
         plot += scale_linetype_manual(
-            name="Policy",
-            values=ordered_line_types,
-            breaks=ordered_display_names,
+            name="Policy type",
+            values={"Myopic": "solid", "Non-myopic": "dotted"},
+            breaks=["Myopic", "Non-myopic"],
         )
     else:
         plot += geom_point()
@@ -640,6 +629,19 @@ def parse_args() -> argparse.Namespace:
             "Multiple formats produce one file per format. Default: pdf"
         ),
     )
+    parser.add_argument(
+        "--dataset-sets",
+        nargs="+",
+        choices=sorted(DATASET_SETS),
+        default=None,
+        help="Only generate plots for the selected dataset set names.",
+    )
+    parser.add_argument(
+        "--exclude-methods",
+        nargs="+",
+        default=[],
+        help="Method keys to filter before aggregation.",
+    )
     return parser.parse_args()
 
 
@@ -654,103 +656,15 @@ def add_metric_column(df: pl.DataFrame) -> pl.DataFrame:
     )
 
 
-def assert_only_one_soft_budget_param_type(df: pl.DataFrame) -> pl.DataFrame:
-    both_set = (
-        df["train_soft_budget_param"].is_not_null()
-        & df["eval_soft_budget_param"].is_not_null()
-    )
-    if both_set.any():
-        mismatched = df.filter(both_set).filter(
-            pl.col("train_soft_budget_param")
-            != pl.col("eval_soft_budget_param")
-        )
-        assert mismatched.is_empty(), (
-            "Both train_soft_budget_param and eval_soft_budget_param are set "
-            "with different values. Choose one."
-        )
-    df = df.with_columns(
+def assert_only_one_soft_budget_param_type(
+    lazy_frame: pl.LazyFrame,
+) -> pl.LazyFrame:
+    lazy_frame = lazy_frame.with_columns(
         soft_budget_param=pl.coalesce(
             "eval_soft_budget_param", "train_soft_budget_param"
         )
     ).drop(["train_soft_budget_param", "eval_soft_budget_param"])
-    return df
-
-
-def process_df_only_stop_action_and_valid_prediction(
-    df: pl.DataFrame,
-) -> pl.DataFrame | None:
-    df_only_stop_action = df.filter(
-        (pl.col("action_performed") == 0)
-        & pl.col("predicted_class").is_not_null()
-    )
-
-    if df_only_stop_action.is_empty():
-        return None
-
-    metric_df_only_stop_action = get_metrics_at_stop_action(
-        df_only_stop_action
-    )
-
-    # Variance of metrics across seeds
-    var_metric_df_only_stop_action = get_variance_of_metrics_and_cost(
-        metric_df_only_stop_action
-    )
-
-    # Datasets use different metrics
-    var_metric_df_only_stop_action = add_metric_column(
-        var_metric_df_only_stop_action
-    )
-
-    # Add "low" and "high" versions of metrics to enable plotting of ranges
-    var_metric_df_only_stop_action = (
-        var_metric_df_only_stop_action.with_columns(
-            low_metric=pl.col("mean_metric") - pl.col("std_metric"),
-            high_metric=pl.col("mean_metric") + pl.col("std_metric"),
-            low_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
-            - pl.col("std_avg_accumulated_cost"),
-            high_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
-            + pl.col("std_avg_accumulated_cost"),
-        )
-    )
-
-    return var_metric_df_only_stop_action
-
-
-def filter_only_largest_budget(df: pl.DataFrame) -> pl.DataFrame:
-    """For each dataset, only keep the largest evaluation budget."""
-    return df.filter(
-        pl.col("eval_hard_budget")
-        == pl.col("eval_hard_budget").max().over("dataset")
-    )
-
-
-def process_df_every_action(df: pl.DataFrame) -> pl.DataFrame | None:
-    # Just like in process_df_only_stop_action, filter out null predictions
-    df = df.filter(pl.col("predicted_class").is_not_null())
-
-    if df.is_empty():
-        return None
-
-    # When considering performance up to some budget, we only look at the case when the largest budget is used
-    df = filter_only_largest_budget(df)
-
-    metric_df_every_action = get_metrics_at_every_action(df)
-
-    # Variance of metrics across seeds
-    var_metric_df_every_action = get_variance_of_metrics(
-        metric_df_every_action
-    )
-
-    # Datasets use different metrics
-    var_metric_df_every_action = add_metric_column(var_metric_df_every_action)
-
-    # Add "low" and "high" versions of metrics to enable plotting of ranges
-    var_metric_df_every_action = var_metric_df_every_action.with_columns(
-        low_metric=pl.col("mean_metric") - pl.col("std_metric"),
-        high_metric=pl.col("mean_metric") + pl.col("std_metric"),
-    )
-
-    return var_metric_df_every_action
+    return lazy_frame
 
 
 class EvaluationPlotter:
@@ -758,7 +672,9 @@ class EvaluationPlotter:
 
     input_path: Path
     output_folder: Path
-    df: pl.DataFrame
+    dataset_sets: list[str] | None
+    exclude_methods: frozenset[str]
+    df: pl.LazyFrame
     df_stop_action: pl.DataFrame | None
     df_traj: pl.DataFrame | None
 
@@ -767,6 +683,8 @@ class EvaluationPlotter:
         input_path: Path,
         output_folder: Path,
         formats: Sequence[str] = ("pdf",),
+        dataset_sets: Sequence[str] | None = None,
+        exclude_methods: Sequence[str] = (),
     ) -> None:
         """
         Initialize EvaluationPlotter with input and output paths.
@@ -775,11 +693,15 @@ class EvaluationPlotter:
             input_path: Path to input parquet file
             output_folder: Root output directory for plots
             formats: Output formats (e.g. ("pdf", "svg")). Default: ("pdf",)
+            dataset_sets: Optional dataset set names to generate.
+            exclude_methods: Method keys to filter before aggregation.
         """
         self.input_path = input_path
         self.output_folder = output_folder
         self.formats: Sequence[str] = formats
-        self.df = pl.DataFrame()
+        self.dataset_sets = list(dataset_sets) if dataset_sets else None
+        self.exclude_methods = frozenset(exclude_methods)
+        self.df = pl.LazyFrame()
         self.df_stop_action = None
         self.df_traj = None
 
@@ -788,6 +710,15 @@ class EvaluationPlotter:
         self.df = filter_compare_init_only_methods(
             read_parquet(self.input_path)
         )
+        if self.dataset_sets:
+            dataset_filter = set().union(
+                *(DATASET_SETS[name] for name in self.dataset_sets)
+            )
+            self.df = self.df.filter(pl.col("dataset").is_in(dataset_filter))
+        if self.exclude_methods:
+            self.df = self.df.filter(
+                ~pl.col("afa_method").is_in(self.exclude_methods)
+            )
 
     def validate_soft_budget_params(self) -> None:
         """Validate and consolidate soft budget parameters."""
@@ -800,18 +731,26 @@ class EvaluationPlotter:
             & pl.col("predicted_class").is_not_null()
         )
 
-        if df_only_stop_action.is_empty():
-            self.df_stop_action = None
-            return
-
-        metric_df_only_stop_action = get_metrics_at_stop_action(
-            df_only_stop_action
+        metric_df_only_stop_action = get_metrics_lazy(
+            df_only_stop_action,
+            [
+                "afa_method",
+                "dataset",
+                "train_seed",
+                "eval_seed",
+                "eval_hard_budget",
+                "soft_budget_param",
+            ],
+            include_cost=True,
         )
 
         # Variance of metrics across seeds
         var_metric_df_only_stop_action = get_variance_of_metrics_and_cost(
             metric_df_only_stop_action
         )
+        if var_metric_df_only_stop_action.is_empty():
+            self.df_stop_action = None
+            return
 
         # Datasets use different metrics
         var_metric_df_only_stop_action = add_metric_column(
@@ -837,22 +776,33 @@ class EvaluationPlotter:
         # Filter out null predictions
         df_filtered = self.df.filter(pl.col("predicted_class").is_not_null())
 
-        if df_filtered.is_empty():
-            self.df_traj = None
-            return
-
         # Only look at largest budget per dataset
         df_filtered = df_filtered.filter(
             pl.col("eval_hard_budget")
             == pl.col("eval_hard_budget").max().over("dataset")
         )
 
-        metric_df_every_action = get_metrics_at_every_action(df_filtered)
+        metric_df_every_action = get_metrics_lazy(
+            df_filtered,
+            [
+                "afa_method",
+                "dataset",
+                "train_seed",
+                "eval_seed",
+                "eval_hard_budget",
+                "soft_budget_param",
+                "n_selections_performed",
+            ],
+            include_cost=False,
+        )
 
         # Variance of metrics across seeds
         var_metric_df_every_action = get_variance_of_metrics(
             metric_df_every_action
         )
+        if var_metric_df_every_action.is_empty():
+            self.df_traj = None
+            return
 
         # Datasets use different metrics
         var_metric_df_every_action = add_metric_column(
@@ -878,6 +828,7 @@ class EvaluationPlotter:
         self,
         dataset_set: set[str],
         subfolder: Path,
+        excluded_methods: set[str] | frozenset[str] | None = None,
     ) -> None:
         """Generate stop action plots (hard and soft budget)."""
         if self.df_stop_action is None:
@@ -886,6 +837,11 @@ class EvaluationPlotter:
         df_stop_action_filtered = self.df_stop_action.filter(
             pl.col("dataset").is_in(dataset_set)
         )
+        excluded_methods = excluded_methods or frozenset()
+        if excluded_methods:
+            df_stop_action_filtered = df_stop_action_filtered.filter(
+                ~pl.col("afa_method").is_in(excluded_methods)
+            )
 
         df_stop_action_hard_budget = df_stop_action_filtered.filter(
             pl.col("eval_hard_budget").is_null().not_()
@@ -950,6 +906,7 @@ class EvaluationPlotter:
         self,
         dataset_set: set[str],
         subfolder: Path,
+        excluded_methods: set[str] | frozenset[str] | None = None,
     ) -> None:
         """Generate trajectory plots (hard budget)."""
         if self.df_traj is None:
@@ -958,6 +915,11 @@ class EvaluationPlotter:
         df_traj_filtered = self.df_traj.filter(
             pl.col("dataset").is_in(dataset_set)
         )
+        excluded_methods = excluded_methods or frozenset()
+        if excluded_methods:
+            df_traj_filtered = df_traj_filtered.filter(
+                ~pl.col("afa_method").is_in(excluded_methods)
+            )
         df_traj_hard_budget = df_traj_filtered.filter(
             pl.col("eval_hard_budget").is_null().not_()
         )
@@ -983,19 +945,40 @@ class EvaluationPlotter:
     def generate_all_plots(self) -> None:
         """Generate all plots for each dataset set."""
         # One set of plots per dataset set
-        for dataset_set_name, dataset_set in DATASET_SETS.items():
+        dataset_sets = (
+            {name: DATASET_SETS[name] for name in self.dataset_sets}
+            if self.dataset_sets
+            else DATASET_SETS
+        )
+        for dataset_set_name, dataset_set in dataset_sets.items():
             subfolder = self.output_folder / dataset_set_name
             subfolder.mkdir(parents=True, exist_ok=True)
+            excluded_methods = (
+                THESIS_EXCLUDED_METHODS
+                if dataset_set_name == "thesis_main"
+                and not self.exclude_methods
+                else frozenset()
+            )
 
-            self.produce_stop_action_plots(dataset_set, subfolder)
-            self.produce_trajectory_plots(dataset_set, subfolder)
+            self.produce_stop_action_plots(
+                dataset_set, subfolder, excluded_methods
+            )
+            self.produce_trajectory_plots(
+                dataset_set, subfolder, excluded_methods
+            )
 
 
 def main() -> None:
     args = parse_args()
     args.output_folder.mkdir(parents=True, exist_ok=True)
 
-    plotter = EvaluationPlotter(args.input, args.output_folder, args.formats)
+    plotter = EvaluationPlotter(
+        args.input,
+        args.output_folder,
+        args.formats,
+        dataset_sets=args.dataset_sets,
+        exclude_methods=args.exclude_methods,
+    )
     plotter.load_and_process()
     plotter.generate_all_plots()
 

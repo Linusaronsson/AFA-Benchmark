@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 from typing import Any
 
 from hydra.core.config_store import ConfigStore
@@ -1060,12 +1060,13 @@ class AACOTrainConfig:
     classifier_bundle_path: Path | None = (
         None  # Path to pre-trained classifier bundle
     )
+    pretrained_model_bundle_path: Path | None = None
     seed: int = 42
     device: str = "cpu"
     use_wandb: bool = False
     soft_budget_param: float | None = None
     hard_budget: int | None = None  # If set, use forced acquisition mode
-    # One of: full, zero_fill, impute_mean, mask_aware
+    # One of: full, zero_fill, impute_mean, mask_aware, pvae_restore_actions
     train_missing_mode: str = "full"
     experiment_id: str | None = None
     initializer_type: str = "aaco"

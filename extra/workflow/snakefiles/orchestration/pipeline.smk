@@ -118,6 +118,9 @@ METHOD_TO_CLASSIFIER_BUNDLE_METHOD = _config[
     "METHOD_TO_CLASSIFIER_BUNDLE_METHOD"
 ]
 METHOD_TO_PRETRAINED_MODEL = _config["METHOD_TO_PRETRAINED_MODEL"]
+METHOD_TO_PRETRAINED_MODEL_INITIALIZER = _config[
+    "METHOD_TO_PRETRAINED_MODEL_INITIALIZER"
+]
 METHOD_SPECIFIC_PARAMS = _config["METHOD_SPECIFIC_PARAMS"]
 DATASETS = _config["DATASETS"]
 UNMASKERS = _config["UNMASKERS"]
@@ -176,6 +179,13 @@ def _method_device(method: str) -> str:
 
 def _method_slurm_extra(method: str) -> str:
     return _slurm_extra_for_compute_platform(_method_compute_platform(method))
+
+
+def _pretrained_model_initializer_tag_for_method(method: str) -> str:
+    return (
+        "initializer-"
+        f"{METHOD_TO_PRETRAINED_MODEL_INITIALIZER.get(method, TRAIN_INITIALIZER)}"
+    )
 
 include: "../rules/dataset_generation.smk"
 include: "../rules/training.smk"

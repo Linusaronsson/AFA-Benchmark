@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import hydra
 import torch
@@ -11,17 +11,33 @@ from omegaconf import OmegaConf
 from afabench.afa_oracle import create_aaco_method
 from afabench.afa_oracle.aaco_core import MISSINGNESS_OBJECTIVES
 from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.config_classes import AACOTrainConfig, InitializerConfig
-from afabench.common.custom_types import AFAInitializer
 from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import set_seed
 
+if TYPE_CHECKING:
+    from afabench.afa_rl.zannone2019.models import (
+        Zannone2019PretrainingModel,
+    )
+    from afabench.common.config_classes import (
+        AACOTrainConfig,
+        InitializerConfig,
+    )
+    from afabench.common.custom_types import AFAInitializer
+    from afabench.common.torch_bundle import TorchModelBundle
+
 logger = logging.getLogger(__name__)
 
 
-_TRAIN_MISSING_MODES = {"full", "zero_fill", "impute_mean", "mask_aware"}
+_PVAE_RESTORE_ACTIONS_MODE = "pvae_restore_actions"
+_TRAIN_MISSING_MODES = {
+    "full",
+    "zero_fill",
+    "impute_mean",
+    "mask_aware",
+    _PVAE_RESTORE_ACTIONS_MODE,
+}
 
 
 def _validate_train_missing_mode(mode: str) -> None:
@@ -94,6 +110,53 @@ def _apply_train_missingness(
     raise ValueError(msg)
 
 
+def _load_pvae_model(
+    pretrained_model_bundle_path: Path,
+    *,
+    device: torch.device,
+) -> Zannone2019PretrainingModel:
+    pretrained_model, _ = load_bundle(
+        pretrained_model_bundle_path,
+        device=device,
+    )
+    torch_model_bundle = cast(
+        "TorchModelBundle",
+        cast("object", pretrained_model),
+    )
+    pvae_model = cast(
+        "Zannone2019PretrainingModel",
+        torch_model_bundle.model,
+    )
+    pvae_model = pvae_model.to(device)
+    pvae_model.eval()
+    return pvae_model
+
+
+def _apply_pvae_action_restoration(
+    x_train: torch.Tensor,
+    train_support_mask: torch.BoolTensor,
+    *,
+    pvae_model: Zannone2019PretrainingModel,
+    hide_val: float,
+) -> tuple[torch.Tensor, None]:
+    """Impute forbidden train features and restore them to AACO support."""
+    missing = ~train_support_mask
+    masked_x = x_train.clone()
+    masked_x[missing] = hide_val
+
+    with torch.no_grad():
+        _z, reconstructed = pvae_model.masked_reconstruction(
+            masked_features=masked_x,
+            feature_mask=train_support_mask,
+            n_classes=pvae_model.n_classes,
+            label=None,
+        )
+
+    restored_x = x_train.clone()
+    restored_x[missing] = reconstructed.to(restored_x.dtype)[missing]
+    return restored_x, None
+
+
 def _prepare_train_matrix(
     *,
     x_train: torch.Tensor,
@@ -103,6 +166,7 @@ def _prepare_train_matrix(
     mode: str,
     hide_val: float,
     device: torch.device,
+    pretrained_model_bundle_path: Path | str | None,
 ) -> tuple[torch.Tensor, torch.BoolTensor | None, float, float]:
     initial_observed_mask_flat: torch.BoolTensor | None = None
     train_support_mask_flat: torch.BoolTensor | None = None
@@ -159,12 +223,30 @@ def _prepare_train_matrix(
         logger.info("Train missingness mode: full (no masking)")
         return x_train, None, initial_fraction, support_fraction
 
-    x_train, train_observed_mask = _apply_train_missingness(
-        x_train=x_train,
-        train_support_mask=train_support_mask_flat,
-        mode=mode,
-        hide_val=hide_val,
-    )
+    if mode == _PVAE_RESTORE_ACTIONS_MODE:
+        if pretrained_model_bundle_path is None:
+            msg = (
+                "pretrained_model_bundle_path is required when "
+                f"train_missing_mode={_PVAE_RESTORE_ACTIONS_MODE!r}."
+            )
+            raise ValueError(msg)
+        pvae_model = _load_pvae_model(
+            Path(pretrained_model_bundle_path),
+            device=device,
+        )
+        x_train, train_observed_mask = _apply_pvae_action_restoration(
+            x_train=x_train,
+            train_support_mask=train_support_mask_flat,
+            pvae_model=pvae_model,
+            hide_val=hide_val,
+        )
+    else:
+        x_train, train_observed_mask = _apply_train_missingness(
+            x_train=x_train,
+            train_support_mask=train_support_mask_flat,
+            mode=mode,
+            hide_val=hide_val,
+        )
     observed_fraction = (
         train_observed_mask.float().mean().item()
         if (train_observed_mask is not None)
@@ -219,6 +301,7 @@ def run(cfg: AACOTrainConfig) -> None:
             mode=cfg.train_missing_mode,
             hide_val=cfg.aco.hide_val,
             device=device,
+            pretrained_model_bundle_path=cfg.pretrained_model_bundle_path,
         )
     )
     y_train = y_train.to(device)
