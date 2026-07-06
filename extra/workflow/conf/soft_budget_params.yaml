@@ -28,6 +28,9 @@ soft_budget_params:
   aaco_zero_fill: *aaco_soft_budget_params
   aaco_mask_aware: *aaco_soft_budget_params
   aaco_dr: *aaco_soft_budget_params
+  aaco_pvae_restore_actions: *aaco_soft_budget_params
+  aaco_pvae_restore_honest: *aaco_soft_budget_params
+  aaco_pvae_restore_labelfree: *aaco_soft_budget_params
   aaco_nn:
     default:
       - [0.05, null]
@@ -211,6 +214,10 @@ soft_budget_params:
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
+  ol_full: *ol
+  ol_pvae_restore_honest: *ol
+  ol_pvae_restore_oracle_gen: *ol
+  ol_pvae_restore_labelfree: *ol
   odin_model_free: &odin
     default: [] # don't rely on defaults
     cube:

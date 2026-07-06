@@ -13,6 +13,10 @@ soft_budget_params:
     default: []
   aaco_pvae_restore_actions:
     default: []
+  aaco_pvae_restore_honest:
+    default: []
+  aaco_pvae_restore_labelfree:
+    default: []
   jafa:
     default: []
   gadgil2023:
@@ -22,6 +26,10 @@ soft_budget_params:
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
+  ol_full: *ol
+  ol_pvae_restore_honest: *ol
+  ol_pvae_restore_oracle_gen: *ol
+  ol_pvae_restore_labelfree: *ol
   odin_model_free: &odin
     default: []
   odin_model_based: *odin

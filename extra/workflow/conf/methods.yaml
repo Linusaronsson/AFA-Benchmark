@@ -5,6 +5,10 @@ methods:
   - odin_model_based
   - ol_without_mask
   - ol_with_mask
+  - ol_full
+  - ol_pvae_restore_honest
+  - ol_pvae_restore_oracle_gen
+  - ol_pvae_restore_labelfree
   # - random_dummy
   # - sequential_dummy
   - covert2023
@@ -21,3 +25,5 @@ methods:
   - aaco_mask_aware
   - aaco_dr
   - aaco_pvae_restore_actions
+  - aaco_pvae_restore_honest
+  - aaco_pvae_restore_labelfree

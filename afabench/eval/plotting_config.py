@@ -48,7 +48,13 @@ METHOD_NAME_MAPPING = {
     "aaco_impute_mean": "AACO-OC (mean-impute train)",
     "aaco_mask_aware": "AACO-OC (mask-aware train)",
     "aaco_dr": "AACO-OC-DR",
-    "aaco_pvae_restore_actions": "AACO-OC (PVAE restore)",
+    "aaco_pvae_restore_actions": "AACO-OC (oracle-gen restore)",
+    "aaco_pvae_restore_honest": "AACO-OC (PVAE restore)",
+    "aaco_pvae_restore_labelfree": "AACO-OC (PVAE restore, no label)",
+    "ol_full": "OL-MFRL (full train)",
+    "ol_pvae_restore_honest": "OL-MFRL (PVAE restore)",
+    "ol_pvae_restore_oracle_gen": "OL-MFRL (oracle-gen restore)",
+    "ol_pvae_restore_labelfree": "OL-MFRL (PVAE restore, no label)",
     "cube_nm_ar_oracle": "CUBE-NM-AR oracle",
 }
 

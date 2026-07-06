@@ -44,6 +44,10 @@ method_options:
       - "aco.dr_max_weight=20.0"
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
+  # Oracle-generator restoration: the PVAE is pretrained WITHOUT the
+  # availability restriction (initializer "cold"), so it has seen the true
+  # values of training-missing entries. Upper-bound ablation; the honest
+  # method is aaco_pvae_restore_honest below.
   aaco_pvae_restore_actions:
     pretrained_model_name: "pvae"
     pretrained_model_initializer: "cold"
@@ -51,6 +55,29 @@ method_options:
     compute_platform: cpu
     method_specific_params:
       - "train_missing_mode=pvae_restore_actions"
+    hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+  # Honest restoration: the PVAE is pretrained under the same training
+  # missingness as the method (pvae_missing follows the active
+  # TRAIN_INITIALIZER), so no hidden values leak. Label-conditioned
+  # episode-start restoration (the trajectory target p(x_miss | x_obs, y)).
+  aaco_pvae_restore_honest:
+    pretrained_model_name: "pvae_missing"
+    train_script_name: "aaco"
+    compute_platform: cpu
+    method_specific_params:
+      - "train_missing_mode=pvae_restore_actions"
+    hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+  # Ablation of aaco_pvae_restore_honest: restoration without label
+  # conditioning (targets p(x_miss | x_obs) instead of p(x_miss | x_obs, y)).
+  aaco_pvae_restore_labelfree:
+    pretrained_model_name: "pvae_missing"
+    train_script_name: "aaco"
+    compute_platform: cpu
+    method_specific_params:
+      - "train_missing_mode=pvae_restore_actions"
+      - "pvae_restore_use_label=false"
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
     soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   aaco_nn:
@@ -186,6 +213,55 @@ method_options:
     pretrained_model_name: "ol_with_mask"
     train_script_name: "kachuee2019"
     compute_platform: gpu
+    eval_batch_size: *rl_eval_batch_size
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+  # Oracle completion: under a train-missing initializer, train on the true
+  # features with the full action set (upper bound for OL restoration).
+  ol_full:
+    pretrained_model_name: "ol_with_mask"
+    train_script_name: "kachuee2019"
+    compute_platform: gpu
+    method_specific_params:
+      - "train_missing_mode=full"
+    eval_batch_size: *rl_eval_batch_size
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+  # Honest episode-start restoration: complete each masked training row once
+  # with the pvae_missing generator (pretrained under the same training
+  # missingness), then train OL with the full action set.
+  ol_pvae_restore_honest:
+    pretrained_model_name: "ol_with_mask"
+    restoration_model_name: "pvae_missing"
+    train_script_name: "kachuee2019"
+    compute_platform: gpu
+    method_specific_params:
+      - "train_missing_mode=pvae_restore"
+    eval_batch_size: *rl_eval_batch_size
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+  # Oracle-generator ablation: restoration with a PVAE pretrained on complete
+  # rows (initializer "cold"), i.e. it has seen the true hidden values.
+  ol_pvae_restore_oracle_gen:
+    pretrained_model_name: "ol_with_mask"
+    restoration_model_name: "pvae"
+    restoration_model_initializer: "cold"
+    train_script_name: "kachuee2019"
+    compute_platform: gpu
+    method_specific_params:
+      - "train_missing_mode=pvae_restore"
+    eval_batch_size: *rl_eval_batch_size
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
+  # Label-free ablation of ol_pvae_restore_honest.
+  ol_pvae_restore_labelfree:
+    pretrained_model_name: "ol_with_mask"
+    restoration_model_name: "pvae_missing"
+    train_script_name: "kachuee2019"
+    compute_platform: gpu
+    method_specific_params:
+      - "train_missing_mode=pvae_restore"
+      - "restoration_use_label=false"
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
