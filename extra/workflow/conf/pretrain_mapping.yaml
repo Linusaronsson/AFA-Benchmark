@@ -13,6 +13,16 @@ pretrain_mapping:
     pretrain_params: []
     compute_platform: gpu
 
+  # Honest PVAE: pretrained under the training missingness of the active
+  # TRAIN_INITIALIZER (unavailable entries never observed, excluded from the
+  # reconstruction loss). Use for restoration without leaking hidden values;
+  # `pvae` (above) trained without an availability restriction is the
+  # oracle-generator counterpart.
+  pvae_missing:
+    pretrain_script_name: "zannone2019"
+    pretrain_params: ["respect_initializer_missingness=true"]
+    compute_platform: gpu
+
   jafa:
     pretrain_script_name: "shim2018"
     pretrain_params: []

@@ -3,8 +3,11 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 from torch.utils.data.dataloader import default_collate
+from torch.utils.data.dataset import Dataset
 
 if TYPE_CHECKING:
+    import torch
+
     from afabench.common.custom_types import AFADataset
 
 
@@ -36,3 +39,36 @@ def flatten_features_collate(n_feature_dims: int) -> Callable:  # pyright: ignor
         return flat_features, labels
 
     return collate
+
+
+def flatten_features_with_extras_collate(n_feature_dims: int) -> Callable:  # pyright: ignore[reportMissingTypeArgument]
+    """Like `flatten_features_collate`, for `(features, label, extras)` items where extras is feature-shaped (e.g. a per-row missingness mask)."""
+
+    def collate(batch):  # noqa: ANN001, ANN202
+        features, labels, extras = default_collate(batch)
+
+        flat_features = features.flatten(start_dim=-n_feature_dims)
+        flat_extras = extras.flatten(start_dim=-n_feature_dims)
+
+        return flat_features, labels, flat_extras
+
+    return collate
+
+
+class DatasetWithRowExtras(Dataset):
+    """Attach a fixed per-row tensor (e.g. a mechanism missingness mask) to a `(features, label)` dataset, yielding `(features, label, extras[idx])`."""
+
+    def __init__(
+        self,
+        dataset: "Dataset",
+        row_extras: "torch.Tensor",
+    ) -> None:
+        self.dataset = dataset
+        self.row_extras = row_extras
+
+    def __len__(self) -> int:
+        return len(self.dataset)  # pyright: ignore[reportArgumentType]
+
+    def __getitem__(self, index: int):
+        features, label = self.dataset[index]
+        return features, label, self.row_extras[index]

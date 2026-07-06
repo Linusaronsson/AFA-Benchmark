@@ -56,5 +56,11 @@ classifier:
   activation_class: "ReLU"
   dropout: 0.0
 seed: null
+# When true and the initializer restricts training support (e.g.
+# MissingnessInitializer), pretrain the PVAE honestly under that missingness:
+# unavailable entries are never fed as inputs and are excluded from the
+# reconstruction loss. When false, pretraining sees complete rows
+# (oracle-generator).
+respect_initializer_missingness: false
 use_wandb: false
 smoke_test: false

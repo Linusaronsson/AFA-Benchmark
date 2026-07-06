@@ -218,6 +218,14 @@ class Zannone2019PretrainConfig:
     partial_vae: Zannone2019PartialVAEConfig
     classifier: Zannone2019ClassifierConfig
     seed: int | None = None
+    # Optional initializer (components/initializers@initializer). When
+    # respect_initializer_missingness is true and the initializer restricts
+    # training support, the PVAE is pretrained under that missingness:
+    # unavailable entries are never observed as inputs and are excluded from
+    # the reconstruction loss ("honest" generator). When false (default),
+    # pretraining sees complete rows (oracle-generator).
+    initializer: InitializerConfig | None = None
+    respect_initializer_missingness: bool = False
     use_wandb: bool = False
     smoke_test: bool = False
 

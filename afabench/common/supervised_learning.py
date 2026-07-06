@@ -10,7 +10,11 @@ from lightning.pytorch.loggers import WandbLogger
 
 from afabench.afa_rl.common.dataset_utils import DataModuleFromDatasets
 from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.datasets.utils import flatten_features_collate
+from afabench.common.datasets.utils import (
+    DatasetWithRowExtras,
+    flatten_features_collate,
+    flatten_features_with_extras_collate,
+)
 from afabench.common.torch_bundle import TorchModelBundle
 from afabench.common.utils import configure_runtime_for_device
 
@@ -78,6 +82,40 @@ class EarlyStoppingWithMinBatches(EarlyStopping):
         # else: do nothing, don't check for early stopping yet
 
 
+def _build_datamodule(
+    train_dataset: AFADataset,
+    val_dataset: AFADataset,
+    batch_size: int,
+    row_extras_fn: Callable[[AFADataset], torch.Tensor] | None,
+) -> DataModuleFromDatasets:
+    train_dataset_for_loader = cast(
+        "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
+    )
+    val_dataset_for_loader = cast(
+        "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
+    )
+    if row_extras_fn is not None:
+        train_dataset_for_loader = DatasetWithRowExtras(
+            train_dataset_for_loader, row_extras_fn(train_dataset)
+        )
+        val_dataset_for_loader = DatasetWithRowExtras(
+            val_dataset_for_loader, row_extras_fn(val_dataset)
+        )
+        collate_fn = flatten_features_with_extras_collate(
+            n_feature_dims=len(train_dataset.feature_shape)
+        )
+    else:
+        collate_fn = flatten_features_collate(
+            n_feature_dims=len(train_dataset.feature_shape)
+        )
+    return DataModuleFromDatasets(
+        train_dataset=train_dataset_for_loader,
+        val_dataset=val_dataset_for_loader,
+        batch_size=batch_size,
+        collate_fn=collate_fn,
+    )
+
+
 def supervised_learning(
     train_dataset_bundle_path: Path,
     val_dataset_bundle_path: Path,
@@ -90,11 +128,16 @@ def supervised_learning(
     use_wandb: bool = False,
     device: str | None = None,
     metadata_to_save_in_bundle: dict[str, Any] | None = None,
+    row_extras_fn: Callable[[AFADataset], torch.Tensor] | None = None,
 ) -> None:
     """
     Do supervised learning for a pytorch lightning model.
 
     Currently assumes that the model expects 1D (flattened) features.
+
+    If `row_extras_fn` is given, it is called once per dataset to compute a
+    fixed per-row tensor (e.g. a mechanism missingness mask) that is yielded
+    as a third batch element; per-row values stay fixed across epochs.
     """
     if device is None:
         device = "cpu"
@@ -111,17 +154,11 @@ def supervised_learning(
         Path(val_dataset_bundle_path),
     )
     val_dataset = cast("AFADataset", cast("object", val_dataset))
-    datamodule = DataModuleFromDatasets(
-        train_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
-        ),
-        val_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
-        ),
+    datamodule = _build_datamodule(
+        train_dataset,
+        val_dataset,
         batch_size=cfg.batch_size,
-        collate_fn=flatten_features_collate(
-            n_feature_dims=len(train_dataset.feature_shape)
-        ),
+        row_extras_fn=row_extras_fn,
     )
     log.info("Loaded datasets.")
 

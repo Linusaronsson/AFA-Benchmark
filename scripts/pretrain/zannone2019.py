@@ -20,12 +20,17 @@ from afabench.afa_rl.zannone2019.models import (
 )
 from afabench.common.config_classes import Zannone2019PretrainConfig
 from afabench.common.custom_types import AFADataset
+from afabench.common.initializers.utils import (
+    get_afa_initializer_from_config,
+    initializer_has_training_support_restriction,
+)
 from afabench.common.supervised_learning import supervised_learning
 from afabench.common.utils import (
     get_class_frequencies,
     initialize_wandb_run,
     set_seed,
 )
+from afabench.missing_values.restoration import derive_train_support_masks
 
 log = logging.getLogger(__name__)
 
@@ -147,6 +152,42 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
         cfg.supervised_learning.limit_train_batches = 2
         cfg.supervised_learning.limit_val_batches = 2
 
+    row_extras_fn: Callable[[AFADataset], torch.Tensor] | None = None
+    if cfg.respect_initializer_missingness:
+        initializer_cfg = OmegaConf.select(cast("Any", cfg), "initializer")
+        if initializer_cfg is None:
+            msg = (
+                "respect_initializer_missingness=true requires an "
+                "initializer config (components/initializers@initializer)."
+            )
+            raise ValueError(msg)
+        initializer = get_afa_initializer_from_config(initializer_cfg)
+        if not initializer_has_training_support_restriction(initializer):
+            log.warning(
+                "respect_initializer_missingness=true but initializer %s "
+                "has no training support restriction; pretraining sees "
+                "complete rows.",
+                type(initializer).__name__,
+            )
+        else:
+            mask_seed = cfg.seed if cfg.seed is not None else 0
+
+            def row_extras_fn(dataset: AFADataset) -> torch.Tensor:
+                features, _labels = dataset.get_all_data()
+                _observed_mask, train_support_mask = (
+                    derive_train_support_masks(
+                        initializer,
+                        seed=mask_seed,
+                        features=features,
+                        feature_shape=dataset.feature_shape,
+                    )
+                )
+                log.info(
+                    "Pretraining mechanism mask: %.4f of entries available.",
+                    train_support_mask.float().mean().item(),
+                )
+                return train_support_mask
+
     supervised_learning(
         train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
         val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
@@ -160,8 +201,12 @@ def main(cfg: Zannone2019PretrainConfig) -> None:
         metadata_to_save_in_bundle={
             "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
             "seed": cfg.seed,
+            "respect_initializer_missingness": (
+                cfg.respect_initializer_missingness
+            ),
             "config": OmegaConf.to_container(cfg, resolve=True),
         },
+        row_extras_fn=row_extras_fn,
     )
 
 
