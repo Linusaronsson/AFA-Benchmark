@@ -209,6 +209,108 @@ def test_aaco_pvae_restoration_imputes_blocked_features_and_restores_support() -
     )
 
 
+def test_aaco_pvae_restoration_passes_one_hot_label_when_conditioned() -> None:
+    x_train = torch.tensor(
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        dtype=torch.float32,
+    )
+    train_support_mask = cast(
+        "torch.BoolTensor",
+        torch.tensor(
+            [[True, False, True], [False, True, False]],
+            dtype=torch.bool,
+        ),
+    )
+    y_train = torch.tensor(
+        [[1.0, 0.0], [0.0, 1.0]],
+        dtype=torch.float32,
+    )
+    pvae = _ToyPVAE()
+
+    restored, _observed_mask = _apply_pvae_action_restoration(
+        x_train=x_train,
+        train_support_mask=train_support_mask,
+        pvae_model=cast(
+            "Zannone2019PretrainingModel",
+            cast("object", pvae),
+        ),
+        hide_val=0.0,
+        label=y_train,
+    )
+
+    assert pvae.seen_label is not None
+    assert torch.equal(pvae.seen_label, y_train)
+    assert torch.equal(
+        restored,
+        torch.tensor([[1.0, 20.0, 3.0], [40.0, 5.0, 60.0]]),
+    )
+
+
+def _prepare_with_restoration_stubs(
+    monkeypatch,  # noqa: ANN001
+    *,
+    y_train: torch.Tensor | None,
+    pvae_restore_use_label: bool,
+) -> _ToyPVAE:
+    x_train = torch.tensor(
+        [[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]],
+        dtype=torch.float32,
+    )
+    support = torch.tensor(
+        [[True, False, True], [False, True, False]],
+        dtype=torch.bool,
+    )
+
+    monkeypatch.setattr(
+        "scripts.train.aaco.get_afa_initializer_from_config",
+        lambda _cfg: None,
+    )
+    monkeypatch.setattr(
+        "scripts.train.aaco._derive_train_support_masks",
+        lambda _initializer, **_kwargs: (support, support),
+    )
+    pvae = _ToyPVAE()
+    monkeypatch.setattr(
+        "scripts.train.aaco._load_pvae_model",
+        lambda _path, *, device: pvae,  # noqa: ARG005
+    )
+
+    _prepare_train_matrix(
+        x_train=x_train,
+        feature_shape=torch.Size((3,)),
+        initializer_cfg=cast("InitializerConfig", cast("object", None)),
+        seed=0,
+        mode="pvae_restore_actions",
+        hide_val=0.0,
+        device=torch.device("cpu"),
+        pretrained_model_bundle_path="pvae.bundle",
+        y_train=y_train,
+        pvae_restore_use_label=pvae_restore_use_label,
+    )
+    return pvae
+
+
+def test_prepare_train_matrix_conditions_restoration_on_labels(
+    monkeypatch,  # noqa: ANN001
+) -> None:
+    y_train = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=torch.float32)
+    pvae = _prepare_with_restoration_stubs(
+        monkeypatch, y_train=y_train, pvae_restore_use_label=True
+    )
+    assert pvae.seen_label is not None
+    assert torch.equal(pvae.seen_label, y_train)
+
+
+def test_prepare_train_matrix_label_free_ablation_passes_no_label(
+    monkeypatch,  # noqa: ANN001
+) -> None:
+    y_train = torch.tensor([[1.0, 0.0], [0.0, 1.0]], dtype=torch.float32)
+    pvae = _prepare_with_restoration_stubs(
+        monkeypatch, y_train=y_train, pvae_restore_use_label=False
+    )
+    assert pvae.seen_label is None
+
+
 def test_prepare_train_matrix_accepts_hydra_string_pvae_path(
     monkeypatch,  # noqa: ANN001
 ) -> None:

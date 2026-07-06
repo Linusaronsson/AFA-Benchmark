@@ -73,7 +73,12 @@ hard_budget: null
 # For initializers without forbidden training features (e.g. cold),
 # zero_fill/impute_mean/mask_aware/pvae_restore_actions collapse to the
 # full-train control.
+# pvae_restore_use_label: condition the PVAE restoration on the one-hot
+#                         training label (episode-start restoration targets
+#                         p(x_miss | x_obs, y); set false for the label-free
+#                         ablation).
 train_missing_mode: "full"
+pvae_restore_use_label: true
 
 # ============================================================================
 # Other settings

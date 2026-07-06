@@ -15,6 +15,11 @@ from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.naming import infer_dataset_key_from_class_name
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import set_seed
+from afabench.missing_values.restoration import (
+    derive_train_support_masks,
+    load_pvae_model,
+    restore_missing_features_with_pvae,
+)
 
 if TYPE_CHECKING:
     from afabench.afa_rl.zannone2019.models import (
@@ -24,8 +29,6 @@ if TYPE_CHECKING:
         AACOTrainConfig,
         InitializerConfig,
     )
-    from afabench.common.custom_types import AFAInitializer
-    from afabench.common.torch_bundle import TorchModelBundle
 
 logger = logging.getLogger(__name__)
 
@@ -60,29 +63,10 @@ def _validate_missingness_objective(mode: str) -> None:
     raise ValueError(msg)
 
 
-def _derive_train_support_masks(
-    initializer: AFAInitializer,
-    *,
-    seed: int,
-    features: torch.Tensor,
-    feature_shape: torch.Size,
-) -> tuple[torch.BoolTensor, torch.BoolTensor]:
-    initializer.set_seed(seed)
-    observed_mask = initializer.initialize(
-        features=features,
-        feature_shape=feature_shape,
-    ).bool()
-    forbidden_mask = initializer.get_training_forbidden_mask(
-        observed_mask
-    ).bool()
-    if bool((observed_mask & forbidden_mask).any().item()):
-        msg = (
-            "Initializer returned overlapping observed and forbidden "
-            "training masks."
-        )
-        raise ValueError(msg)
-    train_support_mask = ~forbidden_mask
-    return observed_mask, train_support_mask
+# Shared with other training scripts; kept under the historical names so
+# existing imports (tests, notebooks) continue to work.
+_derive_train_support_masks = derive_train_support_masks
+_load_pvae_model = load_pvae_model
 
 
 def _apply_train_missingness(
@@ -110,51 +94,37 @@ def _apply_train_missingness(
     raise ValueError(msg)
 
 
-def _load_pvae_model(
-    pretrained_model_bundle_path: Path,
-    *,
-    device: torch.device,
-) -> Zannone2019PretrainingModel:
-    pretrained_model, _ = load_bundle(
-        pretrained_model_bundle_path,
-        device=device,
-    )
-    torch_model_bundle = cast(
-        "TorchModelBundle",
-        cast("object", pretrained_model),
-    )
-    pvae_model = cast(
-        "Zannone2019PretrainingModel",
-        torch_model_bundle.model,
-    )
-    pvae_model = pvae_model.to(device)
-    pvae_model.eval()
-    return pvae_model
-
-
 def _apply_pvae_action_restoration(
     x_train: torch.Tensor,
     train_support_mask: torch.BoolTensor,
     *,
     pvae_model: Zannone2019PretrainingModel,
     hide_val: float,
+    label: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, None]:
     """Impute forbidden train features and restore them to AACO support."""
-    missing = ~train_support_mask
-    masked_x = x_train.clone()
-    masked_x[missing] = hide_val
-
-    with torch.no_grad():
-        _z, reconstructed = pvae_model.masked_reconstruction(
-            masked_features=masked_x,
-            feature_mask=train_support_mask,
-            n_classes=pvae_model.n_classes,
-            label=None,
-        )
-
-    restored_x = x_train.clone()
-    restored_x[missing] = reconstructed.to(restored_x.dtype)[missing]
+    restored_x = restore_missing_features_with_pvae(
+        x_train,
+        train_support_mask,
+        pvae_model=pvae_model,
+        hide_val=hide_val,
+        label=label,
+    )
     return restored_x, None
+
+
+def _resolve_restoration_label(
+    y_train: torch.Tensor | None,
+    pvae_restore_use_label: bool,
+) -> torch.Tensor | None:
+    if not pvae_restore_use_label:
+        return None
+    if y_train is None:
+        logger.warning(
+            "pvae_restore_use_label=True but no labels were provided; "
+            "falling back to label-free restoration."
+        )
+    return y_train
 
 
 def _prepare_train_matrix(
@@ -167,6 +137,8 @@ def _prepare_train_matrix(
     hide_val: float,
     device: torch.device,
     pretrained_model_bundle_path: Path | str | None,
+    y_train: torch.Tensor | None = None,
+    pvae_restore_use_label: bool = True,
 ) -> tuple[torch.Tensor, torch.BoolTensor | None, float, float]:
     initial_observed_mask_flat: torch.BoolTensor | None = None
     train_support_mask_flat: torch.BoolTensor | None = None
@@ -239,6 +211,7 @@ def _prepare_train_matrix(
             train_support_mask=train_support_mask_flat,
             pvae_model=pvae_model,
             hide_val=hide_val,
+            label=_resolve_restoration_label(y_train, pvae_restore_use_label),
         )
     else:
         x_train, train_observed_mask = _apply_train_missingness(
@@ -302,6 +275,8 @@ def run(cfg: AACOTrainConfig) -> None:
             hide_val=cfg.aco.hide_val,
             device=device,
             pretrained_model_bundle_path=cfg.pretrained_model_bundle_path,
+            y_train=y_train,
+            pvae_restore_use_label=cfg.pvae_restore_use_label,
         )
     )
     y_train = y_train.to(device)
@@ -390,6 +365,7 @@ def run(cfg: AACOTrainConfig) -> None:
             "soft_budget_param": soft_budget_param,
             "hard_budget": cfg.hard_budget,
             "train_missing_mode": cfg.train_missing_mode,
+            "pvae_restore_use_label": cfg.pvae_restore_use_label,
             "force_acquisition": force_acquisition,
             "selection_size": selection_size,
             "k_neighbors": cfg.aco.k_neighbors,

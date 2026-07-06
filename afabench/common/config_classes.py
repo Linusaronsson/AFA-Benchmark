@@ -1068,6 +1068,9 @@ class AACOTrainConfig:
     hard_budget: int | None = None  # If set, use forced acquisition mode
     # One of: full, zero_fill, impute_mean, mask_aware, pvae_restore_actions
     train_missing_mode: str = "full"
+    # Condition PVAE restoration on the (one-hot) training label. Only used
+    # when train_missing_mode == "pvae_restore_actions".
+    pvae_restore_use_label: bool = True
     experiment_id: str | None = None
     initializer_type: str = "aaco"
     unmasker_type: str = "one_based_index"
