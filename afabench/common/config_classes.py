@@ -1039,6 +1039,15 @@ class Kachuee2019TrainConfig:
     # Aliases, only because snakefile assumes a flat interface
     hard_budget: int | None = None
 
+    # How to train when the initializer restricts training support:
+    # restricted (block forbidden actions), full (oracle completion),
+    # pvae_restore (episode-start restoration; requires
+    # restoration_pvae_bundle_path).
+    train_missing_mode: str = "restricted"
+    restoration_pvae_bundle_path: str | None = None
+    # Condition the PVAE restoration on the one-hot training label.
+    restoration_use_label: bool = True
+
 
 cs.store(name="train_kachuee2019", node=Kachuee2019TrainConfig)
 # ACO

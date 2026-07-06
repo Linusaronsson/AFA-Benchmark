@@ -276,6 +276,9 @@ def main(cfg: Kachuee2019TrainConfig) -> None:
         device=cfg.device if cfg.device is not None else torch.device("cpu"),
         cfg=cast("dict[str,Any]", OmegaConf.to_container(cfg)),
         use_wandb=cfg.use_wandb,
+        train_missing_mode=cfg.train_missing_mode,
+        restoration_pvae_bundle_path=cfg.restoration_pvae_bundle_path,
+        restoration_use_label=cfg.restoration_use_label,
         typed_cfg=cfg,
     )
 

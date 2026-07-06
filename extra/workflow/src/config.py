@@ -201,8 +201,26 @@ def load_config(config):
         if method in methods and "pretrained_model_name" in options
     }
 
+    # Optional second pretrained artifact used for generative restoration
+    # (e.g. a PVAE that completes training-missing features). Passed to the
+    # train script as restoration_pvae_bundle_path.
+    method_to_restoration_model = {
+        method: options["restoration_model_name"]
+        for method, options in method_options.items()
+        if method in methods and "restoration_model_name" in options
+    }
+    method_to_restoration_model_initializer = {
+        method: options.get(
+            "restoration_model_initializer", train_initializer
+        )
+        for method, options in method_options.items()
+        if method in methods and "restoration_model_name" in options
+    }
+
     # Filter pretrain_names to only include those needed by selected methods
-    pretrain_names_needed = set(method_to_pretrained_model.values())
+    pretrain_names_needed = set(method_to_pretrained_model.values()) | set(
+        method_to_restoration_model.values()
+    )
     pretrain_names = [
         name
         for name in pretrain_mapping.keys()
@@ -396,6 +414,10 @@ def load_config(config):
         "METHOD_TO_PRETRAINED_MODEL": method_to_pretrained_model,
         "METHOD_TO_PRETRAINED_MODEL_INITIALIZER": (
             method_to_pretrained_model_initializer
+        ),
+        "METHOD_TO_RESTORATION_MODEL": method_to_restoration_model,
+        "METHOD_TO_RESTORATION_MODEL_INITIALIZER": (
+            method_to_restoration_model_initializer
         ),
         "METHOD_SPECIFIC_PARAMS": method_specific_params,
         "DATASETS": datasets,

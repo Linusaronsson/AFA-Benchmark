@@ -228,6 +228,96 @@ def test_eval_cold_mode_restores_standard_cold_start() -> None:
     assert forbidden_selection_mask_fn is None
 
 
+def test_train_restored_and_train_full_use_cold_start_without_blocking() -> (
+    None
+):
+    """`train_restored`/`train_full` behave like eval_cold: cold start, no forbidden actions (the feature substitution happens outside the env)."""
+    initializer = _ToyRestrictedInitializer(
+        observed_mask=torch.tensor([[True, False, True]], dtype=torch.bool),
+        training_forbidden_mask=torch.tensor(
+            [[False, True, False]], dtype=torch.bool
+        ),
+    )
+    for mode in ("train_restored", "train_full"):
+        initialize_fn, forbidden_selection_mask_fn = _build_env_mask_fns(
+            initializer,
+            DirectUnmasker(),
+            n_selection_choices=3,
+            mode=mode,
+        )
+
+        cold_mask = initialize_fn(
+            features=torch.ones((1, 3), dtype=torch.float32),
+            label=torch.zeros((1, 1), dtype=torch.float32),
+            feature_shape=torch.Size((3,)),
+        )
+
+        assert torch.equal(cold_mask, torch.zeros((1, 3), dtype=torch.bool))
+        assert forbidden_selection_mask_fn is None
+
+
+def test_train_restored_env_serves_restored_features_with_full_actions() -> (
+    None
+):
+    """An env built on a restored feature matrix in `train_restored` mode exposes the restored values and allows every action."""
+    training_forbidden_mask = torch.tensor(
+        [
+            [False, True, False, True],
+            [True, False, True, False],
+        ],
+        dtype=torch.bool,
+    )
+    initializer = _ToyRestrictedInitializer(
+        observed_mask=~training_forbidden_mask,
+        training_forbidden_mask=training_forbidden_mask,
+    )
+    restored_features = torch.tensor(
+        [
+            [1.0, 20.0, 3.0, 40.0],
+            [50.0, 6.0, 70.0, 8.0],
+        ]
+    )
+    all_labels = torch.tensor([[1, 0], [0, 1]])
+
+    initialize_fn, forbidden_selection_mask_fn = _build_env_mask_fns(
+        initializer,
+        DirectUnmasker(),
+        n_selection_choices=4,
+        mode="train_restored",
+    )
+    env = AFAEnv(
+        dataset_fn=get_afa_dataset_fn(
+            restored_features, all_labels, shuffle=False
+        ),
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0,
+            reward_otherwise=-1.0,
+        ),
+        device=torch.device("cpu"),
+        batch_size=torch.Size((2,)),
+        feature_shape=torch.Size((4,)),
+        n_selections=4,
+        n_classes=2,
+        hard_budget=4.0,
+        initialize_fn=initialize_fn,
+        unmask_fn=DirectUnmasker().unmask,
+        forbidden_selection_mask_fn=forbidden_selection_mask_fn,
+        seed=123,
+    )
+
+    td = env.reset()
+
+    assert torch.equal(
+        td["feature_mask"],
+        torch.zeros_like(training_forbidden_mask, dtype=torch.bool),
+    )
+    assert torch.equal(
+        td["allowed_action_mask"][:, 1:],
+        ~torch.zeros_like(training_forbidden_mask),
+    )
+    assert torch.equal(td["features"], restored_features)
+
+
 def test_default_mode_preserves_warm_start_for_nonrestricted_initializer() -> (
     None
 ):

@@ -22,6 +22,26 @@ def _classifier_bundle_for_method(method: str, dataset: str) -> str:
     )
 
 
+def _restoration_model_bundle_for_method(wildcards) -> list[str]:
+    """Optional second pretrained artifact for generative restoration.
+
+    Returns an empty list for methods without a restoration_model_name, so
+    the input (and the restoration_pvae_bundle_path CLI arg) is omitted.
+    """
+    method = wildcards.method
+    if method not in METHOD_TO_RESTORATION_MODEL:
+        return []
+    return [
+        f"extra/output/pretrained_models/"
+        f"{_restoration_model_initializer_tag_for_method(method)}/"
+        f"{METHOD_TO_RESTORATION_MODEL[method]}/"
+        f"dataset-{wildcards.dataset}+"
+        f"instance_idx-{wildcards.dataset_instance_idx}/"
+        f"pretrain_seed-{wildcards.pretrain_seed}/"
+        "model.bundle"
+    ]
+
+
 rule pretrain_model:
     input:
         # Datasets
@@ -98,7 +118,10 @@ rule train_method_with_pretrained_model:
         ancient(
             f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
             "dataset-{dataset}.bundle"
-        )
+        ),
+
+        # Optional generative-restoration model (empty for most methods)
+        restoration_model=_restoration_model_bundle_for_method
 
     output:
         directory(
@@ -123,7 +146,12 @@ rule train_method_with_pretrained_model:
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],
         method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method],
-        device=lambda wildcards: _method_device(wildcards.method)
+        device=lambda wildcards: _method_device(wildcards.method),
+        restoration_param=lambda wildcards, input: (
+            f"restoration_pvae_bundle_path={input.restoration_model}"
+            if input.restoration_model
+            else ""
+        )
     resources:
         shell_exec="bash",
         slurm_extra=lambda wildcards: _method_slurm_extra(
@@ -147,6 +175,7 @@ rule train_method_with_pretrained_model:
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
             experiment@_global_={wildcards.dataset} \
+            {params.restoration_param} \
             {params.method_specific_params}
         END_TIME=$(date +%s.%N)
         ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')

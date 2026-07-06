@@ -62,5 +62,17 @@ replay_buffer_device_same_as_device: true # generally true, but set to false for
 reward_method: "Bayesian-L1" # same as original paper
 mcdrop_samples: 1000 # same as original paper
 
+# How to train when the initializer restricts training support:
+# restricted (block forbidden actions; thesis baseline), full (oracle
+# completion: true features, full action set), pvae_restore (episode-start
+# restoration: complete each row once with the PVAE at
+# restoration_pvae_bundle_path, then train with the full action set).
+train_missing_mode: "restricted"
+restoration_pvae_bundle_path: null
+# Condition the PVAE restoration on the one-hot training label (the
+# trajectory target p(x_miss | x_obs, y)); set false for the label-free
+# ablation.
+restoration_use_label: true
+
 # Alias arguments, only to implement interface assumed by snakemake
 hard_budget: null

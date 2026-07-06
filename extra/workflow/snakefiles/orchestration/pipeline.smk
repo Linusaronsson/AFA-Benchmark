@@ -121,6 +121,10 @@ METHOD_TO_PRETRAINED_MODEL = _config["METHOD_TO_PRETRAINED_MODEL"]
 METHOD_TO_PRETRAINED_MODEL_INITIALIZER = _config[
     "METHOD_TO_PRETRAINED_MODEL_INITIALIZER"
 ]
+METHOD_TO_RESTORATION_MODEL = _config["METHOD_TO_RESTORATION_MODEL"]
+METHOD_TO_RESTORATION_MODEL_INITIALIZER = _config[
+    "METHOD_TO_RESTORATION_MODEL_INITIALIZER"
+]
 METHOD_SPECIFIC_PARAMS = _config["METHOD_SPECIFIC_PARAMS"]
 DATASETS = _config["DATASETS"]
 UNMASKERS = _config["UNMASKERS"]
@@ -185,6 +189,13 @@ def _pretrained_model_initializer_tag_for_method(method: str) -> str:
     return (
         "initializer-"
         f"{METHOD_TO_PRETRAINED_MODEL_INITIALIZER.get(method, TRAIN_INITIALIZER)}"
+    )
+
+
+def _restoration_model_initializer_tag_for_method(method: str) -> str:
+    return (
+        "initializer-"
+        f"{METHOD_TO_RESTORATION_MODEL_INITIALIZER.get(method, TRAIN_INITIALIZER)}"
     )
 
 include: "../rules/dataset_generation.smk"

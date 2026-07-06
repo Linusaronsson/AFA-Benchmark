@@ -25,6 +25,11 @@ from afabench.common.initializers.utils import get_afa_initializer_from_config
 from afabench.common.unmaskers import CubeNMARUnmasker, CubeNMUnmasker
 from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.common.utils import get_class_frequencies, initialize_wandb_run
+from afabench.missing_values.restoration import (
+    derive_train_support_masks,
+    load_pvae_model,
+    restore_missing_features_with_pvae,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -51,7 +56,21 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-type EnvMaskMode = Literal["default", "train_restricted", "eval_cold"]
+type EnvMaskMode = Literal[
+    "default",
+    "train_restricted",
+    "train_restored",
+    "train_full",
+    "eval_cold",
+]
+
+# How RL training handles an initializer with restricted training support:
+# restricted   - block training-forbidden actions (thesis baseline)
+# full         - oracle completion: train on true features, all actions allowed
+# pvae_restore - episode-start restoration: complete rows once with a PVAE,
+#                then train with the full action set
+type TrainMissingMode = Literal["restricted", "full", "pvae_restore"]
+_TRAIN_MISSING_MODES: set[str] = {"restricted", "full", "pvae_restore"}
 
 
 def _should_disable_collector_cuda_sync(
@@ -158,8 +177,11 @@ def _build_env_mask_fns(
     `train_restricted` matches the thesis objective: sample missingness once,
     start from a cold state, and block training-forbidden actions.
     `eval_cold` restores the standard cold-start evaluation protocol.
+    `train_restored` and `train_full` train with the full action set from a
+    cold state (the features served to the env are, respectively, completed
+    by a generator beforehand, or the true ones).
     """
-    if mode == "eval_cold":
+    if mode in {"eval_cold", "train_restored", "train_full"}:
 
         def cold_initialize(
             features: torch.Tensor,
@@ -299,7 +321,16 @@ class RLTrainer(ABC):
         cfg: dict[str, Any],  # used only for logging
         *,
         use_wandb: bool = False,
+        train_missing_mode: str = "restricted",
+        restoration_pvae_bundle_path: Path | str | None = None,
+        restoration_use_label: bool = True,
     ):
+        if train_missing_mode not in _TRAIN_MISSING_MODES:
+            msg = (
+                "train_missing_mode must be one of "
+                f"{sorted(_TRAIN_MISSING_MODES)}, got {train_missing_mode!r}."
+            )
+            raise ValueError(msg)
         self.train_dataset_bundle_path = train_dataset_bundle_path
         self.val_dataset_bundle_path = val_dataset_bundle_path
         self.initializer_cfg = initializer_cfg
@@ -310,6 +341,9 @@ class RLTrainer(ABC):
         self.device = torch.device(device)
         self.cfg = cfg
         self.use_wandb = use_wandb
+        self.train_missing_mode = train_missing_mode
+        self.restoration_pvae_bundle_path = restoration_pvae_bundle_path
+        self.restoration_use_label = restoration_use_label
 
         if self.use_wandb:
             self.run = initialize_wandb_run(
@@ -390,22 +424,88 @@ class RLTrainer(ABC):
         has_train_restriction = _initializer_has_training_support_restriction(
             self.initializer
         )
-        if has_train_restriction:
-            log.info(
-                "Initializer %s uses restricted-support RL training. "
-                "Train env starts cold and blocks training-forbidden actions; "
-                "eval env uses standard cold-start semantics.",
-                type(self.initializer).__name__,
-            )
 
-        self.train_env = self._get_env_from_dataset(
-            self.train_dataset,
-            mode="train_restricted" if has_train_restriction else "default",
+        train_features, train_labels = self.train_dataset.get_all_data()
+        train_mode: EnvMaskMode = "default"
+        if has_train_restriction:
+            if self.train_missing_mode == "restricted":
+                train_mode = "train_restricted"
+                log.info(
+                    "Initializer %s uses restricted-support RL training. "
+                    "Train env starts cold and blocks training-forbidden "
+                    "actions; eval env uses standard cold-start semantics.",
+                    type(self.initializer).__name__,
+                )
+            elif self.train_missing_mode == "full":
+                train_mode = "train_full"
+                log.info(
+                    "Oracle completion: training on true features with the "
+                    "full action set despite initializer %s.",
+                    type(self.initializer).__name__,
+                )
+            else:  # pvae_restore
+                train_features = self._restore_train_features(
+                    train_features, train_labels
+                )
+                train_mode = "train_restored"
+
+        self.train_env = self._get_env_from_data(
+            train_features,
+            train_labels,
+            self.train_dataset.feature_shape,
+            mode=train_mode,
         )
         self.eval_env = self._get_env_from_dataset(
             self.val_dataset,
             mode="eval_cold" if has_train_restriction else "default",
         )
+
+    def _restore_train_features(
+        self,
+        features: torch.Tensor,
+        labels: torch.Tensor,
+    ) -> torch.Tensor:
+        """Episode-start restoration: complete training-missing entries once with a PVAE, so the train env can serve the full action set."""
+        if self.restoration_pvae_bundle_path is None:
+            msg = (
+                "restoration_pvae_bundle_path is required when "
+                "train_missing_mode='pvae_restore'."
+            )
+            raise ValueError(msg)
+        pvae_model = load_pvae_model(
+            Path(self.restoration_pvae_bundle_path),
+            device=self.device,
+        )
+        mask_seed = self.seed if self.seed is not None else 0
+        _observed_mask, train_support_mask = derive_train_support_masks(
+            self.initializer,
+            seed=mask_seed,
+            features=features,
+            feature_shape=self.train_dataset.feature_shape,
+        )
+        flat_features = features.reshape(features.shape[0], -1).to(self.device)
+        flat_support_mask = cast(
+            "torch.BoolTensor",
+            train_support_mask.reshape(features.shape[0], -1).to(self.device),
+        )
+        restoration_label = (
+            labels.to(self.device).float()
+            if self.restoration_use_label
+            else None
+        )
+        restored_flat = restore_missing_features_with_pvae(
+            flat_features,
+            flat_support_mask,
+            pvae_model=pvae_model,
+            label=restoration_label,
+        )
+        log.info(
+            "Episode-start restoration completed %.4f of train entries "
+            "(%s conditioning).",
+            1.0 - flat_support_mask.float().mean().item(),
+            "label" if restoration_label is not None else "label-free",
+        )
+        return restored_flat.reshape(features.shape).cpu()
 
     def _get_env_from_dataset(
         self,
@@ -414,6 +514,18 @@ class RLTrainer(ABC):
         mode: EnvMaskMode,
     ) -> AFAEnv:
         features, labels = dataset.get_all_data()
+        return self._get_env_from_data(
+            features, labels, dataset.feature_shape, mode=mode
+        )
+
+    def _get_env_from_data(
+        self,
+        features: torch.Tensor,
+        labels: torch.Tensor,
+        feature_shape: torch.Size,
+        *,
+        mode: EnvMaskMode,
+    ) -> AFAEnv:
         dataset_fn = get_afa_dataset_fn(features, labels, device=self.device)
         initialize_fn, forbidden_selection_mask_fn = _build_env_mask_fns(
             self.initializer,
@@ -426,7 +538,7 @@ class RLTrainer(ABC):
             reward_fn=self.reward_fn,
             device=self.device,
             batch_size=torch.Size((self.n_agents,)),
-            feature_shape=dataset.feature_shape,
+            feature_shape=feature_shape,
             n_selections=self._n_selections,
             n_classes=self._n_classes,
             hard_budget=self.mdp_cfg.hard_budget,
