@@ -36,6 +36,18 @@ INITIALIZER_META = {
     "mnar_logistic_p03": ("MNAR", 0.3),
     "mnar_logistic_p05": ("MNAR", 0.5),
     "mnar_logistic_p07": ("MNAR", 0.7),
+    "mnar_self_p03": ("MNAR-self", 0.3),
+    "mnar_self_p05": ("MNAR-self", 0.5),
+    "mnar_self_p07": ("MNAR-self", 0.7),
+    "xor_mcar_p03": ("MCAR", 0.3),
+    "xor_mcar_p05": ("MCAR", 0.5),
+    "xor_mcar_p07": ("MCAR", 0.7),
+    "xor_mar_p03": ("MAR", 0.3),
+    "xor_mar_p05": ("MAR", 0.5),
+    "xor_mar_p07": ("MAR", 0.7),
+    "xor_mnar_p03": ("MNAR", 0.3),
+    "xor_mnar_p05": ("MNAR", 0.5),
+    "xor_mnar_p07": ("MNAR", 0.7),
 }
 
 
@@ -166,6 +178,61 @@ def compute_accuracy(results_df: pd.DataFrame) -> pd.DataFrame:
     return acc
 
 
+def compute_action_acquisition_rates(
+    results_df: pd.DataFrame,
+) -> pd.DataFrame | None:
+    """
+    Compute per-action episode-level acquisition rates (route recovery).
+
+    For each (method, dataset, initializer, budget, action), the fraction of
+    evaluation episodes in which the action was performed at least once.
+    Reading off the action of a feature that was maskable at train time shows
+    whether restoration recovered the route that restricted training removes
+    (e.g. on XOR-noisy-shortcut: the x2 action).
+    """
+    if "action_performed" not in results_df.columns:
+        print(
+            "Warning: no action_performed column; "
+            "skipping action acquisition rates."
+        )
+        return None
+
+    actions_df = results_df[results_df["action_performed"] != 0]
+
+    episode_cols = [c for c in ("eval_seed", "idx") if c in results_df.columns]
+    group_cols = [
+        c
+        for c in (
+            "afa_method",
+            "dataset",
+            "eval_hard_budget",
+            "train_initializer",
+            "mechanism",
+            "miss_rate",
+        )
+        if c in results_df.columns
+    ]
+
+    n_episodes = (
+        results_df.groupby(group_cols)[episode_cols].nunique().prod(axis=1)
+        if episode_cols
+        else results_df.groupby(group_cols).size()
+    )
+    episodes_acquiring = (
+        actions_df.drop_duplicates(
+            group_cols + episode_cols + ["action_performed"]
+        )
+        .groupby(group_cols + ["action_performed"])
+        .size()
+    )
+    rates = (
+        (episodes_acquiring / n_episodes)
+        .rename("acquisition_rate")
+        .reset_index()
+    )
+    return rates
+
+
 def compute_gap_to_baseline(acc: pd.DataFrame) -> pd.DataFrame:
     """Compute accuracy gap relative to the cold (full-data) baseline."""
     baseline = acc[acc["train_initializer"] == "cold"][
@@ -209,6 +276,13 @@ def main() -> None:
     gap_path = args.output_dir / "gap_to_baseline.csv"
     gap.to_csv(gap_path, index=False)
     print(f"Saved gap-to-baseline to {gap_path}")
+
+    print("Computing action acquisition rates (route recovery)...")
+    action_rates = compute_action_acquisition_rates(results_df)
+    if action_rates is not None:
+        action_rates_path = args.output_dir / "action_acquisition_rates.csv"
+        action_rates.to_csv(action_rates_path, index=False)
+        print(f"Saved action acquisition rates to {action_rates_path}")
 
     # Mean accuracy across budgets.
     mean_acc = (
