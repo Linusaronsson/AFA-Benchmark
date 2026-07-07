@@ -6,6 +6,7 @@ soft_budget_params:
       - [0.01, null]
   aaco_full: *aaco_fast_soft_budget_params
   aaco_zero_fill: *aaco_fast_soft_budget_params
+  aaco_impute_mean: *aaco_fast_soft_budget_params
   aaco_mask_aware: *aaco_fast_soft_budget_params
   aaco_dr: *aaco_fast_soft_budget_params
   aaco_pvae_restore_actions: *aaco_fast_soft_budget_params

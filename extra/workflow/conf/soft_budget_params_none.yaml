@@ -7,6 +7,8 @@ soft_budget_params:
     default: []
   aaco_zero_fill:
     default: []
+  aaco_impute_mean:
+    default: []
   aaco_mask_aware:
     default: []
   aaco_dr:

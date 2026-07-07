@@ -45,8 +45,10 @@ method_sets:
     - gadgil2023_ipw_feature_marginal
     - aaco_full
     - aaco_zero_fill
+    - aaco_impute_mean
     - aaco_mask_aware
     - aaco_dr
+    - aaco_pvae_restore_actions
     - ol_with_mask
   # Restoration ladder per method family: restricted -> reweight ->
   # honest restore -> oracle-generator restore -> oracle completion.
