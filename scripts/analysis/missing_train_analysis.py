@@ -1,4 +1,4 @@
-# pyright: reportCallIssue=false, reportAttributeAccessIssue=false, reportAssignmentType=false
+# pyright: reportCallIssue=false, reportAttributeAccessIssue=false, reportAssignmentType=false, reportReturnType=false
 """
 Aggregate and summarize train-missing experiment results.
 
@@ -126,38 +126,47 @@ def _extract_train_initializer(dirname: str) -> str | None:
     return None
 
 
-def compute_accuracy(results_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Compute accuracy at each (method, dataset, budget, initializer) combination.
+def _seed_col(results_df: pd.DataFrame) -> str | None:
+    """Dataset-instance identity column (train_seed == instance index)."""
+    for col in ("train_seed", "eval_seed"):
+        if col in results_df.columns:
+            return col
+    return None
 
-    Accuracy is computed at the final timestep for each sample (the last row
-    per idx within a budget group).
+
+def _prediction_rows(results_df: pd.DataFrame) -> pd.DataFrame:
     """
-    # Filter to external classifier predictions if available, else builtin.
+    Reduce per-step rows to one prediction row per evaluation episode.
+
+    The merged eval_perf parquets are long-format (one row per env step,
+    with no episode index column); the prediction step is the single row
+    per episode with action_performed == 0. Fall back to the max-selection
+    rows for schemas without action_performed.
+    """
     eval_df = results_df
     if "classifier" in results_df.columns:
         eval_df = results_df[results_df["classifier"] == "external"]
         if eval_df.empty:
             eval_df = results_df[results_df["classifier"] == "builtin"]
 
-    # Keep only the last step per sample (max n_selections_performed per idx).
-    idx_cols = [
-        "afa_method",
-        "dataset",
-        "eval_hard_budget",
-        "train_initializer",
-        "eval_seed",
-        "idx",
-    ]
-    available_cols = [c for c in idx_cols if c in eval_df.columns]
-    df_last = eval_df.loc[
-        eval_df.groupby(available_cols)["n_selections_performed"].idxmax()
+    if "action_performed" in eval_df.columns:
+        return eval_df[eval_df["action_performed"] == 0]
+    return eval_df[
+        eval_df["n_selections_performed"]
+        == eval_df["n_selections_performed"].max()
     ]
 
-    df_last = df_last.copy()
-    df_last["correct"] = (
-        df_last["predicted_class"] == df_last["true_class"]
-    ).astype(int)
+
+def compute_accuracy(results_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Compute per-instance accuracy from one prediction row per episode.
+
+    Grouped per (method, dataset, budget, initializer, seed) combination.
+    """
+    pred = _prediction_rows(results_df).copy()
+    pred["correct"] = (pred["predicted_class"] == pred["true_class"]).astype(
+        int
+    )
 
     group_cols = [
         "afa_method",
@@ -167,15 +176,41 @@ def compute_accuracy(results_df: pd.DataFrame) -> pd.DataFrame:
         "mechanism",
         "miss_rate",
     ]
-    available_group = [c for c in group_cols if c in df_last.columns]
+    seed_col = _seed_col(pred)
+    if seed_col is not None:
+        group_cols.append(seed_col)
+    available_group = [c for c in group_cols if c in pred.columns]
 
     acc = (
-        df_last.groupby(available_group)["correct"]
-        .mean()
+        pred.groupby(available_group)["correct"]
+        .agg(accuracy="mean", n_episodes="size")
         .reset_index()
-        .rename(columns={"correct": "accuracy"})
     )
     return acc
+
+
+def summarize_accuracy_across_seeds(acc: pd.DataFrame) -> pd.DataFrame:
+    """Mean/std of per-instance accuracy across dataset instances."""
+    seed_col = _seed_col(acc)
+    if seed_col is None:
+        return acc
+    group_cols = [
+        c
+        for c in (
+            "afa_method",
+            "dataset",
+            "eval_hard_budget",
+            "train_initializer",
+            "mechanism",
+            "miss_rate",
+        )
+        if c in acc.columns
+    ]
+    return (
+        acc.groupby(group_cols)["accuracy"]
+        .agg(mean_accuracy="mean", std_accuracy="std", n_instances="size")
+        .reset_index()
+    )
 
 
 def compute_action_acquisition_rates(
@@ -197,9 +232,6 @@ def compute_action_acquisition_rates(
         )
         return None
 
-    actions_df = results_df[results_df["action_performed"] != 0]
-
-    episode_cols = [c for c in ("eval_seed", "idx") if c in results_df.columns]
     group_cols = [
         c
         for c in (
@@ -212,19 +244,22 @@ def compute_action_acquisition_rates(
         )
         if c in results_df.columns
     ]
+    seed_col = _seed_col(results_df)
+    if seed_col is not None:
+        group_cols = [*group_cols, seed_col]
 
+    # One prediction row (action 0) per episode; a feature action occurs at
+    # most once per episode, so per-action row counts / episode counts give
+    # the fraction of episodes acquiring each feature.
     n_episodes = (
-        results_df.groupby(group_cols)[episode_cols].nunique().prod(axis=1)
-        if episode_cols
-        else results_df.groupby(group_cols).size()
-    )
-    episodes_acquiring = (
-        actions_df.drop_duplicates(
-            group_cols + episode_cols + ["action_performed"]
-        )
-        .groupby(group_cols + ["action_performed"])
+        results_df[results_df["action_performed"] == 0]
+        .groupby(group_cols)
         .size()
     )
+    actions_df = results_df[results_df["action_performed"] != 0]
+    episodes_acquiring = actions_df.groupby(
+        group_cols + ["action_performed"]
+    ).size()
     rates = (
         (episodes_acquiring / n_episodes)
         .rename("acquisition_rate")
@@ -234,16 +269,17 @@ def compute_action_acquisition_rates(
 
 
 def compute_gap_to_baseline(acc: pd.DataFrame) -> pd.DataFrame:
-    """Compute accuracy gap relative to the cold (full-data) baseline."""
+    """Compute per-instance accuracy gap to the cold (full-data) baseline."""
+    join_cols = ["afa_method", "dataset", "eval_hard_budget"]
+    seed_col = _seed_col(acc)
+    if seed_col is not None:
+        join_cols.append(seed_col)
+
     baseline = acc[acc["train_initializer"] == "cold"][
-        ["afa_method", "dataset", "eval_hard_budget", "accuracy"]
+        [*join_cols, "accuracy"]
     ].rename(columns={"accuracy": "baseline_accuracy"})
 
-    merged = acc.merge(
-        baseline,
-        on=["afa_method", "dataset", "eval_hard_budget"],
-        how="left",
-    )
+    merged = acc.merge(baseline, on=join_cols, how="left")
     merged["gap"] = merged["accuracy"] - merged["baseline_accuracy"]
     return merged
 
@@ -271,7 +307,11 @@ def main() -> None:
     # Save detailed results.
     acc_path = args.output_dir / "accuracy_summary.csv"
     acc.to_csv(acc_path, index=False)
-    print(f"Saved accuracy summary to {acc_path}")
+    print(f"Saved per-instance accuracy to {acc_path}")
+
+    acc_agg_path = args.output_dir / "accuracy_mean_std.csv"
+    summarize_accuracy_across_seeds(acc).to_csv(acc_agg_path, index=False)
+    print(f"Saved accuracy mean/std across instances to {acc_agg_path}")
 
     gap_path = args.output_dir / "gap_to_baseline.csv"
     gap.to_csv(gap_path, index=False)
@@ -284,7 +324,7 @@ def main() -> None:
         action_rates.to_csv(action_rates_path, index=False)
         print(f"Saved action acquisition rates to {action_rates_path}")
 
-    # Mean accuracy across budgets.
+    # Mean accuracy across budgets and instances.
     mean_acc = (
         acc.groupby(
             [
