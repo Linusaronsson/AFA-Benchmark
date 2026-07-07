@@ -1,0 +1,53 @@
+# Overlay config for running the missingness orchestration workflows on
+# Arrhenius (NAISS). Modeled on missingness_alvis_rezvan.yaml.
+#
+# Usage:
+#   uv run snakemake \
+#     -s extra/workflow/snakefiles/orchestration/initializer_comparison.smk \
+#     all -j 1 \
+#     --configfile \
+#       extra/workflow/conf/restoration_cube_nm.yaml \
+#       extra/workflow/conf/missingness_arrhenius_rezvan.yaml
+#
+# Keep the outer orchestration workflow local (`-j 1`) and let the nested
+# `pipeline.smk` invocations submit to SLURM via the profile below.
+#
+# ------------------------------------------------------------------
+# FILL IN BEFORE FIRST SUBMISSION (docs were still WIP as of 2026-07):
+#   1. Replace NAISS2026-X-YY below with the actual project ID (check
+#      `projinfo` or SUPR). Arrhenius account names are suffixed per
+#      side: <project>-cpu for the cpu partition, <project>-gpu for gpu.
+#   2. Verify partition names and GPU flag syntax:
+#        sinfo -o "%P %G %l"
+#      Partitions should be cpu / gpu / fat; GPU allocation is requested
+#      with --gpus=<n> (not --gres like Alvis). Walltime cap is 72h.
+#   3. ARCHITECTURE CHECK (important): Arrhenius GPU nodes are Grace
+#      Hopper (aarch64) while CPU nodes are AMD Turin (x86_64). A venv
+#      built on one architecture will not run on the other. Check the
+#      login node with `uname -m`:
+#        - If login is aarch64, build the venv there and route ALL jobs
+#          to the gpu partition (set the cpu: entry below to the gpu
+#          partition string too) until a second x86_64 venv is set up.
+#        - If login is x86_64, the venv works for cpu-partition jobs;
+#          gpu jobs then need an aarch64 venv, e.g. built from an
+#          interactive gpu-node shell with
+#          UV_PROJECT_ENVIRONMENT=.venv-aarch64 uv sync, plus the same
+#          variable exported in the job environment.
+#      PyTorch ships aarch64 CUDA wheels for GH200, so uv sync should
+#      resolve on either side.
+# ------------------------------------------------------------------
+
+pipeline_profile: extra/workflow/profiles/arrhenius_rezvan
+default_compute_platform: cpu
+compute_platform_devices:
+  cpu: cpu
+  gpu: cuda
+classifier_compute_platform: cpu
+# Partition and account ride inside slurm_extra because Arrhenius splits
+# cpu/gpu into separate partitions with per-side accounts. These strings
+# are appended last on the sbatch command line and override the profile's
+# default partition/account.
+slurm_extra_by_compute_platform:
+  cpu: "--partition=cpu --account=NAISS2026-X-YY-cpu"
+  gpu: "--partition=gpu --account=NAISS2026-X-YY-gpu --gpus=1"
+pipeline_extra_config: ""

@@ -50,10 +50,12 @@ method_sets:
     - aaco_dr
     - aaco_pvae_restore_actions
     - ol_with_mask
-  # Restoration ladder per method family: restricted -> reweight ->
-  # honest restore -> oracle-generator restore -> oracle completion.
+  # Restoration ladder per method family: restricted -> naive fill ->
+  # reweight -> honest restore -> oracle-generator restore -> oracle
+  # completion.
   restoration_core:
     - aaco_zero_fill
+    - aaco_impute_mean
     - aaco_mask_aware
     - aaco_dr
     - aaco_pvae_restore_honest
