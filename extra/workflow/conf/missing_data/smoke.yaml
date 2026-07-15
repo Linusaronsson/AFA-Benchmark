@@ -1,15 +1,16 @@
-# Fast end-to-end integration check for a local Apple Silicon machine.
+# Fast end-to-end integration check.
 artifact_namespace: smoke
-device: mps
+device: cuda
 smoke_test: true
 eval_dataset_split: val
 dataset_instance_indices: [0]
-dataset_seeds: [0]
+datasets: [cube_nm]
 dataset_generation_params:
-  - dataset.kwargs.n_samples=128
+  cube_nm:
+    - dataset.kwargs.n_samples=128
 classifier_params:
-  - batch_size=32
-hard_budget: 4
+  default:
+    - batch_size=32
 eval_batch_size: 32
 restoration_batch_size: 64
 
@@ -19,6 +20,7 @@ missingness:
 
 strategies:
   - restricted
+  - pvae_label_conditioned
   - pvae_label_free
   - pvae_oracle
 
@@ -26,9 +28,7 @@ strategies:
 # an RL method, both PVAE restoration paths, evaluation, and summarization.
 methods:
   - aaco
-  - aaco_doubly_robust
   - dime
-  - dime_feature_marginal_ipw
   - odin_model_free
 
 # DIME exposes smoke_test for interface consistency but does not internally

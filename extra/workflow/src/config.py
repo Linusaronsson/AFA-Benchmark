@@ -54,6 +54,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         "eval_dataset_split", "test"
     )  # switch to val while developing, and train if debugging
     device = config.get("device", "cpu")
+    device_overrides = config.get("device_overrides", {})
     use_wandb = config.get("use_wandb", True)
     smoke_test = config.get("smoke_test", False)
 
@@ -305,6 +306,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         "INITIALIZER": initializer,
         "EVAL_DATASET_SPLIT": eval_dataset_split,
         "DEVICE": device,
+        "DEVICE_OVERRIDES": device_overrides,
         "USE_WANDB": use_wandb,
         "SMOKE_TEST": smoke_test,
         "PRETRAIN_NAMES": pretrain_names,
@@ -330,6 +332,30 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         "DATASETS_USED_PER_METHOD": datasets_used_per_method,
         "DATASETS_USED_PER_PRETRAIN_NAME": datasets_used_per_pretrain_name,
     }
+
+
+def resolve_device(
+    default_device: str,
+    overrides: Mapping[str, Any],
+    *,
+    dataset: str | None = None,
+    method: str | None = None,
+    pretrained_model: str | None = None,
+) -> str:
+    """Resolve a device independently of Snakemake hardware resources."""
+    if method is not None and dataset is not None:
+        method_mapping = overrides.get("method_datasets", {}).get(method, {})
+        if dataset in method_mapping:
+            return str(method_mapping[dataset])
+    if method is not None and method in overrides.get("methods", {}):
+        return str(overrides["methods"][method])
+    if pretrained_model is not None and pretrained_model in overrides.get(
+        "pretrained_models", {}
+    ):
+        return str(overrides["pretrained_models"][pretrained_model])
+    if dataset is not None and dataset in overrides.get("datasets", {}):
+        return str(overrides["datasets"][dataset])
+    return str(default_device)
 
 
 # ============================================================================

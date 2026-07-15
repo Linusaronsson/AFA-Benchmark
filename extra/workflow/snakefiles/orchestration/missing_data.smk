@@ -1,74 +1,126 @@
-"""Config-driven experiments with missing values in training data only.
+"""Generic experiments with missing values in training data only.
 
-This workflow intentionally does not merge missingness into the ordinary main
-pipeline. It materializes immutable train/validation views, trains every method
-against those views, and always evaluates from a cold start on a complete
-validation or test bundle.
+The workflow consumes the same dataset, method, pretraining, classifier,
+unmasker, and hard-budget configuration files as the ordinary evaluation
+pipeline. Missingness-specific scientific choices live in
+``conf/missing_data/design.yaml``; runtime scale and devices live in the
+selected runtime config and execution profile.
+
+Required shared config keys:
+    datasets, methods, method_options, pretrain_mapping, eval_hard_budgets,
+    soft_budget_params, unmaskers, classifier_names
+
+Missing-data config keys:
+    artifact_namespace, missingness, strategies, eval_dataset_split
+
+Device routing:
+    ``device`` is the default. Optional ``device_overrides`` may contain
+    ``methods``, ``datasets``, ``method_datasets``, and ``pretrained_models``.
+    Snakemake hardware resources remain separate execution-profile settings.
+
+Example:
+    uv run snakemake \
+      --profile extra/workflow/profiles/config/missing_data_smoke --cores 4
 """
 
+import os
 import re
+import sys
 
-required_config = {
+snakefile_dir = workflow.basedir
+workflow_dir = os.path.dirname(os.path.dirname(snakefile_dir))
+src_dir = os.path.join(workflow_dir, "src")
+sys.path.insert(0, src_dir)
+
+from config import load_config, resolve_device
+from missing_data_config import build_method_specs, largest_hard_budget
+
+
+required_missing_config = {
     "artifact_namespace",
-    "dataset",
-    "dataset_instance_indices",
-    "device",
     "eval_dataset_split",
-    "method_options",
-    "methods",
     "missingness",
-    "pretrain_options",
     "strategies",
 }
-missing_config = sorted(required_config - set(config))
+missing_config = sorted(required_missing_config - set(config))
 if missing_config:
     raise ValueError(
-        "Missing required missing-data config keys: " + ", ".join(missing_config)
+        "Missing required missing-data config keys: "
+        + ", ".join(missing_config)
     )
 
+_config = load_config(config)
+
 NAMESPACE = str(config["artifact_namespace"])
-DATASET = str(config["dataset"])
-INSTANCES = [int(value) for value in config["dataset_instance_indices"]]
+INSTANCES = [int(value) for value in _config["DATASET_INSTANCE_INDICES"]]
 if not INSTANCES:
     raise ValueError("dataset_instance_indices must not be empty")
-DATASET_SEEDS = [
-    int(value) for value in config.get("dataset_seeds", INSTANCES)
-]
-if len(DATASET_SEEDS) != len(INSTANCES):
-    raise ValueError("dataset_seeds must align with dataset_instance_indices")
 CLASSIFIER_INSTANCE = INSTANCES[0]
-CLASSIFIER_SEED = DATASET_SEEDS[0]
-DEVICE = str(config["device"])
-USE_WANDB = str(bool(config.get("use_wandb", False))).lower()
-SMOKE_TEST = bool(config.get("smoke_test", False))
+
+UNSUPPORTED_DATASETS = set(
+    str(value)
+    for value in config.get("missing_data_unsupported_datasets", [])
+)
+SELECTED_DATASETS = [str(value) for value in _config["DATASETS"]]
+DATASETS = [
+    dataset
+    for dataset in SELECTED_DATASETS
+    if dataset not in UNSUPPORTED_DATASETS
+]
+excluded_datasets = sorted(set(SELECTED_DATASETS) - set(DATASETS))
+if excluded_datasets:
+    print(
+        "Skipping datasets without flat-feature missingness support: "
+        + ", ".join(excluded_datasets)
+    )
+if not DATASETS:
+    raise ValueError("No missing-data-compatible datasets were selected")
+
+BASE_METHODS = [str(value) for value in _config["METHODS"]]
+METHOD_OPTIONS = _config["METHOD_OPTIONS"]
+METHOD_SPECS = build_method_specs(
+    BASE_METHODS,
+    METHOD_OPTIONS,
+    config.get("missing_data_method_overrides", {}),
+    config.get("missing_data_method_variants", {}),
+)
+PRETRAINED_METHODS = [
+    name
+    for name, spec in METHOD_SPECS.items()
+    if spec.pretrained_model_name is not None
+]
+UNPRETRAINED_METHODS = [
+    name
+    for name, spec in METHOD_SPECS.items()
+    if spec.pretrained_model_name is None
+]
+COMMON_STRATEGIES = [str(value) for value in config["strategies"]]
+INCLUDE_COMPLETE_DATA = bool(config.get("include_complete_data", True))
+
+UNMASKERS = _config["UNMASKERS"]
+CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
+METHOD_CLASSIFIER_SCRIPT_NAMES = _config["METHOD_CLASSIFIER_SCRIPT_NAMES"]
+METHOD_CLASSIFIER_SCRIPT_PARAMS = _config["METHOD_CLASSIFIER_SCRIPT_PARAMS"]
+PRETRAIN_SCRIPT_NAMES = _config["PRETRAIN_SCRIPT_NAMES"]
+PRETRAIN_PARAMS = _config["PRETRAIN_PARAMS"]
+EVAL_BATCH_SIZES = _config["EVAL_BATCH_SIZES"]
+HARD_BUDGET_IGNORED_DATASETS = _config[
+    "HARD_BUDGET_IGNORED_DATASETS"
+]
+
+DEFAULT_DEVICE = str(_config["DEVICE"])
+DEVICE_OVERRIDES = _config["DEVICE_OVERRIDES"]
+USE_WANDB = str(bool(_config["USE_WANDB"])).lower()
+SMOKE_TEST = bool(_config["SMOKE_TEST"])
 SMOKE_TEST_STR = str(SMOKE_TEST).lower()
-HARD_BUDGET = int(config.get("hard_budget", 14))
-EVAL_BATCH_SIZE = int(config.get("eval_batch_size", 128))
-RESTORATION_BATCH_SIZE = int(config.get("restoration_batch_size", 1024))
-UNMASKER = str(config.get("unmasker", DATASET))
-INITIALIZER = str(config.get("initializer", "cold"))
-EVAL_SPLIT = str(config["eval_dataset_split"])
+INITIALIZER = str(_config["INITIALIZER"])
+EVAL_SPLIT = str(_config["EVAL_DATASET_SPLIT"])
 if EVAL_SPLIT not in {"val", "test"}:
     raise ValueError("eval_dataset_split must be either 'val' or 'test'")
+
 ROOT = "extra/output/missing_data"
-CLASSIFIER = f"{ROOT}/classifier/{NAMESPACE}/dataset-{DATASET}.bundle"
-CLASSIFIER_SCRIPT = str(config.get("classifier_script", "masked_mlp_classifier"))
-
-DATASET_GENERATION_PARAMS = " ".join(
-    str(value) for value in config.get("dataset_generation_params", [])
-)
-CLASSIFIER_PARAMS = " ".join(
-    str(value) for value in config.get("classifier_params", [])
-)
-RESTORATION_PVAE_PARAMS = " ".join(
-    str(value) for value in config.get("restoration_pvae_params", [])
-)
-PRETRAIN_RUNTIME_PARAMS = config.get("pretrain_runtime_params", {})
-TRAIN_RUNTIME_PARAMS = config.get("train_runtime_params", {})
-EVAL_PARAMS = " ".join(str(value) for value in config.get("eval_params", []))
-
 MISSINGNESS = config["missingness"]
-MECHANISMS = list(MISSINGNESS["mechanisms"])
+MECHANISMS = [str(value) for value in MISSINGNESS["mechanisms"]]
 PROBABILITIES = [str(value) for value in MISSINGNESS["probabilities"]]
 MISSING_COMBINATIONS = [
     (mechanism, probability)
@@ -76,14 +128,14 @@ MISSING_COMBINATIONS = [
     for probability in PROBABILITIES
 ]
 
-METHODS = list(config["methods"])
-COMMON_STRATEGIES = list(config["strategies"])
-INCLUDE_COMPLETE_DATA = bool(config.get("include_complete_data", True))
-METHOD_OPTIONS = config["method_options"]
-PRETRAIN_OPTIONS = config["pretrain_options"]
-unknown_methods = sorted(set(METHODS) - set(METHOD_OPTIONS))
-if unknown_methods:
-    raise ValueError("Unknown methods: " + ", ".join(unknown_methods))
+DATASET_GENERATION_PARAMS = config.get("dataset_generation_params", {})
+CLASSIFIER_PARAMS = config.get("classifier_params", {})
+RESTORATION_PVAE_PARAMS = config.get("restoration_pvae_params", {})
+PRETRAIN_RUNTIME_PARAMS = config.get("pretrain_runtime_params", {})
+TRAIN_RUNTIME_PARAMS = config.get("train_runtime_params", {})
+EVAL_PARAMS = config.get("eval_params", {})
+RESTORATION_BATCH_SIZE = int(config.get("restoration_batch_size", 1024))
+EVAL_BATCH_SIZE_OVERRIDE = config.get("eval_batch_size")
 
 
 def wildcard_pattern(values):
@@ -91,54 +143,98 @@ def wildcard_pattern(values):
     return "(?:" + "|".join(re.escape(value) for value in unique_values) + ")"
 
 
-configured_strategies = ["complete", *COMMON_STRATEGIES]
-for method in METHODS:
-    options = METHOD_OPTIONS[method]
-    configured_strategies.extend(options.get("allowed_strategies", []))
-    configured_strategies.extend(options.get("extra_strategies", []))
-
-MECHANISM_PATTERN = wildcard_pattern(["none", *MECHANISMS])
-PROBABILITY_PATTERN = wildcard_pattern(["0.0", *PROBABILITIES])
-STRATEGY_PATTERN = wildcard_pattern(configured_strategies)
-METHOD_PATTERN = wildcard_pattern(METHODS)
-PRETRAIN_PATTERN = wildcard_pattern(PRETRAIN_OPTIONS)
+def runtime_params(mapping, *keys):
+    if isinstance(mapping, list):
+        return " ".join(str(value) for value in mapping)
+    values = [str(value) for value in mapping.get("default", [])]
+    for key in dict.fromkeys(str(value) for value in keys if value is not None):
+        values.extend(str(value) for value in mapping.get(key, []))
+    return " ".join(values)
 
 
-def runtime_params(mapping, key):
-    return " ".join(
-        [str(value) for value in mapping.get("default", [])]
-        + [str(value) for value in mapping.get(key, [])]
+def method_device(dataset, method):
+    spec = METHOD_SPECS[method]
+    method_datasets = DEVICE_OVERRIDES.get("method_datasets", {})
+    methods = DEVICE_OVERRIDES.get("methods", {})
+    for candidate in dict.fromkeys([method, spec.base_method]):
+        if dataset in method_datasets.get(candidate, {}):
+            return str(method_datasets[candidate][dataset])
+        if candidate in methods:
+            return str(methods[candidate])
+    return resolve_device(
+        DEFAULT_DEVICE,
+        DEVICE_OVERRIDES,
+        dataset=dataset,
     )
 
 
-def raw_dataset(instance, split):
-    return (
-        f"{ROOT}/datasets/{NAMESPACE}/{DATASET}/"
-        f"{instance}/{split}.bundle"
+def dataset_device(dataset, pretrained_model=None):
+    return resolve_device(
+        DEFAULT_DEVICE,
+        DEVICE_OVERRIDES,
+        dataset=dataset,
+        pretrained_model=pretrained_model,
     )
 
 
-def base_view(mechanism, probability, instance, strategy, split):
+def classifier_script_name(dataset):
+    classifier = CLASSIFIER_NAMES[dataset]
+    if isinstance(classifier, dict):
+        return classifier["script_name"]
+    return classifier
+
+
+def classifier_script_params(dataset):
+    classifier = CLASSIFIER_NAMES[dataset]
+    if isinstance(classifier, dict):
+        configured = classifier.get("script_params", [])
+    else:
+        configured = []
+    runtime = runtime_params(CLASSIFIER_PARAMS, dataset)
+    return " ".join([*[str(value) for value in configured], runtime]).strip()
+
+
+def classifier_path(dataset, method=None):
+    if method is not None:
+        base_method = METHOD_SPECS[method].base_method
+        if base_method in METHOD_CLASSIFIER_SCRIPT_NAMES:
+            return (
+                f"{ROOT}/classifier/{NAMESPACE}/"
+                f"method-{base_method}+dataset-{dataset}.bundle"
+            )
+    return f"{ROOT}/classifier/{NAMESPACE}/dataset-{dataset}.bundle"
+
+
+def raw_dataset(dataset, instance, split):
     return (
-        f"{ROOT}/views/base/{NAMESPACE}/"
-        f"mechanism-{mechanism}+p-{probability}/"
-        f"instance-{instance}/{strategy}/{split}.bundle"
+        f"{ROOT}/datasets/{NAMESPACE}/{dataset}/{instance}/{split}.bundle"
     )
 
 
-def restored_view(mechanism, probability, instance, strategy, split):
+def base_view(dataset, mechanism, probability, instance, strategy, split):
     return (
-        f"{ROOT}/views/restored/{NAMESPACE}/"
-        f"mechanism-{mechanism}+p-{probability}/"
-        f"instance-{instance}/{strategy}/{split}.bundle"
+        f"{ROOT}/views/base/{NAMESPACE}/dataset-{dataset}/"
+        f"mechanism-{mechanism}+p-{probability}/instance-{instance}/"
+        f"{strategy}/{split}.bundle"
+    )
+
+
+def restored_view(
+    dataset, mechanism, probability, instance, strategy, split
+):
+    return (
+        f"{ROOT}/views/restored/{NAMESPACE}/dataset-{dataset}/"
+        f"mechanism-{mechanism}+p-{probability}/instance-{instance}/"
+        f"{strategy}/{split}.bundle"
     )
 
 
 def training_view(wildcards, split):
     if wildcards.strategy == "complete":
-        return raw_dataset(wildcards.instance, split)
+        return raw_dataset(wildcards.dataset, wildcards.instance, split)
     if wildcards.strategy.startswith("pvae_"):
         return restored_view(
+            wildcards.dataset,
             wildcards.mechanism,
             wildcards.p,
             wildcards.instance,
@@ -146,6 +242,7 @@ def training_view(wildcards, split):
             split,
         )
     return base_view(
+        wildcards.dataset,
         wildcards.mechanism,
         wildcards.p,
         wildcards.instance,
@@ -154,93 +251,155 @@ def training_view(wildcards, split):
     )
 
 
-def incomplete_pvae(mechanism, probability, instance):
+def incomplete_pvae(dataset, mechanism, probability, instance):
     return (
-        f"{ROOT}/restoration_pvae/{NAMESPACE}/incomplete/"
-        f"mechanism-{mechanism}+p-{probability}/instance-{instance}/model.bundle"
+        f"{ROOT}/restoration_pvae/{NAMESPACE}/incomplete/dataset-{dataset}/"
+        f"mechanism-{mechanism}+p-{probability}/instance-{instance}/"
+        "model.bundle"
     )
 
 
-def oracle_pvae(instance):
+def oracle_pvae(dataset, instance):
     return (
-        f"{ROOT}/restoration_pvae/{NAMESPACE}/oracle/"
+        f"{ROOT}/restoration_pvae/{NAMESPACE}/oracle/dataset-{dataset}/"
         f"instance-{instance}/model.bundle"
     )
 
 
 def method_pretrain(wildcards):
-    pretrain_key = METHOD_OPTIONS[wildcards.method]["pretrained_model_name"]
+    key = METHOD_SPECS[wildcards.method].pretrained_model_name
     return (
-        f"{ROOT}/pretrained/{NAMESPACE}/{pretrain_key}/"
+        f"{ROOT}/pretrained/{NAMESPACE}/{key}/dataset-{wildcards.dataset}/"
         f"mechanism-{wildcards.mechanism}+p-{wildcards.p}+"
-        f"strategy-{wildcards.strategy}+instance-{wildcards.instance}/model.bundle"
+        f"strategy-{wildcards.strategy}+instance-{wildcards.instance}/"
+        "model.bundle"
     )
 
 
-def trained_method(method, mechanism, probability, strategy, instance):
-    family = METHOD_OPTIONS[method]["family"]
+def trained_method(
+    dataset,
+    method,
+    mechanism,
+    probability,
+    strategy,
+    instance,
+    train_budget,
+):
     return (
-        f"{ROOT}/trained/{NAMESPACE}/{family}/{method}/"
+        f"{ROOT}/trained/{NAMESPACE}/{method}/dataset-{dataset}/"
         f"mechanism-{mechanism}+p-{probability}+strategy-{strategy}+"
-        f"instance-{instance}/method.bundle"
+        f"instance-{instance}+train_hard_budget-{train_budget}/method.bundle"
     )
 
 
 def trained_method_input(wildcards):
     return trained_method(
+        wildcards.dataset,
         wildcards.method,
         wildcards.mechanism,
         wildcards.p,
         wildcards.strategy,
         wildcards.instance,
+        wildcards.train_budget,
     )
 
 
-def evaluation_path(method, mechanism, probability, strategy, instance):
+def evaluation_path(
+    dataset,
+    method,
+    mechanism,
+    probability,
+    strategy,
+    instance,
+    train_budget,
+    eval_budget,
+):
     return (
-        f"{ROOT}/eval/{EVAL_SPLIT}/{NAMESPACE}/"
+        f"{ROOT}/eval/{EVAL_SPLIT}/{NAMESPACE}/dataset-{dataset}/"
         f"method-{method}+mechanism-{mechanism}+p-{probability}+"
-        f"strategy-{strategy}+instance-{instance}/eval_data.parquet"
+        f"strategy-{strategy}+instance-{instance}+"
+        f"train_hard_budget-{train_budget}+eval_hard_budget-{eval_budget}/"
+        "eval_data.parquet"
     )
+
+
+BUDGETS = {}
+for method in BASE_METHODS:
+    for dataset in DATASETS:
+        if dataset in HARD_BUDGET_IGNORED_DATASETS[method]:
+            continue
+        budget = largest_hard_budget(_config["BUDGET_PARAMS"][method][dataset])
+        if budget is not None:
+            BUDGETS[(method, dataset)] = budget
 
 
 def experiment_matrix():
     rows = []
-    if INCLUDE_COMPLETE_DATA:
-        for instance in INSTANCES:
-            for method in METHODS:
-                options = METHOD_OPTIONS[method]
-                if options.get("include_complete_data", True):
+    for dataset in DATASETS:
+        for method, spec in METHOD_SPECS.items():
+            budget = BUDGETS.get((spec.base_method, dataset))
+            if budget is None:
+                continue
+            train_budget, eval_budget = budget
+            if INCLUDE_COMPLETE_DATA and spec.include_complete_data:
+                for instance in INSTANCES:
                     rows.append(
-                        (method, "none", "0.0", "complete", instance)
+                        (
+                            dataset,
+                            method,
+                            "none",
+                            "0.0",
+                            "complete",
+                            instance,
+                            train_budget,
+                            eval_budget,
+                        )
                     )
-    for mechanism, probability in MISSING_COMBINATIONS:
-        for instance in INSTANCES:
-            for method in METHODS:
-                options = METHOD_OPTIONS[method]
-                strategies = options.get(
-                    "allowed_strategies", COMMON_STRATEGIES
-                )
-                strategies = list(strategies) + list(
-                    options.get("extra_strategies", [])
-                )
-                for strategy in dict.fromkeys(strategies):
-                    rows.append(
-                        (method, mechanism, probability, strategy, instance)
-                    )
+            strategies = (
+                list(spec.allowed_strategies)
+                if spec.allowed_strategies is not None
+                else COMMON_STRATEGIES
+            )
+            strategies = list(strategies) + list(spec.extra_strategies)
+            for mechanism, probability in MISSING_COMBINATIONS:
+                for instance in INSTANCES:
+                    for strategy in dict.fromkeys(strategies):
+                        rows.append(
+                            (
+                                dataset,
+                                method,
+                                mechanism,
+                                probability,
+                                strategy,
+                                instance,
+                                train_budget,
+                                eval_budget,
+                            )
+                        )
     return rows
 
 
 EXPERIMENTS = experiment_matrix()
+if not EXPERIMENTS:
+    raise ValueError("The selected methods and datasets produce no experiments")
 EVALUATIONS = [evaluation_path(*row) for row in EXPERIMENTS]
 SUMMARY_DIR = f"{ROOT}/summary/{EVAL_SPLIT}/{NAMESPACE}"
+FIGURE_DIR = f"{ROOT}/figures/{EVAL_SPLIT}/{NAMESPACE}"
+
+configured_strategies = ["complete", *COMMON_STRATEGIES]
+for spec in METHOD_SPECS.values():
+    configured_strategies.extend(spec.allowed_strategies or ())
+    configured_strategies.extend(spec.extra_strategies)
 
 wildcard_constraints:
-    mechanism=MECHANISM_PATTERN,
-    p=PROBABILITY_PATTERN,
-    strategy=STRATEGY_PATTERN,
-    method=METHOD_PATTERN,
-    pretrain_key=PRETRAIN_PATTERN
+    dataset=wildcard_pattern(DATASETS),
+    mechanism=wildcard_pattern(["none", *MECHANISMS]),
+    p=wildcard_pattern(["0.0", *PROBABILITIES]),
+    strategy=wildcard_pattern(configured_strategies),
+    method=wildcard_pattern(METHOD_SPECS),
+    pretrain_key=wildcard_pattern(PRETRAIN_SCRIPT_NAMES),
+    train_budget=r"[0-9.]+",
+    eval_budget=r"[0-9.]+"
 
 
 rule all:
@@ -249,65 +408,105 @@ rule all:
         f"{SUMMARY_DIR}/summary.csv",
         f"{SUMMARY_DIR}/action_rates.csv",
         f"{SUMMARY_DIR}/restoration_rmse.csv",
+        FIGURE_DIR,
 
 
 rule generate_missing_data_dataset:
     output:
         [
-            directory(raw_dataset(instance, split))
+            directory(
+                f"{ROOT}/datasets/{NAMESPACE}/{{dataset}}/{instance}/{split}.bundle"
+            )
             for instance in INSTANCES
             for split in ["train", "val", "test"]
         ]
     params:
         instances="[" + ",".join(str(value) for value in INSTANCES) + "]",
-        seeds="[" + ",".join(str(value) for value in DATASET_SEEDS) + "]",
-        save_path=f"{ROOT}/datasets/{NAMESPACE}/{DATASET}",
-        extra=DATASET_GENERATION_PARAMS,
+        seeds="[" + ",".join(str(value) for value in INSTANCES) + "]",
+        save_path=lambda wc: f"{ROOT}/datasets/{NAMESPACE}/{wc.dataset}",
+        extra=lambda wc: runtime_params(DATASET_GENERATION_PARAMS, wc.dataset),
     shell:
         """
         python scripts/dataset_generation/generate_dataset.py \
-            dataset={DATASET} \
-            instance_indices={params.instances} \
-            seeds={params.seeds} \
-            save_path={params.save_path} \
-            {params.extra}
+            dataset={wildcards.dataset} instance_indices={params.instances} \
+            seeds={params.seeds} save_path={params.save_path} {params.extra}
         """
 
 
 rule train_missing_data_shared_classifier:
     input:
-        train=raw_dataset(CLASSIFIER_INSTANCE, "train"),
-        val=raw_dataset(CLASSIFIER_INSTANCE, "val"),
+        train=lambda wc: raw_dataset(
+            wc.dataset, CLASSIFIER_INSTANCE, "train"
+        ),
+        val=lambda wc: raw_dataset(wc.dataset, CLASSIFIER_INSTANCE, "val"),
     output:
-        directory(CLASSIFIER),
+        directory(
+            f"{ROOT}/classifier/{NAMESPACE}/dataset-{{dataset}}.bundle"
+        ),
+    params:
+        script=lambda wc: classifier_script_name(wc.dataset),
+        unmasker=lambda wc: UNMASKERS[wc.dataset],
+        device=lambda wc: dataset_device(wc.dataset),
+        extra=lambda wc: classifier_script_params(wc.dataset),
     shell:
         """
-        python scripts/train_classifier/{CLASSIFIER_SCRIPT}.py \
-            train_dataset_path={input.train} \
-            val_dataset_path={input.val} \
-            save_path={output} \
-            components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={UNMASKER} \
-            device={DEVICE} seed={CLASSIFIER_SEED} use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST_STR} experiment@_global_={DATASET} \
-            {CLASSIFIER_PARAMS}
+        python scripts/train_classifier/{params.script}.py \
+            train_dataset_path={input.train} val_dataset_path={input.val} \
+            save_path={output} components/initializers@initializer={INITIALIZER} \
+            components/unmaskers@unmasker={params.unmasker} \
+            device={params.device} seed={CLASSIFIER_INSTANCE} \
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
+            experiment@_global_={wildcards.dataset} {params.extra}
+        """
+
+
+rule train_missing_data_method_classifier:
+    input:
+        train=lambda wc: raw_dataset(
+            wc.dataset, CLASSIFIER_INSTANCE, "train"
+        ),
+        val=lambda wc: raw_dataset(wc.dataset, CLASSIFIER_INSTANCE, "val"),
+    output:
+        directory(
+            f"{ROOT}/classifier/{NAMESPACE}/"
+            "method-{base_method}+dataset-{dataset}.bundle"
+        ),
+    params:
+        script=lambda wc: METHOD_CLASSIFIER_SCRIPT_NAMES[wc.base_method],
+        unmasker=lambda wc: UNMASKERS[wc.dataset],
+        device=lambda wc: resolve_device(
+            DEFAULT_DEVICE,
+            DEVICE_OVERRIDES,
+            dataset=wc.dataset,
+            method=wc.base_method,
+        ),
+        extra=lambda wc: METHOD_CLASSIFIER_SCRIPT_PARAMS[wc.base_method],
+    shell:
+        """
+        python scripts/train_classifier/{params.script}.py \
+            train_dataset_path={input.train} val_dataset_path={input.val} \
+            save_path={output} components/initializers@initializer={INITIALIZER} \
+            components/unmaskers@unmasker={params.unmasker} \
+            device={params.device} seed={CLASSIFIER_INSTANCE} \
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
+            experiment@_global_={wildcards.dataset} {params.extra}
         """
 
 
 rule materialize_missing_training_view:
     input:
-        train=lambda wc: raw_dataset(wc.instance, "train"),
-        val=lambda wc: raw_dataset(wc.instance, "val"),
+        train=lambda wc: raw_dataset(wc.dataset, wc.instance, "train"),
+        val=lambda wc: raw_dataset(wc.dataset, wc.instance, "val"),
     output:
         train=directory(
-            f"{ROOT}/views/base/{NAMESPACE}/"
-            "mechanism-{mechanism}+p-{p}/"
-            "instance-{instance}/{strategy}/train.bundle"
+            f"{ROOT}/views/base/{NAMESPACE}/dataset-{{dataset}}/"
+            "mechanism-{mechanism}+p-{p}/instance-{instance}/"
+            "{strategy}/train.bundle"
         ),
         val=directory(
-            f"{ROOT}/views/base/{NAMESPACE}/"
-            "mechanism-{mechanism}+p-{p}/"
-            "instance-{instance}/{strategy}/val.bundle"
+            f"{ROOT}/views/base/{NAMESPACE}/dataset-{{dataset}}/"
+            "mechanism-{mechanism}+p-{p}/instance-{instance}/"
+            "{strategy}/val.bundle"
         ),
     params:
         p_obs=MISSINGNESS["p_obs"],
@@ -321,8 +520,7 @@ rule materialize_missing_training_view:
             train_save_path={output.train} val_save_path={output.val} \
             strategy={wildcards.strategy} seed={wildcards.instance} \
             missingness.mechanism={wildcards.mechanism} \
-            missingness.p={wildcards.p} \
-            missingness.p_obs={params.p_obs} \
+            missingness.p={wildcards.p} missingness.p_obs={params.p_obs} \
             missingness.p_params={params.p_params} \
             missingness.exclude_inputs={params.exclude_inputs}
         """
@@ -331,16 +529,23 @@ rule materialize_missing_training_view:
 rule pretrain_incomplete_restoration_pvae:
     input:
         train=lambda wc: base_view(
-            wc.mechanism, wc.p, wc.instance, "restricted", "train"
+            wc.dataset, wc.mechanism, wc.p, wc.instance, "restricted", "train"
         ),
         val=lambda wc: base_view(
-            wc.mechanism, wc.p, wc.instance, "restricted", "val"
+            wc.dataset, wc.mechanism, wc.p, wc.instance, "restricted", "val"
         ),
-        classifier=CLASSIFIER,
+        classifier=lambda wc: classifier_path(wc.dataset),
     output:
         directory(
             f"{ROOT}/restoration_pvae/{NAMESPACE}/incomplete/"
-            "mechanism-{mechanism}+p-{p}/instance-{instance}/model.bundle"
+            "dataset-{dataset}/mechanism-{mechanism}+p-{p}/"
+            "instance-{instance}/model.bundle"
+        ),
+    params:
+        unmasker=lambda wc: UNMASKERS[wc.dataset],
+        device=lambda wc: dataset_device(wc.dataset, "pvae"),
+        extra=lambda wc: runtime_params(
+            RESTORATION_PVAE_PARAMS, wc.dataset
         ),
     shell:
         """
@@ -349,22 +554,29 @@ rule pretrain_incomplete_restoration_pvae:
             val_dataset_bundle_path={input.val} \
             classifier_bundle_path={input.classifier} save_path={output} \
             components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={UNMASKER} \
-            device={DEVICE} seed={wildcards.instance} use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST_STR} respect_source_availability=true \
-            experiment@_global_={DATASET} {RESTORATION_PVAE_PARAMS}
+            components/unmaskers@unmasker={params.unmasker} \
+            device={params.device} seed={wildcards.instance} \
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
+            respect_source_availability=true \
+            experiment@_global_={wildcards.dataset} {params.extra}
         """
 
 
 rule pretrain_oracle_restoration_pvae:
     input:
-        train=lambda wc: raw_dataset(wc.instance, "train"),
-        val=lambda wc: raw_dataset(wc.instance, "val"),
-        classifier=CLASSIFIER,
+        train=lambda wc: raw_dataset(wc.dataset, wc.instance, "train"),
+        val=lambda wc: raw_dataset(wc.dataset, wc.instance, "val"),
+        classifier=lambda wc: classifier_path(wc.dataset),
     output:
         directory(
             f"{ROOT}/restoration_pvae/{NAMESPACE}/oracle/"
-            "instance-{instance}/model.bundle"
+            "dataset-{dataset}/instance-{instance}/model.bundle"
+        ),
+    params:
+        unmasker=lambda wc: UNMASKERS[wc.dataset],
+        device=lambda wc: dataset_device(wc.dataset, "pvae"),
+        extra=lambda wc: runtime_params(
+            RESTORATION_PVAE_PARAMS, wc.dataset
         ),
     shell:
         """
@@ -373,41 +585,51 @@ rule pretrain_oracle_restoration_pvae:
             val_dataset_bundle_path={input.val} \
             classifier_bundle_path={input.classifier} save_path={output} \
             components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={UNMASKER} \
-            device={DEVICE} seed={wildcards.instance} use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST_STR} respect_source_availability=false \
-            experiment@_global_={DATASET} {RESTORATION_PVAE_PARAMS}
+            components/unmaskers@unmasker={params.unmasker} \
+            device={params.device} seed={wildcards.instance} \
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
+            respect_source_availability=false \
+            experiment@_global_={wildcards.dataset} {params.extra}
         """
 
 
 def restoration_pvae_input(wildcards):
     if wildcards.strategy == "pvae_oracle":
-        return oracle_pvae(wildcards.instance)
-    return incomplete_pvae(wildcards.mechanism, wildcards.p, wildcards.instance)
+        return oracle_pvae(wildcards.dataset, wildcards.instance)
+    return incomplete_pvae(
+        wildcards.dataset,
+        wildcards.mechanism,
+        wildcards.p,
+        wildcards.instance,
+    )
 
 
 rule restore_missing_training_view:
     input:
         train=lambda wc: base_view(
-            wc.mechanism, wc.p, wc.instance, "restricted", "train"
+            wc.dataset, wc.mechanism, wc.p, wc.instance, "restricted", "train"
         ),
         val=lambda wc: base_view(
-            wc.mechanism, wc.p, wc.instance, "restricted", "val"
+            wc.dataset, wc.mechanism, wc.p, wc.instance, "restricted", "val"
         ),
         pvae=restoration_pvae_input,
-        reference_train=lambda wc: raw_dataset(wc.instance, "train"),
-        reference_val=lambda wc: raw_dataset(wc.instance, "val"),
+        reference_train=lambda wc: raw_dataset(
+            wc.dataset, wc.instance, "train"
+        ),
+        reference_val=lambda wc: raw_dataset(wc.dataset, wc.instance, "val"),
     output:
         train=directory(
-            f"{ROOT}/views/restored/{NAMESPACE}/"
-            "mechanism-{mechanism}+p-{p}/"
-            "instance-{instance}/{strategy}/train.bundle"
+            f"{ROOT}/views/restored/{NAMESPACE}/dataset-{{dataset}}/"
+            "mechanism-{mechanism}+p-{p}/instance-{instance}/"
+            "{strategy}/train.bundle"
         ),
         val=directory(
-            f"{ROOT}/views/restored/{NAMESPACE}/"
-            "mechanism-{mechanism}+p-{p}/"
-            "instance-{instance}/{strategy}/val.bundle"
+            f"{ROOT}/views/restored/{NAMESPACE}/dataset-{{dataset}}/"
+            "mechanism-{mechanism}+p-{p}/instance-{instance}/"
+            "{strategy}/val.bundle"
         ),
+    params:
+        device=lambda wc: dataset_device(wc.dataset, "pvae"),
     shell:
         """
         python scripts/missing_values/restore_training_views.py \
@@ -415,7 +637,7 @@ rule restore_missing_training_view:
             val_view_bundle_path={input.val} pvae_bundle_path={input.pvae} \
             train_save_path={output.train} val_save_path={output.val} \
             strategy={wildcards.strategy} seed={wildcards.instance} \
-            batch_size={RESTORATION_BATCH_SIZE} device={DEVICE} \
+            batch_size={RESTORATION_BATCH_SIZE} device={params.device} \
             reference_train_dataset_bundle_path={input.reference_train} \
             reference_val_dataset_bundle_path={input.reference_val}
         """
@@ -423,14 +645,21 @@ rule restore_missing_training_view:
 
 def pretrain_extra(wildcards):
     key = wildcards.pretrain_key
-    options = PRETRAIN_OPTIONS[key]
-    params = [str(value) for value in options.get("pretrain_params", [])]
-    if key == "odin":
+    script = PRETRAIN_SCRIPT_NAMES[key]
+    params = [PRETRAIN_PARAMS[key]] if PRETRAIN_PARAMS[key] else []
+    if script == "odin":
         respect = wildcards.strategy == "restricted"
-        params.append(f"respect_source_availability={str(respect).lower()}")
-    if options.get("use_experiment_config", False):
-        params.append(f"experiment@_global_={DATASET}")
-    runtime = runtime_params(PRETRAIN_RUNTIME_PARAMS, key)
+        params.append(
+            f"respect_source_availability={str(respect).lower()}"
+        )
+    params.append(f"experiment@_global_={wildcards.dataset}")
+    runtime = runtime_params(
+        PRETRAIN_RUNTIME_PARAMS,
+        key,
+        script,
+        wildcards.dataset,
+        f"{key}/{wildcards.dataset}",
+    )
     if runtime:
         params.append(runtime)
     return " ".join(params)
@@ -440,15 +669,17 @@ rule pretrain_missing_data_method:
     input:
         train=lambda wc: training_view(wc, "train"),
         val=lambda wc: training_view(wc, "val"),
-        classifier=CLASSIFIER,
+        classifier=lambda wc: classifier_path(wc.dataset),
     output:
         directory(
             f"{ROOT}/pretrained/{NAMESPACE}/{{pretrain_key}}/"
-            "mechanism-{mechanism}+p-{p}+strategy-{strategy}+"
-            "instance-{instance}/model.bundle"
+            "dataset-{dataset}/mechanism-{mechanism}+p-{p}+"
+            "strategy-{strategy}+instance-{instance}/model.bundle"
         ),
     params:
-        script=lambda wc: PRETRAIN_OPTIONS[wc.pretrain_key]["script_name"],
+        script=lambda wc: PRETRAIN_SCRIPT_NAMES[wc.pretrain_key],
+        unmasker=lambda wc: UNMASKERS[wc.dataset],
+        device=lambda wc: dataset_device(wc.dataset, wc.pretrain_key),
         extra=pretrain_extra,
     shell:
         """
@@ -457,38 +688,48 @@ rule pretrain_missing_data_method:
             val_dataset_bundle_path={input.val} \
             classifier_bundle_path={input.classifier} save_path={output} \
             components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={UNMASKER} \
-            device={DEVICE} seed={wildcards.instance} use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST_STR} {params.extra}
+            components/unmaskers@unmasker={params.unmasker} \
+            device={params.device} seed={wildcards.instance} \
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} {params.extra}
         """
 
 
-def learned_training_extra(wildcards):
-    options = METHOD_OPTIONS[wildcards.method]
-    params = [str(value) for value in options.get("train_params", [])]
-    if options.get("use_experiment_config", False):
-        params.append(f"experiment@_global_={DATASET}")
-    runtime = runtime_params(TRAIN_RUNTIME_PARAMS, wildcards.method)
+def training_extra(wildcards):
+    spec = METHOD_SPECS[wildcards.method]
+    params = list(spec.train_params)
+    params.append(f"experiment@_global_={wildcards.dataset}")
+    runtime = runtime_params(
+        TRAIN_RUNTIME_PARAMS,
+        spec.base_method,
+        wildcards.method,
+        wildcards.dataset,
+        f"{wildcards.method}/{wildcards.dataset}",
+    )
     if runtime:
         params.append(runtime)
     return " ".join(params)
 
 
-rule train_missing_data_learned_method:
+rule train_missing_data_method_with_pretraining:
+    wildcard_constraints:
+        method=wildcard_pattern(PRETRAINED_METHODS)
     input:
         train=lambda wc: training_view(wc, "train"),
         val=lambda wc: training_view(wc, "val"),
         pretrained=method_pretrain,
-        classifier=CLASSIFIER,
+        classifier=lambda wc: classifier_path(wc.dataset),
     output:
         directory(
-            f"{ROOT}/trained/{NAMESPACE}/learned/{{method}}/"
+            f"{ROOT}/trained/{NAMESPACE}/{{method}}/dataset-{{dataset}}/"
             "mechanism-{mechanism}+p-{p}+strategy-{strategy}+"
-            "instance-{instance}/method.bundle"
+            "instance-{instance}+train_hard_budget-{train_budget}/"
+            "method.bundle"
         ),
     params:
-        script=lambda wc: METHOD_OPTIONS[wc.method]["train_script_name"],
-        extra=learned_training_extra,
+        script=lambda wc: METHOD_SPECS[wc.method].train_script_name,
+        unmasker=lambda wc: UNMASKERS[wc.dataset],
+        device=lambda wc: method_device(wc.dataset, wc.method),
+        extra=training_extra,
     shell:
         """
         python scripts/train_method/{params.script}.py \
@@ -497,72 +738,93 @@ rule train_missing_data_learned_method:
             pretrained_model_bundle_path={input.pretrained} \
             classifier_bundle_path={input.classifier} save_path={output} \
             components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={UNMASKER} \
-            hard_budget={HARD_BUDGET} soft_budget_param=null \
-            device={DEVICE} seed={wildcards.instance} use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST_STR} {params.extra}
+            components/unmaskers@unmasker={params.unmasker} \
+            hard_budget={wildcards.train_budget} soft_budget_param=null \
+            device={params.device} seed={wildcards.instance} \
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} {params.extra}
         """
 
 
-def aaco_training_extra(wildcards):
-    options = METHOD_OPTIONS[wildcards.method]
-    params = [str(value) for value in options.get("train_params", [])]
-    if options.get("use_experiment_config", False):
-        params.append(f"experiment@_global_={DATASET}")
-    runtime = runtime_params(TRAIN_RUNTIME_PARAMS, wildcards.method)
-    if runtime:
-        params.append(runtime)
-    return " ".join(params)
-
-
-rule train_missing_data_aaco:
+rule train_missing_data_method_without_pretraining:
+    wildcard_constraints:
+        method=wildcard_pattern(UNPRETRAINED_METHODS)
     input:
         train=lambda wc: training_view(wc, "train"),
         val=lambda wc: training_view(wc, "val"),
-        classifier=CLASSIFIER,
+        classifier=lambda wc: classifier_path(wc.dataset, wc.method),
     output:
         directory(
-            f"{ROOT}/trained/{NAMESPACE}/aaco/{{method}}/"
+            f"{ROOT}/trained/{NAMESPACE}/{{method}}/dataset-{{dataset}}/"
             "mechanism-{mechanism}+p-{p}+strategy-{strategy}+"
-            "instance-{instance}/method.bundle"
+            "instance-{instance}+train_hard_budget-{train_budget}/"
+            "method.bundle"
         ),
     params:
-        extra=aaco_training_extra,
+        script=lambda wc: METHOD_SPECS[wc.method].train_script_name,
+        unmasker=lambda wc: UNMASKERS[wc.dataset],
+        device=lambda wc: method_device(wc.dataset, wc.method),
+        extra=training_extra,
     shell:
         """
-        python scripts/train_method/aaco.py \
+        python scripts/train_method/{params.script}.py \
             train_dataset_bundle_path={input.train} \
             val_dataset_bundle_path={input.val} \
             classifier_bundle_path={input.classifier} save_path={output} \
             components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={UNMASKER} \
-            hard_budget={HARD_BUDGET} soft_budget_param=null \
-            device={DEVICE} seed={wildcards.instance} use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST_STR} {params.extra}
+            components/unmaskers@unmasker={params.unmasker} \
+            hard_budget={wildcards.train_budget} soft_budget_param=null \
+            device={params.device} seed={wildcards.instance} \
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} {params.extra}
         """
+
+
+def eval_batch_size(wildcards):
+    if EVAL_BATCH_SIZE_OVERRIDE is not None:
+        if isinstance(EVAL_BATCH_SIZE_OVERRIDE, dict):
+            return int(
+                EVAL_BATCH_SIZE_OVERRIDE.get(
+                    wildcards.dataset,
+                    EVAL_BATCH_SIZE_OVERRIDE.get("default"),
+                )
+            )
+        return int(EVAL_BATCH_SIZE_OVERRIDE)
+    base_method = METHOD_SPECS[wildcards.method].base_method
+    return int(EVAL_BATCH_SIZES[base_method][wildcards.dataset])
 
 
 rule eval_missing_data_method:
     input:
-        dataset=lambda wc: raw_dataset(wc.instance, EVAL_SPLIT),
+        dataset=lambda wc: raw_dataset(wc.dataset, wc.instance, EVAL_SPLIT),
         method=trained_method_input,
-        classifier=CLASSIFIER,
+        classifier=lambda wc: classifier_path(wc.dataset, wc.method),
     output:
-        f"{ROOT}/eval/{EVAL_SPLIT}/{NAMESPACE}/"
+        f"{ROOT}/eval/{EVAL_SPLIT}/{NAMESPACE}/dataset-{{dataset}}/"
         "method-{method}+mechanism-{mechanism}+p-{p}+"
-        "strategy-{strategy}+instance-{instance}/eval_data.parquet",
+        "strategy-{strategy}+instance-{instance}+"
+        "train_hard_budget-{train_budget}+eval_hard_budget-{eval_budget}/"
+        "eval_data.parquet",
+    params:
+        unmasker=lambda wc: UNMASKERS[wc.dataset],
+        device=lambda wc: method_device(wc.dataset, wc.method),
+        batch_size=eval_batch_size,
+        extra=lambda wc: runtime_params(
+            EVAL_PARAMS,
+            METHOD_SPECS[wc.method].base_method,
+            wc.method,
+            wc.dataset,
+            f"{wc.method}/{wc.dataset}",
+        ),
     shell:
         """
         python scripts/eval/eval_afa_method.py \
-            method_bundle_path={input.method} \
-            dataset_bundle_path={input.dataset} \
+            method_bundle_path={input.method} dataset_bundle_path={input.dataset} \
             classifier_bundle_path={input.classifier} save_path={output} \
             components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={UNMASKER} \
-            hard_budget={HARD_BUDGET} soft_budget_param=null \
-            batch_size={EVAL_BATCH_SIZE} device={DEVICE} \
+            components/unmaskers@unmasker={params.unmasker} \
+            hard_budget={wildcards.eval_budget} soft_budget_param=null \
+            batch_size={params.batch_size} device={params.device} \
             seed={wildcards.instance} use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST_STR} {EVAL_PARAMS}
+            smoke_test={SMOKE_TEST_STR} {params.extra}
         """
 
 
@@ -576,12 +838,37 @@ rule summarize_missing_data:
         restoration=f"{SUMMARY_DIR}/restoration_rmse.csv",
     params:
         root=f"{ROOT}/eval/{EVAL_SPLIT}/{NAMESPACE}",
+        restored=f"{ROOT}/views/restored/{NAMESPACE}",
+        variants=" ".join(
+            f"--base-method {name}={spec.base_method}"
+            for name, spec in METHOD_SPECS.items()
+            if name != spec.base_method
+        ),
     shell:
         """
         python scripts/analysis/summarize_missing_data.py \
-            --input-root {params.root} \
+            --input-root {params.root} --restored-root {params.restored} \
             --instance-output {output.instances} \
             --summary-output {output.summary} \
             --action-output {output.actions} \
-            --restoration-output {output.restoration}
+            --restoration-output {output.restoration} {params.variants}
+        """
+
+
+rule plot_missing_data:
+    input:
+        instances=f"{SUMMARY_DIR}/instance_metrics.csv",
+        summary=f"{SUMMARY_DIR}/summary.csv",
+        actions=f"{SUMMARY_DIR}/action_rates.csv",
+        restoration=f"{SUMMARY_DIR}/restoration_rmse.csv",
+    output:
+        directory(FIGURE_DIR),
+    resources:
+        shell_exec="bash"
+    shell:
+        """
+        python scripts/plotting/plot_missing_data.py \
+            instance_metrics={input.instances} summary={input.summary} \
+            action_rates={input.actions} restoration_rmse={input.restoration} \
+            output_folder={output} formats='[pdf,svg]'
         """

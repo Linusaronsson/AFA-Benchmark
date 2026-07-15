@@ -14,6 +14,44 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert loaded_config["DATASET_INSTANCE_INDICES"] == (0, 1, 2, 3, 4)
     assert loaded_config["SMOKE_TEST"] is False
     assert loaded_config["USE_WANDB"] is True
+    assert loaded_config["DEVICE"] == "cpu"
+    assert loaded_config["DEVICE_OVERRIDES"] == {}
+
+
+def test_device_resolution_uses_most_specific_override() -> None:
+    config_module = _load_workflow_config_module()
+    overrides = {
+        "datasets": {"cube": "mps"},
+        "pretrained_models": {"pvae": "cuda:2"},
+        "methods": {"aaco": "cuda:1"},
+        "method_datasets": {"aaco": {"cube": "cuda:3"}},
+    }
+
+    assert (
+        config_module.resolve_device(
+            "cpu", overrides, dataset="cube", method="aaco"
+        )
+        == "cuda:3"
+    )
+    assert (
+        config_module.resolve_device(
+            "cpu", overrides, dataset="bank_marketing", method="aaco"
+        )
+        == "cuda:1"
+    )
+    assert (
+        config_module.resolve_device(
+            "cpu", overrides, dataset="cube", pretrained_model="pvae"
+        )
+        == "cuda:2"
+    )
+    assert (
+        config_module.resolve_device("cpu", overrides, dataset="cube") == "mps"
+    )
+    assert (
+        config_module.resolve_device("cpu", overrides, dataset="adult")
+        == "cpu"
+    )
 
 
 def test_direct_unmasker_kwargs_are_empty_mapping() -> None:

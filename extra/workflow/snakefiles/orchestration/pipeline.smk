@@ -3,7 +3,10 @@ Runtime filters (--config, select subsets to run):
     methods (list[str], required): Subset of methods from method_options.yaml
     datasets (list[str], required): Subset of datasets to run
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
-    device (str, default='cpu'): Device for training
+    device (str, default='cpu'): Default device for training and evaluation
+    device_overrides (mapping, optional): Per-method, pretrained-model,
+        dataset, or method/dataset device overrides. Hardware resources remain
+        the responsibility of the execution profile.
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy
@@ -58,7 +61,7 @@ workflow_dir = os.path.dirname(os.path.dirname(snakefile_dir))
 src_dir = os.path.join(workflow_dir, "src")
 sys.path.insert(0, src_dir)
 
-from config import load_config
+from config import load_config, resolve_device
 
 _config = load_config(config)
 
@@ -68,6 +71,7 @@ INITIALIZER = _config["INITIALIZER"]
 INITIALIZER_TAG = f"initializer-{INITIALIZER}"
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
 DEVICE = _config["DEVICE"]
+DEVICE_OVERRIDES = _config["DEVICE_OVERRIDES"]
 USE_WANDB = _config["USE_WANDB"]
 SMOKE_TEST = _config["SMOKE_TEST"]
 PRETRAIN_NAMES = _config["PRETRAIN_NAMES"]
@@ -93,6 +97,16 @@ SOFT_BUDGET_IGNORED_DATASETS = _config["SOFT_BUDGET_IGNORED_DATASETS"]
 DATASETS_USED_PER_METHOD = _config["DATASETS_USED_PER_METHOD"]
 DATASETS_USED_PER_PRETRAIN_NAME = _config["DATASETS_USED_PER_PRETRAIN_NAME"]
 HEATMAP_METHOD_SET = "heatmap_comparison"
+
+
+def device_for(dataset, method=None, pretrained_model=None):
+    return resolve_device(
+        DEVICE,
+        DEVICE_OVERRIDES,
+        dataset=dataset,
+        method=method,
+        pretrained_model=pretrained_model,
+    )
 
 include: "../rules/dataset_generation.smk"
 include: "../rules/training.smk"

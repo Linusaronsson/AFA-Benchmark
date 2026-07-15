@@ -1,0 +1,20 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - plot_missing_data
+  - hydra: custom
+  - /scripts/plotting/common@plotting: default
+  - _self_
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+
+instance_metrics: ???
+summary: ???
+action_rates: ???
+restoration_rmse: ???
+output_folder: ???
+formats:
+  - pdf

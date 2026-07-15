@@ -7,12 +7,14 @@ method_name_mapping:
   eddi_builtin: EDDI(builtin)
   gdfs: GDFS
   dime: DIME
+  dime_feature_marginal_ipw: DIME (feature-marginal IPW)
   jafa: JAFA
   ol_with_mask: OL(with-mask)
   ol_without_mask: OL(without-mask)
   odin_model_based: ODIN(model-based)
   odin_model_free: ODIN(model-free)
   aaco: AACO
+  aaco_doubly_robust: AACO (doubly robust)
   aaco_nn: AACO(NN)
   permutation: PT
   cae: CAE
@@ -24,12 +26,14 @@ method_policy_family_mapping:
   eddi_builtin: eddi
   gdfs: gdfs
   dime: dime
+  dime_feature_marginal_ipw: dime
   jafa: jafa
   ol_with_mask: ol
   ol_without_mask: ol
   odin_model_based: odin
   odin_model_free: odin
   aaco: aaco
+  aaco_doubly_robust: aaco
   aaco_nn: aaco
   permutation: static
   cae: static

@@ -1,15 +1,17 @@
 # Scientific design shared by smoke, local, validation, and test runs.
-# Runtime profiles may select a smaller subset without changing these method
-# definitions or the full experiment matrix.
-dataset: cube_nm
-unmasker: cube_nm
+# Dataset/method selections and their implementation details come from the
+# ordinary benchmark configuration files included by each profile.
 initializer: cold
-hard_budget: 14
 use_wandb: false
 include_complete_data: true
 
 dataset_instance_indices: [0, 1, 2, 3, 4]
-dataset_seeds: [0, 1, 2, 3, 4]
+
+# Training missingness currently operates on flat feature tensors. Imagenette
+# remains in the benchmark catalog but is excluded from this study until an
+# image-aware missingness mechanism is defined.
+missing_data_unsupported_datasets:
+  - imagenette
 
 missingness:
   mechanisms:
@@ -22,8 +24,6 @@ missingness:
   p_params: 0.3
   exclude_inputs: true
 
-# zero_fill is deliberately absent: it is attached only to AACO below as a
-# k-NN-search control, rather than presented as a general imputation baseline.
 strategies:
   - restricted
   - mean_fill
@@ -32,106 +32,28 @@ strategies:
   - pvae_oracle
   - true_completion
 
-methods:
-  - aaco
-  - aaco_doubly_robust
-  - dime
-  - dime_feature_marginal_ipw
-  - gdfs
-  - jafa
-  - odin_model_free
-  - odin_model_based
-  - ol_without_mask
-  - ol_with_mask
-
-pretrain_options:
-  dime:
-    script_name: dime
-    use_experiment_config: true
-  gdfs:
-    script_name: gdfs
-    use_experiment_config: true
-  jafa:
-    script_name: jafa
-    use_experiment_config: false
-  odin:
-    script_name: odin
-    use_experiment_config: true
-  ol_without_mask:
-    script_name: ol
-    use_experiment_config: false
-    pretrain_params:
-      - pq_module.use_feature_mask=false
-  ol_with_mask:
-    script_name: ol
-    use_experiment_config: false
-    pretrain_params:
-      - pq_module.use_feature_mask=true
-
-method_options:
+# Missingness-only behavior is layered onto shared base methods. Definitions
+# such as script names, pretrained models, dataset exclusions, and normal
+# method parameters continue to come from method_options/*.yaml.
+missing_data_method_overrides:
   aaco:
-    family: aaco
-    train_script_name: aaco
-    use_experiment_config: true
     train_params:
       - aco.missingness_objective=support_aware
     extra_strategies:
       - zero_fill
+
+missing_data_method_variants:
   aaco_doubly_robust:
-    family: aaco
-    train_script_name: aaco
-    use_experiment_config: true
+    base_method: aaco
     train_params:
       - aco.missingness_objective=doubly_robust
     allowed_strategies:
       - restricted
     include_complete_data: false
-  dime:
-    family: learned
-    train_script_name: dime
-    pretrained_model_name: dime
-    use_experiment_config: true
   dime_feature_marginal_ipw:
-    family: learned
-    train_script_name: dime
-    pretrained_model_name: dime
-    use_experiment_config: true
+    base_method: dime
     train_params:
       - ipw_mode=feature_marginal
     allowed_strategies:
       - restricted
     include_complete_data: false
-  gdfs:
-    family: learned
-    train_script_name: gdfs
-    pretrained_model_name: gdfs
-    use_experiment_config: true
-  jafa:
-    family: learned
-    train_script_name: jafa
-    pretrained_model_name: jafa
-    use_experiment_config: false
-  odin_model_free:
-    family: learned
-    train_script_name: odin
-    pretrained_model_name: odin
-    use_experiment_config: true
-    train_params:
-      - additional_generation_fraction=0.0
-  odin_model_based:
-    family: learned
-    train_script_name: odin
-    pretrained_model_name: odin
-    use_experiment_config: true
-    train_params:
-      - additional_generation_fraction=1.0
-  ol_without_mask:
-    family: learned
-    train_script_name: ol
-    pretrained_model_name: ol_without_mask
-    use_experiment_config: false
-  ol_with_mask:
-    family: learned
-    train_script_name: ol
-    pretrained_model_name: ol_with_mask
-    use_experiment_config: false

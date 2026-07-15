@@ -68,3 +68,17 @@ class PlotTotalTimeConfig:
 
 
 cs.store(name="plot_total_time", node=PlotTotalTimeConfig)
+
+
+@dataclass
+class PlotMissingDataConfig:
+    instance_metrics: str
+    summary: str
+    action_rates: str
+    restoration_rmse: str
+    output_folder: str
+    formats: list[str]
+    plotting: PlottingDisplayConfig
+
+
+cs.store(name="plot_missing_data", node=PlotMissingDataConfig)

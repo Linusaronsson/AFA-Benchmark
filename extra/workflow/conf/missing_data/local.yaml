@@ -1,23 +1,27 @@
 # Small, scientifically useful local run. It is larger than smoke but remains
 # intentionally separate from the full five-instance experiment artifacts.
 artifact_namespace: local
-device: mps
+device: cuda
 smoke_test: false
 eval_dataset_split: val
 dataset_instance_indices: [0, 1]
-dataset_seeds: [0, 1]
+datasets: [cube_nm, cube]
 dataset_generation_params:
-  - dataset.kwargs.n_samples=512
+  cube_nm:
+    - dataset.kwargs.n_samples=512
+  cube:
+    - dataset.kwargs.n_samples=512
 classifier_params:
-  - epochs=40
-  - batch_size=64
+  default:
+    - epochs=40
+    - batch_size=64
 restoration_pvae_params:
-  - supervised_learning.max_epochs=20
-  - supervised_learning.checkpoint_earliest_batch=10
-  - supervised_learning.early_stopping_min_batches=20
-  - supervised_learning.early_stopping_patience=5
-  - supervised_learning.val_check_interval=10
-hard_budget: 14
+  default:
+    - supervised_learning.max_epochs=20
+    - supervised_learning.checkpoint_earliest_batch=10
+    - supervised_learning.early_stopping_min_batches=20
+    - supervised_learning.early_stopping_patience=5
+    - supervised_learning.val_check_interval=10
 eval_batch_size: 64
 restoration_batch_size: 128
 
@@ -28,15 +32,14 @@ missingness:
 strategies:
   - restricted
   - mean_fill
+  - pvae_label_conditioned
   - pvae_label_free
   - pvae_oracle
   - true_completion
 
 methods:
   - aaco
-  - aaco_doubly_robust
   - dime
-  - dime_feature_marginal_ipw
   - odin_model_free
 
 pretrain_runtime_params:

@@ -1,4 +1,4 @@
-"""Summarize the missing-training-data evaluation matrix."""
+"""Summarize a dataset-aware missing-training-data evaluation matrix."""
 
 from __future__ import annotations
 
@@ -6,24 +6,24 @@ import argparse
 import json
 import re
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pandas as pd
+from sklearn.metrics import f1_score
 
 _EXPERIMENT_PATTERN = re.compile(
     r"^method-(?P<method>.+?)\+mechanism-(?P<mechanism>.+?)"
     r"\+p-(?P<p>.+?)\+strategy-(?P<strategy>.+?)"
-    r"\+instance-(?P<instance>\d+)$"
+    r"\+instance-(?P<instance>\d+)"
+    r"\+train_hard_budget-(?P<train_budget>[^+]+)"
+    r"\+eval_hard_budget-(?P<eval_budget>[^+]+)$"
 )
 _RESTORATION_PATTERN = re.compile(
+    r"dataset-(?P<dataset>[^/]+)/"
     r"mechanism-(?P<mechanism>[^/]+)\+p-(?P<p>[^/]+)/"
     r"instance-(?P<instance>\d+)/(?P<strategy>[^/]+)/"
     r"(?P<split>train|val)\.bundle/manifest\.json$"
 )
-_BASE_METHOD = {
-    "aaco_doubly_robust": "aaco",
-    "dime_feature_marginal_ipw": "dime",
-}
 _STRATEGY_DISPLAY = {
     "complete": "Complete data",
     "restricted": "Restricted",
@@ -39,11 +39,30 @@ _STRATEGY_DISPLAY = {
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input-root", type=Path, required=True)
+    parser.add_argument("--restored-root", type=Path, required=True)
     parser.add_argument("--instance-output", type=Path, required=True)
     parser.add_argument("--summary-output", type=Path, required=True)
     parser.add_argument("--action-output", type=Path, required=True)
     parser.add_argument("--restoration-output", type=Path, required=True)
+    parser.add_argument(
+        "--base-method",
+        action="append",
+        default=[],
+        metavar="VARIANT=BASE",
+    )
     return parser.parse_args()
+
+
+def _base_method_mapping(values: list[str]) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for value in values:
+        try:
+            variant, base = value.split("=", maxsplit=1)
+        except ValueError as error:
+            msg = f"Expected VARIANT=BASE, got {value!r}."
+            raise ValueError(msg) from error
+        mapping[variant] = base
+    return mapping
 
 
 def _metadata(path: Path) -> dict[str, object]:
@@ -51,14 +70,21 @@ def _metadata(path: Path) -> dict[str, object]:
     if match is None:
         msg = f"Could not parse experiment metadata from {path}."
         raise ValueError(msg)
+    dataset_dir = path.parent.parent.name
+    if not dataset_dir.startswith("dataset-"):
+        msg = f"Could not parse dataset metadata from {path}."
+        raise ValueError(msg)
     values = match.groupdict()
     strategy = str(values["strategy"])
     return {
+        "dataset": dataset_dir.removeprefix("dataset-"),
         "method": str(values["method"]),
         "mechanism": str(values["mechanism"]),
         "p": float(str(values["p"])),
         "strategy": strategy,
         "instance": int(str(values["instance"])),
+        "train_hard_budget": float(str(values["train_budget"])),
+        "eval_hard_budget": float(str(values["eval_budget"])),
         "strategy_display_name": _STRATEGY_DISPLAY[strategy],
     }
 
@@ -88,6 +114,14 @@ def _instance_metrics(
     result = metadata | {
         "n_samples": len(final),
         "accuracy": float((external_prediction == final["true_class"]).mean()),
+        "f_score": float(
+            f1_score(
+                final["true_class"],
+                external_prediction,
+                average="macro",
+                zero_division=cast("Any", 0),
+            )
+        ),
         "mean_selections": float(selections.mean()),
         "mean_cost": float(final["accumulated_cost"].mean()),
         "forced_stop_rate": float(final["forced_stop"].mean()),
@@ -113,42 +147,52 @@ def _instance_metrics(
     return result, action_rows
 
 
-def _add_complete_data_gap(frame: pd.DataFrame) -> pd.DataFrame:
+def _add_complete_data_gaps(
+    frame: pd.DataFrame, base_methods: dict[str, str]
+) -> pd.DataFrame:
     references = frame.loc[
         frame["strategy"] == "complete",
-        [
-            "method",
-            "instance",
-            "accuracy",
-        ],
+        ["dataset", "method", "instance", "accuracy", "f_score"],
     ].rename(
-        columns={"method": "reference_method", "accuracy": "complete_accuracy"}
+        columns={
+            "method": "reference_method",
+            "accuracy": "complete_accuracy",
+            "f_score": "complete_f_score",
+        }
     )
     output = frame.copy()
-    output["reference_method"] = output["method"].replace(_BASE_METHOD)
+    output["reference_method"] = output["method"].replace(base_methods)
     output = output.merge(
         references,
-        on=["reference_method", "instance"],
+        on=["dataset", "reference_method", "instance"],
         how="left",
         validate="many_to_one",
     )
     output["accuracy_gap_to_complete"] = (
         output["accuracy"] - output["complete_accuracy"]
     )
+    output["f_score_gap_to_complete"] = (
+        output["f_score"] - output["complete_f_score"]
+    )
     return output.drop(columns="reference_method")
 
 
 def _aggregate(instance_frame: pd.DataFrame) -> pd.DataFrame:
     group_columns = [
+        "dataset",
         "method",
         "mechanism",
         "p",
         "strategy",
         "strategy_display_name",
+        "train_hard_budget",
+        "eval_hard_budget",
     ]
     metric_columns = [
         "accuracy",
+        "f_score",
         "accuracy_gap_to_complete",
+        "f_score_gap_to_complete",
         "mean_selections",
         "mean_cost",
         "forced_stop_rate",
@@ -162,10 +206,8 @@ def _aggregate(instance_frame: pd.DataFrame) -> pd.DataFrame:
     return count.join(mean).join(sem).reset_index()
 
 
-def _restoration_metrics(input_root: Path) -> pd.DataFrame:
-    missing_data_root = input_root.parents[2]
+def _restoration_metrics(restored_root: Path) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
-    restored_root = missing_data_root / "views" / "restored" / input_root.name
     for path in sorted(restored_root.glob("**/manifest.json")):
         match = _RESTORATION_PATTERN.search(path.as_posix())
         if match is None:
@@ -175,6 +217,7 @@ def _restoration_metrics(input_root: Path) -> pd.DataFrame:
         values = match.groupdict()
         rows.append(
             {
+                "dataset": values["dataset"],
                 "mechanism": values["mechanism"],
                 "p": float(values["p"]),
                 "instance": int(values["instance"]),
@@ -187,11 +230,16 @@ def _restoration_metrics(input_root: Path) -> pd.DataFrame:
     return pd.DataFrame.from_records(rows)
 
 
+def _evaluation_paths(input_root: Path) -> list[Path]:
+    """Discover only dataset-scoped artifacts from the current layout."""
+    return sorted(input_root.glob("dataset-*/**/eval_data.parquet"))
+
+
 def main() -> None:
     args = _parse_args()
     instance_rows: list[dict[str, object]] = []
     action_rows: list[dict[str, object]] = []
-    for path in sorted(args.input_root.glob("*/eval_data.parquet")):
+    for path in _evaluation_paths(args.input_root):
         instance_result, experiment_actions = _instance_metrics(path)
         instance_rows.append(instance_result)
         action_rows.extend(experiment_actions)
@@ -199,12 +247,13 @@ def main() -> None:
         msg = f"No evaluation parquet files found under {args.input_root}."
         raise FileNotFoundError(msg)
 
-    instance_frame = _add_complete_data_gap(
-        pd.DataFrame.from_records(instance_rows)
+    instance_frame = _add_complete_data_gaps(
+        pd.DataFrame.from_records(instance_rows),
+        _base_method_mapping(args.base_method),
     )
     summary_frame = _aggregate(instance_frame)
     action_frame = pd.DataFrame.from_records(action_rows)
-    restoration_frame = _restoration_metrics(args.input_root)
+    restoration_frame = _restoration_metrics(args.restored_root)
 
     for output in [
         args.instance_output,
