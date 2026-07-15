@@ -2,10 +2,10 @@ from typing import TYPE_CHECKING, cast
 
 import torch
 
-from afabench.afa_oracle.afa_methods import AACOAFAMethod
+from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
 
 if TYPE_CHECKING:
-    from afabench.afa_oracle.aaco_core import AACOOracle
+    from afabench.components.methods.oracle.aaco.core import AACOOracle
 
 
 class DummyOracle:

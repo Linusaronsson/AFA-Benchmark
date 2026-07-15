@@ -1,0 +1,26 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - pretrain_dime
+  - hydra: custom
+  - /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
+  - /components/dime_architecture@architecture: ???
+  - _self_
+  - optional experiment@_global_: ???
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+classifier_bundle_path: ???
+save_path: ???
+device: ???
+seed: ???
+
+use_wandb: false
+smoke_test: false

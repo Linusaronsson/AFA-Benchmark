@@ -1,266 +1,272 @@
-from __future__ import annotations
-
-import json
 import logging
+from dataclasses import asdict
+from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, final
 
 import hydra
 import torch
 import wandb
 from omegaconf import OmegaConf
 
-from afabench.common.bundle import load_bundle
-from afabench.common.initializers.utils import get_afa_initializer_from_config
-from afabench.common.unmaskers import CubeNMARUnmasker, CubeNMUnmasker
-from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import set_seed
-from afabench.eval.cube_nm_ar import (
-    augment_cube_nm_ar_eval_df,
-    summarize_cube_nm_ar_episodes,
+from afabench.components.initializers.utils import (
+    get_afa_initializer_from_config,
 )
-from afabench.eval.eval import eval_afa_method
-from afabench.eval.stop_shielding import (
-    DualizedStopWrapper,
-    StopShieldWrapper,
+from afabench.components.unmaskers.utils import (
+    get_afa_unmasker_from_config,
 )
+from afabench.core.bundle_system.bundle import load_bundle
+from afabench.core.types import SupportsForcedAcquisition
+from afabench.core.utils import (
+    set_seed,
+)
+from afabench.evaluation.config import EvalConfig
+from afabench.evaluation.eval import eval_afa_method
+from afabench.training.smoke_test import eval_settings
 
 if TYPE_CHECKING:
     import pandas as pd
+    from wandb.sdk.wandb_run import Run
 
-    from afabench.common.config_classes import (
-        EvalConfig,
-        InitializerConfig,
-        UnmaskerConfig,
-    )
-    from afabench.common.custom_types import (
+    from afabench.core.types import (
         AFAClassifier,
         AFADataset,
         AFAInitializer,
         AFAMethod,
         AFAUnmasker,
-        FeatureMask,
-        SelectionMask,
     )
 
 log = logging.getLogger(__name__)
 
 
-def _safe_mean(series: pd.Series) -> float:
-    if series.empty:
-        return 0.0
-    return float(series.astype(float).mean())
+class ForcedAcquisitionMode(Enum):
+    """Different ways that features can be forcibly acquired, even though the AFAMethod may prefer the stop action."""
+
+    DISABLED = auto()  # no forced acquisition, allow stop action
+    METHOD_BASED = auto()  # assume that the AFAMethod implements its own logic for forcing acquisition, thus never returning the stop action
+    FALLBACK = auto()  # allow the AFAMethod to return a stop action, but override it using some dummy logic (see evaluation functions)
 
 
-def _get_cube_nm_ar_eval_summary(
-    df_eval: pd.DataFrame,
-) -> dict[str, float | int] | None:
-    episode_df = summarize_cube_nm_ar_episodes(df_eval)
-    if episode_df is None or episode_df.empty:
-        return None
-
-    risky_mask = episode_df["cube_nm_ar_is_risky_context"].astype(bool)
-    risky_episode_df = episode_df[risky_mask]
-
-    return {
-        "episode_count": len(episode_df),
-        "risky_episode_count": len(risky_episode_df),
-        "risky_episode_rate": _safe_mean(risky_mask),
-        "risky_accuracy": _safe_mean(risky_episode_df["correct"]),
-        "risky_rescue_rate": _safe_mean(risky_episode_df["rescue_acquired"]),
-        "risky_relevant_block_acquisition_rate": _safe_mean(
-            risky_episode_df["relevant_block_acquired"]
-        ),
-        "risky_unsafe_stop_rate": _safe_mean(risky_episode_df["unsafe_stop"]),
-    }
-
-
-def _log_cube_nm_ar_eval_summary(
-    df_eval: pd.DataFrame,
-) -> dict[str, float | int] | None:
-    risk_summary = _get_cube_nm_ar_eval_summary(df_eval)
-    if risk_summary is None:
-        return None
-
-    log.info(
-        "CUBE-NM-AR risk: risky_episode_rate=%.4f, risky_accuracy=%.4f, "
-        "risky_rescue_rate=%.4f, risky_unsafe_stop_rate=%.4f.",
-        risk_summary["risky_episode_rate"],
-        risk_summary["risky_accuracy"],
-        risk_summary["risky_rescue_rate"],
-        risk_summary["risky_unsafe_stop_rate"],
-    )
-    return risk_summary
-
-
-def _resolve_shield_predictor(
-    *,
-    afa_method: AFAMethod,
-    external_classifier: AFAClassifier | None,
-) -> tuple[Any, str]:
-    if external_classifier is not None:
-        return external_classifier.__call__, type(external_classifier).__name__
-    if afa_method.has_builtin_classifier:
-        return afa_method.predict, type(afa_method).__name__
-    msg = (
-        "Stop-control evaluation requires either an external classifier or "
-        "a method with a builtin classifier."
-    )
-    raise ValueError(msg)
-
-
-def _adapt_forbidden_mask_to_selection_space(
-    forbidden_mask: SelectionMask,
-    *,
-    n_selection_choices: int,
-    feature_shape: torch.Size,
-    unmasker: AFAUnmasker,
-) -> SelectionMask:
-    """
-    Ensure forbidden mask is expressed in selection space.
-
-    MissingnessInitializer returns feature-level masks by default. For grouped
-    unmaskers (e.g. CubeNMUnmasker), convert to selection-level masks.
-    """
-    if forbidden_mask.shape[-1] == n_selection_choices:
-        return forbidden_mask
-
-    n_features = int(torch.prod(torch.tensor(feature_shape)).item())
-    if forbidden_mask.shape[-1] != n_features:
-        msg = (
-            "Initializer forbidden mask has incompatible shape. "
-            f"Expected trailing dim {n_selection_choices} (selection space) or "
-            f"{n_features} (feature space), got {forbidden_mask.shape[-1]}."
+@final
+class AFAEvaluator:
+    def __init__(self, cfg: EvalConfig):
+        self._cfg = cfg
+        self._fallback_force_acquisition: bool = (
+            False  # set to true during hard budget
         )
-        raise ValueError(msg)
-
-    # Feature-space -> selection-space conversion for context grouped selections.
-    if isinstance(unmasker, CubeNMUnmasker):
-        n_contexts = unmasker.n_contexts
-        expected_n_selections = 1 + (n_features - n_contexts)
-        if n_selection_choices != expected_n_selections:
-            msg = (
-                "Unexpected selection-space size for CubeNMUnmasker. "
-                f"Expected {expected_n_selections}, got {n_selection_choices}."
-            )
-            raise ValueError(msg)
-
-        flat_forbidden = forbidden_mask.reshape(-1, n_features)
-        sel_forbidden = torch.zeros(
-            (flat_forbidden.shape[0], n_selection_choices),
-            dtype=torch.bool,
-            device=forbidden_mask.device,
+        self._forced_acquisition_mode: ForcedAcquisitionMode = (
+            ForcedAcquisitionMode.DISABLED
         )
-        # Selection 0 corresponds to acquiring all context features at once.
-        sel_forbidden[:, 0] = flat_forbidden[:, :n_contexts].any(dim=1)
-        sel_forbidden[:, 1:] = flat_forbidden[:, n_contexts:]
-        batch_shape = forbidden_mask.shape[:-1]
-        return sel_forbidden.reshape(*batch_shape, n_selection_choices)
+        self._wandb_run: Run | None = None
+        self._method: AFAMethod | None = None
+        self._method_metadata: dict[str, Any] | None = None
+        self._unmasker: AFAUnmasker | None = None
+        self._initializer: AFAInitializer | None = None
+        self._dataset: AFADataset | None = None
+        self._dataset_metadata: dict[str, Any] | None = None
+        self._external_classifier: AFAClassifier | None = None
+        self._external_classifier_metadata: dict[str, Any] | None = None
+        self._n_selection_choices: int | None = None
+        self._selection_costs: torch.Tensor | None = None
+        self._df_eval: pd.DataFrame | None = None
+        # TODO: remove unused metadata
 
-    if isinstance(unmasker, CubeNMARUnmasker):
-        excluded_start = unmasker.n_contexts
-        expected_n_selections = 1 + (n_features - excluded_start)
-        if n_selection_choices != expected_n_selections:
-            msg = (
-                "Unexpected selection-space size for CubeNMARUnmasker. "
-                f"Expected {expected_n_selections}, got {n_selection_choices}."
-            )
-            raise ValueError(msg)
+    def run(self) -> None:
+        self._init_wandb()
+        self._smoke_test_override()
+        self._load()
+        self._set_seeds()
+        self._set_soft_budget()
+        self._set_hard_budget()
+        self._set_selection_info()
+        self._exec()
+        self._save()
 
-        flat_forbidden = forbidden_mask.reshape(-1, n_features)
-        sel_forbidden = torch.zeros(
-            (flat_forbidden.shape[0], n_selection_choices),
-            dtype=torch.bool,
-            device=forbidden_mask.device,
-        )
-        sel_forbidden[:, 0] = flat_forbidden[:, : unmasker.n_contexts].any(
-            dim=1
-        )
-        sel_forbidden[:, 1:] = flat_forbidden[:, excluded_start:]
-        batch_shape = forbidden_mask.shape[:-1]
-        return sel_forbidden.reshape(*batch_shape, n_selection_choices)
-
-    # For non-grouped unmaskers, this mismatch is usually all-false masks from
-    # initializers that only define feature-level forbidden masks.
-    if forbidden_mask.any():
-        msg = (
-            "Cannot convert feature-level forbidden mask to selection space for "
-            f"unmasker {type(unmasker).__name__}."
-        )
-        raise ValueError(msg)
-
-    return torch.zeros(
-        (*forbidden_mask.shape[:-1], n_selection_choices),
-        dtype=torch.bool,
-        device=forbidden_mask.device,
-    )
-
-
-def load(
-    method_bundle_path: Path,
-    unmasker_cfg: UnmaskerConfig,
-    initializer_cfg: InitializerConfig,
-    dataset_bundle_path: Path,
-    classifier_bundle_path: Path | None = None,
-    device: torch.device | None = None,
-) -> tuple[
-    AFAMethod,
-    AFAUnmasker,
-    AFAInitializer,
-    AFADataset,
-    AFAClassifier | None,
-    dict[str, Any],
-    dict[str, Any],
-    dict[str, Any] | None,
-]:
-    # Load method
-    device = torch.device("cpu") if device is None else device
-    method, method_manifest = load_bundle(
-        method_bundle_path,
-        device=device,
-    )
-    method = cast("AFAMethod", cast("object", method))
-    log.info(f"Loaded AFA method from {method_bundle_path}")
-
-    # Load unmasker
-    unmasker: AFAUnmasker = get_afa_unmasker_from_config(unmasker_cfg)
-    log.info(f"Loaded {unmasker_cfg.class_name}")
-
-    # Load initializer
-    initializer: AFAInitializer = get_afa_initializer_from_config(
-        initializer_cfg
-    )
-    log.info(f"Loaded {initializer_cfg.class_name} initializer")
-
-    # Load dataset
-    dataset, dataset_manifest = load_bundle(dataset_bundle_path)
-    dataset = cast("AFADataset", cast("object", dataset))
-    log.info(f"Loaded dataset from {dataset_bundle_path}")
-
-    # Load external classifier if specified
-    if classifier_bundle_path is not None:
-        classifier, classifier_manifest = load_bundle(
-            classifier_bundle_path,
+    def _load(
+        self,
+    ) -> None:
+        # Load method
+        device = torch.device(self._cfg.device)
+        method, self._method_metadata = load_bundle(
+            Path(self._cfg.method_bundle_path),
             device=device,
         )
-        classifier = cast("AFAClassifier", cast("object", classifier))
-        log.info(f"Loaded external classifier from {classifier_bundle_path}.")
-        classifier_metadata = classifier_manifest["metadata"]
-    else:
-        classifier = None
-        classifier_metadata = None
-        log.info("No external classifier provided; using builtin classifier.")
+        self._method = cast("AFAMethod", cast("object", method))
+        log.info(f"Loaded AFA method from {self._cfg.method_bundle_path}")
 
-    return (
-        method,
-        unmasker,
-        initializer,
-        dataset,
-        classifier,
-        method_manifest["metadata"],
-        dataset_manifest["metadata"],
-        classifier_metadata,
-    )
+        # Load unmasker
+        self._unmasker = get_afa_unmasker_from_config(self._cfg.unmasker)
+        log.info(f"Loaded {self._cfg.unmasker.class_name}")
+
+        # Load initializer
+        self._initializer = get_afa_initializer_from_config(
+            self._cfg.initializer
+        )
+        log.info(f"Loaded {self._cfg.initializer.class_name} initializer")
+
+        # Load dataset
+        dataset, self._dataset_metadata = load_bundle(
+            Path(self._cfg.dataset_bundle_path)
+        )
+        self._dataset = cast("AFADataset", cast("object", dataset))
+        log.info(f"Loaded dataset from {self._cfg.dataset_bundle_path}")
+
+        # Load external classifier if specified
+        if self._cfg.classifier_bundle_path is not None:
+            classifier, classifier_manifest = load_bundle(
+                Path(self._cfg.classifier_bundle_path),
+                device=device,
+            )
+            self._external_classifier = cast(
+                "AFAClassifier", cast("object", classifier)
+            )
+            log.info(
+                f"Loaded external classifier from {self._cfg.classifier_bundle_path}."
+            )
+            self._external_classifier_metadata = classifier_manifest[
+                "metadata"
+            ]
+        else:
+            self._external_classifier = None
+            self._external_classifier_metadata = None
+            log.info(
+                "No external classifier provided; using builtin classifier."
+            )
+
+    def _init_wandb(self) -> None:
+        if self._cfg.use_wandb:
+            self._wandb_run = wandb.init(
+                job_type="evaluation",
+                config=asdict(self._cfg),
+                dir="extra/logs/wandb",
+            )
+            log.info(
+                f"W&B run initialized: {self._wandb_run.name} ({self._wandb_run.id})"
+            )
+            log.info(f"W&B run URL: {self._wandb_run.url}")
+        else:
+            self._wandb_run = None
+
+    def _smoke_test_override(self) -> None:
+        if self._cfg.smoke_test:
+            default_n_samples = (
+                self._cfg.eval_only_n_samples
+                if self._cfg.eval_only_n_samples is not None
+                else self._cfg.batch_size * 2
+            )
+            self._cfg.eval_only_n_samples, self._cfg.batch_size = (
+                eval_settings(
+                    smoke_test=True,
+                    default_n_samples=default_n_samples,
+                    default_batch_size=self._cfg.batch_size,
+                )
+            )
+
+    def _set_seeds(self) -> None:
+        # Set the seed of everything
+        assert self._method is not None
+        self._method.set_seed(self._cfg.seed)
+        assert self._unmasker is not None
+        self._unmasker.set_seed(self._cfg.seed)
+        assert self._initializer is not None
+        self._initializer.set_seed(self._cfg.seed)
+
+    def _set_soft_budget(self) -> None:
+        assert self._method is not None
+
+        # Some methods require a soft budget parameter set during evaluation instead of training
+        if self._cfg.soft_budget_param is not None:
+            self._method.set_cost_param(cost_param=self._cfg.soft_budget_param)
+
+    def _set_hard_budget(self) -> None:
+        if self._cfg.hard_budget is not None:
+            if isinstance(self._method, SupportsForcedAcquisition):
+                self._method.force_acquisition = True
+                self._forced_acquisition_mode = (
+                    ForcedAcquisitionMode.METHOD_BASED
+                )
+                log.info(
+                    "Enabled method-backed forced acquisition for hard-budget evaluation."
+                )
+            else:
+                self._forced_acquisition_mode = ForcedAcquisitionMode.FALLBACK
+                log.info(
+                    "Enabled fallback forced acquisition for hard-budget evaluation."
+                )
+
+    def _set_selection_info(self) -> None:
+        assert self._unmasker is not None
+        assert self._dataset is not None
+
+        self._selection_costs = self._unmasker.get_selection_costs(
+            feature_costs=self._dataset.get_feature_acquisition_costs()
+        )
+        log.info(
+            "Selection costs summary: n=%d, min=%.4f, max=%.4f, mean=%.4f.",
+            self._selection_costs.numel(),
+            self._selection_costs.min().item(),
+            self._selection_costs.max().item(),
+            self._selection_costs.mean().item(),
+        )
+        self._n_selection_choices = self._unmasker.get_n_selections(
+            feature_shape=self._dataset.feature_shape
+        )
+
+    def _exec(self) -> None:
+        assert self._method is not None
+        assert self._unmasker is not None
+        assert self._n_selection_choices is not None
+        assert self._initializer is not None
+        assert self._dataset is not None
+        assert self._selection_costs is not None
+
+        hard_budget_str = (
+            f"hard budget {self._cfg.hard_budget}"
+            if self._cfg.hard_budget is not None
+            else "no hard budget"
+        )
+        log.info(
+            "Starting evaluation with batch size %s and hard budget %s.",
+            self._cfg.batch_size,
+            hard_budget_str,
+        )
+
+        self._df_eval = eval_afa_method(
+            afa_action_fn=self._method.act,
+            afa_unmask_fn=self._unmasker.unmask,
+            n_selection_choices=self._n_selection_choices,
+            afa_initialize_fn=self._initializer.initialize,
+            dataset=self._dataset,
+            external_afa_predict_fn=self._external_classifier.__call__
+            if self._external_classifier is not None
+            else None,
+            builtin_afa_predict_fn=self._method.predict
+            if self._method.has_builtin_classifier
+            else None,
+            only_n_samples=self._cfg.eval_only_n_samples,
+            device=torch.device(self._cfg.device),
+            selection_budget=self._cfg.hard_budget,
+            batch_size=self._cfg.batch_size,
+            selection_costs=self._selection_costs.tolist(),
+            seed=self._cfg.seed,
+            force_acquisition=self._fallback_force_acquisition,
+        )
+
+        # Add eval_seed and eval_hard_budget to dataframe
+        self._df_eval["eval_seed"] = self._cfg.seed
+        self._df_eval["eval_hard_budget"] = self._cfg.hard_budget
+
+    def _save(self) -> None:
+        assert self._df_eval is not None
+        save_path = Path(self._cfg.save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        self._df_eval.to_parquet(save_path, index=False)
+        log.info(f"Saved evaluation data to Parquet at: {save_path}")
+
+        log.info(f"Evaluation results saved to: {self._cfg.save_path}")
+
+        if self._wandb_run:
+            self._wandb_run.finish()
 
 
 @hydra.main(
@@ -268,242 +274,14 @@ def load(
     config_path="../../extra/conf/scripts/eval",
     config_name="config",
 )
-def main(cfg: EvalConfig) -> None:  # noqa: C901, PLR0912, PLR0915
+def main(cfg: EvalConfig) -> None:
+    cfg = cast("EvalConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
-    if cfg.use_wandb:
-        run = wandb.init(
-            job_type="evaluation",
-            config=cast(
-                "dict[str, Any]",
-                OmegaConf.to_container(cfg, resolve=True),
-            ),
-            dir="extra/logs/wandb",
-        )
-        log.info(f"W&B run initialized: {run.name} ({run.id})")
-        log.info(f"W&B run URL: {run.url}")
-    else:
-        run = None
-
-    if cfg.smoke_test:
-        log.info("Smoke test detected.")
-        cfg.eval_only_n_samples = 10
-        cfg.batch_size = 2
-
-    # Load everything
-    (
-        afa_method,
-        unmasker,
-        initializer,
-        dataset,
-        external_classifier,
-        _method_metadata,
-        _dataset_metadata,
-        _external_classifier_metadata,
-    ) = load(
-        method_bundle_path=Path(cfg.method_bundle_path),
-        unmasker_cfg=cfg.unmasker,
-        initializer_cfg=cfg.initializer,
-        dataset_bundle_path=Path(cfg.dataset_bundle_path),
-        classifier_bundle_path=(
-            Path(cfg.classifier_bundle_path)
-            if cfg.classifier_bundle_path is not None
-            else None
-        ),
-        device=torch.device(cfg.device),
-    )
-
-    # Set the seed of everything
-    afa_method.set_seed(cfg.seed)
-    unmasker.set_seed(cfg.seed)
-    initializer.set_seed(cfg.seed)
-
-    # Some methods require a soft budget parameter set during evaluation instead of training
-    if cfg.soft_budget_param is not None:
-        afa_method.set_cost_param(cost_param=cfg.soft_budget_param)
-        if hasattr(afa_method, "force_acquisition"):
-            afa_method.force_acquisition = False
-            log.info("Disabled force_acquisition for soft-budget evaluation.")
-    elif cfg.hard_budget is not None and hasattr(afa_method, "force_acquisition"):
-        afa_method.force_acquisition = True
-        log.info("Enabled force_acquisition for hard-budget evaluation.")
-
-    selection_costs = unmasker.get_selection_costs(
-        feature_costs=dataset.get_feature_acquisition_costs()
-    )
-    n_selection_choices = unmasker.get_n_selections(
-        feature_shape=dataset.feature_shape
-    )
-
-    stop_shield = None
-    afa_action_fn = afa_method.act
-    if cfg.stop_shield_delta is not None and cfg.dual_lambda is not None:
-        msg = (
-            "Use either stop_shield_delta or dual_lambda during evaluation, "
-            "not both."
-        )
-        raise ValueError(msg)
-
-    if cfg.stop_shield_delta is not None:
-        shield_predict_fn, predictor_name = _resolve_shield_predictor(
-            afa_method=afa_method,
-            external_classifier=external_classifier,
-        )
-
-        stop_shield = StopShieldWrapper(
-            afa_method=afa_method,
-            afa_predict_fn=shield_predict_fn,
-            risk_threshold=cfg.stop_shield_delta,
-            predictor_name=predictor_name,
-        )
-        afa_action_fn = stop_shield
-        log.info(
-            "Enabled stop shield with delta=%.4f using predictor %s.",
-            cfg.stop_shield_delta,
-            predictor_name,
-        )
-    elif cfg.dual_lambda is not None:
-        shield_predict_fn, predictor_name = _resolve_shield_predictor(
-            afa_method=afa_method,
-            external_classifier=external_classifier,
-        )
-
-        stop_shield = DualizedStopWrapper(
-            afa_method=afa_method,
-            afa_predict_fn=shield_predict_fn,
-            afa_unmask_fn=unmasker.unmask,
-            predictor_name=predictor_name,
-            selection_costs=selection_costs,
-            dual_lambda=cfg.dual_lambda,
-        )
-        afa_action_fn = stop_shield
-        log.info(
-            "Enabled dualized stop wrapper with lambda=%.4f using predictor %s.",
-            cfg.dual_lambda,
-            predictor_name,
-        )
-
-    if cfg.hard_budget is not None:
-        hard_budget_str = f"hard budget {cfg.hard_budget}"
-    else:
-        hard_budget_str = "no hard budget"
-    log.info(
-        "Starting evaluation with batch size %s and %s.",
-        cfg.batch_size,
-        hard_budget_str,
-    )
-    log.info(
-        "Selection costs summary: n=%d, min=%.4f, max=%.4f, mean=%.4f.",
-        selection_costs.numel(),
-        selection_costs.min().item(),
-        selection_costs.max().item(),
-        selection_costs.mean().item(),
-    )
-
-    forbidden_mask_fn = None
-    maybe_forbidden_mask_fn = getattr(
-        initializer, "get_forbidden_selection_mask", None
-    )
-    if callable(maybe_forbidden_mask_fn):
-
-        def forbidden_mask_fn(
-            observed_mask: FeatureMask,
-            feature_shape: torch.Size,
-        ) -> SelectionMask:
-            raw_mask = maybe_forbidden_mask_fn(observed_mask, feature_shape)
-            return _adapt_forbidden_mask_to_selection_space(
-                raw_mask,
-                n_selection_choices=n_selection_choices,
-                feature_shape=feature_shape,
-                unmasker=unmasker,
-            )
-
-        log.info(
-            "Using initializer-provided forbidden selection mask function."
-        )
-
-    # Enable CMI logging for DIME if requested.
-    if cfg.log_cmi and hasattr(afa_method, "enable_cmi_logging"):
-        afa_method.enable_cmi_logging()
-        log.info("CMI logging enabled for %s.", type(afa_method).__name__)
-
-    df_eval = eval_afa_method(
-        afa_action_fn=afa_action_fn,
-        afa_unmask_fn=unmasker.unmask,
-        n_selection_choices=n_selection_choices,
-        afa_initialize_fn=initializer.initialize,
-        dataset=dataset,
-        external_afa_predict_fn=external_classifier.__call__
-        if external_classifier is not None
-        else None,
-        builtin_afa_predict_fn=afa_method.predict
-        if afa_method.has_builtin_classifier
-        else None,
-        only_n_samples=cfg.eval_only_n_samples,
-        device=torch.device(cfg.device),
-        selection_budget=cfg.hard_budget,
-        batch_size=cfg.batch_size,
-        selection_costs=selection_costs.tolist(),
-        forbidden_mask_fn=forbidden_mask_fn,
-    )
-    # Add eval_seed and eval_hard_budget to dataframe
-    df_eval["eval_seed"] = cfg.seed
-    df_eval["eval_hard_budget"] = cfg.hard_budget
-    df_eval = augment_cube_nm_ar_eval_df(df_eval, dataset)
-
-    csv_path = Path(cfg.save_path)
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
-    risk_summary = _log_cube_nm_ar_eval_summary(df_eval)
-    if risk_summary is not None:
-        risk_path = csv_path.parent / "cube_nm_ar_risk_summary.json"
-        risk_path.write_text(
-            json.dumps(risk_summary, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
-        log.info("Saved CUBE-NM-AR risk summary to %s.", risk_path)
-
-    if stop_shield is not None:
-        shield_summary = stop_shield.get_summary()
-        shield_path = csv_path.parent / "stop_shield_summary.json"
-        shield_path.write_text(
-            json.dumps(shield_summary, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
-        log.info("Saved stop-shield summary to %s.", shield_path)
-
-    helper_columns = [
-        column for column in df_eval.columns if column.startswith("cube_")
-    ]
-    if helper_columns:
-        df_eval = df_eval.drop(columns=helper_columns)
-
-    # Save CSV directly
-    # Use explicit null strings to avoid missing values in the pipeline.
-    df_eval.to_csv(csv_path, index=False, na_rep="null")
-    log.info(f"Saved evaluation data to CSV at: {csv_path}")
-
-    log.info(f"Evaluation results saved to: {cfg.save_path}")
-
-    # Save CMI log if available.
-    cmi_log = getattr(afa_method, "get_cmi_log", None)
-    if callable(cmi_log) and cmi_log():
-        import pickle
-
-        entries = cmi_log()
-        cmi_log_path = csv_path.parent / "cmi_log.pkl"
-        with cmi_log_path.open("wb") as f:
-            pickle.dump(entries, f)
-        log.info(
-            "Saved CMI log (%d entries) to %s.",
-            len(entries),
-            cmi_log_path,
-        )
-        afa_method.clear_cmi_log()
-
-    if run:
-        run.finish()
+    evaluator = AFAEvaluator(cfg)
+    evaluator.run()
 
 
 if __name__ == "__main__":

@@ -1,8 +1,0 @@
-# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
-_commit: v2
-_src_path: git@github.com:valterschutz/uv-template
-module_name: afabench
-project_description: A benchmark for Active Feature Acquisition (AFA) methods
-project_name: AFA Benchmark
-user_email: ''
-user_name: ''

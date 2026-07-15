@@ -1,0 +1,25 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - train_masked_vit_classifier
+  - hydra: custom
+  - /components/initializers@initializer: ???
+  - /components/unmaskers@unmasker: ???
+  - _self_
+  - optional experiment@_global_: ???
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+train_dataset_path: ???
+val_dataset_path: ???
+save_path: ???
+
+device: ???
+seed: ???
+
+use_wandb: false
+smoke_test: false

@@ -1,5 +1,3 @@
-
-
 # Generate instances for a single type of dataset
 # Use same seeds as instance indices
 rule dataset_generation:

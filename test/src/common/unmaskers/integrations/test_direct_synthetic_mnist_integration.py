@@ -3,8 +3,8 @@
 import pytest
 import torch
 
-from afabench.common.datasets.datasets import SyntheticMNISTDataset
-from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
+from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
+from afabench.datasets.datasets import SyntheticMNISTDataset
 
 
 @pytest.fixture

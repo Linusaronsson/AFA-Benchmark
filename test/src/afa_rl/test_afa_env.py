@@ -1,97 +1,20 @@
-from __future__ import annotations
-
 import torch
 
-from afabench.afa_rl.common.afa_env import AFAEnv
-from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
-from afabench.afa_rl.common.reward_functions import get_fixed_reward_reward_fn
-from afabench.common.initializers.fixed_random_initializer import (
+from afabench.components.initializers.fixed_random_initializer import (
     FixedRandomInitializer,
 )
-from afabench.common.initializers.manual_initializer import ManualInitializer
-from afabench.common.unmaskers import ImagePatchUnmasker
-from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
-from afabench.eval.eval import process_batch
-from afabench.test.helpers import get_deterministic_action_fn
-
-
-def test_reset_respects_forbidden_selection_mask() -> None:
-    all_features = torch.tensor(
-        [
-            [1.0, 2.0, 3.0, 4.0],
-            [5.0, 6.0, 7.0, 8.0],
-        ]
-    )
-    all_labels = torch.tensor([[1, 0], [0, 1]])
-    dataset_fn = get_afa_dataset_fn(all_features, all_labels, shuffle=False)
-
-    def initialize_fn(
-        features: torch.Tensor,
-        label: torch.Tensor | None = None,
-        feature_shape: torch.Size | None = None,
-    ) -> torch.Tensor:
-        del label
-        assert feature_shape is not None
-        return torch.zeros_like(features, dtype=torch.bool).reshape(
-            features.shape[: -len(feature_shape)] + feature_shape
-        )
-
-    def forbidden_selection_mask_fn(
-        _observed_mask: torch.Tensor,
-        _feature_shape: torch.Size,
-    ) -> torch.Tensor:
-        return torch.tensor(
-            [
-                [True, False, True, False],
-                [False, True, False, True],
-            ],
-            dtype=torch.bool,
-        )
-
-    env = AFAEnv(
-        dataset_fn=dataset_fn,
-        reward_fn=get_fixed_reward_reward_fn(
-            reward_for_stop=0.0, reward_otherwise=-1.0
-        ),
-        device=torch.device("cpu"),
-        batch_size=torch.Size((2,)),
-        feature_shape=torch.Size((4,)),
-        n_selections=4,
-        n_classes=2,
-        hard_budget=4.0,
-        initialize_fn=initialize_fn,
-        unmask_fn=DirectUnmasker().unmask,
-        forbidden_selection_mask_fn=forbidden_selection_mask_fn,
-        seed=123,
-    )
-
-    td = env.reset()
-
-    expected_selection_mask = torch.tensor(
-        [
-            [True, False, True, False],
-            [False, True, False, True],
-        ],
-        dtype=torch.bool,
-    )
-    expected_allowed_action_mask = torch.tensor(
-        [
-            [True, False, True, False, True],
-            [True, True, False, True, False],
-        ],
-        dtype=torch.bool,
-    )
-
-    assert torch.equal(td["performed_selection_mask"], expected_selection_mask)
-    assert torch.equal(td["allowed_action_mask"], expected_allowed_action_mask)
-
-    td["action"] = torch.tensor([2, 1], dtype=torch.int64)
-    td_next = env.step(td)["next"]
-
-    assert not td_next["allowed_action_mask"][0, 1].item()
-    assert not td_next["allowed_action_mask"][0, 3].item()
-    assert not td_next["allowed_action_mask"][1, 2].item()
-    assert not td_next["allowed_action_mask"][1, 4].item()
+from afabench.components.initializers.manual_initializer import (
+    ManualInitializer,
+)
+from afabench.components.methods.rl.common.afa_env import AFAEnv
+from afabench.components.methods.rl.common.dataset_utils import (
+    get_afa_dataset_fn,
+)
+from afabench.components.methods.rl.common.reward_functions import (
+    get_fixed_reward_reward_fn,
+)
+from afabench.components.unmaskers import ImagePatchUnmasker
+from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
 
 
 def test_initializer_and_unmasker_integration() -> None:
@@ -294,39 +217,39 @@ def test_initializer_and_unmasker_integration() -> None:
     # Pick the first patch for the first sample and the fourth patch for the second sample
     td["action"] = torch.tensor([1, 4], dtype=torch.int64)
 
-    # t = 2 (final step because the next acquisition would exceed hard_budget=1.99)
+    # t = 2 (final step due to hard_budget=1.99)
     td = env.step(td)
     td = td["next"]
     expected_feature_mask_t2 = torch.tensor(
         [
-            # Sample 1: the second action is forced to STOP, so only patch 2 remains unmasked
+            # Sample 1: patches 1 and 2 unmasked
             [
                 [
-                    [False, False, True, True],
-                    [False, False, True, True],
+                    [True, True, True, True],
+                    [True, True, True, True],
                     [False, False, False, False],
                     [False, False, False, False],
                 ],
                 [
-                    [False, False, True, True],
-                    [False, False, True, True],
+                    [True, True, True, True],
+                    [True, True, True, True],
                     [False, False, False, False],
                     [False, False, False, False],
                 ],
             ],
-            # Sample 2: the second action is forced to STOP, so only patch 3 remains unmasked
+            # Sample 2: patches 3 and 4 unmasked
             [
                 [
                     [False, False, False, False],
                     [False, False, False, False],
-                    [True, True, False, False],
-                    [True, True, False, False],
+                    [True, True, True, True],
+                    [True, True, True, True],
                 ],
                 [
                     [False, False, False, False],
                     [False, False, False, False],
-                    [True, True, False, False],
-                    [True, True, False, False],
+                    [True, True, True, True],
+                    [True, True, True, True],
                 ],
             ],
         ],
@@ -334,34 +257,44 @@ def test_initializer_and_unmasker_integration() -> None:
     )
     assert torch.allclose(td["feature_mask"], expected_feature_mask_t2)
 
-    # Check masked_features - should be unchanged because the over-budget action is forced to stop
+    # Check masked_features - should show both patches unmasked
     expected_masked_features_t2 = torch.zeros(
         (2, 2, 4, 4), dtype=torch.float32
     )
-    # Sample 1: patch 2 (top-right) remains unmasked
+    # Sample 1: patches 1 (top-left) and 2 (top-right) unmasked
+    expected_masked_features_t2[0, 0, 0:2, 0:2] = torch.tensor(
+        [[1.0, 2.0], [5.0, 6.0]]
+    )
     expected_masked_features_t2[0, 0, 0:2, 2:4] = torch.tensor(
         [[3.0, 4.0], [7.0, 8.0]]
+    )
+    expected_masked_features_t2[0, 1, 0:2, 0:2] = torch.tensor(
+        [[17.0, 18.0], [21.0, 22.0]]
     )
     expected_masked_features_t2[0, 1, 0:2, 2:4] = torch.tensor(
         [[19.0, 20.0], [23.0, 24.0]]
     )
-    # Sample 2: patch 3 (bottom-left) remains unmasked
+    # Sample 2: patches 3 (bottom-left) and 4 (bottom-right) unmasked
     expected_masked_features_t2[1, 0, 2:4, 0:2] = torch.tensor(
         [[18.0, 20.0], [26.0, 28.0]]
+    )
+    expected_masked_features_t2[1, 0, 2:4, 2:4] = torch.tensor(
+        [[22.0, 24.0], [30.0, 32.0]]
     )
     expected_masked_features_t2[1, 1, 2:4, 0:2] = torch.tensor(
         [[17.0, 19.0], [25.0, 27.0]]
     )
+    expected_masked_features_t2[1, 1, 2:4, 2:4] = torch.tensor(
+        [[21.0, 23.0], [29.0, 31.0]]
+    )
     assert torch.allclose(td["masked_features"], expected_masked_features_t2)
 
-    # Episode should be done because the next acquisition would exceed the hard budget
-    assert td["done"].all(), (
-        "Episode should terminate when an over-budget action is forced to stop"
-    )
+    # Episode should be done due to hard budget
+    assert td["done"].all(), "Episode should be terminated due to hard budget"
 
 
 def test_stop_due_to_hard_budget() -> None:
-    """Test that the environment forces stop when the next action would exceed the hard budget."""
+    """Test that the environment terminates when hard budget is **exceeded**."""
     # Use simple 1D features for easy testing
     all_features = torch.tensor(
         [
@@ -388,7 +321,7 @@ def test_stop_due_to_hard_budget() -> None:
         feature_shape=torch.Size((6,)),
         n_selections=6,  # 4 possible selections
         n_classes=2,
-        hard_budget=2.0,  # Third selection should be forced to stop
+        hard_budget=2.0,  # Should terminate after 3 selections
         initialize_fn=FixedRandomInitializer(
             num_initial_features=0
         ).initialize,
@@ -421,7 +354,7 @@ def test_stop_due_to_hard_budget() -> None:
         "Environment should not terminate when budget is reached, only if it is exceeded."
     )
 
-    # Third selection - should be forced to stop before the acquisition happens
+    # Third selection - should terminate due to hard budget
     td["action"] = torch.tensor(
         [5, 6], dtype=torch.int64
     )  # Select features 4 and 5
@@ -429,10 +362,7 @@ def test_stop_due_to_hard_budget() -> None:
     td = td["next"]
 
     assert td["done"].all(), (
-        "Environment should terminate when the next action would exceed hard budget"
-    )
-    assert torch.allclose(td["accumulated_cost"], torch.tensor([2.0, 2.0])), (
-        "Over-budget actions should not increase accumulated cost"
+        "Environment should terminate after exceeding hard budget"
     )
 
 
@@ -620,124 +550,6 @@ def test_per_sample_termination_hard_budget() -> None:
     assert td["done"].all(), (
         "All samples should be done - sample 1 reached hard budget, others already stopped"
     )
-
-
-def test_over_budget_selection_is_terminal_noop_without_acquisition() -> None:
-    all_features = torch.tensor([[1.0, 2.0, 3.0]])
-    all_labels = torch.tensor([[1, 0]])
-    dataset_fn = get_afa_dataset_fn(all_features, all_labels, shuffle=False)
-
-    env = AFAEnv(
-        dataset_fn=dataset_fn,
-        reward_fn=get_fixed_reward_reward_fn(
-            reward_for_stop=0.0, reward_otherwise=-1.0
-        ),
-        device=torch.device("cpu"),
-        batch_size=torch.Size((1,)),
-        feature_shape=torch.Size((3,)),
-        n_selections=3,
-        n_classes=2,
-        hard_budget=2.0,
-        force_hard_budget=True,
-        initialize_fn=FixedRandomInitializer(
-            num_initial_features=0
-        ).initialize,
-        unmask_fn=DirectUnmasker().unmask,
-        selection_costs=[1.0, 1.0, 2.0],
-        seed=123,
-    )
-
-    td = env.reset()
-    td["action"] = torch.tensor([1], dtype=torch.int64)
-    td = env.step(td)["next"]
-
-    feature_mask_after_first = td["feature_mask"].clone()
-    performed_action_mask_after_first = td["performed_action_mask"].clone()
-    allowed_action_mask_after_first = td["allowed_action_mask"].clone()
-    selection_mask_after_first = td["performed_selection_mask"].clone()
-    accumulated_cost_after_first = td["accumulated_cost"].clone()
-
-    td["action"] = torch.tensor([3], dtype=torch.int64)
-    td = env.step(td)["next"]
-
-    assert td["done"].all(), (
-        "Over-budget proposal should terminate the episode"
-    )
-    assert torch.equal(td["feature_mask"], feature_mask_after_first), (
-        "Terminal no-op should not acquire the over-budget feature"
-    )
-    assert torch.equal(
-        td["performed_action_mask"], performed_action_mask_after_first
-    ), "Terminal no-op should not mark the over-budget action as performed"
-    assert torch.equal(
-        td["allowed_action_mask"], allowed_action_mask_after_first
-    ), "Terminal no-op should not consume any additional allowed action"
-    assert torch.equal(
-        td["performed_selection_mask"], selection_mask_after_first
-    ), "Terminal no-op should not mark the over-budget selection as performed"
-    assert torch.equal(td["accumulated_cost"], accumulated_cost_after_first), (
-        "Terminal no-op should not increase accumulated cost"
-    )
-
-
-def test_env_hard_budget_matches_evaluator_for_over_budget_action() -> None:
-    features = torch.tensor([[1.0, 2.0, 3.0]])
-    label = torch.tensor([[1.0, 0.0]])
-    selection_costs = [1.0, 1.0, 2.0]
-
-    env = AFAEnv(
-        dataset_fn=get_afa_dataset_fn(features, label, shuffle=False),
-        reward_fn=get_fixed_reward_reward_fn(
-            reward_for_stop=0.0, reward_otherwise=-1.0
-        ),
-        device=torch.device("cpu"),
-        batch_size=torch.Size((1,)),
-        feature_shape=torch.Size((3,)),
-        n_selections=3,
-        n_classes=2,
-        hard_budget=2.0,
-        force_hard_budget=True,
-        initialize_fn=FixedRandomInitializer(
-            num_initial_features=0
-        ).initialize,
-        unmask_fn=DirectUnmasker().unmask,
-        selection_costs=selection_costs,
-        seed=123,
-    )
-
-    td = env.reset()
-    td["action"] = torch.tensor([1], dtype=torch.int64)
-    td = env.step(td)["next"]
-    td["action"] = torch.tensor([3], dtype=torch.int64)
-    td = env.step(td)["next"]
-
-    batch_df = process_batch(
-        afa_action_fn=get_deterministic_action_fn([[1, 3]]),
-        afa_unmask_fn=DirectUnmasker().unmask,
-        n_selection_choices=3,
-        features=features,
-        initial_feature_mask=torch.zeros_like(features, dtype=torch.bool),
-        initial_masked_features=torch.zeros_like(features),
-        true_label=label,
-        feature_shape=torch.Size((3,)),
-        selection_budget=2.0,
-        selection_costs=selection_costs,
-    )
-
-    assert batch_df["action_performed"].tolist() == [1, 0]
-    assert batch_df["forced_stop"].tolist() == [False, True]
-    assert batch_df["accumulated_cost"].tolist() == [1.0, 1.0]
-    assert batch_df["prev_selections_performed"].tolist() == [[], [0]]
-
-    assert td["done"].all()
-    assert torch.equal(
-        td["feature_mask"], torch.tensor([[True, False, False]])
-    )
-    assert torch.equal(
-        td["performed_selection_mask"],
-        torch.tensor([[True, False, False]]),
-    )
-    assert torch.equal(td["accumulated_cost"], torch.tensor([1.0]))
 
 
 def test_per_sample_termination_no_more_actions() -> None:
@@ -2163,5 +1975,5 @@ def test_accumulated_cost_tracked() -> None:
 
     assert torch.allclose(
         td["accumulated_cost"],
-        torch.tensor([1.1 + 3.1 + 5.1, 2.1 + 4.1]),
+        torch.tensor([1.1 + 3.1 + 5.1, 2.1 + 4.1 + 6.1]),
     )

@@ -7,7 +7,7 @@ This guide provides essential information for AI coding agents working with the 
 **Name:** afa-benchmark
 **Description:** A benchmark of active feature acquisition (AFA) methods
 **Python Version:** 3.12.10 (exact version required)
-**Package Manager:** uv (v0.9.25)
+**Package Manager:** uv (use the repository `uv.lock`)
 **Main Package:** `afabench/`
 
 ## Quick Start Commands
@@ -19,7 +19,7 @@ uv sync
 # Install pre-commit hooks
 pre-commit install
 
-# Run all quality checks (format, lint, type check, test)
+# Run all quality checks (format, lint, type check, tests)
 just qa
 
 # Run tests
@@ -27,6 +27,15 @@ uv run pytest .
 ```
 
 ## Build, Lint & Test Commands
+
+### Required Final Verification
+
+Run `just qa` before reporting any code change as complete. This is the
+project's source of truth for quality because it runs formatting, linting,
+type checking, and tests together. Focused checks are useful while iterating,
+but they are not a substitute for `just qa` unless the user explicitly asks to
+skip it or a concrete blocker prevents running it. If `just qa` fails, fix the
+failure before finishing or clearly report the unresolved failure.
 
 ### Formatting & Linting
 
@@ -38,9 +47,9 @@ uv run ruff format .
 uv run ruff check . --fix
 
 # Type check with basedpyright
-pre-commit run basedpyright --all-files
+uv run basedpyright --warnings
 
-# Run all pre-commit hooks
+# Run all pre-commit hooks, including basedpyright
 pre-commit run --all-files
 ```
 
@@ -122,8 +131,8 @@ uv sync
   import torch
   from jaxtyping import Float
 
-  from afabench.common.bundle import Bundle
-  from afabench.common.registry import Registry
+  from afabench.core.bundle_system.bundle import save_bundle
+  from afabench.core.registry import Registry
   ```
 
 ### Type Annotations
@@ -209,13 +218,13 @@ uv sync
 
 ### Code Organization
 
-- **Registry pattern:** Use `afabench.common.registry.Registry` for extensible components
-- **Bundle system:** Use `afabench.common.bundle.Bundle` for serialization
-- **Configuration:** Use Hydra configs with dataclasses in `config_classes.py`
+- **Registry pattern:** Use `afabench.core.registry` for class lookup and extensible components
+- **Bundle system:** Use `afabench.core.bundle_system` for `.bundle/` serialization
+- **Configuration:** Put script configs under `extra/conf/scripts/<script_group>/<script_name>/`
 - **Type definitions:** Define reusable type aliases at module level
 - Example:
   ```python
-  from afabench.common.registry import Registry
+  from afabench.core.registry import Registry
 
   my_registry: Registry[MyClass] = Registry()
 
@@ -237,30 +246,60 @@ uv sync
 
 ```
 afabench/                   # Main source package
-├── afa_rl/                # RL-based AFA methods
-├── afa_discriminative/    # Discriminative methods
-├── afa_generative/        # Generative methods
-├── afa_oracle/            # Oracle methods
-├── static/                # Static feature selection
-├── common/                # Shared utilities
-└── eval/                  # Evaluation utilities
+├── core/                  # Registry, bundle system, shared types, naming, utilities
+├── components/            # Active implementation modules used by scripts and configs
+│   ├── classifiers/       # Classifier wrappers and dummy classifiers
+│   ├── initializers/      # Initial feature-mask initializers
+│   ├── methods/           # AFA methods grouped by family
+│   │   ├── discriminative/
+│   │   ├── dummy/
+│   │   ├── generative/
+│   │   ├── oracle/
+│   │   ├── rl/
+│   │   └── static/
+│   └── unmaskers/         # Feature unmasking strategies
+├── datasets/              # Dataset definitions, aliases, wrappers, and utilities
+├── training/              # Shared training helpers, configs, and smoke-test support
+├── evaluation/            # Evaluation logic and config dataclasses
+├── plotting/              # Plotting config and helpers
+└── testing/               # Reusable test helpers
 
 test/                      # Test suite
-├── afa_rl/               # RL method tests
-├── common/               # Common utilities tests
-└── scripts/              # Script integration tests
+├── src/                  # Source/component tests
+│   ├── afa_discriminative/
+│   ├── afa_generative/
+│   ├── afa_oracle/
+│   ├── afa_rl/
+│   └── common/
+├── scripts/              # Script integration and smoke tests
+├── config/               # Hydra/config schema tests
+└── workflow/             # Snakemake workflow config tests
 
 scripts/                   # Executable scripts
 ├── dataset_generation/   # Dataset generation
-├── pretrain/             # Pretraining scripts
-├── train/                # Training scripts
+├── pretrain_model/       # Pretraining scripts
+├── train_classifier/     # Classifier training scripts
+├── train_method/         # AFA method training scripts
 ├── eval/                 # Evaluation scripts
-└── plotting/             # Visualization scripts
+├── plotting/             # Plotting scripts
+├── visualizations/       # Dataset/visual inspection scripts
+├── misc/                 # Data transformation and maintenance utilities
+└── dev/                  # Developer maintenance scripts
 
 extra/                     # Non-source files
-├── conf/                 # Hydra configuration files
-├── data/                 # Dataset storage (gitignored)
-└── workflow/             # Snakemake workflows
+├── conf/                 # Hydra configuration files for scripts and globals
+├── data/                 # Local/raw dataset and miscellaneous data storage
+├── logs/                 # Local logs
+├── output/               # Generated pipeline outputs and bundles
+└── workflow/             # Snakemake workflows, configs, profiles, and envs
+    ├── conf/             # Workflow config sets
+    ├── envs/             # Workflow Conda environment files
+    ├── profiles/         # Snakemake execution profiles
+    ├── snakefiles/       # Orchestration and rule Snakefiles
+    └── src/              # Workflow Python support code
+
+docs/                      # User and developer documentation
+data/, outputs/, plots/    # Root-level local/generated artifacts; do not rely on these in tests
 ```
 
 ## Development Workflow
@@ -275,15 +314,16 @@ extra/                     # Non-source files
    - Add tests for new functionality in `test/` directory
    - Use type hints with jaxtyping for tensors
 
-3. **Before committing:**
+3. **Before finishing or committing code changes:**
    ```bash
-   just qa                 # Run all quality checks
+   just qa                 # Required final quality gate
    ```
-   Or individually:
+   Individual commands are only for iteration and debugging, not a replacement
+   for the final `just qa` run:
    ```bash
    uv run ruff format .
    uv run ruff check . --fix
-   pre-commit run basedpyright --all-files
+   uv run basedpyright --warnings
    uv run pytest .
    ```
 
@@ -296,8 +336,8 @@ extra/                     # Non-source files
 
 ## Important Notes
 
-- **Excluded files:** Large number of legacy files excluded from linting (see ruff.toml lines 4-78)
-- **Bundle format:** Serializable objects use `.bundle/` directory format (see docs/bundle_format.md)
+- **Excluded files:** `ruff.toml` currently has no project-specific excludes; keep it synchronized with `pyrightconfig.json` through the pre-commit hook when this changes
+- **Bundle format:** Serializable objects use `.bundle/` directory format (see docs/bundle_format.md) through `afabench.core.bundle_system`
 - **Hydra configs:** Scripts use `@hydra.main()` decorator for configuration management
 - **CUDA support:** Optional GPU acceleration via cupy-cuda12x (Linux only)
 - **Experiment tracking:** Weights & Biases integration (run `uv run wandb login` if needed)

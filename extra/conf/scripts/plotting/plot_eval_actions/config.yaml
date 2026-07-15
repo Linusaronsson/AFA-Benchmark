@@ -1,0 +1,18 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - plot_eval_actions
+  - hydra: custom
+  - /scripts/plotting/common@plotting: default
+  - _self_
+  - optional experiment@_global_: null
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+
+input: ???
+output_folder: ???
+formats:
+  - pdf

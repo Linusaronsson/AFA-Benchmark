@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 import torch
 
-from afabench.common.datasets.datasets import DiabetesDataset, MiniBooNEDataset
+from afabench.datasets.datasets import DiabetesDataset, MiniBooNEDataset
 
 pytestmark = pytest.mark.optional
 

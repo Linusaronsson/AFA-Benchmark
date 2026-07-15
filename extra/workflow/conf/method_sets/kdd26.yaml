@@ -1,0 +1,13 @@
+# Maps to methods in `methods.yaml`
+method_sets:
+  rl:
+    - jafa
+    - odin_model_based
+    - ol_with_mask
+  # Methods that we compare heatmaps for
+  heatmap_comparison:
+    - ol_with_mask
+    - aaco
+    - gdfs
+    - eddi_external
+    - jafa

@@ -8,13 +8,10 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.common.bundle import save_bundle
-from afabench.common.config_classes import (
-    DatasetGenerationConfig,
-    SplitRatioConfig,
-)
-from afabench.common.custom_types import AFADataset
-from afabench.common.registry import get_class
+from afabench.core.bundle_system.bundle import save_bundle
+from afabench.core.registry import get_class
+from afabench.core.types import AFADataset
+from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
 
 log = logging.getLogger(__name__)
 
@@ -107,13 +104,13 @@ def generate_and_save_image_split(
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
+    cfg = cast("DatasetGenerationConfig", OmegaConf.to_object(cfg))
     dataset_class = get_class(cfg.dataset.class_name)
 
     for instance_idx, seed in zip(
         cfg.instance_indices, cfg.seeds, strict=True
     ):
-        raw_kwargs = OmegaConf.to_container(cfg.dataset.kwargs, resolve=True)
-        base_kwargs = cast("dict[str, Any]", raw_kwargs)
+        base_kwargs = cfg.dataset.kwargs
         if dataset_class.accepts_seed():
             dataset_kwargs: dict[str, Any] = base_kwargs | {"seed": seed}
         else:

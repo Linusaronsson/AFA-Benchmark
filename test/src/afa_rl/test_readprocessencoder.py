@@ -2,7 +2,9 @@
 
 import torch
 
-from afabench.afa_rl.shim2018.models import ReadProcessEncoder
+from afabench.components.methods.rl.jafa.models import (
+    ReadProcessEncoder,
+)
 
 
 def test_is_permutation_invariant() -> None:

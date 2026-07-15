@@ -1,4 +1,4 @@
-# Adding a New Method
+# Adding a new method
 
 ## Overview
 
@@ -8,13 +8,13 @@ To add a new Active Feature Acquisition (AFA) method to the benchmark, you need 
 3. Add configuration classes and YAML files for Hydra
 4. Register your method with the pipeline
 
-This tutorial assumes your method requires a pretraining stage. Our example method will be called `Example` and will output random actions. You can reference the `RandomDummyAFAMethod` implementation in the codebase to understand the AFA method interface.
+This tutorial assumes your method requires a pretraining stage. Our example method will be called `Example` and will output random actions. You can reference the `RandomWithoutClassifierAFAMethod` implementation in the codebase to understand the AFA method interface.
 
-## Step-by-Step Guide
+## Step-by-step guide
 
 ### 1. Pretraining a model
 
-Create a pretraining script at `scripts/pretrain/example.py`:
+Create a pretraining script at `scripts/pretrain_model/example.py`:
 ```python
 import logging
 from pathlib import Path
@@ -24,12 +24,10 @@ import hydra
 from omegaconf import OmegaConf
 from torch import nn
 
-from afabench.common.bundle import save_bundle
-from afabench.common.config_classes import (
-    ExamplePretrainConfig,
-)
-from afabench.common.torch_bundle import TorchModelBundle
-from afabench.common.utils import (
+from afabench.components.methods.example.config import ExamplePretrainConfig
+from afabench.core.bundle_system.bundle import save_bundle
+from afabench.core.bundle_system.torch_bundle import TorchModelBundle
+from afabench.core.utils import (
     initialize_wandb_run,
 )
 
@@ -38,7 +36,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/pretrain/example",
+    config_path="../../extra/conf/scripts/pretrain_model/example",
     config_name="config",
 )
 def main(cfg: ExamplePretrainConfig) -> None:
@@ -64,9 +62,17 @@ if __name__ == "__main__":
     main()
 ```
 
-See the `pretrain_model` rule in `training.smk` for arguments that the script is required to support. Since the arguments are passed without dashes, you are encouraged to use Hydra for the script configuration. Place your pretrain configuration class in `afabench/common/config._classes.py`:
+See the `pretrain_model` rule in `extra/workflow/snakefiles/rules/training.smk` for arguments that the script is required to support. Since the arguments are passed without dashes, you are encouraged to use Hydra for the script configuration. Place your pretrain configuration class in a component config module, such as `afabench/components/methods/example/config.py`:
 
 ```python
+from dataclasses import dataclass
+
+from hydra.core.config_store import ConfigStore
+
+
+cs = ConfigStore.instance()
+
+
 @dataclass
 class ExamplePretrainConfig:
     train_dataset_bundle_path: str
@@ -83,7 +89,7 @@ class ExamplePretrainConfig:
 cs.store(name="pretrain_example", node=ExamplePretrainConfig)
 ```
 
-You also need to configure (optional) default values for the script, which you do in `extra/conf/scripts/pretrain/example/config.yaml`:
+You also need to configure (optional) default values for the script, which you do in `extra/conf/scripts/pretrain_model/example/config.yaml`:
 ```yaml
 hydra:
   searchpath:
@@ -96,7 +102,7 @@ defaults:
   - optional /components/initializers@initializer: ???
   - /components/unmaskers@unmasker: ???
   - optional experiment@_global_: ???
-  - override hydra/job_logging: colorlog
+  - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
@@ -111,22 +117,22 @@ use_wandb: false
 smoke_test: false
 ```
 
-The pipeline has its own concept of what a "pretrained model" is, so you should update `extra/workflow/conf/pretrain_mapping.yaml`:
+The pipeline has its own concept of what a "pretrained model" is, so you should update the relevant file in `extra/workflow/conf/pretrain_mappings/` (e.g., `all.yaml`):
 ```yaml
 pretrain_mapping:
-    example_model:
-        pretrain_script_name: "example"
-        pretrain_params: []
-    # other models...
+  example_model:
+    pretrain_script_name: "example"
+    pretrain_params: []
+  # other models...
 ```
 
-This defines a pretrained model called `example_model`, which your method will later depend on. The `pretrain_script_name` refers to files in `scripts/pretrain/`.
+This defines a pretrained model called `example_model`, which your method will later depend on. The `pretrain_script_name` refers to files in `scripts/pretrain_model/`.
 
 ### 2. Training a method
 
 You cannot yet run the pretraining stage, since the pipeline works backwards from which *methods* need to be trained.
 
-Add a training script at `scripts/train/example.py`:
+Add a training script at `scripts/train_method/example.py`:
 ```python
 import logging
 from pathlib import Path
@@ -136,28 +142,26 @@ import hydra
 import torch
 from omegaconf import OmegaConf
 
-from afabench.common.afa_methods import RandomDummyAFAMethod
-from afabench.common.bundle import load_bundle, save_bundle
-from afabench.common.config_classes import (
-    ExampleTrainConfig,
-)
-from afabench.common.initializers.utils import get_afa_initializer_from_config
-from afabench.common.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.common.utils import (
+from afabench.components.initializers.utils import get_afa_initializer_from_config
+from afabench.components.methods.dummy import RandomWithoutClassifierAFAMethod
+from afabench.components.methods.example.config import ExampleTrainConfig
+from afabench.components.unmaskers.utils import get_afa_unmasker_from_config
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
+from afabench.core.utils import (
     initialize_wandb_run,
     set_seed,
 )
-from afabench.eval.eval import eval_afa_method
+from afabench.evaluation.eval import eval_afa_method
 
 if TYPE_CHECKING:
-    from afabench.common.custom_types import AFADataset
+    from afabench.core.types import AFADataset
 
 log = logging.getLogger(__name__)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train/example",
+    config_path="../../extra/conf/scripts/train_method/example",
     config_name="config",
 )
 def main(cfg: ExampleTrainConfig) -> None:
@@ -195,12 +199,27 @@ def main(cfg: ExampleTrainConfig) -> None:
 
     # Usually, this is where training would happen
 
-    afa_method = RandomDummyAFAMethod(
+    afa_method = RandomWithoutClassifierAFAMethod(
         device=torch.device(cfg.device),
         n_classes=train_dataset.label_shape.numel(),
         prob_select_0=0.0
         if cfg.soft_budget_param is None
         else cfg.soft_budget_param,
+    )
+
+    # Check that everything works together by doing some evaluation
+    eval_afa_method(
+        afa_action_fn=afa_method.act,
+        afa_unmask_fn=unmasker.unmask,
+        n_selection_choices=unmasker.get_n_selections(
+            train_dataset.feature_shape
+        ),
+        afa_initialize_fn=initializer.initialize,
+        dataset=train_dataset,
+        external_afa_predict_fn=None,
+        builtin_afa_predict_fn=afa_method.predict,
+        only_n_samples=100,
+        batch_size=10,
     )
 
     # Save method as a bundle
@@ -226,14 +245,26 @@ if __name__ == "__main__":
     main()
 ```
 
-Note that this is almost identical to `scripts/train/random_dummy.py`. Had we used a different class than `RandomAFAMethod` to represent our method, we would also have to add it to the registry object `REGISTERED_CLASSES` in `afabench/common/registry.py`. However, there is already an entry for `"RandomDummyAFAMethod": "afabench.common.afa_methods.RandomDummyAFAMethod"`.
+Note that this is almost identical to `scripts/train_method/random_dummy.py`. Had we used a different class than `RandomWithoutClassifierAFAMethod` to represent our method, we would also have to add it to the registry object `REGISTERED_CLASSES` in `afabench/core/registry.py`. However, there is already an entry for `"RandomWithoutClassifierAFAMethod": "afabench.components.methods.dummy.without_classifier.RandomWithoutClassifierAFAMethod"`.
 
-Similar to before, you have to configure a config dataclass in `config_classes.py`:
+Similar to before, you have to configure a config dataclass in `afabench/components/methods/example/config.py`:
 ```python
+from dataclasses import dataclass
+
+from hydra.core.config_store import ConfigStore
+
+from afabench.components.initializers.config import InitializerConfig
+from afabench.components.unmaskers.config import UnmaskerConfig
+
+
+cs = ConfigStore.instance()
+
+
 @dataclass
 class ExampleTrainConfig:
     train_dataset_bundle_path: str
     val_dataset_bundle_path: str
+    pretrained_model_bundle_path: str
     classifier_bundle_path: (
         str | None
     )  # not needed for this method, but pipeline passes it to us
@@ -251,7 +282,7 @@ class ExampleTrainConfig:
 
 cs.store(name="train_example", node=ExampleTrainConfig)
 ```
-and also create an instance of it at `extra/conf/scripts/train/example/config.yaml`:
+and also create an instance of it at `extra/conf/scripts/train_method/example/config.yaml`:
 ```yaml
 hydra:
   searchpath:
@@ -264,7 +295,7 @@ defaults:
   - /components/unmaskers@unmasker: ???
   - _self_
   - optional experiment@_global_: ???
-  - override hydra/job_logging: colorlog
+  - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
@@ -284,26 +315,33 @@ use_wandb: false
 smoke_test: false
 ```
 
-## Integrating method in pipeline
+## Integrating the method into the pipeline
 
-So far, we have only created scripts that work individually, but these scripts will not yet run automatically when we execute the pipeline. `extra/workflow/conf/methods.yaml` contains a list of all methods that the pipeline will run. Let's call the new method `example_method`, so add `- example_method` as a new line.
+So far, we have only created scripts that work individually, but these scripts will not yet run automatically when we execute the pipeline. The relevant file in `extra/workflow/conf/methods/` (e.g., `all.yaml`) contains a list of all methods that the pipeline will run. Let's call the new method `example_method`, so add it as a new list item:
 
-Next, add your method options to `extra/workflow/conf/method_options.yaml`.
 ```yaml
-example_method:
-  pretrained_model_name: "example_model"
-  train_script_name: "example"
-  eval_batch_size:
-    default: 128
-  hard_budget_ignored_datasets: [imagenette]
-  soft_budget_ignored_datasets: [imagenette]
+methods:
+  # other methods...
+  - example_method
+```
+
+Next, add your method options to the relevant file in `extra/workflow/conf/method_options/` (e.g., `all.yaml`).
+```yaml
+method_options:
+  example_method:
+    pretrained_model_name: "example_model"
+    train_script_name: "example"
+    eval_batch_size:
+      default: 128
+    hard_budget_ignored_datasets: [imagenette]
+    soft_budget_ignored_datasets: [imagenette]
 ```
 
 This assumes that the method supports training on all datasets except Imagenette (which uses image patches).
 
 ### 3. Configuring soft budgets
 
-We need to define reasonable soft-budget parameters for our method, which we do in `extra/workflow/conf/soft_budget_params.yaml`. For this method, the soft-budget parameter corresponds to the probability of choosing the stop action. For simplicity, let us define values that are reused across all datasets:
+We need to define reasonable soft-budget parameters for our method, which we do in the relevant file in `extra/workflow/conf/soft_budget_params/` (e.g., `all.yaml`). For this method, the soft-budget parameter corresponds to the probability of choosing the stop action. For simplicity, let us define values that are reused across all datasets:
 ```yaml
 soft_budget_params:
   example_method:
@@ -314,22 +352,28 @@ soft_budget_params:
   # more methods...
 ```
 
-This declaration ensures that soft-budget parameters are only passed to the method during training, not during evaluation.
+Each pair is `[train_soft_budget_param, eval_soft_budget_param]`. The
+`null` in the second position means the parameter is only passed during
+training, not during evaluation. If your method needs the soft-budget
+parameter at evaluation time instead, swap the positions, for example
+`[null, 0.1]`.
 
 ### 4. Visualization options
 
-Choose how the method should be displayed in plots by adding an entry to `METHOD_NAME_MAPPING` in `afabench/eval/plotting_config.py`. For example, we may add
-```python
-"example_method": "Example"
+Choose how the method should be displayed in plots by adding an entry to `method_name_mapping` in `extra/conf/scripts/plotting/common/default.yaml`. For example:
+```yaml
+method_name_mapping:
+  # ... existing entries ...
+  example_method: Example
 ```
 
-Also decide if you want to compare the method with any specific other methods. In this case, we decide to only add it to the main results plot, so we add it to the `main` method set in `extra/workflow/conf/method_sets.yaml`.
+Also decide if you want to compare the method with any specific other methods. In this case, we decide to only add it to the main results plot, so we add it to the `main` method set in the relevant file in `extra/workflow/conf/method_sets/` (e.g., `all.yaml`).
 ```yaml
 method_sets:
-    main:
-        # other methods...
-        - example_method
-         # more methods...
+  main:
+    # other methods...
+    - example_method
+    # more methods...
 ```
 
 ### 5. Running the pipeline
@@ -337,26 +381,10 @@ method_sets:
 Let us run the pipeline locally using 8 cores, with only the new method and two datasets:
 ```shell
 uv run snakemake \
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    --profile extra/workflow/profiles/config/all \
     all \
-    --configfile \
-      extra/workflow/conf/eval_hard_budgets.yaml \
-      extra/workflow/conf/methods.yaml \
-      extra/workflow/conf/method_sets.yaml \
-      extra/workflow/conf/method_options.yaml \
-      extra/workflow/conf/pretrain_mapping.yaml \
-      extra/workflow/conf/soft_budget_params.yaml \
-      extra/workflow/conf/unmaskers.yaml \
-      extra/workflow/conf/classifier_names.yaml \
-      extra/workflow/conf/datasets_main.yaml \
     --config \
       "methods=[example_method]" \
       "datasets=[cube, actg]" \
-      eval_dataset_split=val \
-      "dataset_instance_indices=[0,1]" \
-      smoke_test=true \
-      use_wandb=false \
-      device=cpu \
-    --jobs 8 \
-    --keep-going
+    --jobs 8
 ```

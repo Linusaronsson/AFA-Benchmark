@@ -1,3 +1,0 @@
-class_name: "PharyngitisDataset"
-kwargs:
-  path: "extra/data/misc/pharyngitis.xls"

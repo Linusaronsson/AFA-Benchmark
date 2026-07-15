@@ -35,7 +35,7 @@ rule train_classifier:
         "extra/output/datasets/{dataset}/0/val.bundle"
     output:
         directory(
-            f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
+            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
                 "dataset-{dataset}.bundle"
         )
     params:
@@ -46,19 +46,17 @@ rule train_classifier:
         script_params=lambda wildcards: _classifier_script_params(
             wildcards.dataset
         ),
-        device=lambda wildcards: _classifier_device(),
     resources:
-        shell_exec="bash",
-        slurm_extra=_classifier_slurm_extra()
+        shell_exec="bash"
     shell:
         """
-        python scripts/train/{params.script_name}.py \
+        python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
             save_path={output} \
-            components/initializers@initializer={TRAIN_INITIALIZER} \
+            components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={params.device} \
+            device={DEVICE} \
             seed=0 \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
@@ -73,7 +71,7 @@ rule train_classifier_for_method:
         "extra/output/datasets/{dataset}/0/val.bundle"
     output:
         directory(
-            f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
+            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
             "method-{method}+dataset-{dataset}.bundle"
         )
     params:
@@ -84,21 +82,17 @@ rule train_classifier_for_method:
         script_params=lambda wildcards: _method_classifier_script_params(
             wildcards.method, wildcards.dataset
         ),
-        device=lambda wildcards: _method_device(wildcards.method),
     resources:
-        shell_exec="bash",
-        slurm_extra=lambda wildcards: _method_slurm_extra(
-            wildcards.method
-        )
+        shell_exec="bash"
     shell:
         """
-        python scripts/train/{params.script_name}.py \
+        python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
             save_path={output} \
-            components/initializers@initializer={TRAIN_INITIALIZER} \
+            components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={params.device} \
+            device={DEVICE} \
             seed=0 \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \

@@ -1,0 +1,5 @@
+unmaskers:
+  default: direct
+  imagenette: 224x224_to_14x14
+  cube_nm: cube_nm
+  cube_nm_without_noise: cube_nm

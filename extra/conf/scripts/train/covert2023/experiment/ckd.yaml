@@ -1,9 +1,0 @@
-batch_size: 128
-lr: 0.001
-hard_budget: 24
-nepochs: 250
-patience: 5
-activation: 'ReLU'
-
-hidden_units: [128,128]
-dropout: 0.3

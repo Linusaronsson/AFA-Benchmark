@@ -1,0 +1,275 @@
+from typing import Any, final, override
+
+import torch
+from tensordict import TensorDictBase
+from tensordict.nn import (
+    TensorDictModule,
+    TensorDictModuleBase,
+    TensorDictSequential,
+)
+from torch import Tensor, nn, optim
+from torchrl.data import (
+    TensorSpec,
+)
+from torchrl.modules import MLP, EGreedyModule, QValueModule
+from torchrl.objectives import DQNLoss, SoftUpdate, ValueEstimators
+
+from afabench.components.methods.rl.common.agent_interface import Agent
+from afabench.components.methods.rl.common.utils import module_norm
+from afabench.components.methods.rl.jafa.config import JAFAAgentConfig
+from afabench.components.methods.rl.jafa.models import JAFAEmbedder
+from afabench.core.types import FeatureMask, MaskedFeatures
+
+
+@final
+class JAFAActionValueModule(nn.Module):
+    def __init__(
+        self,
+        embedder: JAFAEmbedder,
+        embedding_size: int,
+        action_size: int,
+        num_cells: tuple[int, ...],
+        dropout: float,
+        n_feature_dims: int,
+        *,
+        allow_stop_action: bool = True,
+    ):
+        super().__init__()
+        self.embedder = embedder
+        self.embedding_size = embedding_size
+        self.action_size = action_size
+        self.num_cells = num_cells
+        self.dropout = dropout
+        self.n_feature_dims = n_feature_dims
+        self.allow_stop_action = allow_stop_action
+
+        self.net = MLP(
+            in_features=self.embedding_size,
+            out_features=self.action_size,
+            num_cells=self.num_cells,
+            dropout=self.dropout,
+            activation_class=nn.ReLU,
+        )
+
+    @override
+    def forward(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        action_mask: Tensor,
+    ) -> Tensor:
+        # Flatten feature dimensions
+        flat_masked_features = masked_features.flatten(
+            start_dim=-self.n_feature_dims
+        )
+        flat_feature_mask = feature_mask.flatten(
+            start_dim=-self.n_feature_dims
+        )
+        # Flatten batch dimensions
+        flat_masked_features = flat_masked_features.flatten(end_dim=-2)
+        flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
+        # We do not want to update the embedder weights using the Q-values, this is done separately in the training loop
+        with torch.no_grad():
+            embedding = self.embedder(flat_masked_features, flat_feature_mask)
+        qvalues = self.net(embedding)
+
+        # Unflatten batch dimensions
+        qvalues = qvalues.unflatten(
+            0, masked_features.shape[: -self.n_feature_dims]
+        )
+
+        # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
+        qvalues[~action_mask] = float("-inf")
+
+        # When trained in a hard budget context, the agent never learns anything about the stop action (0). This becomes a problem during evaluation when it **is** allowed to choose the stop action. Hence, we prevent it from choosing the stop action here. Note that this is not a problem when the agent is trained in a soft budget setting where it collects information about the stop action as well.
+        # Using hasattr only because we don't want to retrain soft budget methods
+        if hasattr(self, "allow_stop_action") and not self.allow_stop_action:
+            qvalues[..., 0] = float("-inf")
+
+        return qvalues
+
+
+@final
+class JAFAAgent(Agent):
+    def __init__(
+        self,
+        cfg: JAFAAgentConfig,
+        embedder: JAFAEmbedder,
+        embedding_size: int,  # size of the embedding produced by `embedder`
+        action_spec: TensorSpec,
+        action_mask_key: str,
+        module_device: torch.device,  # device to place nn.Modules on
+        n_feature_dims: int,  # how many dimensions the feature shape needs. Used to flatten the features before they are passed to the embedder
+        n_batches: int,  # total number of batches expected during training, needed for eps annealing
+        *,
+        allow_stop_action: bool = True,
+    ):
+        self.cfg = cfg
+        self.embedder = embedder
+        self.embedding_size = embedding_size
+        self.action_spec = action_spec
+        self.action_mask_key = action_mask_key
+        self.module_device = module_device
+        self.n_feature_dims = n_feature_dims
+        self.allow_stop_action = allow_stop_action
+
+        self.action_value_module = JAFAActionValueModule(
+            embedder=self.embedder,
+            embedding_size=self.embedding_size,
+            action_size=self.action_spec.n,  # pyright: ignore[reportAttributeAccessIssue]
+            num_cells=tuple(self.cfg.action_value_num_cells),
+            dropout=self.cfg.action_value_dropout,
+            n_feature_dims=self.n_feature_dims,
+            allow_stop_action=self.allow_stop_action,
+        ).to(self.module_device)
+
+        self.action_value_tdmodule = TensorDictModule(
+            module=self.action_value_module,
+            in_keys=["masked_features", "feature_mask", self.action_mask_key],
+            out_keys=["action_value"],
+        )
+
+        self.greedy_tdmodule = QValueModule(
+            spec=self.action_spec,
+            action_mask_key=self.action_mask_key,
+            action_value_key="action_value",
+            out_keys=["action", "action_value", "chosen_action_value"],
+        ).to(self.module_device)
+
+        self.greedy_policy_tdmodule = TensorDictSequential(
+            [self.action_value_tdmodule, self.greedy_tdmodule]
+        )
+
+        eps_annealing_num_steps = int(
+            n_batches * self.cfg.eps_annealing_fraction
+        )
+        self.egreedy_tdmodule = EGreedyModule(
+            spec=self.action_spec,
+            action_key="action",
+            action_mask_key=self.action_mask_key,
+            annealing_num_steps=eps_annealing_num_steps,
+            eps_init=self.cfg.eps_init,
+            eps_end=self.cfg.eps_end,
+        ).to(self.module_device)
+
+        self.egreedy_policy_tdmodule = TensorDictSequential(
+            [self.greedy_policy_tdmodule, self.egreedy_tdmodule]
+        )
+
+        self.loss_tdmodule = DQNLoss(
+            value_network=self.greedy_policy_tdmodule,
+            loss_function=self.cfg.loss_function,
+            delay_value=self.cfg.delay_value,
+            double_dqn=self.cfg.double_dqn,
+            action_space=self.action_spec,
+        ).to(self.module_device)
+
+        self.loss_tdmodule.make_value_estimator(
+            ValueEstimators.TDLambda,
+            gamma=self.cfg.gamma,
+            lmbda=self.cfg.lmbda,
+        )
+
+        if self.cfg.delay_value:
+            self.target_net_updater = SoftUpdate(
+                self.loss_tdmodule, eps=1 - self.cfg.update_tau
+            )
+        else:
+            self.target_net_updater = None
+
+        self.optimizer = optim.Adam(
+            self.loss_tdmodule.parameters(), lr=self.cfg.lr
+        )
+
+        # The jafa method does not use a replay buffer
+
+    @override
+    def get_exploitative_policy(self) -> TensorDictModuleBase:
+        return self.greedy_policy_tdmodule
+
+    @override
+    def get_exploratory_policy(self) -> TensorDictModuleBase:
+        return self.egreedy_policy_tdmodule
+
+    @override
+    def get_policy(self) -> TensorDictModuleBase:
+        return self.get_exploratory_policy()
+
+    @override
+    def get_rollout_info(
+        self, rollout_tds: list[TensorDictBase]
+    ) -> dict[str, Any]:
+        return {}
+
+    @override
+    def get_cheap_info(self) -> dict[str, Any]:
+        return {
+            "eps": self.egreedy_tdmodule.eps.item()  # pyright: ignore[reportCallIssue]
+        }
+
+    @override
+    def get_expensive_info(self) -> dict[str, Any]:
+        return {
+            "value net norm": module_norm(self.action_value_module.net),
+        }
+
+    @override
+    def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
+        # Initialize total loss dictionary
+        total_loss_dict = {"loss": 0.0}
+        td_errors = []
+
+        for _ in range(self.cfg.num_epochs):
+            td_copy = td.clone()
+            self.optimizer.zero_grad()
+            loss_td: TensorDictBase = self.loss_tdmodule(td_copy)
+            loss_tensor: Tensor = loss_td["loss"]
+            loss_tensor.backward()
+            nn.utils.clip_grad_norm_(
+                self.loss_tdmodule.parameters(),
+                max_norm=self.cfg.max_grad_norm,
+            )
+            self.optimizer.step()
+            # Update target network
+            if self.target_net_updater is not None:
+                self.target_net_updater.step()
+
+            td_errors.append(td_copy["td_error"])
+
+            # Accumulate losses
+            total_loss_dict["loss"] += loss_td["loss"].item()
+
+        # Anneal epsilon for epsilon greedy exploration
+        self.egreedy_tdmodule.step()
+
+        # Compute average loss
+        process_dict = {
+            k: v / self.cfg.num_epochs for k, v in total_loss_dict.items()
+        }
+        process_dict["td_error"] = torch.mean(torch.stack(td_errors)).item()
+
+        return process_dict
+
+    @override
+    def get_module_device(self) -> torch.device:
+        return self.module_device
+
+    @override
+    def set_module_device(self, device: torch.device) -> None:
+        self.module_device = device
+
+        # Send modules to device
+        self.action_value_module = self.action_value_module.to(
+            self.module_device
+        )
+        self.greedy_tdmodule = self.greedy_tdmodule.to(self.module_device)
+        self.egreedy_tdmodule = self.egreedy_tdmodule.to(self.module_device)
+
+    @override
+    def get_replay_buffer_device(self) -> None:
+        return None
+
+    @override
+    def set_replay_buffer_device(self, device: torch.device) -> None:
+        error_msg = "set_replay_buffer_device not yet supported for JAFAAgent"
+        raise ValueError(error_msg)

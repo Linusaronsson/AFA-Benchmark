@@ -1,0 +1,15 @@
+eval_hard_budgets:
+  default: [5, 10, 15]
+  actg: [3, 5, 10] # 20 features
+  cube_nm: [3, 5, 7, 10, 14] # 55 features
+  cube_nm_without_noise: [3, 5, 7, 10, 14] # 55 features
+  bank_marketing: [2, 4, 7] # 15 features
+  ckd: [2, 4, 7] # 20 features
+  cube: [3, 5, 10]
+  cube_without_noise: [3, 5, 10]
+  cube_nonuniform_costs: [2, 4, 7]
+  mnist: [10, 20, 30]
+  fashion_mnist: [10, 20, 30]
+  imagenette: [5, 10, 15]
+  miniboone: [5, 10, 15] # 40 features
+  physionet: [5, 10, 15] # 40 features

@@ -32,3 +32,4 @@ repos:
     rev: 1.35.0
     hooks:
       - id: basedpyright
+        pass_filenames: false

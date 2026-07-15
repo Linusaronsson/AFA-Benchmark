@@ -1,18 +1,18 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
+import hydra
 import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
+from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from afabench.common.naming import LEGACY_DATASET_KEY_ALIASES
-from afabench.eval.plotting_config import (
-    DATASET_NAME_MAPPING,
-    METHOD_NAME_MAPPING,
+from afabench.plotting.config import (
+    PlotEvalActionsConfig,
+    PlottingDisplayConfig,
 )
 
 if TYPE_CHECKING:
@@ -21,6 +21,9 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
 type Heatmap = Any
+
+PLOT_FONT_SIZE = 16
+PLOT_TITLE_FONT_SIZE = 18
 
 
 def create_dummy_data() -> pl.DataFrame:
@@ -84,37 +87,7 @@ def create_dummy_data() -> pl.DataFrame:
 
 
 def read_parquet(input_path: Path) -> pl.DataFrame:
-    return pl.read_parquet(input_path).with_columns(
-        dataset=pl.col("dataset").replace(LEGACY_DATASET_KEY_ALIASES)
-    )
-
-
-def parse_args() -> argparse.Namespace:
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Generate evaluation action heatmaps from results.",
-    )
-    parser.add_argument(
-        "input",
-        type=Path,
-        help="Input Parquet file with evaluation results.",
-    )
-    parser.add_argument(
-        "output_folder",
-        type=Path,
-        help="Output folder where plots will be saved",
-    )
-    parser.add_argument(
-        "--formats",
-        nargs="+",
-        default=["pdf"],
-        metavar="FORMAT",
-        help=(
-            "Output format(s) for plots (e.g. pdf svg png). "
-            "Multiple formats produce one file per format. Default: pdf"
-        ),
-    )
-    return parser.parse_args()
+    return pl.read_parquet(input_path)
 
 
 def assert_only_one_soft_budget_param_type(
@@ -190,10 +163,15 @@ def format_heatmap_axes(
     max_action: float,
     max_time: float,
     method: str,
+    plotting_config: PlottingDisplayConfig,
 ) -> None:
     """Format and label axes for a heatmap subplot."""
-    method_name = METHOD_NAME_MAPPING.get(method, method)
-    ax.set_title(method_name, fontsize=12, fontweight="bold")
+    method_name = plotting_config.method_name_mapping.get(method, method)
+    ax.set_title(
+        method_name,
+        fontsize=PLOT_FONT_SIZE,
+        fontweight="bold",
+    )
     ax.set_xlabel("Time step")
     ax.set_ylabel("Action index")
     ax.set_xticks(np.arange(0, int(max_time) + 1, max(1, int(max_time) // 5)))
@@ -206,101 +184,11 @@ def format_heatmap_axes(
     ax.set_yticklabels(y_ticks + 1)
 
 
-def create_action_heatmap(
-    dataframe: pl.DataFrame,
-    dataset: str,
-    output_folder: Path,
-    extra_title: str,
-    formats: Sequence[str] = ("pdf",),
-) -> None:
-    """
-    Create action heatmaps for all methods in a dataset.
-
-    One figure per dataset with subplots for each method in a 4-column layout.
-    X-axis: time (n_selections_performed)
-    Y-axis: action index
-    """
-    # Filter out action 0
-    dataframe = dataframe.filter(pl.col("action_performed") != 0)
-    methods = sorted(dataframe["afa_method"].unique())
-    num_methods = len(methods)
-    num_cols = 4
-    num_rows = (num_methods + num_cols - 1) // num_cols
-
-    # Calculate global max_action and max_time across all methods
-    global_max_action = cast("int", dataframe["action_performed"].max())
-    global_max_time = cast("int", dataframe["n_selections_performed"].max())
-
-    fig, axes = plt.subplots(
-        num_rows, num_cols, figsize=(5 * num_cols, 4 * num_rows), squeeze=False
-    )
-
-    for idx, method in enumerate(methods):
-        row = idx // num_cols
-        col = idx % num_cols
-        ax = axes[row, col]
-        df_method = dataframe.filter(pl.col("afa_method") == method)
-
-        heatmap = normalize_heatmap_by_timestep(
-            df_method, global_max_action, global_max_time
-        )
-
-        ax.imshow(
-            heatmap,
-            cmap="Blues",
-            aspect="auto",
-            origin="lower",
-            vmin=0.0,
-            vmax=1.0,
-        )
-
-        format_heatmap_axes(ax, global_max_action, global_max_time, method)
-
-    # Hide any unused subplots
-    for idx in range(num_methods, num_rows * num_cols):
-        row = idx // num_cols
-        col = idx % num_cols
-        axes[row, col].set_visible(False)
-
-    dataset_name = DATASET_NAME_MAPPING.get(dataset, dataset)
-    fig.suptitle(
-        f"Action Heatmaps - {dataset_name} - {extra_title}",
-        fontsize=14,
-        y=0.98,
-    )
-    plt.subplots_adjust(
-        left=0.08, right=0.92, top=0.84, bottom=0.1, wspace=0.3
-    )
-
-    for fmt in formats:
-        output_path = output_folder / f"{dataset}_action_heatmap.{fmt}"
-        fig.savefig(output_path, bbox_inches="tight", dpi=300)
-    plt.close(fig)
-
-
-def produce_plots(
-    df: pl.DataFrame,
-    output_folder: Path,
-    extra_title: str,
-    formats: Sequence[str] = ("pdf",),
-) -> None:
-    for keys_tuple, dataset_df in tqdm(
-        df.group_by("dataset"), desc="Creating action heatmaps"
-    ):
-        dataset_name = keys_tuple[0]
-        create_action_heatmap(
-            dataset_df,
-            dataset_name,
-            output_folder,
-            extra_title=extra_title,
-            formats=formats,
-        )
-
-
 def produce_separate_plots(
     df: pl.DataFrame,
     output_folder: Path,
     budget_type: str,
+    plotting_config: PlottingDisplayConfig,
     formats: Sequence[str] = ("pdf",),
 ) -> None:
     """
@@ -341,9 +229,9 @@ def produce_separate_plots(
         dataset_output_folder = output_folder / dataset_name
         dataset_output_folder.mkdir(parents=True, exist_ok=True)
 
-        # Create the heatmap plot with 4 columns
+        # Create the heatmap plot with 5 columns
         num_methods = len(methods)
-        num_cols = 4
+        num_cols = 5
         num_rows = (num_methods + num_cols - 1) // num_cols
 
         # Calculate global max_action and max_time across all methods in group
@@ -353,7 +241,7 @@ def produce_separate_plots(
         fig, axes = plt.subplots(
             num_rows,
             num_cols,
-            figsize=(5 * num_cols, 4 * num_rows),
+            figsize=(3 * num_cols, 4 * num_rows),
             squeeze=False,
         )
 
@@ -376,7 +264,9 @@ def produce_separate_plots(
                 vmax=1.0,
             )
 
-            format_heatmap_axes(ax, global_max_action, global_max_time, method)
+            format_heatmap_axes(
+                ax, global_max_action, global_max_time, method, plotting_config
+            )
 
         # Hide any unused subplots
         for idx in range(num_methods, num_rows * num_cols):
@@ -384,12 +274,12 @@ def produce_separate_plots(
             col = idx % num_cols
             axes[row, col].set_visible(False)
 
-        dataset_display_name = DATASET_NAME_MAPPING.get(
+        dataset_display_name = plotting_config.dataset_name_mapping.get(
             dataset_name, dataset_name
         )
         fig.suptitle(
             f"Action Heatmaps - {dataset_display_name} - {extra_title}",
-            fontsize=14,
+            fontsize=PLOT_TITLE_FONT_SIZE,
             y=0.98,
         )
         plt.subplots_adjust(
@@ -405,15 +295,26 @@ def produce_separate_plots(
         plt.close(fig)
 
 
-def main() -> None:
-    args = parse_args()
-    args.output_folder.mkdir(parents=True, exist_ok=True)
+@hydra.main(
+    version_base=None,
+    config_path="../../extra/conf/scripts/plotting/plot_eval_actions",
+    config_name="config",
+)
+def main(cfg: PlotEvalActionsConfig) -> None:
+    cfg = cast("PlotEvalActionsConfig", OmegaConf.to_object(cfg))
+    assert isinstance(cfg, PlotEvalActionsConfig)
 
-    evaluation_df = read_parquet(args.input)
+    plt.rcParams["font.family"] = cfg.plotting.plot_font_family
+    plt.rcParams["font.size"] = PLOT_FONT_SIZE
+
+    output_folder = Path(cfg.output_folder)
+    output_folder.mkdir(parents=True, exist_ok=True)
+
+    evaluation_df = read_parquet(Path(cfg.input))
     evaluation_df = assert_only_one_soft_budget_param_type(evaluation_df)
 
-    hard_budget_folder = args.output_folder / "hard_budget"
-    soft_budget_folder = args.output_folder / "soft_budget"
+    hard_budget_folder = output_folder / "hard_budget"
+    soft_budget_folder = output_folder / "soft_budget"
 
     hard_budget_folder.mkdir(parents=True, exist_ok=True)
     soft_budget_folder.mkdir(parents=True, exist_ok=True)
@@ -431,13 +332,15 @@ def main() -> None:
         df=evaluation_df_hard_budget,
         output_folder=hard_budget_folder,
         budget_type="hard_budget",
-        formats=args.formats,
+        plotting_config=cfg.plotting,
+        formats=cfg.formats,
     )
     produce_separate_plots(
         df=evaluation_df_soft_budget,
         output_folder=soft_budget_folder,
         budget_type="soft_budget",
-        formats=args.formats,
+        plotting_config=cfg.plotting,
+        formats=cfg.formats,
     )
 
 

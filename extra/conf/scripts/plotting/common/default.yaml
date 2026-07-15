@@ -1,0 +1,154 @@
+plot_width: 13
+plot_height: 5
+plot_font_family: Libertinus Serif
+
+method_name_mapping:
+  eddi_external: EDDI
+  eddi_builtin: EDDI(builtin)
+  gdfs: GDFS
+  dime: DIME
+  jafa: JAFA
+  ol_with_mask: OL(with-mask)
+  ol_without_mask: OL(without-mask)
+  odin_model_based: ODIN(model-based)
+  odin_model_free: ODIN(model-free)
+  aaco: AACO
+  aaco_nn: AACO(NN)
+  permutation: PT
+  cae: CAE
+  random_dummy: Random
+  sequential_dummy: Sequential dummy
+
+method_policy_family_mapping:
+  eddi_external: eddi
+  eddi_builtin: eddi
+  gdfs: gdfs
+  dime: dime
+  jafa: jafa
+  ol_with_mask: ol
+  ol_without_mask: ol
+  odin_model_based: odin
+  odin_model_free: odin
+  aaco: aaco
+  aaco_nn: aaco
+  permutation: static
+  cae: static
+  random_dummy: dummy
+  sequential_dummy: dummy
+
+method_family_color_schemes:
+  tol_muted:
+    eddi: '#332288'
+    gdfs: '#88CCEE'
+    dime: '#44AA99'
+    jafa: '#117733'
+    ol: '#999933'
+    odin: '#DDCC77'
+    aaco: '#CC6677'
+    static: '#882255'
+    dummy: '#AA4499'
+  colorbrewer_set1:
+    eddi: '#E41A1C'
+    gdfs: '#377EB8'
+    dime: '#4DAF4A'
+    jafa: '#984EA3'
+    ol: '#FF7F00'
+    odin: '#FFFF33'
+    aaco: '#A65628'
+    static: '#F781BF'
+    dummy: '#999999'
+  colorbrewer_set2:
+    eddi: '#66C2A5'
+    gdfs: '#FC8D62'
+    dime: '#8DA0CB'
+    jafa: '#E78AC3'
+    ol: '#A6D854'
+    odin: '#FFD92F'
+    aaco: '#E5C494'
+    static: '#B3B3B3'
+    dummy: '#B3B3B3'
+  colorbrewer_dark2:
+    eddi: '#1B9E77'
+    gdfs: '#D95F02'
+    dime: '#7570B3'
+    jafa: '#E7298A'
+    ol: '#66A61E'
+    odin: '#E6AB02'
+    aaco: '#A6761D'
+    static: '#666666'
+    dummy: '#666666'
+
+active_method_color_scheme: colorbrewer_dark2
+
+dataset_name_mapping:
+  cube: CUBE
+  cube_nonuniform_costs: CUBE-NUC
+  cube_nm: CUBE-NM
+  cube_nm_without_noise: CUBE-NM-noiseless
+  synthetic_mnist: Synthetic MNIST
+  cube_without_noise: CUBE-noiseless
+  synthetic_mnist_without_noise: Synthetic-MNIST-noiseless
+  mnist: MNIST
+  actg: ACTG175
+  bank_marketing: BankMarketing
+  ckd: CKD
+  diabetes: Diabetes
+  fashion_mnist: FashionMNIST
+  miniboone: MiniBooNE
+  physionet: PhysioNet
+  imagenette: Imagenette
+
+datasets_with_f_score:
+  - physionet
+  - bank_marketing
+
+dataset_sets:
+  cube_nm_pair:
+    - cube_nm
+    - cube_nm_without_noise
+  set1:
+    - cube
+    - cube_without_noise
+    - cube_nm
+    - cube_nm_without_noise
+    - miniboone
+    - bank_marketing
+    - diabetes
+    - physionet
+    - actg
+    - fashion_mnist
+  set2:
+    - imagenette
+    - ckd
+    - mnist
+    - cube_nonuniform_costs
+  all:
+    - cube
+    - cube_without_noise
+    - cube_nm
+    - cube_nm_without_noise
+    - miniboone
+    - bank_marketing
+    - diabetes
+    - physionet
+    - actg
+    - fashion_mnist
+    - imagenette
+    - ckd
+    - mnist
+    - cube_nonuniform_costs
+  kdd26:
+    - cube
+    - cube_nm
+    - cube_nm_without_noise
+    - bank_marketing
+    - miniboone
+    - actg
+    - physionet
+    - fashion_mnist
+    - imagenette
+    - ckd
+    - mnist
+    - cube_nonuniform_costs
+
+color_palette_name: Dark2

@@ -4,10 +4,11 @@ hydra:
     - file://extra/conf/global
 
 defaults:
+  - eval
   - hydra: custom
   - components/initializers@initializer: ???
   - components/unmaskers@unmasker: ???
-  - override hydra/job_logging: colorlog
+  - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
   - _self_
@@ -24,8 +25,5 @@ eval_only_n_samples: null
 batch_size: 1
 hard_budget: null
 soft_budget_param: null
-stop_shield_delta: null
-dual_lambda: null
 use_wandb: false
 smoke_test: false
-log_cmi: false

@@ -1,0 +1,9 @@
+methods:
+  - ol_without_mask
+  - ol_with_mask
+  - random_dummy
+  - sequential_dummy
+  - cae
+  - permutation
+  - aaco
+  - aaco_nn

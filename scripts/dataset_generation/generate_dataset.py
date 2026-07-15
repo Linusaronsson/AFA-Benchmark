@@ -7,14 +7,12 @@ from pathlib import Path
 from typing import Any, cast
 
 import hydra
+from omegaconf import OmegaConf
 
-from afabench.common.bundle import save_bundle
-from afabench.common.config_classes import (
-    DatasetGenerationConfig,
-    SplitRatioConfig,
-)
-from afabench.common.custom_types import AFADataset
-from afabench.common.registry import get_class
+from afabench.core.bundle_system.bundle import save_bundle
+from afabench.core.registry import get_class
+from afabench.core.types import AFADataset
+from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
 
 log = logging.getLogger(__name__)
 
@@ -99,6 +97,7 @@ def generate_and_save_split(
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:
+    cfg = cast("DatasetGenerationConfig", OmegaConf.to_object(cfg))
     log.info(f"Generating {cfg.dataset.class_name} to {cfg.save_path}")
     for instance_idx, seed in zip(
         cfg.instance_indices, cfg.seeds, strict=True

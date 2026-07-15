@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from afabench.common.custom_types import Features, Label
-from afabench.common.initializers import MutualInformationInitializer
+from afabench.components.initializers import MutualInformationInitializer
+from afabench.core.types import Features, Label
 
 
 @pytest.fixture

@@ -5,10 +5,26 @@ Provides utilities for loading and processing Snakemake configuration files
 with support for methods, datasets, budgets, and other common parameters.
 """
 
+from collections.abc import Mapping, Sequence
+from typing import Any
+
+# Snakemake config values are intentionally heterogeneous.
+# ruff: noqa: ANN401
+
 NO_PRETRAIN_STR = "NO_PRETRAIN"
 
+type ConfigDict = Mapping[str, Any]
+type BudgetParam = int | float | str
+type NullableParam = BudgetParam | None
+type BudgetCombination = tuple[
+    BudgetParam,
+    BudgetParam,
+    BudgetParam,
+    BudgetParam,
+]
 
-def load_config(config):
+
+def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     """
     Load and validate configuration variables from the Snakemake config.
 
@@ -30,57 +46,22 @@ def load_config(config):
     # Basic Configuration
     # ========================================================================
 
-    dataset_instance_indices = config.get("dataset_instance_indices", (0, 1))
+    dataset_instance_indices = config.get(
+        "dataset_instance_indices", (0, 1, 2, 3, 4)
+    )
     initializer = config.get("initializer", "cold")
-    train_initializer = config.get("train_initializer", initializer)
-    eval_initializer = config.get("eval_initializer", initializer)
     eval_dataset_split = config.get(
         "eval_dataset_split", "test"
     )  # switch to val while developing, and train if debugging
-    stop_shield_deltas = [
-        str(delta) for delta in config.get("stop_shield_deltas", [])
-    ]
-    dual_lambdas = [str(value) for value in config.get("dual_lambdas", [])]
-    cube_nm_ar_budget_mode = config.get("cube_nm_ar_budget_mode", "hard")
     device = config.get("device", "cpu")
-    default_compute_platform = config.get("default_compute_platform", "cpu")
-    compute_platform_devices = config.get(
-        "compute_platform_devices",
-        {"cpu": "cpu", "gpu": "cuda"},
-    )
-    classifier_compute_platform = config.get(
-        "classifier_compute_platform",
-        default_compute_platform,
-    )
-    slurm_extra_by_compute_platform = config.get(
-        "slurm_extra_by_compute_platform",
-        {},
-    )
-    use_wandb = config.get("use_wandb", False)
+    use_wandb = config.get("use_wandb", True)
     smoke_test = config.get("smoke_test", False)
-
-    if default_compute_platform not in compute_platform_devices:
-        msg = (
-            "Expected default_compute_platform to be one of "
-            f"{sorted(compute_platform_devices)}, got "
-            f"{default_compute_platform!r}."
-        )
-        raise ValueError(msg)
-    if classifier_compute_platform not in compute_platform_devices:
-        msg = (
-            "Expected classifier_compute_platform to be one of "
-            f"{sorted(compute_platform_devices)}, got "
-            f"{classifier_compute_platform!r}."
-        )
-        raise ValueError(msg)
 
     # ========================================================================
     # Pretrained Models Configuration
     # ========================================================================
 
-    pretrain_mapping = config.get("pretrain_mapping", None)
-    if pretrain_mapping is None:
-        raise ValueError("Expected pretrain_mapping to be provided.")
+    pretrain_mapping = _required_config(config, "pretrain_mapping")
 
     # Extract pretrain script names and params for each pretrained model
     pretrain_model_script_names = {
@@ -92,30 +73,17 @@ def load_config(config):
         model_name: " ".join(model_config.get("pretrain_params", []))
         for model_name, model_config in pretrain_mapping.items()
     }
-    pretrain_compute_platforms = {
-        model_name: model_config.get(
-            "compute_platform",
-            default_compute_platform,
-        )
-        for model_name, model_config in pretrain_mapping.items()
-    }
-    _validate_compute_platforms(
-        pretrain_compute_platforms,
-        compute_platform_devices,
-        label="pretrain_mapping",
-    )
 
     # ========================================================================
     # Methods Configuration
     # ========================================================================
 
-    method_options = config.get("method_options", None)
-    if method_options is None:
-        raise ValueError("Expected method_options to be provided.")
+    method_options = _required_config(config, "method_options")
 
     methods = config.get("methods", [])
     if methods is None:
-        raise ValueError("Expected methods to be provided.")
+        message = "Expected methods to be provided."
+        raise ValueError(message)
 
     method_sets = config.get("method_sets", {})
     # Filter out methods that have not been enabled by the "methods" option
@@ -149,35 +117,17 @@ def load_config(config):
         for method, options in method_options.items()
         if method in methods and "train_script_name" in options
     }
-    method_compute_platforms = {
-        method: options.get("compute_platform", default_compute_platform)
-        for method, options in method_options.items()
-        if method in methods
-    }
-    _validate_compute_platforms(
-        method_compute_platforms,
-        compute_platform_devices,
-        label="method_options",
-    )
 
     # Optional method-specific classifier training config.
     # Format in method_options:
     #   classifier:
-    #     script_name: "malearn_classifier"
-    #     script_params: ["model_name=marf", ...]
+    #     script_name: "some_classifier"
+    #     script_params: [...]
     method_classifier_script_names = {}
     method_classifier_script_params = {}
-    method_to_classifier_bundle_method = {}
     for method, options in method_options.items():
         if method not in methods:
             continue
-        classifier_bundle_method = options.get(
-            "classifier_bundle_method", None
-        )
-        if isinstance(classifier_bundle_method, str):
-            method_to_classifier_bundle_method[method] = (
-                classifier_bundle_method
-            )
         classifier_cfg = options.get("classifier", None)
         if not isinstance(classifier_cfg, dict):
             continue
@@ -195,36 +145,11 @@ def load_config(config):
         for method, options in method_options.items()
         if method in methods and "pretrained_model_name" in options
     }
-    method_to_pretrained_model_initializer = {
-        method: options.get("pretrained_model_initializer", train_initializer)
-        for method, options in method_options.items()
-        if method in methods and "pretrained_model_name" in options
-    }
-
-    # Optional second pretrained artifact used for generative restoration
-    # (e.g. a PVAE that completes training-missing features). Passed to the
-    # train script as restoration_pvae_bundle_path.
-    method_to_restoration_model = {
-        method: options["restoration_model_name"]
-        for method, options in method_options.items()
-        if method in methods and "restoration_model_name" in options
-    }
-    method_to_restoration_model_initializer = {
-        method: options.get(
-            "restoration_model_initializer", train_initializer
-        )
-        for method, options in method_options.items()
-        if method in methods and "restoration_model_name" in options
-    }
 
     # Filter pretrain_names to only include those needed by selected methods
-    pretrain_names_needed = set(method_to_pretrained_model.values()) | set(
-        method_to_restoration_model.values()
-    )
+    pretrain_names_needed = set(method_to_pretrained_model.values())
     pretrain_names = [
-        name
-        for name in pretrain_mapping.keys()
-        if name in pretrain_names_needed
+        name for name in pretrain_mapping if name in pretrain_names_needed
     ]
 
     # Default method_specific_params to empty list if not provided
@@ -262,9 +187,7 @@ def load_config(config):
     # Dataset Configuration
     # ========================================================================
 
-    datasets = config.get("datasets", None)
-    if datasets is None:
-        raise ValueError("Expected datasets to be provided.")
+    datasets = _required_config(config, "datasets")
 
     # Extract eval_batch_size from method_options
     # Format: {method: {dataset: batch_size}}
@@ -294,21 +217,15 @@ def load_config(config):
     # Budget and Unmasker Configuration
     # ========================================================================
 
-    unmaskers_raw = config.get("unmaskers", None)
-    if unmaskers_raw is None:
-        raise ValueError("Expected unmaskers to be provided.")
+    unmaskers_raw = _required_config(config, "unmaskers")
     unmaskers = _fill_missing_datasets_with_default(unmaskers_raw, datasets)
 
-    eval_hard_budgets_raw = config.get("eval_hard_budgets", None)
-    if eval_hard_budgets_raw is None:
-        raise ValueError("Expected eval_hard_budgets to be provided.")
+    eval_hard_budgets_raw = _required_config(config, "eval_hard_budgets")
     eval_hard_budgets = _fill_missing_datasets_with_default(
         eval_hard_budgets_raw, datasets
     )
 
-    soft_budget_params_raw = config.get("soft_budget_params", None)
-    if soft_budget_params_raw is None:
-        raise ValueError("Expected soft_budget_params to be provided.")
+    soft_budget_params_raw = _required_config(config, "soft_budget_params")
 
     # Fill in missing datasets for each method's soft budget params
     soft_budget_params = {
@@ -320,9 +237,7 @@ def load_config(config):
     # Classifier Names Configuration
     # ========================================================================
 
-    classifier_names_raw = config.get("classifier_names", None)
-    if classifier_names_raw is None:
-        raise ValueError("Expected classifier_names to be provided.")
+    classifier_names_raw = _required_config(config, "classifier_names")
     classifier_names = _fill_missing_datasets_with_default(
         classifier_names_raw, datasets
     )
@@ -378,47 +293,31 @@ def load_config(config):
         hard_budget_ignored_datasets,
         soft_budget_ignored_datasets,
     )
+    datasets_used_per_pretrain_name = _compute_datasets_used_per_pretrain_name(
+        pretrain_names,
+        method_to_pretrained_model,
+        datasets_used_per_method,
+    )
 
     return {
         "NO_PRETRAIN_STR": NO_PRETRAIN_STR,
         "DATASET_INSTANCE_INDICES": dataset_instance_indices,
         "INITIALIZER": initializer,
-        "TRAIN_INITIALIZER": train_initializer,
-        "EVAL_INITIALIZER": eval_initializer,
         "EVAL_DATASET_SPLIT": eval_dataset_split,
-        "STOP_SHIELD_DELTAS": stop_shield_deltas,
-        "DUAL_LAMBDAS": dual_lambdas,
-        "CUBE_NM_AR_BUDGET_MODE": cube_nm_ar_budget_mode,
         "DEVICE": device,
-        "DEFAULT_COMPUTE_PLATFORM": default_compute_platform,
-        "COMPUTE_PLATFORM_DEVICES": compute_platform_devices,
-        "CLASSIFIER_COMPUTE_PLATFORM": classifier_compute_platform,
-        "SLURM_EXTRA_BY_COMPUTE_PLATFORM": slurm_extra_by_compute_platform,
         "USE_WANDB": use_wandb,
         "SMOKE_TEST": smoke_test,
         "PRETRAIN_NAMES": pretrain_names,
         "PRETRAIN_SCRIPT_NAMES": pretrain_model_script_names,
         "PRETRAIN_PARAMS": pretrain_model_params,
-        "PRETRAIN_COMPUTE_PLATFORMS": pretrain_compute_platforms,
         "METHOD_OPTIONS": method_options,
         "METHODS": methods,
         "METHODS_WITH_PRETRAINING_STAGE": methods_with_pretraining_stage,
         "METHODS_WITHOUT_PRETRAINING_STAGE": methods_without_pretraining_stage,
         "METHOD_TRAIN_SCRIPT_NAMES": method_train_script_names,
-        "METHOD_COMPUTE_PLATFORMS": method_compute_platforms,
         "METHOD_CLASSIFIER_SCRIPT_NAMES": method_classifier_script_names,
         "METHOD_CLASSIFIER_SCRIPT_PARAMS": method_classifier_script_params,
-        "METHOD_TO_CLASSIFIER_BUNDLE_METHOD": (
-            method_to_classifier_bundle_method
-        ),
         "METHOD_TO_PRETRAINED_MODEL": method_to_pretrained_model,
-        "METHOD_TO_PRETRAINED_MODEL_INITIALIZER": (
-            method_to_pretrained_model_initializer
-        ),
-        "METHOD_TO_RESTORATION_MODEL": method_to_restoration_model,
-        "METHOD_TO_RESTORATION_MODEL_INITIALIZER": (
-            method_to_restoration_model_initializer
-        ),
         "METHOD_SPECIFIC_PARAMS": method_specific_params,
         "DATASETS": datasets,
         "UNMASKERS": unmaskers,
@@ -429,6 +328,7 @@ def load_config(config):
         "HARD_BUDGET_IGNORED_DATASETS": hard_budget_ignored_datasets,
         "SOFT_BUDGET_IGNORED_DATASETS": soft_budget_ignored_datasets,
         "DATASETS_USED_PER_METHOD": datasets_used_per_method,
+        "DATASETS_USED_PER_PRETRAIN_NAME": datasets_used_per_pretrain_name,
     }
 
 
@@ -437,7 +337,17 @@ def load_config(config):
 # ============================================================================
 
 
-def _fill_missing_datasets_with_default(config_dict, datasets):
+def _required_config(config: ConfigDict, key: str) -> Any:
+    value = config.get(key, None)
+    if value is None:
+        message = f"Expected {key} to be provided."
+        raise ValueError(message)
+    return value
+
+
+def _fill_missing_datasets_with_default(
+    config_dict: dict[str, Any], datasets: Sequence[str]
+) -> dict[str, Any]:
     """Fill in missing datasets with the default value."""
     return config_dict | {
         dataset: config_dict["default"]
@@ -446,37 +356,18 @@ def _fill_missing_datasets_with_default(config_dict, datasets):
     }
 
 
-def _validate_compute_platforms(
-    platforms: dict[str, str],
-    compute_platform_devices: dict[str, str],
-    *,
-    label: str,
-) -> None:
-    valid_platforms = set(compute_platform_devices)
-    invalid_entries = {
-        name: platform
-        for name, platform in platforms.items()
-        if platform not in valid_platforms
-    }
-    if not invalid_entries:
-        return
-    msg = (
-        f"Invalid compute_platform entries in {label}: {invalid_entries}. "
-        f"Expected one of {sorted(valid_platforms)}."
-    )
-    raise ValueError(msg)
-
-
 def _create_budget_combinations(
-    method,
-    dataset,
-    eval_hard_budgets,
-    soft_budget_params,
-    eval_to_train_hard_budget_mapping,
-    use_max_hard_budget_when_training_soft_budget: bool = False,
-    ignore_hard_budgets: bool = False,
-    ignore_soft_budgets: bool = False,
-):
+    method: str,
+    dataset: str,
+    eval_hard_budgets: Sequence[BudgetParam],
+    soft_budget_params: Sequence[Sequence[NullableParam]],
+    eval_to_train_hard_budget_mapping: dict[
+        str, dict[str, dict[BudgetParam, BudgetParam]]
+    ],
+    use_max_hard_budget_when_training_soft_budget: bool = False,  # noqa: FBT002
+    ignore_hard_budgets: bool = False,  # noqa: FBT002
+    ignore_soft_budgets: bool = False,  # noqa: FBT002
+) -> list[BudgetCombination]:
     """
     Create budget parameter tuples for a method-dataset pair.
 
@@ -537,15 +428,20 @@ def _create_budget_combinations(
     return result
 
 
-def _normalize_nullable_param(value):
+def _normalize_nullable_param(value: NullableParam) -> BudgetParam:
     if value is None:
         return "null"
     return value
 
 
 def _get_train_hard_budget_from_eval(
-    method, dataset, eval_budget, eval_to_train_hard_budget_mapping
-):
+    method: str,
+    dataset: str,
+    eval_budget: BudgetParam,
+    eval_to_train_hard_budget_mapping: dict[
+        str, dict[str, dict[BudgetParam, BudgetParam]]
+    ],
+) -> BudgetParam:
     """
     Get the training hard budget for a given evaluation hard budget.
 
@@ -573,11 +469,11 @@ def _get_train_hard_budget_from_eval(
 
 
 def _compute_datasets_used_per_method(
-    methods,
-    datasets,
-    hard_budget_ignored_datasets,
-    soft_budget_ignored_datasets,
-):
+    methods: Sequence[str],
+    datasets: Sequence[str],
+    hard_budget_ignored_datasets: Mapping[str, Sequence[str]],
+    soft_budget_ignored_datasets: Mapping[str, Sequence[str]],
+) -> dict[str, list[str]]:
     """
     Compute which datasets are actually used for each method.
 
@@ -606,5 +502,24 @@ def _compute_datasets_used_per_method(
             if not (dataset in hard_ignored and dataset in soft_ignored)
         ]
         datasets_used[method] = used_datasets
+
+    return datasets_used
+
+
+def _compute_datasets_used_per_pretrain_name(
+    pretrain_names: Sequence[str],
+    method_to_pretrained_model: Mapping[str, str],
+    datasets_used_per_method: Mapping[str, Sequence[str]],
+) -> dict[str, list[str]]:
+    """Compute which datasets are needed for each shared pretrained model."""
+    datasets_used = {pretrain_name: [] for pretrain_name in pretrain_names}
+
+    for method, pretrain_name in method_to_pretrained_model.items():
+        if pretrain_name not in datasets_used:
+            continue
+
+        for dataset in datasets_used_per_method[method]:
+            if dataset not in datasets_used[pretrain_name]:
+                datasets_used[pretrain_name].append(dataset)
 
     return datasets_used

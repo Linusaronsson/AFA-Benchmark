@@ -1,0 +1,41 @@
+# Maps to methods in `methods.yaml`
+method_sets:
+  rl:
+    - jafa
+    - odin_model_based
+    - ol_with_mask
+  dummy:
+    - random_dummy
+    - sequential_dummy
+  odin:
+    - odin_model_free
+    - odin_model_based
+  ol:
+    - ol_without_mask
+    - ol_with_mask
+  aaco:
+    - aaco
+    - aaco_nn
+  static:
+    - cae
+    - permutation
+  eddi:
+    - eddi_builtin
+    - eddi_external
+  # Methods that we compare heatmaps for
+  heatmap_comparison:
+    - ol_with_mask
+    - aaco
+    - gdfs
+    - eddi_external
+    - jafa
+  main:
+  - jafa
+  - odin_model_free
+  - ol_without_mask
+  - random_dummy
+  - gdfs
+  - eddi_external
+  - dime
+  - cae
+  - aaco

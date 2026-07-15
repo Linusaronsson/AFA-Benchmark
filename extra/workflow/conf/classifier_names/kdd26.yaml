@@ -1,0 +1,3 @@
+classifier_names:
+  default: "masked_mlp_classifier"
+  imagenette: "masked_vit_classifier"

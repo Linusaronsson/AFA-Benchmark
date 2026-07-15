@@ -1,7 +1,7 @@
 import torch
 
-from afabench.common.afa_methods import RandomDummyAFAMethod
-from afabench.common.custom_types import (
+from afabench.components.methods.dummy import RandomWithoutClassifierAFAMethod
+from afabench.core.types import (
     AFASelection,
     FeatureMask,
     Features,
@@ -9,12 +9,12 @@ from afabench.common.custom_types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.eval.eval import process_batch
+from afabench.evaluation.eval import process_batch
 
 
 def test_random_dummy_method_always_selects_0() -> None:
-    """Test that setting prob_select_0=1 in RandomDummyAFAMethod always performs the 0 selection."""
-    method = RandomDummyAFAMethod(
+    """Test that setting prob_select_0=1 in RandomWithoutClassifierAFAMethod always performs the 0 selection."""
+    method = RandomWithoutClassifierAFAMethod(
         n_classes=2,
         prob_select_0=1.0,
         device=torch.device("cpu"),

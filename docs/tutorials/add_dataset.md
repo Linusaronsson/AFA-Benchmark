@@ -1,19 +1,32 @@
-# Adding a New Dataset
+# Adding a new dataset
 
 ## Overview
 
 Datasets in AFA-Benchmark are serialized as **bundles** (directories containing the dataset data and metadata) and are deserialized by methods during training and evaluation. To add a new dataset to the benchmark, you need to define a dataset class, configure how it's generated, register it for deserialization, and integrate it with the pipeline and plotting system.
 
-## Step-by-Step Guide
+## Step-by-step guide
 
 ### 1. Define a dataset class
 
-Define a dataset class in `afabench/common/datasets/datasets.py` that implements the `AFADataset` protocol.
+Define a dataset class in `afabench/datasets/datasets.py` that implements the `AFADataset` protocol from `afabench/core/types.py`.
 
 **Minimal example:**
 
 
 ```python
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Self, override
+
+import torch
+import torch.nn.functional as F
+from torch import Tensor
+from torch.utils.data import Dataset
+
+from afabench.core.types import AFADataset
+from afabench.datasets.utils import default_create_subset
+
+
 class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @classmethod
     @override
@@ -34,17 +47,14 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def create_subset(self, indices: Sequence[int]) -> Self:
         return default_create_subset(self, indices)
 
-    def __init__(
-        self,
-        n_samples: int
-    ):
+    def __init__(self, n_samples: int):
         super().__init__()
         self.n_samples = n_samples
 
         self.features = torch.randn(n_samples, 5)
         self.labels = F.one_hot(
             torch.randint(low=0, high=3, size=(self.n_samples,)),
-            num_classes=3
+            num_classes=3,
         ).float()
 
     @override
@@ -52,7 +62,7 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return self.features[idx], self.labels[idx]
 
     @override
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.features)
 
     @override
@@ -67,7 +77,7 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "labels": self.labels,
                 "config": {
                     "n_samples": self.n_samples,
-                }
+                },
             },
             path / "dataset.pt",
         )
@@ -84,6 +94,8 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return obj
 ```
 
+If your dataset is synthetic and should vary by dataset instance, make `accepts_seed()` return `True` and add a `seed` argument to `__init__`. The dataset generation script will pass one seed per instance automatically.
+
 ### 2. Create an entry in dataset generation config
 
 Create a config file in `extra/conf/scripts/dataset_generation/dataset/` (e.g., `my_dataset.yaml`) to specify how the dataset should be generated:
@@ -95,29 +107,24 @@ kwargs:
   # Add other constructor arguments as needed
 ```
 
-The `class_name` must match the name of your dataset class, and `kwargs` are passed to the `__init__` method.
+The `class_name` must match the name of your dataset class in the registry, and `kwargs` are passed to the `__init__` method. The file name is the Hydra dataset key used by the pipeline, so the example above is selected with `dataset=my_dataset`.
 
 ### 3. Register the dataset class
 
-Add your dataset class to the `REGISTERED_CLASSES` dictionary in `afabench/common/registry.py`:
+Add your dataset class to the `REGISTERED_CLASSES` dictionary in `afabench/core/registry.py`:
 
 ```python
 REGISTERED_CLASSES = {
     # ... existing entries ...
-    "MyDataset": "afabench.common.datasets.datasets.MyDataset",
+    "MyDataset": "afabench.datasets.datasets.MyDataset",
 }
 ```
 
-This allows methods to deserialize your dataset from bundles during training and evaluation.
+This allows the dataset generation script and methods to deserialize your dataset from bundles during training and evaluation via `afabench.core.registry.get_class()`.
 
 ### 4. Add to the Snakemake pipeline
 
-List your dataset in one of the dataset configuration files in `extra/workflow/conf/`. Common options are:
-
-- `datasets_main.yaml` - Main production datasets
-- `datasets_full.yaml` - Full set including experimental datasets
-
-For example, in `datasets_main.yaml`:
+List your dataset in one of the dataset configuration files in `extra/workflow/conf/datasets/`. For example, in `extra/workflow/conf/datasets/all.yaml`:
 
 ```yaml
 datasets:
@@ -125,32 +132,30 @@ datasets:
   # ... other datasets ...
 ```
 
+The pipeline will generate `train.bundle`, `val.bundle`, and `test.bundle` under `extra/output/datasets/my_dataset/{instance_idx}/` for each selected dataset instance.
+
 ### 5. Add a readable name
 
-(Optional but recommended) Add a display name in `DATASET_NAME_MAPPING` in `afabench/eval/plotting_config.py`:
+(Optional but recommended) Add a display name to `dataset_name_mapping` in `extra/conf/scripts/plotting/common/default.yaml`:
 
-```python
-DATASET_NAME_MAPPING = {
-    # ... existing entries ...
-    "my_dataset": "My Dataset Display Name",
-}
+```yaml
+dataset_name_mapping:
+  # ... existing entries ...
+  my_dataset: My Dataset Display Name
 ```
 
 ### 6. Add to dataset sets
 
-(Optional but recommended) Add your dataset to one or more *dataset sets* in `DATASET_SETS` in `afabench/eval/plotting_config.py`. Dataset sets group datasets for organized plotting:
+(Optional but recommended) Add your dataset to one or more *dataset sets* in `dataset_sets` in `extra/conf/scripts/plotting/common/default.yaml`. Dataset sets group datasets for organized plotting:
 
-```python
-DATASET_SETS = {
-    "set1": {
-        # ... existing datasets ...
-        "my_dataset",
-    },
-    "all": {
-        # ... existing datasets ...
-        "my_dataset",
-    },
-}
+```yaml
+dataset_sets:
+  set1:
+    # ... existing datasets ...
+    - my_dataset
+  all:
+    # ... existing datasets ...
+    - my_dataset
 ```
 
-If your dataset is not in any set, the pipeline will still generate and train on it, but plots won't be generated for it. Adding it to the `"all"` set is typically sufficient.
+If your dataset is not in any set, the pipeline will still generate and train on it, but plots won't be generated for it. Adding it to the `all` set is typically sufficient.

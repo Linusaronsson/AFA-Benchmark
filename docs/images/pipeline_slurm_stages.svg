@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Created with Inkscape (http://www.inkscape.org/) -->
+
+<svg
+   width="851.21521pt"
+   height="150.42395pt"
+   viewBox="0 0 851.21521 150.42395"
+   version="1.1"
+   id="svg1"
+   xmlns:xlink="http://www.w3.org/1999/xlink"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs1">
+    <linearGradient
+       id="swatch1">
+      <stop
+         style="stop-color:#f0f6fc;stop-opacity:1;"
+         offset="0"
+         id="stop1" />
+    </linearGradient>
+    <marker
+       style="overflow:visible"
+       id="Triangle"
+       refX="0"
+       refY="0"
+       orient="auto-start-reverse"
+       markerWidth="1"
+       markerHeight="1"
+       viewBox="0 0 1 1"
+       preserveAspectRatio="xMidYMid">
+      <path
+         transform="scale(0.5)"
+         style="fill:context-stroke;fill-rule:evenodd;stroke:context-stroke;stroke-width:1pt"
+         d="M 5.77,0 -2.88,5 V -5 Z"
+         id="path135" />
+    </marker>
+    <linearGradient
+       xlink:href="#swatch1"
+       id="linearGradient1"
+       x1="66.264587"
+       y1="216.36772"
+       x2="182.33411"
+       y2="216.36772"
+       gradientUnits="userSpaceOnUse" />
+  </defs>
+  <g
+     id="layer1"
+     transform="translate(-66.264587,-141.65574)">
+    <path
+       style="fill:#1a1a1a;stroke:url(#swatch1);stroke-width:0.85;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle);paint-order:markers fill stroke"
+       d="m 181.33409,216.36772 h 58.04602"
+       id="path6" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:#f0f6fc;fill-opacity:1;stroke-width:0.849998;paint-order:markers fill stroke"
+       x="124.2505"
+       y="219.99075"
+       id="text1"><tspan
+         id="tspan1"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#f0f6fc;fill-opacity:1;stroke-width:0.85"
+         x="124.2505"
+         y="219.99075">Generate datasets</tspan></text>
+    <rect
+       style="font-variation-settings:normal;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:url(#linearGradient1);stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000"
+       id="rect1"
+       width="114.06951"
+       height="29.708519"
+       x="67.264587"
+       y="201.51346"
+       ry="8.6883411"
+       rx="8.6883411" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:#f0f6fc;fill-opacity:1;stroke:none;stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       x="124.44093"
+       y="196.18834"
+       id="text7"><tspan
+         id="tspan7"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:#f0f6fc;fill-opacity:1;stroke:none;stroke-width:0.85"
+         x="124.44093"
+         y="196.18834">CPU</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke-width:0.849998;paint-order:markers fill stroke"
+       x="300.28006"
+       y="219.99075"
+       id="text3"><tspan
+         id="tspan2"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke-width:0.85"
+         x="300.28006"
+         y="219.99075">Train classifiers</tspan></text>
+    <rect
+       style="font-variation-settings:normal;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:url(#swatch1);stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000"
+       id="rect3"
+       width="114.06951"
+       height="29.708519"
+       x="243.29417"
+       y="201.51346"
+       ry="8.6883411"
+       rx="8.6883411" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke:none;stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       x="300.42657"
+       y="196.18834"
+       id="text8"><tspan
+         id="tspan8"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke:none;stroke-width:0.85"
+         x="300.42657"
+         y="196.18834">GPU</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke-width:0.849998;paint-order:markers fill stroke"
+       x="656.64075"
+       y="172.90198"
+       id="text4"><tspan
+         id="tspan4"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke-width:0.85"
+         x="656.64075"
+         y="172.90198">Train+eval methods</tspan></text>
+    <rect
+       style="font-variation-settings:normal;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:url(#swatch1);stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000"
+       id="rect4"
+       width="122.95562"
+       height="29.708519"
+       x="595.35333"
+       y="154.35388"
+       ry="8.6883411"
+       rx="8.6883411" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke:none;stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       x="656.92877"
+       y="149.02878"
+       id="text9"><tspan
+         id="tspan9"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke:none;stroke-width:0.85"
+         x="656.92877"
+         y="149.02878">CPU</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke-width:0.849998;paint-order:markers fill stroke"
+       x="656.64075"
+       y="279.91928"
+       id="text10"><tspan
+         id="tspan10"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke-width:0.85"
+         x="656.64075"
+         y="279.91928">Train+eval methods</tspan></text>
+    <rect
+       style="font-variation-settings:normal;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:url(#swatch1);stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000"
+       id="rect10"
+       width="122.95562"
+       height="29.708513"
+       x="595.35333"
+       y="261.37119"
+       ry="8.6883411"
+       rx="8.6883411" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke:none;stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       x="656.92877"
+       y="256.04605"
+       id="text11"><tspan
+         id="tspan11"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke:none;stroke-width:0.85"
+         x="656.92877"
+         y="256.04605">GPU</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke-width:0.849998;paint-order:markers fill stroke"
+       x="848.32074"
+       y="219.99075"
+       id="text14"><tspan
+         id="tspan14"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke-width:0.85"
+         x="848.32074"
+         y="219.99075">Merge results + plotting</tspan></text>
+    <rect
+       style="font-variation-settings:normal;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:url(#swatch1);stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000"
+       id="rect14"
+       width="136.21077"
+       height="29.708519"
+       x="780.26904"
+       y="201.51346"
+       ry="8.6883411"
+       rx="8.6883411" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke:none;stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       x="848.47211"
+       y="196.18834"
+       id="text15"><tspan
+         id="tspan15"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke:none;stroke-width:0.85"
+         x="848.47211"
+         y="196.18834">CPU</tspan></text>
+    <path
+       style="fill:url(#swatch1);stroke:url(#swatch1);stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle);paint-order:markers fill stroke"
+       d="m 718.30898,169.20815 59.01722,44.47856"
+       id="path15" />
+    <path
+       style="fill:url(#swatch1);stroke:url(#swatch1);stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle);paint-order:markers fill stroke"
+       d="M 718.30898,276.22545 777.4211,219.66088"
+       id="path16" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke-width:0.849998;paint-order:markers fill stroke"
+       x="476.30966"
+       y="219.99075"
+       id="text16"><tspan
+         id="tspan16"
+         style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke-width:0.85"
+         x="476.30966"
+         y="219.99075">Pretrain models</tspan></text>
+    <rect
+       style="font-variation-settings:normal;fill:none;fill-opacity:1;fill-rule:evenodd;stroke:url(#swatch1);stroke-width:2;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-dasharray:none;stroke-dashoffset:0;stroke-opacity:1;stop-color:#000000"
+       id="rect16"
+       width="114.06951"
+       height="29.708519"
+       x="419.32376"
+       y="201.51346"
+       ry="8.6883411"
+       rx="8.6883411" />
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;line-height:1.2;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:center;text-decoration-color:#000000;writing-mode:lr-tb;direction:ltr;text-anchor:middle;white-space:pre;fill:url(#swatch1);stroke:none;stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;paint-order:markers fill stroke"
+       x="476.45618"
+       y="196.18834"
+       id="text17"><tspan
+         id="tspan17"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:9.99998px;font-family:Inter;-inkscape-font-specification:'Inter, Bold';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;fill:url(#swatch1);stroke:none;stroke-width:0.85"
+         x="476.45618"
+         y="196.18834">GPU</tspan></text>
+    <path
+       style="fill:url(#swatch1);stroke:url(#swatch1);stroke-width:0.85;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle);paint-order:markers fill stroke"
+       d="m 357.36369,216.36772 h 58.07079"
+       id="path21" />
+    <path
+       style="fill:url(#swatch1);stroke:url(#swatch1);stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle);paint-order:markers fill stroke"
+       d="m 533.39325,216.36772 58.7381,-44.70722"
+       id="path22" />
+    <path
+       style="fill:url(#swatch1);stroke:url(#swatch1);stroke-width:0.849998;stroke-dasharray:none;stroke-opacity:1;marker-end:url(#Triangle);paint-order:markers fill stroke"
+       d="m 533.39327,216.3677 58.98738,56.98591"
+       id="path23" />
+  </g>
+</svg>

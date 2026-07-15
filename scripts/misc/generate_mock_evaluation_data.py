@@ -2,17 +2,17 @@ import numpy as np
 import pandas as pd
 
 
-def generate_mock_data(
-    n_methods=5,
-    n_seeds=5,
-    n_cost_params=5,
-    n_datasets=5,
-    n_samples=200,
-    n_classes=4,
-    n_splits=3,
-    random_state=42,
-):
-    np.random.seed(random_state)
+def generate_mock_data(  # noqa: C901, PLR0912, PLR0915
+    n_methods: int = 5,
+    n_seeds: int = 5,
+    n_cost_params: int = 5,
+    n_datasets: int = 5,
+    n_samples: int = 200,
+    n_classes: int = 4,
+    n_splits: int = 3,
+    random_state: int = 42,
+) -> pd.DataFrame:
+    rng = np.random.default_rng(random_state)
     methods = [f"method_{i + 1}" for i in range(n_methods)]
     seeds = [100 + i for i in range(n_seeds)]
     # Define different cost_param ranges for each method
@@ -26,19 +26,18 @@ def generate_mock_data(
     datasets = [f"dataset_{chr(65 + i)}" for i in range(n_datasets)]
     # Assign a different max_features (x) for each dataset
     dataset_max_features = {
-        dataset: np.random.randint(5, 25) for dataset in datasets
+        dataset: rng.integers(5, 25).item() for dataset in datasets
     }
 
     # For each dataset, for each split, shuffle and assign split-local indices
     dataset_split_sample_map = {}
     dataset_split_true_labels = {}
-    rng = np.random.RandomState(random_state)
     for dataset in datasets:
         # Generate true labels for all samples in this dataset
-        true_labels = rng.randint(0, n_classes, size=n_samples)
+        true_labels = rng.integers(0, n_classes, size=n_samples)
         for split in range(n_splits):
             # Shuffle indices for this split
-            split_rng = np.random.RandomState(
+            split_rng = np.random.default_rng(
                 random_state + split * 1000 + hash(dataset) % 1000
             )
             indices = np.arange(n_samples)
@@ -66,10 +65,12 @@ def generate_mock_data(
         )
         for seed in seeds:
             # Set a unique random seed for each method/seed combination
-            np.random.seed(seed * 1000 + hash(method) % 1000)
+            method_seed_rng = np.random.default_rng(
+                seed * 1000 + hash(method) % 1000
+            )
             # Seed-dependent offsets for features and accuracy
-            seed_offset_features = np.random.uniform(-0.2, 0.2)
-            seed_offset_accuracy = np.random.uniform(-0.1, 0.1)
+            seed_offset_features = method_seed_rng.uniform(-0.2, 0.2)
+            seed_offset_accuracy = method_seed_rng.uniform(-0.1, 0.1)
             # Method-dependent offsets for features and accuracy
             method_offset_features = method_offsets[method]["features"]
             method_offset_accuracy = method_offsets[method]["accuracy"]
@@ -81,7 +82,7 @@ def generate_mock_data(
                         split_true_labels = dataset_split_true_labels[
                             (dataset, split)
                         ]
-                        for split_sample, global_sample in enumerate(indices):
+                        for split_sample, _global_sample in enumerate(indices):
                             cost_param_range = np.ptp(cost_params)
                             if cost_param_range == 0:
                                 norm_cost = 0
@@ -97,7 +98,7 @@ def generate_mock_data(
                             ) * max_features
                             features_chosen = int(
                                 np.clip(
-                                    np.random.normal(
+                                    method_seed_rng.normal(
                                         loc=mean_features,
                                         scale=max(1, 0.15 * max_features),
                                     ),
@@ -109,7 +110,7 @@ def generate_mock_data(
                             cost_per_feature = 1.0  # Can be customized per dataset/method if desired
                             acquisition_cost = (
                                 features_chosen * cost_per_feature
-                                + np.random.normal(0, 0.1)
+                                + method_seed_rng.normal(0, 0.1)
                             )
                             acquisition_cost = max(acquisition_cost, 0.0)
                             methods_with_builtin = {"method_1", "method_3"}
@@ -139,27 +140,35 @@ def generate_mock_data(
                                 prob_correct_builtin, 0.01
                             )
 
-                            if np.random.rand() < prob_correct_external:
+                            if (
+                                method_seed_rng.random()
+                                < prob_correct_external
+                            ):
                                 pred_label_external = true_label
                             else:
-                                pred_label_external = np.random.choice(
+                                pred_label_external = method_seed_rng.choice(
                                     [
-                                        l
-                                        for l in range(n_classes)
-                                        if l != true_label
+                                        label
+                                        for label in range(n_classes)
+                                        if label != true_label
                                     ]
                                 )
 
                             if has_builtin:
-                                if np.random.rand() < prob_correct_builtin:
+                                if (
+                                    method_seed_rng.random()
+                                    < prob_correct_builtin
+                                ):
                                     pred_label_builtin = true_label
                                 else:
-                                    pred_label_builtin = np.random.choice(
-                                        [
-                                            l
-                                            for l in range(n_classes)
-                                            if l != true_label
-                                        ]
+                                    pred_label_builtin = (
+                                        method_seed_rng.choice(
+                                            [
+                                                label
+                                                for label in range(n_classes)
+                                                if label != true_label
+                                            ]
+                                        )
                                     )
                             else:
                                 pred_label_builtin = None

@@ -5,14 +5,18 @@ import torch
 from tensordict import TensorDict
 from torchrl.data import TensorSpec
 
-from afabench.afa_rl.common.afa_env import AFAEnv
-from afabench.afa_rl.common.dataset_utils import get_afa_dataset_fn
-from afabench.afa_rl.common.reward_functions import get_range_based_reward_fn
-from afabench.afa_rl.common.utils import get_eval_metrics
-from afabench.common.initializers.random_initializer import (
+from afabench.components.initializers.random_initializer import (
     RandomInitializer,
 )
-from afabench.common.unmaskers.direct_unmasker import DirectUnmasker
+from afabench.components.methods.rl.common.afa_env import AFAEnv
+from afabench.components.methods.rl.common.dataset_utils import (
+    get_afa_dataset_fn,
+)
+from afabench.components.methods.rl.common.reward_functions import (
+    get_range_based_reward_fn,
+)
+from afabench.components.methods.rl.common.utils import get_eval_metrics
+from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
 
 
 @final

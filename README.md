@@ -1,8 +1,9 @@
-# AFA Benchmark
+# AFABench
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![arXiv](https://img.shields.io/badge/arXiv-2508.14734-b31b1b.svg)](https://arxiv.org/abs/2508.14734)
+[![KDD 2026](https://img.shields.io/badge/KDD-2026-ff69b4.svg)](https://www.kdd.org/kdd2026/)
 
-**A comprehensive benchmark for Active Feature Acquisition (AFA) methods**
+**A benchmark for Active Feature Acquisition (AFA) methods**
 
 Compare state-of-the-art algorithms for sequential feature selection in
 scenarios where acquiring features is costly. Includes implementations of
@@ -23,37 +24,38 @@ uv sync
 
 ## Quickstart
 
-To run the pipeline locally with 8 cores, execute the following command at the repo root. It should produce plots at `extra/output/plot_results/`.
+Local execution is not recommended for reproducing the full benchmark because
+the pipeline generates a large number of jobs. If you still want to run it
+locally with 8 CPU cores, execute this command from the repo root:
 
 ```shell
-WANDB_PROJECT=afabench uv run snakemake \
+uv run snakemake \
     -s extra/workflow/snakefiles/orchestration/pipeline.smk \
     all \
     --configfile \
-      extra/workflow/conf/eval_hard_budgets.yaml \
-      extra/workflow/conf/methods.yaml \
-      extra/workflow/conf/method_sets.yaml \
-      extra/workflow/conf/method_options.yaml \
-      extra/workflow/conf/pretrain_mapping.yaml \
-      extra/workflow/conf/soft_budget_params.yaml \
-      extra/workflow/conf/unmaskers.yaml \
-      extra/workflow/conf/classifier_names.yaml \
-      extra/workflow/conf/datasets_main.yaml \
+      extra/workflow/conf/eval_hard_budgets/all.yaml \
+      extra/workflow/conf/methods/all.yaml \
+      extra/workflow/conf/method_sets/all.yaml \
+      extra/workflow/conf/method_options/all.yaml \
+      extra/workflow/conf/pretrain_mappings/all.yaml \
+      extra/workflow/conf/soft_budget_params/all.yaml \
+      extra/workflow/conf/unmaskers/all.yaml \
+      extra/workflow/conf/classifier_names/all.yaml \
+      extra/workflow/conf/datasets/all.yaml \
     --config \
-      eval_dataset_split=test \
-      "dataset_instance_indices=[0,1,2,3,4]" \
-      smoke_test=false \
-      use_wandb=true \
       device=cpu \
     --jobs 8
 ```
 
-See the [pipeline explanation](docs/tutorials/pipeline_explanation.md) tutorial for details on how this pipeline works and how to customize it.
+To reproduce the full benchmark results, use SLURM instead. See the
+[reproducing full results](docs/tutorials/reproduce_full_results.md) tutorial
+for the exact commands.
 
 ## Features
 
-- Easily readable and reproducible configuration using
-  [hydra](https://hydra.cc/) and [snakemake](https://snakemake.readthedocs.io/en/stable/).
+- Accessible configuration using
+  [hydra](https://hydra.cc/)
+- Reproducible pipeline using [snakemake](https://snakemake.readthedocs.io/en/stable/).
 - Modular design: rerun specific parts of the pipeline as needed.
 - Extensible framework: add custom datasets and AFA methods.
 
@@ -69,21 +71,21 @@ See the [pipeline explanation](docs/tutorials/pipeline_explanation.md) tutorial 
 
 **Example**: Medical diagnosis where each test costs money and time. AFA methods
 intelligently decide which tests to order next based on previous results, aiming
-for accurate diagnosis with minimal cost.
+for accurate diagnosis with minimal cost. See the following survey for details: [AFA Survey](https://arxiv.org/abs/2502.11067).
 
 ## Implemented Methods
 |    Method     |                                                                            Paper                                                                             |             Strategy             |  Greedy?   |
 | :-----------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------: | :------------------------------: | :--------: |
-|  **EDDI-GG**  |                                                       [link](https://proceedings.mlr.press/v97/ma19c)                                                        |   Generative estimation of CMI   |   Greedy   |
-|  **GDFS-DG**  |                                                     [link](https://proceedings.mlr.press/v202/covert23a)                                                     | Discriminative estimation of CMI |   Greedy   |
-|  **DIME-DG**  |                                                           [link](https://arxiv.org/pdf/2306.03301)                                                           | Discriminative estimation of CMI |   Greedy   |
-| **JAFA-MFRL** |                          [link](https://papers.nips.cc/paper_files/paper/2018/hash/e5841df2166dd424a57127423d276bbe-Abstract.html)                           |          Model-free RL           | Non-greedy |
-|  **OL-MFRL**  |                                                           [link](https://arxiv.org/pdf/1901.00243)                                                           |          Model-free RL           | Non-greedy |
-| **ODIN-MFRL** | [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/) |          Model-free RL           | Non-greedy |
-| **ODIN-MBRL** | [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/) |          Model-based RL          | Non-greedy |
+|  **EDDI**  |                                                       [link](https://proceedings.mlr.press/v97/ma19c)                                                        |   Generative estimation of CMI   |   Greedy   |
+|  **GDFS**  |                                                     [link](https://proceedings.mlr.press/v202/covert23a)                                                     | Discriminative estimation of CMI |   Greedy   |
+|  **DIME**  |                                                           [link](https://arxiv.org/pdf/2306.03301)                                                           | Discriminative estimation of CMI |   Greedy   |
+| **JAFA** |                          [link](https://papers.nips.cc/paper_files/paper/2018/hash/e5841df2166dd424a57127423d276bbe-Abstract.html)                           |          Model-free RL           | Non-greedy |
+|  **OL**  |                                                           [link](https://arxiv.org/pdf/1901.00243)                                                           |          Model-free RL           | Non-greedy |
+| **ODIN** | [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/) |          Model-free RL           | Non-greedy |
+| **ODIN** | [link](https://www.microsoft.com/en-us/research/publication/odin-optimal-discovery-of-high-value-information-using-model-based-deep-reinforcement-learning/) |          Model-based RL          | Non-greedy |
 |   **AACO**    |                                                 [link](https://proceedings.mlr.press/v235/valancius24a.html)                                                 |           Oracle-based           | Non-greedy |
-|   **PT-S**    |                                              [link](https://link.springer.com/article/10.1023/A:1010933404324)                                               |    Global feature importance     |    N/A     |
-|   **CAE-S**   |                                                   [link](https://proceedings.mlr.press/v97/balin19a.html)                                                    |    Global feature importance     |    N/A     |
+|   **PT**    |                                              [link](https://link.springer.com/article/10.1023/A:1010933404324)                                               |    Global feature importance     |    N/A     |
+|   **CAE**   |                                                   [link](https://proceedings.mlr.press/v97/balin19a.html)                                                    |    Global feature importance     |    N/A     |
 
 ## Datasets
 | Dataset | Type | Modality | Train Size | Val Size | Test Size | \# Features | \# Groups | \# Classes |
@@ -117,21 +119,37 @@ for accurate diagnosis with minimal cost.
 ## Tutorials
 
 Learn more in our tutorials:
+  - [Reproducing full results](docs/tutorials/reproduce_full_results.md)
   - [Pipeline explanation](docs/tutorials/pipeline_explanation.md)
   - [Adding a new dataset](docs/tutorials/add_dataset.md)
   - [Adding a new method](docs/tutorials/add_method.md)
 
+## Development
+
+We encourage researchers to fork this repository and implement their own methods. Take a look at the [tutorials](#tutorials) to get started.
+
+To follow repo conventions, run
+```shell
+uv run just qa
+```
+which will
+
+- format code with `ruff format`
+- do linting and formatting with `ruff check --fix`
+- type checking with `basedpyright --warnings`
+- run tests with `pytest`
 
 ## Citation
 If you use this benchmark in your research, please cite,
 ```bibtex
-@misc{schütz2025afabenchgenericframeworkbenchmarking,
-      title={AFABench: A Generic Framework for Benchmarking Active Feature Acquisition},
-      author={Valter Schütz and Han Wu and Reza Rezvan and Linus Aronsson and Morteza Haghir Chehreghani},
-      year={2025},
-      eprint={2508.14734},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG},
-      url={https://arxiv.org/abs/2508.14734},
+@inproceedings{Schütz2026,
+    author = {Sch{\"u}tz, Valter and Wu, Han and Rezvan, Reza and Aronsson,
+              Linus and Haghir Chehreghani, Morteza},
+    title = {AFABench: A Generic Framework for Benchmarking Active Feature
+             Acquisition},
+    year = {2026},
+    booktitle = {Proceedings of the 32nd ACM SIGKDD Conference on Knowledge
+                 Discovery and Data Mining},
+    url = {https://doi.org/10.1145/3770855.3817493},
 }
 ```

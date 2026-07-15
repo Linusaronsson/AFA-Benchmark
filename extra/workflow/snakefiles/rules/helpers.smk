@@ -20,32 +20,9 @@ rule all:
         ) +
         [
             f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"
-        ] +
-        (
-            [
-                "extra/output/plot_results/cube_nm_ar/"
-                f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/"
-                f"budget_mode-{CUBE_NM_AR_BUDGET_MODE}/stop_shield-none"
-            ]
-            if "cube_nm_ar" in DATASETS
-            else []
-        ) +
-        [
-            "extra/output/plot_results/cube_nm_ar/"
-            f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/"
-            f"budget_mode-{CUBE_NM_AR_BUDGET_MODE}/stop_shield-{delta}"
-            for delta in STOP_SHIELD_DELTAS
-            if "cube_nm_ar" in DATASETS
-        ] +
-        [
-            "extra/output/plot_results/cube_nm_ar/"
-            f"eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/"
-            f"budget_mode-{CUBE_NM_AR_BUDGET_MODE}/dual_lambda-{dual_lambda}"
-            for dual_lambda in DUAL_LAMBDAS
-            if "cube_nm_ar" in DATASETS
         ]
 
-rule all_generate_dataset:
+rule all_generate_datasets:
     input:
         [
             f"extra/output/datasets/{dataset}/{dataset_instance_idx}/{split}.bundle"
@@ -54,18 +31,19 @@ rule all_generate_dataset:
             for split in ["train", "val", "test"]
         ]
 
-rule all_train_classifier:
+
+rule all_train_classifiers:
     input:
         [
             (
-                f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
+                f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
                     f"dataset-{dataset}.bundle"
             )
             for dataset in DATASETS
         ] +
         [
             (
-                f"extra/output/trained_classifiers/{TRAIN_INITIALIZER_TAG}/"
+                f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
                     f"method-{method}+dataset-{dataset}.bundle"
             )
             for method in METHODS
@@ -74,28 +52,27 @@ rule all_train_classifier:
         ]
 
 
-rule all_pretrain_model:
+rule all_pretrain_models:
     input:
         [
             (
-                f"extra/output/pretrained_models/{TRAIN_INITIALIZER_TAG}/{pretrain_name}/"
+                f"extra/output/pretrained_models/{INITIALIZER_TAG}/{pretrain_name}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
                             "model.bundle"
             )
             for pretrain_name in PRETRAIN_NAMES
-            for method in METHODS_WITH_PRETRAINING_STAGE
-            for dataset in DATASETS_USED_PER_METHOD[method]
+            for dataset in DATASETS_USED_PER_PRETRAIN_NAME[pretrain_name]
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
         ]
 
 
-rule all_train_method:
+rule all_train_methods:
     input:
         [
             (
-                f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{method}/"
+                f"extra/output/trained_methods/{INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"pretrain_seed-{dataset_instance_idx}/"
@@ -111,7 +88,7 @@ rule all_train_method:
         ] +
         [
             (
-                f"extra/output/trained_methods/{TRAIN_INITIALIZER_TAG}/{method}/"
+                f"extra/output/trained_methods/{INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
                     f"instance_idx-{dataset_instance_idx}/"
                         f"{NO_PRETRAIN_STR}/"
@@ -126,7 +103,7 @@ rule all_train_method:
             for (train_hard_budget, _eval_hard_budget, train_soft_budget_param, _eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
         ]
 
-rule all_eval_method:
+rule all_eval_methods:
     input:
         [
             (
@@ -140,7 +117,7 @@ rule all_eval_method:
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
+                                    f"eval_data.parquet"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
@@ -159,96 +136,8 @@ rule all_eval_method:
                                 f"eval_seed-{dataset_instance_idx}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
+                                    f"eval_data.parquet"
             )
-            for method in METHODS_WITHOUT_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
-        ]
-
-
-rule all_eval_method_shielded:
-    input:
-        [
-            (
-                f"extra/output/eval_results_shielded/delta-{stop_shield_delta}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"pretrain_seed-{dataset_instance_idx}/"
-                            f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
-            )
-            for stop_shield_delta in STOP_SHIELD_DELTAS
-            for method in METHODS_WITH_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
-        ] +
-        [
-            (
-                f"extra/output/eval_results_shielded/delta-{stop_shield_delta}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"{NO_PRETRAIN_STR}/"
-                            f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
-            )
-            for stop_shield_delta in STOP_SHIELD_DELTAS
-            for method in METHODS_WITHOUT_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
-        ]
-
-
-rule all_eval_method_dualized:
-    input:
-        [
-            (
-                f"extra/output/eval_results_dualized/lambda-{dual_lambda}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"pretrain_seed-{dataset_instance_idx}/"
-                            f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
-            )
-            for dual_lambda in DUAL_LAMBDAS
-            for method in METHODS_WITH_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
-            for (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
-        ] +
-        [
-            (
-                f"extra/output/eval_results_dualized/lambda-{dual_lambda}/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"{NO_PRETRAIN_STR}/"
-                            f"train_seed-{dataset_instance_idx}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.csv"
-            )
-            for dual_lambda in DUAL_LAMBDAS
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES

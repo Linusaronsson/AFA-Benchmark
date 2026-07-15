@@ -1,3 +1,0 @@
-class_name: "FICODataset"
-kwargs:
-  path: "extra/data/misc/fico.csv"

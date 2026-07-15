@@ -6,32 +6,24 @@ The whole pipeline is executable with the following command:
 ```shell
 WANDB_PROJECT=afabench \
   uv run snakemake \
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    --profile extra/workflow/profiles/config/all \
     all \
-    --configfile \
-      extra/workflow/conf/eval_hard_budgets.yaml \
-      extra/workflow/conf/methods.yaml \
-      extra/workflow/conf/method_sets.yaml \
-      extra/workflow/conf/method_options.yaml \
-      extra/workflow/conf/pretrain_mapping.yaml \
-      extra/workflow/conf/soft_budget_params.yaml \
-      extra/workflow/conf/unmaskers.yaml \
-      extra/workflow/conf/classifier_names.yaml \
-      extra/workflow/conf/datasets_main.yaml \
-    --config \
-      eval_dataset_split=val \
-      "dataset_instance_indices=[0,1]" \
-      smoke_test=false \
-      use_wandb=true \
-      device=cpu \
     --jobs 8
 ```
 
-This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](docs/tutorials/slurm_integration.md).
+This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](slurm_integration.md).
 
 ## Configuration overview
 
-All configuration files should be edited in place in `extra/workflow/conf/`. Below we discuss the meaning of each configuration file.
+Configuration files are organized into subdirectories under
+`extra/workflow/conf/`. Each subdirectory contains multiple named variants
+(e.g., `all.yaml`, `kdd26.yaml`). The command above uses the
+`extra/workflow/profiles/config/all` profile, which bundles the commonly used
+`all.yaml` config files and the pipeline Snakefile. Use
+`extra/workflow/profiles/config/cpu_methods`,
+`extra/workflow/profiles/config/gpu_methods`, or
+`extra/workflow/profiles/config/kdd26` when you want those preset config
+combinations instead. Below we discuss the meaning of each configuration group.
 
 ## Runtime configuration options
 
@@ -41,16 +33,16 @@ The `--config` section of the pipeline command allows you to customize how the p
 
 Specifies which dataset split to use during evaluation.
 
-- **Default:** `val`
+- **Default:** `test`
 - **Valid values:** `train`, `val`, `test`
-- **Example:** `eval_dataset_split=test` to evaluate on the test set instead of validation set
+- **Example:** `eval_dataset_split=val` to evaluate on the validation set instead of the test set
 
 ### `dataset_instance_indices`
 
 Specifies which random seed instances to run. This allows you to run a subset of the experiments. Each index corresponds to a different random seed for dataset generation, model initialization, and training.
 
-- **Default:** `[0,1]`
-- **Example:** `dataset_instance_indices=[0,1,2,3,4]` to run 5 different seeds
+- **Default:** `[0,1,2,3,4]`
+- **Example:** `dataset_instance_indices=[0,1]` to run two different seeds
 - **Use case:** Use fewer instances for faster debugging, more instances for more robust results
 
 ### `device`
@@ -76,9 +68,9 @@ Controls the number of jobs Snakemake runs in parallel. This is not a `--config`
 
 Enables or disables [Weights & Biases](https://wandb.ai/) integration for logging metrics.
 
-- **Default:** `false`
-- **Example:** `use_wandb=true` to enable W&B logging
-- **Requirement:** You must run `uv run wandb login` before using this option
+- **Default:** `true`
+- **Example:** `use_wandb=false` to disable W&B logging
+- **Requirement:** You must run `uv run wandb login` before using W&B
 - **Note:** Also set the `WANDB_PROJECT` environment variable (shown in the example command)
 
 ### `smoke_test`
@@ -90,13 +82,13 @@ Enables smoke testing mode, where each script runs as fast as possible while sti
 
 ## Datasets
 
-The `datasets_main.yaml` file specifies which datasets are used.
+The `extra/workflow/conf/datasets/` directory contains dataset configuration files. Each file specifies which datasets are used in the pipeline.
 
 ## Unmaskers
 
-`unmaskers.yaml` is a mapping from datasets to unmaskers. The values correspond to files in `extra/conf/components/unmaskers`.
+`extra/workflow/conf/unmaskers/` contains files that map datasets to unmaskers. The values correspond to files in `extra/conf/components/unmaskers`.
 
-For example, if `unmaskers.yaml` contains
+For example, if `extra/workflow/conf/unmaskers/all.yaml` contains
 ```yaml
 unmaskers:
   default: direct
@@ -115,9 +107,9 @@ kwargs:
 
 ## Hard budgets
 
-`eval_hard_budgets.yaml` determines what hard budgets are used for each dataset **during evaluation**. Methods are free to use different budgets during training, see [below](#methods-and-their-soft-budget-parameters).
+`extra/workflow/conf/eval_hard_budgets/` determines what hard budgets are used for each dataset **during evaluation**. Methods are free to use different budgets during training, see [below](#methods-and-their-soft-budget-parameters).
 
-For example, `eval_hard_budgets.yaml` might contain
+For example, a file in `extra/workflow/conf/eval_hard_budgets/` might contain
 ```yaml
 eval_hard_budgets:
   default: [5, 10, 15]
@@ -129,33 +121,33 @@ Note that the `default` setting is used for all unlisted datasets, and that the 
 
 ## Methods and their soft-budget parameters
 
-The methods require the most configuration, and use the files
-- `methods.yaml`
-- `method_sets.yaml`
-- `pretrain_mapping.yaml`
-- `method_options.yaml`
-- `soft_budget_params.yaml`
+The methods require the most configuration, and use the directories
+- `extra/workflow/conf/methods/`
+- `extra/workflow/conf/method_sets/`
+- `extra/workflow/conf/pretrain_mappings/`
+- `extra/workflow/conf/method_options/`
+- `extra/workflow/conf/soft_budget_params/`
 
-`methods.yaml` is a list declaring which methods are included in the pipeline.
+`methods/` contains files listing which methods are included in the pipeline.
 
-`method_sets.yaml` defines *method sets*, which group related methods to prevent cluttered plots when visualizing results. Each method set gets its own separate plot.
+`method_sets/` contains files that define *method sets*, which group related methods to prevent cluttered plots when visualizing results. Each method set gets its own separate plot.
 
 Some methods require a pretraining stage. For such methods,
-`pretrain_mapping.yaml` provides the mapping to the pretraining script. For example, a `pretrain_mapping.yaml` file with contents
+`pretrain_mappings/` provides the mapping to the pretraining script. For example, a file in `extra/workflow/conf/pretrain_mappings/` with contents
 ```yaml
 pretrain_mapping:
   pvae:
-    pretrain_script_name: "zannone2019"
+    pretrain_script_name: "odin"
     pretrain_params: []
 ```
-will define a model `pvae` which is produced by the `scripts/pretrain/zannone2019.py` script. This can later be reused across different methods.
+will define a model `pvae` which is produced by the `scripts/pretrain_model/odin.py` script. This can later be reused across different methods.
 
-For example, `method_options.yaml` contains miscellaneous options for each method. An example configuration:
+For example, a file in `extra/workflow/conf/method_options/` contains miscellaneous options for each method. An example configuration:
 ```yaml
 method_options:
-  ma2018_external:
+  eddi_external:
     pretrained_model_name: "pvae"
-    train_script_name: "ma2018_external"
+    train_script_name: "eddi_external"
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 8
@@ -168,7 +160,7 @@ method_options:
     soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   odin_model_based:
     pretrained_model_name: "pvae"
-    train_script_name: "zannone2019"
+    train_script_name: "odin"
     method_specific_params:
       - "additional_generation_fraction=1.0"
     eval_batch_size:
@@ -176,15 +168,15 @@ method_options:
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette, mnist]
 ```
-defines two methods `ma2018_external` and `odin_model_based` which both use the same pretrained `pvae` model. Furthermore, they use different batch sizes during evaluation and ignore some datasets. `ma2018_external` is a bit special, in that it trains with a different hard budget during training compared to evaluation.
+defines two methods `eddi_external` and `odin_model_based` which both use the same pretrained `pvae` model. Furthermore, they use different batch sizes during evaluation and ignore some datasets. `eddi_external` is a bit special, in that it trains with a different hard budget during training compared to evaluation.
 
 Usually during the *soft-budget* setting, the hard budget is disabled. `use_max_hard_budget_when_training_soft_budget` enforces the largest hard budget instead.
 
-Lastly, `soft_budget_params.yaml` contains the per-dataset soft-budget parameters for each method. Each soft-budget parameter is represented as a tuple `(train_soft_budget_param, eval_soft_budget_param)`. While the `default` key **can** be used, it is recommended to tune the values for each dataset due to sensitivity issues.
+Lastly, files in `extra/workflow/conf/soft_budget_params/` contain the per-dataset soft-budget parameters for each method. Each soft-budget parameter is represented as a tuple `(train_soft_budget_param, eval_soft_budget_param)`. While the `default` key **can** be used, it is recommended to tune the values for each dataset due to sensitivity issues.
 
 ## Classifiers
 
-During evaluation, we need predictions from an *external* classifier. `classifier_names.yaml` determines which classifier is used for which dataset. You can edit these mappings to test different classifiers on your datasets. For example,
+During evaluation, we need predictions from an *external* classifier. Files in `extra/workflow/conf/classifier_names/` determine which classifier is used for which dataset. You can edit these mappings to test different classifiers on your datasets. For example,
 ```yaml
 classifier_names:
   default: "masked_mlp_classifier"
@@ -200,14 +192,14 @@ The currently available `all_X` rules are:
 
 | Rule | Purpose |
 |------|---------|
-| `all_generate_dataset` | Generate all dataset splits (train/val/test) |
-| `all_train_classifier` | Train classifiers for all datasets |
-| `all_pretrain_model` | Pretrain models for all methods that require it |
-| `all_train_method` | Train all methods across all datasets and budget configurations |
-| `all_eval_method` | Evaluate all trained methods and produce evaluation results |
+| `all_generate_datasets` | Generate all dataset splits (train/val/test) |
+| `all_train_classifiers` | Train classifiers for all datasets |
+| `all_pretrain_models` | Pretrain models for all methods that require it |
+| `all_train_methods` | Train all methods across all datasets and budget configurations |
+| `all_eval_methods` | Evaluate all trained methods and produce evaluation results |
 
 To use one of these rules, replace `all` with the desired rule name in the command above. For example, to only generate datasets and train classifiers without training methods, use:
 
 ```shell
-uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk all_train_classifier ...
+uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk all_train_classifiers ...
 ```
