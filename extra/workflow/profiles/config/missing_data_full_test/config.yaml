@@ -1,0 +1,5 @@
+snakefile: extra/workflow/snakefiles/orchestration/missing_data.smk
+
+configfile:
+  - extra/workflow/conf/missing_data/design.yaml
+  - extra/workflow/conf/missing_data/full_test.yaml

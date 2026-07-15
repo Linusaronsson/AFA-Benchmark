@@ -1,0 +1,8 @@
+# Final test evaluation. Keep all training-related settings identical to
+# full_validation.yaml so only the complete evaluation split changes.
+artifact_namespace: full
+device: cuda
+smoke_test: false
+eval_dataset_split: test
+eval_batch_size: 128
+restoration_batch_size: 1024

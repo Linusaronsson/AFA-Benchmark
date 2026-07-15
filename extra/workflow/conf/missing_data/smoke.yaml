@@ -1,0 +1,50 @@
+# Fast end-to-end integration check for a local Apple Silicon machine.
+artifact_namespace: smoke
+device: mps
+smoke_test: true
+eval_dataset_split: val
+dataset_instance_indices: [0]
+dataset_seeds: [0]
+dataset_generation_params:
+  - dataset.kwargs.n_samples=128
+classifier_params:
+  - batch_size=32
+hard_budget: 4
+eval_batch_size: 32
+restoration_batch_size: 64
+
+missingness:
+  mechanisms: [mcar]
+  probabilities: [0.5]
+
+strategies:
+  - restricted
+  - pvae_label_free
+  - pvae_oracle
+
+# Covers direct AACO, both reweighting controls, a supervised learned method,
+# an RL method, both PVAE restoration paths, evaluation, and summarization.
+methods:
+  - aaco
+  - aaco_doubly_robust
+  - dime
+  - dime_feature_marginal_ipw
+  - odin_model_free
+
+# DIME exposes smoke_test for interface consistency but does not internally
+# shorten its tabular training loop, so its smoke schedule is explicit here.
+pretrain_runtime_params:
+  dime:
+    - batch_size=32
+    - nepochs=1
+    - patience=1
+
+train_runtime_params:
+  dime:
+    - batch_size=32
+    - nepochs=1
+    - patience=1
+  dime_feature_marginal_ipw:
+    - batch_size=32
+    - nepochs=1
+    - patience=1
