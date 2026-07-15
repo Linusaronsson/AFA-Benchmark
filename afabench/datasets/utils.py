@@ -2,6 +2,7 @@ import copy
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
+import torch
 from torch.utils.data.dataloader import default_collate
 
 if TYPE_CHECKING:
@@ -29,10 +30,15 @@ def default_create_subset[T: AFADataset](
 
 def flatten_features_collate(n_feature_dims: int) -> Callable:  # pyright: ignore[reportMissingTypeArgument]
     def collate(batch):  # noqa: ANN001, ANN202
-        features, labels = default_collate(batch)
+        features, labels, *row_extras = default_collate(batch)
 
         flat_features = features.flatten(start_dim=-n_feature_dims)
-
-        return flat_features, labels
+        flat_extras = [
+            extra.flatten(start_dim=-n_feature_dims)
+            if isinstance(extra, torch.Tensor)
+            else extra
+            for extra in row_extras
+        ]
+        return flat_features, labels, *flat_extras
 
     return collate

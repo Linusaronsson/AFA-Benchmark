@@ -29,6 +29,9 @@ aco:
   hide_val: 0.0
   evaluate_final_performance: true
   eval_only_n_samples: null
+  missingness_objective: support_aware
+  dr_min_propensity: 1e-3
+  dr_max_weight: 20.0
 
 # ============================================================================
 # Required paths (must be provided)

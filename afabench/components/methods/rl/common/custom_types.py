@@ -35,7 +35,7 @@ class AFADatasetFn(Protocol):
 
     def __call__(
         self, batch_size: torch.Size, *, move_on: bool = True
-    ) -> tuple[Features, Label]: ...
+    ) -> tuple[Features, Label] | tuple[Features, Label, SelectionMask]: ...
 
 
 type NaiveIdentity = Integer[Tensor, "*batch n_features naive_identity_size"]

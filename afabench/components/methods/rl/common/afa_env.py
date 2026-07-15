@@ -160,7 +160,11 @@ class AFAEnv(EnvBase):
             )
 
         # Get a batch from the dataset
-        features, label = self.dataset_fn(tensordict.batch_size)
+        dataset_batch = self.dataset_fn(tensordict.batch_size)
+        features, label = dataset_batch[:2]
+        selection_availability = (
+            dataset_batch[2] if len(dataset_batch) == 3 else None
+        )
         features: Features = features.to(tensordict.device)
         label: Label = label.to(tensordict.device)
 
@@ -172,6 +176,17 @@ class AFAEnv(EnvBase):
         initial_masked_features = features.clone()
         initial_masked_features[~initial_feature_mask] = 0.0
 
+        allowed_action_mask = torch.ones(
+            tensordict.batch_size + torch.Size((self.n_selections + 1,)),
+            dtype=torch.bool,
+            device=tensordict.device,
+        )
+        if selection_availability is not None:
+            allowed_action_mask[:, 1:] = selection_availability.to(
+                device=tensordict.device,
+                dtype=torch.bool,
+            )
+
         td = TensorDict(
             {
                 "feature_mask": initial_feature_mask,
@@ -181,12 +196,7 @@ class AFAEnv(EnvBase):
                     dtype=torch.bool,
                     device=tensordict.device,
                 ),
-                "allowed_action_mask": torch.ones(
-                    tensordict.batch_size
-                    + torch.Size((self.n_selections + 1,)),
-                    dtype=torch.bool,
-                    device=tensordict.device,
-                ),
+                "allowed_action_mask": allowed_action_mask,
                 "performed_selection_mask": torch.zeros(
                     tensordict.batch_size + torch.Size((self.n_selections,)),
                     dtype=torch.bool,
@@ -207,7 +217,10 @@ class AFAEnv(EnvBase):
 
         # If stop action is not allowed, disable it in the action mask
         if not self.allow_stop_action:
-            td["allowed_action_mask"][:, 0] = False
+            no_selection_available = ~td["allowed_action_mask"][:, 1:].any(
+                dim=1
+            )
+            td["allowed_action_mask"][:, 0] = no_selection_available
 
         return td
 

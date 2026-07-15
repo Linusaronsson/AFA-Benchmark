@@ -45,7 +45,7 @@ def test_get_afa_dataset_fn() -> None:
         ),
     )
 
-    # We should get the same samples again!
+    # move_on=False left the cursor unchanged.
     features, labels = dataset_fn(
         batch_size=torch.Size((2,)),
         move_on=True,
@@ -69,7 +69,7 @@ def test_get_afa_dataset_fn() -> None:
         ),
     )
 
-    # Now we move on, the dataset should wrap
+    # The next batch wraps at the end of the dataset.
     features, labels = dataset_fn(
         batch_size=torch.Size((2,)),
         move_on=True,
@@ -93,7 +93,7 @@ def test_get_afa_dataset_fn() -> None:
         ),
     )
 
-    # Get more samples than there are in the dataset
+    # Requesting more rows than exist repeats the dataset.
     features, labels = dataset_fn(
         batch_size=torch.Size((6,)),
         move_on=False,
@@ -121,6 +121,36 @@ def test_get_afa_dataset_fn() -> None:
                 [1, 0, 0],
                 [0, 1, 0],
                 [0, 0, 1],
+            ]
+        ),
+    )
+
+
+def test_get_afa_dataset_fn_keeps_availability_aligned() -> None:
+    features = torch.tensor([[1.0], [2.0], [3.0]])
+    labels = torch.tensor([[1.0], [2.0], [3.0]])
+    availability = torch.tensor([[True, False], [False, True], [True, True]])
+    dataset_fn = get_afa_dataset_fn(
+        features,
+        labels,
+        shuffle=False,
+        selection_availability=availability,
+    )
+
+    batch = dataset_fn(torch.Size((4,)))
+
+    assert len(batch) == 3
+    batch_features, batch_labels, batch_availability = batch
+    assert torch.equal(batch_features.squeeze(), torch.tensor([1.0, 2, 3, 1]))
+    assert torch.equal(batch_labels.squeeze(), torch.tensor([1.0, 2, 3, 1]))
+    assert torch.equal(
+        batch_availability,
+        torch.tensor(
+            [
+                [True, False],
+                [False, True],
+                [True, True],
+                [True, False],
             ]
         ),
     )

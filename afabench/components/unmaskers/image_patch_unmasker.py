@@ -117,6 +117,22 @@ class ImagePatchUnmasker(AFAUnmasker):
         return self.selection_size
 
     @override
+    def feature_availability_to_selection_availability(
+        self,
+        feature_availability: FeatureMask,
+    ) -> SelectionMask:
+        batch_size = feature_availability.shape[0]
+        grouped = feature_availability.view(
+            batch_size,
+            self.n_channels,
+            self.low_dim_image_side_length,
+            self.patch_size,
+            self.low_dim_image_side_length,
+            self.patch_size,
+        )
+        return grouped.all(dim=(1, 3, 5)).flatten(start_dim=1)
+
+    @override
     def set_seed(self, seed: int | None) -> None:
         # This unmasker is deterministic
         pass

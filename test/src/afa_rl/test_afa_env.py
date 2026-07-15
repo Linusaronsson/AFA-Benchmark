@@ -17,6 +17,39 @@ from afabench.components.unmaskers import ImagePatchUnmasker
 from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
 
 
+def test_reset_blocks_unavailable_training_actions() -> None:
+    features = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
+    labels = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
+    availability = torch.tensor([[True, False], [False, False]])
+    dataset_fn = get_afa_dataset_fn(
+        features,
+        labels,
+        shuffle=False,
+        selection_availability=availability,
+    )
+    unmasker = DirectUnmasker()
+    env = AFAEnv(
+        dataset_fn=dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(0.0, -1.0),
+        device=torch.device("cpu"),
+        batch_size=torch.Size((2,)),
+        feature_shape=torch.Size((2,)),
+        n_selections=2,
+        n_classes=2,
+        hard_budget=2,
+        initialize_fn=ManualInitializer(flat_feature_indices=[]).initialize,
+        unmask_fn=unmasker.unmask,
+        force_hard_budget=True,
+    )
+
+    td = env.reset()
+
+    assert torch.equal(
+        td["allowed_action_mask"],
+        torch.tensor([[False, True, False], [True, False, False]]),
+    )
+
+
 def test_initializer_and_unmasker_integration() -> None:
     # Create 2-channel images with simple patterns for easy testing
     # Each sample has 2 channels, each channel is 4x4

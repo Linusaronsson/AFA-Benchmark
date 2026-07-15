@@ -390,6 +390,9 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             "k_neighbors": self.aaco_oracle.k_neighbors,
             "acquisition_cost": self.aaco_oracle.acquisition_cost,
             "hide_val": self.aaco_oracle.hide_val,
+            "missingness_objective": self.aaco_oracle.missingness_objective,
+            "dr_min_propensity": self.aaco_oracle.dr_min_propensity,
+            "dr_max_weight": self.aaco_oracle.dr_max_weight,
             "dataset_name": self.dataset_name,
             "force_acquisition": self.force_acquisition,
             "selection_size": self._selection_size,
@@ -409,6 +412,11 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             "y_train": self.aaco_oracle.y_train.cpu()
             if self.aaco_oracle.y_train is not None
             else None,
+            "train_observed_mask": (
+                self.aaco_oracle.train_observed_mask.cpu()
+                if self.aaco_oracle.train_observed_mask is not None
+                else None
+            ),
         }
         torch.save(oracle_state, path / f"aaco_oracle_{self.dataset_name}.pt")
         logger.info(f"Saved AACO method to {path}")
@@ -435,6 +443,9 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             k_neighbors=oracle_state["k_neighbors"],
             acquisition_cost=oracle_state["acquisition_cost"],
             hide_val=oracle_state["hide_val"],
+            missingness_objective=oracle_state["missingness_objective"],
+            dr_min_propensity=oracle_state["dr_min_propensity"],
+            dr_max_weight=oracle_state["dr_max_weight"],
             device=device,
         )
 
@@ -446,6 +457,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             aaco_oracle.fit(
                 oracle_state["X_train"].to(device),
                 oracle_state["y_train"].to(device),
+                observed_mask=oracle_state["train_observed_mask"],
             )
 
         # Get classifier path from saved state
@@ -491,6 +503,9 @@ def create_aaco_method(
     k_neighbors: int = 5,
     acquisition_cost: float = 0.05,
     hide_val: float = 0.0,  # Use 0 for consistency with MLP training
+    missingness_objective: str = "support_aware",
+    dr_min_propensity: float = 1e-3,
+    dr_max_weight: float | None = 20.0,
     *,
     force_acquisition: bool = False,
     selection_size: int | None = None,
@@ -526,6 +541,9 @@ def create_aaco_method(
         k_neighbors=k_neighbors,
         acquisition_cost=acquisition_cost,
         hide_val=hide_val,
+        missingness_objective=missingness_objective,
+        dr_min_propensity=dr_min_propensity,
+        dr_max_weight=dr_max_weight,
         device=device,
     )
 

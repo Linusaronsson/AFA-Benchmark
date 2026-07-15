@@ -1,0 +1,25 @@
+hydra:
+  searchpath:
+    - file://extra/conf
+    - file://extra/conf/global
+
+defaults:
+  - materialize_training_views_schema
+  - hydra: custom
+  - _self_
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+
+train_dataset_bundle_path: ???
+val_dataset_bundle_path: ???
+train_save_path: ???
+val_save_path: ???
+strategy: restricted
+seed: 0
+
+missingness:
+  mechanism: none
+  p: 0.0
+  p_obs: 0.3
+  p_params: 0.3
+  exclude_inputs: true

@@ -13,7 +13,9 @@ from afabench.components.methods.rl.common.dataset_utils import (
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
+from afabench.core.types import AFADataset
 from afabench.datasets.utils import flatten_features_collate
+from afabench.training.config import SupervisedLearningConfig
 
 if TYPE_CHECKING:
     from torch.utils.data.dataset import Dataset
@@ -21,8 +23,24 @@ if TYPE_CHECKING:
     from afabench.core.types import Features, Label
 
 
-from afabench.core.types import AFADataset
-from afabench.training.config import SupervisedLearningConfig
+class _DatasetWithRowExtra:
+    dataset: AFADataset
+    row_extra: torch.Tensor
+
+    def __init__(self, dataset: AFADataset, row_extra: torch.Tensor) -> None:
+        if len(dataset) != len(row_extra):
+            msg = "Row extras must have one row per dataset instance."
+            raise ValueError(msg)
+        self.dataset = dataset
+        self.row_extra = row_extra
+
+    def __getitem__(self, index: int) -> tuple[object, ...]:
+        features, label = self.dataset[index]
+        return features, label, self.row_extra[index]
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +107,7 @@ def supervised_learning(
     use_wandb: bool = False,
     device: str | None = None,
     metadata_to_save_in_bundle: dict[str, Any] | None = None,
+    row_extras_fn: Callable[[AFADataset], torch.Tensor] | None = None,
 ) -> None:
     """
     Do supervised learning for a pytorch lightning model.
@@ -109,12 +128,23 @@ def supervised_learning(
         Path(val_dataset_bundle_path),
     )
     val_dataset = cast("AFADataset", cast("object", val_dataset))
+    train_data: object = train_dataset
+    val_data: object = val_dataset
+    if row_extras_fn is not None:
+        train_data = _DatasetWithRowExtra(
+            train_dataset,
+            row_extras_fn(train_dataset),
+        )
+        val_data = _DatasetWithRowExtra(
+            val_dataset,
+            row_extras_fn(val_dataset),
+        )
     datamodule = DataModuleFromDatasets(
         train_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
+            "Dataset[tuple[Features, Label]]", cast("object", train_data)
         ),
         val_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
+            "Dataset[tuple[Features, Label]]", cast("object", val_data)
         ),
         batch_size=cfg.batch_size,
         collate_fn=flatten_features_collate(

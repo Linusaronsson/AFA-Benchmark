@@ -1,0 +1,52 @@
+# Faithful missing-training-data experiment port for CUBE-NM.
+#
+# Stages are cumulative and use separate smoke/full namespaces:
+#   1: MCAR p=0.5, instance 0, smoke settings, validation
+#   2: every mechanism at p=0.5, instances 0..4, validation
+#   3: every mechanism at p in {0.3, 0.5, 0.7}, validation
+#   4: frozen stage-3 methods evaluated once on the complete test split
+stage: 1
+dataset: cube_nm
+dataset_instance_indices: [0, 1, 2, 3, 4]
+device: cuda
+use_wandb: false
+smoke_test: null  # null selects true only for stage 1
+hard_budget: 14
+eval_batch_size: 128
+unmasker: cube_nm
+initializer: cold
+
+missingness:
+  probabilities: [0.3, 0.5, 0.7]
+  mechanisms:
+    - mcar
+    - mar
+    - mnar_logistic
+    - mnar_self
+  p_obs: 0.3
+  p_params: 0.3
+  exclude_inputs: true
+
+# Shared restoration ladder. zero_fill is deliberately absent: it is an
+# AACO-specific k-NN control, not a general completion baseline.
+strategies:
+  - restricted
+  - mean_fill
+  - pvae_label_conditioned
+  - pvae_label_free
+  - pvae_oracle
+  - true_completion
+
+methods:
+  - aaco
+  - dime
+  - gdfs
+  - jafa
+  - odin_model_free
+  - odin_model_based
+  - ol_without_mask
+  - ol_with_mask
+
+reweighting_controls:
+  - aaco_doubly_robust
+  - dime_feature_marginal_ipw

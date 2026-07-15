@@ -16,6 +16,9 @@ class AACOConfig:
     hide_val: float = 0.0
     evaluate_final_performance: bool = True
     eval_only_n_samples: int | None = None
+    missingness_objective: str = "support_aware"
+    dr_min_propensity: float = 1e-3
+    dr_max_weight: float | None = 20.0
 
 
 @dataclass

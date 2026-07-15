@@ -43,6 +43,20 @@ class CubeNMUnmasker(AFAUnmasker):
         return 1 + (n_features - self.n_contexts)
 
     @override
+    def feature_availability_to_selection_availability(
+        self,
+        feature_availability: FeatureMask,
+    ) -> SelectionMask:
+        assert feature_availability.ndim == 2
+        context_available = feature_availability[:, : self.n_contexts].all(
+            dim=1, keepdim=True
+        )
+        return torch.cat(
+            [context_available, feature_availability[:, self.n_contexts :]],
+            dim=1,
+        )
+
+    @override
     def unmask(
         self,
         masked_features: MaskedFeatures,

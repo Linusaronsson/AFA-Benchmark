@@ -96,6 +96,10 @@ class DIMETrainingConfig:
     smoke_test: bool
 
     min_lr: float | None = None
+    ipw_mode: str = "none"
+    ipw_min_propensity: float = 1e-3
+    ipw_max_weight: float = 10.0
+    ipw_normalize_weights: bool = True
 
 
 cs.store(name="train_dime", node=DIMETrainingConfig)

@@ -147,6 +147,21 @@ def main(cfg: ODINPretrainConfig) -> None:
         cfg.supervised_learning.limit_train_batches = 2
         cfg.supervised_learning.limit_val_batches = 2
 
+    row_extras_fn: Callable[[AFADataset], torch.Tensor] | None = None
+    if cfg.respect_source_availability:
+
+        def source_availability(dataset: AFADataset) -> torch.Tensor:
+            availability = getattr(dataset, "source_availability", None)
+            if availability is None:
+                msg = (
+                    "respect_source_availability=true requires "
+                    "TrainingDatasetView inputs."
+                )
+                raise ValueError(msg)
+            return cast("torch.Tensor", availability)
+
+        row_extras_fn = source_availability
+
     supervised_learning(
         train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
         val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
@@ -160,8 +175,10 @@ def main(cfg: ODINPretrainConfig) -> None:
         metadata_to_save_in_bundle={
             "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
             "seed": cfg.seed,
+            "respect_source_availability": cfg.respect_source_availability,
             "config": asdict(cfg),
         },
+        row_extras_fn=row_extras_fn,
     )
 
 

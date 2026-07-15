@@ -1,5 +1,5 @@
 # pyright: reportImplicitOverride=false, reportUnannotatedClassAttribute=false
-# ruff: noqa: ANN001, ANN003, ANN201, ANN202, B007, C901, D401, EM101, EM102, FBT002, I001, N802, PERF401, PLR0915, PLR1704, PLW2901, PTH118, TRY003, UP008, UP035
+# ruff: noqa: ANN001, ANN003, ANN201, ANN202, B007, C901, D401, EM101, EM102, FBT002, I001, N802, PERF401, PLR0915, PLR1704, PTH118, TRY003, UP008, UP035
 import math
 import os
 from copy import deepcopy
@@ -214,7 +214,7 @@ class MaskingPretrainer(nn.Module):
             return (torch.rand(x.shape, device=device) < p).float()
         return (torch.rand(x.size(0), n, device=device) < p).float()
 
-    def fit(
+    def fit(  # noqa: PLR0912
         self,
         train_loader,
         val_loader,
@@ -266,7 +266,9 @@ class MaskingPretrainer(nn.Module):
             # Switch model to training mode.
             model.train()
             epoch_train_loss = 0.0
-            for x, y in train_loader:
+            for batch in train_loader:
+                x, y = batch[:2]
+                availability = batch[3] if len(batch) == 4 else None
                 # Move to device.
                 x = x.to(device)
                 y = self._to_class_indices(y).to(device)
@@ -274,6 +276,11 @@ class MaskingPretrainer(nn.Module):
                 # Generate missingness.
                 p = min_mask + torch.rand(1).item() * (max_mask - min_mask)
                 m = self._random_mask(x, p)
+                if availability is not None:
+                    availability = availability.to(device)
+                    if availability.shape != m.shape:
+                        availability = availability.reshape_as(m)
+                    m *= availability
 
                 # Calculate loss.
                 x_masked = mask_layer(x, m)
@@ -295,7 +302,9 @@ class MaskingPretrainer(nn.Module):
                 pred_list = []
                 label_list = []
 
-                for x, y in val_loader:
+                for batch in val_loader:
+                    x, y = batch[:2]
+                    availability = batch[3] if len(batch) == 4 else None
                     # Move to device.
                     x = x.to(device)
                     y = self._to_class_indices(y).to(device)
@@ -305,6 +314,11 @@ class MaskingPretrainer(nn.Module):
 
                     # Calculate prediction.
                     m = self._random_mask(x, p)
+                    if availability is not None:
+                        availability = availability.to(device)
+                        if availability.shape != m.shape:
+                            availability = availability.reshape_as(m)
+                        m *= availability
                     x_masked = mask_layer(x, m)
                     pred = model(x_masked)
                     pred_list.append(pred)

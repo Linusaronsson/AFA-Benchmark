@@ -11,6 +11,7 @@ from afabench.components.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.naming import infer_dataset_key_from_class_name
 from afabench.core.utils import set_seed
+from afabench.datasets.training_views import TrainingDatasetView
 from afabench.training.smoke_test import training_subset
 
 if TYPE_CHECKING:
@@ -33,9 +34,12 @@ def run(cfg: AACOTrainConfig) -> None:
     )
 
     dataset_obj, dataset_manifest = load_bundle(Path(dataset_bundle_path))
-    dataset_name = infer_dataset_key_from_class_name(
-        dataset_manifest["class_name"]
+    source_class_name = getattr(
+        dataset_obj,
+        "source_dataset_class_name",
+        dataset_manifest["class_name"],
     )
+    dataset_name = infer_dataset_key_from_class_name(source_class_name)
     split = dataset_manifest["metadata"].get("split_idx", None)
     dataset = cast("AFADataset", cast("object", dataset_obj))
 
@@ -53,11 +57,22 @@ def run(cfg: AACOTrainConfig) -> None:
 
     X_train = X_train.to(device)
     y_train = y_train.to(device)
+    train_observed_mask = None
+    if (
+        isinstance(dataset_obj, TrainingDatasetView)
+        and dataset_obj.strategy == "restricted"
+    ):
+        train_observed_mask = dataset_obj.source_availability.reshape(
+            len(dataset),
+            -1,
+        ).to(device)
     X_train, y_train = training_subset(
         X_train,
         y_train,
         smoke_test=cfg.smoke_test,
     )
+    if train_observed_mask is not None:
+        train_observed_mask = train_observed_mask[: len(X_train)]
 
     logger.debug(
         "X_train shape %s, y_train shape %s",
@@ -102,6 +117,9 @@ def run(cfg: AACOTrainConfig) -> None:
         k_neighbors=cfg.aco.k_neighbors,
         acquisition_cost=soft_budget_param,
         hide_val=cfg.aco.hide_val,
+        missingness_objective=cfg.aco.missingness_objective,
+        dr_min_propensity=cfg.aco.dr_min_propensity,
+        dr_max_weight=cfg.aco.dr_max_weight,
         force_acquisition=force_acquisition,
         selection_size=selection_size,
         unmasker_class_name=cfg.unmasker.class_name,
@@ -112,7 +130,11 @@ def run(cfg: AACOTrainConfig) -> None:
     )
 
     logger.info("Fitting AACO oracle on training data...")
-    aaco_method.aaco_oracle.fit(X_train, y_train)
+    aaco_method.aaco_oracle.fit(
+        X_train,
+        y_train,
+        observed_mask=train_observed_mask,
+    )
     logger.info(
         "AACO oracle fitted with classifier from %s",
         classifier_bundle_path,
@@ -132,6 +154,10 @@ def run(cfg: AACOTrainConfig) -> None:
             "selection_size": selection_size,
             "k_neighbors": cfg.aco.k_neighbors,
             "hide_val": cfg.aco.hide_val,
+            "missingness_objective": cfg.aco.missingness_objective,
+            "dr_min_propensity": cfg.aco.dr_min_propensity,
+            "dr_max_weight": cfg.aco.dr_max_weight,
+            "training_view_strategy": getattr(dataset, "strategy", None),
             "classifier_bundle_path": str(classifier_bundle_path),
             "n_features": X_train.shape[1],
             "n_train_samples": len(X_train),

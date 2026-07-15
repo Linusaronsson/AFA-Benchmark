@@ -30,6 +30,13 @@ class DirectUnmasker(AFAUnmasker):
         return feature_shape.numel()
 
     @override
+    def feature_availability_to_selection_availability(
+        self,
+        feature_availability: FeatureMask,
+    ) -> SelectionMask:
+        return feature_availability.flatten(start_dim=1)
+
+    @override
     def unmask(
         self,
         masked_features: MaskedFeatures,

@@ -51,6 +51,9 @@ To reproduce the full benchmark results, use SLURM instead. See the
 [reproducing full results](docs/tutorials/reproduce_full_results.md) tutorial
 for the exact commands.
 
+The missing-training-data study has a separate staged workflow; see
+[missing-training-data experiments](docs/tutorials/missing_data_experiments.md).
+
 ## Features
 
 - Accessible configuration using

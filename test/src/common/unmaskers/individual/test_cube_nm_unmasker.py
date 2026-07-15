@@ -93,3 +93,24 @@ def test_get_n_selections() -> None:
 
     expected_n_selections = 5
     assert n_selections == expected_n_selections
+
+
+def test_feature_availability_requires_the_whole_context_group() -> None:
+    unmasker = CubeNMUnmasker(n_contexts=3)
+    feature_availability = torch.tensor(
+        [
+            [True, True, True, True, False],
+            [True, False, True, True, True],
+        ]
+    )
+
+    selection_availability = (
+        unmasker.feature_availability_to_selection_availability(
+            feature_availability
+        )
+    )
+
+    assert torch.equal(
+        selection_availability,
+        torch.tensor([[True, True, False], [False, True, True]]),
+    )

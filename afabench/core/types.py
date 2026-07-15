@@ -345,6 +345,13 @@ class AFAUnmasker(Protocol):
         """
         ...
 
+    def feature_availability_to_selection_availability(
+        self,
+        feature_availability: FeatureMask,
+    ) -> SelectionMask:
+        """Map row-level feature support to selectable acquisition groups."""
+        ...
+
     def unmask(
         self,
         masked_features: MaskedFeatures,

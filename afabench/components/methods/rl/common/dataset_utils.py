@@ -10,6 +10,7 @@ from afabench.components.methods.rl.common.custom_types import AFADatasetFn
 from afabench.core.types import (
     Features,
     Label,
+    SelectionMask,
 )
 
 
@@ -26,6 +27,7 @@ def get_afa_dataset_fn(
     device: torch.device | None = None,
     *,
     shuffle: bool = True,
+    selection_availability: SelectionMask | None = None,
 ) -> AFADatasetFn:
     """Given features and labels, return a function that can be used to get batches of AFA data."""
     idx = 0  # keep track of where in the dataset we are
@@ -37,10 +39,19 @@ def get_afa_dataset_fn(
         batch_size: torch.Size,
         *,
         move_on: bool = True,
-    ) -> tuple[Features, Label]:
-        nonlocal idx, features, labels
+    ) -> tuple[Features, Label] | tuple[Features, Label, SelectionMask]:
+        nonlocal idx, features, labels, selection_availability
         local_features = get_wrapped_batch(features, idx, batch_size.numel())
         local_labels = get_wrapped_batch(labels, idx, batch_size.numel())
+        local_availability = (
+            None
+            if selection_availability is None
+            else get_wrapped_batch(
+                selection_availability,
+                idx,
+                batch_size.numel(),
+            )
+        )
         if move_on:
             idx = idx + batch_size.numel()
             # Reset idx if needed, also shuffling the dataset
@@ -51,6 +62,8 @@ def get_afa_dataset_fn(
                     perm = torch.randperm(len(features))
                     features = features[perm]
                     labels = labels[perm]
+                    if selection_availability is not None:
+                        selection_availability = selection_availability[perm]
         local_features = local_features.reshape(
             *batch_size, *original_feature_shape
         )
@@ -62,8 +75,12 @@ def get_afa_dataset_fn(
         if device is not None:
             local_features = local_features.to(device)
             local_labels = local_labels.to(device)
+            if local_availability is not None:
+                local_availability = local_availability.to(device)
 
-        return local_features, local_labels
+        if local_availability is None:
+            return local_features, local_labels
+        return local_features, local_labels, local_availability
 
     return afa_dataset_fn
 

@@ -14,6 +14,7 @@ from .datasets import (
     PhysionetDataset,
     SyntheticMNISTDataset,
 )
+from .training_views import TrainingDatasetView
 
 __all__ = [
     "DATASET_KEY_ALIASES",
@@ -30,4 +31,5 @@ __all__ = [
     "MiniBooNEDataset",
     "PhysionetDataset",
     "SyntheticMNISTDataset",
+    "TrainingDatasetView",
 ]

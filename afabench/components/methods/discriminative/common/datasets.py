@@ -25,13 +25,34 @@ def prepare_datasets(
 
     # Create new datasets with converted data format
     class ConvertedDataset:
+        source_availability: Any
+        selection_availability: Any
+
         def __init__(self, original_dataset: AFADataset):
             self.original_dataset: Any = original_dataset
             self.features, self.labels = original_dataset.get_all_data()
             self.features: Any = self.features.float()
             self.labels: Any = self.labels.argmax(dim=1).long()
+            self.source_availability = getattr(
+                original_dataset,
+                "source_availability",
+                None,
+            )
+            self.selection_availability = getattr(
+                original_dataset,
+                "selection_availability",
+                None,
+            )
 
         def __getitem__(self, idx: int):
+            if self.source_availability is not None:
+                assert self.selection_availability is not None
+                return (
+                    self.features[idx],
+                    self.labels[idx],
+                    self.source_availability[idx],
+                    self.selection_availability[idx],
+                )
             return self.features[idx], self.labels[idx]
 
         def __len__(self):

@@ -182,7 +182,24 @@ class RLTrainer(ABC):
 
     def _get_env_from_dataset(self, dataset: AFADataset) -> AFAEnv:
         features, labels = dataset.get_all_data()
-        dataset_fn = get_afa_dataset_fn(features, labels, device=self.device)
+        feature_availability = getattr(
+            dataset,
+            "selection_availability",
+            None,
+        )
+        selection_availability = (
+            None
+            if feature_availability is None
+            else self.unmasker.feature_availability_to_selection_availability(
+                feature_availability
+            )
+        )
+        dataset_fn = get_afa_dataset_fn(
+            features,
+            labels,
+            device=self.device,
+            selection_availability=selection_availability,
+        )
         env = AFAEnv(
             dataset_fn=dataset_fn,
             reward_fn=self.reward_fn,

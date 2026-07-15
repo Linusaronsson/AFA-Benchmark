@@ -279,11 +279,12 @@ class ODINPretrainingModel(pl.LightningModule):
 
     def shared_step(
         self,
-        batch: tuple[Tensor, Tensor],
+        batch: tuple[Tensor, ...],
         batch_idx: int,  # noqa: ARG002
-    ) -> tuple[Tensor, Tensor, Tensor]:
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor | None]:
         features: Features = batch[0]
         label: Label = batch[1]
+        source_availability = batch[2].bool() if len(batch) > 2 else None
 
         assert features.ndim == 2, (
             f"Expected a single batch dimension and single feature dimension, got {features.ndim}"
@@ -291,21 +292,36 @@ class ODINPretrainingModel(pl.LightningModule):
         assert label.ndim == 2, (
             f"Expected a single batch dimension and single label dimension, got {label.ndim}"
         )
+        if source_availability is not None:
+            assert source_availability.shape == features.shape
 
         # According to the paper, labels are appended to the features. "Augmented" = features + labels
         augmented_features = torch.cat(
             [features, label], dim=-1
         )  # (batch_size, n_features+n_classes)
 
-        return augmented_features, features, label
+        return augmented_features, features, label, source_availability
+
+    @staticmethod
+    def _augment_source_availability(
+        source_availability: Tensor,
+        label: Tensor,
+    ) -> Tensor:
+        return torch.cat(
+            [source_availability, torch.ones_like(label, dtype=torch.bool)],
+            dim=-1,
+        )
 
     @override
     def training_step(
-        self, batch: tuple[Tensor, Tensor], batch_idx: int
+        self, batch: tuple[Tensor, ...], batch_idx: int
     ) -> Tensor:
-        augmented_features, features, label = self.shared_step(
-            batch=batch, batch_idx=batch_idx
-        )
+        (
+            augmented_features,
+            features,
+            label,
+            source_availability,
+        ) = self.shared_step(batch=batch, batch_idx=batch_idx)
 
         masking_probability = self.min_masking_probability + torch.rand(
             1
@@ -317,6 +333,14 @@ class ODINPretrainingModel(pl.LightningModule):
         augmented_masked_features, augmented_feature_mask, _ = mask_data(
             augmented_features, p=masking_probability
         )
+        if source_availability is not None:
+            augmented_feature_mask &= self._augment_source_availability(
+                source_availability,
+                label,
+            )
+            augmented_masked_features = (
+                augmented_features * augmented_feature_mask.float()
+            )
 
         # Pass masked features through VAE, returning estimated features but also encoding which will be passed through classifier
         # IMPORTANT NOTE: the PVAE is trained to reconstruct the *normal* features, not the augmented ones! We can do this
@@ -341,7 +365,11 @@ class ODINPretrainingModel(pl.LightningModule):
             partial_vae_feature_recon_loss,
             partial_vae_kl_div_loss,
         ) = self.partial_vae_loss_function(
-            estimated_features, features, mu, logvar
+            estimated_features,
+            features,
+            mu,
+            logvar,
+            reconstruction_availability=source_availability,
         )
         self.log("train_loss_vae", partial_vae_loss, sync_dist=True)
         self.log(
@@ -377,6 +405,7 @@ class ODINPretrainingModel(pl.LightningModule):
         augmented_feature_mask: FeatureMask,
         features: Features,
         label: Label,
+        reconstruction_availability: Tensor | None = None,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         assert augmented_masked_features.ndim == 2
         assert augmented_feature_mask.ndim == 2
@@ -391,7 +420,11 @@ class ODINPretrainingModel(pl.LightningModule):
             partial_vae_feature_recon_loss,
             partial_vae_kl_div_loss,
         ) = self.partial_vae_loss_function(
-            estimated_features, features, mu, logvar
+            estimated_features,
+            features,
+            mu,
+            logvar,
+            reconstruction_availability=reconstruction_availability,
         )
 
         # Pass the encoding through the classifier
@@ -416,10 +449,18 @@ class ODINPretrainingModel(pl.LightningModule):
 
     @override
     def validation_step(
-        self, batch: tuple[Tensor, Tensor], batch_idx: int
+        self, batch: tuple[Tensor, ...], batch_idx: int
     ) -> None:
-        augmented_features, features, label = self.shared_step(
-            batch=batch, batch_idx=batch_idx
+        (
+            augmented_features,
+            features,
+            label,
+            source_availability,
+        ) = self.shared_step(batch=batch, batch_idx=batch_idx)
+        augmented_source_availability = (
+            self._augment_source_availability(source_availability, label)
+            if source_availability is not None
+            else None
         )
 
         # Mask features with minimum probability -> see many features (observations)
@@ -429,6 +470,10 @@ class ODINPretrainingModel(pl.LightningModule):
             )
             > self.min_masking_probability
         )
+        if augmented_source_availability is not None:
+            augmented_feature_mask_many_observations &= (
+                augmented_source_availability
+            )
 
         augmented_masked_features_many_observations = (
             augmented_features.clone()
@@ -447,6 +492,7 @@ class ODINPretrainingModel(pl.LightningModule):
             augmented_feature_mask_many_observations,
             features,
             label,
+            reconstruction_availability=source_availability,
         )
         self.log("val_loss_vae_many_observations", loss_vae_many_observations)
         self.log(
@@ -474,6 +520,10 @@ class ODINPretrainingModel(pl.LightningModule):
             )
             > self.max_masking_probability
         )
+        if augmented_source_availability is not None:
+            augmented_feature_mask_few_observations &= (
+                augmented_source_availability
+            )
 
         augmented_masked_features_few_observations = augmented_features.clone()
         augmented_masked_features_few_observations[
@@ -490,6 +540,7 @@ class ODINPretrainingModel(pl.LightningModule):
             augmented_feature_mask_few_observations,
             features,
             label,
+            reconstruction_availability=source_availability,
         )
         self.log("val_loss_vae_few_observations", loss_vae_few_observations)
         self.log(
@@ -519,6 +570,7 @@ class ODINPretrainingModel(pl.LightningModule):
         features: Tensor,
         mu: Tensor,
         logvar: Tensor,
+        reconstruction_availability: Tensor | None = None,
     ) -> tuple[Tensor, Tensor, Tensor]:
         assert estimated_features.ndim == 2, (
             f"Expected estimated_features to have 2 dimensions, but got {estimated_features.ndim}"
@@ -527,9 +579,10 @@ class ODINPretrainingModel(pl.LightningModule):
             f"Expected features to have 2 dimensions, but got {features.ndim}"
         )
 
-        feature_recon_loss = (
-            ((estimated_features - features) ** 2).sum(dim=1).mean(dim=0)
-        )
+        squared_errors = (estimated_features - features) ** 2
+        if reconstruction_availability is not None:
+            squared_errors *= reconstruction_availability.float()
+        feature_recon_loss = squared_errors.sum(dim=1).mean(dim=0)
         kl_div_loss = -0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(
             dim=1
         ).mean(dim=0)

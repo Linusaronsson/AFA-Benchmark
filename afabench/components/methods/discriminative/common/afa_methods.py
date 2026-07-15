@@ -2,7 +2,7 @@ import math
 from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
-from typing import Self, override
+from typing import Any, Self, override
 
 import numpy as np
 import torch
@@ -58,6 +58,109 @@ def _append_flat_mask(
         masked_features = masked_features.flatten(start_dim=1)
         feature_mask = feature_mask.flatten(start_dim=1)
     return torch.cat([masked_features, feature_mask], dim=1)
+
+
+def _unpack_training_batch(
+    batch: list[torch.Tensor] | tuple[torch.Tensor, ...],
+    *,
+    unmasker: AFAUnmasker,
+    device: torch.device,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Return values, labels, factual support, and selectable support."""
+    features, labels = batch[:2]
+    features = features.to(device)
+    labels = labels.to(device)
+    if len(batch) == 4:
+        source_availability = batch[2].to(device).bool()
+        feature_availability = batch[3].to(device).bool()
+    else:
+        source_availability = torch.ones_like(features, dtype=torch.bool)
+        feature_availability = source_availability
+    selection_availability = (
+        unmasker.feature_availability_to_selection_availability(
+            feature_availability
+        )
+    )
+    return features, labels, source_availability, selection_availability
+
+
+def _initial_training_masks(
+    *,
+    features: torch.Tensor,
+    labels: torch.Tensor,
+    feature_shape: torch.Size,
+    initializer: AFAInitializer,
+    selection_availability: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    initial_features = initializer.initialize(
+        features=features,
+        label=labels,
+        feature_shape=feature_shape,
+    ).to(features.device)
+    # Materialized restricted views contain zeros outside support. Their
+    # unavailable actions begin as already exhausted in selection space.
+    selection_mask = (~selection_availability).to(dtype=features.dtype)
+    return initial_features.to(dtype=features.dtype), selection_mask
+
+
+def _unmask_available_rows(
+    *,
+    unmasker: AFAUnmasker,
+    masked_features: torch.Tensor,
+    feature_mask: torch.Tensor,
+    features: torch.Tensor,
+    selection: torch.Tensor,
+    selection_mask: torch.Tensor,
+    has_available: torch.Tensor,
+    feature_shape: torch.Size,
+) -> torch.Tensor:
+    new_feature_mask = feature_mask.clone().bool()
+    if has_available.any():
+        new_feature_mask[has_available] = unmasker.unmask(
+            masked_features=masked_features[has_available],
+            feature_mask=feature_mask[has_available].bool(),
+            features=features[has_available],
+            afa_selection=selection[has_available],
+            selection_mask=selection_mask[has_available],
+            feature_shape=feature_shape,
+        )
+    return new_feature_mask.to(dtype=feature_mask.dtype)
+
+
+def _feature_marginal_selection_propensities(
+    feature_availability: torch.Tensor,
+    unmasker: AFAUnmasker,
+) -> torch.Tensor:
+    marginal = feature_availability.float().flatten(start_dim=1).mean(dim=0)
+    if isinstance(unmasker, CubeNMUnmasker):
+        return torch.cat(
+            [
+                marginal[: unmasker.n_contexts].prod().unsqueeze(0),
+                marginal[unmasker.n_contexts :],
+            ]
+        )
+    return marginal
+
+
+def _training_selection_propensities(
+    train_loader: DataLoader[Any],
+    unmasker: AFAUnmasker,
+    *,
+    n_selections: int,
+    device: torch.device,
+) -> torch.Tensor:
+    """Estimate feature-marginal support once from the full training view."""
+    source_availability = getattr(
+        train_loader.dataset,
+        "source_availability",
+        None,
+    )
+    if source_availability is None:
+        return torch.ones(n_selections, device=device)
+    return _feature_marginal_selection_propensities(
+        source_availability.to(device),
+        unmasker,
+    )
 
 
 class GreedyDynamicSelection(nn.Module):
@@ -146,10 +249,10 @@ class GreedyDynamicSelection(nn.Module):
         if mask_layer.mask_size is not None:
             mask_size = int(mask_layer.mask_size)
         else:
-            x, _ = next(iter(val_loader))
+            x = next(iter(val_loader))[0]
             mask_size = x.shape[1:].numel()
 
-        x0, _ = next(iter(val_loader))
+        x0 = next(iter(val_loader))[0]
         x0 = x0.to(device)
         feature_shape = torch.Size(list(x0.shape[1:]))
 
@@ -165,8 +268,6 @@ class GreedyDynamicSelection(nn.Module):
             device
         )
         log_cost = torch.log(selection_costs)
-
-        n_selections = unmasker.get_n_selections(feature_shape)
 
         # For tracking best models with zero temperature.
         best_val = None
@@ -203,21 +304,27 @@ class GreedyDynamicSelection(nn.Module):
                 selector.train()
                 predictor.train()
                 epoch_train_loss = 0.0
-                for x_batch, y_batch in train_loader:
+                for batch in train_loader:
                     # Move to device.
-                    x = x_batch.to(device)
+                    (
+                        x,
+                        y_batch,
+                        _source_availability,
+                        selection_availability,
+                    ) = _unpack_training_batch(
+                        batch,
+                        unmasker=unmasker,
+                        device=device,
+                    )
                     y = self._to_class_indices(y_batch).to(device)
 
-                    m_sel = torch.zeros(
-                        len(x), n_selections, dtype=x.dtype, device=device
-                    )
-                    # Pixel level mask for image data
-                    init_mask_bool = initializer.initialize(
+                    m_feat, m_sel = _initial_training_masks(
                         features=x,
-                        label=y,
+                        labels=y,
                         feature_shape=feature_shape,
-                    ).to(device)
-                    m_feat = init_mask_bool.to(dtype=x.dtype)
+                        initializer=initializer,
+                        selection_availability=selection_availability,
+                    )
 
                     selector.zero_grad()
                     predictor.zero_grad()
@@ -228,11 +335,13 @@ class GreedyDynamicSelection(nn.Module):
                         x_masked = _apply_model_mask(mask_layer, x, m_feat)
                         logits = selector(x_masked).flatten(1)
                         # since not a probability, do exp(logits)/cost <-> logits / log_cost
-                        logits_cost = logits - log_cost
+                        logits_cost = logits - log_cost - 1e6 * m_sel
+                        has_available = (~m_sel.bool()).any(dim=1)
 
                         # Get selections.
                         # soft = selector_layer(logits, temp)
                         soft = selector_layer(logits_cost, temp)
+                        soft *= has_available.unsqueeze(1)
                         if len(x.shape) == 4:
                             soft_feat = patch_soft_to_feature_soft(soft, x)
                         elif isinstance(unmasker, CubeNMUnmasker):
@@ -257,7 +366,8 @@ class GreedyDynamicSelection(nn.Module):
                         epoch_train_loss += loss.item()
 
                         # Update mask, ensure no repeats.
-                        dist = selector_layer(logits_cost - 1e6 * m_sel, 1e-6)
+                        dist = selector_layer(logits_cost, 1e-6)
+                        dist *= has_available.unsqueeze(1)
                         sel_idx = torch.argmax(dist, dim=1, keepdim=True)
                         # Zero-based indexing for unmaskers
                         afa_selection = sel_idx.to(torch.long)
@@ -265,12 +375,14 @@ class GreedyDynamicSelection(nn.Module):
                             m_sel,
                             make_onehot(dist),
                         )
-                        m_feat = unmasker.unmask(
+                        m_feat = _unmask_available_rows(
+                            unmasker=unmasker,
                             masked_features=x_masked,
-                            feature_mask=m_feat.bool(),
+                            feature_mask=m_feat,
                             features=x,
-                            afa_selection=afa_selection,
+                            selection=afa_selection,
                             selection_mask=m_sel,
+                            has_available=has_available,
                             feature_shape=feature_shape,
                         ).to(dtype=x.dtype)
 
@@ -290,20 +402,27 @@ class GreedyDynamicSelection(nn.Module):
                     hard_pred_list = []
                     label_list = []
 
-                    for x_batch, y_batch in val_loader:
+                    for batch in val_loader:
                         # Move to device.
-                        x = x_batch.to(device)
+                        (
+                            x,
+                            y_batch,
+                            _source_availability,
+                            selection_availability,
+                        ) = _unpack_training_batch(
+                            batch,
+                            unmasker=unmasker,
+                            device=device,
+                        )
                         y = self._to_class_indices(y_batch).to(device)
 
-                        m_sel = torch.zeros(
-                            len(x), n_selections, dtype=x.dtype, device=device
-                        )
-                        init_mask_bool = initializer.initialize(
+                        m_feat, m_sel = _initial_training_masks(
                             features=x,
-                            label=y,
+                            labels=y,
                             feature_shape=feature_shape,
-                        ).to(device)
-                        m_feat = init_mask_bool.to(dtype=x.dtype)
+                            initializer=initializer,
+                            selection_availability=selection_availability,
+                        )
 
                         for _ in range(max_features):
                             # Evaluate selector model.
@@ -311,6 +430,7 @@ class GreedyDynamicSelection(nn.Module):
                             logits = selector(x_masked).flatten(1)
                             logits_cost = logits - log_cost
                             logits_cost = logits_cost - 1e6 * m_sel
+                            has_available = (~m_sel.bool()).any(dim=1)
 
                             # Get selections, ensure no repeats.
                             # logits = logits - 1e6 * m
@@ -320,6 +440,7 @@ class GreedyDynamicSelection(nn.Module):
                                 )
                             else:
                                 soft = selector_layer(logits_cost, temp)
+                            soft *= has_available.unsqueeze(1)
                             if len(x.shape) == 4:
                                 soft_feat = patch_soft_to_feature_soft(soft, x)
                             elif isinstance(unmasker, CubeNMUnmasker):
@@ -332,12 +453,14 @@ class GreedyDynamicSelection(nn.Module):
                             m_sel = torch.max(m_sel, make_onehot(soft))
                             sel_idx = torch.argmax(soft, dim=1, keepdim=True)
                             afa_selection = sel_idx.to(torch.long)
-                            m_feat = unmasker.unmask(
+                            m_feat = _unmask_available_rows(
+                                unmasker=unmasker,
                                 masked_features=x_masked,
-                                feature_mask=m_feat.bool(),
+                                feature_mask=m_feat,
                                 features=x,
-                                afa_selection=afa_selection,
+                                selection=afa_selection,
                                 selection_mask=m_sel,
+                                has_available=has_available,
                                 feature_shape=feature_shape,
                             ).to(dtype=x.dtype)
 
@@ -771,6 +894,10 @@ class CMIEstimator(nn.Module):
         eps_steps: int = 1,
         feature_costs: torch.Tensor | None = None,
         cmi_scaling: str = "bounded",
+        ipw_mode: str = "none",
+        ipw_min_propensity: float = 1e-3,
+        ipw_max_weight: float = 10.0,
+        ipw_normalize_weights: bool = True,  # noqa: FBT002
         verbose: bool = True,  # noqa: FBT002
         metric_logger: Callable[[dict[str, float]], None] | None = None,
         metric_prefix: str = "cmi_estimator",
@@ -783,6 +910,15 @@ class CMIEstimator(nn.Module):
             raise ValueError(msg)
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
+        if ipw_mode not in {"none", "feature_marginal"}:
+            msg = "ipw_mode must be one of {'none', 'feature_marginal'}."
+            raise ValueError(msg)
+        if not 0.0 < ipw_min_propensity <= 1.0:
+            msg = "ipw_min_propensity must be in (0, 1]."
+            raise ValueError(msg)
+        if ipw_max_weight <= 0.0:
+            msg = "ipw_max_weight must be positive."
+            raise ValueError(msg)
 
         value_network: nn.Module = self.value_network
         predictor: nn.Module = self.predictor
@@ -797,10 +933,10 @@ class CMIEstimator(nn.Module):
         if mask_layer.mask_size is not None:
             mask_size = int(mask_layer.mask_size)
         else:
-            x, y = next(iter(val_loader))
+            x = next(iter(val_loader))[0]
             mask_size = x.shape[1:].numel()
 
-        x0, _ = next(iter(val_loader))
+        x0 = next(iter(val_loader))[0]
         x0 = x0.to(device)
         feature_shape = torch.Size(list(x0.shape[1:]))
 
@@ -818,6 +954,12 @@ class CMIEstimator(nn.Module):
         selection_costs = torch.clamp(selection_costs, min=1e-12)
 
         n_selections = unmasker.get_n_selections(feature_shape)
+        selection_propensities = _training_selection_propensities(
+            train_loader,
+            unmasker,
+            n_selections=n_selections,
+            device=device,
+        )
 
         opt = optim.Adam(
             list(value_network.parameters()) + list(predictor.parameters()),
@@ -845,20 +987,24 @@ class CMIEstimator(nn.Module):
             pred_losses = []
             total_loss = 0
 
-            for x_batch, y_batch in train_loader:
+            for batch in train_loader:
                 # Move to device.
-                x = x_batch.to(device)
+                x, y_batch, _source_availability, selection_availability = (
+                    _unpack_training_batch(
+                        batch,
+                        unmasker=unmasker,
+                        device=device,
+                    )
+                )
                 y = self._to_class_indices(y_batch).to(device)
 
-                m_sel = torch.zeros(
-                    len(x), n_selections, dtype=x.dtype, device=device
-                )
-                init_mask_bool = initializer.initialize(
+                m_feat, m_sel = _initial_training_masks(
                     features=x,
-                    label=y,
+                    labels=y,
                     feature_shape=feature_shape,
-                ).to(device)
-                m_feat = init_mask_bool.to(dtype=x.dtype)
+                    initializer=initializer,
+                    selection_availability=selection_availability,
+                )
 
                 value_network.zero_grad()
                 predictor.zero_grad()
@@ -893,27 +1039,38 @@ class CMIEstimator(nn.Module):
                     else:
                         pred_cmi = value_network(x_masked)
 
-                    best = torch.argmax(pred_cmi / selection_costs, dim=1)
-                    random = torch.randint(
-                        n_selections,
-                        size=(len(x),),
-                        device=x.device,
+                    available = ~m_sel.bool()
+                    has_available = available.any(dim=1)
+                    scores = (pred_cmi / selection_costs).masked_fill(
+                        ~available,
+                        -torch.inf,
                     )
+                    best = torch.argmax(scores, dim=1)
+                    random_scores = torch.rand_like(pred_cmi).masked_fill(
+                        ~available,
+                        -1.0,
+                    )
+                    random = torch.argmax(random_scores, dim=1)
                     exploit = (torch.rand(len(x), device=x.device) > eps).int()
                     actions = exploit * best + (1 - exploit) * random
                     afa_selection = actions.to(torch.long)
                     afa_selection = afa_selection.unsqueeze(1)
+                    performed = ind_to_onehot(actions, n_selections)
+                    performed *= has_available.unsqueeze(1)
                     m_sel = torch.max(
-                        m_sel, ind_to_onehot(actions, n_selections)
+                        m_sel,
+                        performed,
                     )
 
                     # Predictor loss.
-                    m_feat = unmasker.unmask(
+                    m_feat = _unmask_available_rows(
+                        unmasker=unmasker,
                         masked_features=x_masked,
-                        feature_mask=m_feat.bool(),
+                        feature_mask=m_feat,
                         features=x,
-                        afa_selection=afa_selection,
+                        selection=afa_selection,
                         selection_mask=m_sel,
+                        has_available=has_available,
                         feature_shape=feature_shape,
                     )
                     x_masked = _apply_model_mask(self.mask_layer, x, m_feat)
@@ -925,8 +1082,28 @@ class CMIEstimator(nn.Module):
                         loss_without_next_feature
                         - loss_with_next_feature.detach()
                     )
-                    value_network_loss = nn.functional.mse_loss(
-                        pred_cmi[torch.arange(len(x)), actions], delta
+                    squared_error = torch.square(
+                        pred_cmi[
+                            torch.arange(len(x), device=device),
+                            actions,
+                        ]
+                        - delta
+                    )
+                    squared_error *= has_available
+                    if ipw_mode == "feature_marginal":
+                        weights = (
+                            selection_propensities[actions]
+                            .clamp_min(ipw_min_propensity)
+                            .reciprocal()
+                        )
+                        weights = weights.clamp_max(ipw_max_weight)
+                        if ipw_normalize_weights and has_available.any():
+                            weights /= (
+                                weights[has_available].mean().clamp_min(1e-12)
+                            )
+                        squared_error *= weights.detach()
+                    value_network_loss = squared_error.sum() / (
+                        has_available.sum().clamp_min(1)
                     )
 
                     # Calculate gradients.
@@ -958,21 +1135,28 @@ class CMIEstimator(nn.Module):
             val_targets = []
 
             with torch.no_grad():
-                for x_batch, y_batch in val_loader:
+                for batch in val_loader:
                     # Move to device.
-                    x = x_batch.to(device)
-                    y = self._to_class_indices(y_batch).to(device)
-                    m_sel = torch.zeros(
-                        len(x), n_selections, dtype=x.dtype, device=device
+                    (
+                        x,
+                        y_batch,
+                        _source_availability,
+                        selection_availability,
+                    ) = _unpack_training_batch(
+                        batch,
+                        unmasker=unmasker,
+                        device=device,
                     )
+                    y = self._to_class_indices(y_batch).to(device)
 
                     # Setup.
-                    init_mask_bool = initializer.initialize(
+                    m_feat, m_sel = _initial_training_masks(
                         features=x,
-                        label=y,
+                        labels=y,
                         feature_shape=feature_shape,
-                    ).to(device)
-                    m_feat = init_mask_bool.to(dtype=x.dtype)
+                        initializer=initializer,
+                        selection_availability=selection_availability,
+                    )
                     x_masked = _apply_model_mask(self.mask_layer, x, m_feat)
                     pred = predictor(x_masked)
                     val_preds[0].append(pred)
@@ -994,21 +1178,29 @@ class CMIEstimator(nn.Module):
 
                         # Select next feature, ensure no repeats.
                         pred_cmi -= 1e6 * m_sel
+                        has_available = (~m_sel.bool()).any(dim=1)
                         best_feature_index = torch.argmax(
                             pred_cmi / selection_costs, dim=1
                         )
+                        performed = ind_to_onehot(
+                            best_feature_index,
+                            n_selections,
+                        )
+                        performed *= has_available.unsqueeze(1)
                         m_sel = torch.max(
                             m_sel,
-                            ind_to_onehot(best_feature_index, n_selections),
+                            performed,
                         )
                         afa_selection = best_feature_index.to(torch.long)
                         afa_selection = afa_selection.unsqueeze(1)
-                        m_feat = unmasker.unmask(
+                        m_feat = _unmask_available_rows(
+                            unmasker=unmasker,
                             masked_features=x_masked,
-                            feature_mask=m_feat.bool(),
+                            feature_mask=m_feat,
                             features=x,
-                            afa_selection=afa_selection,
+                            selection=afa_selection,
                             selection_mask=m_sel,
+                            has_available=has_available,
                             feature_shape=feature_shape,
                         )
 
