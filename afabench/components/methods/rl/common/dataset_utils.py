@@ -16,9 +16,12 @@ from afabench.core.types import (
 
 def get_wrapped_batch(t: torch.Tensor, idx: int, numel: int) -> torch.Tensor:
     """Get a batch of size num_elems from a tensor t, starting at index idx, wrapping around if necessary."""
+    # Gather modulo n rather than materializing `t.repeat(...)`, which copied
+    # the whole dataset (twice over) just to slice `numel` rows out of it.
+    # Identical output: row j of the old repeated tensor is t[j % n], so the
+    # slice [idx, idx+numel) is exactly t[(idx + i) % n].
     n = len(t)
-    repeated = t.repeat((numel // n) + 2, *[1] * (t.ndim - 1))
-    return repeated[idx : idx + numel]
+    return t[(idx + torch.arange(numel, device=t.device)) % n]
 
 
 def get_afa_dataset_fn(

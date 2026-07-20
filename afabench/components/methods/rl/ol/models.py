@@ -74,11 +74,25 @@ class OLPQModule(nn.Module):
 
         self.layers_q.append(nn.Linear(size_last, self.n_actions))
 
+    def _dropout(self, x: torch.Tensor, *, mc_dropout: bool) -> torch.Tensor:
+        """
+        Dropout that honours eval mode unless MC sampling is explicitly asked for.
+
+        `F.dropout` defaults to `training=True`, so omitting the argument makes
+        `.eval()` a no-op and leaves predictions and Q-values stochastic. Only
+        `confidence` wants dropout at eval time, and it says so explicitly.
+        """
+        return F.dropout(
+            x, p=self.cfg.p_dropout, training=self.training or mc_dropout
+        )
+
     @override
     def forward(
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask | None = None,
+        *,
+        mc_dropout: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         assert masked_features.ndim == 2
         x = self._maybe_concatenate(masked_features, feature_mask)
@@ -86,8 +100,8 @@ class OLPQModule(nn.Module):
         act_last = x
         acts_p = []
         for f_layer in self.layers_p[:-1]:
-            act_last = F.dropout(
-                F.relu(f_layer(act_last)), p=self.cfg.p_dropout
+            act_last = self._dropout(
+                F.relu(f_layer(act_last)), mc_dropout=mc_dropout
             )
             acts_p.append(act_last)
         class_logits = self.layers_p[-1](act_last)
@@ -117,8 +131,8 @@ class OLPQModule(nn.Module):
         acts_p = []
         with torch.no_grad():
             for f_layer in self.layers_p[:-1]:
-                act_last = F.dropout(
-                    F.relu(f_layer(act_last)), p=self.cfg.p_dropout
+                act_last = self._dropout(
+                    F.relu(f_layer(act_last)), mc_dropout=False
                 )
                 acts_p.append(act_last)
 
@@ -167,8 +181,10 @@ class OLPQModule(nn.Module):
             feature_mask_rep = self._repeat_batch(feature_mask, mcdrop_samples)
         else:
             feature_mask_rep = None
+        # MC dropout is the point of this method, and the OL trainer holds the
+        # model in eval mode while computing rewards, so ask for it explicitly.
         class_logits, _qvalues = self.forward(
-            masked_features_rep, feature_mask_rep
+            masked_features_rep, feature_mask_rep, mc_dropout=True
         )  # class_logits.shape = (batch_size*mcdrop_samples, n_classes)
         class_logits = class_logits.view(
             masked_features.shape[0], mcdrop_samples, -1

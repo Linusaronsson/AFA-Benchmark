@@ -159,14 +159,40 @@ class AFAEnv(EnvBase):
                 {}, batch_size=self.batch_size, device=self.device
             )
 
-        # Get a batch from the dataset
-        dataset_batch = self.dataset_fn(tensordict.batch_size)
+        # TorchRL calls _reset whenever *any* sub-env is done, passing a mask of
+        # which ones, and then keeps only those entries of what we return. Draw
+        # exactly that many rows: drawing a full batch every time advanced the
+        # dataset pointer far faster than samples were actually consumed (~4x
+        # under per-sample availability), so most of the dataset was skipped.
+        batch_numel = tensordict.batch_size.numel()
+        reset_mask = tensordict.get("_reset", None)
+        reset_idx = (
+            None
+            if reset_mask is None
+            else reset_mask.reshape(batch_numel).nonzero(as_tuple=True)[0]
+        )
+        n_draw = batch_numel if reset_idx is None else int(reset_idx.numel())
+
+        dataset_batch = self.dataset_fn(torch.Size((n_draw,)))
         features, label = dataset_batch[:2]
         selection_availability = (
             dataset_batch[2] if len(dataset_batch) == 3 else None
         )
         features: Features = features.to(tensordict.device)
         label: Label = label.to(tensordict.device)
+
+        if reset_idx is not None:
+            # Scatter the drawn rows back to full batch shape. Entries outside
+            # the reset mask are never read, so their value does not matter.
+            def _scatter(src: torch.Tensor) -> torch.Tensor:
+                out = src.new_zeros((batch_numel, *src.shape[1:]))
+                out[reset_idx] = src
+                return out
+
+            features = _scatter(features)
+            label = _scatter(label)
+            if selection_availability is not None:
+                selection_availability = _scatter(selection_availability)
 
         # Initialize features
         initial_feature_mask = self.initialize_fn(
