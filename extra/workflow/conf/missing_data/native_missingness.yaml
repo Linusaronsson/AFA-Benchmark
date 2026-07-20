@@ -1,0 +1,44 @@
+# Missingness the data arrived with, rather than one we imposed.
+#
+# PhysioNet 2012 is 26.2% missing with every instance affected, and informative:
+# TroponinI is 95% missing because the panel is ordered when a clinician
+# already suspects the outcome, while Age and ICUType are never missing. CKD is
+# 10.5% missing across all 24 columns. Both are real MNAR.
+#
+# No `true_completion` and no `pvae_oracle`: there is no ground truth for a lab
+# value that was never ordered, so both are undefined rather than expensive.
+# This arm compares downstream accuracy and leaves `restoration_rmse` empty.
+artifact_namespace: native_missingness
+device: cuda
+smoke_test: false
+eval_dataset_split: val
+dataset_instance_indices: [0, 1, 2, 3, 4]
+datasets: [physionet, ckd]
+
+eval_batch_size: 128
+restoration_batch_size: 1024
+
+# There is no complete version of these datasets to compare against, so the
+# usual "no missingness" reference does not exist.
+include_complete_data: false
+
+# `p` is carried only because the workflow pairs mechanisms with rates; the
+# native mask has whatever rate the data has and the value is ignored.
+missingness:
+  mechanisms: [native]
+  probabilities: [0.0]
+
+strategies:
+  - restricted
+  - mean_fill
+  - pvae_label_conditioned
+  - pvae_label_free
+
+methods:
+  - aaco
+  - dime
+  - ol_without_mask
+  - random_dummy
+
+eval_params:
+  - eval_only_n_samples=1024

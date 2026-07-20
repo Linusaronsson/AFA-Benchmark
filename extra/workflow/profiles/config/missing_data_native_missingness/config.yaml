@@ -15,4 +15,4 @@ configfile:
   - extra/workflow/conf/classifier_names/all.yaml
   - extra/workflow/conf/datasets/all.yaml
   - extra/workflow/conf/missing_data/design.yaml
-  - extra/workflow/conf/missing_data/local.yaml
+  - extra/workflow/conf/missing_data/native_missingness.yaml
