@@ -21,6 +21,7 @@ def process_batch_wrapper(
     builtin_predictions: list[list[int]] | None = None,
     true_label: Label | None = None,
     selection_budget: float | None = None,
+    selection_costs: list[float] | None = None,
 ) -> pl.DataFrame:
     if features is None:
         features = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]])
@@ -63,7 +64,7 @@ def process_batch_wrapper(
         external_afa_predict_fn=external_afa_predict_fn,
         builtin_afa_predict_fn=builtin_afa_predict_fn,
         selection_budget=selection_budget,
-        selection_costs=None,
+        selection_costs=selection_costs,
     )
     df = pl.from_pandas(df)
     return df
@@ -130,6 +131,128 @@ def test_external_predictions() -> None:
         expected_predictions=external_predictions[1],
         prediction_type="external",
     )
+
+
+def test_budget_forces_a_stop_and_records_it() -> None:
+    """
+    The budget check overrides the action, and the override has to be visible.
+
+    `forced_stop` is the column most sensitive to how the active set is indexed,
+    since it is written against global sample indices while the actions it
+    reacts to are indexed against the shrinking active set.
+    """
+    features = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]])
+    # Both samples want four selections; a budget of two cuts them short.
+    actions = [[1, 2, 3, 4, 0], [1, 2, 3, 4, 0]]
+
+    df = add_time_column(
+        process_batch_wrapper(
+            features=features, actions=actions, selection_budget=2
+        )
+    )
+
+    for idx in (0, 1):
+        sample = df.filter(pl.col("idx") == idx).sort("time")
+        assert sample["action_performed"].to_list() == [1, 2, 0]
+        assert sample["accumulated_cost"].to_list() == [1.0, 2.0, 2.0]
+        # Only the row whose action was overridden is a forced stop.
+        assert sample["forced_stop"].to_list() == [False, False, True]
+
+
+def test_non_unit_costs_accumulate_and_bound_the_episode() -> None:
+    """A budget is spent in cost, not in count, and the boundary is strict."""
+    features = torch.tensor([[1, 2, 3, 4]])
+    actions = [[1, 2, 3, 4, 0]]
+    # Selecting features 0 then 1 costs 1 + 3 = 4. Feature 2 costs 2 more,
+    # which would reach 6: allowed at budget 6, refused at budget 5.
+    costs = [1.0, 3.0, 2.0, 10.0]
+
+    within = add_time_column(
+        process_batch_wrapper(
+            features=features,
+            actions=actions,
+            selection_budget=6,
+            selection_costs=costs,
+        )
+    ).sort("time")
+    assert within["action_performed"].to_list() == [1, 2, 3, 0]
+    assert within["accumulated_cost"].to_list() == [1.0, 4.0, 6.0, 6.0]
+    assert within["forced_stop"].to_list() == [False, False, False, True]
+
+    beyond = add_time_column(
+        process_batch_wrapper(
+            features=features,
+            actions=actions,
+            selection_budget=5,
+            selection_costs=costs,
+        )
+    ).sort("time")
+    assert beyond["action_performed"].to_list() == [1, 2, 0]
+    assert beyond["accumulated_cost"].to_list() == [1.0, 4.0, 4.0]
+
+
+def test_samples_that_stop_at_different_times_keep_their_own_history() -> None:
+    """
+    Once a sample stops, the active set shifts under the ones still running.
+
+    `prev_selections_performed` is rebuilt after the loop from the flat action
+    sequence, so this is the assertion that the rebuild attributes each action
+    to the right sample rather than to whatever position it occupied.
+    """
+    features = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]])
+
+    def action_fn(
+        masked_features: torch.Tensor,
+        feature_mask: torch.Tensor,  # noqa: ARG001
+        selection_mask: torch.Tensor | None = None,
+        label: torch.Tensor | None = None,  # noqa: ARG001
+        feature_shape: torch.Size | None = None,  # noqa: ARG001
+    ) -> torch.Tensor:
+        # Identify samples by what they have taken, not by their position in
+        # the active set, which is exactly the thing under test.
+        assert selection_mask is not None
+        plans = {0: [1, 2, 0], 1: [3, 4, 2, 0]}
+        out = torch.zeros(
+            (masked_features.shape[0], 1),
+            dtype=torch.int,
+            device=features.device,
+        )
+        for row in range(masked_features.shape[0]):
+            taken = selection_mask[row]
+            sample = 0 if (not taken.any() and row == 0) or taken[0] else 1
+            out[row] = plans[sample][int(taken.sum())]
+        return out
+
+    df = add_time_column(
+        pl.from_pandas(
+            process_batch(
+                afa_action_fn=action_fn,
+                afa_unmask_fn=get_direct_unmask_fn(),
+                n_selection_choices=4,
+                features=features,
+                initial_feature_mask=torch.zeros_like(
+                    features, dtype=torch.bool
+                ),
+                initial_masked_features=torch.zeros_like(features),
+                true_label=torch.zeros((2, 4), dtype=torch.float32),
+                feature_shape=torch.Size((4,)),
+                external_afa_predict_fn=get_random_afa_predict_fn(n_classes=4),
+                builtin_afa_predict_fn=get_random_afa_predict_fn(n_classes=4),
+            )
+        )
+    )
+
+    first = df.filter(pl.col("idx") == 0).sort("time")
+    second = df.filter(pl.col("idx") == 1).sort("time")
+    assert first["action_performed"].to_list() == [1, 2, 0]
+    assert second["action_performed"].to_list() == [3, 4, 2, 0]
+    assert first["prev_selections_performed"].to_list() == [[], [0], [0, 1]]
+    assert second["prev_selections_performed"].to_list() == [
+        [],
+        [2],
+        [2, 3],
+        [2, 3, 1],
+    ]
 
 
 def test_builtin_predictions() -> None:

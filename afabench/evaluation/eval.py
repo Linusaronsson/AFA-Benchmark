@@ -1,6 +1,6 @@
 import logging
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 import torch
@@ -146,7 +146,73 @@ def single_afa_step(
     )
 
 
-def process_batch(  # noqa: C901, PLR0912, PLR0915
+@dataclass
+class _RowBuffers:
+    """
+    One entry per timestep, concatenated once when the batch finishes.
+
+    Everything stays on device until then, so assembling the result frame costs
+    a single device-to-host transfer for the whole batch rather than a handful
+    per active sample per timestep.
+    """
+
+    idx: list[torch.Tensor] = field(default_factory=list)
+    action: list[torch.Tensor] = field(default_factory=list)
+    cost: list[torch.Tensor] = field(default_factory=list)
+    forced: list[torch.Tensor] = field(default_factory=list)
+    builtin: list[torch.Tensor] = field(default_factory=list)
+    external: list[torch.Tensor] = field(default_factory=list)
+
+    def to_frame(self, true_label: Label, n_samples: int) -> pd.DataFrame:
+        idx = torch.cat(self.idx).cpu().tolist()
+        action = torch.cat(self.action).cpu().tolist()
+        n_rows = len(idx)
+
+        def classes(buffer: list[torch.Tensor]) -> list[int | None]:
+            # A predict_fn that was never supplied yields a column of None,
+            # which is the object dtype callers already expect.
+            if not buffer:
+                return [None] * n_rows
+            return torch.cat(buffer).cpu().tolist()
+
+        return pd.DataFrame(
+            {
+                "prev_selections_performed": _prev_selections(
+                    idx, action, n_samples
+                ),
+                "action_performed": action,
+                "builtin_predicted_class": classes(self.builtin),
+                "external_predicted_class": classes(self.external),
+                "true_class": true_label.argmax(-1).cpu()[idx].tolist(),
+                "accumulated_cost": torch.cat(self.cost).cpu().tolist(),
+                "idx": idx,
+                "forced_stop": torch.cat(self.forced).cpu().tolist(),
+            }
+        )
+
+
+def _prev_selections(
+    row_idx: list[int], row_action: list[int], n_samples: int
+) -> list[list[int]]:
+    """
+    Rebuild, per row, the selections that sample had made before this timestep.
+
+    Rows arrive timestep-major and each sample appears at most once per
+    timestep, so one forward walk suffices: what a sample has accumulated when
+    its row is reached is exactly that row's history. Reconstructing this at the
+    end keeps the acquisition loop free of per-sample Python bookkeeping.
+    """
+    running: list[list[int]] = [[] for _ in range(n_samples)]
+    out: list[list[int]] = []
+    for global_idx, action in zip(row_idx, row_action, strict=True):
+        out.append(running[global_idx].copy())
+        # Stop actions append -1, which is never read back: a row's history
+        # covers strictly earlier timesteps, and a sample stops only once.
+        running[global_idx].append(action - 1)
+    return out
+
+
+def process_batch(
     afa_action_fn: AFAActionFn,
     afa_unmask_fn: AFAUnmaskFn,
     n_selection_choices: int,
@@ -207,25 +273,28 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
         dtype=torch.bool,
     )
 
-    # Track which selections have been made per sample (0-based indices)
-    selections_performed = [[] for _ in range(features.shape[0])]
+    n_samples = features.shape[0]
+    device = features.device
 
-    # Track accumulated costs per sample
-    accumulated_costs = [0.0 for _ in range(features.shape[0])]
-
-    # Track whether each sample was forced to stop due to budget
-    forced_stops = [False for _ in range(features.shape[0])]
-
-    # Convert selection_costs to a list if provided, otherwise use unit costs
-    if selection_costs is None:
-        selection_costs_list = [1.0] * n_selection_choices
-    else:
-        selection_costs_list = list(selection_costs)
+    # Per-sample state, kept on device so the acquisition loop never syncs to
+    # read it back. float64 because these accumulate one addend per timestep and
+    # the budget comparison below has to be exact.
+    accumulated_costs = torch.zeros(
+        n_samples, dtype=torch.float64, device=device
+    )
+    forced_stops = torch.zeros(n_samples, dtype=torch.bool, device=device)
+    selection_costs_t = (
+        torch.ones(n_selection_choices, dtype=torch.float64, device=device)
+        if selection_costs is None
+        else torch.tensor(
+            list(selection_costs), dtype=torch.float64, device=device
+        )
+    )
 
     # Process a subset of the batch, which gets smaller and smaller until it's empty
-    active_indices = torch.arange(features.shape[0], device=features.device)
+    active_indices = torch.arange(n_samples, device=device)
 
-    df_batch_rows = []
+    rows = _RowBuffers()
 
     while len(active_indices) > 0:
         active_features = features[active_indices]
@@ -256,71 +325,46 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
                 "Expected external prediction to have class dimension"
             )
 
+        # `actions` is a view, so overriding it below also overrides
+        # `step.action`, matching the order the unbatched version relied on.
+        actions = step.action.squeeze(-1)
+
         # Check budget and override actions if they would exceed it
         if selection_budget is not None:
-            for active_idx, true_idx in enumerate(active_indices):
-                global_idx = int(true_idx.item())
-                action = int(step.action[active_idx].item())
-                if action > 0:  # Valid selection (not stop action)
-                    selection_idx = action - 1
-                    action_cost = selection_costs_list[selection_idx]
-                    if (
-                        accumulated_costs[global_idx] + action_cost
-                        > selection_budget
-                    ):
-                        # Override action to stop (0) if it would exceed budget
-                        step.action[active_idx, 0] = 0
-                        forced_stops[global_idx] = True
+            is_selection = actions > 0
+            # clamp_min keeps the gather in range for stop actions, whose cost
+            # is discarded by `is_selection` anyway.
+            action_costs = selection_costs_t[(actions - 1).clamp_min(0)]
+            exceeds = is_selection & (
+                accumulated_costs[active_indices] + action_costs
+                > selection_budget
+            )
+            actions[exceeds] = 0
+            forced_stops[active_indices[exceeds]] = True
 
         # Update accumulated costs for valid selections (BEFORE appending rows)
-        actions = step.action.squeeze(-1)
         valid_selections = actions > 0
-        if valid_selections.any():
-            for active_idx, global_idx in enumerate(active_indices):
-                global_idx_int = int(global_idx.item())
-                action = int(actions[active_idx].item())
-                if action > 0:  # Valid selection (not stop action)
-                    selection_idx = action - 1
-                    accumulated_costs[global_idx_int] += selection_costs_list[
-                        selection_idx
-                    ]
+        valid_indices = active_indices[valid_selections]
+        accumulated_costs.index_add_(
+            0, valid_indices, selection_costs_t[actions[valid_selections] - 1]
+        )
 
-        # Append one row per active sample
-        for active_idx, true_idx in enumerate(active_indices):
-            global_idx = int(true_idx.item())
-            action = step.action[active_idx].item()
-            # It does not matter if we append -1 here, since we will never access the last value
-            selections_performed[global_idx].append(action - 1)
-
-            df_batch_rows.append(
-                {
-                    "prev_selections_performed": (
-                        selections_performed[global_idx][:-1]
-                    ).copy(),
-                    "action_performed": action,
-                    "builtin_predicted_class": None
-                    if step.builtin_prediction is None
-                    else step.builtin_prediction[active_idx].argmax(-1).item(),
-                    "external_predicted_class": None
-                    if step.external_prediction is None
-                    else step.external_prediction[active_idx]
-                    .argmax(-1)
-                    .item(),
-                    "true_class": true_label[true_idx].argmax(-1).item(),
-                    "accumulated_cost": accumulated_costs[global_idx],
-                    "idx": global_idx,
-                    "forced_stop": forced_stops[global_idx],
-                }
-            )
+        # One row per active sample, kept on device and assembled at the end.
+        rows.idx.append(active_indices.clone())
+        rows.action.append(actions.clone())
+        rows.cost.append(accumulated_costs[active_indices])
+        rows.forced.append(forced_stops[active_indices])
+        if step.builtin_prediction is not None:
+            rows.builtin.append(step.builtin_prediction.argmax(-1))
+        if step.external_prediction is not None:
+            rows.external.append(step.external_prediction.argmax(-1))
 
         # Update feature mask, masked features and selection mask
         masked_features[active_indices] = step.masked_features
         feature_mask[active_indices] = step.feature_mask
-        if valid_selections.any():
-            # Update selection mask for valid selections
-            selection_mask[
-                active_indices[valid_selections], actions[valid_selections] - 1
-            ] = True
+        # Empty index tensors make this a no-op, so it needs no guard -- and a
+        # guard would cost a device sync per timestep to evaluate.
+        selection_mask[valid_indices, actions[valid_selections] - 1] = True
 
         # A sample finishes if action == 0, either by manually choosing it or being forced to choose it due to exceeding the budget. Notably, we don't care whether you've already choosen all features and choose to do more selections. This scenario could be interesting with stochastic unmaskers.
         finished_mask = actions == 0
@@ -328,7 +372,7 @@ def process_batch(  # noqa: C901, PLR0912, PLR0915
         # Filter out finished samples
         active_indices = active_indices[~finished_mask]
 
-    return pd.DataFrame(df_batch_rows)
+    return rows.to_frame(true_label, n_samples)
 
 
 def eval_afa_method(
@@ -402,38 +446,42 @@ def eval_afa_method(
         )
 
     batches_df: list[pd.DataFrame] = []
-    for _batch_features, _batch_label in tqdm(dataloader):
-        batch_features = _batch_features.to(device)
-        batch_label = _batch_label.to(device)
+    # Nothing here is differentiated, but several methods build a graph anyway.
+    # DIME's `act` and `predict` in particular carry no internal guard, so
+    # without this every acquisition step allocates and discards one.
+    with torch.inference_mode():
+        for _batch_features, _batch_label in tqdm(dataloader):
+            batch_features = _batch_features.to(device)
+            batch_label = _batch_label.to(device)
 
-        # Initialize masks for the batch
-        batch_initial_feature_mask = afa_initialize_fn(
-            batch_features,
-            batch_label,
-            feature_shape=dataset.feature_shape,
-        ).to(device)
-        batch_initial_masked_features = batch_features.clone()
-        batch_initial_masked_features[~batch_initial_feature_mask] = (
-            0.0  # Assuming zero masking
-        )
-
-        batches_df.append(
-            process_batch(
-                afa_action_fn=afa_action_fn,
-                afa_unmask_fn=afa_unmask_fn,
-                n_selection_choices=n_selection_choices,
-                features=batch_features,
-                initial_feature_mask=batch_initial_feature_mask,
-                initial_masked_features=batch_initial_masked_features,
-                true_label=batch_label,
+            # Initialize masks for the batch
+            batch_initial_feature_mask = afa_initialize_fn(
+                batch_features,
+                batch_label,
                 feature_shape=dataset.feature_shape,
-                external_afa_predict_fn=external_afa_predict_fn,
-                builtin_afa_predict_fn=builtin_afa_predict_fn,
-                selection_budget=selection_budget,
-                selection_costs=selection_costs,
-                force_acquisition=force_acquisition,
+            ).to(device)
+            batch_initial_masked_features = batch_features.clone()
+            batch_initial_masked_features[~batch_initial_feature_mask] = (
+                0.0  # Assuming zero masking
             )
-        )
+
+            batches_df.append(
+                process_batch(
+                    afa_action_fn=afa_action_fn,
+                    afa_unmask_fn=afa_unmask_fn,
+                    n_selection_choices=n_selection_choices,
+                    features=batch_features,
+                    initial_feature_mask=batch_initial_feature_mask,
+                    initial_masked_features=batch_initial_masked_features,
+                    true_label=batch_label,
+                    feature_shape=dataset.feature_shape,
+                    external_afa_predict_fn=external_afa_predict_fn,
+                    builtin_afa_predict_fn=builtin_afa_predict_fn,
+                    selection_budget=selection_budget,
+                    selection_costs=selection_costs,
+                    force_acquisition=force_acquisition,
+                )
+            )
     # Concatenate all batch DataFrames
     df_batches = pd.concat(batches_df, ignore_index=True)
     # Assert that all the columns described in docstring are present
