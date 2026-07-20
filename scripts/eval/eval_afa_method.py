@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any, cast, final
 
 import hydra
 import torch
-import wandb
 from omegaconf import OmegaConf
 
 from afabench.components.initializers.utils import (
@@ -16,6 +15,8 @@ from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
 from afabench.core.bundle_system.bundle import load_bundle
+from afabench.core.phase_timer import dump as dump_phases
+from afabench.core.phase_timer import phase
 from afabench.core.types import SupportsForcedAcquisition
 from afabench.core.utils import (
     set_seed,
@@ -74,13 +75,19 @@ class AFAEvaluator:
     def run(self) -> None:
         self._init_wandb()
         self._smoke_test_override()
-        self._load()
+        with phase("load"):
+            self._load()
         self._set_seeds()
         self._set_soft_budget()
         self._set_hard_budget()
         self._set_selection_info()
-        self._exec()
-        self._save()
+        with phase("rollout"):
+            self._exec()
+        with phase("save"):
+            self._save()
+        # Sidecar, deliberately not a Snakemake output: adding one would
+        # re-trigger the whole DAG.
+        dump_phases(Path(self._cfg.save_path).with_suffix(".timing.json"))
 
     def _load(
         self,
@@ -135,6 +142,9 @@ class AFAEvaluator:
 
     def _init_wandb(self) -> None:
         if self._cfg.use_wandb:
+            # Imported lazily: ~0.7 s, and eval runs with use_wandb=false.
+            import wandb  # noqa: PLC0415
+
             self._wandb_run = wandb.init(
                 job_type="evaluation",
                 config=asdict(self._cfg),

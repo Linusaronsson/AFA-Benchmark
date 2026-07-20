@@ -67,6 +67,9 @@ rule eval_method:
         shell_exec="bash"
     shell:
         """
+        # LC_ALL=C so awk parses the sub-second part of `date +%s.%N`. Under a
+        # comma-decimal locale it stops at the '.' and truncates to whole seconds.
+        export LC_ALL=C
         START_TIME=$(date +%s.%N)
         python scripts/eval/eval_afa_method.py \
             method_bundle_path={input[1]} \
