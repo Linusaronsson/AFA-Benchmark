@@ -1,11 +1,21 @@
 method_options:
   aaco:
     train_script_name: "aaco"
+    # AACO scores the whole eval batch in one KNN and one classifier call, so
+    # this is a throughput knob. It is not purely a knob though: neighbour sets
+    # are not identifiable under exact distance ties on discretised data, and
+    # cuBLAS picks kernels by shape, so pin it when reproducing results.
+    # Lower on the image datasets, where candidate masks are B x 100 x k x d.
+    eval_batch_size: &aaco_eval_batch_size
+      default: 128
+      mnist: 32
+      fashion_mnist: 32
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette]
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"
+    eval_batch_size: *aaco_eval_batch_size
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
     soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   eddi_builtin:

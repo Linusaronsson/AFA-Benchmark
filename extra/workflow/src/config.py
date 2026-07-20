@@ -5,6 +5,7 @@ Provides utilities for loading and processing Snakemake configuration files
 with support for methods, datasets, budgets, and other common parameters.
 """
 
+import warnings
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -199,6 +200,15 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
             if batch_size_config is None:
                 # If eval_batch_size is not specified, use batch size of 1 for all
                 eval_batch_sizes[method] = dict.fromkeys(datasets, 1)
+                # Loudly, because a silent fallback to 1 is indistinguishable
+                # from a working config while being orders of magnitude slower
+                # for any method that batches its acquisition.
+                warnings.warn(
+                    f"method_options['{method}'] has no eval_batch_size; "
+                    "falling back to 1, which evaluates one instance at a "
+                    "time. Add an explicit entry in method_options/all.yaml.",
+                    stacklevel=2,
+                )
             elif isinstance(batch_size_config, dict):
                 # Fill in missing datasets with the default batch size
                 # If no default is specified, use batch size of 1
