@@ -22,6 +22,13 @@ jobs: 200 # Well under the 192 cpu nodes; raise once queue behaviour is known.
 latency-wait: 60 # Lustre, so give metadata time to settle.
 retries: 2
 
+# Snakemake creates its container-image cache dir even when no containers are
+# used, defaulting it to APPTAINER_CACHEDIR, which the system sets to the
+# node-local /scratch/local. That path is not writable on the login node where
+# the main process builds the DAG, so point it at a repo-relative dir on the
+# shared filesystem instead. Relative so it stays portable across clusters.
+apptainer-prefix: .snakemake/apptainer
+
 # Force CPU on the cluster without editing the study YAMLs, which keep
 # `device: cuda` for local GPU runs. Scoped here (the workflow-profile) rather
 # than the shared entry profiles precisely so local runs are unaffected. Drop
