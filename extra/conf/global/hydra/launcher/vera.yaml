@@ -1,11 +1,17 @@
+# Vera CPU-only launcher, for work that needs no GPU (data preparation,
+# aggregation, plotting). For GPU work on Vera use `custom_slurm`, which is the
+# default and already targets Vera's `gpu` partition.
+#
+# Vera has 155 CPU-only nodes against 67 with GPUs, so anything that genuinely
+# does not need a GPU queues far better here.
 defaults:
     - submitit_slurm
 
 submitit_folder: ${hydra.sweep.dir}/.submitit/%j
-timeout_min: 1440 # 24 hours
+timeout_min: 1440 # 24 hours; partition cap is 7 days
 
-partition: vera
+partition: cpu
 account: C3SE2026-1-12
 
 additional_parameters:
-    cpus_per_task: 1
+    cpus_per_task: 8

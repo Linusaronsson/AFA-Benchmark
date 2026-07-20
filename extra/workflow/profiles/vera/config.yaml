@@ -1,27 +1,97 @@
+# Snakemake profile for Vera (C3SE, Chalmers). Primary cluster for this study.
+#
+# Verified against the live system on 2026-07-20:
+#
+#   PARTITION  GRES              TIMELIMIT   CPUS  NODES
+#   vera*      (mixed, default)  7-00:00:00    64    222
+#   gpu        gpu:A40:4                        64     17
+#   gpu        gpu:A100:4                       64     38
+#   gpu        gpu:H100:4                       64      2
+#   gpu        gpu:T4:8                         32     10
+#   cpu        (none)            7-00:00:00    64    155
+#
+# Preferred over Arrhenius for this workload. One architecture, a 7-day
+# walltime, and a GPU range that actually fits the jobs: a diabetes eval is
+# ~5.6s of which 1.19s is rollout, so a T4 or A40 is ample and a Grace Hopper
+# would be almost entirely idle. See profiles/arrhenius/config.yaml for the
+# backup, which needs two virtualenvs and a 72h cap.
+#
+# Costing note: on the main partition an A40 costs the equivalent of 16 extra
+# cores, and larger GPUs proportionally more, so ask for the smallest that fits.
 executor: slurm
-jobs: 9001
+jobs: 200
 latency-wait: 30 # seconds
+retries: 2
 
+# Data preparation and anything unresourced lands on plain CPU nodes. Only the
+# rules listed under the `gpu` anchors below consume GPU hours.
 default-resources:
-  slurm_partition: vera
+  slurm_partition: cpu
   slurm_account: C3SE2026-1-12
-  # slurm_constraint: ICELAKE
-  runtime: 120 # minutes
-  cpus_per_task: 1
-  mem_mb: 4000
+  runtime: 60 # minutes; partition cap is 7-00:00:00
+  cpus_per_task: 4
+  mem_mb: 16000
 
+# Snakemake silently ignores a `set-resources` key that matches no rule, so a
+# stale name downgrades the job to `default-resources` rather than failing.
+# Two workflows are in play with differently named rules, so both sets appear.
+# `test/workflow/test_cluster_profiles.py` asserts every key is a real rule.
 set-resources:
+  # --- orchestration/missing_data.smk (the restoration study) ---------------
+  # Network training. T4 is the cheapest unit that fits; raise to A40 if a
+  # model stops fitting in 16 GB.
+  pretrain_incomplete_restoration_pvae: &gpu_long
+    slurm_partition: gpu
+    slurm_extra: "--gpus-per-node=T4:1"
+    runtime: 2880 # 48 hours
+    cpus_per_task: 8
+    mem_mb: 64000
+  pretrain_oracle_restoration_pvae: *gpu_long
+  pretrain_missing_data_method: *gpu_long
+  train_missing_data_method_with_pretraining: *gpu_long
+  train_missing_data_method_without_pretraining: *gpu_long
+
+  train_missing_data_shared_classifier: &gpu_short
+    slurm_partition: gpu
+    slurm_extra: "--gpus-per-node=T4:1"
+    runtime: 240
+    cpus_per_task: 8
+    mem_mb: 32000
+  train_missing_data_method_classifier: *gpu_short
+  restore_missing_training_view: *gpu_short
+  eval_missing_data_method:
+    # Deliberately CPU. Rollout is 2-4x slower there, but after the batching
+    # work it is a small part of a job dominated by startup and load, so the
+    # job costs only 1.04-1.44x more. Throughput per node then favours CPU: a
+    # GPU node fits ~4 concurrent jobs against ~8 on a 64-core CPU node, and
+    # Vera has 155 cpu nodes against 67 with GPUs.
+    # Move back to `gpu` if a dataset appears whose rollout dominates again.
+    runtime: 240
+    cpus_per_task: 8
+    mem_mb: 32000
+
+  # CPU-only: numpy and pandas, no model involved.
+  generate_missing_data_dataset:
+    runtime: 120
+    cpus_per_task: 8
+    mem_mb: 32000
+  materialize_missing_training_view:
+    runtime: 60
+    cpus_per_task: 4
+    mem_mb: 16000
+
+  # --- orchestration/pipeline.smk (the main benchmark) ---------------------
   pretrain_model:
     runtime: 6000 # 100 hours
     cpus_per_task: 8
   train_method_with_pretrained_model:
-    runtime: 6000 # 100 hours
+    runtime: 6000
     cpus_per_task: 8
   train_method_without_pretrained_model:
-    runtime: 6000 # 100 hours
+    runtime: 6000
     cpus_per_task: 8
   eval_method:
-    runtime: 6000 # 100 hours
+    runtime: 6000
     cpus_per_task: 8
 
   # Although the merged eval dataframes "only" take up less than 1Gb, opening them can use a lot more

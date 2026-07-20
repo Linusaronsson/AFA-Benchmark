@@ -402,6 +402,21 @@ wildcard_constraints:
     eval_budget=r"[0-9.]+"
 
 
+# Aggregation is seconds of pandas over files the submitting host can already
+# read. On a cluster each of these would otherwise cost a full queue round trip.
+localrules:
+    all,
+    summarize_missing_data,
+    plot_missing_data,
+
+
+# Arrhenius has x86_64 CPU nodes and aarch64 Grace Hopper GPU nodes, and
+# Snakemake exports the submitting environment to both, which would put the
+# login node's venv on the wrong architecture. This lets a cluster select the
+# right one per job without any rule knowing about it. Empty everywhere else.
+shell.prefix(os.environ.get("AFABENCH_SHELL_PREFIX", ""))
+
+
 rule all:
     input:
         f"{SUMMARY_DIR}/instance_metrics.csv",
@@ -803,6 +818,15 @@ rule eval_missing_data_method:
         "strategy-{strategy}+instance-{instance}+"
         "train_hard_budget-{train_budget}+eval_hard_budget-{eval_budget}/"
         "eval_data.parquet",
+    # Total subprocess wall time, plus max RSS and CPU time. `benchmark:` rather
+    # than a second `output:` so the DAG's completeness check is unaffected.
+    # Subtract the eval_data.timing.json phases from this to get fixed startup.
+    benchmark:
+        f"{ROOT}/eval/{EVAL_SPLIT}/{NAMESPACE}/dataset-{{dataset}}/"
+        "method-{method}+mechanism-{mechanism}+p-{p}+"
+        "strategy-{strategy}+instance-{instance}+"
+        "train_hard_budget-{train_budget}+eval_hard_budget-{eval_budget}/"
+        "benchmark.tsv"
     params:
         unmasker=lambda wc: UNMASKERS[wc.dataset],
         device=lambda wc: method_device(wc.dataset, wc.method),

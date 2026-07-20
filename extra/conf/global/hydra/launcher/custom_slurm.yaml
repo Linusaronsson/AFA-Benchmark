@@ -1,11 +1,20 @@
+# Default SLURM launcher, referenced by every script config via
+# `override hydra/launcher: custom_slurm`.
+#
+# Targets Vera, the primary cluster for this study. Override on the command line
+# to reach another, e.g. `hydra/launcher=arrhenius` or `hydra/launcher=alvis`.
+#
+# Note this only engages for Hydra multirun (`-m`). Snakemake invokes the
+# scripts directly inside an already-allocated job, so a Snakemake run uses
+# extra/workflow/profiles/<cluster>/config.yaml instead and never reads this.
 defaults:
     - submitit_slurm
 
 submitit_folder: ${hydra.sweep.dir}/.submitit/%j
-timeout_min: 1440  # 24 hours
+timeout_min: 1440  # 24 hours; Vera's partition cap is 7 days
 
-partition: alvis
-account: NAISS2025-22-448
+partition: gpu
+account: C3SE2026-1-12
 
 additional_parameters:
-    gres: gpu:T4:1
+    gpus-per-node: T4:1

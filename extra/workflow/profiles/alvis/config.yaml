@@ -9,7 +9,33 @@ default-resources:
   mem_mb: 0 # Only memory attribute that works
   slurm_extra: "--gres=gpu:T4:1"
 
+# Snakemake silently ignores a `set-resources` key that matches no rule, so a
+# stale name here downgrades the job to `default-resources` instead of failing.
+# Two workflows are in play with differently named rules, so both sets appear.
+# `test/workflow/test_cluster_profiles.py` asserts every key is a real rule.
 set-resources:
+  # --- orchestration/missing_data.smk (the restoration study) ---------------
+  pretrain_incomplete_restoration_pvae: &long
+    runtime: 2880 # 48 hours
+  pretrain_oracle_restoration_pvae: *long
+  pretrain_missing_data_method: *long
+  train_missing_data_method_with_pretraining: *long
+  train_missing_data_method_without_pretraining: *long
+  eval_missing_data_method:
+    # A diabetes eval job is ~5.6s at 256 samples and scales with the eval set.
+    runtime: 240
+  restore_missing_training_view:
+    runtime: 240
+  train_missing_data_shared_classifier:
+    runtime: 240
+  train_missing_data_method_classifier:
+    runtime: 240
+  generate_missing_data_dataset:
+    runtime: 120
+  materialize_missing_training_view:
+    runtime: 60
+
+  # --- orchestration/pipeline.smk (the main benchmark) ---------------------
   pretrain_model:
     runtime: 600 # 10 hours
   train_method_with_pretrained_model:

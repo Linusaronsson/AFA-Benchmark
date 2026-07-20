@@ -1,0 +1,96 @@
+# Snakemake profile for Arrhenius (NAISS, NSC).
+#
+# Verified against the live system on 2026-07-20:
+#
+#   PARTITION  GRES                          TIMELIMIT   CPUS  MEMORY(MB)  NODES
+#   cpu*       (null)                        3-00:00:00   256     773500     192
+#   fat        (null)                        3-00:00:00   256    3095813      20
+#   gpu        gpu:nvidia_gh200_120gb:4      3-00:00:00   288     485854     382
+#
+# Three things differ from the Alvis and Vera profiles and are easy to get wrong:
+#
+#   1. Walltime is capped at 72h (3-00:00:00) on every partition, so nothing here
+#      may exceed 4320 minutes. Vera allows 7 days; do not copy runtimes across.
+#   2. The account is suffixed per side, `<project>-cpu` and `<project>-gpu`, and
+#      the two are charged separately. Rules are routed to the matching pair
+#      below rather than all landing on one.
+#   3. GPU nodes are Grace Hopper, so their CPUs are aarch64, while the login and
+#      CPU nodes are x86_64. One virtualenv cannot serve both. See the note on
+#      AFABENCH_SHELL_PREFIX at the bottom.
+executor: slurm
+jobs: 200 # Well under the 382 GPU nodes; raise once queue behaviour is known.
+latency-wait: 60 # Lustre, so give metadata time to settle.
+retries: 2
+
+default-resources:
+  slurm_partition: cpu
+  slurm_account: naiss2026-4-1278-cpu
+  runtime: 60
+  cpus_per_task: 4
+  # Nodes are 773 GB across 256 cores; request per-core rather than per-node.
+  mem_mb: 8000
+
+set-resources:
+  # --- GPU side -------------------------------------------------------------
+  # Everything that trains or evaluates a network. `device: cuda` is set in
+  # every extra/workflow/conf/missing_data/*.yaml, so these must land on `gpu`.
+  train_missing_data_shared_classifier: &gpu
+    slurm_partition: gpu
+    slurm_account: naiss2026-4-1278-gpu
+    slurm_extra: "--gpus=1"
+    runtime: 240
+    cpus_per_task: 16 # 72 ARM cores per superchip, 4 per node.
+    mem_mb: 60000
+  train_missing_data_method_classifier: *gpu
+  pretrain_incomplete_restoration_pvae: &gpu_long
+    slurm_partition: gpu
+    slurm_account: naiss2026-4-1278-gpu
+    slurm_extra: "--gpus=1"
+    runtime: 2880 # 48h, comfortably inside the 72h cap.
+    cpus_per_task: 16
+    mem_mb: 60000
+  pretrain_oracle_restoration_pvae: *gpu_long
+  pretrain_missing_data_method: *gpu_long
+  train_missing_data_method_with_pretraining: *gpu_long
+  train_missing_data_method_without_pretraining: *gpu_long
+  restore_missing_training_view: *gpu
+  eval_missing_data_method:
+    slurm_partition: gpu
+    slurm_account: naiss2026-4-1278-gpu
+    slurm_extra: "--gpus=1"
+    # A diabetes eval job is ~5.6s at 256 samples and scales with the eval set.
+    # Generous because a walltime kill loses the job while an over-request only
+    # costs queue priority.
+    runtime: 240
+    cpus_per_task: 16
+    mem_mb: 60000
+
+  # --- CPU side -------------------------------------------------------------
+  # Data preparation is numpy and pandas, so it stays off the GPU allocation.
+  generate_missing_data_dataset:
+    runtime: 120
+    cpus_per_task: 8
+    mem_mb: 32000
+  materialize_missing_training_view:
+    runtime: 60
+    cpus_per_task: 4
+    mem_mb: 16000
+
+# `summarize_missing_data` and `plot_missing_data` are declared `localrules` in
+# missing_data.smk, so they run in the submitting process and never reach the
+# queue.
+#
+# Dual-architecture note. Snakemake submits with the login environment exported,
+# which would put the x86_64 venv on an aarch64 GPU node. Export this before
+# running, in single quotes so `uname -m` is evaluated inside the job:
+#
+#   export AFABENCH_SHELL_PREFIX='source "$HOME"/venvs/$(uname -m)/bin/activate; '
+#
+# and build both venvs once, the aarch64 one from an interactive GPU job:
+#
+#   UV_PROJECT_ENVIRONMENT="$HOME/venvs/x86_64"  uv sync --group dev
+#   srun -A naiss2026-4-1278-gpu -p gpu --gpus=1 -t 60 --pty bash
+#   UV_PROJECT_ENVIRONMENT="$HOME/venvs/aarch64" uv sync --group dev
+#
+# $HOME was 24 GB free at last check and the CUDA wheel stack is multi-GB per
+# venv, so point UV_CACHE_DIR at scratch if the second sync runs out of room.

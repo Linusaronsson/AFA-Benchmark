@@ -1,0 +1,21 @@
+# Arrhenius (NAISS, NSC). Backup cluster; prefer `custom_slurm` (Vera).
+#
+# Two things differ from every other launcher here:
+#   - the account is suffixed per side, `<project>-cpu` / `<project>-gpu`, and
+#     the two are charged separately;
+#   - GPU nodes are aarch64 Grace Hopper while login and CPU nodes are x86_64,
+#     so the virtualenv must match the partition. See
+#     extra/workflow/profiles/arrhenius/config.yaml for the venv layout.
+#
+# Walltime is capped at 72h (4320 min) on every partition, unlike Vera's 7 days.
+defaults:
+    - submitit_slurm
+
+submitit_folder: ${hydra.sweep.dir}/.submitit/%j
+timeout_min: 1440  # 24 hours
+
+partition: gpu
+account: naiss2026-4-1278-gpu
+
+additional_parameters:
+    gpus: 1
