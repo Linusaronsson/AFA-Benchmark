@@ -18,9 +18,16 @@
 #      CPU nodes are x86_64. One virtualenv cannot serve both. See the note on
 #      AFABENCH_SHELL_PREFIX at the bottom.
 executor: slurm
-jobs: 200 # Well under the 382 GPU nodes; raise once queue behaviour is known.
+jobs: 200 # Well under the 192 cpu nodes; raise once queue behaviour is known.
 latency-wait: 60 # Lustre, so give metadata time to settle.
 retries: 2
+
+# Force CPU on the cluster without editing the study YAMLs, which keep
+# `device: cuda` for local GPU runs. Scoped here (the workflow-profile) rather
+# than the shared entry profiles precisely so local runs are unaffected. Drop
+# this with the torch >= 2.10 upgrade that makes the aarch64 GH200s usable.
+config:
+  device: cpu
 
 default-resources:
   slurm_partition: cpu
@@ -30,38 +37,35 @@ default-resources:
   # Nodes are 773 GB across 256 cores; request per-core rather than per-node.
   mem_mb: 8000
 
+# Everything runs on the cpu partition for now (inherited from
+# default-resources; only sizing is overridden below). Arrhenius GPUs are
+# aarch64 GH200, and torch 2.7's aarch64 wheel is CPU-only, so nothing can use
+# them until torch >= 2.10. Routing training jobs to `gpu` today would land them
+# on GH200 nodes running CPU-only torch anyway, charging the -gpu account for
+# nothing. The per-method GPU routing is restored with the torch upgrade; see
+# the commented block at the bottom and Part 4 of the plan.
 set-resources:
-  # --- GPU side -------------------------------------------------------------
-  # Everything that trains or evaluates a network. `device: cuda` is set in
-  # every extra/workflow/conf/missing_data/*.yaml, so these must land on `gpu`.
-  train_missing_data_shared_classifier: &gpu
-    slurm_partition: gpu
-    slurm_account: naiss2026-4-1278-gpu
-    slurm_extra: "--gpus=1"
-    runtime: 240
-    cpus_per_task: 16 # 72 ARM cores per superchip, 4 per node.
-    mem_mb: 60000
-  train_missing_data_method_classifier: *gpu
-  pretrain_incomplete_restoration_pvae: &gpu_long
-    slurm_partition: gpu
-    slurm_account: naiss2026-4-1278-gpu
-    slurm_extra: "--gpus=1"
+  # Network training / pretraining. On CPU these are the long jobs.
+  pretrain_incomplete_restoration_pvae: &heavy_long
     runtime: 2880 # 48h, comfortably inside the 72h cap.
     cpus_per_task: 16
-    mem_mb: 60000
-  pretrain_oracle_restoration_pvae: *gpu_long
-  pretrain_missing_data_method: *gpu_long
-  train_missing_data_method_with_pretraining: *gpu_long
-  train_missing_data_method_without_pretraining: *gpu_long
-  restore_missing_training_view: *gpu
+    mem_mb: 64000
+  pretrain_oracle_restoration_pvae: *heavy_long
+  pretrain_missing_data_method: *heavy_long
+  train_missing_data_method_with_pretraining: *heavy_long
+  train_missing_data_method_without_pretraining: *heavy_long
+  train_missing_data_shared_classifier: &heavy_short
+    runtime: 240
+    cpus_per_task: 16
+    mem_mb: 64000
+  train_missing_data_method_classifier: *heavy_short
+  restore_missing_training_view: *heavy_short
 
-  # --- CPU side -------------------------------------------------------------
-  # Data preparation is numpy and pandas, so it stays off the GPU allocation.
+  # Eval and data preparation.
   eval_missing_data_method:
-    # Deliberately CPU. Rollout is 2-4x slower there, but after the batching
-    # work it is a small part of a job dominated by startup and load, so the
-    # job costs only 1.04-1.44x more. On 256-core nodes that trades far better
-    # than queueing for a GH200 that would sit mostly idle.
+    # After the batching work the rollout is a small part of a job dominated by
+    # startup and load, so CPU costs only 1.04-1.44x more per job, and on
+    # 256-core nodes that trades far better than queueing for a GH200.
     runtime: 240
     cpus_per_task: 16
     mem_mb: 32000
@@ -73,6 +77,19 @@ set-resources:
     runtime: 60
     cpus_per_task: 4
     mem_mb: 16000
+
+  # --- GPU routing, restore with the torch >= 2.10 upgrade (Part 4) ---------
+  # Per-method placement will move into missing_data.smk `resources:` callables
+  # so DIME/OL/PVAE take `gpu` while AACO stays `cpu`. Until then this is the
+  # per-rule form that worked, kept for reference:
+  #
+  #   <heavy rule>:
+  #     slurm_partition: gpu
+  #     slurm_account: naiss2026-4-1278-gpu
+  #     slurm_extra: "--gpus=1"
+  #     runtime: 2880
+  #     cpus_per_task: 16   # 72 ARM cores per superchip, 4 per node
+  #     mem_mb: 60000
 
 # `summarize_missing_data` and `plot_missing_data` are declared `localrules` in
 # missing_data.smk, so they run in the submitting process and never reach the
