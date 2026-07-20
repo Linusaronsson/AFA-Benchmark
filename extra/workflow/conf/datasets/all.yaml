@@ -8,6 +8,7 @@ datasets:
   - cube_without_noise
   - cube_nonuniform_costs
   - diabetes
+  - heart_disease
   - miniboone
   - physionet
   - synthetic_mnist

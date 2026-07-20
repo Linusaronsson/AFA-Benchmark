@@ -37,6 +37,7 @@ REGISTERED_CLASSES = {
     "FashionMNISTDataset": "afabench.datasets.datasets.FashionMNISTDataset",
     "BankMarketingDataset": "afabench.datasets.datasets.BankMarketingDataset",
     "CKDDataset": "afabench.datasets.datasets.CKDDataset",
+    "HeartDiseaseDataset": "afabench.datasets.datasets.HeartDiseaseDataset",
     "ACTG175Dataset": "afabench.datasets.datasets.ACTG175Dataset",
     "ImagenetteDataset": "afabench.datasets.datasets.ImagenetteDataset",
     "TrainingDatasetView": "afabench.datasets.training_views.TrainingDatasetView",

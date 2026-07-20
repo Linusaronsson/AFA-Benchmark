@@ -5,6 +5,7 @@ eval_hard_budgets:
   cube_nm_without_noise: [3, 5, 7, 10, 14] # 55 features
   bank_marketing: [2, 4, 7] # 15 features
   ckd: [2, 4, 7] # 20 features
+  heart_disease: [2, 4, 7] # 13 features, real Turney per-test costs
   cube: [3, 5, 10]
   cube_without_noise: [3, 5, 10]
   cube_nonuniform_costs: [2, 4, 7]

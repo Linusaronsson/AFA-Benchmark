@@ -1,0 +1,3 @@
+class_name: "HeartDiseaseDataset"
+kwargs:
+  path: "extra/data/misc/heart_disease.csv"

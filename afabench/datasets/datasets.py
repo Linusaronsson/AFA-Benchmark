@@ -1934,3 +1934,134 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.features = data["features"]
         obj.labels = data["labels"]
         return obj
+
+
+@final
+class HeartDiseaseDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+    """
+    UCI Cleveland heart disease, the canonical cost-sensitive AFA benchmark.
+
+    The reason to include it is the cost file, not the data. Every other
+    non-uniform cost in this study is invented (`cube_nonuniform_costs`), so
+    cost-aware claims currently rest on costs we chose. Here the per-test costs
+    are real, donated by Peter Turney and shipped with the dataset, and they
+    span two orders of magnitude: a question about chest pain costs $1 while a
+    thallium scan costs $102.90. That range is what makes cost-aware
+    acquisition a different problem from budget-limited acquisition.
+
+    Costs live in `extra/data/misc/feature_costs/heart_disease.csv` and are
+    loaded by the shared `load_feature_costs` path, so nothing here is special
+    cased.
+
+    One property of the source is deliberately not modelled. Turney also ships
+    `heart-disease.group`, which puts chol/fbs in one group, thalach/thal in
+    another, and exang/oldpeak/slope in a third: tests within a group share a
+    setup cost, so ordering the second is cheaper once the first is paid. Our
+    cost model is per feature, so each is charged in full. That makes the
+    exercise-ECG block look three times more expensive than a clinician would
+    price it, which is worth stating before quoting absolute costs.
+
+    Labels are binarised to presence versus absence, following the standard
+    treatment of this dataset: the raw target is severity 0-4, and every
+    published result on it collapses 1-4 into one class.
+    """
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        return default_create_subset(self, indices)
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size([13])
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([2])
+
+    @classmethod
+    @override
+    def accepts_seed(cls) -> bool:
+        return False
+
+    def __init__(self, path: str = "extra/data/misc/heart_disease.csv"):
+        super().__init__()
+        self.path = path
+
+        if not Path(self.path).exists():
+            self._fetch_and_save()
+
+        df_data = pd.read_csv(self.path)
+        features_df = df_data.iloc[:, :-1].copy()
+        target_series = df_data.iloc[:, -1]
+
+        for col in features_df.columns:
+            features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
+
+        # `ca` and `thal` carry a handful of missing values in the Cleveland
+        # file. Recorded before imputing, like the other incomplete datasets.
+        self.native_observed_mask = torch.tensor(
+            features_df.notna().to_numpy(), dtype=torch.bool
+        )
+        features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
+
+        self.features = torch.tensor(features_df.values, dtype=torch.float32)
+        assert self.features.shape[1] == self.feature_shape[0]
+
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(target_series.values, dtype=torch.long),
+            num_classes=self.label_shape[0],
+        ).float()
+        self.feature_names = features_df.columns.tolist()
+
+    def _fetch_and_save(self) -> None:
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        heart_data = fetch_ucirepo(id=45)
+        assert heart_data is not None
+        assert heart_data.data is not None
+        features_df = heart_data.data.features.copy()
+        target_df = heart_data.data.targets.copy()
+        # Severity 0-4 collapsed to presence, the standard treatment.
+        target = (target_df.iloc[:, 0].astype(float) > 0).astype(int)
+        df_data = features_df.copy()
+        df_data["target"] = target.to_numpy()
+        df_data.to_csv(self.path, index=False)
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self) -> int:
+        return len(self.features)
+
+    @override
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
+
+    @override
+    def save(self, path: Path) -> None:
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "native_observed_mask": self.native_observed_mask,
+                "feature_names": self.feature_names,
+                "config": {"path": self.path},
+            },
+            path / "dataset.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path / "dataset.pt", weights_only=False)
+        obj = cls.__new__(cls)
+        obj.path = data["config"]["path"]
+        obj.features = data["features"]
+        obj.labels = data["labels"]
+        obj.native_observed_mask = data["native_observed_mask"]
+        obj.feature_names = data["feature_names"]
+        return obj
