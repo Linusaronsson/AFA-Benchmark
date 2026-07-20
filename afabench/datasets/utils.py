@@ -10,21 +10,41 @@ if TYPE_CHECKING:
 
 
 def default_create_subset[T: AFADataset](
-    dataset: T, indices: Sequence[int]
+    dataset: T,
+    indices: Sequence[int],
 ) -> T:
-    """Return a subset of a dataset using default logic for in-memory datasets with .features and .labels."""
+    """Create an in-memory dataset subset by slicing sample-aligned attributes."""
     subset = copy.deepcopy(dataset)
     indices_list = list(indices)
-    if hasattr(subset, "features") and hasattr(subset, "labels"):
-        features = getattr(subset, "features")  # noqa: B009
-        labels = getattr(subset, "labels")  # noqa: B009
-        setattr(subset, "features", features[indices_list])  # noqa: B010
-        setattr(subset, "labels", labels[indices_list])  # noqa: B010
-        if hasattr(subset, "n_samples"):
-            setattr(subset, "n_samples", len(indices))  # noqa: B010
-    else:
-        msg = "default_create_subset requires 'features' and 'labels' attributes on the dataset."
+
+    if not hasattr(subset, "features") or not hasattr(subset, "labels"):
+        msg = (
+            "default_create_subset requires 'features' and 'labels' "
+            "attributes on the dataset."
+        )
         raise AttributeError(msg)
+
+    features = getattr(subset, "features")  # noqa: B009
+    labels = getattr(subset, "labels")  # noqa: B009
+
+    setattr(subset, "features", features[indices_list])  # noqa: B010
+    setattr(subset, "labels", labels[indices_list])  # noqa: B010
+
+    if hasattr(subset, "native_observed_mask"):
+        native_observed_mask = getattr(  # noqa: B009
+            subset,
+            "native_observed_mask",
+        )
+        if native_observed_mask is not None:
+            setattr(  # noqa: B010
+                subset,
+                "native_observed_mask",
+                native_observed_mask[indices_list],
+            )
+
+    if hasattr(subset, "n_samples"):
+        setattr(subset, "n_samples", len(indices_list))  # noqa: B010
+
     return subset
 
 
