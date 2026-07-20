@@ -2,7 +2,10 @@ from typing import TYPE_CHECKING, cast
 
 import torch
 
-from afabench.components.methods.oracle.aaco.core import AACOOracle, get_knn
+from afabench.components.methods.oracle.aaco.core import (
+    AACOOracle,
+    get_knn_batched,
+)
 
 if TYPE_CHECKING:
     from afabench.core.types import AFAClassifier
@@ -47,27 +50,30 @@ def test_support_aware_loss_uses_only_each_neighbors_available_features() -> (
 ):
     oracle = _fitted_oracle("support_aware")
 
+    # Shapes carry an instance dimension: (B, n_masks, d) and (B, k).
     loss = oracle._expected_candidate_losses(  # noqa: SLF001
-        torch.tensor([[True, True]]),
-        torch.tensor([0, 1]),
+        torch.tensor([[[True, True]]]),
+        torch.tensor([[0, 1]]),
     )
 
     expected = (-2 * torch.log(torch.tensor(0.9))) + (
         -2 * torch.log(torch.tensor(0.6))
     )
-    assert torch.allclose(loss, expected.unsqueeze(0) / 2)
+    assert loss.shape == (1, 1)
+    assert torch.allclose(loss, expected.reshape(1, 1) / 2)
 
 
 def test_doubly_robust_loss_corrects_supported_neighbors() -> None:
     oracle = _fitted_oracle("doubly_robust")
 
     loss = oracle._expected_candidate_losses(  # noqa: SLF001
-        torch.tensor([[True, True]]),
-        torch.tensor([0, 1]),
+        torch.tensor([[[True, True]]]),
+        torch.tensor([[0, 1]]),
     )
 
     expected = -2 * torch.log(torch.tensor(0.9))
-    assert torch.allclose(loss, expected.unsqueeze(0))
+    assert loss.shape == (1, 1)
+    assert torch.allclose(loss, expected.reshape(1, 1))
 
 
 def test_knn_distance_ignores_features_missing_from_training_rows() -> None:
@@ -86,7 +92,7 @@ def test_knn_distance_ignores_features_missing_from_training_rows() -> None:
         ]
     )
 
-    indices = get_knn(
+    indices = get_knn_batched(
         training,
         torch.tensor([[0.0, 0.0]]),
         torch.tensor([[1.0], [1.0]]),

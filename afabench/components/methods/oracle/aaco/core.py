@@ -1,4 +1,7 @@
 import logging
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
+from typing import NamedTuple
 
 import torch
 import torch.nn.functional as F
@@ -20,76 +23,140 @@ logger = logging.getLogger(__name__)
 MISSINGNESS_OBJECTIVES = {"support_aware", "doubly_robust"}
 
 
-def get_knn(
+class _SelectionSpace(NamedTuple):
+    """
+    What the oracle is choosing over, and how that maps onto features.
+
+    The feature-level oracle picks single features, so the two spaces coincide
+    and both projections are the identity. The patch-level oracle picks square
+    patches, so a selection covers many features at once.
+    """
+
+    selection_dim: int
+    mask_generator: RandomMaskGenerator
+    to_feature_mask: Callable[[torch.Tensor], torch.Tensor]
+    to_selection_mask: Callable[[torch.Tensor], torch.Tensor]
+
+
+@contextmanager
+def _exact_matmul() -> Generator[None]:
+    """
+    Disable TF32 for matmuls whose output feeds a discrete choice.
+
+    Wraps the KNN distances and the candidate-scoring classifier forward.
+    Batching those makes cuBLAS select kernels by shape, so results acquire an
+    `eval_batch_size` dependence. TF32 drift across batch sizes (2.6e-4) is
+    within 1.4x of the smallest best-versus-runner-up gap (3.6e-4), so a
+    decision could flip on batch size alone. Exactness costs 1.07x here.
+    """
+    previous = torch.backends.cuda.matmul.allow_tf32
+    torch.backends.cuda.matmul.allow_tf32 = False
+    try:
+        yield
+    finally:
+        torch.backends.cuda.matmul.allow_tf32 = previous
+
+
+def get_knn_batched(
     X_train: torch.Tensor,  # noqa: N803
     X_query: torch.Tensor,  # noqa: N803
     masks: torch.Tensor,
     num_neighbors: int,
-    instance_idx: int = 0,
-    exclude_instance: bool = True,  # noqa: FBT002
+    instance_idx: torch.Tensor | None = None,
+    exclude_instance: bool = False,  # noqa: FBT002
     batch_size: int = 1000,
     train_observed_mask: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """
-    K-NN implementation from the AACO paper.
+    K-NN over a batch of queries, one query mask per column.
 
-    (https://github.com/lupalab/aaco/blob/3b2316661651699d11e904e9c5911c175e8b2fdc/src/aaco_rollout.py#L103C1-L103C4).
+    Follows the AACO paper's expanded distance form
+    (https://github.com/lupalab/aaco/blob/3b2316661651699d11e904e9c5911c175e8b2fdc/src/aaco_rollout.py#L103),
+    which takes a single `1 x d` query. Evaluating B instances that way issues
+    B independent calls, each degenerating the matmuls to matrix-vector
+    products split over `ceil(N/batch_size)`.
+
+    Distance formula covers both complete and incomplete training data: the
+    shared-support mean. Complete data is the special case where availability is
+    all ones, and the mean then differs from the plain masked sum only by a
+    factor constant down each column, which `topk` is invariant to.
+    The normalisation is a necessary extension of the reference,
+    because under missingness two training rows can share different numbers
+    of features with the query and unnormalised sums are then not comparable.
 
     Args:
-        X_train: N x d Train Instances
-        X_query: 1 x d Query Instances
-        masks: d x R binary masks to try
-        num_neighbors: Number of neighbors (k)
-        instance_idx: Index of current instance (for exclusion)
-        exclude_instance: Whether to exclude the query instance from results
-        batch_size: Number of training samples to process at once (for memory)
+        X_train: N x d train instances
+        X_query: B x d query instances
+        masks: d x B binary masks, column b belonging to query b
+        num_neighbors: number of neighbors (k)
+        instance_idx: B-element indices of the query instances, for exclusion
+        exclude_instance: whether to exclude each query from its own results
+        batch_size: rows of X_train per chunk (memory bound)
+        train_observed_mask: N x d availability mask, enabling the shared
+            support distance used by the restricted strategies
+
+    Returns:
+        num_neighbors x B neighbor indices, column b belonging to query b.
     """
-    N = X_train.shape[0]
+    n_rows = X_train.shape[0]
     masks = masks.to(X_train.device)
-    if train_observed_mask is None:
-        X_query_squared = X_query**2
-        query_term = torch.matmul(X_query_squared, masks)
-        dist_squared_chunks = []
-        for i in range(0, N, batch_size):
+    # Fold each query's values into its own mask column so the per-query terms
+    # become plain matrix products.
+    weighted_query = X_query.T * masks  # (d, B), q_bj * m_jb
+    weighted_query_squared = (X_query**2).T * masks  # (d, B), q_bj^2 * m_jb
+    observed = (
+        None
+        if train_observed_mask is None
+        else train_observed_mask.to(X_train.device).float()
+    )
+
+    dist_squared_chunks = []
+    with _exact_matmul():
+        for i in range(0, n_rows, batch_size):
             X_batch = X_train[i : i + batch_size]
-            X_batch_squared = X_batch**2
-            X_batch_X_query = X_batch * X_query
-            dist_batch = (
-                torch.matmul(X_batch_squared, masks)
-                - 2.0 * torch.matmul(X_batch_X_query, masks)
-                + query_term
-            )
-            dist_squared_chunks.append(dist_batch)
-        dist_squared = torch.cat(dist_squared_chunks, dim=0)
-    else:
-        train_observed_mask = train_observed_mask.to(X_train.device).bool()
-        query_masks = masks.bool()
-        dist_squared_chunks = []
-        for i in range(0, N, batch_size):
-            X_batch = X_train[i : i + batch_size]
-            observed_batch = train_observed_mask[i : i + batch_size]
-            squared_diff = (X_batch - X_query).pow(2)
-            shared = observed_batch.unsqueeze(-1) & query_masks.unsqueeze(0)
-            shared_counts = shared.sum(dim=1)
-            dist_batch = (squared_diff.unsqueeze(-1) * shared.float()).sum(
-                dim=1
-            ) / shared_counts.clamp_min(1)
+            if observed is None:
+                # Complete training data: every feature is available, so the
+                # shared support is just the query mask and its size is
+                # constant down the column.
+                shared_counts = masks.sum(dim=0, keepdim=True)
+                numerator = (
+                    torch.matmul(X_batch**2, masks)
+                    - 2.0 * torch.matmul(X_batch, weighted_query)
+                    + weighted_query_squared.sum(dim=0, keepdim=True)
+                )
+            else:
+                observed_batch = observed[i : i + batch_size]
+                shared_counts = torch.matmul(observed_batch, masks)
+                numerator = (
+                    torch.matmul(X_batch**2 * observed_batch, masks)
+                    - 2.0
+                    * torch.matmul(X_batch * observed_batch, weighted_query)
+                    + torch.matmul(observed_batch, weighted_query_squared)
+                )
             dist_squared_chunks.append(
-                dist_batch.masked_fill(shared_counts == 0, torch.inf)
+                (numerator / shared_counts.clamp_min(1)).masked_fill(
+                    shared_counts == 0, torch.inf
+                )
             )
-        dist_squared = torch.cat(dist_squared_chunks, dim=0)
+    dist_squared = torch.cat(dist_squared_chunks, dim=0)  # (N, B)
 
     k = num_neighbors + int(exclude_instance)
-    idx_topk = torch.topk(dist_squared, k, dim=0, largest=False)[1]
+    idx_topk = torch.topk(dist_squared, k, dim=0, largest=False)[1]  # (k, B)
     if not exclude_instance:
         return idx_topk
-    return idx_topk[idx_topk != instance_idx][:num_neighbors]
+    assert instance_idx is not None
+    # At most one entry per column is the query itself. A stable sort on the
+    # "should drop" flag sinks it to the bottom while preserving topk order
+    # among the rest, so slicing the top num_neighbors drops exactly it.
+    drop = idx_topk == instance_idx.to(idx_topk.device).reshape(1, -1)
+    order = torch.argsort(drop.int(), dim=0, stable=True)
+    return idx_topk.gather(0, order)[:num_neighbors]
 
 
-def load_mask_generator(input_dim: int) -> RandomMaskGenerator:
+def load_mask_generator(input_dim: int, seed: int) -> RandomMaskGenerator:
     """Their exact mask generator loading logic."""
     # Paper shows this works nearly as well as 10,000 (for MNIST)
-    return random_mask_generator(100, input_dim, 100)
+    return random_mask_generator(100, input_dim, 100, seed)
 
 
 class AACOOracle:
@@ -111,6 +178,7 @@ class AACOOracle:
         missingness_objective: str = "support_aware",
         dr_min_propensity: float = 1e-3,
         dr_max_weight: float | None = 20.0,
+        mask_seed: int = 0,
         device: torch.device | None = None,
     ):
         if missingness_objective not in MISSINGNESS_OBJECTIVES:
@@ -131,6 +199,7 @@ class AACOOracle:
         self.missingness_objective: str = missingness_objective
         self.dr_min_propensity: float = dr_min_propensity
         self.dr_max_weight: float | None = dr_max_weight
+        self.mask_seed: int = mask_seed
         self.classifier: AFAClassifier | None = None
         self.mask_generator: RandomMaskGenerator | None = None
         self._patch_mask_generators: dict[int, RandomMaskGenerator] = {}
@@ -179,7 +248,7 @@ class AACOOracle:
         )
 
         input_dim = X_train.shape[1]
-        self.mask_generator = load_mask_generator(input_dim)
+        self.mask_generator = load_mask_generator(input_dim, self.mask_seed)
 
         logger.info(f"Training data: {X_train.shape}")
 
@@ -209,10 +278,10 @@ class AACOOracle:
         neighbor_indices: torch.Tensor,
         feature_count: int,
     ) -> torch.Tensor:
-        neighbor_indices = neighbor_indices.reshape(-1)
+        """Availability of each neighbor's features, shaped `(B, k, d)`."""
         if self.train_observed_mask is None:
             return torch.ones(
-                (len(neighbor_indices), feature_count),
+                (*neighbor_indices.shape, feature_count),
                 dtype=torch.bool,
                 device=self.device,
             )
@@ -224,33 +293,38 @@ class AACOOracle:
         neighbor_labels: torch.Tensor,
         feature_masks: torch.Tensor,
     ) -> torch.Tensor:
+        """
+        Classifier loss per (instance, candidate mask, neighbor).
+
+        Shapes are `(B, k, d)`, `(B, k, n_classes)` and `(B, M, k, d)` in, and
+        `(B, M, k)` out. The instance dimension exists so that one classifier
+        call covers a whole eval batch rather than one instance, which is where
+        the launch-bound cost of this path used to sit.
+        """
         assert self.classifier is not None
-        n_masks, n_neighbors, feature_count = feature_masks.shape
+        n_instances, n_masks, n_neighbors, feature_count = feature_masks.shape
         mask_float = feature_masks.float()
-        masked = neighbor_features.unsqueeze(0).expand(n_masks, -1, -1)
+        masked = neighbor_features.unsqueeze(1)
         masked = masked * mask_float + self.hide_val * (1 - mask_float)
-        logits = self.classifier(
-            masked.reshape(-1, feature_count),
-            mask_float.reshape(-1, feature_count),
-            feature_shape=torch.Size([feature_count]),
-        )
+        with _exact_matmul():
+            logits = self.classifier(
+                masked.reshape(-1, feature_count),
+                mask_float.reshape(-1, feature_count),
+                feature_shape=torch.Size([feature_count]),
+            )
         probabilities = ensure_probabilities(logits).view(
+            n_instances,
             n_masks,
             n_neighbors,
             -1,
         )
-        expanded_labels = neighbor_labels.unsqueeze(0).expand(
-            n_masks,
-            -1,
-            -1,
-        )
         losses = -torch.sum(
-            expanded_labels * torch.log(probabilities + 1e-10),
+            neighbor_labels.unsqueeze(1) * torch.log(probabilities + 1e-10),
             dim=-1,
         )
         if self.class_weights is not None:
             class_indices = neighbor_labels.argmax(dim=-1)
-            losses *= self.class_weights[class_indices].unsqueeze(0)
+            losses = losses * self.class_weights[class_indices].unsqueeze(1)
         return losses
 
     def _candidate_support_propensities(
@@ -259,13 +333,13 @@ class AACOOracle:
     ) -> torch.Tensor:
         if self.marginal_observation_probabilities is None:
             return torch.ones(
-                candidate_feature_masks.shape[0],
+                candidate_feature_masks.shape[:-1],
                 device=self.device,
             )
         marginal = self.marginal_observation_probabilities.clamp_min(1e-12)
         log_propensity = (
-            candidate_feature_masks.float() * marginal.log().unsqueeze(0)
-        ).sum(dim=1)
+            candidate_feature_masks.float() * marginal.log()
+        ).sum(dim=-1)
         return log_propensity.exp()
 
     def _expected_candidate_losses(
@@ -273,17 +347,25 @@ class AACOOracle:
         candidate_feature_masks: torch.Tensor,
         neighbor_indices: torch.Tensor,
     ) -> torch.Tensor:
+        """
+        Score every candidate mask against its instance's neighbors.
+
+        `candidate_feature_masks` is `(B, M, d)` and `neighbor_indices` is
+        `(B, k)`; the result is `(B, M)`. Callers with a single instance pass
+        `B == 1`.
+        """
         assert self.X_train is not None
         assert self.y_train is not None
         candidate_feature_masks = candidate_feature_masks.bool()
-        neighbor_indices = neighbor_indices.reshape(-1)
         neighbor_features = self.X_train[neighbor_indices]
         neighbor_labels = self.y_train[neighbor_indices]
         observed = self._neighbor_observed_mask(
             neighbor_indices,
-            candidate_feature_masks.shape[1],
+            candidate_feature_masks.shape[-1],
         )
-        overlap_masks = candidate_feature_masks.unsqueeze(1) & observed
+        overlap_masks = candidate_feature_masks.unsqueeze(
+            2
+        ) & observed.unsqueeze(1)
         overlap_losses = self._neighbor_losses(
             neighbor_features,
             neighbor_labels,
@@ -293,12 +375,10 @@ class AACOOracle:
             self.missingness_objective != "doubly_robust"
             or self.train_observed_mask is None
         ):
-            return overlap_losses.mean(dim=1)
+            return overlap_losses.mean(dim=-1)
 
-        full_masks = candidate_feature_masks.unsqueeze(1).expand(
-            -1,
-            len(neighbor_indices),
-            -1,
+        full_masks = candidate_feature_masks.unsqueeze(2).expand_as(
+            overlap_masks
         )
         full_losses = self._neighbor_losses(
             neighbor_features,
@@ -306,7 +386,7 @@ class AACOOracle:
             full_masks,
         )
         fully_supported = (
-            (~candidate_feature_masks.unsqueeze(1)) | observed
+            (~candidate_feature_masks.unsqueeze(2)) | observed.unsqueeze(1)
         ).all(dim=-1)
         inverse_weights = (
             self._candidate_support_propensities(candidate_feature_masks)
@@ -315,51 +395,98 @@ class AACOOracle:
         )
         if self.dr_max_weight is not None:
             inverse_weights = inverse_weights.clamp_max(self.dr_max_weight)
-        baseline = overlap_losses.mean(dim=1, keepdim=True)
+        baseline = overlap_losses.mean(dim=-1, keepdim=True)
         corrected = baseline + fully_supported.float() * (
-            inverse_weights.unsqueeze(1) * (full_losses - baseline)
+            inverse_weights.unsqueeze(-1) * (full_losses - baseline)
         )
-        return corrected.mean(dim=1)
+        return corrected.mean(dim=-1)
 
-    def select_next_feature(  # noqa: C901, PLR0912, PLR0915
+    def _selection_space(
+        self,
+        feature_count: int,
+        feature_shape: torch.Size | None,
+        selection_size: int | None,
+    ) -> _SelectionSpace:
+        """Resolve the space the oracle selects over. See `_SelectionSpace`."""
+        if not uses_patch_selection(selection_size, feature_shape):
+            assert self.mask_generator is not None
+            return _SelectionSpace(
+                selection_dim=feature_count,
+                mask_generator=self.mask_generator,
+                to_feature_mask=lambda masks: masks.bool(),
+                to_selection_mask=lambda masks: masks,
+            )
+
+        assert feature_shape
+        assert selection_size is not None
+        n_channels, height, width, patch_h, patch_w = get_patch_dimensions(
+            selection_size, feature_shape
+        )
+        mask_width = int(selection_size**0.5)
+
+        generator = self._patch_mask_generators.get(selection_size)
+        if generator is None:
+            generator = random_mask_generator(
+                100, selection_size, 100, self.mask_seed
+            )
+            self._patch_mask_generators[selection_size] = generator
+
+        def to_feature_mask(masks: torch.Tensor) -> torch.Tensor:
+            leading = masks.shape[:-1]
+            patches = masks.reshape(-1, 1, mask_width, mask_width).float()
+            patches = F.interpolate(
+                patches,
+                scale_factor=(patch_h, patch_w),
+                mode="nearest-exact",
+            )
+            if n_channels > 1:
+                patches = patches.expand(-1, n_channels, height, width)
+            return patches.reshape(*leading, feature_count).bool()
+
+        def to_selection_mask(masks: torch.Tensor) -> torch.Tensor:
+            # A patch counts as selected once any of its features is observed.
+            grid = masks.view(
+                -1, n_channels, mask_width, patch_h, mask_width, patch_w
+            )
+            return grid.any(dim=(1, 3, 5)).reshape(masks.shape[0], -1)
+
+        return _SelectionSpace(
+            selection_dim=selection_size,
+            mask_generator=generator,
+            to_feature_mask=to_feature_mask,
+            to_selection_mask=to_selection_mask,
+        )
+
+    def select_next_features_batched(
         self,
         x_observed: torch.Tensor,
         observed_mask: torch.Tensor,
-        instance_idx: int = 0,
-        force_acquisition: bool = False,  # noqa: FBT002
-        exclude_instance: bool = True,  # noqa: FBT002
+        *,
+        instance_idx: torch.Tensor | None = None,
+        force_acquisition: bool = False,
+        exclude_instance: bool = True,
         feature_shape: torch.Size | None = None,
         selection_size: int | None = None,
         selection_costs: torch.Tensor | None = None,
         selection_mask: torch.Tensor | None = None,
-    ) -> int | None:
+    ) -> list[int | None]:
         """
-        Select the next feature to acquire.
+        Select the next feature to acquire for each instance in a batch.
 
-        Args:
-            x_observed: 1D tensor of observed features (with unobserved = 0 or hide_val)
-            observed_mask: 1D boolean tensor indicating which features are observed
-            instance_idx: Index of current instance (for KNN exclusion)
+        `x_observed` and `observed_mask` are `(B, d)`. Returns one selection
+        index per instance, or None where the oracle prefers to stop.
+        The whole batch shares one KNN and one classifier call.
 
-            force_acquisition: If True, must return a feature (hard budget mode).
-                               If False, can return None to indicate stopping (soft budget).
-            exclude_instance: Whether to exclude instance_idx from KNN results.
-            selection_costs: Optional per-selection costs. If provided, this
-                             overrides the default unit-cost penalty.
-            selection_mask: Optional mask of previously performed selections.
-                            When provided, this determines which selections
-                            are considered already acquired.
-
-        Returns:
-            Index of next feature to acquire (0-indexed), or None if should stop.
-
-        Note:
-            Supports o = ∅ (no observed features), consistent with AACO.
+        Candidate masks are not deduplicated. The generator
+        ignores the current mask, so `maximum(new_masks, current)` is
+        rectangular across instances and only stays that way without a
+        per-instance `unique`. Duplicates cost a few redundant classifier rows,
+        which are free once the call is batched, and they cannot change which
+        mask wins, only which of several identical copies of it does.
         """
         assert self.classifier is not None, (
             "Oracle must have a classifier set. Call set_classifier() first."
         )
-
         assert self.X_train is not None, (
             "Oracle must be fitted first. Call fit() first."
         )
@@ -367,126 +494,54 @@ class AACOOracle:
             "Oracle must be fitted first. Call fit() first."
         )
 
-        feature_count = len(x_observed)
-        use_patch_selection = uses_patch_selection(
-            selection_size, feature_shape
-        )
         device = self.device
+        x_observed = x_observed.to(device)
         observed_feature_mask = observed_mask.to(device).bool()
-        observed_feature_mask_row = observed_feature_mask.float().unsqueeze(0)
-        mask_width = 0
-        n_channels = 0
-        height = 0
-        width = 0
-        patch_h = 0
-        patch_w = 0
-        patch_mask_generator: RandomMaskGenerator | None = None
-        mask_generator: RandomMaskGenerator | None = None
+        batch_size, feature_count = observed_feature_mask.shape
 
-        # Get nearest neighbors based on currently observed features
-        x_query = x_observed.unsqueeze(0).to(device)
-        idx_nn = get_knn(
+        idx_nn = get_knn_batched(
             self.X_train,
-            x_query,
-            observed_feature_mask_row.T.to(device),
+            x_observed,
+            observed_feature_mask.float().T,
             self.k_neighbors,
-            instance_idx,
+            instance_idx=(
+                torch.arange(batch_size, device=device)
+                if instance_idx is None
+                else instance_idx.to(device)
+            ),
             exclude_instance=exclude_instance,
             train_observed_mask=self.train_observed_mask,
-        ).squeeze()
+        ).T
 
-        if use_patch_selection:
-            assert feature_shape
-            assert selection_size is not None
-            n_channels, height, width, patch_h, patch_w = get_patch_dimensions(
-                selection_size, feature_shape
-            )
-            mask_width = int(selection_size**0.5)
-            selection_dim = selection_size
-
-            patch_mask_generator = self._patch_mask_generators.get(
-                selection_size
-            )
-            if patch_mask_generator is None:
-                patch_mask_generator = random_mask_generator(
-                    100, selection_size, 100
-                )
-                self._patch_mask_generators[selection_size] = (
-                    patch_mask_generator
-                )
-        else:
-            selection_dim = feature_count
-            mask_generator = self.mask_generator
-            assert mask_generator is not None
-
-        if selection_mask is not None:
-            current_selection_mask = selection_mask.to(device).bool().view(-1)
-            assert len(current_selection_mask) == selection_dim, (
-                "selection_mask has incompatible selection dimension."
-            )
-        elif use_patch_selection:
-            observed_mask_2d = observed_feature_mask.view(
-                n_channels, height, width
-            )
-            fm = observed_mask_2d.view(
-                n_channels,
-                mask_width,
-                patch_h,
-                mask_width,
-                patch_w,
-            )
-            current_selection_mask = fm.any(dim=(0, 2, 4)).view(-1).bool()
-        else:
-            current_selection_mask = observed_feature_mask.clone()
-        current_selection_mask_row = current_selection_mask.float().unsqueeze(
-            0
+        space = self._selection_space(
+            feature_count, feature_shape, selection_size
         )
 
-        if use_patch_selection:
-            assert patch_mask_generator is not None
-            new_masks = patch_mask_generator(current_selection_mask_row).to(
-                device
+        if selection_mask is not None:
+            current_selection_mask = (
+                selection_mask.to(device).bool().reshape(batch_size, -1)
             )
-            candidate_selection_masks = torch.maximum(
-                new_masks,
-                current_selection_mask_row.repeat(new_masks.shape[0], 1),
+            assert current_selection_mask.shape[1] == space.selection_dim, (
+                "selection_mask has incompatible selection dimension."
             )
         else:
-            # Generate candidate masks for Monte Carlo approximation.
-            assert mask_generator is not None
-            new_masks = mask_generator(current_selection_mask_row).to(device)
-            candidate_selection_masks = torch.maximum(
-                new_masks,
-                current_selection_mask_row.repeat(new_masks.shape[0], 1).to(
-                    device
-                ),
+            current_selection_mask = space.to_selection_mask(
+                observed_feature_mask
             )
 
+        current_selection_float = current_selection_mask.float()
+
+        new_masks = space.mask_generator(current_selection_float).to(device)
+        candidate_selection_masks = torch.maximum(
+            new_masks.unsqueeze(0), current_selection_float.unsqueeze(1)
+        )
         if not force_acquisition:
-            # Include current selection mask as option (allows stopping).
-            candidate_selection_masks[0] = current_selection_mask_row
-        # else: don't include current mask - must acquire something
-        candidate_selection_masks = candidate_selection_masks.unique(dim=0)
+            # Slot 0 is the option to acquire nothing further, i.e. to stop.
+            candidate_selection_masks[:, 0] = current_selection_float
 
-        def _selection_to_feature_mask(
-            selection_masks: torch.Tensor,
-        ) -> torch.Tensor:
-            if not use_patch_selection:
-                return selection_masks.bool()
-            mask_4d = selection_masks.view(-1, 1, mask_width, mask_width)
-            mask_4d = F.interpolate(
-                mask_4d.float(),
-                scale_factor=(patch_h, patch_w),
-                mode="nearest-exact",
-            )
-            if n_channels > 1:
-                mask_4d = mask_4d.expand(-1, n_channels, height, width)
-            return mask_4d.reshape(-1, feature_count).bool()
-
-        # Candidate feature masks always include currently observed features.
-        candidate_feature_masks = _selection_to_feature_mask(
+        candidate_feature_masks = space.to_feature_mask(
             candidate_selection_masks
-        ) | observed_feature_mask.unsqueeze(0)
+        ) | observed_feature_mask.unsqueeze(1)
         expected_losses = self._expected_candidate_losses(
             candidate_feature_masks,
             idx_nn,
@@ -494,82 +549,92 @@ class AACOOracle:
 
         # Add acquisition cost penalty.
         if selection_costs is not None:
-            selection_costs = selection_costs.to(device)
-            new_selection_mask = (
-                candidate_selection_masks.bool()
-                & ~current_selection_mask.unsqueeze(0)
+            newly_selected = candidate_selection_masks.bool() & ~(
+                current_selection_mask.unsqueeze(1)
             )
             acquisition_penalty = (
-                new_selection_mask.float() * selection_costs.unsqueeze(0)
-            ).sum(dim=1)
+                newly_selected.float() * selection_costs.to(device)
+            ).sum(dim=-1)
         else:
-            acquisition_penalty = (
-                candidate_selection_masks.sum(dim=1)
-                - current_selection_mask_row.sum()
-            )
+            acquisition_penalty = candidate_selection_masks.sum(
+                dim=-1
+            ) - current_selection_float.sum(dim=-1, keepdim=True)
+
         costs = expected_losses + self.acquisition_cost * acquisition_penalty
+        best_idx = costs.argmin(dim=1)
+        best_selection_mask = candidate_selection_masks[
+            torch.arange(batch_size, device=device), best_idx
+        ].bool()
 
-        # Select best mask
-        best_idx = costs.argmin().item()
-        best_selection_mask = candidate_selection_masks[best_idx].bool()
+        new_selections = best_selection_mask & ~current_selection_mask
+        n_new = new_selections.sum(dim=1)
 
-        # Find the new selection(s) to acquire.
-        new_features = (best_selection_mask & ~current_selection_mask).nonzero(
-            as_tuple=True
-        )[0]
-
-        if len(new_features) == 0:
-            if force_acquisition:
-                unobserved = (~current_selection_mask).nonzero(as_tuple=True)[
-                    0
-                ]
-                if len(unobserved) > 0:
-                    return int(unobserved[0].item())
-            # Best action is to stop (only possible if force_acquisition=False)
-            return None
-
-        if len(new_features) == 1:
-            return int(new_features[0].item())
-
-        # Tie-break: select the single feature in the chosen subset
-        # that most reduces expected loss when added alone.
-        ordering_selection_masks = current_selection_mask_row.repeat(
-            len(new_features), 1
+        chosen = torch.full((batch_size,), -1, dtype=torch.long, device=device)
+        chosen = torch.where(
+            n_new == 1, new_selections.int().argmax(dim=1), chosen
         )
-        ordering_selection_masks[
-            torch.arange(
-                len(new_features), device=ordering_selection_masks.device
-            ),
-            new_features,
-        ] = 1
 
-        ordering_feature_masks = _selection_to_feature_mask(
-            ordering_selection_masks
-        ) | observed_feature_mask.unsqueeze(0)
+        needs_tiebreak = n_new > 1
+        if bool(needs_tiebreak.any()):
+            # Tie-break: of the selections in the winning subset, take the one
+            # that most reduces expected loss when added alone.
+            eye = torch.eye(
+                space.selection_dim, dtype=torch.bool, device=device
+            )
+            ordering_feature_masks = space.to_feature_mask(
+                current_selection_mask.unsqueeze(1) | eye
+            ) | observed_feature_mask.unsqueeze(1)
+            ordering_losses = self._expected_candidate_losses(
+                ordering_feature_masks,
+                idx_nn,
+            ).masked_fill(~new_selections, torch.inf)
+            chosen = torch.where(
+                needs_tiebreak, ordering_losses.argmin(dim=1), chosen
+            )
 
-        avg_loss = self._expected_candidate_losses(
-            ordering_feature_masks,
-            idx_nn,
-        )
-        best_feature_idx = avg_loss.argmin().item()
-        return int(new_features[best_feature_idx].item())
+        if force_acquisition:
+            # Stopping is not allowed, so
+            # fall back to the first unacquired selection.
+            unselected = ~current_selection_mask
+            chosen = torch.where(
+                (n_new == 0) & unselected.any(dim=1),
+                unselected.int().argmax(dim=1),
+                chosen,
+            )
 
-    def select_next_selection(
+        return [None if c < 0 else c for c in chosen.tolist()]
+
+    def select_next_selections_batched(
         self,
         x_observed: torch.Tensor,
         observed_mask: torch.Tensor,
         selection_mask: torch.Tensor,
         selection_to_feature_mask: torch.Tensor,
         selection_costs: torch.Tensor | None = None,
-        instance_idx: int = 0,
-        force_acquisition: bool = False,  # noqa: FBT002
-        exclude_instance: bool = True,  # noqa: FBT002
-    ) -> int | None:
+        *,
+        instance_idx: torch.Tensor | None = None,
+        force_acquisition: bool = False,
+        exclude_instance: bool = True,
+    ) -> list[int | None]:
         """
-        Select the next **selection** (not feature) to acquire.
+        Select the next **selection** (not feature) for each instance in a batch.
 
-        This is used for unmaskers where selections are not equivalent to
-        individual features (e.g. grouped context selections).
+        This is the path for unmaskers whose selections are not individual
+        features, such as `CubeNMUnmasker` grouping the context features. It is
+        a greedy one-step search over selections rather than the Monte Carlo
+        candidate-mask search the feature-level oracle runs, so the two are
+        genuinely different algorithms and not two spellings of one.
+
+        `x_observed` and `observed_mask` are `(B, d)`, `selection_mask` is
+        `(B, S)` and `selection_to_feature_mask` is `(S, d)`. Returns one
+        selection index per instance, or None where the oracle prefers to stop.
+
+        Every instance scores all S selections, including the ones it has
+        already taken, whose cost is then set to infinity. That wastes a few
+        classifier rows but keeps the candidate set rectangular across the
+        batch, which is what lets the whole batch share one KNN and one
+        classifier call. Slot 0 is the option to stop, so it stays ahead of
+        every selection and ties resolve on the lowest selection index.
         """
         assert self.classifier is not None, (
             "Oracle must have a classifier set. Call set_classifier() first."
@@ -585,78 +650,81 @@ class AACOOracle:
         )
 
         device = self.device
-        observed_mask = observed_mask.to(device).bool()
-        selection_mask = selection_mask.to(device).bool()
+        x_observed = x_observed.to(device)
+        observed_feature_mask = observed_mask.to(device).bool()
+        current_selection_mask = selection_mask.to(device).bool()
         selection_to_feature_mask = selection_to_feature_mask.to(device).bool()
+        batch_size, feature_count = observed_feature_mask.shape
 
-        assert selection_to_feature_mask.shape[1] == observed_mask.numel(), (
+        assert selection_to_feature_mask.shape[1] == feature_count, (
             "selection_to_feature_mask has incompatible feature dimension."
         )
 
-        available_selection_indices = (~selection_mask).nonzero(as_tuple=True)[
-            0
-        ]
-        if len(available_selection_indices) == 0:
-            return None
-
-        candidate_selection_masks = selection_to_feature_mask[
-            available_selection_indices
-        ]
-        base_feature_mask = observed_mask.unsqueeze(0)
-        candidate_feature_masks = (
-            base_feature_mask | candidate_selection_masks
-        ).float()
-
-        candidate_indices = available_selection_indices.clone()
-        if selection_costs is not None:
-            selection_costs = selection_costs.to(device)
-            candidate_costs = selection_costs[candidate_indices]
-        else:
-            newly_observed = (
-                candidate_feature_masks.bool() & ~base_feature_mask
-            )
-            candidate_costs = newly_observed.float().sum(dim=1)
-
-        if not force_acquisition:
-            candidate_feature_masks = torch.cat(
-                [base_feature_mask.float(), candidate_feature_masks], dim=0
-            )
-            candidate_costs = torch.cat(
-                [torch.zeros(1, device=device), candidate_costs], dim=0
-            )
-            candidate_indices = torch.cat(
-                [
-                    torch.tensor([-1], device=device, dtype=torch.long),
-                    candidate_indices,
-                ],
-                dim=0,
-            )
-
-        # Get nearest neighbors based on currently observed features.
-        x_query = x_observed.unsqueeze(0).to(device)
-        idx_nn = get_knn(
+        idx_nn = get_knn_batched(
             self.X_train,
-            x_query,
-            observed_mask.float().unsqueeze(-1),
+            x_observed,
+            observed_feature_mask.float().T,
             self.k_neighbors,
-            instance_idx,
+            instance_idx=(
+                torch.arange(batch_size, device=device)
+                if instance_idx is None
+                else instance_idx.to(device)
+            ),
             exclude_instance=exclude_instance,
             train_observed_mask=self.train_observed_mask,
-        ).squeeze()
-        if idx_nn.ndim == 0:
-            idx_nn = idx_nn.unsqueeze(0)
+        ).T
 
+        # Slot 0 is "acquire nothing further", slot 1 + s is "acquire s".
+        base_feature_mask = observed_feature_mask.unsqueeze(1)  # (B, 1, d)
+        candidate_feature_masks = torch.cat(
+            [
+                base_feature_mask,
+                base_feature_mask | selection_to_feature_mask.unsqueeze(0),
+            ],
+            dim=1,
+        )
         expected_losses = self._expected_candidate_losses(
             candidate_feature_masks,
             idx_nn,
         )
 
+        if selection_costs is not None:
+            candidate_costs = (
+                selection_costs.to(device)
+                .float()
+                .reshape(1, -1)
+                .expand(batch_size, -1)
+            )
+        else:
+            candidate_costs = (
+                (selection_to_feature_mask.unsqueeze(0) & ~base_feature_mask)
+                .sum(dim=-1)
+                .float()
+            )
+        candidate_costs = torch.cat(
+            [torch.zeros((batch_size, 1), device=device), candidate_costs],
+            dim=1,
+        )
+
         costs = expected_losses + self.acquisition_cost * candidate_costs
-        best_candidate_idx = int(costs.argmin().item())
-        selected = int(candidate_indices[best_candidate_idx].item())
-        if selected < 0:
-            return None
-        return selected
+        # An already-taken selection is not a candidate, and stopping is not one
+        # either under a hard budget. Both drop out as infinities rather than as
+        # branches, which is what keeps the pass rectangular.
+        stop_unavailable = torch.full(
+            (batch_size, 1),
+            force_acquisition,
+            dtype=torch.bool,
+            device=device,
+        )
+        costs = costs.masked_fill(
+            torch.cat([stop_unavailable, current_selection_mask], dim=1),
+            torch.inf,
+        )
+
+        # Slot 0 wins where nothing is left, which is the honest "stop" answer
+        # even under force_acquisition, and matches -1 below.
+        chosen = costs.argmin(dim=1) - 1
+        return [None if c < 0 else c for c in chosen.tolist()]
 
     def predict_with_mask(
         self,

@@ -68,13 +68,17 @@ class RandomMaskGenerator:
     """Their exact random mask generator implementation."""
 
     def __init__(
-        self, num_samples: int, feature_dim: int, num_generated_masks: int
+        self,
+        num_samples: int,
+        feature_dim: int,
+        num_generated_masks: int,
+        seed: int,
     ) -> None:
         self.num_samples: int = num_samples
         self.feature_dim: int = feature_dim
         self.num_generated_masks: int = num_generated_masks
         self._cached_masks: torch.Tensor | None = None
-        self._rng: np.random.Generator = np.random.default_rng()
+        self._rng: np.random.Generator = np.random.default_rng(seed)
 
     def __call__(self, _mask_curr: torch.Tensor) -> torch.Tensor:
         # Cache masks to avoid repeated numpy generation in tight loops.

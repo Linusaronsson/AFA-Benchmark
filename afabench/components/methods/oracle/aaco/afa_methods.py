@@ -183,7 +183,6 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
                     "instance_indices must match batch size."
                 )
 
-            selections = []
             selection_size = (
                 selection_mask.shape[-1]
                 if selection_mask is not None
@@ -226,54 +225,41 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             ):
                 oracle_selection_costs = self._selection_costs
 
-            for i in range(batch_size):
-                x_obs = masked_features[i]
-                obs_mask = feature_mask[i].bool()
-                oracle_instance_idx = (
-                    int(instance_indices[i].item())
-                    if instance_indices is not None
-                    else i
+            instance_idx = (
+                instance_indices
+                if instance_indices is not None
+                else torch.arange(batch_size, device=self._device)
+            )
+
+            if (
+                use_selection_space
+                and selection_to_feature_mask is not None
+                and selection_mask_flat is not None
+            ):
+                chosen = self.aaco_oracle.select_next_selections_batched(
+                    masked_features,
+                    feature_mask.view(batch_size, -1).bool(),
+                    selection_mask_flat,
+                    selection_to_feature_mask,
+                    oracle_selection_costs,
+                    instance_idx=instance_idx,
+                    force_acquisition=self.force_acquisition,
+                    exclude_instance=self._exclude_instance,
                 )
-
-                if (
-                    use_selection_space
-                    and selection_to_feature_mask is not None
-                    and selection_mask_flat is not None
-                ):
-                    next_selection = self.aaco_oracle.select_next_selection(
-                        x_observed=x_obs,
-                        observed_mask=obs_mask,
-                        selection_mask=selection_mask_flat[i],
-                        selection_to_feature_mask=selection_to_feature_mask,
-                        selection_costs=oracle_selection_costs,
-                        instance_idx=oracle_instance_idx,
-                        force_acquisition=self.force_acquisition,
-                        exclude_instance=self._exclude_instance,
-                    )
-                    if next_selection is None:
-                        selections.append(0)
-                    else:
-                        selections.append(next_selection + 1)
-                    continue
-
-                # Default path: feature-level (or patch-level) oracle.
-                next_feature = self.aaco_oracle.select_next_feature(
-                    x_obs,
-                    obs_mask,
-                    instance_idx=oracle_instance_idx,
+                selections = [0 if c is None else c + 1 for c in chosen]
+            else:
+                chosen = self.aaco_oracle.select_next_features_batched(
+                    masked_features,
+                    feature_mask.view(batch_size, -1).bool(),
+                    instance_idx=instance_idx,
                     force_acquisition=self.force_acquisition,
                     exclude_instance=self._exclude_instance,
                     feature_shape=feature_shape,
                     selection_size=selection_size,
                     selection_costs=oracle_selection_costs,
-                    selection_mask=selection_mask_flat[i]
-                    if selection_mask_flat is not None
-                    else None,
+                    selection_mask=selection_mask_flat,
                 )
-                if next_feature is None:
-                    selections.append(0)
-                else:
-                    selections.append(next_feature + 1)
+                selections = [0 if c is None else c + 1 for c in chosen]
 
             selection_tensor = torch.tensor(
                 selections, dtype=torch.long, device=original_device
@@ -393,6 +379,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             "missingness_objective": self.aaco_oracle.missingness_objective,
             "dr_min_propensity": self.aaco_oracle.dr_min_propensity,
             "dr_max_weight": self.aaco_oracle.dr_max_weight,
+            "mask_seed": self.aaco_oracle.mask_seed,
             "dataset_name": self.dataset_name,
             "force_acquisition": self.force_acquisition,
             "selection_size": self._selection_size,
@@ -446,6 +433,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             missingness_objective=oracle_state["missingness_objective"],
             dr_min_propensity=oracle_state["dr_min_propensity"],
             dr_max_weight=oracle_state["dr_max_weight"],
+            mask_seed=oracle_state.get("mask_seed", 0),
             device=device,
         )
 
@@ -506,6 +494,7 @@ def create_aaco_method(
     missingness_objective: str = "support_aware",
     dr_min_propensity: float = 1e-3,
     dr_max_weight: float | None = 20.0,
+    mask_seed: int = 0,
     *,
     force_acquisition: bool = False,
     selection_size: int | None = None,
@@ -544,6 +533,7 @@ def create_aaco_method(
         missingness_objective=missingness_objective,
         dr_min_propensity=dr_min_propensity,
         dr_max_weight=dr_max_weight,
+        mask_seed=mask_seed,
         device=device,
     )
 

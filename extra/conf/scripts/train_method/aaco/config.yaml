@@ -32,6 +32,7 @@ aco:
   missingness_objective: support_aware
   dr_min_propensity: 1e-3
   dr_max_weight: 20.0
+  mask_seed: 0
 
 # ============================================================================
 # Required paths (must be provided)

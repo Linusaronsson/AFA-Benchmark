@@ -21,26 +21,26 @@ class DummyOracle:
     def set_classifier(self, classifier) -> None:  # noqa: ANN001
         pass
 
-    def select_next_selection(
+    def select_next_selections_batched(
         self,
-        x_observed: torch.Tensor,  # noqa: ARG002
+        x_observed: torch.Tensor,
         observed_mask: torch.Tensor,  # noqa: ARG002
         selection_mask: torch.Tensor,
         selection_to_feature_mask: torch.Tensor,
         selection_costs: torch.Tensor | None = None,
-        instance_idx: int = 0,  # noqa: ARG002
         *,
+        instance_idx: torch.Tensor | None = None,  # noqa: ARG002
         force_acquisition: bool = False,  # noqa: ARG002
         exclude_instance: bool = True,  # noqa: ARG002
-    ) -> int | None:
+    ) -> list[int | None]:
         self.last_selection_mask = selection_mask.clone()
         self.last_selection_to_feature_mask = selection_to_feature_mask.clone()
         self.last_selection_costs = (
             None if selection_costs is None else selection_costs.clone()
         )
-        return self.next_selection
+        return [self.next_selection] * x_observed.shape[0]
 
-    def select_next_feature(
+    def select_next_features_batched(
         self,
         x_observed: torch.Tensor,  # noqa: ARG002
         observed_mask: torch.Tensor,  # noqa: ARG002
@@ -94,7 +94,7 @@ def test_cube_nm_selection_space_path_maps_to_actions() -> None:
     assert int(action.item()) == 1
 
     assert oracle.last_selection_mask is not None
-    assert oracle.last_selection_mask.shape == (51,)
+    assert oracle.last_selection_mask.shape == (1, 51)
 
     assert oracle.last_selection_to_feature_mask is not None
     mask_table = oracle.last_selection_to_feature_mask
