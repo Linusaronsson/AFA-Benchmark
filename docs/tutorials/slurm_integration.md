@@ -6,8 +6,8 @@ The pipeline supports SLURM via [Snakemake's SLURM plugin](https://snakemake.rea
 
 The repository includes two profiles used by our team as examples:
 
-- `alvis/` - GPU cluster
-- `vera/` - CPU cluster
+- `arrhenius/` - NAISS GPU/CPU cluster, primary
+- `vera/` - C3SE cluster, secondary
 
 These are unlikely to work out of the box for you. See
 [Creating your own profile](#creating-your-own-profile) to set one up for your
@@ -23,7 +23,7 @@ load the standard pipeline config files restricted to GPU methods:
 uv run snakemake \
     --profile extra/workflow/profiles/config/gpu_methods \
     all \
-    --workflow-profile extra/workflow/profiles/alvis \
+    --workflow-profile extra/workflow/profiles/arrhenius \
     --config device=cuda
 ```
 
@@ -68,9 +68,8 @@ throttles the whole DAG to four concurrent jobs regardless of `jobs:`.
 
 | Profile | Notes |
 |---|---|
-| `vera` | Primary. One architecture, 7-day walltime, T4/A40/A100/H100, 155 CPU-only nodes. |
-| `arrhenius` | Backup. 72h cap, split `-cpu`/`-gpu` accounts, and **x86_64 CPU nodes with aarch64 Grace Hopper GPU nodes**, so it needs one virtualenv per architecture. Build the aarch64 one from an interactive GPU job; NAISS documents that GPU-side software cannot be built on the login node. See the profile's comments. |
-| `alvis` | Where the main-benchmark results in `extra/output/alvis` came from. Uses `--gres` and rejects explicit memory requests. |
+| `arrhenius` | Primary. 72h walltime cap, split `-cpu`/`-gpu` accounts, and **x86_64 CPU nodes with aarch64 Grace Hopper GPU nodes**, so it needs one virtualenv per architecture. NSC does not allow building GPU-side software on the login node, so build the aarch64 venv from an interactive job on the `gpu` partition. See the profile's comments. |
+| `vera` | Secondary. Better hardware fit (one architecture, 7-day walltime, T4/A40 class GPUs) but no durable storage: Alvis and its national Mimer allocations are being decommissioned and Cephyr left NAISS on 2026-07-01, leaving only a 30 GiB home. Use once e-Commons confirms a Chalmers-local allocation. |
 
 On a mixed-architecture cluster, export `AFABENCH_SHELL_PREFIX` so each job
 activates the matching environment. `missing_data.smk` applies it via

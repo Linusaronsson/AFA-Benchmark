@@ -1,23 +1,23 @@
-# Snakemake profile for Vera (C3SE, Chalmers). Primary cluster for this study.
+# Snakemake profile for Vera (C3SE, Chalmers). Secondary; prefer Arrhenius.
 #
 # Verified against the live system on 2026-07-20:
 #
 #   PARTITION  GRES              TIMELIMIT   CPUS  NODES
 #   vera*      (mixed, default)  7-00:00:00    64    222
-#   gpu        gpu:A40:4                        64     17
-#   gpu        gpu:A100:4                       64     38
-#   gpu        gpu:H100:4                       64      2
-#   gpu        gpu:T4:8                         32     10
+#   gpu        gpu:A40:4 / A100:4 / H100:4 / T4:8    64     67
 #   cpu        (none)            7-00:00:00    64    155
 #
-# Preferred over Arrhenius for this workload. One architecture, a 7-day
-# walltime, and a GPU range that actually fits the jobs: a diabetes eval is
-# ~5.6s of which 1.19s is rollout, so a T4 or A40 is ample and a Grace Hopper
-# would be almost entirely idle. See profiles/arrhenius/config.yaml for the
-# backup, which needs two virtualenvs and a 72h cap.
+# Vera has the better hardware fit for this workload -- one architecture, a
+# 7-day walltime, and T4/A40 class GPUs rather than a Grace Hopper that would
+# sit mostly idle on a ~5.6s eval job. The problem is storage, not compute.
+# Alvis and its national Mimer allocations are being decommissioned, Cephyr
+# left NAISS on 2026-07-01, and there is no durable project storage attached to
+# a Vera allocation beyond a 30 GiB home. Until e-Commons confirms a
+# Chalmers-local Mimer or departmental Cephyr allocation, work that must
+# survive belongs on Arrhenius.
 #
-# Costing note: on the main partition an A40 costs the equivalent of 16 extra
-# cores, and larger GPUs proportionally more, so ask for the smallest that fits.
+# Costing note: an A40 bills like 16 extra cores, larger GPUs proportionally
+# more, so ask for the smallest that fits.
 executor: slurm
 jobs: 200
 latency-wait: 30 # seconds

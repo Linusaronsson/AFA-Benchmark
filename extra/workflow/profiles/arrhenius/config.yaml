@@ -1,4 +1,4 @@
-# Snakemake profile for Arrhenius (NAISS, NSC).
+# Snakemake profile for Arrhenius (NAISS, NSC). Primary cluster.
 #
 # Verified against the live system on 2026-07-20:
 #
@@ -7,7 +7,7 @@
 #   fat        (null)                        3-00:00:00   256    3095813      20
 #   gpu        gpu:nvidia_gh200_120gb:4      3-00:00:00   288     485854     382
 #
-# Three things differ from the Alvis and Vera profiles and are easy to get wrong:
+# Three things differ from the Vera profile and are easy to get wrong:
 #
 #   1. Walltime is capped at 72h (3-00:00:00) on every partition, so nothing here
 #      may exceed 4320 minutes. Vera allows 7 days; do not copy runtimes across.
@@ -54,19 +54,17 @@ set-resources:
   train_missing_data_method_with_pretraining: *gpu_long
   train_missing_data_method_without_pretraining: *gpu_long
   restore_missing_training_view: *gpu
-  eval_missing_data_method:
-    slurm_partition: gpu
-    slurm_account: naiss2026-4-1278-gpu
-    slurm_extra: "--gpus=1"
-    # A diabetes eval job is ~5.6s at 256 samples and scales with the eval set.
-    # Generous because a walltime kill loses the job while an over-request only
-    # costs queue priority.
-    runtime: 240
-    cpus_per_task: 16
-    mem_mb: 60000
 
   # --- CPU side -------------------------------------------------------------
   # Data preparation is numpy and pandas, so it stays off the GPU allocation.
+  eval_missing_data_method:
+    # Deliberately CPU. Rollout is 2-4x slower there, but after the batching
+    # work it is a small part of a job dominated by startup and load, so the
+    # job costs only 1.04-1.44x more. On 256-core nodes that trades far better
+    # than queueing for a GH200 that would sit mostly idle.
+    runtime: 240
+    cpus_per_task: 16
+    mem_mb: 32000
   generate_missing_data_dataset:
     runtime: 120
     cpus_per_task: 8
@@ -84,13 +82,14 @@ set-resources:
 # which would put the x86_64 venv on an aarch64 GPU node. Export this before
 # running, in single quotes so `uname -m` is evaluated inside the job:
 #
-#   export AFABENCH_SHELL_PREFIX='source "$HOME"/venvs/$(uname -m)/bin/activate; '
+#   export AFABENCH_SHELL_PREFIX='source "$AFA_BASE"/venvs/$(uname -m)/bin/activate; '
 #
-# and build both venvs once, the aarch64 one from an interactive GPU job:
+# `~/.bashrc.d/afabench.sh` sets AFA_BASE, UV_CACHE_DIR and
+# UV_PROJECT_ENVIRONMENT onto project storage, since the CUDA wheel stack is
+# multi-GB per venv and $HOME is 30 GiB. Build both venvs once, the aarch64 one
+# from an interactive GPU job because NSC does not allow building GPU-side
+# software on the x86_64 login node:
 #
-#   UV_PROJECT_ENVIRONMENT="$HOME/venvs/x86_64"  uv sync --group dev
+#   uv sync --group dev
 #   srun -A naiss2026-4-1278-gpu -p gpu --gpus=1 -t 60 --pty bash
-#   UV_PROJECT_ENVIRONMENT="$HOME/venvs/aarch64" uv sync --group dev
-#
-# $HOME was 24 GB free at last check and the CUDA wheel stack is multi-GB per
-# venv, so point UV_CACHE_DIR at scratch if the second sync runs out of room.
+#   uv sync --group dev

@@ -1,4 +1,4 @@
-# Arrhenius (NAISS, NSC). Backup cluster; prefer `custom_slurm` (Vera).
+# Arrhenius (NAISS, NSC). Same target as `custom_slurm`, named explicitly.
 #
 # Two things differ from every other launcher here:
 #   - the account is suffixed per side, `<project>-cpu` / `<project>-gpu`, and
