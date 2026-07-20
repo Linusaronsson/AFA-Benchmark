@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import Self, final, override
 
-import timm
 import torch
 
 from afabench.components.classifiers.models import (
@@ -310,6 +309,7 @@ class WrappedMaskedViTClassifier(AFAClassifier):
         num_classes = int(checkpoint["num_classes"])
         image_size = int(checkpoint["image_size"])
         patch_size = int(checkpoint["patch_size"])
+        import timm  # noqa: PLC0415
 
         backbone = timm.create_model(name, pretrained=False)
         module = MaskedViTClassifier(

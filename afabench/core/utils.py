@@ -3,15 +3,16 @@ import os
 import random
 from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import torch
-import wandb
 from torch import nn
-from wandb.sdk.wandb_run import Run
 
 from afabench.core.types import FeatureMask, Label, MaskedFeatures
+
+if TYPE_CHECKING:
+    from wandb.sdk.wandb_run import Run
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,10 @@ def initialize_wandb_run(
     cfg: dict[str, Any],
     job_type: str,
     tags: list[str],
-) -> Run:
+) -> "Run":
+    # Imported lazily
+    import wandb  # noqa: PLC0415
+
     # Allow grouping of runs via environment variable `WANDB_GROUP`
     # or via a `wandb_group` key in the config dict. Environment
     # variable takes precedence.

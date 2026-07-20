@@ -36,7 +36,10 @@ def test_init_wandb_accepts_dataclass_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     init_spy = WandbInitSpy()
-    monkeypatch.setattr("scripts.eval.eval_afa_method.wandb.init", init_spy)
+    # Patched on the module itself, not on the eval script: `wandb` is imported
+    # lazily inside `_init_wandb` (it costs ~0.7 s and eval runs with
+    # use_wandb=false), so there is no attribute on the eval script to patch.
+    monkeypatch.setattr("wandb.init", init_spy)
 
     evaluator = AFAEvaluator(eval_config(use_wandb=True))
 

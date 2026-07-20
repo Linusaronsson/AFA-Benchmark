@@ -14,7 +14,7 @@ from afabench.components.classifiers import WrappedMaskedMLPClassifier
 from afabench.components.classifiers.config import (
     TrainMaskedMLPClassifierConfig,
 )
-from afabench.components.classifiers.models import LitMaskedMLPClassifier
+from afabench.components.classifiers.lit_models import LitMaskedMLPClassifier
 from afabench.components.methods.rl.common.dataset_utils import (
     DataModuleFromDatasets,
 )
