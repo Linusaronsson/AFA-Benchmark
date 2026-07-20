@@ -370,6 +370,14 @@ class RLTrainer(ABC):
         agent_process_batch_info: dict[str, Any],
         post_process_info: dict[str, Any],
     ) -> dict[str, Any]:
+        # Only built when it will actually be logged: the histogram forces a
+        # device-to-host copy of the whole action tensor every batch, and every
+        # missing-data profile trains with wandb off.
+        histogram = (
+            {"action_distribution": wandb.Histogram(td["action"].cpu())}
+            if self.use_wandb
+            else {}
+        )
         train_dict_to_log = dict_with_prefix(
             "train/",
             dict_with_prefix("train_env_batch_info.", train_env_batch_info)
@@ -380,7 +388,7 @@ class RLTrainer(ABC):
                 "agent_cheap_info.", self.agent.get_cheap_info()
             )
             | dict_with_prefix("post_process_info.", post_process_info)
-            | {"action_distribution": wandb.Histogram(td["action"].cpu())},
+            | histogram,
         )
         return train_dict_to_log
 

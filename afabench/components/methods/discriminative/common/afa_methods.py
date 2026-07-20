@@ -115,15 +115,18 @@ def _unmask_available_rows(
     feature_shape: torch.Size,
 ) -> torch.Tensor:
     new_feature_mask = feature_mask.clone().bool()
-    if has_available.any():
-        new_feature_mask[has_available] = unmasker.unmask(
-            masked_features=masked_features[has_available],
-            feature_mask=feature_mask[has_available].bool(),
-            features=features[has_available],
-            afa_selection=selection[has_available],
-            selection_mask=selection_mask[has_available],
-            feature_shape=feature_shape,
-        )
+    # One `nonzero` shared by the five gathers below, rather than five boolean
+    # index expansions. The `has_available.any()` guard it replaces cost a
+    # device sync to answer a question the empty-index case answers for free.
+    rows = has_available.nonzero(as_tuple=True)[0]
+    new_feature_mask[rows] = unmasker.unmask(
+        masked_features=masked_features[rows],
+        feature_mask=feature_mask[rows].bool(),
+        features=features[rows],
+        afa_selection=selection[rows],
+        selection_mask=selection_mask[rows],
+        feature_shape=feature_shape,
+    )
     return new_feature_mask.to(dtype=feature_mask.dtype)
 
 
@@ -303,7 +306,14 @@ class GreedyDynamicSelection(nn.Module):
                 # Switch models to training mode.
                 selector.train()
                 predictor.train()
-                epoch_train_loss = 0.0
+                # Accumulated on device and read back once per epoch. The
+                # inner loop runs once per feature per batch, and a `.item()`
+                # there is a full sync each time. float64 so the sum matches
+                # the Python-float accumulation this replaces exactly, since
+                # `avg_train` drives early stopping.
+                epoch_train_loss = torch.zeros(
+                    (), device=device, dtype=torch.float64
+                )
                 for batch in train_loader:
                     # Move to device.
                     (
@@ -363,7 +373,7 @@ class GreedyDynamicSelection(nn.Module):
                         # Calculate loss.
                         loss = loss_fn(pred, y)
                         (loss / max_features).backward()
-                        epoch_train_loss += loss.item()
+                        epoch_train_loss += loss.detach().double()
 
                         # Update mask, ensure no repeats.
                         dist = selector_layer(logits_cost, 1e-6)
@@ -389,7 +399,7 @@ class GreedyDynamicSelection(nn.Module):
                     # Take gradient step.
                     opt.step()
 
-                avg_train = epoch_train_loss / (
+                avg_train = epoch_train_loss.item() / (
                     len(train_loader) * max_features
                 )
 

@@ -70,16 +70,17 @@ class CubeNMUnmasker(AFAUnmasker):
         assert masked_features.ndim == 2, (
             f"Expected a single batch dimension and a single feature dimension, instead got {masked_features.ndim} dimensions."
         )
-        batch_size = masked_features.shape[0]
         new_feature_mask = feature_mask.clone()
 
-        for sample_idx in range(batch_size):
-            selection_idx = int(afa_selection[sample_idx])
-            if selection_idx == 0:
-                new_feature_mask[sample_idx, : self.n_contexts] = True
-            else:
-                new_feature_mask[
-                    sample_idx, (selection_idx - 1) + self.n_contexts
-                ] = True
+        # Vectorized because the per-sample form read `int(afa_selection[i])`,
+        # one device sync per sample, which dominated training on cube_nm.
+        selections = afa_selection.reshape(-1)
+        is_context = selections == 0
+        new_feature_mask[is_context, : self.n_contexts] = True
+
+        individual = (~is_context).nonzero(as_tuple=True)[0]
+        new_feature_mask[
+            individual, selections[individual] - 1 + self.n_contexts
+        ] = True
 
         return new_feature_mask
