@@ -1049,7 +1049,20 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         features_df = df_dataset.iloc[:, :-1]
         labels_df = df_dataset.iloc[:, -1]
 
-        # Handle missing values by filling with column means and normalize
+        # Record what was genuinely missing before it is imputed away. This
+        # dataset is 26.2% missing with every instance affected, and the
+        # pattern is strongly informative: TroponinI is 95% missing and
+        # Cholesterol 92%, because those panels are ordered when a clinician
+        # already suspects the outcome, while Age and ICUType are never
+        # missing. That is real MNAR, and mean-filling discards it.
+        # See `native_observed_mask`.
+        self.native_observed_mask = torch.tensor(
+            features_df.notna().to_numpy(), dtype=torch.bool
+        )
+
+        # Values are still imputed so downstream code sees finite floats. The
+        # restricted view zeroes every unobserved entry anyway, so these
+        # imputed values are not read when the native mask is in use.
         features_df = features_df.fillna(features_df.mean())
         features_df = _z_normalize(features_df)
 
@@ -1093,6 +1106,9 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                # Persisted so the native missingness survives the bundle
+                # round trip; without it the dataset looks complete.
+                "native_observed_mask": self.native_observed_mask,
                 "feature_names": self.feature_names,
                 "config": {
                     "root": self.root,
@@ -1110,6 +1126,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.root = data["config"]["root"]
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.native_observed_mask = data["native_observed_mask"]
         obj.feature_names = data["feature_names"]
         return obj
 
@@ -1257,6 +1274,12 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     )
         for col in features_df.columns:
             features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
+        # Record what was genuinely missing before it is imputed away.
+        # 10.5% of entries across all 24 columns, affecting 60.5% of
+        # instances. See `native_observed_mask` in missing_values/views.py.
+        self.native_observed_mask = torch.tensor(
+            features_df.notna().to_numpy(), dtype=torch.bool
+        )
         features_df = features_df.fillna(features_df.mean())
         features_df = _z_normalize(features_df)
 
@@ -1301,6 +1324,9 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                # Persisted so the native missingness survives the bundle
+                # round trip; without it the dataset looks complete.
+                "native_observed_mask": self.native_observed_mask,
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
@@ -1315,6 +1341,7 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.path = data["config"]["path"]
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.native_observed_mask = data["native_observed_mask"]
         obj.feature_names = data["feature_names"]
         obj.n_features = obj.features.shape[1]
         return obj

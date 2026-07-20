@@ -18,6 +18,8 @@ from afabench.missing_values.masking import FittedMissingnessMechanism
 if TYPE_CHECKING:
     from pathlib import Path
 
+    import torch
+
     from afabench.core.types import AFADataset
     from afabench.missing_values.config import MaterializeTrainingViewsConfig
 
@@ -25,6 +27,32 @@ if TYPE_CHECKING:
 def _load_dataset(path: Path) -> tuple[AFADataset, dict[str, object]]:
     dataset, manifest = load_bundle(path)
     return cast("AFADataset", cast("object", dataset)), manifest
+
+
+def native_observed_mask(dataset: AFADataset) -> torch.Tensor:
+    """
+    Return the missingness the dataset arrived with, not one we imposed.
+
+    Every other mechanism samples a mask from a model we chose, which makes it
+    known by construction and lets `true_completion` grade restoration against
+    a ground truth we hold. Real missingness has neither property, which is why
+    it is worth measuring against.
+
+    Only datasets that arrive incomplete carry this: PhysioNet 2012 (26.2%) and
+    CKD (10.5%). Diabetes and MiniBooNE are complete, so there is nothing
+    native to recover from them.
+    """
+    mask = getattr(dataset, "native_observed_mask", None)
+    if mask is None:
+        msg = (
+            f"{type(dataset).__name__} has no native missingness, so "
+            "mechanism='native' is undefined for it. Use a sampled mechanism "
+            "(mcar, mar, mnar_logistic, mnar_self), or add "
+            "`self.native_observed_mask` to the dataset if it does arrive "
+            "incomplete."
+        )
+        raise ValueError(msg)
+    return mask.bool()
 
 
 def materialize_training_views(
@@ -36,19 +64,25 @@ def materialize_training_views(
     train_features, _ = train_dataset.get_all_data()
     val_features, _ = val_dataset.get_all_data()
 
-    mechanism = FittedMissingnessMechanism.fit(
-        train_features,
-        cfg.missingness,
-        seed=cfg.seed,
-    )
-    train_available = mechanism.sample_observed_mask(
-        train_features,
-        seed=cfg.seed + 1,
-    )
-    val_available = mechanism.sample_observed_mask(
-        val_features,
-        seed=cfg.seed + 2,
-    )
+    if cfg.missingness.mechanism == "native":
+        # Nothing to fit or sample: the mask is a property of the data. `p` is
+        # ignored, since the rate is whatever the data has.
+        train_available = native_observed_mask(train_dataset)
+        val_available = native_observed_mask(val_dataset)
+    else:
+        mechanism = FittedMissingnessMechanism.fit(
+            train_features,
+            cfg.missingness,
+            seed=cfg.seed,
+        )
+        train_available = mechanism.sample_observed_mask(
+            train_features,
+            seed=cfg.seed + 1,
+        )
+        val_available = mechanism.sample_observed_mask(
+            val_features,
+            seed=cfg.seed + 2,
+        )
     train_restricted = restricted_training_view(
         train_dataset,
         train_available,
