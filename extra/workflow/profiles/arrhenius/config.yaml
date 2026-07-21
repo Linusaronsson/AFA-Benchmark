@@ -43,6 +43,17 @@ default-resources:
   cpus_per_task: 4
   # Nodes are 773 GB across 256 cores; request per-core rather than per-node.
   mem_mb: 8000
+  # These are single-node, single-process Python jobs that never use MPI, but
+  # declaring an `mpi` resource makes Snakemake's jobstep executor run the
+  # command directly instead of wrapping it in `srun`. On this HPE Slingshot
+  # fabric that per-step `srun` otherwise fails at launch with "Error
+  # configuring interconnect" when many jobs land on one node at once, killing
+  # whole arms once their retries are burned. The value must be an int so it is
+  # forwarded to the in-job snakemake call; `tasks_per_node` only silences the
+  # submit-side warning. Neither changes placement: `--ntasks=1` is set anyway
+  # and no `--nodes` is added.
+  mpi: 1
+  tasks_per_node: 1
 
 # Everything runs on the cpu partition for now (inherited from
 # default-resources; only sizing is overridden below). Arrhenius GPUs are
