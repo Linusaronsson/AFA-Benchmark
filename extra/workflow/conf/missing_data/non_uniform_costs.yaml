@@ -1,15 +1,15 @@
-# Non-uniform acquisition costs, one set real and one constructed.
+# Non-uniform acquisition costs.
 #
 # Budget-limited and cost-aware acquisition are the same problem when every
 # feature costs 1, which is the case everywhere else in this study.
 #
-#   heart_disease         real per-test costs shipped with the UCI dataset,
-#                         spanning two orders of magnitude: asking about chest
-#                         pain costs $1, a thallium scan $102.90.
 #   cube_nonuniform_costs constructed costs on data where we know which
 #                         features are informative, so trading cost against
-#                         information correctly is identifiable. The real
-#                         dataset alone cannot separate cost-aware from lucky.
+#                         information correctly is identifiable.
+#
+# heart_disease was dropped: at 13 features every method saturates near 0.80
+# regardless of which features are acquired, so cost-aware acquisition cannot be
+# distinguished from lucky and the restoration gap is uninformative there.
 #
 # One mechanism at one rate: cost structure is the variable under study, so
 # missingness is held fixed rather than allowed to confound it.
@@ -18,7 +18,7 @@ device: cuda
 smoke_test: false
 eval_dataset_split: val
 dataset_instance_indices: [0, 1, 2, 3, 4]
-datasets: [heart_disease, cube_nonuniform_costs]
+datasets: [cube_nonuniform_costs]
 
 dataset_generation_params:
   cube_nonuniform_costs:
