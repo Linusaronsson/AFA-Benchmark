@@ -4,12 +4,21 @@
 # values, which is what makes `true_completion` and `pvae_oracle` meaningful.
 # The full restoration ladder is only available here.
 #
-#   cube      20 features, instance-independent signal; the control.
-#   cube_nm   55 features, and the only dataset whose optimal acquisition order
-#             depends on the instance -- the context block must be acquired
-#             before the informative block is identifiable. That property is
-#             what separates dynamic AFA from static feature selection.
-#   diabetes  92k instances, the scale case.
+# The datasets form a 2x2 of {synthetic, real} x {planning, flat}, so the
+# restoration gap can be tied to planning structure rather than to one dataset.
+#
+#   cube      20 features, instance-independent signal; synthetic flat control.
+#   cube_nm   55 features, synthetic planning case, the only dataset whose
+#             optimal acquisition order depends on the instance. The context
+#             block must be acquired before the informative block is
+#             identifiable, which is what separates dynamic AFA from static
+#             feature selection.
+#   diabetes  NHANES-derived, 92k instances, 3-class diabetes status; real flat
+#             control. In single-target classification form it has no planning
+#             structure (AFABench), which is itself part of the story.
+#   actg      ACTG175 clinical trial, 23 features; real planning case. AFABench
+#             reports a non-myopic advantage here, so it is the real-world
+#             counterpart of cube_nm and where restoration should help.
 #
 # `random_dummy` is the reference in every arm. Random acquisition scored 0.289
 # on cube_nm where classifier chance is 0.125, so measuring against chance
@@ -19,7 +28,7 @@ device: cuda
 smoke_test: false
 eval_dataset_split: val
 dataset_instance_indices: [0, 1, 2, 3, 4]
-datasets: [cube, cube_nm, diabetes]
+datasets: [cube, cube_nm, diabetes, actg]
 
 dataset_generation_params:
   cube:

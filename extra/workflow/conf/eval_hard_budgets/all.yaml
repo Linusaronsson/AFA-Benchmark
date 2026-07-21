@@ -1,6 +1,6 @@
 eval_hard_budgets:
   default: [5, 10, 15]
-  actg: [3, 5, 10] # 20 features
+  actg: [3, 5, 10] # 23 features
   cube_nm: [3, 5, 7, 10, 14] # 55 features
   cube_nm_without_noise: [3, 5, 7, 10, 14] # 55 features
   bank_marketing: [2, 4, 7] # 15 features
