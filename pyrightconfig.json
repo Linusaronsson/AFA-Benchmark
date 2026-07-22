@@ -3,6 +3,8 @@
     "afabench",
     "scripts"
   ],
+  "venvPath": ".",
+  "venv": ".venv",
   "exclude": [
     "**/node_modules",
     "**/__pycache__"

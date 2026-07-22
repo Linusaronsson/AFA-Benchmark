@@ -42,6 +42,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "basedpyright==1.35.0",
   "csvkit>=2.1.0",
   "dvc>=3.66.1",
   "ipdb>=0.13.13",
