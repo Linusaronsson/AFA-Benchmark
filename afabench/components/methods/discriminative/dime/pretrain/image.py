@@ -91,8 +91,7 @@ def pretrain_image(
     mask_layer = MaskLayer2d(
         mask_width=mask_width, patch_size=patch_size, append=False
     )
-    print("Pretraining predictor")
-    print("-" * 8)
+    log.info("Pretraining DIME predictor")
     pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
     pretrain.fit(
         train_loader,

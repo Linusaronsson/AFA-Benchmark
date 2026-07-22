@@ -41,7 +41,6 @@ def train_tabular(
     assert isinstance(cfg.architecture, CAETabularArchitectureConfig)
     assert cfg.device is not None, "device must be configured"
     assert cfg.hard_budget is not None, "hard_budget must be configured"
-    print(str(cfg))
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
@@ -91,10 +90,11 @@ def train_tabular(
     ranked_features = np.sort(logits.argmax(axis=1))
 
     if len(np.unique(ranked_features)) != cfg.hard_budget:
-        print(
-            f"{len(np.unique(ranked_features))} selected instead of {
-                cfg.hard_budget
-            }, appending extras"
+        log.warning(
+            "CAE selected %d unique features instead of %d; appending "
+            "fallback features",
+            len(np.unique(ranked_features)),
+            cfg.hard_budget,
         )
     num_extras = cfg.hard_budget - len(np.unique(ranked_features))
     remaining_features = np.setdiff1d(np.arange(d_in), ranked_features)

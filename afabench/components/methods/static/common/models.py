@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable, Iterable
 from copy import deepcopy
 from typing import Literal, override
@@ -6,6 +7,8 @@ import torch
 from torch import nn, optim
 
 from afabench.components.methods.static.common.utils import restore_parameters
+
+log = logging.getLogger(__name__)
 
 type BatchLoader = Iterable[tuple[torch.Tensor, torch.Tensor]]
 type LossFunction = Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
@@ -115,10 +118,15 @@ class BaseModel(nn.Module):
                 pred = torch.cat(pred_list, 0)
                 val_loss = val_loss_fn(pred, y).item()
 
-            # Print progress.
             if verbose:
-                print(f"{'-' * 8}Epoch {epoch + 1}{'-' * 8}")
-                print(f"Val loss = {val_loss:.4f}\n")
+                log.info(
+                    "%s epoch %d/%d | train_loss=%.4f | val_loss=%.4f",
+                    metric_prefix,
+                    epoch + 1,
+                    nepochs,
+                    train_loss,
+                    val_loss,
+                )
 
             if metric_logger is not None:
                 metric_logger(
@@ -142,7 +150,12 @@ class BaseModel(nn.Module):
             # Early stopping.
             if num_bad_epochs > early_stopping_epochs:
                 if verbose:
-                    print(f"Stopping early at epoch {epoch + 1}")
+                    log.info(
+                        "%s early stop at epoch %d/%d",
+                        metric_prefix,
+                        epoch + 1,
+                        nepochs,
+                    )
                 break
 
         # Copy parameters from best model.

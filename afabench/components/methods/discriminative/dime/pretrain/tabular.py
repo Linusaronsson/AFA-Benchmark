@@ -84,8 +84,7 @@ def pretrain_tabular(
         "dropout": dropout,
     }
     mask_layer = MaskLayer(append=True)
-    print("Pretraining predictor")
-    print("-" * 8)
+    log.info("Pretraining DIME predictor")
     pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
     pretrain.fit(
         train_loader,

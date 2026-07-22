@@ -44,7 +44,6 @@ def train_image(  # noqa: PLR0915
     assert isinstance(cfg.architecture, CAEImageArchitectureConfig)
     assert cfg.device is not None, "device must be configured"
     assert cfg.hard_budget is not None, "hard_budget must be configured"
-    print(str(cfg))
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
@@ -113,10 +112,11 @@ def train_image(  # noqa: PLR0915
     ranked_patches = np.sort(logits.argmax(axis=1))
 
     if len(np.unique(ranked_patches)) != cfg.hard_budget:
-        print(
-            f"{len(np.unique(ranked_patches))} selected instead of {
-                cfg.hard_budget
-            }, appending extras"
+        log.warning(
+            "CAE selected %d unique patches instead of %d; appending "
+            "fallback patches",
+            len(np.unique(ranked_patches)),
+            cfg.hard_budget,
         )
     num_extras = cfg.hard_budget - len(np.unique(ranked_patches))
     remaining_patches = np.setdiff1d(np.arange(mask_width**2), ranked_patches)

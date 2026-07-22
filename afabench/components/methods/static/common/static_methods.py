@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable, Iterable
 from copy import deepcopy
 from pathlib import Path
@@ -17,6 +18,8 @@ from afabench.core.types import (
     MaskedFeatures,
     SelectionMask,
 )
+
+log = logging.getLogger(__name__)
 
 type BatchLoader = Iterable[tuple[torch.Tensor, torch.Tensor]]
 
@@ -137,7 +140,11 @@ class DifferentiableSelector(nn.Module):
         total_epochs = 0
         for temp in np.geomspace(start_temp, end_temp, temp_steps):
             if verbose:
-                print(f"Starting training with temp = {temp:.4f}\n")
+                log.info(
+                    "%s temperature start | temperature=%.4g",
+                    metric_prefix,
+                    temp,
+                )
 
             # Set up optimizer and lr scheduler.
             opt = optim.Adam(
@@ -228,15 +235,19 @@ class DifferentiableSelector(nn.Module):
                     val_loss = val_loss_fn(pred, y)
                     val_hard_loss = val_loss_fn(hard_pred, y)
 
-                # Print progress.
                 if verbose:
-                    print(
-                        f"{'-' * 8}Epoch {epoch + 1} ({
-                            epoch + 1 + total_epochs
-                        } total){'-' * 8}"
-                    )
-                    print(
-                        f"Val loss = {val_loss:.4f}, Zero-temp loss = {val_hard_loss:.4f}\n"
+                    log.info(
+                        "%s epoch %d/%d | total_epoch=%d | "
+                        "temperature=%.4g | train_loss=%.4f | "
+                        "val_loss=%.4f | hard_val_loss=%.4f",
+                        metric_prefix,
+                        epoch + 1,
+                        nepochs,
+                        epoch + 1 + total_epochs,
+                        temp,
+                        train_loss,
+                        val_loss.item(),
+                        val_hard_loss.item(),
                     )
 
                 if metric_logger is not None:
@@ -283,7 +294,12 @@ class DifferentiableSelector(nn.Module):
 
             # Update total epoch count.
             if verbose:
-                print(f"Stopping temp = {temp:.4f} at epoch {epoch + 1}\n")
+                log.info(
+                    "%s temperature complete | temperature=%.4g | epochs=%d",
+                    metric_prefix,
+                    temp,
+                    epoch + 1,
+                )
             total_epochs += epoch + 1
 
             # Copy parameters from best model.

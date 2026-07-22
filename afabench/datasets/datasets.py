@@ -1,4 +1,5 @@
 import copy
+import logging
 import tarfile
 import urllib.request
 from collections.abc import Callable, Sequence
@@ -18,6 +19,8 @@ from ucimlrepo import fetch_ucirepo
 
 from afabench.core.types import AFADataset
 from afabench.datasets.utils import default_create_subset
+
+log = logging.getLogger(__name__)
 
 
 def _z_normalize(
@@ -1566,14 +1569,14 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             raise ValueError(msg)
 
         if not archive_path.exists():
-            print(
-                f"Downloading Imagenette from {self.IMAGENETTE_URL} to {
-                    archive_path
-                }"
+            log.info(
+                "Downloading Imagenette from %s to %s",
+                self.IMAGENETTE_URL,
+                archive_path,
             )
             urllib.request.urlretrieve(self.IMAGENETTE_URL, archive_path)  # noqa: S310
 
-        print(f"Extracting {archive_path} to {root_parent}")
+        log.info("Extracting %s to %s", archive_path, root_parent)
         with tarfile.open(archive_path, "r:gz") as tar:
             tar.extractall(path=root_parent, filter="data")
 

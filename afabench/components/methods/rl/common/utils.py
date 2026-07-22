@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 from collections.abc import Callable
 from typing import Any
@@ -17,6 +18,8 @@ from afabench.core.types import (
     Features,
     MaskedFeatures,
 )
+
+log = logging.getLogger(__name__)
 
 
 def remove_module_prefix(state_dict: dict[str, Any]):  # noqa: ANN201
@@ -400,8 +403,9 @@ def check_masked_classifier_performance(
         # print(
         #     f"Masked classifier accuracy with 50% features: {accuracy_half.item() * 100:.2f}%"
         # )
-        print(
-            f"Masked classifier accuracy with optimal features: {accuracy_optimal.item() * 100:.2f }%"
+        log.debug(
+            "Masked classifier accuracy on the CUBE-NM optimal route: %.2f%%",
+            accuracy_optimal.item() * 100,
         )
         # print(f"Average cross-entropy loss with 50% features: {loss_half.item():.4f}")
 

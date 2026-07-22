@@ -56,7 +56,7 @@ def pretrain_tabular(
     dataset_name = infer_dataset_key_from_class_name(
         train_manifest["class_name"]
     )
-    print(dataset_name)
+    log.info("Pretraining GDFS predictor on dataset %s", dataset_name)
     _, train_labels = train_dataset.get_all_data()  # pyright: ignore[reportAttributeAccessIssue]
     train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (

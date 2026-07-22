@@ -1,5 +1,6 @@
 # pyright: reportImplicitOverride=false, reportUnannotatedClassAttribute=false
 # ruff: noqa: ANN001, ANN003, ANN201, ANN202, B007, C901, D401, EM101, EM102, FBT002, I001, N802, PERF401, PLR0915, PLR1704, PTH118, TRY003, UP008, UP035
+import logging
 import math
 import os
 from copy import deepcopy
@@ -16,6 +17,8 @@ from afabench.components.methods.discriminative.common.utils import (
     restore_parameters,
 )
 from afabench.components.methods.rl.common.utils import mask_data
+
+log = logging.getLogger(__name__)
 
 models_dir = "./models/pretrained_resnet_models"
 model_name = {
@@ -329,11 +332,16 @@ class MaskingPretrainer(nn.Module):
                 pred = torch.cat(pred_list, 0)
                 val_loss = val_loss_fn(pred, y).item()
 
-            # Print progress.
+            # Log one scalar line per epoch.
             if verbose:
-                print(f"{'-' * 8}Epoch {epoch + 1}{'-' * 8}")
-                print(f"Train loss = {avg_train:.4f}\n")
-                print(f"Val loss = {val_loss:.4f}\n")
+                log.info(
+                    "Masked-classifier epoch %d/%d | train_loss=%.4f | "
+                    "val_loss=%.4f",
+                    epoch + 1,
+                    nepochs,
+                    avg_train,
+                    val_loss,
+                )
 
             if metric_logger is not None:
                 metric_logger(
@@ -357,7 +365,11 @@ class MaskingPretrainer(nn.Module):
             # Early stopping.
             if num_bad_epochs > early_stopping_epochs:
                 if verbose:
-                    print(f"Stopping early at epoch {epoch + 1}")
+                    log.info(
+                        "Masked-classifier early stop at epoch %d/%d",
+                        epoch + 1,
+                        nepochs,
+                    )
                 break
 
         # Copy parameters from best model.
