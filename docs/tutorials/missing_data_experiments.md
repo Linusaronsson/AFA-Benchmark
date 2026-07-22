@@ -13,17 +13,19 @@ The configuration is split by responsibility:
   classifiers, unmaskers, and budgets;
 - `extra/workflow/conf/missing_data/design.yaml` defines the scientific
   missingness and completion matrix;
-- `extra/workflow/conf/missing_data/{smoke,local,full_validation,full_test}.yaml`
-  define runtime scale and the evaluation split;
+- `extra/workflow/conf/missing_data/smoke.yaml` defines the integration test;
+- `extra/workflow/conf/missing_data/{synthetic_missingness,native_missingness,non_uniform_costs}.yaml`
+  define the three main experiments;
+- `extra/workflow/conf/missing_data/restoration_deployments.yaml` defines the
+  focused three-instance comparison of episode-start and stepwise restoration;
 - Snakemake execution profiles define scheduler and hardware resources.
 
 The workflow selects the largest configured hard evaluation budget for every
 eligible method-dataset pair and preserves any configured evaluation-to-train
 budget mapping. A pair is omitted when that method excludes hard-budget runs
-for the dataset. The full profiles use the KDD26 catalogs. Imagenette is
-currently excluded because the missingness boundary does not yet define an
-image-aware masking mechanism; the other selected datasets are handled
-generically.
+for the dataset. Imagenette is currently excluded because the missingness
+boundary does not yet define an image-aware masking mechanism; the other
+selected datasets are handled generically.
 
 ## Baselines and controls
 
@@ -45,10 +47,10 @@ method's shared script, pretraining, dataset eligibility, and budget
 configuration.
 
 The incomplete-data PVAE respects the fixed factual support mask. One joint
-reconstruction is drawn per row, and factual cells are preserved. The oracle
-PVAE is fitted to complete training data. Downstream methods receive ordinary
-immutable dataset bundles, keeping missingness-specific logic at the data
-boundary.
+reconstruction is drawn per data instance, and factual cells are preserved.
+The oracle PVAE is fitted to complete training data. Downstream methods receive
+ordinary immutable dataset bundles, keeping missingness-specific logic at the
+data boundary.
 
 ## Runtime profiles
 
@@ -60,44 +62,40 @@ uv run snakemake \
   --cores 4
 ```
 
-The smoke matrix covers AACO, DIME, model-free ODIN, both reweighting
-controls, label-conditioned, label-free, and oracle PVAE restoration,
+The smoke matrix covers AACO, DIME, OL, both reweighting controls,
+episode-start and stepwise restoration, oracle and true-completion controls,
 evaluation, summarization, and plotting. It writes only to the `smoke`
 namespace.
 
-For small local results, run two 512-row instances of CUBE-NM and CUBE under
-MCAR and MAR:
+Run one of the three named experiments on validation data:
 
 ```console
 uv run snakemake \
-  --profile extra/workflow/profiles/config/missing_data_local \
+  --profile extra/workflow/profiles/config/missing_data_synthetic_missingness \
   --cores 4
 ```
 
-The local profile uses reduced training schedules without enabling smoke-test
-shortcuts. It writes to the separate `local` namespace.
-
-Run full validation before final test evaluation:
+The other profiles are `missing_data_native_missingness` and
+`missing_data_non_uniform_costs`. The focused local comparison uses
+`missing_data_restoration_deployments`. After model selection, evaluate the
+same frozen namespace on test data by overriding only the evaluation split:
 
 ```console
 uv run snakemake \
-  --profile extra/workflow/profiles/config/missing_data_full_validation \
-  --cores 4
-
-uv run snakemake \
-  --profile extra/workflow/profiles/config/missing_data_full_test \
+  --profile extra/workflow/profiles/config/missing_data_synthetic_missingness \
+  --config eval_dataset_split=test \
   --cores 4
 ```
 
-The two full profiles share the `full` namespace and identical training
-settings. The test profile changes only `eval_dataset_split`, so it reuses the
-frozen validation-run methods and evaluates them once on the complete test
-split.
+Because the namespace is unchanged, the test command reuses the validation
+run's frozen training artifacts and schedules only test evaluation and its
+summaries.
 
-To define another experiment, pair `design.yaml` and the ordinary catalog
-files with a new runtime YAML in a profile. Select `datasets` and `methods` in
-that runtime file exactly as in the evaluation pipeline. No Snakefile edit or
-stage number is needed.
+To define another durable experiment, pair `design.yaml` and the ordinary
+catalog files with one named experiment YAML and profile. One-off schedule
+checks should use command-line overrides and a distinct artifact namespace,
+not checked-in configuration files. No Snakefile edit or stage number is
+needed.
 
 ## Devices and hardware resources
 
@@ -163,7 +161,8 @@ extra/output/missing_data/figures/{eval_split}/{namespace}/dataset-{dataset}/
 
 Each dataset receives:
 
-- accuracy plots, or macro-F1 for datasets configured to use F1, by
+- accuracy plots for CUBE and CUBE-NM, or macro-F1 for the imbalanced
+  Diabetes, ACTG175, CKD, and PhysioNet datasets, by
   missingness mechanism and completion strategy;
 - corresponding gaps to that method's complete-training reference;
 - acquisition-rate heatmaps by mechanism and missingness probability;
@@ -172,3 +171,43 @@ Each dataset receives:
 All uncertainty bands and error bars are mean plus or minus one standard error
 over instances of that dataset. Rerunning a profile schedules missing or
 outdated plots automatically; no separate plotting command is required.
+
+## Route diagnostics
+
+`scripts/analysis/route_redundancy.py` compares the two non-greedy methods,
+AACO and OL, separately against DIME and a fixed static reference. The static
+reference is searched in the dataset's legal selection space: grouped features
+remain indivisible and the sum of selection costs must fit the hard budget.
+The script uses random feasible routes, greedy forward selection, and local
+one-swap refinement. The result is therefore named `static_reference`, not an
+exact best static route.
+
+Two summaries describe fixed-route structure. `route_sensitivity` is the test
+score of the validation-selected static reference minus the mean test score of
+the sampled legal routes. `top_route_correctness_correlation` is the mean
+pairwise correlation of test-set correctness among the top 10% of sampled
+routes, where the top routes are chosen on validation data. Thus neither route
+selection nor the definition of the top set reads test labels.
+
+Run the diagnostic after `instance_metrics.csv` exists:
+
+```console
+uv run python scripts/analysis/route_redundancy.py \
+  --namespace synthetic_missingness --split val --selection-split val \
+  --device cuda
+```
+
+The analysis directory receives four tables:
+
+- legal-route scores by dataset instance and budget;
+- fixed-budget planning effects for AACO and OL separately;
+- missingness damage and restoration gain for every mechanism and rate;
+- the predeclared MCAR 0.7 gate, again separately for AACO and OL.
+
+The missing-data workflow evaluates its largest configured hard budget. Route
+curves at smaller budgets are structural context only; method contrasts join
+the exact dataset, instance, method, mechanism, rate, strategy, and evaluation
+budget and never average across those cells. Route search and every paired
+contrast use the same predeclared dataset metric. For a final test analysis, use
+`--selection-split val --split test` so the fixed route is chosen without
+looking at test labels.

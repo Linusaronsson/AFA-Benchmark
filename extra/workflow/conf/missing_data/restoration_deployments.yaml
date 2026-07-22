@@ -1,0 +1,67 @@
+# Episode-start and stepwise restoration under identifiable MCAR missingness.
+#
+# This is the focused validation of the two deployments in the theory. CUBE is
+# the flat control and CUBE-NM requires an adaptive acquisition route. Three
+# data instances distinguish a repeatable signal from the one-instance smoke
+# result without duplicating the five-instance synthetic experiment.
+artifact_namespace: restoration_deployments
+device: cuda
+smoke_test: false
+eval_dataset_split: val
+dataset_instance_indices: [0, 1, 2]
+datasets: [cube, cube_nm]
+
+dataset_generation_params:
+  cube:
+    - dataset.kwargs.n_samples=20000
+  cube_nm:
+    - dataset.kwargs.n_samples=20000
+
+# The original 2000 epochs target roughly 10000 updates on the benchmark's
+# small default datasets. At 20000 data instances, 100 epochs gives the same
+# order of update count.
+classifier_params:
+  default:
+    - epochs=100
+
+eval_batch_size: 128
+restoration_batch_size: 1024
+include_complete_data: true
+include_method_variants: false
+
+missingness:
+  mechanisms: [mcar]
+  probabilities: [0.3, 0.5, 0.7]
+
+strategies:
+  - restricted
+  - pvae_label_conditioned
+  - true_completion
+
+# AACO's zero-fill control is outside this comparison. True completion is
+# independent of the imposed rate, so one rate is enough to verify equality
+# with complete training.
+missing_data_method_overrides:
+  aaco:
+    extra_strategies: [pvae_stepwise]
+
+strategy_filters:
+  true_completion:
+    probabilities: [0.7]
+
+methods:
+  - aaco
+  - dime
+  - ol_without_mask
+
+# The complete-data probe showed that 200 batches undertrained OL on CUBE.
+# Two thousand batches recovered its expected non-myopic CUBE-NM route; the
+# default 10000 is unnecessary for this focused validation.
+train_runtime_params:
+  ol_without_mask:
+    - rl_training_loop.n_batches=2000
+    - rl_training_loop.frames_per_batch=256
+    - rl_training_loop.eval_n_times=10
+
+eval_params:
+  - eval_only_n_samples=1024

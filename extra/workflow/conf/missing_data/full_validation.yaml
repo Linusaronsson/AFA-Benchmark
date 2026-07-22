@@ -1,8 +1,0 @@
-# Full model-selection run. The matching test config deliberately uses the
-# same namespace and therefore reuses these frozen training artifacts.
-artifact_namespace: full
-device: cuda
-smoke_test: false
-eval_dataset_split: val
-eval_batch_size: 128
-restoration_batch_size: 1024

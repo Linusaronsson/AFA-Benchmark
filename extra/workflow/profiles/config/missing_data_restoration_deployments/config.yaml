@@ -1,8 +1,7 @@
 snakefile: extra/workflow/snakefiles/orchestration/missing_data.smk
 
-# Local runs: missing_data.smk is a flat, embarrassingly parallel DAG.
-# Without this the whole matrix runs serially. Lower it if the GPU OOMs.
-cores: 4
+# Run one GPU training job at a time on an 8 GB local device.
+cores: 1
 
 configfile:
   - extra/workflow/conf/eval_hard_budgets/all.yaml
@@ -15,4 +14,4 @@ configfile:
   - extra/workflow/conf/classifier_names/all.yaml
   - extra/workflow/conf/datasets/all.yaml
   - extra/workflow/conf/missing_data/design.yaml
-  - extra/workflow/conf/missing_data/local.yaml
+  - extra/workflow/conf/missing_data/restoration_deployments.yaml
