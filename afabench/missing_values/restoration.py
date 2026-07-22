@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, final
 
 import torch
 
@@ -42,7 +42,7 @@ def _load_view(path: Path) -> TrainingDatasetView:
     return view
 
 
-def _load_pvae(path: Path, device: torch.device) -> ODINPretrainingModel:
+def load_pvae(path: Path, device: torch.device) -> ODINPretrainingModel:
     bundle, _ = load_bundle(path, device=device)
     if not isinstance(bundle, TorchModelBundle):
         msg = f"Expected TorchModelBundle at {path}."
@@ -53,7 +53,39 @@ def _load_pvae(path: Path, device: torch.device) -> ODINPretrainingModel:
         raise TypeError(msg)
     model = model.to(device)
     model.eval()
+    model.requires_grad_(False)
     return model
+
+
+@final
+class PVAEStepwiseRestorer:
+    """Sample label-free PVAE transitions from an observed AFA state."""
+
+    def __init__(
+        self,
+        model: ODINPretrainingModel,
+        *,
+        n_classes: int,
+        seed: int,
+    ) -> None:
+        self.model = model
+        self.n_classes = n_classes
+        self.generator = torch.Generator(device=model.device).manual_seed(seed)
+
+    @torch.inference_mode()
+    def __call__(
+        self,
+        masked_features: torch.Tensor,
+        feature_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        _, estimate = self.model.masked_reconstruction(
+            masked_features=masked_features,
+            feature_mask=feature_mask,
+            n_classes=self.n_classes,
+            label=None,
+            generator=self.generator,
+        )
+        return estimate
 
 
 def restore_view_with_pvae(
@@ -117,7 +149,7 @@ def restore_and_save_training_views(cfg: RestoreTrainingViewsConfig) -> None:
         raise ValueError(msg)
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
-    model = _load_pvae(cfg.pvae_bundle_path, device)
+    model = load_pvae(cfg.pvae_bundle_path, device)
     train_view = restore_view_with_pvae(
         _load_view(cfg.train_view_bundle_path),
         model,

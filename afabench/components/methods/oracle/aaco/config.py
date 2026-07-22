@@ -41,6 +41,7 @@ class AACOTrainConfig:
     initializer_type: str = "aaco"
     unmasker_type: str = "one_based_index"
     smoke_test: bool = False
+    stepwise_pvae_bundle_path: Path | None = None
 
 
 cs.store(name="train_aaco", node=AACOTrainConfig)

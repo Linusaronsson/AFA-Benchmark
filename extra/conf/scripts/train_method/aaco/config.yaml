@@ -61,3 +61,4 @@ use_wandb: false
 initializer_type: "aaco"
 unmasker_type: "one_based_index"
 smoke_test: false
+stepwise_pvae_bundle_path: null

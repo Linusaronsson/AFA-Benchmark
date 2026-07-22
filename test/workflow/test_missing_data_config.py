@@ -76,3 +76,57 @@ def test_largest_hard_budget_honors_train_eval_mapping() -> None:
     )
 
     assert selected == ("20", "14")
+
+
+def test_strategy_filter_selects_only_declared_cells() -> None:
+    module = _load_module()
+    filters = {
+        "pvae_stepwise": {
+            "datasets": ["cube", "cube_nm"],
+            "methods": ["aaco", "dime", "ol_without_mask"],
+            "mechanisms": ["mcar"],
+            "probabilities": [0.3, 0.5, 0.7],
+        }
+    }
+
+    assert module.strategy_enabled(
+        filters,
+        "pvae_stepwise",
+        dataset="cube_nm",
+        method="aaco",
+        base_method="aaco",
+        mechanism="mcar",
+        probability="0.5",
+    )
+    assert not module.strategy_enabled(
+        filters,
+        "pvae_stepwise",
+        dataset="actg",
+        method="aaco",
+        base_method="aaco",
+        mechanism="mcar",
+        probability="0.5",
+    )
+    assert not module.strategy_enabled(
+        filters,
+        "pvae_stepwise",
+        dataset="cube_nm",
+        method="aaco",
+        base_method="aaco",
+        mechanism="mar",
+        probability="0.5",
+    )
+
+
+def test_strategy_filter_accepts_base_method_for_variants() -> None:
+    module = _load_module()
+
+    assert module.strategy_enabled(
+        {"control": {"methods": ["aaco"]}},
+        "control",
+        dataset="cube",
+        method="aaco_variant",
+        base_method="aaco",
+        mechanism="mcar",
+        probability="0.3",
+    )

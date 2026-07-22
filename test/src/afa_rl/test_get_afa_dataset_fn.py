@@ -156,6 +156,32 @@ def test_get_afa_dataset_fn_keeps_availability_aligned() -> None:
     )
 
 
+def test_get_afa_dataset_fn_keeps_source_availability_aligned() -> None:
+    features = torch.tensor([[1.0], [2.0], [3.0]])
+    labels = torch.tensor([[1.0], [2.0], [3.0]])
+    selection_availability = torch.ones((3, 1), dtype=torch.bool)
+    source_availability = torch.tensor([[True], [False], [True]])
+    dataset_fn = get_afa_dataset_fn(
+        features,
+        labels,
+        shuffle=False,
+        selection_availability=selection_availability,
+        source_availability=source_availability,
+    )
+
+    batch = dataset_fn(torch.Size((4,)))
+
+    assert len(batch) == 4
+    batch_features, batch_labels, batch_selection, batch_source = batch
+    assert torch.equal(batch_features.squeeze(), torch.tensor([1.0, 2, 3, 1]))
+    assert torch.equal(batch_labels.squeeze(), torch.tensor([1.0, 2, 3, 1]))
+    assert torch.equal(batch_selection, torch.ones((4, 1), dtype=torch.bool))
+    assert torch.equal(
+        batch_source,
+        torch.tensor([[True], [False], [True], [True]]),
+    )
+
+
 def test_get_afa_dataset_fn_with_2d_images() -> None:
     # Test with 2D grayscale images (3x3)
     all_features = torch.tensor(

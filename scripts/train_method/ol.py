@@ -13,10 +13,14 @@ from torch.nn import functional as F
 
 from afabench.components.methods.rl.common.afa_methods import RLAFAMethod
 from afabench.components.methods.rl.common.agent_interface import Agent
-from afabench.components.methods.rl.common.custom_types import AFARewardFn
+from afabench.components.methods.rl.common.custom_types import (
+    AFAFeatureRestorationFn,
+    AFARewardFn,
+)
 from afabench.components.methods.rl.common.training import (
     RLTrainer,
 )
+from afabench.components.methods.rl.odin.models import ODINPretrainingModel
 from afabench.components.methods.rl.ol.agents import (
     OLAgent,
 )
@@ -33,6 +37,10 @@ from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.types import AFAMethod
 from afabench.core.utils import (
     set_seed,
+)
+from afabench.missing_values.restoration import (
+    PVAEStepwiseRestorer,
+    load_pvae,
 )
 
 if TYPE_CHECKING:
@@ -54,7 +62,11 @@ def get_post_process_batch_callback(
 
         if batch_idx >= activate_joint_training_after_batch:
             if batch_idx == activate_joint_training_after_batch:
-                log.info("Activating joint training of classifier")
+                log.info(
+                    "Starting classifier fine-tuning alongside policy "
+                    "training at batch %d",
+                    batch_idx,
+                )
             pq_module.train()
             pq_module_optim.zero_grad()
 
@@ -114,6 +126,7 @@ class OLRLTrainer(RLTrainer):
     afa_method: RLAFAMethod
     activate_joint_training_after_batch: int
     typed_cfg: OLTrainConfig
+    stepwise_pvae: ODINPretrainingModel | None
 
     def __init__(
         self,
@@ -144,6 +157,29 @@ class OLRLTrainer(RLTrainer):
                 pretrained_model_lr=self.typed_cfg.pretrained_model_lr,
                 device=self.device,
             )
+        )
+        self.stepwise_pvae = (
+            None
+            if self.typed_cfg.stepwise_pvae_bundle_path is None
+            else load_pvae(
+                Path(self.typed_cfg.stepwise_pvae_bundle_path),
+                self.device,
+            )
+        )
+
+    @override
+    def _get_feature_restoration_fn(
+        self,
+        *,
+        validation: bool,
+    ) -> AFAFeatureRestorationFn | None:
+        if self.stepwise_pvae is None:
+            return None
+        seed = (self.seed or 0) + int(validation)
+        return PVAEStepwiseRestorer(
+            self.stepwise_pvae,
+            n_classes=self._n_classes,
+            seed=seed,
         )
 
     def _get_pretrained_model_and_optim(
@@ -211,7 +247,11 @@ class OLRLTrainer(RLTrainer):
 
         if batch_idx >= self.activate_joint_training_after_batch:
             if batch_idx == self.activate_joint_training_after_batch:
-                log.info("Activating joint training of classifier")
+                log.info(
+                    "Starting classifier fine-tuning alongside policy "
+                    "training at batch %d",
+                    batch_idx,
+                )
             self.pretrained_model.pq_module.train()
             self.pretrained_model_optim.zero_grad()
 

@@ -1,13 +1,17 @@
 from collections.abc import Callable
-from typing import final, override
+from typing import cast, final, override
 
 import lightning as pl
 import torch
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 
-from afabench.components.methods.rl.common.custom_types import AFADatasetFn
+from afabench.components.methods.rl.common.custom_types import (
+    AFADatasetBatch,
+    AFADatasetFn,
+)
 from afabench.core.types import (
+    FeatureMask,
     Features,
     Label,
     SelectionMask,
@@ -31,9 +35,24 @@ def get_afa_dataset_fn(
     *,
     shuffle: bool = True,
     selection_availability: SelectionMask | None = None,
+    source_availability: FeatureMask | None = None,
 ) -> AFADatasetFn:
     """Given features and labels, return a function that can be used to get batches of AFA data."""
+    if source_availability is not None and selection_availability is None:
+        msg = "source_availability requires selection_availability."
+        raise ValueError(msg)
+    if (
+        source_availability is not None
+        and source_availability.shape != features.shape
+    ):
+        msg = "source_availability must match features."
+        raise ValueError(msg)
     idx = 0  # keep track of where in the dataset we are
+    tensors = [features, labels]
+    if selection_availability is not None:
+        tensors.append(selection_availability)
+    if source_availability is not None:
+        tensors.append(source_availability)
     original_feature_shape = features.shape[
         1:
     ]  # Store the original feature shape (excluding batch dim)
@@ -42,19 +61,12 @@ def get_afa_dataset_fn(
         batch_size: torch.Size,
         *,
         move_on: bool = True,
-    ) -> tuple[Features, Label] | tuple[Features, Label, SelectionMask]:
-        nonlocal idx, features, labels, selection_availability
-        local_features = get_wrapped_batch(features, idx, batch_size.numel())
-        local_labels = get_wrapped_batch(labels, idx, batch_size.numel())
-        local_availability = (
-            None
-            if selection_availability is None
-            else get_wrapped_batch(
-                selection_availability,
-                idx,
-                batch_size.numel(),
-            )
-        )
+    ) -> AFADatasetBatch:
+        nonlocal idx, tensors
+        local = [
+            get_wrapped_batch(tensor, idx, batch_size.numel())
+            for tensor in tensors
+        ]
         if move_on:
             idx = idx + batch_size.numel()
             # Reset idx if needed, also shuffling the dataset
@@ -63,27 +75,15 @@ def get_afa_dataset_fn(
                 # Shuffle the dataset
                 if shuffle:
                     perm = torch.randperm(len(features))
-                    features = features[perm]
-                    labels = labels[perm]
-                    if selection_availability is not None:
-                        selection_availability = selection_availability[perm]
-        local_features = local_features.reshape(
-            *batch_size, *original_feature_shape
-        )
-        local_labels = local_labels.reshape(
-            *batch_size, local_labels.shape[-1]
-        )
+                    tensors = [tensor[perm] for tensor in tensors]
+        local[0] = local[0].reshape(*batch_size, *original_feature_shape)
+        local[1] = local[1].reshape(*batch_size, local[1].shape[-1])
 
         # Move to specified device if provided
         if device is not None:
-            local_features = local_features.to(device)
-            local_labels = local_labels.to(device)
-            if local_availability is not None:
-                local_availability = local_availability.to(device)
+            local = [tensor.to(device) for tensor in local]
 
-        if local_availability is None:
-            return local_features, local_labels
-        return local_features, local_labels, local_availability
+        return cast("AFADatasetBatch", tuple(local))
 
     return afa_dataset_fn
 

@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from afabench.components.initializers.fixed_random_initializer import (
@@ -48,6 +49,62 @@ def test_reset_blocks_unavailable_training_actions() -> None:
         td["allowed_action_mask"],
         torch.tensor([[False, True, False], [True, False, False]]),
     )
+
+
+@pytest.mark.parametrize(
+    "device",
+    [torch.device("cpu")]
+    + ([torch.device("cuda")] if torch.cuda.is_available() else []),
+)
+def test_stepwise_restoration_exposes_action_without_hidden_value(
+    device: torch.device,
+) -> None:
+    calls: list[tuple[torch.Tensor, torch.Tensor]] = []
+
+    def restore(
+        masked_features: torch.Tensor,
+        feature_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        calls.append((masked_features.clone(), feature_mask.clone()))
+        return torch.full_like(masked_features, 7.0)
+
+    features = torch.tensor([[1.0, 99.0]])
+    labels = torch.tensor([[1.0, 0.0]])
+    source_availability = torch.tensor([[True, False]])
+    dataset_fn = get_afa_dataset_fn(
+        features,
+        labels,
+        shuffle=False,
+        selection_availability=torch.ones((1, 2), dtype=torch.bool),
+        source_availability=source_availability,
+    )
+    env = AFAEnv(
+        dataset_fn=dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(0.0, -1.0),
+        device=device,
+        batch_size=torch.Size((1,)),
+        feature_shape=torch.Size((2,)),
+        n_selections=2,
+        n_classes=2,
+        hard_budget=2,
+        initialize_fn=ManualInitializer(flat_feature_indices=[]).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        force_hard_budget=True,
+        feature_restoration_fn=restore,
+    )
+
+    td = env.reset()
+    assert td["allowed_action_mask"][0, 2]
+    assert td["features"][0, 1] == 0.0
+
+    td["action"] = torch.tensor([2], device=device)
+    td = env.step(td)["next"]
+
+    assert len(calls) == 1
+    assert torch.equal(calls[0][0].cpu(), torch.tensor([[0.0, 0.0]]))
+    assert torch.equal(calls[0][1].cpu(), torch.tensor([[False, False]]))
+    assert td["features"][0, 1] == 7.0
+    assert td["masked_features"][0, 1] == 7.0
 
 
 def test_initializer_and_unmasker_integration() -> None:

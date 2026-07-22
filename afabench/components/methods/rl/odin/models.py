@@ -186,6 +186,7 @@ class PartialVAE(nn.Module):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask,
+        generator: torch.Generator | None = None,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor]:
         pointnet_output = self.pointnet.forward(masked_features, feature_mask)
         encoding = self.encoder.forward(pointnet_output)
@@ -194,16 +195,29 @@ class PartialVAE(nn.Module):
         mu = encoding[..., : encoding.shape[1] // 2]
         logvar = encoding[..., encoding.shape[1] // 2 :]
         std = torch.exp(0.5 * logvar)
-        z = mu + std * torch.randn_like(std)
+        noise = torch.randn(
+            std.shape,
+            dtype=std.dtype,
+            device=std.device,
+            generator=generator,
+        )
+        z = mu + std * noise
 
         return encoding, mu, logvar, z
 
     @override
     def forward(
-        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        generator: torch.Generator | None = None,
     ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
         # Encode the masked features
-        encoding, mu, logvar, z = self.encode(masked_features, feature_mask)
+        encoding, mu, logvar, z = self.encode(
+            masked_features,
+            feature_mask,
+            generator,
+        )
 
         # Decode
         x_hat = self.decoder(z)
@@ -647,6 +661,7 @@ class ODINPretrainingModel(pl.LightningModule):
         feature_mask: FeatureMask,
         n_classes: int,
         label: Label | None,
+        generator: torch.Generator | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """Reconstruct a sample by providing masked features. Optionally provide the label as well."""
         assert masked_features.ndim == 2
@@ -670,7 +685,9 @@ class ODINPretrainingModel(pl.LightningModule):
         augmented_feature_mask = torch.cat([feature_mask, label_mask], dim=-1)
 
         _encoder, _mu, _logvar, z, estimated_features = self.partial_vae(
-            augmented_masked_features, augmented_feature_mask
+            augmented_masked_features,
+            augmented_feature_mask,
+            generator,
         )
 
         return z, estimated_features

@@ -1,4 +1,4 @@
-# Scientific design shared by smoke, local, validation, and test runs.
+# Scientific design shared by the smoke check and named experiments.
 # Dataset/method selections and their implementation details come from the
 # ordinary benchmark configuration files included by each profile.
 initializer: cold
@@ -41,6 +41,20 @@ missing_data_method_overrides:
       - aco.missingness_objective=support_aware
     extra_strategies:
       - zero_fill
+      - pvae_stepwise
+  dime:
+    extra_strategies:
+      - pvae_stepwise
+  ol_without_mask:
+    extra_strategies:
+      - pvae_stepwise
+
+strategy_filters:
+  pvae_stepwise:
+    datasets: [cube, cube_nm, diabetes, actg]
+    methods: [aaco, dime, ol_without_mask]
+    mechanisms: [mcar]
+    probabilities: [0.3, 0.5, 0.7]
 
 missing_data_method_variants:
   aaco_doubly_robust:

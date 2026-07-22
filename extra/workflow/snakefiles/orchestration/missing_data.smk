@@ -12,6 +12,10 @@ Required shared config keys:
 
 Missing-data config keys:
     artifact_namespace, missingness, strategies, eval_dataset_split
+    Optional ``strategy_filters`` restricts one strategy by datasets, methods,
+    mechanisms, or probabilities without duplicating the experiment workflow.
+    Optional ``include_method_variants`` omits missingness-specific controls
+    from a focused experiment while retaining them by default.
 
 Device routing:
     ``device`` is the default. Optional ``device_overrides`` may contain
@@ -33,7 +37,11 @@ src_dir = os.path.join(workflow_dir, "src")
 sys.path.insert(0, src_dir)
 
 from config import load_config, resolve_device
-from missing_data_config import build_method_specs, largest_hard_budget
+from missing_data_config import (
+    build_method_specs,
+    largest_hard_budget,
+    strategy_enabled,
+)
 
 
 required_missing_config = {
@@ -82,7 +90,11 @@ METHOD_SPECS = build_method_specs(
     BASE_METHODS,
     METHOD_OPTIONS,
     config.get("missing_data_method_overrides", {}),
-    config.get("missing_data_method_variants", {}),
+    (
+        config.get("missing_data_method_variants", {})
+        if config.get("include_method_variants", True)
+        else {}
+    ),
 )
 PRETRAINED_METHODS = [
     name
@@ -95,6 +107,7 @@ UNPRETRAINED_METHODS = [
     if spec.pretrained_model_name is None
 ]
 COMMON_STRATEGIES = [str(value) for value in config["strategies"]]
+STRATEGY_FILTERS = config.get("strategy_filters", {})
 INCLUDE_COMPLETE_DATA = bool(config.get("include_complete_data", True))
 
 UNMASKERS = _config["UNMASKERS"]
@@ -232,6 +245,15 @@ def restored_view(
 def training_view(wildcards, split):
     if wildcards.strategy == "complete":
         return raw_dataset(wildcards.dataset, wildcards.instance, split)
+    if wildcards.strategy == "pvae_stepwise":
+        return base_view(
+            wildcards.dataset,
+            wildcards.mechanism,
+            wildcards.p,
+            wildcards.instance,
+            "restricted",
+            split,
+        )
     if wildcards.strategy.startswith("pvae_"):
         return restored_view(
             wildcards.dataset,
@@ -268,10 +290,15 @@ def oracle_pvae(dataset, instance):
 
 def method_pretrain(wildcards):
     key = METHOD_SPECS[wildcards.method].pretrained_model_name
+    strategy = (
+        "restricted"
+        if wildcards.strategy == "pvae_stepwise"
+        else wildcards.strategy
+    )
     return (
         f"{ROOT}/pretrained/{NAMESPACE}/{key}/dataset-{wildcards.dataset}/"
         f"mechanism-{wildcards.mechanism}+p-{wildcards.p}+"
-        f"strategy-{wildcards.strategy}+instance-{wildcards.instance}/"
+        f"strategy-{strategy}+instance-{wildcards.instance}/"
         "model.bundle"
     )
 
@@ -364,6 +391,16 @@ def experiment_matrix():
             for mechanism, probability in MISSING_COMBINATIONS:
                 for instance in INSTANCES:
                     for strategy in dict.fromkeys(strategies):
+                        if not strategy_enabled(
+                            STRATEGY_FILTERS,
+                            strategy,
+                            dataset=dataset,
+                            method=method,
+                            base_method=spec.base_method,
+                            mechanism=mechanism,
+                            probability=probability,
+                        ):
+                            continue
                         rows.append(
                             (
                                 dataset,
@@ -713,6 +750,16 @@ def training_extra(wildcards):
     spec = METHOD_SPECS[wildcards.method]
     params = list(spec.train_params)
     params.append(f"experiment@_global_={wildcards.dataset}")
+    if wildcards.strategy == "pvae_stepwise":
+        params.append(
+            "stepwise_pvae_bundle_path="
+            + incomplete_pvae(
+                wildcards.dataset,
+                wildcards.mechanism,
+                wildcards.p,
+                wildcards.instance,
+            )
+        )
     runtime = runtime_params(
         TRAIN_RUNTIME_PARAMS,
         spec.base_method,
@@ -725,6 +772,17 @@ def training_extra(wildcards):
     return " ".join(params)
 
 
+def stepwise_pvae_input(wildcards):
+    if wildcards.strategy != "pvae_stepwise":
+        return []
+    return incomplete_pvae(
+        wildcards.dataset,
+        wildcards.mechanism,
+        wildcards.p,
+        wildcards.instance,
+    )
+
+
 rule train_missing_data_method_with_pretraining:
     wildcard_constraints:
         method=wildcard_pattern(PRETRAINED_METHODS)
@@ -732,6 +790,7 @@ rule train_missing_data_method_with_pretraining:
         train=lambda wc: training_view(wc, "train"),
         val=lambda wc: training_view(wc, "val"),
         pretrained=method_pretrain,
+        stepwise_pvae=stepwise_pvae_input,
         classifier=lambda wc: classifier_path(wc.dataset),
     output:
         directory(
@@ -767,6 +826,7 @@ rule train_missing_data_method_without_pretraining:
         train=lambda wc: training_view(wc, "train"),
         val=lambda wc: training_view(wc, "val"),
         classifier=lambda wc: classifier_path(wc.dataset, wc.method),
+        stepwise_pvae=stepwise_pvae_input,
     output:
         directory(
             f"{ROOT}/trained/{NAMESPACE}/{{method}}/dataset-{{dataset}}/"

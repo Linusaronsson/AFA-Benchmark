@@ -1,3 +1,4 @@
+import logging
 import math
 from collections.abc import Callable
 from copy import deepcopy
@@ -28,6 +29,9 @@ from afabench.components.methods.discriminative.common.utils import (
     restore_parameters,
     selection_soft_to_feature_soft,
 )
+from afabench.components.methods.rl.common.custom_types import (
+    AFAFeatureRestorationFn,
+)
 from afabench.components.unmaskers import CubeNMUnmasker
 from afabench.core.types import (
     AFAAction,
@@ -39,6 +43,9 @@ from afabench.core.types import (
     MaskedFeatures,
     SelectionMask,
 )
+from afabench.missing_values.stepwise import restore_acquired_features
+
+log = logging.getLogger(__name__)
 
 
 def _apply_model_mask(
@@ -281,7 +288,11 @@ class GreedyDynamicSelection(nn.Module):
         total_epochs = 0
         for temp in np.geomspace(start_temp, end_temp, temp_steps):
             if verbose:
-                print(f"Starting training with temp = {temp:.4f}\n")
+                log.info(
+                    "%s temperature start | temperature=%.4g",
+                    metric_prefix,
+                    temp,
+                )
 
             # Set up optimizer and lr scheduler.
             opt = optim.Adam(
@@ -496,15 +507,19 @@ class GreedyDynamicSelection(nn.Module):
                     val_loss = val_loss_fn(pred, y)
                     val_hard_loss = val_loss_fn(hard_pred, y)
 
-                # Print progress.
                 if verbose:
-                    print(
-                        f"{'-' * 8}Epoch {epoch + 1} ({
-                            epoch + 1 + total_epochs
-                        } total){'-' * 8}"
-                    )
-                    print(
-                        f"Val loss = {val_loss:.4f}, Zero-temp loss = {val_hard_loss:.4f}\n"
+                    log.info(
+                        "%s epoch %d/%d | total_epoch=%d | "
+                        "temperature=%.4g | train_loss=%.4f | "
+                        "val_loss=%.4f | hard_val_loss=%.4f",
+                        metric_prefix,
+                        epoch + 1,
+                        nepochs,
+                        epoch + 1 + total_epochs,
+                        temp,
+                        avg_train,
+                        val_loss.item(),
+                        val_hard_loss.item(),
                     )
 
                 if metric_logger is not None:
@@ -551,7 +566,12 @@ class GreedyDynamicSelection(nn.Module):
 
             # Update total epoch count.
             if verbose:
-                print(f"Stopping temp = {temp:.4f} at epoch {epoch + 1}\n")
+                log.info(
+                    "%s temperature complete | temperature=%.4g | epochs=%d",
+                    metric_prefix,
+                    temp,
+                    epoch + 1,
+                )
             total_epochs += epoch + 1
 
             # Copy parameters from best model.
@@ -911,6 +931,8 @@ class CMIEstimator(nn.Module):
         verbose: bool = True,  # noqa: FBT002
         metric_logger: Callable[[dict[str, float]], None] | None = None,
         metric_prefix: str = "cmi_estimator",
+        train_feature_restoration_fn: AFAFeatureRestorationFn | None = None,
+        val_feature_restoration_fn: AFAFeatureRestorationFn | None = None,
     ) -> None:
         if val_loss_fn is None:
             val_loss_fn = loss_fn
@@ -972,7 +994,7 @@ class CMIEstimator(nn.Module):
         )
 
         opt = optim.Adam(
-            list(value_network.parameters()) + list(predictor.parameters()),
+            nn.ModuleList([value_network, predictor]).parameters(),
             lr=lr,
         )
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
@@ -999,13 +1021,17 @@ class CMIEstimator(nn.Module):
 
             for batch in train_loader:
                 # Move to device.
-                x, y_batch, _source_availability, selection_availability = (
+                x, y_batch, source_availability, selection_availability = (
                     _unpack_training_batch(
                         batch,
                         unmasker=unmasker,
                         device=device,
                     )
                 )
+                if train_feature_restoration_fn is not None:
+                    selection_availability = torch.ones_like(
+                        selection_availability
+                    )
                 y = self._to_class_indices(y_batch).to(device)
 
                 m_feat, m_sel = _initial_training_masks(
@@ -1014,6 +1040,13 @@ class CMIEstimator(nn.Module):
                     feature_shape=feature_shape,
                     initializer=initializer,
                     selection_availability=selection_availability,
+                )
+                x = restore_acquired_features(
+                    x,
+                    torch.zeros_like(m_feat, dtype=torch.bool),
+                    m_feat.bool(),
+                    source_availability,
+                    train_feature_restoration_fn,
                 )
 
                 value_network.zero_grad()
@@ -1073,6 +1106,7 @@ class CMIEstimator(nn.Module):
                     )
 
                     # Predictor loss.
+                    previous_feature_mask = m_feat
                     m_feat = _unmask_available_rows(
                         unmasker=unmasker,
                         masked_features=x_masked,
@@ -1082,6 +1116,13 @@ class CMIEstimator(nn.Module):
                         selection_mask=m_sel,
                         has_available=has_available,
                         feature_shape=feature_shape,
+                    )
+                    x = restore_acquired_features(
+                        x,
+                        previous_feature_mask.bool(),
+                        m_feat.bool(),
+                        source_availability,
+                        train_feature_restoration_fn,
                     )
                     x_masked = _apply_model_mask(self.mask_layer, x, m_feat)
                     pred_with_next_feature = predictor(x_masked)
@@ -1150,13 +1191,17 @@ class CMIEstimator(nn.Module):
                     (
                         x,
                         y_batch,
-                        _source_availability,
+                        source_availability,
                         selection_availability,
                     ) = _unpack_training_batch(
                         batch,
                         unmasker=unmasker,
                         device=device,
                     )
+                    if val_feature_restoration_fn is not None:
+                        selection_availability = torch.ones_like(
+                            selection_availability
+                        )
                     y = self._to_class_indices(y_batch).to(device)
 
                     # Setup.
@@ -1166,6 +1211,13 @@ class CMIEstimator(nn.Module):
                         feature_shape=feature_shape,
                         initializer=initializer,
                         selection_availability=selection_availability,
+                    )
+                    x = restore_acquired_features(
+                        x,
+                        torch.zeros_like(m_feat, dtype=torch.bool),
+                        m_feat.bool(),
+                        source_availability,
+                        val_feature_restoration_fn,
                     )
                     x_masked = _apply_model_mask(self.mask_layer, x, m_feat)
                     pred = predictor(x_masked)
@@ -1203,6 +1255,7 @@ class CMIEstimator(nn.Module):
                         )
                         afa_selection = best_feature_index.to(torch.long)
                         afa_selection = afa_selection.unsqueeze(1)
+                        previous_feature_mask = m_feat
                         m_feat = _unmask_available_rows(
                             unmasker=unmasker,
                             masked_features=x_masked,
@@ -1212,6 +1265,13 @@ class CMIEstimator(nn.Module):
                             selection_mask=m_sel,
                             has_available=has_available,
                             feature_shape=feature_shape,
+                        )
+                        x = restore_acquired_features(
+                            x,
+                            previous_feature_mask.bool(),
+                            m_feat.bool(),
+                            source_availability,
+                            val_feature_restoration_fn,
                         )
 
                         # Make prediction.
@@ -1250,14 +1310,21 @@ class CMIEstimator(nn.Module):
             # )
             # wandb.log(log_payload)
 
-            # Print progress.
+            # Log scalar progress; per-instance validation values remain in the
+            # metric artifacts rather than flooding the console.
             if verbose:
-                print(f"{'-' * 8}Epoch {epoch + 1}{'-' * 8}")
-                print(f"Loss Val/Mean = {val_loss_mean}")
-                print(f"Perf Val/Mean = {val_perf_mean}")
-                print(f"Loss Val/Final = {val_loss_final}")
-                print(f"Perf Val/Final = {val_perf_final}")
-                print(f"Eps Value = {eps}\n")
+                log.info(
+                    "DIME epoch %d/%d | train_cmi_loss=%.4f | "
+                    "train_prediction_loss=%.4f | val_loss=%.4f | "
+                    "final_val_loss=%.4f | epsilon=%.2e",
+                    epoch + 1,
+                    nepochs,
+                    train_value_loss.item(),
+                    train_pred_loss.item(),
+                    val_loss_mean.item(),
+                    val_loss_final.item(),
+                    eps,
+                )
 
             if metric_logger is not None:
                 metric_logger(
@@ -1301,7 +1368,12 @@ class CMIEstimator(nn.Module):
                 eps = eps * eps_decay
                 num_bad_epochs = 0
                 num_epsilon_steps += 1
-                print(f"Decaying eps to {eps:.5f}, step = {num_epsilon_steps}")
+                log.info(
+                    "DIME epsilon decay %d/%d | epsilon=%.2e",
+                    num_epsilon_steps,
+                    eps_steps,
+                    eps,
+                )
 
                 # Early stopping.
                 if num_epsilon_steps >= eps_steps:

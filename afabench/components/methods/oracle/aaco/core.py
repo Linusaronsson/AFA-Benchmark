@@ -15,6 +15,9 @@ from afabench.components.methods.oracle.aaco.utils import (
     get_patch_dimensions,
     uses_patch_selection,
 )
+from afabench.components.methods.rl.common.custom_types import (
+    AFAFeatureRestorationFn,
+)
 from afabench.core.types import AFAClassifier
 from afabench.core.utils import get_class_frequencies
 
@@ -209,6 +212,7 @@ class AACOOracle:
         self.marginal_observation_probabilities: torch.Tensor | None = None
         self.device: torch.device = device or torch.device("cpu")
         self.class_weights: torch.Tensor | None = None
+        self.feature_restoration_fn: AFAFeatureRestorationFn | None = None
 
     def fit(
         self,
@@ -256,6 +260,13 @@ class AACOOracle:
         """Set the classifier model used by the oracle."""
         self.classifier = classifier
 
+    def set_feature_restorer(
+        self,
+        feature_restoration_fn: AFAFeatureRestorationFn,
+    ) -> None:
+        """Set the label-free model used in online candidate backups."""
+        self.feature_restoration_fn = feature_restoration_fn
+
     def to(self, device: torch.device) -> "AACOOracle":
         """Move oracle to device."""
         self.device = device
@@ -302,10 +313,32 @@ class AACOOracle:
         the launch-bound cost of this path used to sit.
         """
         assert self.classifier is not None
+        n_masks = feature_masks.shape[1]
+        candidate_features = neighbor_features.unsqueeze(1).expand(
+            -1,
+            n_masks,
+            -1,
+            -1,
+        )
+        return self._candidate_losses(
+            candidate_features,
+            neighbor_labels,
+            feature_masks,
+        )
+
+    def _candidate_losses(
+        self,
+        candidate_features: torch.Tensor,
+        neighbor_labels: torch.Tensor,
+        feature_masks: torch.Tensor,
+    ) -> torch.Tensor:
+        """Classifier loss for explicit `(instance, mask, neighbor)` values."""
+        assert self.classifier is not None
         n_instances, n_masks, n_neighbors, feature_count = feature_masks.shape
         mask_float = feature_masks.float()
-        masked = neighbor_features.unsqueeze(1)
-        masked = masked * mask_float + self.hide_val * (1 - mask_float)
+        masked = candidate_features * mask_float + self.hide_val * (
+            1 - mask_float
+        )
         with _exact_matmul():
             logits = self.classifier(
                 masked.reshape(-1, feature_count),
@@ -326,6 +359,56 @@ class AACOOracle:
             class_indices = neighbor_labels.argmax(dim=-1)
             losses = losses * self.class_weights[class_indices].unsqueeze(1)
         return losses
+
+    def _stepwise_candidate_losses(
+        self,
+        candidate_feature_masks: torch.Tensor,
+        neighbor_features: torch.Tensor,
+        neighbor_labels: torch.Tensor,
+        observed: torch.Tensor,
+    ) -> torch.Tensor:
+        """Restore unsupported candidate coordinates in one joint draw."""
+        assert self.feature_restoration_fn is not None
+        n_candidates = candidate_feature_masks.shape[1]
+        candidate_masks = candidate_feature_masks.unsqueeze(2).expand(
+            -1,
+            -1,
+            neighbor_features.shape[1],
+            -1,
+        )
+        source_availability = observed.unsqueeze(1).expand_as(candidate_masks)
+        candidate_values = neighbor_features.unsqueeze(1).expand(
+            -1,
+            n_candidates,
+            -1,
+            -1,
+        )
+
+        flat_values = candidate_values.flatten(end_dim=2)
+        flat_candidates = candidate_masks.flatten(end_dim=2)
+        flat_source = source_availability.flatten(end_dim=2)
+        conditioning_mask = flat_candidates & flat_source
+        restore_mask = flat_candidates & ~flat_source
+        restore_rows = restore_mask.any(dim=1)
+        restored_values = flat_values.clone()
+        if restore_rows.any():
+            inputs = flat_values[restore_rows].clone()
+            inputs[~conditioning_mask[restore_rows]] = 0.0
+            estimates = self.feature_restoration_fn(
+                inputs,
+                conditioning_mask[restore_rows],
+            )
+            row_values = restored_values[restore_rows]
+            row_mask = restore_mask[restore_rows]
+            row_values[row_mask] = estimates[row_mask]
+            restored_values[restore_rows] = row_values
+
+        restored_values = restored_values.view_as(candidate_values)
+        return self._candidate_losses(
+            restored_values,
+            neighbor_labels,
+            candidate_masks,
+        )
 
     def _candidate_support_propensities(
         self,
@@ -363,6 +446,13 @@ class AACOOracle:
             neighbor_indices,
             candidate_feature_masks.shape[-1],
         )
+        if self.feature_restoration_fn is not None:
+            return self._stepwise_candidate_losses(
+                candidate_feature_masks,
+                neighbor_features,
+                neighbor_labels,
+                observed,
+            ).mean(dim=-1)
         overlap_masks = candidate_feature_masks.unsqueeze(
             2
         ) & observed.unsqueeze(1)

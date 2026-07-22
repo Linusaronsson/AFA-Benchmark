@@ -23,13 +23,14 @@ strategies:
   - pvae_label_conditioned
   - pvae_label_free
   - pvae_oracle
+  - true_completion
 
-# Covers direct AACO, both reweighting controls, a supervised learned method,
-# an RL method, both PVAE restoration paths, evaluation, and summarization.
+# Covers direct and reweighted training, both PVAE deployments, evaluation,
+# summarization, and plotting.
 methods:
   - aaco
   - dime
-  - odin_model_free
+  - ol_without_mask
 
 # DIME exposes smoke_test for interface consistency but does not internally
 # shorten its tabular training loop, so its smoke schedule is explicit here.

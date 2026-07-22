@@ -93,3 +93,31 @@ def largest_hard_budget(
         return None
     train, evaluation = max(hard, key=lambda values: float(values[1]))
     return str(train), str(evaluation)
+
+
+def strategy_enabled(
+    filters: dict[str, dict[str, list[Any]]],
+    strategy: str,
+    *,
+    dataset: str,
+    method: str,
+    base_method: str,
+    mechanism: str,
+    probability: str,
+) -> bool:
+    """Return whether a strategy belongs to one experiment-matrix cell."""
+    selected = filters.get(strategy)
+    if selected is None:
+        return True
+    values = {
+        "datasets": dataset,
+        "mechanisms": mechanism,
+        "probabilities": probability,
+    }
+    if any(
+        key in selected and str(value) not in map(str, selected[key])
+        for key, value in values.items()
+    ):
+        return False
+    methods = {str(value) for value in selected.get("methods", [])}
+    return not methods or method in methods or base_method in methods

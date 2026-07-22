@@ -65,3 +65,4 @@ mcdrop_samples: 100 # original paper uses 1k but this is overkill
 
 # Alias arguments, only to implement interface assumed by snakemake
 hard_budget: null
+stepwise_pvae_bundle_path: null

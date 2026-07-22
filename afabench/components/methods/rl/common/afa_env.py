@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, final, override
+from typing import Any, final, override
 
 import torch
 import wandb
@@ -9,15 +9,16 @@ from torchrl.envs import EnvBase
 
 from afabench.components.methods.rl.common.custom_types import (
     AFADatasetFn,
+    AFAFeatureRestorationFn,
     AFARewardFn,
 )
-from afabench.core.types import AFAInitializeFn, AFAUnmaskFn
-
-if TYPE_CHECKING:
-    from afabench.core.types import (
-        Features,
-        Label,
-    )
+from afabench.core.types import (
+    AFAInitializeFn,
+    AFAUnmaskFn,
+    Features,
+    Label,
+)
+from afabench.missing_values.stepwise import restore_acquired_features
 
 
 @final
@@ -56,6 +57,7 @@ class AFAEnv(EnvBase):
         seed: int | None = None,
         selection_costs: Sequence[float]
         | None = None,  # How much each sequence costs. If None, assume unit cost (1).
+        feature_restoration_fn: AFAFeatureRestorationFn | None = None,
     ):
         # Do not allow empty batch sizes
         assert batch_size != torch.Size(()), "Batch size must be non-empty"
@@ -79,6 +81,7 @@ class AFAEnv(EnvBase):
         self.initialize_fn = initialize_fn
         self.unmask_fn = unmask_fn
         self.seed = seed
+        self.feature_restoration_fn = feature_restoration_fn
         if selection_costs is None:
             self.selection_costs = torch.ones(
                 (self.n_selections,), device=self.device
@@ -128,6 +131,11 @@ class AFAEnv(EnvBase):
                 shape=self.batch_size + self.feature_shape,
                 dtype=torch.float32,
             ),
+            source_availability=Binary(
+                n=self.feature_shape[-1],
+                shape=self.batch_size + self.feature_shape,
+                dtype=torch.bool,
+            ),
             label=Unbounded(
                 shape=self.batch_size + (self.n_classes,),
                 dtype=torch.float32,
@@ -150,15 +158,10 @@ class AFAEnv(EnvBase):
             n=1, shape=self.batch_size + torch.Size((1,)), dtype=torch.bool
         )
 
-    @override
-    def _reset(
-        self, tensordict: TensorDictBase | None, **_: dict[str, Any]
-    ) -> TensorDict:
-        if tensordict is None:
-            tensordict = TensorDict(
-                {}, batch_size=self.batch_size, device=self.device
-            )
-
+    def _draw_dataset_batch(
+        self,
+        tensordict: TensorDictBase,
+    ) -> tuple[Features, Label, torch.Tensor | None, torch.Tensor]:
         # TorchRL calls _reset whenever *any* sub-env is done, passing a mask of
         # which ones, and then keeps only those entries of what we return. Draw
         # exactly that many rows: drawing a full batch every time advanced the
@@ -176,10 +179,19 @@ class AFAEnv(EnvBase):
         dataset_batch = self.dataset_fn(torch.Size((n_draw,)))
         features, label = dataset_batch[:2]
         selection_availability = (
-            dataset_batch[2] if len(dataset_batch) == 3 else None
+            dataset_batch[2] if len(dataset_batch) >= 3 else None
+        )
+        source_availability = (
+            dataset_batch[3] if len(dataset_batch) == 4 else None
         )
         features: Features = features.to(tensordict.device)
         label: Label = label.to(tensordict.device)
+        if selection_availability is not None:
+            selection_availability = selection_availability.to(
+                tensordict.device
+            )
+        if source_availability is not None:
+            source_availability = source_availability.to(tensordict.device)
 
         if reset_idx is not None:
             # Scatter the drawn rows back to full batch shape. Entries outside
@@ -193,10 +205,45 @@ class AFAEnv(EnvBase):
             label = _scatter(label)
             if selection_availability is not None:
                 selection_availability = _scatter(selection_availability)
+            if source_availability is not None:
+                source_availability = _scatter(source_availability)
+
+        if self.feature_restoration_fn is not None:
+            if source_availability is None:
+                msg = "Feature restoration requires source availability."
+                raise ValueError(msg)
+            features = features.clone()
+            features[~source_availability] = 0.0
+        elif source_availability is None:
+            source_availability = torch.ones_like(features, dtype=torch.bool)
+        return features, label, selection_availability, source_availability
+
+    @override
+    def _reset(
+        self, tensordict: TensorDictBase | None, **_: dict[str, Any]
+    ) -> TensorDict:
+        if tensordict is None:
+            tensordict = TensorDict(
+                {}, batch_size=self.batch_size, device=self.device
+            )
+
+        (
+            features,
+            label,
+            selection_availability,
+            source_availability,
+        ) = self._draw_dataset_batch(tensordict)
 
         # Initialize features
         initial_feature_mask = self.initialize_fn(
             features=features, label=label, feature_shape=self.feature_shape
+        ).to(device=features.device, dtype=torch.bool)
+        features = restore_acquired_features(
+            features,
+            torch.zeros_like(initial_feature_mask),
+            initial_feature_mask,
+            source_availability,
+            self.feature_restoration_fn,
         )
 
         initial_masked_features = features.clone()
@@ -230,6 +277,7 @@ class AFAEnv(EnvBase):
                 ),
                 "masked_features": initial_masked_features,
                 "features": features,
+                "source_availability": source_availability,
                 "label": label,
                 "accumulated_cost": torch.zeros(
                     tensordict.batch_size,
@@ -273,7 +321,14 @@ class AFAEnv(EnvBase):
         new_feature_mask = tensordict["feature_mask"].clone()
         new_feature_mask[no_stop_mask] = new_feature_mask_no_stop
 
-        new_masked_features = tensordict["features"].clone()
+        new_features = restore_acquired_features(
+            tensordict["features"],
+            tensordict["feature_mask"],
+            new_feature_mask,
+            tensordict["source_availability"],
+            self.feature_restoration_fn,
+        )
+        new_masked_features = new_features.clone()
         new_masked_features[~new_feature_mask] = 0.0
 
         # Add up costs
@@ -327,7 +382,7 @@ class AFAEnv(EnvBase):
                 new_feature_mask,
                 new_performed_selection_mask,
                 tensordict["action"],
-                tensordict["features"],
+                new_features,
                 tensordict["label"],
                 done,
             )
@@ -341,8 +396,8 @@ class AFAEnv(EnvBase):
                 "masked_features": new_masked_features,
                 "done": done,
                 "reward": reward,
-                # features and label are not cloned since they stay the same
-                "features": tensordict["features"],
+                "features": new_features,
+                "source_availability": tensordict["source_availability"],
                 "label": tensordict["label"],
                 "accumulated_cost": new_accumulated_cost,
             },

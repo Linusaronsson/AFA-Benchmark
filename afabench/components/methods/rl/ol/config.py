@@ -91,6 +91,7 @@ class OLTrainConfig:
     mcdrop_samples: int
 
     hard_budget: int | None = None
+    stepwise_pvae_bundle_path: str | None = None
 
 
 cs.store(name="train_ol", node=OLTrainConfig)

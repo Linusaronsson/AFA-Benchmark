@@ -23,7 +23,10 @@ from afabench.components.methods.rl.common.config import (
     AFAMDPConfig,
     AFARLTrainingLoopConfig,
 )
-from afabench.components.methods.rl.common.custom_types import AFARewardFn
+from afabench.components.methods.rl.common.custom_types import (
+    AFAFeatureRestorationFn,
+    AFARewardFn,
+)
 from afabench.components.methods.rl.common.dataset_utils import (
     get_afa_dataset_fn,
 )
@@ -177,28 +180,57 @@ class RLTrainer(ABC):
         ) * len(self.unnormalized_selection_costs)
 
     def _create_envs(self) -> None:
-        self.train_env = self._get_env_from_dataset(self.train_dataset)
-        self.eval_env = self._get_env_from_dataset(self.val_dataset)
+        self.train_env = self._get_env_from_dataset(
+            self.train_dataset,
+            self._get_feature_restoration_fn(validation=False),
+        )
+        self.eval_env = self._get_env_from_dataset(
+            self.val_dataset,
+            self._get_feature_restoration_fn(validation=True),
+        )
 
-    def _get_env_from_dataset(self, dataset: AFADataset) -> AFAEnv:
+    def _get_feature_restoration_fn(
+        self,
+        *,
+        validation: bool,  # noqa: ARG002
+    ) -> AFAFeatureRestorationFn | None:
+        return None
+
+    def _get_env_from_dataset(
+        self,
+        dataset: AFADataset,
+        feature_restoration_fn: AFAFeatureRestorationFn | None = None,
+    ) -> AFAEnv:
         features, labels = dataset.get_all_data()
         feature_availability = getattr(
             dataset,
             "selection_availability",
             None,
         )
-        selection_availability = (
-            None
-            if feature_availability is None
-            else self.unmasker.feature_availability_to_selection_availability(
-                feature_availability
+        source_availability = None
+        if feature_restoration_fn is None:
+            selection_availability = (
+                None
+                if feature_availability is None
+                else self.unmasker.feature_availability_to_selection_availability(
+                    feature_availability
+                )
             )
-        )
+        else:
+            source_availability = getattr(dataset, "source_availability", None)
+            if source_availability is None:
+                msg = "Stepwise restoration requires source availability."
+                raise ValueError(msg)
+            selection_availability = torch.ones(
+                (len(dataset), self._n_selections),
+                dtype=torch.bool,
+            )
         dataset_fn = get_afa_dataset_fn(
             features,
             labels,
             device=self.device,
             selection_availability=selection_availability,
+            source_availability=source_availability,
         )
         env = AFAEnv(
             dataset_fn=dataset_fn,
@@ -214,6 +246,7 @@ class RLTrainer(ABC):
             force_hard_budget=self.mdp_cfg.force_hard_budget,
             seed=self.seed,
             selection_costs=self.unnormalized_selection_costs.tolist(),
+            feature_restoration_fn=feature_restoration_fn,
         )
         return env
 
@@ -293,8 +326,6 @@ class RLTrainer(ABC):
         eval_max_steps: int,
         n_eval_episodes: int,
     ) -> dict[str, Any]:
-        log.info(f"Running evaluation at batch {batch_idx}")
-
         # Some methods (like jafa) need to change their action spec to point to the eval environment
         self._pre_eval()
 
@@ -315,7 +346,12 @@ class RLTrainer(ABC):
         # Some methods might need resetting here
         self._post_eval()
 
-        log.info(f"Evaluation completed at batch {batch_idx}")
+        log.info(
+            "Evaluation at batch %d | accuracy=%.4f | reward=%.4f",
+            batch_idx,
+            eval_dict_to_log["eval/metrics.accuracy"],
+            eval_dict_to_log["eval/metrics.reward_sum"],
+        )
 
         return eval_dict_to_log
 

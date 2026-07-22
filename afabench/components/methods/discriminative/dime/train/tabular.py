@@ -30,6 +30,10 @@ from afabench.components.methods.discriminative.dime.config import (
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.utils import set_seed
+from afabench.missing_values.restoration import (
+    PVAEStepwiseRestorer,
+    load_pvae,
+)
 
 log = logging.getLogger(__name__)
 
@@ -91,6 +95,12 @@ def train_tabular(
         unmasker=unmasker,
     ).to(device)
     feature_costs = train_dataset.get_feature_acquisition_costs()
+    stepwise_pvae = (
+        None
+        if cfg.stepwise_pvae_bundle_path is None
+        else load_pvae(Path(cfg.stepwise_pvae_bundle_path), device)
+    )
+    restoration_seed = cfg.seed or 0
     greedy_cmi_estimator.fit(
         train_loader,
         val_loader,
@@ -111,6 +121,24 @@ def train_tabular(
         ipw_min_propensity=cfg.ipw_min_propensity,
         ipw_max_weight=cfg.ipw_max_weight,
         ipw_normalize_weights=cfg.ipw_normalize_weights,
+        train_feature_restoration_fn=(
+            None
+            if stepwise_pvae is None
+            else PVAEStepwiseRestorer(
+                stepwise_pvae,
+                n_classes=train_dataset.label_shape.numel(),
+                seed=restoration_seed,
+            )
+        ),
+        val_feature_restoration_fn=(
+            None
+            if stepwise_pvae is None
+            else PVAEStepwiseRestorer(
+                stepwise_pvae,
+                n_classes=train_dataset.label_shape.numel(),
+                seed=restoration_seed + 1,
+            )
+        ),
     )
     afa_method = DIMEAFAMethod(
         greedy_cmi_estimator.value_network.cpu(),

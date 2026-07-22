@@ -23,6 +23,10 @@ from afabench.core.types import (
     SelectionMask,
     SupportsForcedAcquisition,
 )
+from afabench.missing_values.restoration import (
+    PVAEStepwiseRestorer,
+    load_pvae,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +63,9 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
         )
     )
     _selection_size: int | None = None  # None = feature-level selections
+    stepwise_pvae_bundle_path: Path | None = None
+    stepwise_seed: int = 0
+    stepwise_n_classes: int | None = None
     _exclude_instance: bool = False
     _selection_to_feature_mask_cache: dict[tuple[int, ...], torch.Tensor] = (
         field(default_factory=dict, init=False, repr=False)
@@ -82,6 +89,18 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             self.aaco_oracle.set_classifier(classifier)
             logger.info(
                 f"Loaded classifier from {self.classifier_bundle_path}"
+            )
+        if self.stepwise_pvae_bundle_path is not None:
+            if self.stepwise_n_classes is None:
+                msg = "Stepwise AACO requires stepwise_n_classes."
+                raise ValueError(msg)
+            model = load_pvae(self.stepwise_pvae_bundle_path, self._device)
+            self.aaco_oracle.set_feature_restorer(
+                PVAEStepwiseRestorer(
+                    model,
+                    n_classes=self.stepwise_n_classes,
+                    seed=self.stepwise_seed,
+                )
             )
 
     def _get_unmasker(self) -> AFAUnmasker | None:
@@ -404,6 +423,13 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
                 if self.aaco_oracle.train_observed_mask is not None
                 else None
             ),
+            "stepwise_pvae_bundle_path": (
+                str(self.stepwise_pvae_bundle_path)
+                if self.stepwise_pvae_bundle_path is not None
+                else None
+            ),
+            "stepwise_seed": self.stepwise_seed,
+            "stepwise_n_classes": self.stepwise_n_classes,
         }
         torch.save(oracle_state, path / f"aaco_oracle_{self.dataset_name}.pt")
         logger.info(f"Saved AACO method to {path}")
@@ -467,6 +493,13 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             _selection_costs=oracle_state.get("selection_costs"),
             _device=device,
             _selection_size=oracle_state.get("selection_size"),
+            stepwise_pvae_bundle_path=(
+                Path(oracle_state["stepwise_pvae_bundle_path"])
+                if oracle_state.get("stepwise_pvae_bundle_path") is not None
+                else None
+            ),
+            stepwise_seed=oracle_state.get("stepwise_seed", 0),
+            stepwise_n_classes=oracle_state.get("stepwise_n_classes"),
         )
 
         logger.info(f"Loaded AACO method from {path}")
@@ -502,6 +535,9 @@ def create_aaco_method(
     unmasker_kwargs: dict[str, Any] | None = None,
     selection_costs: torch.Tensor | None = None,
     classifier_bundle_path: Path | None = None,
+    stepwise_pvae_bundle_path: Path | None = None,
+    stepwise_seed: int = 0,
+    stepwise_n_classes: int | None = None,
     device: torch.device | None = None,
 ) -> AACOAFAMethod:
     """
@@ -547,4 +583,7 @@ def create_aaco_method(
         _selection_costs=selection_costs,
         _device=device,
         _selection_size=selection_size,
+        stepwise_pvae_bundle_path=stepwise_pvae_bundle_path,
+        stepwise_seed=stepwise_seed,
+        stepwise_n_classes=stepwise_n_classes,
     )

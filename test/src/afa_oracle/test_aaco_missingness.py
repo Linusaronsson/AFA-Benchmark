@@ -76,6 +76,29 @@ def test_doubly_robust_loss_corrects_supported_neighbors() -> None:
     assert torch.allclose(loss, expected.reshape(1, 1))
 
 
+def test_stepwise_aaco_restores_unsupported_candidate_values() -> None:
+    calls: list[tuple[torch.Tensor, torch.Tensor]] = []
+
+    def restore(
+        masked_features: torch.Tensor,
+        feature_mask: torch.Tensor,
+    ) -> torch.Tensor:
+        calls.append((masked_features.clone(), feature_mask.clone()))
+        return torch.full_like(masked_features, 7.0)
+
+    oracle = _fitted_oracle("support_aware")
+    oracle.set_feature_restorer(restore)
+    loss = oracle._expected_candidate_losses(  # noqa: SLF001
+        torch.tensor([[[True, True]]]),
+        torch.tensor([[0, 1]]),
+    )
+
+    assert len(calls) == 1
+    assert torch.equal(calls[0][0], torch.tensor([[-1.0, 0.0]]))
+    assert torch.equal(calls[0][1], torch.tensor([[True, False]]))
+    assert torch.allclose(loss, -2 * torch.log(torch.tensor([[0.9]])))
+
+
 def test_knn_distance_ignores_features_missing_from_training_rows() -> None:
     training = torch.tensor(
         [

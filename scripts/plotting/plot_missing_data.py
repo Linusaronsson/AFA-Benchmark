@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import textwrap
 from dataclasses import replace
@@ -32,6 +33,8 @@ if TYPE_CHECKING:
 
     from matplotlib.axes import Axes
 
+log = logging.getLogger(__name__)
+
 PLOT_FONT_SIZE = 12
 SUBPLOT_TITLE_FONT_SIZE = 10
 
@@ -47,6 +50,7 @@ STRATEGY_ORDER = [
     "mean_fill",
     "pvae_label_conditioned",
     "pvae_label_free",
+    "pvae_stepwise",
     "pvae_oracle",
     "true_completion",
     "zero_fill",
@@ -57,6 +61,7 @@ STRATEGY_DISPLAY = {
     "mean_fill": "Mean completion",
     "pvae_label_conditioned": "PVAE (label-conditioned)",
     "pvae_label_free": "PVAE (label-free)",
+    "pvae_stepwise": "PVAE (stepwise, label-free)",
     "pvae_oracle": "PVAE (oracle)",
     "true_completion": "True completion",
     "zero_fill": "Zero fill (AACO only)",
@@ -156,9 +161,10 @@ def _with_available_font(
         )
     except ValueError:
         fallback = "DejaVu Serif"
-        print(
-            f"Font {plotting_config.plot_font_family!r} is unavailable; "
-            f"using {fallback!r}."
+        log.warning(
+            "Font %r is unavailable; using %r",
+            plotting_config.plot_font_family,
+            fallback,
         )
         return replace(plotting_config, plot_font_family=fallback)
     return plotting_config
@@ -568,7 +574,9 @@ def _save_action_plots(
     formats: Sequence[str],
 ) -> None:
     if instance_metrics.empty or action_rates.empty:
-        print("No action-rate rows available; skipping acquisition plots.")
+        log.warning(
+            "No action-rate rows available; skipping acquisition plots"
+        )
         return
     missing_instances = instance_metrics.loc[
         instance_metrics["mechanism"] != "none"
@@ -654,8 +662,8 @@ def _save_restoration_plots(
 ) -> None:
     prepared = _prepare_restoration_frame(restoration)
     if prepared.empty:
-        print(
-            "No restoration-RMSE rows available; skipping restoration plots."
+        log.warning(
+            "No restoration-RMSE rows available; skipping restoration plots"
         )
         return
     for dataset, dataset_frame in prepared.groupby("dataset"):

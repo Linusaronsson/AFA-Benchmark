@@ -30,12 +30,29 @@ type FeatureSet = Float[
 #     def __call__(self, masked_features: MaskedFeatures, feature_mask: FeatureMask) -> Logits: ...
 
 
+type AFADatasetBatch = (
+    tuple[Features, Label]
+    | tuple[Features, Label, SelectionMask]
+    | tuple[Features, Label, SelectionMask, FeatureMask]
+)
+
+
 class AFADatasetFn(Protocol):
     """A dataset that returns new batched samples in the same format as AFADataset. move_on determines whether the dataset should return different samples next time the function is called."""
 
     def __call__(
         self, batch_size: torch.Size, *, move_on: bool = True
-    ) -> tuple[Features, Label] | tuple[Features, Label, SelectionMask]: ...
+    ) -> AFADatasetBatch: ...
+
+
+class AFAFeatureRestorationFn(Protocol):
+    """Sample a complete feature vector from an observed partial state."""
+
+    def __call__(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+    ) -> Features: ...
 
 
 type NaiveIdentity = Integer[Tensor, "*batch n_features naive_identity_size"]

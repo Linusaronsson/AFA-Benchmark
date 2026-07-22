@@ -127,6 +127,9 @@ def run(cfg: AACOTrainConfig) -> None:
         unmasker_kwargs=unmasker_kwargs,
         selection_costs=selection_costs,
         classifier_bundle_path=classifier_bundle_path,
+        stepwise_pvae_bundle_path=cfg.stepwise_pvae_bundle_path,
+        stepwise_seed=cfg.seed,
+        stepwise_n_classes=y_train.shape[-1],
         device=device,
     )
 
@@ -163,6 +166,11 @@ def run(cfg: AACOTrainConfig) -> None:
             "classifier_bundle_path": str(classifier_bundle_path),
             "n_features": X_train.shape[1],
             "n_train_samples": len(X_train),
+            "stepwise_pvae_bundle_path": (
+                str(cfg.stepwise_pvae_bundle_path)
+                if cfg.stepwise_pvae_bundle_path is not None
+                else None
+            ),
         },
     )
     logger.info(f"Saved AACO method to: {cfg.save_path}")
