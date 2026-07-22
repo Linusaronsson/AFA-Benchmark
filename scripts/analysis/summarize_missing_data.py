@@ -31,6 +31,7 @@ _STRATEGY_DISPLAY = {
     "zero_fill": "Zero fill (AACO only)",
     "pvae_label_conditioned": "PVAE (label-conditioned)",
     "pvae_label_free": "PVAE (label-free)",
+    "pvae_stepwise": "PVAE (stepwise, label-free)",
     "pvae_oracle": "PVAE (oracle)",
     "true_completion": "True completion",
 }
@@ -90,10 +91,9 @@ def _metadata(path: Path) -> dict[str, object]:
 
 
 def _final_rows(frame: pd.DataFrame) -> pd.DataFrame:
-    final = frame.groupby("idx", sort=False, as_index=False).tail(1).copy()
-    all_stopped = (final["action_performed"] == 0).to_numpy().all()
-    if not bool(all_stopped):
-        msg = "Every evaluated episode must end in a stop action."
+    final = frame.loc[frame["action_performed"] == 0].copy()
+    if final.empty:
+        msg = "No completed evaluation episodes found."
         raise ValueError(msg)
     return final
 

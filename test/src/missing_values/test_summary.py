@@ -7,6 +7,7 @@ from scripts.analysis.summarize_missing_data import (
     _add_complete_data_gaps,
     _aggregate,
     _evaluation_paths,
+    _final_rows,
     _instance_metrics,
 )
 
@@ -68,6 +69,27 @@ def test_missing_data_summary_extracts_dataset_and_terminal_metrics(
     assert metrics["mean_cost"] == 0.5
     assert actions[0]["selection"] == 0
     assert actions[0]["acquisitions_per_sample"] == 0.5
+
+
+def test_final_rows_keeps_episodes_when_batch_indices_repeat() -> None:
+    frame = pd.DataFrame(
+        {
+            "idx": [0, 0, 0, 0],
+            "action_performed": [1, 0, 2, 0],
+            "true_class": [0, 0, 1, 1],
+        }
+    )
+
+    final = _final_rows(frame)
+
+    assert final["true_class"].to_list() == [0, 1]
+
+
+def test_final_rows_rejects_evaluations_without_completed_episodes() -> None:
+    frame = pd.DataFrame({"idx": [0], "action_performed": [1]})
+
+    with pytest.raises(ValueError, match="No completed"):
+        _final_rows(frame)
 
 
 def _metric_row(
