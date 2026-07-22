@@ -1,11 +1,8 @@
 """
-Plot route structure against what the trained methods achieve (section 9).
+Plot legal static references and paired route effects.
 
-Two views from route_redundancy.csv:
-  band     per dataset, achieved accuracy of each strategy against the
-           achievable static band (a_rand, a_best) - does the direct/naive
-           policy find the good routes, does the generative model restore them?
-  scatter  route_corr (and planning_gain) vs restoration_gap across datasets.
+The figures deliberately avoid a cross-dataset regression: six heterogeneous
+datasets cannot identify a relationship between route structure and restoration.
 """
 
 from __future__ import annotations
@@ -14,6 +11,7 @@ import argparse
 from pathlib import Path
 from typing import cast
 
+import numpy as np
 import pandas as pd
 import plotnine as p9
 from matplotlib import font_manager
@@ -22,147 +20,231 @@ from omegaconf import OmegaConf
 from afabench.plotting.config import PlottingDisplayConfig
 from scripts.plotting.plot_eval_perf import calculate_figure_dimensions
 
-BAND_ORDER = [
-    "a_rand",
-    "a_best",
-    "complete",
-    "restricted",
-    "mean_fill",
-    "pvae_label_conditioned",
-]
-BAND_LABEL = {
-    "a_rand": "random subset",
-    "a_best": "best static",
-    "complete": "complete",
-    "restricted": "restricted (direct)",
-    "mean_fill": "mean (naive)",
-    "pvae_label_conditioned": "PVAE (generative)",
+_REFERENCE_LABELS = {
+    "random_route_score_mean": "Random legal route",
+    "selected_sampled_route_score": "Validation-selected sampled route",
+    "static_reference_score": "Static reference",
+}
+_EFFECT_LABELS = {
+    "adaptive_gain": "Non-myopic - static",
+    "nongreedy_gain": "Non-myopic - DIME",
 }
 
 
 def load_display(path: Path) -> PlottingDisplayConfig:
     raw = OmegaConf.load(path)
     merged = OmegaConf.merge(OmegaConf.structured(PlottingDisplayConfig), raw)
-    cfg = cast("PlottingDisplayConfig", OmegaConf.to_object(merged))
+    config = cast("PlottingDisplayConfig", OmegaConf.to_object(merged))
     try:
-        font_manager.findfont(cfg.plot_font_family, fallback_to_default=False)
+        font_manager.findfont(
+            config.plot_font_family, fallback_to_default=False
+        )
     except ValueError:
-        cfg.plot_font_family = "DejaVu Serif"
-    return cfg
+        config.plot_font_family = "DejaVu Serif"
+    return config
 
 
-def band_frame(df: pd.DataFrame) -> pd.DataFrame:
-    rows = []
-    for _, r in df.iterrows():
-        for key in BAND_ORDER:
-            col = key if key in ("a_rand", "a_best") else f"acc_{key}"
-            if col in r and bool(pd.notna(r[col])):
-                rows.append(
-                    {
-                        "dataset": r["dataset_display"],
-                        "kind": "reference"
-                        if key in ("a_rand", "a_best")
-                        else "achieved",
-                        "route": BAND_LABEL[key],
-                        "accuracy": float(r[col]),
-                    }
-                )
-    frame = pd.DataFrame(rows)
-    frame["route"] = pd.Categorical(
-        frame["route"], [BAND_LABEL[k] for k in BAND_ORDER], ordered=True
+def _mean_se(
+    frame: pd.DataFrame,
+    groups: list[str],
+    value: str,
+) -> pd.DataFrame:
+    output = (
+        frame.groupby(groups, dropna=False)[value]
+        .agg(["mean", "std", "count"])
+        .reset_index()
     )
-    return frame
+    output["se"] = output["std"].fillna(0.0) / np.sqrt(output["count"])
+    return output
+
+
+def reference_frame(routes: pd.DataFrame) -> pd.DataFrame:
+    long = routes.melt(
+        id_vars=["dataset", "instance", "budget"],
+        value_vars=list(_REFERENCE_LABELS),
+        var_name="reference",
+        value_name="score",
+    )
+    long["reference"] = long["reference"].map(
+        lambda value: _REFERENCE_LABELS[str(value)]
+    )
+    return _mean_se(long, ["dataset", "budget", "reference"], "score")
+
+
+def planning_frame(planning: pd.DataFrame) -> pd.DataFrame:
+    long = planning.melt(
+        id_vars=["dataset", "method", "instance", "eval_hard_budget"],
+        value_vars=list(_EFFECT_LABELS),
+        var_name="effect",
+        value_name="gain",
+    )
+    long["effect"] = long["effect"].map(
+        lambda value: _EFFECT_LABELS[str(value)]
+    )
+    return _mean_se(
+        long,
+        ["dataset", "method", "eval_hard_budget", "effect"],
+        "gain",
+    )
+
+
+def restoration_frame(missingness: pd.DataFrame) -> pd.DataFrame:
+    return _mean_se(
+        missingness,
+        ["dataset", "method", "mechanism", "p", "eval_hard_budget"],
+        "restoration_gain",
+    )
 
 
 def save(
     plot: p9.ggplot,
     folder: Path,
     name: str,
-    w: float,
-    h: float,
-    fmts: list[str],
+    width: float,
+    height: float,
+    formats: list[str],
 ) -> None:
     folder.mkdir(parents=True, exist_ok=True)
-    for fmt in fmts:
-        plot.save(folder / f"{name}.{fmt}", width=w, height=h, verbose=False)
+    for file_format in formats:
+        plot.save(
+            folder / f"{name}.{file_format}",
+            width=width,
+            height=height,
+            verbose=False,
+        )
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--input", type=Path, nargs="+", required=True)
-    ap.add_argument("--output-folder", type=Path, required=True)
-    ap.add_argument(
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--routes", type=Path, required=True)
+    parser.add_argument("--planning", type=Path)
+    parser.add_argument("--missingness", type=Path)
+    parser.add_argument("--output-folder", type=Path, required=True)
+    parser.add_argument(
         "--plotting-config",
         type=Path,
         default=Path("extra/conf/scripts/plotting/common/default.yaml"),
     )
-    ap.add_argument("--formats", nargs="+", default=["pdf", "svg"])
-    a = ap.parse_args()
+    parser.add_argument("--formats", nargs="+", default=["pdf", "svg"])
+    arguments = parser.parse_args()
 
-    cfg = load_display(a.plotting_config)
-    df = pd.concat([pd.read_csv(p) for p in a.input], ignore_index=True)
-    df["dataset_display"] = df["dataset"].map(
-        lambda d: cfg.dataset_name_mapping.get(d, d)
-    )
+    config = load_display(arguments.plotting_config)
+    routes = pd.read_csv(arguments.routes)
+    mapping = config.dataset_name_mapping
     theme = p9.theme_bw() + p9.theme(
-        text=p9.element_text(family=cfg.plot_font_family, size=12)
+        text=p9.element_text(family=config.plot_font_family, size=12)
     )
-
-    # band: achieved strategies vs achievable static band, per dataset
-    bframe = band_frame(df)
-    n_datasets = int(df["dataset"].nunique())
-    ncol = min(4, n_datasets)
-    w, h = calculate_figure_dimensions(
-        n_datasets, cfg.plot_width, ncol=ncol, subplot_height=3.0
+    reference = reference_frame(routes)
+    reference["dataset"] = reference["dataset"].map(
+        lambda value: mapping.get(value, value)
     )
-    band = (
-        p9.ggplot(bframe, p9.aes("route", "accuracy", color="kind"))
-        + p9.geom_point(size=3)
-        + p9.facet_wrap("dataset", ncol=ncol)
-        + p9.scale_color_brewer(type="qual", palette=cfg.color_palette_name)
-        + p9.labs(
-            x="",
-            y="Evaluation accuracy",
-            color="",
-            title="Routes the methods take vs the achievable band",
+    n_datasets = int(reference["dataset"].nunique())
+    width, height = calculate_figure_dimensions(
+        n_datasets,
+        config.plot_width,
+        ncol=min(4, n_datasets),
+        subplot_height=2.8,
+    )
+    reference_plot = (
+        p9.ggplot(
+            reference,
+            p9.aes("budget", "mean", color="reference", group="reference"),
         )
+        + p9.geom_line()
+        + p9.geom_point(size=2)
+        + p9.geom_errorbar(p9.aes(ymin="mean-se", ymax="mean+se"), width=0.2)
+        + p9.facet_wrap("dataset", ncol=min(4, n_datasets))
+        + p9.scale_color_brewer(type="qual", palette=config.color_palette_name)
+        + p9.labs(x="Acquisition budget", y="Primary metric", color="")
         + theme
-        + p9.theme(axis_text_x=p9.element_text(rotation=45, ha="right"))
     )
-    save(band, a.output_folder, "route_band", w, max(h, 3.5), a.formats)
+    save(
+        reference_plot,
+        arguments.output_folder,
+        "route_static_reference",
+        width,
+        max(height, 3.2),
+        arguments.formats,
+    )
 
-    # scatter: route structure vs restoration gain (PVAE - restricted), one
-    # point per dataset. planning/"harmful" datasets sit upper-left.
-    for xcol in ("route_corr", "planning_gain"):
-        sub = df.dropna(subset=[xcol, "restoration_gain"])
-        if sub.empty:
-            continue
-        scatter = (
-            p9.ggplot(sub, p9.aes(xcol, "restoration_gain"))
-            + p9.geom_hline(yintercept=0.0, color="#999999", linetype="dashed")
-            + p9.geom_point(p9.aes(color="dataset_display"), size=3)
-            + p9.geom_text(
-                p9.aes(label="dataset_display"), nudge_y=0.004, size=9
+    if arguments.planning is not None:
+        planning = planning_frame(pd.read_csv(arguments.planning))
+        planning["dataset"] = planning["dataset"].map(
+            lambda value: mapping.get(value, value)
+        )
+        planning_plot = (
+            p9.ggplot(planning, p9.aes("method", "mean", color="effect"))
+            + p9.geom_hline(yintercept=0.0, color="#888888", linetype="dashed")
+            + p9.geom_point(position=p9.position_dodge(width=0.35), size=2.5)
+            + p9.geom_errorbar(
+                p9.aes(ymin="mean-se", ymax="mean+se"),
+                position=p9.position_dodge(width=0.35),
+                width=0.2,
             )
+            + p9.facet_wrap("dataset", ncol=min(4, n_datasets))
             + p9.scale_color_brewer(
-                type="qual", palette=cfg.color_palette_name
+                type="qual", palette=config.color_palette_name
+            )
+            + p9.labs(x="", y="Paired primary-metric gain", color="")
+            + theme
+        )
+        save(
+            planning_plot,
+            arguments.output_folder,
+            "route_planning_effects",
+            width,
+            max(height, 3.2),
+            arguments.formats,
+        )
+
+    if arguments.missingness is not None:
+        restoration = restoration_frame(pd.read_csv(arguments.missingness))
+        restoration["dataset"] = restoration["dataset"].map(
+            lambda value: mapping.get(value, value)
+        )
+        restoration["method_mechanism"] = (
+            restoration["method"].astype(str)
+            + "/"
+            + restoration["mechanism"].astype(str)
+        )
+        restoration_plot = (
+            p9.ggplot(
+                restoration,
+                p9.aes(
+                    "p",
+                    "mean",
+                    color="method",
+                    linetype="mechanism",
+                    group="method_mechanism",
+                ),
+            )
+            + p9.geom_hline(yintercept=0.0, color="#888888", linetype="dashed")
+            + p9.geom_line()
+            + p9.geom_point(size=2)
+            + p9.geom_errorbar(
+                p9.aes(ymin="mean-se", ymax="mean+se"), width=0.015
+            )
+            + p9.facet_wrap("dataset", ncol=min(4, n_datasets))
+            + p9.scale_color_brewer(
+                type="qual", palette=config.color_palette_name
             )
             + p9.labs(
-                x=xcol,
-                y="restoration gain (PVAE - restricted)",
-                color="",
+                x="Training missingness rate",
+                y="Primary-metric gain (PVAE - Restricted)",
+                color="Method",
+                linetype="Mechanism",
             )
             + theme
         )
         save(
-            scatter,
-            a.output_folder,
-            f"scatter_{xcol}",
-            cfg.plot_width,
-            4.0,
-            a.formats,
+            restoration_plot,
+            arguments.output_folder,
+            "route_restoration_effects",
+            width,
+            max(height, 3.2),
+            arguments.formats,
         )
-    print(f"wrote figures to {a.output_folder}")
+    print(f"wrote figures to {arguments.output_folder}")
 
 
 if __name__ == "__main__":

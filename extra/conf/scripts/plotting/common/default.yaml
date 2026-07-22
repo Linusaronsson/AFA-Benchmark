@@ -103,6 +103,9 @@ dataset_name_mapping:
   imagenette: Imagenette
 
 datasets_with_f_score:
+  - actg
+  - ckd
+  - diabetes
   - physionet
   - bank_marketing
 
