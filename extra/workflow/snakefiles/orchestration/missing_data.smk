@@ -12,6 +12,8 @@ Required shared config keys:
 
 Missing-data config keys:
     artifact_namespace, missingness, strategies, eval_dataset_split
+    Optional ``classifier_scope`` is ``shared`` for legacy experiments or
+    ``per_instance`` to fit classifiers on each dataset split independently.
     Optional ``strategy_filters`` restricts one strategy by datasets, methods,
     mechanisms, or probabilities without duplicating the experiment workflow.
     Optional ``include_method_variants`` omits missingness-specific controls
@@ -64,6 +66,9 @@ INSTANCES = [int(value) for value in _config["DATASET_INSTANCE_INDICES"]]
 if not INSTANCES:
     raise ValueError("dataset_instance_indices must not be empty")
 CLASSIFIER_INSTANCE = INSTANCES[0]
+CLASSIFIER_SCOPE = str(config.get("classifier_scope", "shared"))
+if CLASSIFIER_SCOPE not in {"shared", "per_instance"}:
+    raise ValueError("classifier_scope must be 'shared' or 'per_instance'")
 
 UNSUPPORTED_DATASETS = set(
     str(value)
@@ -207,15 +212,43 @@ def classifier_script_params(dataset):
     return " ".join([*[str(value) for value in configured], runtime]).strip()
 
 
-def classifier_path(dataset, method=None):
+def classifier_instance(wildcards):
+    if CLASSIFIER_SCOPE == "per_instance":
+        return int(wildcards.instance)
+    return CLASSIFIER_INSTANCE
+
+
+def classifier_path(dataset, instance, method=None):
+    instance_suffix = (
+        f"/instance-{instance}.bundle"
+        if CLASSIFIER_SCOPE == "per_instance"
+        else ".bundle"
+    )
     if method is not None:
         base_method = METHOD_SPECS[method].base_method
         if base_method in METHOD_CLASSIFIER_SCRIPT_NAMES:
             return (
                 f"{ROOT}/classifier/{NAMESPACE}/"
-                f"method-{base_method}+dataset-{dataset}.bundle"
+                f"method-{base_method}+dataset-{dataset}{instance_suffix}"
             )
-    return f"{ROOT}/classifier/{NAMESPACE}/dataset-{dataset}.bundle"
+    return (
+        f"{ROOT}/classifier/{NAMESPACE}/dataset-{dataset}{instance_suffix}"
+    )
+
+
+CLASSIFIER_OUTPUT = (
+    f"{ROOT}/classifier/{NAMESPACE}/dataset-{{dataset}}/"
+    "instance-{instance}.bundle"
+    if CLASSIFIER_SCOPE == "per_instance"
+    else f"{ROOT}/classifier/{NAMESPACE}/dataset-{{dataset}}.bundle"
+)
+METHOD_CLASSIFIER_OUTPUT = (
+    f"{ROOT}/classifier/{NAMESPACE}/"
+    "method-{base_method}+dataset-{dataset}/instance-{instance}.bundle"
+    if CLASSIFIER_SCOPE == "per_instance"
+    else f"{ROOT}/classifier/{NAMESPACE}/"
+    "method-{base_method}+dataset-{dataset}.bundle"
+)
 
 
 def raw_dataset(dataset, instance, split):
@@ -488,14 +521,15 @@ rule generate_missing_data_dataset:
 rule train_missing_data_shared_classifier:
     input:
         train=lambda wc: raw_dataset(
-            wc.dataset, CLASSIFIER_INSTANCE, "train"
+            wc.dataset, classifier_instance(wc), "train"
         ),
-        val=lambda wc: raw_dataset(wc.dataset, CLASSIFIER_INSTANCE, "val"),
+        val=lambda wc: raw_dataset(
+            wc.dataset, classifier_instance(wc), "val"
+        ),
     output:
-        directory(
-            f"{ROOT}/classifier/{NAMESPACE}/dataset-{{dataset}}.bundle"
-        ),
+        directory(CLASSIFIER_OUTPUT),
     params:
+        instance=classifier_instance,
         script=lambda wc: classifier_script_name(wc.dataset),
         unmasker=lambda wc: UNMASKERS[wc.dataset],
         device=lambda wc: dataset_device(wc.dataset),
@@ -506,7 +540,7 @@ rule train_missing_data_shared_classifier:
             train_dataset_path={input.train} val_dataset_path={input.val} \
             save_path={output} components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={params.device} seed={CLASSIFIER_INSTANCE} \
+            device={params.device} seed={params.instance} \
             use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
             experiment@_global_={wildcards.dataset} {params.extra}
         """
@@ -515,15 +549,15 @@ rule train_missing_data_shared_classifier:
 rule train_missing_data_method_classifier:
     input:
         train=lambda wc: raw_dataset(
-            wc.dataset, CLASSIFIER_INSTANCE, "train"
+            wc.dataset, classifier_instance(wc), "train"
         ),
-        val=lambda wc: raw_dataset(wc.dataset, CLASSIFIER_INSTANCE, "val"),
+        val=lambda wc: raw_dataset(
+            wc.dataset, classifier_instance(wc), "val"
+        ),
     output:
-        directory(
-            f"{ROOT}/classifier/{NAMESPACE}/"
-            "method-{base_method}+dataset-{dataset}.bundle"
-        ),
+        directory(METHOD_CLASSIFIER_OUTPUT),
     params:
+        instance=classifier_instance,
         script=lambda wc: METHOD_CLASSIFIER_SCRIPT_NAMES[wc.base_method],
         unmasker=lambda wc: UNMASKERS[wc.dataset],
         device=lambda wc: resolve_device(
@@ -539,7 +573,7 @@ rule train_missing_data_method_classifier:
             train_dataset_path={input.train} val_dataset_path={input.val} \
             save_path={output} components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={params.device} seed={CLASSIFIER_INSTANCE} \
+            device={params.device} seed={params.instance} \
             use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
             experiment@_global_={wildcards.dataset} {params.extra}
         """
@@ -586,7 +620,7 @@ rule pretrain_incomplete_restoration_pvae:
         val=lambda wc: base_view(
             wc.dataset, wc.mechanism, wc.p, wc.instance, "restricted", "val"
         ),
-        classifier=lambda wc: classifier_path(wc.dataset),
+        classifier=lambda wc: classifier_path(wc.dataset, wc.instance),
     output:
         directory(
             f"{ROOT}/restoration_pvae/{NAMESPACE}/incomplete/"
@@ -618,7 +652,7 @@ rule pretrain_oracle_restoration_pvae:
     input:
         train=lambda wc: raw_dataset(wc.dataset, wc.instance, "train"),
         val=lambda wc: raw_dataset(wc.dataset, wc.instance, "val"),
-        classifier=lambda wc: classifier_path(wc.dataset),
+        classifier=lambda wc: classifier_path(wc.dataset, wc.instance),
     output:
         directory(
             f"{ROOT}/restoration_pvae/{NAMESPACE}/oracle/"
@@ -721,7 +755,7 @@ rule pretrain_missing_data_method:
     input:
         train=lambda wc: training_view(wc, "train"),
         val=lambda wc: training_view(wc, "val"),
-        classifier=lambda wc: classifier_path(wc.dataset),
+        classifier=lambda wc: classifier_path(wc.dataset, wc.instance),
     output:
         directory(
             f"{ROOT}/pretrained/{NAMESPACE}/{{pretrain_key}}/"
@@ -791,7 +825,7 @@ rule train_missing_data_method_with_pretraining:
         val=lambda wc: training_view(wc, "val"),
         pretrained=method_pretrain,
         stepwise_pvae=stepwise_pvae_input,
-        classifier=lambda wc: classifier_path(wc.dataset),
+        classifier=lambda wc: classifier_path(wc.dataset, wc.instance),
     output:
         directory(
             f"{ROOT}/trained/{NAMESPACE}/{{method}}/dataset-{{dataset}}/"
@@ -825,7 +859,9 @@ rule train_missing_data_method_without_pretraining:
     input:
         train=lambda wc: training_view(wc, "train"),
         val=lambda wc: training_view(wc, "val"),
-        classifier=lambda wc: classifier_path(wc.dataset, wc.method),
+        classifier=lambda wc: classifier_path(
+            wc.dataset, wc.instance, wc.method
+        ),
         stepwise_pvae=stepwise_pvae_input,
     output:
         directory(
@@ -871,7 +907,9 @@ rule eval_missing_data_method:
     input:
         dataset=lambda wc: raw_dataset(wc.dataset, wc.instance, EVAL_SPLIT),
         method=trained_method_input,
-        classifier=lambda wc: classifier_path(wc.dataset, wc.method),
+        classifier=lambda wc: classifier_path(
+            wc.dataset, wc.instance, wc.method
+        ),
     output:
         f"{ROOT}/eval/{EVAL_SPLIT}/{NAMESPACE}/dataset-{{dataset}}/"
         "method-{method}+mechanism-{mechanism}+p-{p}+"
