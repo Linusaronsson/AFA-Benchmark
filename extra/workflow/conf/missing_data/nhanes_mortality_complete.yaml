@@ -1,0 +1,25 @@
+# Stage one: establish non-myopic value before spending on restoration.
+artifact_namespace: nhanes_mortality_v1
+classifier_scope: per_instance
+device: cuda
+smoke_test: false
+eval_dataset_split: val
+dataset_instance_indices: [0, 1, 2, 3, 4]
+datasets: [nhanes_mortality]
+include_method_variants: false
+
+dataset_generation_params:
+  nhanes_mortality:
+    - fixed_test_seed=100
+    - stratify=true
+
+eval_batch_size: 128
+include_complete_data: true
+missingness:
+  mechanisms: []
+  probabilities: []
+strategies: []
+methods: [aaco, dime, ol_without_mask, random_dummy]
+
+eval_params:
+  - eval_only_n_samples=4096

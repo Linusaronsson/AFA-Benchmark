@@ -1,0 +1,31 @@
+# Stage two: run only after the complete-data planning gate passes.
+artifact_namespace: nhanes_mortality_v1
+classifier_scope: per_instance
+device: cuda
+smoke_test: false
+eval_dataset_split: val
+dataset_instance_indices: [0, 1, 2, 3, 4]
+datasets: [nhanes_mortality]
+
+dataset_generation_params:
+  nhanes_mortality:
+    - fixed_test_seed=100
+    - stratify=true
+
+eval_batch_size: 128
+restoration_batch_size: 1024
+include_complete_data: true
+missingness:
+  mechanisms: [mcar, mar, mnar_logistic, mnar_self]
+  probabilities: [0.3, 0.5, 0.7]
+strategies:
+  - restricted
+  - mean_fill
+  - pvae_label_conditioned
+  - pvae_label_free
+  - pvae_oracle
+  - true_completion
+methods: [aaco, dime, ol_without_mask, random_dummy]
+
+eval_params:
+  - eval_only_n_samples=4096

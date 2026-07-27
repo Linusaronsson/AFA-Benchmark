@@ -1,0 +1,31 @@
+artifact_namespace: core_group_missingness_smoke
+classifier_scope: per_instance
+run_confirmatory_analysis: true
+device: cpu
+smoke_test: true
+eval_dataset_split: val
+dataset_instance_indices: [0]
+datasets: [cube, cube_nm]
+include_method_variants: false
+
+dataset_generation_params:
+  cube:
+    - dataset.kwargs.n_samples=256
+  cube_nm:
+    - dataset.kwargs.n_samples=256
+
+eval_batch_size: 64
+restoration_batch_size: 128
+include_complete_data: true
+missingness:
+  mechanisms: [mcar]
+  probabilities: [0.7]
+strategies:
+  - restricted
+  - pvae_label_conditioned
+  - pvae_oracle
+  - true_completion
+methods: [aaco, dime, ol_without_mask]
+
+eval_params:
+  - eval_only_n_samples=128

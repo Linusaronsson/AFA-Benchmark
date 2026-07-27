@@ -1,0 +1,24 @@
+artifact_namespace: nhanes_mortality_smoke
+classifier_scope: per_instance
+device: cpu
+smoke_test: true
+eval_dataset_split: val
+dataset_instance_indices: [0]
+datasets: [nhanes_mortality]
+include_method_variants: false
+
+dataset_generation_params:
+  nhanes_mortality:
+    - fixed_test_seed=100
+    - stratify=true
+
+eval_batch_size: 64
+include_complete_data: true
+missingness:
+  mechanisms: []
+  probabilities: []
+strategies: []
+methods: [aaco, dime, ol_without_mask]
+
+eval_params:
+  - eval_only_n_samples=128
