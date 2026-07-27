@@ -17,3 +17,5 @@ split_ratio:
   train: 0.6
   val: 0.2
   test: 0.2
+fixed_test_seed: null
+stratify: false

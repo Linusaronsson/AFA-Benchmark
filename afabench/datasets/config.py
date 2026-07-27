@@ -26,6 +26,8 @@ class DatasetGenerationConfig:
     seeds: list[int]
     split_ratio: SplitRatioConfig
     dataset: DatasetConfig
+    fixed_test_seed: int | None = None
+    stratify: bool = False
 
 
 cs.store(name="dataset_generation", node=DatasetGenerationConfig)

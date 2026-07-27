@@ -7,7 +7,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import hydra
+import numpy as np
 from omegaconf import OmegaConf
+from sklearn.model_selection import train_test_split
 
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.registry import get_class
@@ -24,6 +26,9 @@ def generate_and_save_split(
     save_path: Path,
     dataset_kwargs: dict[str, Any],
     metadata_to_save: dict[str, Any],
+    *,
+    fixed_test_seed: int | None = None,
+    stratify: bool = False,
 ) -> None:
     """
     Generate and save a single train/val/test split.
@@ -39,22 +44,52 @@ def generate_and_save_split(
     # Generate full dataset
     dataset = dataset_class(**dataset_kwargs)
 
-    # Split into train/val/test
     total_size = len(dataset)
-    train_size = int(split_ratio.train * total_size)
-    val_size = int(split_ratio.val * total_size)
-
-    all_indices = list(range(total_size))
-    rnd = random.Random(seed_for_split)
-    rnd.shuffle(all_indices)
-
-    train_indices = all_indices[:train_size]
-    val_indices = all_indices[train_size : train_size + val_size]
-    test_indices = all_indices[train_size + val_size :]
-
-    train_dataset = dataset.create_subset(train_indices)
-    val_dataset = dataset.create_subset(val_indices)
-    test_dataset = dataset.create_subset(test_indices)
+    all_indices = np.arange(total_size)
+    labels = None
+    if stratify:
+        _, encoded_labels = dataset.get_all_data()
+        labels_array = encoded_labels.detach().cpu().numpy()
+        labels = (
+            labels_array.argmax(axis=1)
+            if labels_array.ndim > 1
+            else labels_array
+        )
+    if fixed_test_seed is None and not stratify:
+        shuffled = all_indices.tolist()
+        random.Random(seed_for_split).shuffle(shuffled)
+        train_size = int(split_ratio.train * total_size)
+        val_size = int(split_ratio.val * total_size)
+        train_indices = shuffled[:train_size]
+        val_indices = shuffled[train_size : train_size + val_size]
+        test_indices = shuffled[train_size + val_size :]
+    else:
+        test_seed = (
+            fixed_test_seed if fixed_test_seed is not None else seed_for_split
+        )
+        train_val_indices, test_indices = train_test_split(
+            all_indices,
+            test_size=split_ratio.test,
+            random_state=test_seed,
+            stratify=labels,
+        )
+        train_val_labels = (
+            None if labels is None else labels[train_val_indices]
+        )
+        relative_val_size = split_ratio.val / (
+            split_ratio.train + split_ratio.val
+        )
+        train_indices, val_indices = train_test_split(
+            train_val_indices,
+            test_size=relative_val_size,
+            random_state=seed_for_split,
+            stratify=train_val_labels,
+        )
+    train_dataset, val_dataset, test_dataset = dataset.create_splits(
+        train_indices,
+        val_indices,
+        test_indices,
+    )
 
     # Save splits
     save_path.mkdir(parents=True, exist_ok=True)
@@ -73,6 +108,8 @@ def generate_and_save_split(
             metadata=metadata_to_save
             | {
                 "seed_for_split": seed_for_split,
+                "fixed_test_seed": fixed_test_seed,
+                "stratified": stratify,
                 "generated_at": datetime.now(UTC).isoformat(),
                 "kwargs": dataset_kwargs,
             },
@@ -119,6 +156,8 @@ def main(cfg: DatasetGenerationConfig) -> None:
             metadata_to_save={
                 "instance_idx": instance_idx,
             },
+            fixed_test_seed=cfg.fixed_test_seed,
+            stratify=cfg.stratify,
         )
     log.info(
         f"Generated {len(cfg.instance_indices)} dataset instances to {
