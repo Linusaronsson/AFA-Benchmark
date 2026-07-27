@@ -1,0 +1,41 @@
+# Complete-data planning diagnostic on every real dataset in the study.
+#
+# This measures whether a non-myopic method beats a validation-selected static
+# route at all, before any restoration compute is spent. Every dataset shares
+# one stratified test cohort fixed with seed 100 while each of the five splits
+# fits its own preprocessing and its own classifier, so no instance can score
+# on people its classifier trained on.
+#
+# NHANES Mortality is repeated here from `nhanes_mortality_v1` on purpose. That
+# namespace stays untouched as a reference, so the two runs also serve as a
+# determinism check on identical seeds and device.
+artifact_namespace: real_planning_v1
+classifier_scope: per_instance
+device: cuda
+smoke_test: false
+eval_dataset_split: val
+dataset_instance_indices: [0, 1, 2, 3, 4]
+datasets: [nhanes_mortality, actg, diabetes]
+include_method_variants: false
+
+dataset_generation_params:
+  nhanes_mortality:
+    - fixed_test_seed=100
+    - stratify=true
+  actg:
+    - fixed_test_seed=100
+    - stratify=true
+  diabetes:
+    - fixed_test_seed=100
+    - stratify=true
+
+eval_batch_size: 128
+include_complete_data: true
+missingness:
+  mechanisms: []
+  probabilities: []
+strategies: []
+methods: [aaco, dime, ol_without_mask, random_dummy]
+
+eval_params:
+  - eval_only_n_samples=4096
