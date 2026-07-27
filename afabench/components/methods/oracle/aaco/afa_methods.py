@@ -423,6 +423,11 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
                 if self.aaco_oracle.train_observed_mask is not None
                 else None
             ),
+            "observation_group_ids": (
+                self.aaco_oracle.observation_group_ids.cpu()
+                if self.aaco_oracle.observation_group_ids is not None
+                else None
+            ),
             "stepwise_pvae_bundle_path": (
                 str(self.stepwise_pvae_bundle_path)
                 if self.stepwise_pvae_bundle_path is not None
@@ -472,6 +477,9 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
                 oracle_state["X_train"].to(device),
                 oracle_state["y_train"].to(device),
                 observed_mask=oracle_state["train_observed_mask"],
+                observation_group_ids=oracle_state.get(
+                    "observation_group_ids"
+                ),
             )
 
         # Get classifier path from saved state

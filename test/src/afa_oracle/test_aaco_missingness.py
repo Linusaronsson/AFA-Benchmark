@@ -76,6 +76,25 @@ def test_doubly_robust_loss_corrects_supported_neighbors() -> None:
     assert torch.allclose(loss, expected.reshape(1, 1))
 
 
+def test_grouped_support_propensity_counts_atomic_group_once() -> None:
+    features = torch.zeros((2, 3))
+    labels = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
+    availability = torch.tensor([[False, False, True], [True, True, True]])
+    oracle = AACOOracle(missingness_objective="doubly_robust")
+    oracle.fit(
+        features,
+        labels,
+        observed_mask=availability,
+        observation_group_ids=torch.tensor([0, 0, 1]),
+    )
+
+    propensity = oracle._candidate_support_propensities(  # noqa: SLF001
+        torch.tensor([[[True, True, False]]])
+    )
+
+    assert torch.allclose(propensity, torch.tensor([[0.5]]))
+
+
 def test_stepwise_aaco_restores_unsupported_candidate_values() -> None:
     calls: list[tuple[torch.Tensor, torch.Tensor]] = []
 

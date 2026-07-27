@@ -138,6 +138,7 @@ def run(cfg: AACOTrainConfig) -> None:
         X_train,
         y_train,
         observed_mask=train_observed_mask,
+        observation_group_ids=dataset.get_missingness_group_ids(),
     )
     logger.info(
         "AACO oracle fitted with classifier from %s",

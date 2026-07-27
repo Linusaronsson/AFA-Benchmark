@@ -141,15 +141,12 @@ def _feature_marginal_selection_propensities(
     feature_availability: torch.Tensor,
     unmasker: AFAUnmasker,
 ) -> torch.Tensor:
-    marginal = feature_availability.float().flatten(start_dim=1).mean(dim=0)
-    if isinstance(unmasker, CubeNMUnmasker):
-        return torch.cat(
-            [
-                marginal[: unmasker.n_contexts].prod().unsqueeze(0),
-                marginal[unmasker.n_contexts :],
-            ]
+    selection_availability = (
+        unmasker.feature_availability_to_selection_availability(
+            feature_availability.bool()
         )
-    return marginal
+    )
+    return selection_availability.float().mean(dim=0)
 
 
 def _training_selection_propensities(

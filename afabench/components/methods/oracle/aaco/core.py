@@ -209,6 +209,7 @@ class AACOOracle:
         self.X_train: torch.Tensor | None = None
         self.y_train: torch.Tensor | None = None
         self.train_observed_mask: torch.Tensor | None = None
+        self.observation_group_ids: torch.Tensor | None = None
         self.marginal_observation_probabilities: torch.Tensor | None = None
         self.device: torch.device = device or torch.device("cpu")
         self.class_weights: torch.Tensor | None = None
@@ -219,6 +220,7 @@ class AACOOracle:
         X_train: torch.Tensor,  # noqa: N803
         y_train: torch.Tensor,
         observed_mask: torch.Tensor | None = None,
+        observation_group_ids: torch.Tensor | None = None,
     ) -> None:
         """
         Fit the oracle on training data.
@@ -231,6 +233,7 @@ class AACOOracle:
         self.y_train = y_train.to(self.device)
         if observed_mask is None:
             self.train_observed_mask = None
+            self.observation_group_ids = None
             self.marginal_observation_probabilities = None
         else:
             observed_mask = observed_mask.to(self.device).bool()
@@ -240,11 +243,38 @@ class AACOOracle:
             self.train_observed_mask = (
                 None if observed_mask.all() else observed_mask
             )
-            self.marginal_observation_probabilities = (
-                None
-                if self.train_observed_mask is None
-                else self.train_observed_mask.float().mean(dim=0)
-            )
+            if self.train_observed_mask is None:
+                self.observation_group_ids = None
+                self.marginal_observation_probabilities = None
+            else:
+                group_ids = (
+                    torch.arange(self.X_train.shape[1], device=self.device)
+                    if observation_group_ids is None
+                    else observation_group_ids.to(self.device).flatten()
+                )
+                if len(group_ids) != self.X_train.shape[1]:
+                    msg = "observation_group_ids must match the feature count."
+                    raise ValueError(msg)
+                _, group_ids = torch.unique(
+                    group_ids.long(),
+                    sorted=True,
+                    return_inverse=True,
+                )
+                self.observation_group_ids = group_ids
+                group_observed = torch.stack(
+                    [
+                        self.train_observed_mask[:, group_ids == group].all(
+                            dim=1
+                        )
+                        for group in range(int(group_ids.max().item()) + 1)
+                    ],
+                    dim=1,
+                )
+                group_marginal = group_observed.float().mean(dim=0)
+                group_sizes = torch.bincount(group_ids)
+                self.marginal_observation_probabilities = group_marginal[
+                    group_ids
+                ].pow(1 / group_sizes[group_ids])
 
         train_class_probabilities = get_class_frequencies(self.y_train)
         self.class_weights = len(train_class_probabilities) / (
@@ -278,6 +308,8 @@ class AACOOracle:
             self.class_weights = self.class_weights.to(device)
         if self.train_observed_mask is not None:
             self.train_observed_mask = self.train_observed_mask.to(device)
+        if self.observation_group_ids is not None:
+            self.observation_group_ids = self.observation_group_ids.to(device)
         if self.marginal_observation_probabilities is not None:
             self.marginal_observation_probabilities = (
                 self.marginal_observation_probabilities.to(device)
