@@ -13,4 +13,5 @@ eval_hard_budgets:
   fashion_mnist: [10, 20, 30]
   imagenette: [5, 10, 15]
   miniboone: [5, 10, 15] # 40 features
+  nhanes_mortality: [5, 10] # 27 clinical acquisition groups
   physionet: [5, 10, 15] # 40 features

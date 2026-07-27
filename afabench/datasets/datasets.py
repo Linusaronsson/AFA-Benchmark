@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import ClassVar, Self, cast, final, override
 from urllib.parse import urlparse
 
+import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
@@ -919,6 +920,212 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.features = data["features"]
         obj.labels = data["labels"]
         obj.feature_names = data["feature_names"]
+        return obj
+
+
+@final
+class NHANESMortalityDataset(
+    Dataset[tuple[Tensor, Tensor]],
+    AFADataset,
+):
+    """CoAI's processed NHANES ten-year mortality cohort."""
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size([118])
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([2])
+
+    @classmethod
+    @override
+    def accepts_seed(cls) -> bool:
+        return False
+
+    def __init__(
+        self,
+        features_path: str,
+        labels_path: str,
+        schema_path: str,
+    ) -> None:
+        super().__init__()
+        self.features_path = features_path
+        self.labels_path = labels_path
+        self.schema_path = schema_path
+        for path in (features_path, labels_path, schema_path):
+            if not Path(path).exists():
+                msg = f"NHANES Mortality source file not found: {path}"
+                raise FileNotFoundError(msg)
+
+        frame = pd.read_csv(features_path)
+        if "Unnamed: 0" not in frame:
+            msg = "NHANES source CSV is missing its auditable row identifier."
+            raise ValueError(msg)
+        self.source_row_ids = torch.tensor(
+            frame.pop("Unnamed: 0").to_numpy(),
+            dtype=torch.long,
+        )
+        if self.source_row_ids.unique().numel() != len(frame):
+            msg = "NHANES source row identifiers must be unique."
+            raise ValueError(msg)
+
+        schema = pd.read_csv(schema_path).sort_values("feature_index")
+        if schema["feature_index"].tolist() != list(range(len(schema))):
+            msg = "NHANES schema feature indices must be contiguous."
+            raise ValueError(msg)
+        self.feature_names = frame.columns.tolist()
+        if schema["feature_name"].tolist() != self.feature_names:
+            msg = "NHANES schema does not match the source feature order."
+            raise ValueError(msg)
+        if len(frame.columns) != self.feature_shape.numel():
+            msg = (
+                f"Expected {self.feature_shape.numel()} NHANES features, "
+                f"got {len(frame.columns)}."
+            )
+            raise ValueError(msg)
+
+        labels = np.load(labels_path, allow_pickle=False)
+        if len(labels) != len(frame):
+            msg = "NHANES features and labels have different row counts."
+            raise ValueError(msg)
+        self.features = torch.tensor(
+            frame.to_numpy(dtype=np.float64),
+            dtype=torch.float64,
+        )
+        self.labels = torch.nn.functional.one_hot(
+            torch.tensor(labels, dtype=torch.long),
+            num_classes=self.label_shape[0],
+        ).float()
+        self.source_value_observed = ~torch.isnan(self.features)
+        self.group_ids = torch.tensor(
+            schema["group_id"].to_numpy(),
+            dtype=torch.long,
+        )
+        self.feature_costs = torch.tensor(
+            schema["feature_cost"].to_numpy(),
+            dtype=torch.float32,
+        )
+        self.preprocessing_mean: torch.Tensor | None = None
+        self.preprocessing_std: torch.Tensor | None = None
+        self.is_preprocessed = False
+
+    def _processed_subset(
+        self,
+        indices: Sequence[int],
+        normalized: torch.Tensor,
+        means: torch.Tensor,
+        stds: torch.Tensor,
+    ) -> Self:
+        index = torch.as_tensor(indices, dtype=torch.long)
+        subset = copy.copy(self)
+        subset.features = normalized[index].float().clone()
+        subset.labels = self.labels[index].clone()
+        subset.source_row_ids = self.source_row_ids[index].clone()
+        subset.source_value_observed = self.source_value_observed[
+            index
+        ].clone()
+        subset.preprocessing_mean = means.float().clone()
+        subset.preprocessing_std = stds.float().clone()
+        subset.is_preprocessed = True
+        return subset
+
+    @override
+    def create_splits(
+        self,
+        train_indices: Sequence[int],
+        val_indices: Sequence[int],
+        test_indices: Sequence[int],
+    ) -> tuple[Self, Self, Self]:
+        train_index = torch.as_tensor(train_indices, dtype=torch.long)
+        train_raw = self.features[train_index]
+        means = torch.nanmean(train_raw, dim=0)
+        if torch.isnan(means).any():
+            bad = torch.isnan(means).nonzero(as_tuple=True)[0].tolist()
+            msg = f"NHANES training split has all-missing columns: {bad}"
+            raise ValueError(msg)
+        imputed = torch.where(torch.isnan(self.features), means, self.features)
+        stds = imputed[train_index].std(dim=0, unbiased=False)
+        stds = torch.where(stds > 0, stds, torch.ones_like(stds))
+        normalized = (imputed - means) / stds
+        if not torch.isfinite(normalized).all():
+            msg = "NHANES preprocessing produced non-finite values."
+            raise ValueError(msg)
+        return (
+            self._processed_subset(train_indices, normalized, means, stds),
+            self._processed_subset(val_indices, normalized, means, stds),
+            self._processed_subset(test_indices, normalized, means, stds),
+        )
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        if not self.is_preprocessed:
+            msg = "Use create_splits so preprocessing is fitted on train only."
+            raise RuntimeError(msg)
+        index = torch.as_tensor(indices, dtype=torch.long)
+        subset = copy.copy(self)
+        subset.features = self.features[index].clone()
+        subset.labels = self.labels[index].clone()
+        subset.source_row_ids = self.source_row_ids[index].clone()
+        subset.source_value_observed = self.source_value_observed[
+            index
+        ].clone()
+        return subset
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
+        return self.features[idx], self.labels[idx]
+
+    @override
+    def __len__(self) -> int:
+        return len(self.features)
+
+    @override
+    def get_all_data(self) -> tuple[Tensor, Tensor]:
+        return self.features, self.labels
+
+    @override
+    def get_missingness_group_ids(self) -> torch.Tensor:
+        return self.group_ids.clone()
+
+    @override
+    def get_feature_acquisition_costs(self) -> torch.Tensor:
+        assert self.feature_costs is not None
+        return self.feature_costs.clone()
+
+    @override
+    def save(self, path: Path) -> None:
+        if not self.is_preprocessed:
+            msg = "Refusing to save NHANES before train-fitted preprocessing."
+            raise RuntimeError(msg)
+        torch.save(
+            {
+                "features": self.features,
+                "labels": self.labels,
+                "source_row_ids": self.source_row_ids,
+                "source_value_observed": self.source_value_observed,
+                "group_ids": self.group_ids,
+                "feature_costs": self.get_feature_acquisition_costs(),
+                "feature_names": self.feature_names,
+                "preprocessing_mean": self.preprocessing_mean,
+                "preprocessing_std": self.preprocessing_std,
+                "features_path": self.features_path,
+                "labels_path": self.labels_path,
+                "schema_path": self.schema_path,
+                "is_preprocessed": True,
+            },
+            path / "dataset.pt",
+        )
+
+    @classmethod
+    @override
+    def load(cls, path: Path) -> Self:
+        data = torch.load(path / "dataset.pt", weights_only=False)
+        obj = cls.__new__(cls)
+        for key, value in data.items():
+            setattr(obj, key, value)
         return obj
 
 

@@ -39,6 +39,7 @@ REGISTERED_CLASSES = {
     "CKDDataset": "afabench.datasets.datasets.CKDDataset",
     "HeartDiseaseDataset": "afabench.datasets.datasets.HeartDiseaseDataset",
     "ACTG175Dataset": "afabench.datasets.datasets.ACTG175Dataset",
+    "NHANESMortalityDataset": "afabench.datasets.datasets.NHANESMortalityDataset",
     "ImagenetteDataset": "afabench.datasets.datasets.ImagenetteDataset",
     "TrainingDatasetView": "afabench.datasets.training_views.TrainingDatasetView",
     # AFA Classifier Classes

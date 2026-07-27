@@ -9,6 +9,7 @@ DATASET_KEY_ALIASES: dict[str, str] = {
     "ImagenetteDataset": "imagenette",
     "MiniBooNEDataset": "miniboone",
     "MNISTDataset": "mnist",
+    "NHANESMortalityDataset": "nhanes_mortality",
     "PhysionetDataset": "physionet",
     "SyntheticMNISTDataset": "synthetic_mnist",
 }

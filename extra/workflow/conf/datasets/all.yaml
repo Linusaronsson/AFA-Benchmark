@@ -10,6 +10,7 @@ datasets:
   - diabetes
   - heart_disease
   - miniboone
+  - nhanes_mortality
   - physionet
   - synthetic_mnist
   - synthetic_mnist_without_noise

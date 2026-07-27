@@ -11,6 +11,7 @@ from .datasets import (
     ImagenetteDataset,
     MiniBooNEDataset,
     MNISTDataset,
+    NHANESMortalityDataset,
     PhysionetDataset,
     SyntheticMNISTDataset,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "ImagenetteDataset",
     "MNISTDataset",
     "MiniBooNEDataset",
+    "NHANESMortalityDataset",
     "PhysionetDataset",
     "SyntheticMNISTDataset",
     "TrainingDatasetView",

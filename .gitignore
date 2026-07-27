@@ -188,7 +188,12 @@ cython_debug/
 /extra/output
 
 # Data
-/extra/data
+/extra/data/*
+
+# Vendored provenance stays reviewable, minus the bulk source tables, so
+# `build_nhanes_schema.py` is verifiable with `git diff --exit-code`.
+!/extra/data/nhanes_mortality/
+/extra/data/nhanes_mortality/source/*_nhanes_binary.*
 
 # Temporary folder for storing intermediate files
 /tmp

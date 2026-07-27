@@ -1,0 +1,5 @@
+class_name: "NHANESMortalityDataset"
+kwargs:
+  features_path: "extra/data/nhanes_mortality/source/X_nhanes_binary.csv"
+  labels_path: "extra/data/nhanes_mortality/source/y_nhanes_binary.npy"
+  schema_path: "extra/data/nhanes_mortality/schema.csv"

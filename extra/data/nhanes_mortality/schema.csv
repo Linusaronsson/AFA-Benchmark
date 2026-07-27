@@ -1,0 +1,119 @@
+feature_index,feature_name,source_feature,group_id,group_name,source_cost,group_cost,feature_cost
+0,sex_isFemale,sex,17,Sex,0,0.001,0.001
+1,age,age,1,Age,0,0.001,0.001
+2,physical_activity,physical_activity,9,Physical Activity,0,0.001,0.0005
+3,physical_activity_isBlank,physical_activity,9,Physical Activity,0,0.001,0.0005
+4,serum_albumin,serum_albumin,15,Serum Albumin,5.5,5.501,2.7505
+5,serum_albumin_isBlank,serum_albumin,15,Serum Albumin,5.5,5.501,2.7505
+6,alkaline_phosphatase,alkaline_phosphatase,2,Alkaline Phosphatase,9.56,9.561,1.9122
+7,alkaline_phosphatase_isUnacceptable,alkaline_phosphatase,2,Alkaline Phosphatase,9.56,9.561,1.9122
+8,alkaline_phosphatase_isBlankbutapplicable,alkaline_phosphatase,2,Alkaline Phosphatase,9.56,9.561,1.9122
+9,alkaline_phosphatase_isTestnotdone,alkaline_phosphatase,2,Alkaline Phosphatase,9.56,9.561,1.9122
+10,alkaline_phosphatase_isBlank,alkaline_phosphatase,2,Alkaline Phosphatase,9.56,9.561,1.9122
+11,SGOT,sgot,26,SGOT,4.83029411765,4.83129411765,0.966258823529
+12,SGOT_isUnacceptable,sgot,26,SGOT,4.83029411765,4.83129411765,0.966258823529
+13,SGOT_isBlankbutapplicable,sgot,26,SGOT,4.83029411765,4.83129411765,0.966258823529
+14,SGOT_isTestnotdone,sgot,26,SGOT,4.83029411765,4.83129411765,0.966258823529
+15,SGOT_isBlank,sgot,26,SGOT,4.83029411765,4.83129411765,0.966258823529
+16,BUN,bun,0,BUN,4.39,4.391,1.09775
+17,BUN_isUnacceptable,bun,0,BUN,4.39,4.391,1.09775
+18,BUN_isTestnotdone,bun,0,BUN,4.39,4.391,1.09775
+19,BUN_isBlank,bun,0,BUN,4.39,4.391,1.09775
+20,calcium,calcium,4,Calcium,5.73,5.731,1.1462
+21,calcium_isUnacceptable,calcium,4,Calcium,5.73,5.731,1.1462
+22,calcium_isBlankbutapplicable,calcium,4,Calcium,5.73,5.731,1.1462
+23,calcium_isTestnotdone,calcium,4,Calcium,5.73,5.731,1.1462
+24,calcium_isBlank,calcium,4,Calcium,5.73,5.731,1.1462
+25,creatinine,creatinine,6,Creatinine,5.69,5.691,1.42275
+26,creatinine_isUnacceptable,creatinine,6,Creatinine,5.69,5.691,1.42275
+27,creatinine_isTestnotdone,creatinine,6,Creatinine,5.69,5.691,1.42275
+28,creatinine_isBlank,creatinine,6,Creatinine,5.69,5.691,1.42275
+29,potassium,potassium,11,Potassium,5.11,5.111,1.70366666667
+30,potassium_isUnacceptable,potassium,11,Potassium,5.11,5.111,1.70366666667
+31,potassium_isBlank,potassium,11,Potassium,5.11,5.111,1.70366666667
+32,sodium,sodium,18,Sodium,5.35,5.351,1.78366666667
+33,sodium_isUnacceptable,sodium,18,Sodium,5.35,5.351,1.78366666667
+34,sodium_isBlank,sodium,18,Sodium,5.35,5.351,1.78366666667
+35,total_bilirubin,total_bilirubin,20,Total Bilirubin,5.57,5.571,1.1142
+36,total_bilirubin_isUnacceptable,total_bilirubin,20,Total Bilirubin,5.57,5.571,1.1142
+37,total_bilirubin_isBlankbutapplicable,total_bilirubin,20,Total Bilirubin,5.57,5.571,1.1142
+38,total_bilirubin_isTestnotdone,total_bilirubin,20,Total Bilirubin,5.57,5.571,1.1142
+39,total_bilirubin_isBlank,total_bilirubin,20,Total Bilirubin,5.57,5.571,1.1142
+40,serum_protein,serum_protein,16,Serum Protein,4.07,4.071,2.0355
+41,serum_protein_isBlank,serum_protein,16,Serum Protein,4.07,4.071,2.0355
+42,red_blood_cells,red_blood_cells,13,Red Blood Cells,3.35,3.351,1.117
+43,red_blood_cells_isUnacceptable,red_blood_cells,13,Red Blood Cells,3.35,3.351,1.117
+44,red_blood_cells_isBlankbutapplicable,red_blood_cells,13,Red Blood Cells,3.35,3.351,1.117
+45,white_blood_cells,white_blood_cells,10,CBC Auto,7.18,7.181,0.897625
+46,white_blood_cells_isUnacceptable,white_blood_cells,10,CBC Auto,7.18,7.181,0.897625
+47,white_blood_cells_isBlankbutapplicable,white_blood_cells,10,CBC Auto,7.18,7.181,0.897625
+48,hemoglobin,hemoglobin,8,Hemoglobin,2.63,2.631,0.328875
+49,hemoglobin_isMissing,hemoglobin,8,Hemoglobin,2.63,2.631,0.328875
+50,hemoglobin_isUnacceptable,hemoglobin,8,Hemoglobin,2.63,2.631,0.328875
+51,hemoglobin_isBlank,hemoglobin,8,Hemoglobin,2.63,2.631,0.328875
+52,hematocrit,hematocrit,8,Hemoglobin,2.63,2.631,0.328875
+53,hematocrit_isUnacceptable,hematocrit,8,Hemoglobin,2.63,2.631,0.328875
+54,hematocrit_isMissing,hematocrit,8,Hemoglobin,2.63,2.631,0.328875
+55,hematocrit_isBlank,hematocrit,8,Hemoglobin,2.63,2.631,0.328875
+56,platelets_isNormal,platelets,10,CBC Auto,7.18,7.181,0.897625
+57,platelets_isIncreased,platelets,10,CBC Auto,7.18,7.181,0.897625
+58,platelets_isDecreased,platelets,10,CBC Auto,7.18,7.181,0.897625
+59,platelets_isNoestimate,platelets,10,CBC Auto,7.18,7.181,0.897625
+60,platelets_isBlank,platelets,10,CBC Auto,7.18,7.181,0.897625
+61,segmented_neutrophils,segmented_neutrophils,3,CBC w/Diff,8.63,8.631,0.71925
+62,segmented_neutrophils_isBlank,segmented_neutrophils,3,CBC w/Diff,8.63,8.631,0.71925
+63,lymphocytes,lymphocytes,3,CBC w/Diff,8.63,8.631,0.71925
+64,lymphocytes_isBlank,lymphocytes,3,CBC w/Diff,8.63,8.631,0.71925
+65,monocytes,monocytes,3,CBC w/Diff,8.63,8.631,0.71925
+66,monocytes_isBlank,monocytes,3,CBC w/Diff,8.63,8.631,0.71925
+67,eosinophils,eosinophils,3,CBC w/Diff,8.63,8.631,0.71925
+68,eosinophils_isBlank,eosinophils,3,CBC w/Diff,8.63,8.631,0.71925
+69,basophils,basophils,3,CBC w/Diff,8.63,8.631,0.71925
+70,basophils_isBlank,basophils,3,CBC w/Diff,8.63,8.631,0.71925
+71,band_neutrophils,band_neutrophils,3,CBC w/Diff,8.63,8.631,0.71925
+72,band_neutrophils_isBlank,band_neutrophils,3,CBC w/Diff,8.63,8.631,0.71925
+73,cholesterol,cholesterol,5,Cholesterol,14.88,14.881,4.96033333333
+74,cholesterol_isMissing,cholesterol,5,Cholesterol,14.88,14.881,4.96033333333
+75,cholesterol_isBlank,cholesterol,5,Cholesterol,14.88,14.881,4.96033333333
+76,urine_albumin_isNegative,urine_albumin,22,Urine Albumin,6.42,6.421,0.802625
+77,urine_albumin_is>=30,urine_albumin,22,Urine Albumin,6.42,6.421,0.802625
+78,urine_albumin_is>=100,urine_albumin,22,Urine Albumin,6.42,6.421,0.802625
+79,urine_albumin_is>=300,urine_albumin,22,Urine Albumin,6.42,6.421,0.802625
+80,urine_albumin_is>=1000,urine_albumin,22,Urine Albumin,6.42,6.421,0.802625
+81,urine_albumin_isTrace,urine_albumin,22,Urine Albumin,6.42,6.421,0.802625
+82,urine_albumin_isBlankbutapplicable,urine_albumin,22,Urine Albumin,6.42,6.421,0.802625
+83,urine_albumin_isBlank,urine_albumin,22,Urine Albumin,6.42,6.421,0.802625
+84,urine_glucose_isNegative,urine_glucose,23,Urine Glucose,4.37,4.371,0.546375
+85,urine_glucose_isLight,urine_glucose,23,Urine Glucose,4.37,4.371,0.546375
+86,urine_glucose_isMedium,urine_glucose,23,Urine Glucose,4.37,4.371,0.546375
+87,urine_glucose_isDark,urine_glucose,23,Urine Glucose,4.37,4.371,0.546375
+88,urine_glucose_isVerydark,urine_glucose,23,Urine Glucose,4.37,4.371,0.546375
+89,urine_glucose_isTrace,urine_glucose,23,Urine Glucose,4.37,4.371,0.546375
+90,urine_glucose_isBlankbutapplicable,urine_glucose,23,Urine Glucose,4.37,4.371,0.546375
+91,urine_glucose_isBlank,urine_glucose,23,Urine Glucose,4.37,4.371,0.546375
+92,urine_pH,urine_ph,24,Urinalysis,2.41,2.411,0.219181818182
+93,urine_pH_isBlank,urine_ph,24,Urinalysis,2.41,2.411,0.219181818182
+94,urine_pH_isBlankbutapplicable,urine_ph,24,Urinalysis,2.41,2.411,0.219181818182
+95,urine_hematest_isNegative,urine_hematest,24,Urinalysis,2.41,2.411,0.219181818182
+96,urine_hematest_isSmall,urine_hematest,24,Urinalysis,2.41,2.411,0.219181818182
+97,urine_hematest_isModerate,urine_hematest,24,Urinalysis,2.41,2.411,0.219181818182
+98,urine_hematest_isLarge,urine_hematest,24,Urinalysis,2.41,2.411,0.219181818182
+99,urine_hematest_isVerylarge,urine_hematest,24,Urinalysis,2.41,2.411,0.219181818182
+100,urine_hematest_isTrace,urine_hematest,24,Urinalysis,2.41,2.411,0.219181818182
+101,urine_hematest_isBlankbutapplicable,urine_hematest,24,Urinalysis,2.41,2.411,0.219181818182
+102,urine_hematest_isBlank,urine_hematest,24,Urinalysis,2.41,2.411,0.219181818182
+103,sedimentation_rate,sedimentation_rate,14,Sedimentation Rate,3,3.001,1.00033333333
+104,sedimentation_rate_isBlank,sedimentation_rate,14,Sedimentation Rate,3,3.001,1.00033333333
+105,sedimentation_rate_isBlankbutapplicable,sedimentation_rate,14,Sedimentation Rate,3,3.001,1.00033333333
+106,uric_acid,uric_acid,21,Uric Acid,5.02,5.021,1.0042
+107,uric_acid_isUnacceptable,uric_acid,21,Uric Acid,5.02,5.021,1.0042
+108,uric_acid_isBlankbutapplicable,uric_acid,21,Uric Acid,5.02,5.021,1.0042
+109,uric_acid_isTestnotdone,uric_acid,21,Uric Acid,5.02,5.021,1.0042
+110,uric_acid_isBlank,uric_acid,21,Uric Acid,5.02,5.021,1.0042
+111,systolic_blood_pressure,systolic_blood_pressure,19,Systolic BP,0,0.001,0.0005
+112,systolic_blood_pressure_isBlank,systolic_blood_pressure,19,Systolic BP,0,0.001,0.0005
+113,pulse_pressure,pulse_pressure,12,Pulse Pressure,0,0.001,0.001
+114,weight,weight,25,Weight,0,0.001,0.0005
+115,weight_isBlank,weight,25,Weight,0,0.001,0.0005
+116,height,height,7,Height,0,0.001,0.0005
+117,height_isBlank,height,7,Height,0,0.001,0.0005
