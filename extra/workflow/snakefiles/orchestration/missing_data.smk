@@ -14,6 +14,8 @@ Missing-data config keys:
     artifact_namespace, missingness, strategies, eval_dataset_split
     Optional ``classifier_scope`` is ``shared`` for legacy experiments or
     ``per_instance`` to fit classifiers on each dataset split independently.
+    Optional ``run_confirmatory_analysis`` writes paired path, restoration,
+    stepwise, and DIME-invariance tables after aggregation.
     Optional ``strategy_filters`` restricts one strategy by datasets, methods,
     mechanisms, or probabilities without duplicating the experiment workflow.
     Optional ``include_method_variants`` omits missingness-specific controls
@@ -154,6 +156,9 @@ TRAIN_RUNTIME_PARAMS = config.get("train_runtime_params", {})
 EVAL_PARAMS = config.get("eval_params", {})
 RESTORATION_BATCH_SIZE = int(config.get("restoration_batch_size", 1024))
 EVAL_BATCH_SIZE_OVERRIDE = config.get("eval_batch_size")
+RUN_CONFIRMATORY_ANALYSIS = bool(
+    config.get("run_confirmatory_analysis", False)
+)
 
 
 def wildcard_pattern(values):
@@ -455,6 +460,21 @@ if not EXPERIMENTS:
 EVALUATIONS = [evaluation_path(*row) for row in EXPERIMENTS]
 SUMMARY_DIR = f"{ROOT}/summary/{EVAL_SPLIT}/{NAMESPACE}"
 FIGURE_DIR = f"{ROOT}/figures/{EVAL_SPLIT}/{NAMESPACE}"
+ANALYSIS_OUTPUTS = (
+    [
+        f"{ROOT}/analysis/path_fidelity_{NAMESPACE}_{EVAL_SPLIT}.csv",
+        f"{ROOT}/analysis/stepwise_effects_{NAMESPACE}_{EVAL_SPLIT}.csv",
+        f"{ROOT}/analysis/generator_quality_{NAMESPACE}_{EVAL_SPLIT}.csv",
+        f"{ROOT}/analysis/dime_invariance_{NAMESPACE}_{EVAL_SPLIT}.csv",
+    ]
+    if RUN_CONFIRMATORY_ANALYSIS
+    else []
+)
+MECHANISM_FIGURE_DIR = (
+    f"{ROOT}/analysis_figures/{EVAL_SPLIT}/{NAMESPACE}"
+    if RUN_CONFIRMATORY_ANALYSIS
+    else []
+)
 
 configured_strategies = ["complete", *COMMON_STRATEGIES]
 for spec in METHOD_SPECS.values():
@@ -476,6 +496,8 @@ wildcard_constraints:
 # read. On a cluster each of these would otherwise cost a full queue round trip.
 localrules:
     all,
+    analyze_missing_data_mechanisms,
+    plot_missing_data_mechanisms,
     summarize_missing_data,
     plot_missing_data,
 
@@ -494,6 +516,47 @@ rule all:
         f"{SUMMARY_DIR}/action_rates.csv",
         f"{SUMMARY_DIR}/restoration_rmse.csv",
         FIGURE_DIR,
+        ANALYSIS_OUTPUTS,
+        MECHANISM_FIGURE_DIR,
+
+
+rule analyze_missing_data_mechanisms:
+    input:
+        evaluations=EVALUATIONS,
+        instances=f"{SUMMARY_DIR}/instance_metrics.csv",
+        restoration=f"{SUMMARY_DIR}/restoration_rmse.csv",
+        datasets=[
+            raw_dataset(dataset, instance, EVAL_SPLIT)
+            for dataset in DATASETS
+            for instance in INSTANCES
+        ],
+    output:
+        ANALYSIS_OUTPUTS,
+    params:
+        require_invariance=(
+            "--require-dime-invariance"
+            if RUN_CONFIRMATORY_ANALYSIS
+            else ""
+        ),
+    shell:
+        """
+        python scripts/analysis/analyze_missing_data_mechanisms.py \
+            --namespace={NAMESPACE} --split={EVAL_SPLIT} \
+            {params.require_invariance}
+        """
+
+
+rule plot_missing_data_mechanisms:
+    input:
+        ANALYSIS_OUTPUTS,
+    output:
+        directory(MECHANISM_FIGURE_DIR),
+    shell:
+        """
+        python scripts/plotting/plot_missing_data_mechanisms.py \
+            --analysis-dir={ROOT}/analysis --namespace={NAMESPACE} \
+            --split={EVAL_SPLIT} --output-dir={output}
+        """
 
 
 rule generate_missing_data_dataset:

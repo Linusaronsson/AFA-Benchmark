@@ -99,6 +99,7 @@ dataset_name_mapping:
   diabetes: Diabetes
   fashion_mnist: FashionMNIST
   miniboone: MiniBooNE
+  nhanes_mortality: NHANES Mortality
   physionet: PhysioNet
   imagenette: Imagenette
 
@@ -106,6 +107,7 @@ datasets_with_f_score:
   - actg
   - ckd
   - diabetes
+  - nhanes_mortality
   - physionet
   - bank_marketing
 
