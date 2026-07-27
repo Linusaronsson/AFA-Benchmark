@@ -34,7 +34,14 @@ type Route = tuple[int, ...]
 _NON_GREEDY_METHODS = ("aaco", "ol_without_mask")
 _GREEDY_METHOD = "dime"
 _F_SCORE_DATASETS = frozenset(
-    {"actg", "bank_marketing", "ckd", "diabetes", "physionet"}
+    {
+        "actg",
+        "bank_marketing",
+        "ckd",
+        "diabetes",
+        "nhanes_mortality",
+        "physionet",
+    }
 )
 _CELL_KEYS = [
     "dataset",
@@ -444,12 +451,26 @@ def gate_summary(
     missingness: pd.DataFrame,
     *,
     threshold: float = 0.01,
+    expected_instances: int = 5,
     min_positive_instances: int = 4,
     mechanism: str = "mcar",
     probability: float = 0.7,
     methods: tuple[str, ...] = _NON_GREEDY_METHODS,
 ) -> pd.DataFrame:
     """Apply the predeclared gate independently to AACO and OL."""
+    if missingness.empty:
+        missingness = pd.DataFrame(
+            columns=pd.Index(
+                [
+                    "dataset",
+                    "method",
+                    "eval_hard_budget",
+                    "mechanism",
+                    "p",
+                    "restoration_gain",
+                ]
+            )
+        )
     rows: list[dict[str, Any]] = []
     cells = planning[["dataset", "eval_hard_budget"]].drop_duplicates()
     for dataset, budget in cells.itertuples(index=False, name=None):
@@ -471,7 +492,7 @@ def gate_summary(
             nongreedy_mean = float(plan["nongreedy_gain"].mean())
             restoration_mean = float(restore["restoration_gain"].mean())
             planning_pass = bool(
-                len(plan) >= min_positive_instances
+                len(plan) == expected_instances
                 and adaptive_mean >= threshold
                 and nongreedy_mean >= threshold
                 and int((plan["adaptive_gain"] > 0).sum())
@@ -480,7 +501,7 @@ def gate_summary(
                 >= min_positive_instances
             )
             restoration_pass = bool(
-                len(restore) >= min_positive_instances
+                len(restore) == expected_instances
                 and restoration_mean >= threshold
                 and int((restore["restoration_gain"] > 0).sum())
                 >= min_positive_instances
@@ -504,6 +525,62 @@ def gate_summary(
         concordant = bool(
             len(dataset_rows) == len(methods)
             and all(bool(row["method_pass"]) for row in dataset_rows)
+        )
+        for row in dataset_rows:
+            row["dataset_concordant"] = concordant
+            rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def planning_gate_summary(
+    planning: pd.DataFrame,
+    *,
+    threshold: float = 0.01,
+    expected_instances: int = 5,
+    min_positive_instances: int = 4,
+    methods: tuple[str, ...] = _NON_GREEDY_METHODS,
+) -> pd.DataFrame:
+    """Gate complete-data planning before running a restoration matrix."""
+    rows: list[dict[str, Any]] = []
+    cells = planning[["dataset", "eval_hard_budget"]].drop_duplicates()
+    for dataset, budget in cells.itertuples(index=False, name=None):
+        dataset_rows: list[dict[str, Any]] = []
+        for method in methods:
+            method_rows = planning.loc[
+                (planning["dataset"] == dataset)
+                & (planning["method"] == method)
+                & (planning["eval_hard_budget"] == budget)
+            ]
+            adaptive_mean = float(method_rows["adaptive_gain"].mean())
+            nongreedy_mean = float(method_rows["nongreedy_gain"].mean())
+            passed = bool(
+                len(method_rows) == expected_instances
+                and adaptive_mean >= threshold
+                and nongreedy_mean >= threshold
+                and int((method_rows["adaptive_gain"] > 0).sum())
+                >= min_positive_instances
+                and int((method_rows["nongreedy_gain"] > 0).sum())
+                >= min_positive_instances
+            )
+            row = {
+                "dataset": dataset,
+                "method": method,
+                "eval_hard_budget": float(budget),
+                "n_instances": len(method_rows),
+                "adaptive_gain_mean": adaptive_mean,
+                "adaptive_positive_instances": int(
+                    (method_rows["adaptive_gain"] > 0).sum()
+                ),
+                "nongreedy_gain_mean": nongreedy_mean,
+                "nongreedy_positive_instances": int(
+                    (method_rows["nongreedy_gain"] > 0).sum()
+                ),
+                "planning_pass": passed,
+            }
+            dataset_rows.append(row)
+        concordant = bool(
+            len(dataset_rows) == len(methods)
+            and all(bool(row["planning_pass"]) for row in dataset_rows)
         )
         for row in dataset_rows:
             row["dataset_concordant"] = concordant
@@ -543,17 +620,22 @@ def _instances(root: Path, namespace: str, dataset: str) -> list[int]:
     )
 
 
-def process_dataset(
-    classifier_path: Path,
+def process_dataset(  # noqa: PLR0915
+    classifier_location: Path,
     arguments: argparse.Namespace,
     budgets: dict[str, list[float]],
 ) -> list[dict[str, Any]]:
-    dataset = classifier_path.name[len("dataset-") : -len(".bundle")]
+    if classifier_location.suffix == ".bundle":
+        dataset = classifier_location.name[len("dataset-") : -len(".bundle")]
+        shared_classifier, _ = load_bundle(
+            classifier_location,
+            device=torch.device(arguments.device),
+        )
+    else:
+        dataset = classifier_location.name[len("dataset-") :]
+        shared_classifier = None
     if arguments.datasets and dataset not in arguments.datasets:
         return []
-    classifier, _ = load_bundle(
-        classifier_path, device=torch.device(arguments.device)
-    )
     metric = primary_metric(dataset)
     unmasker = _read_unmasker(
         dataset, arguments.unmaskers, arguments.unmasker_config_root
@@ -563,6 +645,19 @@ def process_dataset(
         arguments.root, arguments.namespace, dataset
     )
     for instance in instances:
+        if shared_classifier is None:
+            classifier_path = (
+                classifier_location / f"instance-{instance}.bundle"
+            )
+            if not classifier_path.exists():
+                print(f"skip {dataset}/{instance}: missing classifier bundle")
+                continue
+            classifier, _ = load_bundle(
+                classifier_path,
+                device=torch.device(arguments.device),
+            )
+        else:
+            classifier = shared_classifier
         seed = arguments.seed + instance + zlib.crc32(dataset.encode("utf-8"))
         generator = np.random.default_rng(seed)
         selection_path = (
@@ -705,6 +800,7 @@ def main() -> None:
     parser.add_argument("--planning-output", type=Path)
     parser.add_argument("--missingness-output", type=Path)
     parser.add_argument("--gate-output", type=Path)
+    parser.add_argument("--planning-gate-output", type=Path)
     parser.add_argument("--datasets", nargs="*")
     parser.add_argument("--instances", nargs="*", type=int)
     parser.add_argument("--k", type=int, default=500)
@@ -718,14 +814,22 @@ def main() -> None:
     budgets = yaml.safe_load(arguments.budgets.read_text())[
         "eval_hard_budgets"
     ]
-    classifier_paths = sorted(
+    classifier_root = arguments.root / "classifier" / arguments.namespace
+    classifier_locations = sorted(
         (arguments.root / "classifier" / arguments.namespace).glob(
             "dataset-*.bundle"
         )
     )
+    classifier_locations.extend(
+        sorted(
+            path
+            for path in classifier_root.glob("dataset-*")
+            if path.is_dir() and path.suffix != ".bundle"
+        )
+    )
     rows = [
         row
-        for path in classifier_paths
+        for path in classifier_locations
         for row in process_dataset(path, arguments, budgets)
     ]
     if not rows:
@@ -759,10 +863,21 @@ def main() -> None:
     gate_output = arguments.gate_output or analysis / (
         f"route_gate_{arguments.namespace}.csv"
     )
+    planning_gate_output = arguments.planning_gate_output or analysis / (
+        f"planning_gate_{arguments.namespace}.csv"
+    )
     planning.to_csv(planning_output, index=False)
     missingness.to_csv(missingness_output, index=False)
+    planning_gate_summary(planning).to_csv(
+        planning_gate_output,
+        index=False,
+    )
     gate_summary(planning, missingness).to_csv(gate_output, index=False)
-    print(f"wrote {planning_output}, {missingness_output}, {gate_output}")
+    print(
+        "wrote "
+        f"{planning_output}, {missingness_output}, "
+        f"{planning_gate_output}, {gate_output}"
+    )
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from afabench.components.unmaskers.cube_nm_unmasker import CubeNMUnmasker
 from scripts.analysis.route_redundancy import (
     compute_effects,
     gate_summary,
+    planning_gate_summary,
     primary_metric,
     route_metrics,
     sample_feasible_routes,
@@ -64,6 +65,7 @@ def test_primary_metric_is_predeclared_by_dataset() -> None:
     assert primary_metric("physionet") == "f_score"
     assert primary_metric("cube_nm") == "accuracy"
     assert primary_metric("ckd") == "f_score"
+    assert primary_metric("nhanes_mortality") == "f_score"
 
 
 def test_top_routes_are_selected_without_evaluation_scores() -> None:
@@ -198,6 +200,26 @@ def test_gate_requires_both_non_greedy_methods() -> None:
     gate = gate_summary(planning, missingness)
     assert gate.loc[gate["method"] == "aaco", "method_pass"].all()
     assert not gate["dataset_concordant"].any()
+
+
+def test_planning_gate_does_not_require_restoration_rows() -> None:
+    metrics, routes = _effect_inputs()
+    planning, _ = compute_effects(metrics, routes)
+
+    gate = planning_gate_summary(planning)
+
+    assert gate["planning_pass"].all()
+    assert gate["dataset_concordant"].all()
+
+
+def test_gates_require_all_five_instances() -> None:
+    metrics, routes = _effect_inputs()
+    planning, missingness = compute_effects(metrics, routes)
+    planning = planning.loc[planning["instance"] != 4]
+    missingness = missingness.loc[missingness["instance"] != 4]
+
+    assert not planning_gate_summary(planning)["planning_pass"].any()
+    assert not gate_summary(planning, missingness)["method_pass"].any()
 
 
 def test_duplicate_cells_are_rejected() -> None:
