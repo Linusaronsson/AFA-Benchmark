@@ -76,39 +76,36 @@ uv run python scripts/analysis/route_redundancy.py \
   --route-batch-size 16
 ```
 
-## 4. Staged NHANES Mortality
+## 4. Real-data planning diagnostic
 
-Stage one has 20 evaluations: four methods, five train/validation splits, one
-training and evaluation budget of 10. Every split has its own classifier and
-all five share one stratified test cohort fixed with seed 100.
+Complete-data only, 60 evaluations: four methods, three datasets, five
+train/validation splits. Every split has its own preprocessing and its own
+classifier, and each dataset's five splits share one stratified test cohort
+fixed with seed 100. Each method trains once at its largest budget and is
+evaluated at every configured budget.
 
 ```bash
 uv run snakemake \
-  --profile \
-  extra/workflow/profiles/config/missing_data_nhanes_mortality_complete \
+  --profile extra/workflow/profiles/config/missing_data_real_planning \
   --cores 4 --rerun-incomplete --printshellcmds
 
 uv run python scripts/analysis/route_redundancy.py \
-  --namespace nhanes_mortality_v1 \
+  --namespace real_planning_v1 \
   --selection-split val --split val --device cuda \
   --seed 0 --k 500 --top-frac 0.1 --max-samples 4096 \
   --route-batch-size 16
 ```
 
-Continue only if
-`extra/output/missing_data/analysis/planning_gate_nhanes_mortality_v1.csv`
-has `dataset_concordant=true` for both AACO and OL. Then run the full
-restoration profile:
+A restoration matrix on a real dataset requires
+`extra/output/missing_data/analysis/planning_gate_real_planning_v1.csv` to
+report `dataset_concordant=true` for both AACO and OL. Without that, the
+dataset has no measurable planning gap for restoration to recover, and the
+reportable result is the route-redundancy measurement itself.
 
-```bash
-uv run snakemake \
-  --profile extra/workflow/profiles/config/missing_data_nhanes_mortality_full \
-  --cores 4 --rerun-incomplete --printshellcmds
-```
-
-Apply the same restoration gate. Only after it passes, evaluate test by adding
-`--config eval_dataset_split=test` to that Snakemake command, then run route
-analysis with `--selection-split val --split test`.
+NHANES Mortality was first run alone under `nhanes_mortality_v1` and failed
+this gate, with AACO mean adaptive gain `-0.009867` and OL `-0.009119`, both
+`0/5` positive. That namespace is retained unchanged, so the NHANES rows here
+double as an exact reproduction check.
 
 ## 5. File-count-safe archiving
 
