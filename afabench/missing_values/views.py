@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import asdict
 from typing import TYPE_CHECKING, cast
 
+import torch
+
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.datasets.training_views import (
     TrainingDatasetView,
@@ -17,8 +19,6 @@ from afabench.missing_values.masking import FittedMissingnessMechanism
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-    import torch
 
     from afabench.core.types import AFADataset
     from afabench.missing_values.config import MaterializeTrainingViewsConfig
@@ -63,6 +63,11 @@ def materialize_training_views(
     val_dataset, _ = _load_dataset(cfg.val_dataset_bundle_path)
     train_features, _ = train_dataset.get_all_data()
     val_features, _ = val_dataset.get_all_data()
+    train_group_ids = train_dataset.get_missingness_group_ids().flatten()
+    val_group_ids = val_dataset.get_missingness_group_ids().flatten()
+    if not torch.equal(train_group_ids, val_group_ids):
+        msg = "Train and validation missingness groups must match."
+        raise ValueError(msg)
 
     if cfg.missingness.mechanism == "native":
         # Nothing to fit or sample: the mask is a property of the data. `p` is
@@ -74,6 +79,7 @@ def materialize_training_views(
             train_features,
             cfg.missingness,
             seed=cfg.seed,
+            group_ids=train_group_ids,
         )
         train_available = mechanism.sample_observed_mask(
             train_features,

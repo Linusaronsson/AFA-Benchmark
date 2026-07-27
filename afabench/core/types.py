@@ -72,6 +72,23 @@ class AFADataset(Protocol):
         """
         ...
 
+    def create_splits(
+        self,
+        train_indices: Sequence[int],
+        val_indices: Sequence[int],
+        test_indices: Sequence[int],
+    ) -> tuple[Self, Self, Self]:
+        """
+        Create train, validation, and test datasets.
+
+        Datasets that require train-fitted preprocessing override this hook.
+        """
+        return (
+            self.create_subset(train_indices),
+            self.create_subset(val_indices),
+            self.create_subset(test_indices),
+        )
+
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
         """Return a single sample from the dataset as (features, label)."""
         ...
@@ -83,6 +100,18 @@ class AFADataset(Protocol):
     ) -> tuple[Features, Label]:
         """Return all of the data in the dataset as (features, labels). Useful for testing purposes to compare dataset contents."""
         ...
+
+    def get_missingness_group_ids(self) -> torch.Tensor:
+        """
+        Return one acquisition-group identifier per flattened feature.
+
+        Ordinary tabular datasets have one missingness group per feature.
+        Datasets with grouped acquisition actions override this method.
+        """
+        return torch.arange(
+            prod(self.feature_shape),
+            dtype=torch.long,
+        ).reshape(self.feature_shape)
 
     def save(self, path: Path) -> None:
         """Save the dataset to a file or folder. The file/folder should be in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""

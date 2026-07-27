@@ -608,6 +608,17 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         )
         return all_feature_costs
 
+    @override
+    def get_missingness_group_ids(self) -> torch.Tensor:
+        """Match imposed missingness to the grouped context acquisition."""
+        context = torch.zeros(self.n_contexts, dtype=torch.long)
+        remaining = torch.arange(
+            1,
+            self.n_features - self.n_contexts + 1,
+            dtype=torch.long,
+        )
+        return torch.cat([context, remaining])
+
 
 @final
 class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):

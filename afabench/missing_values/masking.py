@@ -57,13 +57,75 @@ def _scaled_coefficients(
 
 @dataclass
 class FittedMissingnessMechanism:
-    """A mechanism whose feature choices and logistic parameters are fixed."""
+    """A mechanism whose acquisition-group choices and parameters are fixed."""
 
     config: TrainingMissingnessConfig
+    group_ids: torch.Tensor
     input_indices: torch.Tensor
     target_indices: torch.Tensor
+    input_feature_indices: torch.Tensor
     coefficients: torch.Tensor
     intercepts: torch.Tensor
+
+    @staticmethod
+    def _canonical_group_ids(
+        features: torch.Tensor,
+        group_ids: torch.Tensor | None,
+    ) -> torch.Tensor:
+        n_features = features.shape[1]
+        if group_ids is None:
+            return torch.arange(n_features, device=features.device)
+        flattened = (
+            group_ids.detach()
+            .flatten()
+            .to(
+                device=features.device,
+                dtype=torch.long,
+            )
+        )
+        if len(flattened) != n_features:
+            msg = (
+                "group_ids must contain one identifier per feature, got "
+                f"{len(flattened)} for {n_features} features."
+            )
+            raise ValueError(msg)
+        if (flattened < 0).any():
+            msg = "group_ids must be nonnegative."
+            raise ValueError(msg)
+        _, inverse = torch.unique(flattened, sorted=True, return_inverse=True)
+        return inverse
+
+    @staticmethod
+    def _features_in_groups(
+        group_ids: torch.Tensor,
+        groups: torch.Tensor,
+    ) -> torch.Tensor:
+        if groups.numel() == 0:
+            return torch.empty(
+                0,
+                dtype=torch.long,
+                device=group_ids.device,
+            )
+        return torch.isin(group_ids, groups).nonzero(as_tuple=True)[0]
+
+    @staticmethod
+    def _group_projection(
+        values: torch.Tensor,
+        coefficients: torch.Tensor,
+        group_ids: torch.Tensor,
+        n_groups: int,
+    ) -> torch.Tensor:
+        projected = values * coefficients
+        grouped = torch.zeros(
+            (len(values), n_groups),
+            dtype=values.dtype,
+            device=values.device,
+        )
+        return grouped.scatter_add(
+            1,
+            group_ids.expand(len(values), -1),
+            projected,
+        )
 
     @classmethod
     def fit(
@@ -72,6 +134,7 @@ class FittedMissingnessMechanism:
         config: TrainingMissingnessConfig,
         *,
         seed: int,
+        group_ids: torch.Tensor | None = None,
     ) -> Self:
         if features.ndim != 2:
             msg = "Training missingness currently requires flat tabular data."
@@ -90,38 +153,60 @@ class FittedMissingnessMechanism:
             raise ValueError(msg)
 
         x = features.detach().to(dtype=torch.float64)
-        n_features = x.shape[1]
+        canonical_groups = cls._canonical_group_ids(x, group_ids)
+        n_groups = int(canonical_groups.max().item()) + 1
         rng = _generator(seed, x.device)
-        all_indices = torch.arange(n_features, device=x.device)
+        all_indices = torch.arange(n_groups, device=x.device)
+        empty = torch.empty(0, dtype=torch.long, device=x.device)
 
         if config.mechanism in {"none", "mcar"}:
-            empty = torch.empty(0, dtype=torch.long, device=x.device)
             return cls(
                 config=config,
+                group_ids=canonical_groups,
                 input_indices=empty,
                 target_indices=all_indices,
+                input_feature_indices=empty,
                 coefficients=torch.empty(
-                    0, n_features, dtype=x.dtype, device=x.device
+                    0,
+                    n_groups,
+                    dtype=x.dtype,
+                    device=x.device,
                 ),
                 intercepts=torch.empty(
-                    n_features, dtype=x.dtype, device=x.device
+                    n_groups,
+                    dtype=x.dtype,
+                    device=x.device,
                 ),
             )
 
         if config.mechanism == "mnar_self":
             coefficients = torch.randn(
-                n_features, generator=rng, dtype=x.dtype, device=x.device
+                x.shape[1],
+                generator=rng,
+                dtype=x.dtype,
+                device=x.device,
             )
-            projected = x * coefficients
+            logits = cls._group_projection(
+                x,
+                coefficients,
+                canonical_groups,
+                n_groups,
+            )
             eps = torch.finfo(x.dtype).eps
-            coefficients = coefficients / projected.std(
-                dim=0, unbiased=False
-            ).clamp_min(eps)
-            logits = x * coefficients
+            scales = logits.std(dim=0, unbiased=False).clamp_min(eps)
+            coefficients = coefficients / scales[canonical_groups]
+            logits = cls._group_projection(
+                x,
+                coefficients,
+                canonical_groups,
+                n_groups,
+            )
             return cls(
                 config=config,
-                input_indices=all_indices,
+                group_ids=canonical_groups,
+                input_indices=empty,
                 target_indices=all_indices,
+                input_feature_indices=empty,
                 coefficients=coefficients,
                 intercepts=_fit_intercepts(logits, config.p),
             )
@@ -134,55 +219,81 @@ class FittedMissingnessMechanism:
                 f"Mechanism input fraction must be in (0, 1], got {fraction}."
             )
             raise ValueError(msg)
-        n_inputs = min(max(int(fraction * n_features), 1), n_features)
+        n_inputs = min(max(int(fraction * n_groups), 1), n_groups)
         input_indices = torch.randperm(
-            n_features, generator=rng, device=x.device
+            n_groups,
+            generator=rng,
+            device=x.device,
         )[:n_inputs]
         if config.mechanism == "mnar_logistic" and not config.exclude_inputs:
             target_indices = all_indices
         else:
             input_set = set(input_indices.tolist())
             target_indices = torch.tensor(
-                [idx for idx in range(n_features) if idx not in input_set],
+                [idx for idx in range(n_groups) if idx not in input_set],
                 dtype=torch.long,
                 device=x.device,
             )
-
-        coefficients = _scaled_coefficients(
-            x[:, input_indices], len(target_indices), generator=rng
+        input_feature_indices = cls._features_in_groups(
+            canonical_groups,
+            input_indices,
         )
-        logits = x[:, input_indices] @ coefficients
+        coefficients = _scaled_coefficients(
+            x[:, input_feature_indices],
+            len(target_indices),
+            generator=rng,
+        )
+        logits = x[:, input_feature_indices] @ coefficients
         return cls(
             config=config,
+            group_ids=canonical_groups,
             input_indices=input_indices,
             target_indices=target_indices,
+            input_feature_indices=input_feature_indices,
             coefficients=coefficients,
             intercepts=_fit_intercepts(logits, config.p),
         )
 
     def _sample_observed_once(
-        self, features: torch.Tensor, *, seed: int
+        self,
+        features: torch.Tensor,
+        *,
+        seed: int,
     ) -> torch.Tensor:
         x = features.detach().to(dtype=torch.float64)
-        observed = torch.ones_like(x, dtype=torch.bool)
+        group_ids = self.group_ids.to(x.device)
+        n_groups = int(group_ids.max().item()) + 1
+        observed_groups = torch.ones(
+            (len(x), n_groups),
+            dtype=torch.bool,
+            device=x.device,
+        )
         if self.config.mechanism == "none" or self.config.p == 0.0:
-            return observed
+            return observed_groups[:, group_ids]
 
         rng = _generator(seed, x.device)
         if self.config.mechanism == "mcar":
             missing = (
                 torch.rand(
-                    x.shape, generator=rng, dtype=x.dtype, device=x.device
+                    observed_groups.shape,
+                    generator=rng,
+                    dtype=x.dtype,
+                    device=x.device,
                 )
                 < self.config.p
             )
-            return ~missing
+            return (~missing)[:, group_ids]
 
         if self.config.mechanism == "mnar_self":
-            logits = x * self.coefficients.to(x.device)
+            logits = self._group_projection(
+                x,
+                self.coefficients.to(x.device),
+                group_ids,
+                n_groups,
+            )
         else:
             logits = x[
-                :, self.input_indices.to(x.device)
+                :, self.input_feature_indices.to(x.device)
             ] @ self.coefficients.to(x.device)
         probabilities = torch.sigmoid(logits + self.intercepts.to(x.device))
         missing = (
@@ -194,22 +305,24 @@ class FittedMissingnessMechanism:
             )
             < probabilities
         )
-        observed[:, self.target_indices.to(x.device)] = ~missing
+        observed_groups[:, self.target_indices.to(x.device)] = ~missing
         if (
             self.config.mechanism == "mnar_logistic"
             and self.config.exclude_inputs
         ):
             input_missing = (
                 torch.rand(
-                    (x.shape[0], len(self.input_indices)),
+                    (len(x), len(self.input_indices)),
                     generator=rng,
                     dtype=x.dtype,
                     device=x.device,
                 )
                 < self.config.p
             )
-            observed[:, self.input_indices.to(x.device)] = ~input_missing
-        return observed
+            observed_groups[
+                :, self.input_indices.to(x.device)
+            ] = ~input_missing
+        return observed_groups[:, group_ids]
 
     def sample_observed_mask(
         self, features: torch.Tensor, *, seed: int
