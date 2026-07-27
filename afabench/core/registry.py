@@ -54,6 +54,7 @@ REGISTERED_CLASSES = {
     "DirectUnmasker": "afabench.components.unmaskers.DirectUnmasker",
     "ImagePatchUnmasker": "afabench.components.unmaskers.ImagePatchUnmasker",
     "CubeNMUnmasker": "afabench.components.unmaskers.CubeNMUnmasker",
+    "GroupedFeatureUnmasker": "afabench.components.unmaskers.GroupedFeatureUnmasker",
     # AFA Initializer Classes
     "ZeroInitializer": "afabench.components.initializers.ZeroInitializer",
     "FixedRandomInitializer": "afabench.components.initializers.FixedRandomInitializer",

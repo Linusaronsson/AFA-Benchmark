@@ -1,6 +1,9 @@
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.components.unmaskers.cube_nm_unmasker import CubeNMUnmasker
 from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
+from afabench.components.unmaskers.grouped_feature_unmasker import (
+    GroupedFeatureUnmasker,
+)
 from afabench.components.unmaskers.image_patch_unmasker import (
     ImagePatchUnmasker,
 )
@@ -27,6 +30,11 @@ def get_afa_unmasker_from_config(
     if unmasker_config.class_name == "CubeNMUnmasker":
         cls = get_class(unmasker_config.class_name)
         assert cls is CubeNMUnmasker
+        return cls(**unmasker_config.kwargs)
+
+    if unmasker_config.class_name == "GroupedFeatureUnmasker":
+        cls = get_class(unmasker_config.class_name)
+        assert cls is GroupedFeatureUnmasker
         return cls(**unmasker_config.kwargs)
 
     msg = f"Unknown unmasker: {unmasker_config.class_name}"
