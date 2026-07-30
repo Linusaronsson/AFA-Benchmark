@@ -43,6 +43,7 @@ MECHANISM_DISPLAY = {
     "mar": "MAR",
     "mnar_logistic": "MNAR (logistic)",
     "mnar_self": "MNAR (self-masking)",
+    "native": "Native",
 }
 MECHANISM_ORDER = list(MECHANISM_DISPLAY)
 STRATEGY_ORDER = [
@@ -64,7 +65,7 @@ STRATEGY_DISPLAY = {
     "pvae_stepwise": "PVAE (stepwise, label-free)",
     "pvae_oracle": "PVAE (oracle)",
     "true_completion": "True completion",
-    "zero_fill": "Zero fill (AACO only)",
+    "zero_fill": "Zero fill",
 }
 CONTROL_VARIANTS = {
     "aaco_doubly_robust": "Doubly robust",

@@ -28,7 +28,7 @@ _STRATEGY_DISPLAY = {
     "complete": "Complete data",
     "restricted": "Restricted",
     "mean_fill": "Mean completion",
-    "zero_fill": "Zero fill (AACO only)",
+    "zero_fill": "Zero fill",
     "pvae_label_conditioned": "PVAE (label-conditioned)",
     "pvae_label_free": "PVAE (label-free)",
     "pvae_stepwise": "PVAE (stepwise, label-free)",

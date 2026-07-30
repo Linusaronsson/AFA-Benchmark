@@ -19,11 +19,15 @@ if TYPE_CHECKING:
 
 COLORS = {
     "aaco": "#1B9E77",
-    "ol_without_mask": "#D95F02",
+    "dime": "#7570B3",
+    "ol_with_mask": "#E69F00",
+    "ol_full_state": "#D55E00",
 }
 METHOD_LABELS = {
     "aaco": "AACO",
-    "ol_without_mask": "OL",
+    "dime": "DIME",
+    "ol_with_mask": "OL (mask)",
+    "ol_full_state": "OL (full state)",
 }
 STRATEGY_LABELS = {
     "complete": "Complete",
@@ -73,7 +77,8 @@ def plot_path_fidelity(frame: pd.DataFrame, output: Path) -> None:
     ]
     fig, axes = plt.subplots(1, 3, figsize=(11.0, 3.2), sharey=True)
     for axis, (metric, title) in zip(axes, metrics, strict=True):
-        for method_offset, method in zip((-0.13, 0.13), COLORS, strict=True):
+        method_offsets = np.linspace(-0.24, 0.24, len(COLORS))
+        for method_offset, method in zip(method_offsets, COLORS, strict=True):
             method_frame = selected.loc[selected["method"] == method]
             for strategy_index, strategy in enumerate(strategy_order):
                 values = method_frame.loc[
@@ -119,9 +124,9 @@ def plot_path_fidelity(frame: pd.DataFrame, output: Path) -> None:
 def plot_generator_quality(frame: pd.DataFrame, output: Path) -> None:
     selected = frame.loc[frame["method"].isin(COLORS)].copy()
     fig, axes = plt.subplots(
-        1, 2, figsize=(7.4, 3.2), sharex=True, sharey=True
+        2, 2, figsize=(7.4, 6.2), sharex=True, sharey=True
     )
-    for axis, method in zip(axes, COLORS, strict=True):
+    for axis, method in zip(axes.flat, COLORS, strict=True):
         method_frame = selected.loc[selected["method"] == method]
         axis.scatter(
             method_frame["rmse_improvement"],
@@ -135,7 +140,8 @@ def plot_generator_quality(frame: pd.DataFrame, output: Path) -> None:
         axis.set_title(METHOD_LABELS[method])
         axis.set_xlabel("Oracle RMSE improvement")
         axis.grid(alpha=0.2)
-    axes[0].set_ylabel("Oracle score improvement")
+    axes[0, 0].set_ylabel("Oracle score improvement")
+    axes[1, 0].set_ylabel("Oracle score improvement")
     _save(fig, output, "generator_quality_vs_score")
 
 
@@ -143,7 +149,8 @@ def plot_stepwise(frame: pd.DataFrame, output: Path) -> None:
     selected = frame.loc[frame["method"].isin(COLORS)].copy()
     datasets = selected["dataset"].drop_duplicates().tolist()
     fig, axis = plt.subplots(figsize=(max(4.2, len(datasets) * 1.8), 3.2))
-    for method_offset, method in zip((-0.13, 0.13), COLORS, strict=True):
+    method_offsets = np.linspace(-0.24, 0.24, len(COLORS))
+    for method_offset, method in zip(method_offsets, COLORS, strict=True):
         for dataset_index, dataset in enumerate(datasets):
             values = selected.loc[
                 (selected["method"] == method)
