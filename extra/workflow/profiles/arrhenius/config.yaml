@@ -55,6 +55,22 @@ default-resources:
   mpi: 1
   tasks_per_node: 1
 
+# Keep Snakemake's global `--cores` limit equal to the CPUs requested from
+# Slurm. Without these values every rule counts as one scheduler core even when
+# `cpus_per_task` requests 4, 8, or 16 CPUs.
+set-threads:
+  pretrain_incomplete_restoration_pvae: 16
+  pretrain_oracle_restoration_pvae: 16
+  pretrain_missing_data_method: 16
+  train_missing_data_method_with_pretraining: 16
+  train_missing_data_method_without_pretraining: 16
+  train_missing_data_shared_classifier: 16
+  train_missing_data_method_classifier: 16
+  restore_missing_training_view: 16
+  eval_missing_data_method: 16
+  generate_missing_data_dataset: 8
+  materialize_missing_training_view: 4
+
 # Everything runs on the cpu partition for now (inherited from
 # default-resources; only sizing is overridden below). Arrhenius GPUs are
 # aarch64 GH200, and torch 2.7's aarch64 wheel is CPU-only, so nothing can use

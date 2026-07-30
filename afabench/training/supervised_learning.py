@@ -1,4 +1,5 @@
 import logging
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
@@ -43,6 +44,11 @@ class _DatasetWithRowExtra:
 
 
 log = logging.getLogger(__name__)
+
+
+def lightning_root() -> Path:
+    """Keep disposable Lightning files on node-local storage when available."""
+    return Path(os.environ.get("SNIC_TMP", "extra/logs/lightning"))
 
 
 class ModelCheckpointWithMinBatches(ModelCheckpoint):
@@ -184,7 +190,7 @@ def supervised_learning(
         # If None, Lightning will validate at the end of each epoch.
         val_check_interval=cfg.val_check_interval,
         check_val_every_n_epoch=None,
-        default_root_dir="extra/logs/lightning",
+        default_root_dir=lightning_root(),
     )
 
     try:

@@ -26,6 +26,7 @@ from afabench.core.utils import (
     set_seed,
 )
 from afabench.datasets.utils import flatten_features_collate
+from afabench.training.supervised_learning import lightning_root
 
 if TYPE_CHECKING:
     from torch.utils.data import Dataset
@@ -37,7 +38,7 @@ log = logging.getLogger(__name__)
 
 def _lightning_log_dir(save_path: str) -> Path:
     save_path_parts = Path(save_path).with_suffix("").parts
-    return Path("extra/logs/lightning/train_classifier", *save_path_parts)
+    return lightning_root() / "train_classifier" / Path(*save_path_parts)
 
 
 @hydra.main(

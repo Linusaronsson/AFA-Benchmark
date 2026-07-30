@@ -21,6 +21,14 @@ Missing-data config keys:
     Optional ``include_method_variants`` omits missingness-specific controls
     from a focused experiment while retaining them by default.
 
+Every non-local production rule writes a Snakemake benchmark TSV under
+``extra/output/missing_data/benchmark/<namespace>``. These records measure the
+wall time, CPU time, and peak resident memory of the exact artifact-producing
+job without becoming part of the rule's completeness contract.
+Hydra's per-invocation configuration and log files are redirected to temporary
+storage because the scheduler log and benchmark TSV already retain the command
+and resource record.
+
 Device routing:
     ``device`` is the default. Optional ``device_overrides`` may contain
     ``methods``, ``datasets``, ``method_datasets``, and ``pretrained_models``.
@@ -139,6 +147,12 @@ if EVAL_SPLIT not in {"val", "test"}:
     raise ValueError("eval_dataset_split must be either 'val' or 'test'")
 
 ROOT = "extra/output/missing_data"
+BENCHMARK_ROOT = f"{ROOT}/benchmark/{NAMESPACE}"
+HYDRA_WORKFLOW_OVERRIDES = (
+    "hydra/job_logging=workflow_console "
+    "hydra.run.dir=${SNIC_TMP:-/tmp}/afabench-hydra/"
+    "${SLURM_JOB_ID:-local} hydra.output_subdir=null"
+)
 MISSINGNESS = config["missingness"]
 MECHANISMS = [str(value) for value in MISSINGNESS["mechanisms"]]
 PROBABILITIES = [str(value) for value in MISSINGNESS["probabilities"]]
@@ -253,6 +267,19 @@ METHOD_CLASSIFIER_OUTPUT = (
     if CLASSIFIER_SCOPE == "per_instance"
     else f"{ROOT}/classifier/{NAMESPACE}/"
     "method-{base_method}+dataset-{dataset}.bundle"
+)
+CLASSIFIER_BENCHMARK = (
+    f"{BENCHMARK_ROOT}/train_shared_classifier/dataset-{{dataset}}/"
+    "instance-{instance}.tsv"
+    if CLASSIFIER_SCOPE == "per_instance"
+    else f"{BENCHMARK_ROOT}/train_shared_classifier/dataset-{{dataset}}.tsv"
+)
+METHOD_CLASSIFIER_BENCHMARK = (
+    f"{BENCHMARK_ROOT}/train_method_classifier/"
+    "method-{base_method}+dataset-{dataset}/instance-{instance}.tsv"
+    if CLASSIFIER_SCOPE == "per_instance"
+    else f"{BENCHMARK_ROOT}/train_method_classifier/"
+    "method-{base_method}+dataset-{dataset}.tsv"
 )
 
 
@@ -568,6 +595,8 @@ rule generate_missing_data_dataset:
             for instance in INSTANCES
             for split in ["train", "val", "test"]
         ]
+    benchmark:
+        f"{BENCHMARK_ROOT}/generate_dataset/dataset-{{dataset}}.tsv"
     params:
         instances="[" + ",".join(str(value) for value in INSTANCES) + "]",
         seeds="[" + ",".join(str(value) for value in INSTANCES) + "]",
@@ -577,7 +606,8 @@ rule generate_missing_data_dataset:
         """
         python scripts/dataset_generation/generate_dataset.py \
             dataset={wildcards.dataset} instance_indices={params.instances} \
-            seeds={params.seeds} save_path={params.save_path} {params.extra}
+            seeds={params.seeds} save_path={params.save_path} {params.extra} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -591,6 +621,8 @@ rule train_missing_data_shared_classifier:
         ),
     output:
         directory(CLASSIFIER_OUTPUT),
+    benchmark:
+        CLASSIFIER_BENCHMARK
     params:
         instance=classifier_instance,
         script=lambda wc: classifier_script_name(wc.dataset),
@@ -605,7 +637,8 @@ rule train_missing_data_shared_classifier:
             components/unmaskers@unmasker={params.unmasker} \
             device={params.device} seed={params.instance} \
             use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
-            experiment@_global_={wildcards.dataset} {params.extra}
+            experiment@_global_={wildcards.dataset} {params.extra} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -619,6 +652,8 @@ rule train_missing_data_method_classifier:
         ),
     output:
         directory(METHOD_CLASSIFIER_OUTPUT),
+    benchmark:
+        METHOD_CLASSIFIER_BENCHMARK
     params:
         instance=classifier_instance,
         script=lambda wc: METHOD_CLASSIFIER_SCRIPT_NAMES[wc.base_method],
@@ -638,7 +673,8 @@ rule train_missing_data_method_classifier:
             components/unmaskers@unmasker={params.unmasker} \
             device={params.device} seed={params.instance} \
             use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
-            experiment@_global_={wildcards.dataset} {params.extra}
+            experiment@_global_={wildcards.dataset} {params.extra} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -657,6 +693,10 @@ rule materialize_missing_training_view:
             "mechanism-{mechanism}+p-{p}/instance-{instance}/"
             "{strategy}/val.bundle"
         ),
+    benchmark:
+        f"{BENCHMARK_ROOT}/materialize_view/dataset-{{dataset}}/"
+        "mechanism-{mechanism}+p-{p}+instance-{instance}+"
+        "strategy-{strategy}.tsv"
     params:
         p_obs=MISSINGNESS["p_obs"],
         p_params=MISSINGNESS["p_params"],
@@ -671,7 +711,8 @@ rule materialize_missing_training_view:
             missingness.mechanism={wildcards.mechanism} \
             missingness.p={wildcards.p} missingness.p_obs={params.p_obs} \
             missingness.p_params={params.p_params} \
-            missingness.exclude_inputs={params.exclude_inputs}
+            missingness.exclude_inputs={params.exclude_inputs} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -690,6 +731,10 @@ rule pretrain_incomplete_restoration_pvae:
             "dataset-{dataset}/mechanism-{mechanism}+p-{p}/"
             "instance-{instance}/model.bundle"
         ),
+    benchmark:
+        f"{BENCHMARK_ROOT}/pretrain_restoration_pvae/incomplete/"
+        "dataset-{dataset}+mechanism-{mechanism}+p-{p}+"
+        "instance-{instance}.tsv"
     params:
         unmasker=lambda wc: UNMASKERS[wc.dataset],
         device=lambda wc: dataset_device(wc.dataset, "pvae"),
@@ -707,7 +752,8 @@ rule pretrain_incomplete_restoration_pvae:
             device={params.device} seed={wildcards.instance} \
             use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
             respect_source_availability=true \
-            experiment@_global_={wildcards.dataset} {params.extra}
+            experiment@_global_={wildcards.dataset} {params.extra} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -721,6 +767,9 @@ rule pretrain_oracle_restoration_pvae:
             f"{ROOT}/restoration_pvae/{NAMESPACE}/oracle/"
             "dataset-{dataset}/instance-{instance}/model.bundle"
         ),
+    benchmark:
+        f"{BENCHMARK_ROOT}/pretrain_restoration_pvae/oracle/"
+        "dataset-{dataset}+instance-{instance}.tsv"
     params:
         unmasker=lambda wc: UNMASKERS[wc.dataset],
         device=lambda wc: dataset_device(wc.dataset, "pvae"),
@@ -738,7 +787,8 @@ rule pretrain_oracle_restoration_pvae:
             device={params.device} seed={wildcards.instance} \
             use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} \
             respect_source_availability=false \
-            experiment@_global_={wildcards.dataset} {params.extra}
+            experiment@_global_={wildcards.dataset} {params.extra} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -777,6 +827,10 @@ rule restore_missing_training_view:
             "mechanism-{mechanism}+p-{p}/instance-{instance}/"
             "{strategy}/val.bundle"
         ),
+    benchmark:
+        f"{BENCHMARK_ROOT}/restore_view/dataset-{{dataset}}/"
+        "mechanism-{mechanism}+p-{p}+instance-{instance}+"
+        "strategy-{strategy}.tsv"
     params:
         device=lambda wc: dataset_device(wc.dataset, "pvae"),
     shell:
@@ -788,7 +842,8 @@ rule restore_missing_training_view:
             strategy={wildcards.strategy} seed={wildcards.instance} \
             batch_size={RESTORATION_BATCH_SIZE} device={params.device} \
             reference_train_dataset_bundle_path={input.reference_train} \
-            reference_val_dataset_bundle_path={input.reference_val}
+            reference_val_dataset_bundle_path={input.reference_val} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -825,6 +880,10 @@ rule pretrain_missing_data_method:
             "dataset-{dataset}/mechanism-{mechanism}+p-{p}+"
             "strategy-{strategy}+instance-{instance}/model.bundle"
         ),
+    benchmark:
+        f"{BENCHMARK_ROOT}/pretrain_method/pretrain-{{pretrain_key}}/"
+        "dataset-{dataset}+mechanism-{mechanism}+p-{p}+"
+        "strategy-{strategy}+instance-{instance}.tsv"
     params:
         script=lambda wc: PRETRAIN_SCRIPT_NAMES[wc.pretrain_key],
         unmasker=lambda wc: UNMASKERS[wc.dataset],
@@ -839,7 +898,8 @@ rule pretrain_missing_data_method:
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
             device={params.device} seed={wildcards.instance} \
-            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} {params.extra}
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} {params.extra} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -896,6 +956,11 @@ rule train_missing_data_method_with_pretraining:
             "instance-{instance}+train_hard_budget-{train_budget}/"
             "method.bundle"
         ),
+    benchmark:
+        f"{BENCHMARK_ROOT}/train_method/method-{{method}}/"
+        "dataset-{dataset}+mechanism-{mechanism}+p-{p}+"
+        "strategy-{strategy}+instance-{instance}+"
+        "train_hard_budget-{train_budget}.tsv"
     params:
         script=lambda wc: METHOD_SPECS[wc.method].train_script_name,
         unmasker=lambda wc: UNMASKERS[wc.dataset],
@@ -912,7 +977,8 @@ rule train_missing_data_method_with_pretraining:
             components/unmaskers@unmasker={params.unmasker} \
             hard_budget={wildcards.train_budget} soft_budget_param=null \
             device={params.device} seed={wildcards.instance} \
-            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} {params.extra}
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} {params.extra} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -933,6 +999,11 @@ rule train_missing_data_method_without_pretraining:
             "instance-{instance}+train_hard_budget-{train_budget}/"
             "method.bundle"
         ),
+    benchmark:
+        f"{BENCHMARK_ROOT}/train_method/method-{{method}}/"
+        "dataset-{dataset}+mechanism-{mechanism}+p-{p}+"
+        "strategy-{strategy}+instance-{instance}+"
+        "train_hard_budget-{train_budget}.tsv"
     params:
         script=lambda wc: METHOD_SPECS[wc.method].train_script_name,
         unmasker=lambda wc: UNMASKERS[wc.dataset],
@@ -948,7 +1019,8 @@ rule train_missing_data_method_without_pretraining:
             components/unmaskers@unmasker={params.unmasker} \
             hard_budget={wildcards.train_budget} soft_budget_param=null \
             device={params.device} seed={wildcards.instance} \
-            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} {params.extra}
+            use_wandb={USE_WANDB} smoke_test={SMOKE_TEST_STR} {params.extra} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -1009,7 +1081,8 @@ rule eval_missing_data_method:
             hard_budget={wildcards.eval_budget} soft_budget_param=null \
             batch_size={params.batch_size} device={params.device} \
             seed={wildcards.instance} use_wandb={USE_WANDB} \
-            smoke_test={SMOKE_TEST_STR} {params.extra}
+            smoke_test={SMOKE_TEST_STR} {params.extra} \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
 
 
@@ -1055,5 +1128,6 @@ rule plot_missing_data:
         python scripts/plotting/plot_missing_data.py \
             instance_metrics={input.instances} summary={input.summary} \
             action_rates={input.actions} restoration_rmse={input.restoration} \
-            output_folder={output} formats='[pdf,svg]'
+            output_folder={output} formats='[pdf,svg]' \
+            {HYDRA_WORKFLOW_OVERRIDES}
         """
