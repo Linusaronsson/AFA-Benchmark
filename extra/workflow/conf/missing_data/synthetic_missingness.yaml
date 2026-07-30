@@ -30,12 +30,6 @@ eval_dataset_split: val
 dataset_instance_indices: [0, 1, 2, 3, 4]
 datasets: [cube, cube_nm, diabetes, actg]
 
-dataset_generation_params:
-  cube:
-    - dataset.kwargs.n_samples=20000
-  cube_nm:
-    - dataset.kwargs.n_samples=20000
-
 eval_batch_size: 128
 restoration_batch_size: 1024
 include_complete_data: true

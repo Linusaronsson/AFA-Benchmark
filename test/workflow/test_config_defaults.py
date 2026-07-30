@@ -5,6 +5,24 @@ from types import ModuleType
 from omegaconf import OmegaConf
 
 
+def test_non_smoke_missing_data_configs_keep_canonical_cube_size() -> None:
+    root = Path(__file__).parents[2]
+    config_dir = root / "extra" / "workflow" / "conf" / "missing_data"
+    cube_datasets = {"cube", "cube_nm", "cube_nonuniform_costs"}
+
+    for path in config_dir.glob("*.yaml"):
+        if "smoke" in path.stem:
+            continue
+        config = OmegaConf.load(path)
+        generation = config.get("dataset_generation_params", {})
+        for dataset in cube_datasets:
+            params = generation.get(dataset, [])
+            assert not any(
+                str(param).startswith("dataset.kwargs.n_samples=")
+                for param in params
+            ), path
+
+
 def test_load_config_uses_pipeline_defaults() -> None:
     config_module = _load_workflow_config_module()
 

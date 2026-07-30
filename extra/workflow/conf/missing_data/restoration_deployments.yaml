@@ -11,19 +11,6 @@ eval_dataset_split: val
 dataset_instance_indices: [0, 1, 2]
 datasets: [cube, cube_nm]
 
-dataset_generation_params:
-  cube:
-    - dataset.kwargs.n_samples=20000
-  cube_nm:
-    - dataset.kwargs.n_samples=20000
-
-# The original 2000 epochs target roughly 10000 updates on the benchmark's
-# small default datasets. At 20000 data instances, 100 epochs gives the same
-# order of update count.
-classifier_params:
-  default:
-    - epochs=100
-
 eval_batch_size: 128
 restoration_batch_size: 1024
 include_complete_data: true
