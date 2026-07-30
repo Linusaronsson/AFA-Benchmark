@@ -70,8 +70,9 @@ soft_budget_params:
       - [0.001, null] # 40% observed
       - [0.01, null] # 5% observed
 
-  ol_with_mask:
+  ol_with_mask: &ol
     default: []
+  ol_full_state: *ol
   odin_model_based:
     default: [] # don't rely on defaults
     cube:

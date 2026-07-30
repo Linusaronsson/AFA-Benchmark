@@ -52,12 +52,16 @@ class OLActionValueModule(nn.Module):
         flat_feature_mask = feature_mask.flatten(
             start_dim=-self.n_feature_dims
         )
+        flat_action_availability = action_mask[..., 1:]
         # Flatten batch dimensions
         flat_masked_features = flat_masked_features.flatten(end_dim=-2)
         flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
+        flat_action_availability = flat_action_availability.flatten(end_dim=-2)
         # pq_module.forward ensures that gradients are not backpropagated to the P network
         qvalues = self.pq_module.forward_q_only(
-            flat_masked_features, flat_feature_mask
+            flat_masked_features,
+            flat_feature_mask,
+            flat_action_availability,
         )
 
         # Unflatten batch dimensions

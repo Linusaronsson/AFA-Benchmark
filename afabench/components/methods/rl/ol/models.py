@@ -47,6 +47,9 @@ class OLPQModule(nn.Module):
             if self.cfg.use_feature_mask
             else self.n_features
         )
+        self.n_q_inputs = self.n_inputs + (
+            self.n_actions - 1 if self.cfg.use_action_availability else 0
+        )
 
         # Initialize the P-Net
         size_last = self.n_inputs
@@ -55,7 +58,7 @@ class OLPQModule(nn.Module):
             size_last = n_h
 
         # Initialize the Q-Net. The inputs to the Q-network are concatenations of the previous Q-network layer's output and activations from the P-network.
-        size_last = self.n_inputs
+        size_last = self.n_q_inputs
         # always share_pq
         self.n_hiddens_q = []
         for ind in range(len(self.cfg.n_hiddens)):
@@ -91,6 +94,7 @@ class OLPQModule(nn.Module):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask | None = None,
+        action_availability: torch.Tensor | None = None,
         *,
         mc_dropout: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -107,7 +111,24 @@ class OLPQModule(nn.Module):
         class_logits = self.layers_p[-1](act_last)
 
         # Q-Net forward path, gradients are not backpropagated to P-Net
-        act_last = x
+        if (
+            getattr(self.cfg, "use_action_availability", False)
+            and action_availability is None
+        ):
+            # Supervised OL pretraining and classification use only the
+            # P-head. Supply the deployment support for the unused Q-head;
+            # policy calls go through `forward_q_only` and must pass the
+            # actual legal continuation mask.
+            action_availability = torch.ones(
+                masked_features.shape[:-1] + (self.n_actions - 1,),
+                dtype=torch.bool,
+                device=masked_features.device,
+            )
+        q_input = self._maybe_concatenate_action_availability(
+            x,
+            action_availability,
+        )
+        act_last = q_input
         act_last = F.relu(self.layers_q[0](act_last))
         for f_layer, p_act in zip(
             self.layers_q[1:-1], acts_p[:-1], strict=False
@@ -123,6 +144,7 @@ class OLPQModule(nn.Module):
         self,
         masked_features: MaskedFeatures,
         feature_mask: FeatureMask | None = None,
+        action_availability: torch.Tensor | None = None,
     ) -> torch.Tensor:
         assert masked_features.ndim == 2
         x = self._maybe_concatenate(masked_features, feature_mask)
@@ -137,7 +159,11 @@ class OLPQModule(nn.Module):
                 acts_p.append(act_last)
 
         # Q-Net forward path, gradients are not backpropagated to P-Net
-        act_last = x
+        q_input = self._maybe_concatenate_action_availability(
+            x,
+            action_availability,
+        )
+        act_last = q_input
         act_last = F.relu(self.layers_q[0](act_last))
         for f_layer, p_act in zip(
             self.layers_q[1:-1], acts_p[:-1], strict=False
@@ -155,6 +181,31 @@ class OLPQModule(nn.Module):
             assert feature_mask is not None
             return torch.cat([masked_features, feature_mask], dim=-1)
         return masked_features
+
+    def _maybe_concatenate_action_availability(
+        self,
+        state: torch.Tensor,
+        action_availability: torch.Tensor | None,
+    ) -> torch.Tensor:
+        if not getattr(self.cfg, "use_action_availability", False):
+            return state
+        if action_availability is None:
+            msg = (
+                "OL action availability is part of the Q-state but was not "
+                "provided."
+            )
+            raise ValueError(msg)
+        expected_shape = state.shape[:-1] + (self.n_actions - 1,)
+        if action_availability.shape != expected_shape:
+            msg = (
+                "OL action availability must have shape "
+                f"{expected_shape}, got {action_availability.shape}."
+            )
+            raise ValueError(msg)
+        return torch.cat(
+            [state, action_availability.to(dtype=state.dtype)],
+            dim=-1,
+        )
 
     @staticmethod
     def _repeat_batch(x: torch.Tensor, mcdrop_samples: int) -> torch.Tensor:

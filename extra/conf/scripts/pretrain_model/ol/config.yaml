@@ -32,6 +32,7 @@ pq_module:
   n_hiddens: [64,32,16] # ol implementation for Diabetes
   p_dropout: 0.5 # ol implementation
   use_feature_mask: false # like original paper
+  use_action_availability: false
 
 seed: null
 use_wandb: false

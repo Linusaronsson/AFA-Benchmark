@@ -11,6 +11,7 @@ soft_budget_params:
   ol_without_mask: &ol
     default: []
   ol_with_mask: *ol
+  ol_full_state: *ol
   odin_model_free: &odin
     default:
       - [0.1, null]

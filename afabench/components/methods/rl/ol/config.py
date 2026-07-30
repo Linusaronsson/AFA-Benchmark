@@ -18,6 +18,7 @@ class OLPQModuleConfig:
     n_hiddens: list[int]
     p_dropout: float
     use_feature_mask: bool
+    use_action_availability: bool = False
 
 
 @dataclass

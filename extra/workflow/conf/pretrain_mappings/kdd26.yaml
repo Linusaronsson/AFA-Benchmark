@@ -18,11 +18,21 @@ pretrain_mapping:
 
   ol_without_mask:
     pretrain_script_name: "ol"
-    pretrain_params: ["pq_module.use_feature_mask=false"]
+    pretrain_params:
+      - "pq_module.use_feature_mask=false"
+      - "pq_module.use_action_availability=false"
 
   ol_with_mask:
     pretrain_script_name: "ol"
-    pretrain_params: ["pq_module.use_feature_mask=true"]
+    pretrain_params:
+      - "pq_module.use_feature_mask=true"
+      - "pq_module.use_action_availability=false"
+
+  ol_full_state:
+    pretrain_script_name: "ol"
+    pretrain_params:
+      - "pq_module.use_feature_mask=true"
+      - "pq_module.use_action_availability=true"
 
   aaco:
     pretrain_script_name: "aaco"

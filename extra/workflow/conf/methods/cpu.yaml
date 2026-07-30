@@ -1,6 +1,7 @@
 methods:
   - ol_without_mask
   - ol_with_mask
+  - ol_full_state
   - random_dummy
   - sequential_dummy
   - cae

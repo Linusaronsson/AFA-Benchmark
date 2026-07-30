@@ -11,6 +11,7 @@ method_name_mapping:
   jafa: JAFA
   ol_with_mask: OL(with-mask)
   ol_without_mask: OL(without-mask)
+  ol_full_state: OL(full-state)
   odin_model_based: ODIN(model-based)
   odin_model_free: ODIN(model-free)
   aaco: AACO
@@ -30,6 +31,7 @@ method_policy_family_mapping:
   jafa: jafa
   ol_with_mask: ol
   ol_without_mask: ol
+  ol_full_state: ol
   odin_model_based: odin
   odin_model_free: odin
   aaco: aaco
