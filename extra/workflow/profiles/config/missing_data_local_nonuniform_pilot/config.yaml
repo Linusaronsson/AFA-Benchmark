@@ -17,7 +17,7 @@ configfile:
 config:
   artifact_namespace: induced_nonuniform_local_pilot_v1
   dataset_instance_indices: [0]
-  datasets: [heart_disease]
+  datasets: [heart_disease, cube_nonuniform_costs]
   missingness:
     mechanisms: [mcar]
     probabilities: [0.5]
