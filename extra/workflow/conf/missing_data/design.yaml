@@ -26,11 +26,13 @@ missingness:
 
 strategies:
   - restricted
+  - zero_fill
   - mean_fill
   - pvae_label_conditioned
   - pvae_label_free
   - pvae_oracle
   - true_completion
+  - pvae_stepwise
 
 # Missingness-only behavior is layered onto shared base methods. Definitions
 # such as script names, pretrained models, dataset exclusions, and normal
@@ -39,22 +41,10 @@ missing_data_method_overrides:
   aaco:
     train_params:
       - aco.missingness_objective=support_aware
-    extra_strategies:
-      - zero_fill
-      - pvae_stepwise
-  dime:
-    extra_strategies:
-      - pvae_stepwise
-  ol_without_mask:
-    extra_strategies:
-      - pvae_stepwise
-
-strategy_filters:
-  pvae_stepwise:
-    datasets: [cube, cube_nm, diabetes, actg]
-    methods: [aaco, dime, ol_without_mask]
-    mechanisms: [mcar]
-    probabilities: [0.3, 0.5, 0.7]
+  random_dummy:
+    # Random acquisition does not learn from the training view. One
+    # complete-data run is the reference for every missingness cell.
+    allowed_strategies: []
 
 missing_data_method_variants:
   aaco_doubly_robust:

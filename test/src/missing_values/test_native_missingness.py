@@ -22,6 +22,11 @@ class _Incomplete:
         self.native_observed_mask = mask
 
 
+class _SourceObserved:
+    def __init__(self, mask: torch.Tensor):
+        self.source_value_observed = mask
+
+
 def test_native_mask_is_returned_as_bool() -> None:
     mask = torch.tensor([[1, 0, 1], [1, 1, 0]], dtype=torch.uint8)
 
@@ -31,6 +36,14 @@ def test_native_mask_is_returned_as_bool() -> None:
     assert torch.equal(
         got, torch.tensor([[True, False, True], [True, True, False]])
     )
+
+
+def test_source_observation_provenance_is_a_native_mask() -> None:
+    mask = torch.tensor([[True, False], [False, True]])
+
+    got = native_observed_mask(_SourceObserved(mask))
+
+    assert torch.equal(got, mask)
 
 
 def test_complete_dataset_is_rejected_by_name() -> None:

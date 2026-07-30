@@ -1,0 +1,43 @@
+# Exploratory native-missingness design.
+#
+# The ordinary evaluator currently treats every preprocessed value as
+# acquirable, including values imputed because the source measurement was
+# absent. Use this only for implementation pilots until evaluation respects
+# each data instance's native action availability.
+artifact_namespace: native_missingness_exploratory_v1
+classifier_scope: per_instance
+device: cuda
+smoke_test: false
+eval_dataset_split: val
+dataset_instance_indices: [0, 1, 2, 3, 4]
+datasets: [physionet, ckd, heart_disease, nhanes_mortality]
+
+dataset_generation_params:
+  nhanes_mortality:
+    - fixed_test_seed=100
+    - stratify=true
+
+eval_batch_size: 128
+restoration_batch_size: 1024
+include_complete_data: false
+
+missingness:
+  mechanisms: [native]
+  probabilities: [0.0]
+
+strategies:
+  - restricted
+  - zero_fill
+  - mean_fill
+  - pvae_label_conditioned
+  - pvae_label_free
+  - pvae_stepwise
+
+methods:
+  - aaco
+  - dime
+  - ol_with_mask
+  - ol_full_state
+
+eval_params:
+  - eval_only_n_samples=4096

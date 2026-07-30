@@ -1,36 +1,31 @@
-# Synthetic pair under the complete method and treatment matrix.
-artifact_namespace: core_group_missingness_v2
+# Induced missingness on the real datasets with a complete reference.
+artifact_namespace: induced_real_missingness_v1
 classifier_scope: per_instance
-run_confirmatory_analysis: true
 device: cuda
 smoke_test: false
 eval_dataset_split: val
 dataset_instance_indices: [0, 1, 2, 3, 4]
-datasets: [cube, cube_nm]
+datasets: [actg, diabetes, nhanes_mortality]
 
 dataset_generation_params:
-  cube:
-    - dataset.kwargs.n_samples=20000
-  cube_nm:
-    - dataset.kwargs.n_samples=20000
+  nhanes_mortality:
+    - fixed_test_seed=100
+    - stratify=true
+  actg:
+    - fixed_test_seed=100
+    - stratify=true
+  diabetes:
+    - fixed_test_seed=100
+    - stratify=true
 
 eval_batch_size: 128
 restoration_batch_size: 1024
 include_complete_data: true
+run_confirmatory_analysis: true
 
 missingness:
   mechanisms: [mcar, mar, mnar_logistic, mnar_self]
   probabilities: [0.3, 0.5, 0.7]
-
-strategies:
-  - restricted
-  - zero_fill
-  - mean_fill
-  - pvae_label_conditioned
-  - pvae_label_free
-  - pvae_oracle
-  - true_completion
-  - pvae_stepwise
 
 methods:
   - aaco

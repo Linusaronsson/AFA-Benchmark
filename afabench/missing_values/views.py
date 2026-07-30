@@ -38,18 +38,20 @@ def native_observed_mask(dataset: AFADataset) -> torch.Tensor:
     a ground truth we hold. Real missingness has neither property, which is why
     it is worth measuring against.
 
-    Only datasets that arrive incomplete carry this: PhysioNet 2012 (26.2%) and
-    CKD (10.5%). Diabetes and MiniBooNE are complete, so there is nothing
-    native to recover from them.
+    Datasets may call the mask ``native_observed_mask`` or retain it as
+    ``source_value_observed`` when preprocessing imputes the stored tensor.
+    Both mean whether a value existed in the source data.
     """
     mask = getattr(dataset, "native_observed_mask", None)
+    if mask is None:
+        mask = getattr(dataset, "source_value_observed", None)
     if mask is None:
         msg = (
             f"{type(dataset).__name__} has no native missingness, so "
             "mechanism='native' is undefined for it. Use a sampled mechanism "
             "(mcar, mar, mnar_logistic, mnar_self), or add "
-            "`self.native_observed_mask` to the dataset if it does arrive "
-            "incomplete."
+            "`self.native_observed_mask` or `self.source_value_observed` to "
+            "the dataset if it does arrive incomplete."
         )
         raise ValueError(msg)
     return mask.bool()
