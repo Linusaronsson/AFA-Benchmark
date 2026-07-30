@@ -14,6 +14,7 @@ from scripts.analysis.analyze_missing_data_mechanisms import (
     stepwise_effects,
 )
 from scripts.plotting.plot_missing_data_mechanisms import (
+    _read_analysis,
     plot_generator_quality,
     plot_path_fidelity,
     plot_stepwise,
@@ -140,6 +141,13 @@ def test_generator_quality_pairs_exact_cells() -> None:
 
     assert paired.loc[0, "rmse_improvement"] == pytest.approx(0.2)
     assert paired.loc[0, "score_improvement"] == pytest.approx(0.06)
+
+
+def test_empty_analysis_csv_is_an_empty_frame(tmp_path: Path) -> None:
+    path = tmp_path / "empty.csv"
+    path.touch()
+
+    assert _read_analysis(path).empty
 
 
 def test_mechanism_figures_render(tmp_path: Path) -> None:

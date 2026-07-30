@@ -48,6 +48,13 @@ def _save(fig: Figure, output: Path, name: str) -> None:
     plt.close(fig)
 
 
+def _read_analysis(path: Path) -> pd.DataFrame:
+    try:
+        return pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
+
+
 def plot_path_fidelity(frame: pd.DataFrame, output: Path) -> None:
     selected = frame.loc[
         frame["method"].isin(COLORS)
@@ -195,18 +202,25 @@ def main() -> None:
     args = parser.parse_args()
 
     suffix = f"{args.namespace}_{args.split}.csv"
-    plot_path_fidelity(
-        pd.read_csv(args.analysis_dir / f"path_fidelity_{suffix}"),
-        args.output_dir,
-    )
-    plot_generator_quality(
-        pd.read_csv(args.analysis_dir / f"generator_quality_{suffix}"),
-        args.output_dir,
-    )
-    plot_stepwise(
-        pd.read_csv(args.analysis_dir / f"stepwise_effects_{suffix}"),
-        args.output_dir,
-    )
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    analyses = [
+        (
+            plot_path_fidelity,
+            args.analysis_dir / f"path_fidelity_{suffix}",
+        ),
+        (
+            plot_generator_quality,
+            args.analysis_dir / f"generator_quality_{suffix}",
+        ),
+        (
+            plot_stepwise,
+            args.analysis_dir / f"stepwise_effects_{suffix}",
+        ),
+    ]
+    for plot, path in analyses:
+        frame = _read_analysis(path)
+        if not frame.empty:
+            plot(frame, args.output_dir)
 
 
 if __name__ == "__main__":
