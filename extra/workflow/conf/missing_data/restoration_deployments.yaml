@@ -41,14 +41,5 @@ methods:
   - dime
   - ol_without_mask
 
-# The complete-data probe showed that 200 batches undertrained OL on CUBE.
-# Two thousand batches recovered its expected non-myopic CUBE-NM route; the
-# default 10000 is unnecessary for this focused validation.
-train_runtime_params:
-  ol_without_mask:
-    - rl_training_loop.n_batches=2000
-    - rl_training_loop.frames_per_batch=256
-    - rl_training_loop.eval_n_times=10
-
 eval_params:
   - eval_only_n_samples=1024

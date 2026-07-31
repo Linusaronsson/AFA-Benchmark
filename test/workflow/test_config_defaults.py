@@ -23,6 +23,27 @@ def test_non_smoke_missing_data_configs_keep_canonical_cube_size() -> None:
             ), path
 
 
+def test_missing_data_ol_variants_share_calibrated_training_budget() -> None:
+    config_path = (
+        Path(__file__).parents[2]
+        / "extra"
+        / "workflow"
+        / "conf"
+        / "missing_data"
+        / "design.yaml"
+    )
+    config = OmegaConf.load(config_path)
+    runtime_params = config.train_runtime_params
+    expected = [
+        "rl_training_loop.n_batches=2000",
+        "rl_training_loop.frames_per_batch=256",
+        "rl_training_loop.eval_n_times=10",
+    ]
+
+    for method in ("ol_without_mask", "ol_with_mask", "ol_full_state"):
+        assert list(runtime_params[method]) == expected
+
+
 def test_load_config_uses_pipeline_defaults() -> None:
     config_module = _load_workflow_config_module()
 

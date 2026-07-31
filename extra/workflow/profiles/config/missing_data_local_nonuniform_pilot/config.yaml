@@ -15,9 +15,9 @@ configfile:
   - extra/workflow/conf/missing_data/induced_nonuniform.yaml
 
 config:
-  artifact_namespace: induced_nonuniform_local_pilot_v1
+  artifact_namespace: induced_nonuniform_local_pilot_v2
   dataset_instance_indices: [0]
-  datasets: [heart_disease, cube_nonuniform_costs]
+  datasets: [cube_nonuniform_costs]
   missingness:
     mechanisms: [mcar]
     probabilities: [0.5]

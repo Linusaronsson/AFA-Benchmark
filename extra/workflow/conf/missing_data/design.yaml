@@ -34,6 +34,18 @@ strategies:
   - true_completion
   - pvae_stepwise
 
+# Two thousand batches recovered OL's non-myopic CUBE-NM route in the
+# complete-data calibration; 200 undertrained it and the global 10000-batch
+# benchmark default is unnecessary here. Keep this study-wide so every OL
+# state representation receives the same training budget.
+train_runtime_params:
+  ol_without_mask: &ol_training
+    - rl_training_loop.n_batches=2000
+    - rl_training_loop.frames_per_batch=256
+    - rl_training_loop.eval_n_times=10
+  ol_with_mask: *ol_training
+  ol_full_state: *ol_training
+
 # Missingness-only behavior is layered onto shared base methods. Definitions
 # such as script names, pretrained models, dataset exclusions, and normal
 # method parameters continue to come from method_options/*.yaml.
