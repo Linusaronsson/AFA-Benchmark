@@ -30,7 +30,7 @@ export NUMEXPR_NUM_THREADS=1
 # All Snakemake rules share this allocation. Give each shell invocation its own
 # node-local directory so concurrent Hydra and Lightning jobs never collide.
 # Arrhenius removes the allocation's outer SNIC_TMP when the job ends.
-export AFABENCH_SHELL_PREFIX='source "$AFA_BASE"/venvs/$(uname -m)/bin/activate; export SNIC_TMP=$(mktemp -d "${SNIC_TMP:?}/afabench-job.XXXXXX"); export TMPDIR="$SNIC_TMP"; '
+export AFABENCH_SHELL_PREFIX='source "$AFA_BASE"/venvs/$(uname -m)/bin/activate; export SNIC_TMP=$(mktemp -d "$SNIC_TMP/afabench-job.XXXXXX"); export TMPDIR="$SNIC_TMP"; '
 
 exec uv run snakemake \
     --profile "${profile_dir}" all \
