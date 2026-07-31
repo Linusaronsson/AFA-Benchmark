@@ -34,6 +34,7 @@ export AFABENCH_SHELL_PREFIX='source "$AFA_BASE"/venvs/$(uname -m)/bin/activate;
 
 exec uv run snakemake \
     --profile "${profile_dir}" all \
+    --apptainer-prefix .snakemake/apptainer \
     --cores "${SLURM_CPUS_PER_TASK}" \
     --config device=cpu \
     --rerun-incomplete \
