@@ -170,6 +170,7 @@ TRAIN_RUNTIME_PARAMS = config.get("train_runtime_params", {})
 EVAL_PARAMS = config.get("eval_params", {})
 RESTORATION_BATCH_SIZE = int(config.get("restoration_batch_size", 1024))
 EVAL_BATCH_SIZE_OVERRIDE = config.get("eval_batch_size")
+STEPWISE_EVAL_BATCH_SIZE = int(config.get("stepwise_eval_batch_size", 16))
 RUN_CONFIRMATORY_ANALYSIS = bool(
     config.get("run_confirmatory_analysis", False)
 )
@@ -1025,6 +1026,8 @@ rule train_missing_data_method_without_pretraining:
 
 
 def eval_batch_size(wildcards):
+    if wildcards.strategy == "pvae_stepwise":
+        return STEPWISE_EVAL_BATCH_SIZE
     if EVAL_BATCH_SIZE_OVERRIDE is not None:
         if isinstance(EVAL_BATCH_SIZE_OVERRIDE, dict):
             return int(

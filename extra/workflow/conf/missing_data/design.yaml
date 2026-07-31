@@ -34,6 +34,10 @@ strategies:
   - true_completion
   - pvae_stepwise
 
+# Stepwise restoration scores every candidate acquisition through the PVAE.
+# A smaller evaluation batch is equivalent but avoids a large candidate tensor.
+stepwise_eval_batch_size: 16
+
 # Two thousand batches recovered OL's non-myopic CUBE-NM route in the
 # complete-data calibration; 200 undertrained it and the global 10000-batch
 # benchmark default is unnecessary here. Keep this study-wide so every OL

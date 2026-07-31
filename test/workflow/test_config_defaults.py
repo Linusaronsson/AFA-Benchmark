@@ -44,6 +44,20 @@ def test_missing_data_ol_variants_share_calibrated_training_budget() -> None:
         assert list(runtime_params[method]) == expected
 
 
+def test_stepwise_evaluation_uses_memory_safe_batches() -> None:
+    config_path = (
+        Path(__file__).parents[2]
+        / "extra"
+        / "workflow"
+        / "conf"
+        / "missing_data"
+        / "design.yaml"
+    )
+    config = OmegaConf.load(config_path)
+
+    assert config.stepwise_eval_batch_size == 16
+
+
 def test_load_config_uses_pipeline_defaults() -> None:
     config_module = _load_workflow_config_module()
 

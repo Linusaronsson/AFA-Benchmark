@@ -20,7 +20,10 @@ fi
 
 : "${SLURM_JOB_ID:?submit this script with sbatch}"
 : "${SLURM_CPUS_PER_TASK:?request CPUs with sbatch --cpus-per-task}"
+: "${SLURM_MEM_PER_NODE:?request memory with sbatch --mem}"
 : "${SNIC_TMP:?Arrhenius did not provide job-local scratch}"
+
+usable_mem_mb=$((SLURM_MEM_PER_NODE * 9 / 10))
 
 export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
@@ -36,6 +39,9 @@ exec uv run snakemake \
     --profile "${profile_dir}" all \
     --apptainer-prefix .snakemake/apptainer \
     --cores "${SLURM_CPUS_PER_TASK}" \
+    --resources "mem_mb=${usable_mem_mb}" \
+    --default-resources mem_mb=3000 \
+    --set-resources eval_missing_data_method:mem_mb=12000 \
     --config device=cpu \
     --rerun-incomplete \
     --printshellcmds \
