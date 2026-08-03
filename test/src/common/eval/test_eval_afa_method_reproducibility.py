@@ -16,6 +16,7 @@ from afabench.core.types import (
     SelectionMask,
 )
 from afabench.evaluation.eval import eval_afa_method
+from afabench.testing.helpers import get_sequential_action_fn
 
 
 class DummyDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
@@ -167,3 +168,30 @@ def test_eval_afa_method_seed_changes_stochastic_results() -> None:
     second = run_eval_after_global_rng_perturbation(seed=456)
 
     assert not first.equals(second)
+
+
+def test_eval_afa_method_batches_native_availability_with_samples() -> None:
+    dataset = DummyDataset(n_samples=4, n_features=3)
+    feature_availability = torch.tensor(
+        [
+            [True, False, True],
+            [False, True, False],
+            [True, True, False],
+            [False, False, False],
+        ]
+    )
+    result = eval_afa_method(
+        afa_action_fn=get_sequential_action_fn(),
+        afa_unmask_fn=unmask_directly,
+        n_selection_choices=3,
+        afa_initialize_fn=initialize_all_masked,
+        dataset=dataset,
+        batch_size=2,
+        feature_availability=feature_availability,
+        selection_availability=feature_availability,
+    )
+
+    # Every performed acquisition was factual for its source sample. Across
+    # two deterministic batches the expected episodes are [1,3], [2], [1,2],
+    # and the empty episode, each followed by stop.
+    assert result["action_performed"].tolist() == [1, 2, 3, 0, 0, 1, 0, 2, 0]

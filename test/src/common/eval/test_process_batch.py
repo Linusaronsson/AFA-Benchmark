@@ -1,4 +1,5 @@
 import polars as pl
+import pytest
 import torch
 
 from afabench.core.types import (
@@ -11,6 +12,7 @@ from afabench.testing.helpers import (
     get_deterministic_afa_predict_fn,
     get_direct_unmask_fn,
     get_random_afa_predict_fn,
+    get_sequential_action_fn,
 )
 
 
@@ -103,6 +105,60 @@ def test_expected_length() -> None:
     assert len(df.filter(pl.col("idx") == 0)) == 4
     assert len(df.filter(pl.col("idx") == 1)) == 4
     assert len(df) == 8
+
+
+def test_native_availability_blocks_imputed_features() -> None:
+    features = torch.tensor([[1, 2, 3], [4, 5, 6]])
+    feature_availability = torch.tensor(
+        [[True, False, True], [False, False, False]]
+    )
+    df = pl.from_pandas(
+        process_batch(
+            afa_action_fn=get_sequential_action_fn(),
+            afa_unmask_fn=get_direct_unmask_fn(),
+            n_selection_choices=3,
+            features=features,
+            # Even an initializer asking for every feature cannot expose a
+            # source value that was never observed.
+            initial_feature_mask=torch.ones_like(features, dtype=torch.bool),
+            initial_masked_features=features.clone(),
+            true_label=torch.zeros((2, 2)),
+            feature_shape=torch.Size((3,)),
+            feature_availability=feature_availability,
+            selection_availability=feature_availability,
+        )
+    )
+
+    first = df.filter(pl.col("idx") == 0)
+    second = df.filter(pl.col("idx") == 1)
+    assert first["action_performed"].to_list() == [1, 3, 0]
+    assert second["action_performed"].to_list() == [0]
+    assert first["prev_selections_performed"].to_list() == [[], [0], [0, 2]]
+
+
+def test_native_availability_rejects_an_illegal_policy_action() -> None:
+    features = torch.tensor([[1, 2, 3]])
+
+    def choose_missing_feature(
+        *_args: object, **_kwargs: object
+    ) -> torch.Tensor:
+        return torch.tensor([[2]])
+
+    with pytest.raises(
+        ValueError, match="selected an unavailable acquisition"
+    ):
+        process_batch(
+            afa_action_fn=choose_missing_feature,
+            afa_unmask_fn=get_direct_unmask_fn(),
+            n_selection_choices=3,
+            features=features,
+            initial_feature_mask=torch.zeros_like(features, dtype=torch.bool),
+            initial_masked_features=torch.zeros_like(features),
+            true_label=torch.zeros((1, 2)),
+            feature_shape=torch.Size((3,)),
+            feature_availability=torch.tensor([[True, False, True]]),
+            selection_availability=torch.tensor([[True, False, True]]),
+        )
 
 
 def test_external_predictions() -> None:

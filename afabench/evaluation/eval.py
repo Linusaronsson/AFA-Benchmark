@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Protocol, cast, final, override
 
 import pandas as pd
 import torch
@@ -27,17 +28,123 @@ from afabench.core.types import (
 log = logging.getLogger(__name__)
 
 
+class _TensorDataset(Protocol):
+    def __len__(self) -> int: ...
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]: ...
+
+
+@final
+class _DatasetWithAvailability(
+    Dataset[tuple[torch.Tensor, torch.Tensor, FeatureMask, SelectionMask]]
+):
+    def __init__(
+        self,
+        dataset: _TensorDataset,
+        feature_availability: FeatureMask,
+        selection_availability: SelectionMask,
+    ) -> None:
+        self._dataset = dataset
+        self._feature_availability = feature_availability
+        self._selection_availability = selection_availability
+
+    def __len__(self) -> int:
+        return len(self._dataset)
+
+    @override
+    def __getitem__(
+        self, idx: int
+    ) -> tuple[torch.Tensor, torch.Tensor, FeatureMask, SelectionMask]:
+        features, label = self._dataset[idx]
+        return (
+            features,
+            label,
+            self._feature_availability[idx],
+            self._selection_availability[idx],
+        )
+
+
+def _initial_eval_state(
+    features: Features,
+    initial_feature_mask: FeatureMask,
+    initial_masked_features: MaskedFeatures,
+    n_selection_choices: int,
+    feature_availability: FeatureMask | None,
+    selection_availability: SelectionMask | None,
+) -> tuple[FeatureMask, MaskedFeatures, SelectionMask]:
+    feature_mask = initial_feature_mask.clone()
+    if feature_availability is not None:
+        if feature_availability.shape != features.shape:
+            msg = "feature_availability must have the same shape as features."
+            raise ValueError(msg)
+        feature_mask &= feature_availability
+    masked_features = initial_masked_features.clone()
+    masked_features[~feature_mask] = 0.0
+
+    expected_selection_shape = (features.shape[0], n_selection_choices)
+    if selection_availability is None:
+        selection_mask = torch.zeros(
+            expected_selection_shape,
+            device=features.device,
+            dtype=torch.bool,
+        )
+    else:
+        if selection_availability.shape != expected_selection_shape:
+            msg = (
+                "selection_availability must have shape "
+                f"{expected_selection_shape}."
+            )
+            raise ValueError(msg)
+        selection_mask = ~selection_availability.clone()
+    return feature_mask, masked_features, selection_mask
+
+
+def _dataset_with_availability(
+    dataset: AFADataset,
+    feature_availability: FeatureMask | None,
+    selection_availability: SelectionMask | None,
+) -> Dataset[tuple[torch.Tensor, ...]]:
+    if (feature_availability is None) != (selection_availability is None):
+        msg = (
+            "feature_availability and selection_availability must be supplied "
+            "together."
+        )
+        raise ValueError(msg)
+    if feature_availability is None:
+        return cast(
+            "Dataset[tuple[torch.Tensor, ...]]", cast("object", dataset)
+        )
+    assert selection_availability is not None
+    if len(feature_availability) != len(dataset):
+        msg = "feature_availability must contain one row per dataset item."
+        raise ValueError(msg)
+    if len(selection_availability) != len(dataset):
+        msg = "selection_availability must contain one row per dataset item."
+        raise ValueError(msg)
+    tensor_dataset = cast("_TensorDataset", cast("object", dataset))
+    return _DatasetWithAvailability(
+        tensor_dataset,
+        feature_availability,
+        selection_availability,
+    )
+
+
 def override_stop_with_first_selection(
     afa_action: AFAAction, selection_mask: SelectionMask
 ) -> AFAAction:
     """Override each stop action in `afa_action` with the first available selection in `selection_mask`."""
     new_afa_action = afa_action.clone()
 
-    flat_selection_mask = selection_mask.flatten(start_dim=1)
+    flat_selection_mask = selection_mask.bool().flatten(start_dim=1)
 
-    first_available_selection = (~flat_selection_mask).int().argmax(dim=1)
-    mask = (afa_action == 0).squeeze(-1)
-    new_afa_action[mask] = (first_available_selection[mask] + 1).unsqueeze(-1)
+    available = ~flat_selection_mask
+    first_available_selection = available.int().argmax(dim=1)
+    mask = (afa_action == 0).squeeze(-1) & available.any(dim=1)
+    new_afa_action[mask] = (
+        (first_available_selection[mask] + 1)
+        .to(new_afa_action.dtype)
+        .unsqueeze(-1)
+    )
 
     return new_afa_action
 
@@ -67,6 +174,7 @@ def single_afa_step(
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     *,
     force_acquisition: bool = False,
+    enforce_selection_mask: bool = False,
 ) -> AFAStepResult:
     """
     Perform a single AFA step.
@@ -76,6 +184,9 @@ def single_afa_step(
             (accessing it would be cheating), but available for benchmarking.
         feature_shape: Required by some action/unmask/predict implementations.
         force_acquisition: if true, override stop actions with the next available acquisition action instead. Useful in the hard budget setting.
+        enforce_selection_mask: reject acquisitions that are unavailable or
+            already masked. Native-missingness evaluation enables this so an
+            imputed source value can never be revealed as a measurement.
     """
     # Get the action from the AFA method (0 = stop, 1-n = valid selections)
     afa_action = afa_action_fn(
@@ -96,6 +207,17 @@ def single_afa_step(
             (overriden_afa_action != afa_action).squeeze(-1)
         ] = True
         afa_action = overriden_afa_action
+
+    if enforce_selection_mask:
+        actions = afa_action.squeeze(-1)
+        is_selection = actions > 0
+        if is_selection.any():
+            selected = actions[is_selection] - 1
+            if (selected >= selection_mask.shape[-1]).any() or selection_mask[
+                is_selection, selected
+            ].any():
+                msg = "AFA method selected an unavailable acquisition."
+                raise ValueError(msg)
 
     # Convert action to selection for the unmasker
     afa_selection: AFASelection = afa_action - 1
@@ -227,6 +349,8 @@ def process_batch(
     selection_costs: Sequence[float] | None = None,
     *,
     force_acquisition: bool = False,
+    feature_availability: FeatureMask | None = None,
+    selection_availability: SelectionMask | None = None,
 ) -> pd.DataFrame:
     """
     Evaluate a single batch.
@@ -251,6 +375,10 @@ def process_batch(
         selection_budget (float|None): Total accumulated selection cost to allow per sample. If None, allow unlimited selections. Defaults to None.
         selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
         force_acquisition (bool): Whether to force feature acquisition, ignoring stop actions.
+        feature_availability: Per-sample features that exist in the source
+            data. Initial features are intersected with this mask.
+        selection_availability: Per-sample acquisitions that are legal. False
+            selections are presented to the policy as permanently masked.
 
     Returns:
         pd.DataFrame: DataFrame with one row per sample and timestep, containing columns:
@@ -265,12 +393,13 @@ def process_batch(
     """
     # TODO: remove cloning if necessary for speed up
     features = features.clone()
-    feature_mask = initial_feature_mask.clone()
-    masked_features = initial_masked_features.clone()
-    selection_mask = torch.zeros(
-        (features.shape[0], n_selection_choices),
-        device=features.device,
-        dtype=torch.bool,
+    feature_mask, masked_features, selection_mask = _initial_eval_state(
+        features,
+        initial_feature_mask,
+        initial_masked_features,
+        n_selection_choices,
+        feature_availability,
+        selection_availability,
     )
 
     n_samples = features.shape[0]
@@ -314,6 +443,7 @@ def process_batch(
             builtin_afa_predict_fn=builtin_afa_predict_fn,
             selection_mask=active_selection_mask,
             force_acquisition=force_acquisition,
+            enforce_selection_mask=selection_availability is not None,
         )
         # Key assumption: predictions are logits/probabilities for classes
         if step.builtin_prediction is not None:
@@ -391,6 +521,8 @@ def eval_afa_method(
     seed: int | None = None,
     *,
     force_acquisition: bool = False,
+    feature_availability: FeatureMask | None = None,
+    selection_availability: SelectionMask | None = None,
 ) -> pd.DataFrame:
     """
     Evaluate an AFA method with support for early stopping and batched processing.
@@ -410,6 +542,8 @@ def eval_afa_method(
         selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
         seed (int|None): Seed for evaluation-time sampling, such as `only_n_samples`.
         force_acquisition (bool): Whether to force feature acquisition, ignoring stop actions.
+        feature_availability: Per-sample feature support in the source data.
+        selection_availability: Legal selections derived from feature support.
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
@@ -424,6 +558,12 @@ def eval_afa_method(
     if device is None:
         device = torch.device("cpu")
 
+    loader_dataset = _dataset_with_availability(
+        dataset,
+        feature_availability,
+        selection_availability,
+    )
+
     sampler_generator = None
     if seed is not None:
         sampler_generator = torch.Generator().manual_seed(seed)
@@ -433,7 +573,7 @@ def eval_afa_method(
             len(dataset), generator=sampler_generator
         )[:only_n_samples].tolist()
         dataloader = DataLoader(
-            dataset,
+            loader_dataset,
             batch_size=batch_size,
             sampler=SubsetRandomSampler(
                 sample_indices, generator=sampler_generator
@@ -441,7 +581,7 @@ def eval_afa_method(
         )
     else:
         dataloader = DataLoader(
-            dataset,
+            loader_dataset,
             batch_size=batch_size,
         )
 
@@ -450,9 +590,20 @@ def eval_afa_method(
     # DIME's `act` and `predict` in particular carry no internal guard, so
     # without this every acquisition step allocates and discards one.
     with torch.inference_mode():
-        for _batch_features, _batch_label in tqdm(dataloader):
+        for batch in tqdm(dataloader):
+            _batch_features, _batch_label = batch[:2]
             batch_features = _batch_features.to(device)
             batch_label = _batch_label.to(device)
+            batch_feature_availability = (
+                batch[2].to(device)
+                if feature_availability is not None
+                else None
+            )
+            batch_selection_availability = (
+                batch[3].to(device)
+                if selection_availability is not None
+                else None
+            )
 
             # Initialize masks for the batch
             batch_initial_feature_mask = afa_initialize_fn(
@@ -480,6 +631,8 @@ def eval_afa_method(
                     selection_budget=selection_budget,
                     selection_costs=selection_costs,
                     force_acquisition=force_acquisition,
+                    feature_availability=batch_feature_availability,
+                    selection_availability=batch_selection_availability,
                 )
             )
     # Concatenate all batch DataFrames

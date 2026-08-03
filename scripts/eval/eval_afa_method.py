@@ -23,6 +23,7 @@ from afabench.core.utils import (
 )
 from afabench.evaluation.config import EvalConfig
 from afabench.evaluation.eval import eval_afa_method
+from afabench.missing_values.views import native_observed_mask
 from afabench.training.smoke_test import eval_settings
 
 if TYPE_CHECKING:
@@ -241,6 +242,22 @@ class AFAEvaluator:
             hard_budget_str,
         )
 
+        native_feature_availability = None
+        native_selection_availability = None
+        if self._cfg.respect_native_availability:
+            native_feature_availability = native_observed_mask(self._dataset)
+            native_selection_availability = (
+                self._unmasker.feature_availability_to_selection_availability(
+                    native_feature_availability
+                )
+            )
+            log.info(
+                "Restricting evaluation to factual source measurements "
+                "(feature availability %.1f%%, selection availability %.1f%%).",
+                100 * native_feature_availability.float().mean().item(),
+                100 * native_selection_availability.float().mean().item(),
+            )
+
         self._df_eval = eval_afa_method(
             afa_action_fn=self._method.act,
             afa_unmask_fn=self._unmasker.unmask,
@@ -260,6 +277,8 @@ class AFAEvaluator:
             selection_costs=self._selection_costs.tolist(),
             seed=self._cfg.seed,
             force_acquisition=self._fallback_force_acquisition,
+            feature_availability=native_feature_availability,
+            selection_availability=native_selection_availability,
         )
 
         # Add eval_seed and eval_hard_budget to dataframe

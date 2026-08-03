@@ -1103,6 +1103,7 @@ rule eval_missing_data_method:
         unmasker=lambda wc: UNMASKERS[wc.dataset],
         device=lambda wc: method_device(wc.dataset, wc.method),
         batch_size=eval_batch_size,
+        respect_native=lambda wc: str(wc.mechanism == "native").lower(),
         extra=lambda wc: runtime_params(
             EVAL_PARAMS,
             METHOD_SPECS[wc.method].base_method,
@@ -1119,6 +1120,7 @@ rule eval_missing_data_method:
             components/unmaskers@unmasker={params.unmasker} \
             hard_budget={wildcards.eval_budget} soft_budget_param=null \
             batch_size={params.batch_size} device={params.device} \
+            respect_native_availability={params.respect_native} \
             seed={wildcards.instance} use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST_STR} {params.extra} \
             {HYDRA_WORKFLOW_OVERRIDES}

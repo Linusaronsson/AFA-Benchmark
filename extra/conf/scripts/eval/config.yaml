@@ -23,6 +23,7 @@ seed: null
 device: "cpu"
 eval_only_n_samples: null
 batch_size: 1
+respect_native_availability: false
 hard_budget: null
 soft_budget_param: null
 use_wandb: false

@@ -20,6 +20,7 @@ class EvalConfig:
     device: str
     eval_only_n_samples: int | None
     batch_size: int
+    respect_native_availability: bool = False
     hard_budget: int | None = None
     soft_budget_param: float | None = None
     use_wandb: bool = False
