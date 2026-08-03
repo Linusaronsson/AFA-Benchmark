@@ -118,6 +118,12 @@ def main() -> None:
             "cuda_available": torch.cuda.is_available(),
         },
         "cuda_devices": cuda_devices,
+        "gpu_telemetry_path": (
+            f"extra/output/missing_data/gpu_telemetry/{namespace}/"
+            f"{arguments.run_id}.csv"
+            if arguments.device.startswith("cuda")
+            else None
+        ),
         "slurm": {
             key: os.environ.get(key)
             for key in (

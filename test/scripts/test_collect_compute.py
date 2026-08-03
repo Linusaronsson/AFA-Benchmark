@@ -5,6 +5,7 @@ import pytest
 
 from scripts.analysis.collect_compute import (
     benchmark_identity,
+    namespace_gpu_telemetry,
     namespace_provenance,
 )
 
@@ -55,3 +56,26 @@ def test_namespace_provenance_rejects_mixed_hardware(tmp_path: Path) -> None:
     (root / "2.json").write_text(json.dumps(_manifest("cpu")))
     with pytest.raises(ValueError, match="mixes execution environments"):
         namespace_provenance(tmp_path / "manifests", "study")
+
+
+def test_namespace_gpu_telemetry_summarizes_active_samples(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "telemetry" / "study"
+    root.mkdir(parents=True)
+    (root / "1.csv").write_text(
+        "timestamp,gpu_index,utilization_percent,memory_used_mb,"
+        "memory_total_mb,power_draw_w,temperature_c\n"
+        "2026/08/03 10:00:00,0,0,100,1000,50,30\n"
+        "2026/08/03 10:00:05,0,20,200,1000,60,31\n"
+        "2026/08/03 10:00:10,0,80,400,1000,90,32\n"
+    )
+
+    summary = namespace_gpu_telemetry(tmp_path / "telemetry", "study")
+
+    assert summary["gpu_samples"] == 3
+    assert summary["gpu_active_samples"] == 2
+    assert summary["gpu_utilization_mean_percent"] == pytest.approx(100 / 3)
+    assert summary["gpu_utilization_active_median_percent"] == 50
+    assert summary["gpu_memory_peak_mb"] == 400
+    assert summary["gpu_power_peak_w"] == 90

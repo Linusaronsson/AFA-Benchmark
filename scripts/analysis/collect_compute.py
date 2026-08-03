@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -98,6 +98,46 @@ def namespace_provenance(
     }
 
 
+def namespace_gpu_telemetry(
+    telemetry_root: Path, namespace: str
+) -> dict[str, float | int]:
+    """Summarize all allocation samples for one hardware-pure namespace."""
+    paths = sorted((telemetry_root / namespace).glob("*.csv"))
+    if not paths:
+        return {"gpu_samples": 0}
+    frames = [pd.read_csv(path) for path in paths]
+    frame = pd.concat(frames, ignore_index=True)
+    numeric = [
+        "utilization_percent",
+        "memory_used_mb",
+        "memory_total_mb",
+        "power_draw_w",
+    ]
+    for column in numeric:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    frame = frame.dropna(subset=numeric)
+    if frame.empty:
+        return {"gpu_samples": 0}
+    active = frame[frame["utilization_percent"] > 0]
+    active_utilization = cast("pd.Series", active["utilization_percent"])
+    return {
+        "gpu_samples": len(frame),
+        "gpu_active_samples": len(active),
+        "gpu_utilization_mean_percent": float(
+            frame["utilization_percent"].mean()
+        ),
+        "gpu_utilization_active_median_percent": float(
+            active_utilization.median()
+        ),
+        "gpu_utilization_active_p95_percent": float(
+            active_utilization.quantile(0.95)
+        ),
+        "gpu_memory_peak_mb": float(frame["memory_used_mb"].max()),
+        "gpu_memory_total_mb": float(frame["memory_total_mb"].max()),
+        "gpu_power_peak_w": float(frame["power_draw_w"].max()),
+    }
+
+
 def _read_benchmark(path: Path) -> dict[str, float]:
     frame = pd.read_csv(path, sep="\t")
     if frame.empty:
@@ -154,10 +194,12 @@ def main() -> None:
     arguments = parser.parse_args()
 
     manifest_root = arguments.output_root / "run_manifests"
+    telemetry_root = arguments.output_root / "gpu_telemetry"
     frames = []
     for namespace in arguments.namespace:
         frame = collect_namespace(arguments.output_root, namespace)
         provenance = namespace_provenance(manifest_root, namespace)
+        provenance.update(namespace_gpu_telemetry(telemetry_root, namespace))
         for key, value in provenance.items():
             frame[key] = value
         frames.append(frame)

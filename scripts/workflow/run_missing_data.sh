@@ -111,14 +111,40 @@ for argument in "${snakemake_args[@]}"; do
 done
 
 if [[ ${dry_run} == false ]]; then
-    uv run python scripts/workflow/write_run_manifest.py \
+    manifest_message=$(uv run python scripts/workflow/write_run_manifest.py \
         --profile "${profile}" --run-id "${run_id}" --device "${device}" \
         --cores "${cores}" --mem-mb "${mem_mb}" \
         --gpu-workers "${gpu_workers}" \
-        --snakemake-args "${snakemake_args[@]}"
+        --snakemake-args "${snakemake_args[@]}")
+    echo "${manifest_message}"
 fi
 
-exec uv run snakemake \
+telemetry_pid=""
+stop_gpu_telemetry() {
+    if [[ -n ${telemetry_pid} ]]; then
+        kill "${telemetry_pid}" 2>/dev/null || true
+        wait "${telemetry_pid}" 2>/dev/null || true
+        telemetry_pid=""
+    fi
+}
+trap stop_gpu_telemetry EXIT
+
+if [[ ${dry_run} == false && ${device} == cuda* ]]; then
+    manifest_path=${manifest_message##* }
+    namespace=$(basename "$(dirname "${manifest_path}")")
+    telemetry_dir="extra/output/missing_data/gpu_telemetry/${namespace}"
+    telemetry_path="${telemetry_dir}/${run_id}.csv"
+    mkdir -p "${telemetry_dir}"
+    echo "timestamp,gpu_index,utilization_percent,memory_used_mb,memory_total_mb,power_draw_w,temperature_c" > "${telemetry_path}"
+    nvidia-smi \
+        --query-gpu=timestamp,index,utilization.gpu,memory.used,memory.total,power.draw,temperature.gpu \
+        --format=csv,noheader,nounits --loop=5 >> "${telemetry_path}" &
+    telemetry_pid=$!
+    echo "recording GPU telemetry at ${telemetry_path}"
+fi
+
+set +e
+uv run snakemake \
     --profile "${profile_dir}" all \
     --apptainer-prefix .snakemake/apptainer \
     --cores "${cores}" \
@@ -128,3 +154,6 @@ exec uv run snakemake \
     --rerun-incomplete \
     --printshellcmds \
     "${snakemake_args[@]}"
+status=$?
+set -e
+exit "${status}"
