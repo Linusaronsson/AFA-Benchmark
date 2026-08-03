@@ -15,6 +15,6 @@ configfile:
   - extra/workflow/conf/missing_data/native.yaml
 
 config:
-  artifact_namespace: native_missingness_local_pilot_v1
+  artifact_namespace: native_missingness_local_pilot_v2
   dataset_instance_indices: [0]
   datasets: [ckd]

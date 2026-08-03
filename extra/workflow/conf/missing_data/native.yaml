@@ -1,10 +1,8 @@
-# Exploratory native-missingness design.
-#
-# The ordinary evaluator currently treats every preprocessed value as
-# acquirable, including values imputed because the source measurement was
-# absent. Use this only for implementation pilots until evaluation respects
-# each data instance's native action availability.
-artifact_namespace: native_missingness_exploratory_v1
+# Factual native-missingness design. Training and evaluation both retain each
+# instance's source-observation mask: a value imputed during preprocessing is
+# never exposed to the acquisition policy as a measurement. There is no
+# true-completion/oracle arm because an unmeasured factual value is unknown.
+artifact_namespace: native_missingness_v2
 classifier_scope: per_instance
 device: cuda
 smoke_test: false

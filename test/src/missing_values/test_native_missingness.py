@@ -9,7 +9,12 @@ measuring nothing.
 import pytest
 import torch
 
-from afabench.datasets.datasets import CKDDataset, PhysionetDataset
+from afabench.datasets.datasets import (
+    CKDDataset,
+    HeartDiseaseDataset,
+    NHANESMortalityDataset,
+    PhysionetDataset,
+)
 from afabench.missing_values.views import native_observed_mask
 
 
@@ -57,8 +62,17 @@ def test_complete_dataset_is_rejected_by_name() -> None:
     [
         (PhysionetDataset, {}),
         (CKDDataset, {"path": "extra/data/misc/chronic_kidney_disease.csv"}),
+        (HeartDiseaseDataset, {}),
+        (
+            NHANESMortalityDataset,
+            {
+                "features_path": "extra/data/nhanes_mortality/source/X_nhanes_binary.csv",
+                "labels_path": "extra/data/nhanes_mortality/source/y_nhanes_binary.npy",
+                "schema_path": "extra/data/nhanes_mortality/schema.csv",
+            },
+        ),
     ],
-    ids=["physionet", "ckd"],
+    ids=["physionet", "ckd", "heart_disease", "nhanes_mortality"],
 )
 def test_incomplete_datasets_expose_a_mask(
     dataset_cls: type, kwargs: dict[str, str]
