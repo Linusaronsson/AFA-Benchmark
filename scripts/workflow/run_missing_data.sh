@@ -69,7 +69,7 @@ if [[ ${device} == cuda* && ${gpu_slots} -eq 0 ]]; then
     exit 2
 fi
 
-repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+repo_root=${AFABENCH_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 profile_dir="extra/workflow/profiles/config/${profile}"
 cd "${repo_root}"
 [[ -d ${profile_dir} ]] || {

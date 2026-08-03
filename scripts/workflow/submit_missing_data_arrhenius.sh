@@ -110,6 +110,7 @@ if [[ -n $(git status --short) ]]; then
     exit 1
 fi
 mkdir -p extra/output/missing_data/controllers
+export AFABENCH_REPO_ROOT=${repo_root}
 usable_mem_mb=$((mem_mb * 9 / 10))
 runner=(
     scripts/workflow/run_missing_data.sh
@@ -127,6 +128,7 @@ sbatch_args=(
     --cpus-per-task="${cores}"
     --mem="${mem_mb}M"
     --time="${walltime}"
+    --chdir="${repo_root}"
     --output="extra/output/missing_data/controllers/%x-%j.out"
 )
 ((gpus > 0)) && sbatch_args+=(--gpus="${gpus}")
