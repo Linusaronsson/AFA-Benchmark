@@ -36,7 +36,12 @@ def test_benchmark_identity_parses_current_train_path() -> None:
 def _manifest(device: str) -> dict[str, object]:
     return {
         "git_commit": "abc123",
-        "command": {"device": device},
+        "command": {
+            "device": device,
+            "cores": 16,
+            "mem_mb": 115_200,
+            "gpu_workers": 4,
+        },
         "host": {"architecture": "aarch64"},
         "software": {"torch": "2.11.0", "torch_cuda": "13.0"},
         "cuda_devices": ["NVIDIA GH200 120GB"],

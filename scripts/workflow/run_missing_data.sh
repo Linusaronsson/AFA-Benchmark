@@ -8,11 +8,11 @@ usage: run_missing_data.sh --profile NAME --device DEVICE [options] [-- SNAKEMAK
 options:
   --cores N        concurrent CPU slots (default: allocation CPUs or 4)
   --mem-mb N       schedulable memory in MiB (default: 90% of allocation or 22000)
-  --gpu-slots N    concurrent CUDA rules (default: 1 for CUDA, otherwise 0)
+  --gpu-workers N  concurrent CUDA processes (default: 1 for CUDA, otherwise 0)
 
 The same command runs locally or inside one Slurm allocation. CUDA rules each
-consume one `gpu` resource, so --gpu-slots 1 prevents GPU oversubscription while
-independent CPU-only rules can still overlap.
+consume one `gpu` resource. On a large-memory accelerator this may exceed the
+physical GPU count so several small, independent processes share one device.
 EOF
     exit 2
 }
@@ -21,7 +21,7 @@ profile=""
 device=""
 cores=""
 mem_mb=""
-gpu_slots=""
+gpu_workers=""
 snakemake_args=()
 
 while (($#)); do
@@ -30,7 +30,7 @@ while (($#)); do
         --device) device=${2:?}; shift 2 ;;
         --cores) cores=${2:?}; shift 2 ;;
         --mem-mb) mem_mb=${2:?}; shift 2 ;;
-        --gpu-slots) gpu_slots=${2:?}; shift 2 ;;
+        --gpu-workers|--gpu-slots) gpu_workers=${2:?}; shift 2 ;;
         --) shift; snakemake_args=("$@"); break ;;
         -h|--help) usage ;;
         *) echo "unknown argument: $1" >&2; usage ;;
@@ -56,16 +56,16 @@ fi
     exit 2
 }
 
-if [[ -z ${gpu_slots} ]]; then
-    gpu_slots=0
-    [[ ${device} == cuda* ]] && gpu_slots=1
+if [[ -z ${gpu_workers} ]]; then
+    gpu_workers=0
+    [[ ${device} == cuda* ]] && gpu_workers=1
 fi
-[[ ${gpu_slots} =~ ^[0-9]+$ ]] || {
-    echo "--gpu-slots must be a non-negative integer" >&2
+[[ ${gpu_workers} =~ ^[0-9]+$ ]] || {
+    echo "--gpu-workers must be a non-negative integer" >&2
     exit 2
 }
-if [[ ${device} == cuda* && ${gpu_slots} -eq 0 ]]; then
-    echo "CUDA execution requires at least one GPU slot" >&2
+if [[ ${device} == cuda* && ${gpu_workers} -eq 0 ]]; then
+    echo "CUDA execution requires at least one GPU worker" >&2
     exit 2
 fi
 
@@ -114,7 +114,7 @@ if [[ ${dry_run} == false ]]; then
     uv run python scripts/workflow/write_run_manifest.py \
         --profile "${profile}" --run-id "${run_id}" --device "${device}" \
         --cores "${cores}" --mem-mb "${mem_mb}" \
-        --gpu-slots "${gpu_slots}" \
+        --gpu-workers "${gpu_workers}" \
         --snakemake-args "${snakemake_args[@]}"
 fi
 
@@ -122,7 +122,7 @@ exec uv run snakemake \
     --profile "${profile_dir}" all \
     --apptainer-prefix .snakemake/apptainer \
     --cores "${cores}" \
-    --resources "mem_mb=${mem_mb}" "gpu=${gpu_slots}" \
+    --resources "mem_mb=${mem_mb}" "gpu=${gpu_workers}" \
     --default-resources mem_mb=3000 gpu=0 \
     --set-resources eval_missing_data_method:mem_mb=12000 \
     --rerun-incomplete \

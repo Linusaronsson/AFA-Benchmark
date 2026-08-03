@@ -4,7 +4,8 @@ set -euo pipefail
 usage() {
     cat >&2 <<'EOF'
 usage: submit_missing_data_arrhenius.sh --profile NAME --cores N --mem-mb N \
-       --time HH:MM:SS [--gpus N] [--device DEVICE] [--job-name NAME] \
+       --time HH:MM:SS [--gpus N] [--gpu-workers N] [--device DEVICE] \
+       [--job-name NAME] \
        [--test-only] [-- SNAKEMAKE_ARGS...]
 
 Submits one allocation after checking the live association run-minute cap and
@@ -18,6 +19,7 @@ cores=""
 mem_mb=""
 walltime=""
 gpus=0
+gpu_workers=""
 device=""
 job_name=""
 test_only=false
@@ -30,6 +32,7 @@ while (($#)); do
         --mem-mb) mem_mb=${2:?}; shift 2 ;;
         --time) walltime=${2:?}; shift 2 ;;
         --gpus) gpus=${2:?}; shift 2 ;;
+        --gpu-workers) gpu_workers=${2:?}; shift 2 ;;
         --device) device=${2:?}; shift 2 ;;
         --job-name) job_name=${2:?}; shift 2 ;;
         --test-only) test_only=true; shift ;;
@@ -42,6 +45,11 @@ done
 [[ -n ${profile} && -n ${cores} && -n ${mem_mb} && -n ${walltime} ]] || usage
 [[ ${cores} =~ ^[1-9][0-9]*$ && ${mem_mb} =~ ^[1-9][0-9]*$ ]] || usage
 [[ ${gpus} =~ ^[0-9]+$ ]] || usage
+[[ -z ${gpu_workers} || ${gpu_workers} =~ ^[0-9]+$ ]] || usage
+if ((gpus > 1)); then
+    echo "only one physical GPU per allocation is supported" >&2
+    exit 2
+fi
 
 partition=cpu
 account=naiss2026-4-1278-cpu
@@ -57,8 +65,17 @@ if [[ -z ${device} ]]; then
     device=cpu
     ((gpus > 0)) && device=cuda
 fi
+gpu_workers=${gpu_workers:-${gpus}}
 if ((gpus == 0)) && [[ ${device} == cuda* ]]; then
     echo "CUDA device requested without a GPU allocation" >&2
+    exit 2
+fi
+if ((gpus == 0 && gpu_workers > 0)); then
+    echo "GPU workers requested without a GPU allocation" >&2
+    exit 2
+fi
+if [[ ${device} == cuda* && ${gpu_workers} -eq 0 ]]; then
+    echo "CUDA execution requires at least one GPU worker" >&2
     exit 2
 fi
 if ((gpus > 0)) && [[ ${device} != cuda* ]]; then
@@ -118,7 +135,7 @@ runner=(
     --device "${device}"
     --cores "${cores}"
     --mem-mb "${usable_mem_mb}"
-    --gpu-slots "${gpus}"
+    --gpu-workers "${gpu_workers}"
     -- "${snakemake_args[@]}"
 )
 sbatch_args=(

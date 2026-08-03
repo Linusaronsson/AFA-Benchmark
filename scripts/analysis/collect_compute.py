@@ -54,6 +54,9 @@ def _manifest_signature(manifest: dict[str, Any]) -> dict[str, Any]:
     return {
         "git_commit": manifest["git_commit"],
         "device": command["device"],
+        "cores": command["cores"],
+        "mem_mb": command["mem_mb"],
+        "gpu_workers": command.get("gpu_workers", command.get("gpu_slots", 0)),
         "architecture": host["architecture"],
         "torch": software["torch"],
         "torch_cuda": software["torch_cuda"],

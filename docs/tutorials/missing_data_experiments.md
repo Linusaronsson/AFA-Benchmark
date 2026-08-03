@@ -78,11 +78,13 @@ Run the same resource-aware entry point locally and inside a Slurm allocation:
 ```console
 scripts/workflow/run_missing_data.sh \
   --profile missing_data_core_group --device cuda \
-  --cores 4 --mem-mb 22000 --gpu-slots 1
+  --cores 4 --mem-mb 22000 --gpu-workers 1
 ```
 
-One CUDA-resolved rule consumes one `gpu` token. Thus one local GPU runs one
-CUDA process while independent data-preparation rules may overlap on CPU. The
+One CUDA-resolved rule consumes one `gpu` token. `--gpu-workers` bounds CUDA
+process concurrency independently of the physical GPU count. Keep it at one
+on small GPUs; a large-memory GH200 can host several measured workers while
+independent data-preparation rules overlap on CPU. The
 runner writes Git, hardware, PyTorch/CUDA, resources, namespace, and Slurm
 provenance under `extra/output/missing_data/run_manifests/` before execution.
 
@@ -91,7 +93,7 @@ On Arrhenius, submit one allocation rather than thousands of short Slurm jobs:
 ```console
 scripts/workflow/submit_missing_data_arrhenius.sh \
   --profile missing_data_gh200_pilot \
-  --cores 16 --mem-mb 128000 --gpus 1 --time 02:00:00
+  --cores 16 --mem-mb 128000 --gpus 1 --gpu-workers 4 --time 02:00:00
 ```
 
 The wrapper reads the live association run-minute cap, refuses an impossible
