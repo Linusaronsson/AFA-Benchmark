@@ -60,6 +60,7 @@ def test_init_wandb_accepts_dataclass_config(
         "soft_budget_param": None,
         "use_wandb": True,
         "smoke_test": False,
+        "respect_native_availability": False,
     }
 
 
