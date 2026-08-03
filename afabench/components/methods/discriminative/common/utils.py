@@ -239,5 +239,8 @@ class ConcreteSelector(nn.Module):
     ) -> torch.Tensor:
         if deterministic:
             return torch.softmax(logits / (self.gamma * temp), dim=-1)
-        dist = RelaxedOneHotCategorical(temp, logits=logits / self.gamma)
+        temperature = logits.new_tensor(temp)
+        dist = RelaxedOneHotCategorical(
+            temperature, logits=logits / self.gamma
+        )
         return dist.rsample()

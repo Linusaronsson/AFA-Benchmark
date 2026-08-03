@@ -8,7 +8,7 @@ import torch
 import wandb
 from rl_helpers import dict_with_prefix
 from tensordict import TensorDictBase
-from torchrl.collectors import SyncDataCollector
+from torchrl.collectors import Collector
 from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
 from wandb.sdk.wandb_run import Run
@@ -262,12 +262,13 @@ class RLTrainer(ABC):
     def _get_agent(self) -> Agent: ...
 
     def train(self, cfg: AFARLTrainingLoopConfig) -> None:
-        collector = SyncDataCollector(
+        collector = Collector(
             self.train_env,
             self.agent.get_exploratory_policy(),
             frames_per_batch=cfg.frames_per_batch,
             total_frames=cfg.n_batches * cfg.frames_per_batch,
             device=self.device,
+            auto_register_policy_transforms=True,
         )
 
         for batch_idx, td in tqdm(
@@ -277,7 +278,7 @@ class RLTrainer(ABC):
 
     def _single_collector_step(
         self,
-        collector: SyncDataCollector,
+        collector: Collector,
         td: TensorDictBase,
         batch_idx: int,
         cfg: AFARLTrainingLoopConfig,

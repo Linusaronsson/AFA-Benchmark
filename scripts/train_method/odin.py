@@ -178,7 +178,7 @@ class ODINRLTrainer(RLTrainer):
             cfg=self.typed_cfg.agent,
             pointnet=self.pretrained_model.partial_vae.pointnet,
             encoder=self.pretrained_model.partial_vae.encoder,
-            action_spec=self.train_env.action_spec,
+            action_spec=self.train_env.action_spec_unbatched,
             latent_size=self.pretrained_model.latent_size,
             action_mask_key="allowed_action_mask",
             frames_per_batch=self.typed_cfg.rl_training_loop.frames_per_batch,

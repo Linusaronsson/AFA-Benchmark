@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import torch
 import wandb
@@ -433,18 +433,24 @@ def get_eval_metrics(
     n_correct_samples = 0
     total_samples = 0
     for td in eval_tds:
-        eval_metrics["reward_sum"] += td["next", "reward"].sum().item()
-        eval_metrics["actions"].extend(td["action"].flatten().cpu().tolist())
+        reward = cast("Tensor", td.get(("next", "reward")))
+        action = cast("Tensor", td.get("action"))
+        eval_metrics["reward_sum"] += reward.sum().item()
+        eval_metrics["actions"].extend(action.flatten().cpu().tolist())
         # Check whether prediction is correct
-        td_end = td[:, -1]
+        td_end = cast("TensorDictBase", td[:, -1])
+        masked_features = cast(
+            "Tensor", td_end.get(("next", "masked_features"))
+        )
+        feature_mask = cast("Tensor", td_end.get(("next", "feature_mask")))
         probs = afa_predict_fn(
-            masked_features=td_end["next", "masked_features"],
-            feature_mask=td_end["next", "feature_mask"],
+            masked_features=masked_features,
+            feature_mask=feature_mask,
             label=None,
             feature_shape=feature_shape,
         )
         pred_labels = probs.argmax(dim=-1)
-        true_labels = td_end["label"].argmax(dim=-1)
+        true_labels = cast("Tensor", td_end.get("label")).argmax(dim=-1)
         correct_predictions = (pred_labels == true_labels).sum().item()
         n_correct_samples += correct_predictions
         total_samples += pred_labels.numel()

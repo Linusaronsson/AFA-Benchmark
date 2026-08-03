@@ -43,7 +43,10 @@ class ConcreteMask(nn.Module):
 
     @override
     def forward(self, x: torch.Tensor, temp: float) -> torch.Tensor:
-        dist = RelaxedOneHotCategorical(temp, logits=self.logits / self.gamma)
+        temperature = self.logits.new_tensor(temp)
+        dist = RelaxedOneHotCategorical(
+            temperature, logits=self.logits / self.gamma
+        )
         sample = dist.rsample([len(x)])
         m = sample.max(dim=1).values
         out = x * m
@@ -73,7 +76,10 @@ class ConcreteMask2d(nn.Module):
 
     @override
     def forward(self, x: torch.Tensor, temp: float) -> torch.Tensor:
-        dist = RelaxedOneHotCategorical(temp, logits=self.logits / self.gamma)
+        temperature = self.logits.new_tensor(temp)
+        dist = RelaxedOneHotCategorical(
+            temperature, logits=self.logits / self.gamma
+        )
         sample = dist.rsample([len(x)])
         m = sample.max(dim=1).values
         m = self.upsample(m.reshape(-1, 1, self.width, self.width))

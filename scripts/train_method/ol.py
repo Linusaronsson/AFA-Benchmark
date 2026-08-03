@@ -73,16 +73,20 @@ def get_post_process_batch_callback(
             n_feature_dims = len(feature_shape)
 
             # Flatten feature dims
-            flat_masked_features = td["next", "masked_features"].flatten(
+            masked_features = cast(
+                "torch.Tensor", td.get(("next", "masked_features"))
+            )
+            label = cast("torch.Tensor", td.get(("next", "label")))
+            flat_masked_features = masked_features.flatten(
                 start_dim=-n_feature_dims
             )
-            assert flat_masked_features.ndim == td["next", "label"].ndim, (
+            assert flat_masked_features.ndim == label.ndim, (
                 "Label should be 1D"
             )
 
             # Flatten batch dims
             flat_masked_features = flat_masked_features.flatten(end_dim=-2)
-            flat_label = td["next", "label"].flatten(end_dim=-2)
+            flat_label = label.flatten(end_dim=-2)
 
             logits_next, _qvalues = pq_module.forward(flat_masked_features)
             class_loss_next = F.cross_entropy(
@@ -223,7 +227,7 @@ class OLRLTrainer(RLTrainer):
         return OLAgent(
             cfg=self.typed_cfg.agent,
             pq_module=self.pretrained_model.pq_module,
-            action_spec=self.train_env.action_spec,
+            action_spec=self.train_env.action_spec_unbatched,
             action_mask_key="allowed_action_mask",
             module_device=self.device,
             replay_buffer_device=self.replay_buffer_device,
@@ -256,18 +260,25 @@ class OLRLTrainer(RLTrainer):
             self.pretrained_model_optim.zero_grad()
 
             # Flatten feature dims
-            flat_masked_features = td["next", "masked_features"].flatten(
+            masked_features = cast(
+                "torch.Tensor", td.get(("next", "masked_features"))
+            )
+            feature_mask = cast(
+                "torch.Tensor", td.get(("next", "feature_mask"))
+            )
+            label = cast("torch.Tensor", td.get(("next", "label")))
+            flat_masked_features = masked_features.flatten(
                 start_dim=-self._n_feature_dims
             )
-            flat_feature_mask = td["next", "feature_mask"].flatten(
+            flat_feature_mask = feature_mask.flatten(
                 start_dim=-self._n_feature_dims
             )
-            assert flat_masked_features.ndim == td["next", "label"].ndim
+            assert flat_masked_features.ndim == label.ndim
 
             # Flatten batch dims
             flat_masked_features = flat_masked_features.flatten(end_dim=-2)
             flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
-            flat_label = td["next", "label"].flatten(end_dim=-2)
+            flat_label = label.flatten(end_dim=-2)
 
             logits_next, _qvalues = self.pretrained_model.pq_module.forward(
                 flat_masked_features, flat_feature_mask
