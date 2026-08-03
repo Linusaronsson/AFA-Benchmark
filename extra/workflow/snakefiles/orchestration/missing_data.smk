@@ -32,7 +32,9 @@ and resource record.
 Device routing:
     ``device`` is the default. Optional ``device_overrides`` may contain
     ``methods``, ``datasets``, ``method_datasets``, and ``pretrained_models``.
-    Snakemake hardware resources remain separate execution-profile settings.
+    ``AFABENCH_DEVICE`` may replace only that default at execution time without
+    replacing a profile's scientific config. Every CUDA-resolved rule consumes
+    one ``gpu`` resource; the runner caps those tokens to physical devices.
 
 Example:
     uv run snakemake \
@@ -69,6 +71,8 @@ if missing_config:
         + ", ".join(missing_config)
     )
 
+if runtime_device := os.environ.get("AFABENCH_DEVICE"):
+    config["device"] = runtime_device
 _config = load_config(config)
 
 NAMESPACE = str(config["artifact_namespace"])
@@ -213,6 +217,11 @@ def dataset_device(dataset, pretrained_model=None):
         dataset=dataset,
         pretrained_model=pretrained_model,
     )
+
+
+def gpu_for_device(device):
+    """Reserve one GPU slot exactly when the resolved device uses CUDA."""
+    return int(str(device).split(":", maxsplit=1)[0] == "cuda")
 
 
 def classifier_script_name(dataset):
@@ -624,6 +633,8 @@ rule train_missing_data_shared_classifier:
         directory(CLASSIFIER_OUTPUT),
     benchmark:
         CLASSIFIER_BENCHMARK
+    resources:
+        gpu=lambda wc: gpu_for_device(dataset_device(wc.dataset)),
     params:
         instance=classifier_instance,
         script=lambda wc: classifier_script_name(wc.dataset),
@@ -655,6 +666,15 @@ rule train_missing_data_method_classifier:
         directory(METHOD_CLASSIFIER_OUTPUT),
     benchmark:
         METHOD_CLASSIFIER_BENCHMARK
+    resources:
+        gpu=lambda wc: gpu_for_device(
+            resolve_device(
+                DEFAULT_DEVICE,
+                DEVICE_OVERRIDES,
+                dataset=wc.dataset,
+                method=wc.base_method,
+            )
+        ),
     params:
         instance=classifier_instance,
         script=lambda wc: METHOD_CLASSIFIER_SCRIPT_NAMES[wc.base_method],
@@ -736,6 +756,8 @@ rule pretrain_incomplete_restoration_pvae:
         f"{BENCHMARK_ROOT}/pretrain_restoration_pvae/incomplete/"
         "dataset-{dataset}+mechanism-{mechanism}+p-{p}+"
         "instance-{instance}.tsv"
+    resources:
+        gpu=lambda wc: gpu_for_device(dataset_device(wc.dataset, "pvae")),
     params:
         unmasker=lambda wc: UNMASKERS[wc.dataset],
         device=lambda wc: dataset_device(wc.dataset, "pvae"),
@@ -771,6 +793,8 @@ rule pretrain_oracle_restoration_pvae:
     benchmark:
         f"{BENCHMARK_ROOT}/pretrain_restoration_pvae/oracle/"
         "dataset-{dataset}+instance-{instance}.tsv"
+    resources:
+        gpu=lambda wc: gpu_for_device(dataset_device(wc.dataset, "pvae")),
     params:
         unmasker=lambda wc: UNMASKERS[wc.dataset],
         device=lambda wc: dataset_device(wc.dataset, "pvae"),
@@ -832,6 +856,8 @@ rule restore_missing_training_view:
         f"{BENCHMARK_ROOT}/restore_view/dataset-{{dataset}}/"
         "mechanism-{mechanism}+p-{p}+instance-{instance}+"
         "strategy-{strategy}.tsv"
+    resources:
+        gpu=lambda wc: gpu_for_device(dataset_device(wc.dataset, "pvae")),
     params:
         device=lambda wc: dataset_device(wc.dataset, "pvae"),
     shell:
@@ -885,6 +911,10 @@ rule pretrain_missing_data_method:
         f"{BENCHMARK_ROOT}/pretrain_method/pretrain-{{pretrain_key}}/"
         "dataset-{dataset}+mechanism-{mechanism}+p-{p}+"
         "strategy-{strategy}+instance-{instance}.tsv"
+    resources:
+        gpu=lambda wc: gpu_for_device(
+            dataset_device(wc.dataset, wc.pretrain_key)
+        ),
     params:
         script=lambda wc: PRETRAIN_SCRIPT_NAMES[wc.pretrain_key],
         unmasker=lambda wc: UNMASKERS[wc.dataset],
@@ -962,6 +992,8 @@ rule train_missing_data_method_with_pretraining:
         "dataset-{dataset}+mechanism-{mechanism}+p-{p}+"
         "strategy-{strategy}+instance-{instance}+"
         "train_hard_budget-{train_budget}.tsv"
+    resources:
+        gpu=lambda wc: gpu_for_device(method_device(wc.dataset, wc.method)),
     params:
         script=lambda wc: METHOD_SPECS[wc.method].train_script_name,
         unmasker=lambda wc: UNMASKERS[wc.dataset],
@@ -1005,6 +1037,8 @@ rule train_missing_data_method_without_pretraining:
         "dataset-{dataset}+mechanism-{mechanism}+p-{p}+"
         "strategy-{strategy}+instance-{instance}+"
         "train_hard_budget-{train_budget}.tsv"
+    resources:
+        gpu=lambda wc: gpu_for_device(method_device(wc.dataset, wc.method)),
     params:
         script=lambda wc: METHOD_SPECS[wc.method].train_script_name,
         unmasker=lambda wc: UNMASKERS[wc.dataset],
@@ -1063,6 +1097,8 @@ rule eval_missing_data_method:
         "strategy-{strategy}+instance-{instance}+"
         "train_hard_budget-{train_budget}+eval_hard_budget-{eval_budget}/"
         "benchmark.tsv"
+    resources:
+        gpu=lambda wc: gpu_for_device(method_device(wc.dataset, wc.method)),
     params:
         unmasker=lambda wc: UNMASKERS[wc.dataset],
         device=lambda wc: method_device(wc.dataset, wc.method),

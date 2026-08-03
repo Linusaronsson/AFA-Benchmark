@@ -1,12 +1,16 @@
 # SLURM integration
 
-The pipeline supports SLURM via [Snakemake's SLURM plugin](https://snakemake.readthedocs.io/en/stable/executing/cluster.html). Profiles are located in `extra/workflow/profiles/`.
+The ordinary pipeline supports per-rule SLURM submission via
+[Snakemake's SLURM plugin](https://snakemake.readthedocs.io/en/stable/executing/cluster.html).
+Profiles are under `extra/workflow/profiles/`. The missing-data study instead
+runs an internal Snakemake scheduler within one allocation; see
+`missing_data_experiments.md`.
 
 ## Example profiles
 
 The repository includes two profiles used by our team as examples:
 
-- `arrhenius/` - NAISS GPU/CPU cluster, primary
+- `arrhenius/` - NAISS CPU cluster, ordinary benchmark only
 - `vera/` - C3SE cluster, secondary
 
 These are unlikely to work out of the box for you. See
@@ -60,20 +64,27 @@ A profile may list both sets; unmatched keys are harmless. `just test` runs
 `test/workflow/test_cluster_profiles.py`, which fails if any key is not a real
 rule, or if a network-training rule is left on the default.
 
-Note that the `extra/workflow/profiles/config/missing_data_*` profiles pin
-`cores: 4` for local use. Override it on the command line for cluster runs or it
-throttles the whole DAG to four concurrent jobs regardless of `jobs:`.
+Do not combine the Arrhenius per-rule profile with a `missing_data_*` config.
+Those matrices contain thousands of short processes and run through
+`scripts/workflow/submit_missing_data_arrhenius.sh`, which validates the live
+association run-minute cap before requesting one allocation.
 
 ### Available clusters
 
 | Profile | Notes |
 |---|---|
-| `arrhenius` | Primary. 72h walltime cap, split `-cpu`/`-gpu` accounts, and **x86_64 CPU nodes with aarch64 Grace Hopper GPU nodes**, so it needs one virtualenv per architecture. NSC does not allow building GPU-side software on the login node, so build the aarch64 venv from an interactive job on the `gpu` partition. See the profile's comments. |
+| `arrhenius` | Primary. 72h walltime cap and x86_64 CPU nodes. The per-rule profile is for the ordinary benchmark. Missing-data allocations may instead use aarch64 GH200 nodes through the dedicated runner. |
 | `vera` | Secondary. Better hardware fit (one architecture, 7-day walltime, T4/A40 class GPUs) but no durable storage: Alvis and its national Mimer allocations are being decommissioned and Cephyr left NAISS on 2026-07-01, leaving only a 30 GiB home. Use once e-Commons confirms a Chalmers-local allocation. |
 
-On a mixed-architecture cluster, export `AFABENCH_SHELL_PREFIX` so each job
-activates the matching environment. `missing_data.smk` applies it via
-`shell.prefix`, so no rule needs to know:
+Arrhenius has x86_64 CPU nodes and aarch64 GH200 nodes. PyTorch and torchvision
+are pinned to 2.11.0 and 0.26.0; PyTorch 2.11 is the first release whose
+default Linux aarch64 wheel is CUDA-enabled. Keep one synchronized virtualenv
+per architecture on project storage. The missing-data runner selects the
+matching environment after Slurm places the allocation and keeps per-rule
+temporaries under `$SNIC_TMP`.
+
+For a custom mixed-architecture per-rule workflow, `missing_data.smk` still
+honors `AFABENCH_SHELL_PREFIX`:
 
 ```bash
 export AFABENCH_SHELL_PREFIX='source "$VENVS"/$(uname -m)/bin/activate; '

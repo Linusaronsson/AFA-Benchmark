@@ -14,11 +14,9 @@ The configuration is split by responsibility:
 - `extra/workflow/conf/missing_data/design.yaml` defines the scientific
   missingness and completion matrix;
 - `extra/workflow/conf/missing_data/smoke.yaml` defines the integration test;
-- `extra/workflow/conf/missing_data/{synthetic_missingness,native_missingness,non_uniform_costs}.yaml`
-  define the three main experiments;
-- `extra/workflow/conf/missing_data/restoration_deployments.yaml` defines the
-  focused three-instance comparison of episode-start and stepwise restoration;
-- Snakemake execution profiles define scheduler and hardware resources.
+- `extra/workflow/conf/missing_data/{core_group_missingness,induced_real,induced_nonuniform}.yaml`
+  define the three current validation matrices;
+- the runner defines hardware resources without changing scientific config.
 
 The workflow selects the largest configured hard evaluation budget for every
 eligible method-dataset pair and preserves any configured evaluation-to-train
@@ -67,35 +65,49 @@ episode-start and stepwise restoration, oracle and true-completion controls,
 evaluation, summarization, and plotting. It writes only to the `smoke`
 namespace.
 
-Run one of the three named experiments on validation data:
+The current validation matrices have three named entry points:
+
+| Profile | Namespace | Datasets |
+|---|---|---|
+| `missing_data_core_group` | `core_group_missingness_v2` | CUBE, CUBE-NM |
+| `missing_data_induced_real` | `induced_real_missingness_v1` | ACTG175, Diabetes, NHANES mortality |
+| `missing_data_induced_nonuniform` | `induced_nonuniform_missingness_v1` | CUBE-NUC, heart disease |
+
+Run the same resource-aware entry point locally and inside a Slurm allocation:
 
 ```console
-uv run snakemake \
-  --profile extra/workflow/profiles/config/missing_data_synthetic_missingness \
-  --cores 4
+scripts/workflow/run_missing_data.sh \
+  --profile missing_data_core_group --device cuda \
+  --cores 4 --mem-mb 22000 --gpu-slots 1
 ```
 
-The other profiles are `missing_data_native_missingness` and
-`missing_data_non_uniform_costs`. The focused local comparison uses
-`missing_data_restoration_deployments`. After model selection, evaluate the
-same frozen namespace on test data by overriding only the evaluation split:
+One CUDA-resolved rule consumes one `gpu` token. Thus one local GPU runs one
+CUDA process while independent data-preparation rules may overlap on CPU. The
+runner writes Git, hardware, PyTorch/CUDA, resources, namespace, and Slurm
+provenance under `extra/output/missing_data/run_manifests/` before execution.
+
+On Arrhenius, submit one allocation rather than thousands of short Slurm jobs:
 
 ```console
-uv run snakemake \
-  --profile extra/workflow/profiles/config/missing_data_synthetic_missingness \
-  --config eval_dataset_split=test \
-  --cores 4
+scripts/workflow/submit_missing_data_arrhenius.sh \
+  --profile missing_data_gh200_pilot \
+  --cores 16 --mem-mb 128000 --gpus 1 --time 02:00:00
 ```
 
-Because the namespace is unchanged, the test command reuses the validation
-run's frozen training artifacts and schedules only test evaluation and its
-summaries.
+The wrapper reads the live association run-minute cap, refuses an impossible
+request, and runs `sbatch --test-only` before submitting. The fresh GH200
+acceptance profile is one CUBE-NUC instance at MCAR 0.5: 118 workflow jobs and
+39 evaluations. It is implementation evidence, not production data. Inside
+the allocation every rule gets a private directory below `$SNIC_TMP`;
+scientific artifacts remain on project storage.
+
+After validation analysis and claims are frozen, reuse the frozen training
+artifacts for one sealed-test evaluation pass. Do not inspect test outcomes
+during model or claim selection.
 
 To define another durable experiment, pair `design.yaml` and the ordinary
-catalog files with one named experiment YAML and profile. One-off schedule
-checks should use command-line overrides and a distinct artifact namespace,
-not checked-in configuration files. No Snakefile edit or stage number is
-needed.
+catalog files with one named experiment YAML and profile. No Snakefile edit or
+stage number is needed.
 
 ## Devices and hardware resources
 
@@ -132,13 +144,11 @@ so `aaco` also routes `aaco_doubly_robust` unless the control receives a more
 specific override.
 
 The `device` value is an application argument such as `cpu`, `mps`, `cuda`, or
-`cuda:1`; it does not reserve hardware. GPU counts, memory, partitions, and
-scheduler constraints belong in a Snakemake execution profile. Keep those
-resource declarations independent from the experiment definition.
-
-One-off scalar overrides remain possible, for example
-`--config device=cpu use_wandb=false`, but checked-in runtime configuration is
-preferable for reproducibility.
+`cuda:1`; it does not reserve hardware. GPU counts and memory are runner
+resources. Hardware selection uses `AFABENCH_DEVICE` through the runner and
+does not use Snakemake's command-line `--config`, which can replace a profile's
+inline scientific overrides. Durable changes to datasets, instances, or cells
+belong in a named config file.
 
 ## Summaries and figures
 
@@ -171,6 +181,32 @@ Each dataset receives:
 All uncertainty bands and error bars are mean plus or minus one standard error
 over instances of that dataset. Rerunning a profile schedules missing or
 outdated plots automatically; no separate plotting command is required.
+
+## Compute accounting
+
+Every artifact-producing rule records wall time, CPU time, and peak resident
+memory. Collect complete namespaces and render the paired compute analysis:
+
+```console
+uv run python scripts/analysis/collect_compute.py \
+  --namespace core_group_missingness_v2 \
+  --namespace induced_real_missingness_v1 \
+  --namespace induced_nonuniform_missingness_v1 \
+  --output extra/output/missing_data/analysis/compute.csv
+uv run python scripts/plotting/plot_compute.py \
+  --compute extra/output/missing_data/analysis/compute.csv
+```
+
+The primary figure reports, within the same dataset, method, mechanism, rate,
+instance, and hardware, the generative/direct wall-time ratio against
+restoration gain. Generator training is amortized over its actual consumers.
+The paired CSV retains absolute wall time, CPU time, peak RAM, architecture,
+PyTorch, and CUDA. Mixed execution environments inside one namespace are
+rejected; GPU-seconds and CPU-seconds are never pooled.
+
+Native-missingness results remain exploratory until evaluation enforces each
+instance's legal acquisition mask. Mean-imputed but factually absent values
+must never become acquirable measurements.
 
 ## Route diagnostics
 

@@ -1,4 +1,6 @@
-# Snakemake profile for Arrhenius (NAISS, NSC). Primary cluster.
+# Per-rule Slurm profile for the ordinary benchmark on Arrhenius (NAISS, NSC).
+# The missing-data production study deliberately does not use this profile: it
+# runs Snakemake inside one allocation via scripts/workflow/run_missing_data.sh.
 #
 # Verified against the live system on 2026-07-20:
 #
@@ -12,13 +14,12 @@
 #   1. Walltime is capped at 72h (3-00:00:00) on every partition, so nothing here
 #      may exceed 4320 minutes. Vera allows 7 days; do not copy runtimes across.
 #   2. The account is suffixed per side, `<project>-cpu` and `<project>-gpu`, and
-#      the two are charged separately. Rules are routed to the matching pair
-#      below rather than all landing on one.
+#      the two are charged separately.
 #   3. GPU nodes are Grace Hopper, so their CPUs are aarch64, while the login and
 #      CPU nodes are x86_64. One virtualenv cannot serve both. See the note on
 #      AFABENCH_SHELL_PREFIX at the bottom.
 executor: slurm
-jobs: 200 # Well under the 192 cpu nodes; raise once queue behaviour is known.
+jobs: 25 # 25 one-core jobs fit the account's 60000 CPU run-minute cap.
 latency-wait: 60 # Lustre, so give metadata time to settle.
 retries: 2
 
@@ -29,10 +30,9 @@ retries: 2
 # shared filesystem instead. Relative so it stays portable across clusters.
 apptainer-prefix: .snakemake/apptainer
 
-# Force CPU on the cluster without editing the study YAMLs, which keep
-# `device: cuda` for local GPU runs. Scoped here (the workflow-profile) rather
-# than the shared entry profiles precisely so local runs are unaffected. Drop
-# this with the torch >= 2.10 upgrade that makes the aarch64 GH200s usable.
+# This general per-rule profile stays on the homogeneous x86 CPU partition.
+# Missing-data GH200 runs use the single-allocation runner, which selects the
+# aarch64 environment after Slurm places the allocation.
 config:
   device: cpu
 
@@ -40,9 +40,8 @@ default-resources:
   slurm_partition: cpu
   slurm_account: naiss2026-4-1278-cpu
   runtime: 60
-  cpus_per_task: 4
-  # Nodes are 773 GB across 256 cores; request per-core rather than per-node.
-  mem_mb: 8000
+  cpus_per_task: 1
+  mem_mb: 3000
   # These are single-node, single-process Python jobs that never use MPI, but
   # declaring an `mpi` resource makes Snakemake's jobstep executor run the
   # command directly instead of wrapping it in `srun`. On this HPE Slingshot
@@ -55,98 +54,14 @@ default-resources:
   mpi: 1
   tasks_per_node: 1
 
-# Keep Snakemake's global `--cores` limit equal to the CPUs requested from
-# Slurm. Without these values every rule counts as one scheduler core even when
-# `cpus_per_task` requests 4, 8, or 16 CPUs.
-set-threads:
-  pretrain_incomplete_restoration_pvae: 16
-  pretrain_oracle_restoration_pvae: 16
-  pretrain_missing_data_method: 16
-  train_missing_data_method_with_pretraining: 16
-  train_missing_data_method_without_pretraining: 16
-  train_missing_data_shared_classifier: 16
-  train_missing_data_method_classifier: 16
-  restore_missing_training_view: 16
-  eval_missing_data_method: 16
-  generate_missing_data_dataset: 8
-  materialize_missing_training_view: 4
-
-# Everything runs on the cpu partition for now (inherited from
-# default-resources; only sizing is overridden below). Arrhenius GPUs are
-# aarch64 GH200, and torch 2.7's aarch64 wheel is CPU-only, so nothing can use
-# them until torch >= 2.10. Routing training jobs to `gpu` today would land them
-# on GH200 nodes running CPU-only torch anyway, charging the -gpu account for
-# nothing. The per-method GPU routing is restored with the torch upgrade; see
-# the commented block at the bottom and Part 4 of the plan.
+# Only ordinary benchmark rules belong here. Missing-data rule resources are
+# internal scheduler tokens in missing_data.smk, not Slurm submissions.
 set-resources:
-  # Network training / pretraining. The longest jobs, but on these small tabular
-  # datasets they still finish in a few minutes on CPU. Runtime is charged
-  # against the account's GrpTRESRunMins cap (cpu=60000 core-min) as
-  # cpus_per_task * runtime for every running job, so an inflated walltime
-  # reserves the whole budget and serializes the queue to a single job. A 48h
-  # declaration here was doing exactly that; keep it tight, well above the real
-  # runtime but nowhere near the 72h wall cap.
-  pretrain_incomplete_restoration_pvae: &heavy_long
-    runtime: 120
-    cpus_per_task: 16
-    mem_mb: 64000
-  pretrain_oracle_restoration_pvae: *heavy_long
-  pretrain_missing_data_method: *heavy_long
-  train_missing_data_method_with_pretraining: *heavy_long
-  train_missing_data_method_without_pretraining: *heavy_long
-  train_missing_data_shared_classifier: &heavy_short
-    runtime: 60
-    cpus_per_task: 16
-    mem_mb: 64000
-  train_missing_data_method_classifier: *heavy_short
-  restore_missing_training_view: *heavy_short
-
-  # Eval and data preparation.
-  eval_missing_data_method:
-    # After the batching work the rollout is a small part of a job dominated by
-    # startup and load, so CPU costs only 1.04-1.44x more per job, and on
-    # 256-core nodes that trades far better than queueing for a GH200.
-    runtime: 60
-    cpus_per_task: 16
+  pretrain_model: &network
+    runtime: 600
     mem_mb: 32000
-  generate_missing_data_dataset:
-    runtime: 30
-    cpus_per_task: 8
-    mem_mb: 32000
-  materialize_missing_training_view:
-    runtime: 20
-    cpus_per_task: 4
-    mem_mb: 16000
-
-  # --- GPU routing, restore with the torch >= 2.10 upgrade (Part 4) ---------
-  # Per-method placement will move into missing_data.smk `resources:` callables
-  # so DIME/OL/PVAE take `gpu` while AACO stays `cpu`. Until then this is the
-  # per-rule form that worked, kept for reference:
-  #
-  #   <heavy rule>:
-  #     slurm_partition: gpu
-  #     slurm_account: naiss2026-4-1278-gpu
-  #     slurm_extra: "--gpus=1"
-  #     runtime: 2880
-  #     cpus_per_task: 16   # 72 ARM cores per superchip, 4 per node
-  #     mem_mb: 60000
-
-# `summarize_missing_data` and `plot_missing_data` are declared `localrules` in
-# missing_data.smk, so they run in the submitting process and never reach the
-# queue.
-#
-# Dual-architecture note. Snakemake submits with the login environment exported,
-# which would put the x86_64 venv on an aarch64 GPU node. Export this before
-# running, in single quotes so `uname -m` is evaluated inside the job:
-#
-#   export AFABENCH_SHELL_PREFIX='source "$AFA_BASE"/venvs/$(uname -m)/bin/activate; '
-#
-# `~/.bashrc.d/afabench.sh` sets AFA_BASE, UV_CACHE_DIR and
-# UV_PROJECT_ENVIRONMENT onto project storage, since the CUDA wheel stack is
-# multi-GB per venv and $HOME is 30 GiB. Build both venvs once, the aarch64 one
-# from an interactive GPU job because NSC does not allow building GPU-side
-# software on the x86_64 login node:
-#
-#   uv sync --group dev
-#   srun -A naiss2026-4-1278-gpu -p gpu --gpus=1 -t 60 --pty bash
-#   uv sync --group dev
+  train_method_with_pretrained_model: *network
+  train_method_without_pretrained_model: *network
+  eval_method:
+    runtime: 240
+    mem_mb: 12000

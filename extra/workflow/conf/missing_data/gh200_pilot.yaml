@@ -1,0 +1,12 @@
+# Fresh hardware-acceptance cell. This is implementation evidence, not a
+# production result, and deliberately shares the production scientific design.
+artifact_namespace: induced_nonuniform_gh200_pilot_v1
+dataset_instance_indices: [0]
+datasets: [cube_nonuniform_costs]
+
+missingness:
+  mechanisms: [mcar]
+  probabilities: [0.5]
+  p_obs: 0.3
+  p_params: 0.3
+  exclude_inputs: true

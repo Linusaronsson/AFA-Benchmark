@@ -82,6 +82,11 @@ def test_expensive_missing_data_rules_are_resourced(profile: Path) -> None:
     """
     config = yaml.safe_load(profile.read_text()) or {}
     declared = set(config.get("set-resources", {}))
+    missing_data_rules = {
+        rule for rule in _known_rules() if "missing_data" in rule
+    }
+    if not declared.intersection(missing_data_rules):
+        return
     expensive = {
         "pretrain_incomplete_restoration_pvae",
         "pretrain_oracle_restoration_pvae",
