@@ -45,8 +45,9 @@ SURFACE = "#ffffff"
 
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
 
-# Current confirmatory namespaces. Native missingness is excluded until the
-# evaluator enforces per-instance legal acquisition masks.
+# Current induced-missingness confirmatory namespaces. The factual-native arm
+# has neither an induced MCAR 0.5 cell nor a counterfactual complete-data
+# ceiling, so it belongs in a separate panel rather than this figure.
 SOURCES = {
     "core_group_missingness_v2": ["cube_nm", "cube"],
     "induced_nonuniform_missingness_v1": [

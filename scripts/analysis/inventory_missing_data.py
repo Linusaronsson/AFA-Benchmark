@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from collections.abc import Collection
 
 KEY_COLUMNS = [
     "split",
@@ -41,24 +44,42 @@ def _column(frame: pd.DataFrame, name: str) -> pd.Series:
     return cast("pd.Series", frame[name])
 
 
-def _source_frames(summary_root: Path) -> list[pd.DataFrame]:
+def _source_frames(
+    summary_root: Path,
+    namespaces: Collection[str] | None = None,
+) -> list[pd.DataFrame]:
     frames: list[pd.DataFrame] = []
+    selected = set(namespaces) if namespaces is not None else None
     for path in sorted(summary_root.glob("*/*/instance_metrics.csv")):
+        namespace = path.parent.name
+        if selected is not None and namespace not in selected:
+            continue
         frame = pd.read_csv(path)
         if frame.empty:
             continue
         frame["split"] = path.parents[1].name
-        frame["namespace"] = path.parent.name
+        frame["namespace"] = namespace
         frame["source_file"] = str(path)
         frames.append(frame)
     return frames
 
 
-def build_inventory(summary_root: Path) -> pd.DataFrame:
+def build_inventory(
+    summary_root: Path,
+    namespaces: Collection[str] | None = None,
+) -> pd.DataFrame:
     """Return all result rows without silently resolving duplicate cells."""
-    frames = _source_frames(summary_root)
+    frames = _source_frames(summary_root, namespaces)
     if not frames:
-        msg = f"No instance_metrics.csv files found below {summary_root}."
+        qualifier = (
+            f" for namespaces {sorted(namespaces)}"
+            if namespaces is not None
+            else ""
+        )
+        msg = (
+            f"No instance_metrics.csv files found below {summary_root}"
+            f"{qualifier}."
+        )
         raise FileNotFoundError(msg)
     inventory = pd.concat(frames, ignore_index=True, sort=False)
 
@@ -165,9 +186,15 @@ def main() -> None:
         type=Path,
         default=Path("extra/output/missing_data/analysis/inventory"),
     )
+    parser.add_argument(
+        "--namespace",
+        action="append",
+        dest="namespaces",
+        help="Include this exact namespace; repeat for multiple namespaces.",
+    )
     arguments = parser.parse_args()
 
-    inventory = build_inventory(arguments.summary_root)
+    inventory = build_inventory(arguments.summary_root, arguments.namespaces)
     coverage = build_coverage(inventory)
     arguments.output_dir.mkdir(parents=True, exist_ok=True)
     inventory.to_parquet(

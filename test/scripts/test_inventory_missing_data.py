@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from scripts.analysis.inventory_missing_data import (
     build_coverage,
@@ -53,6 +54,24 @@ def test_inventory_preserves_duplicate_sources(tmp_path: Path) -> None:
     assert set(inventory["primary_metric"]) == {"accuracy"}
     assert set(inventory["duplicate_sources"]) == {2}
     assert inventory["ready_for_analysis"].tolist() == [False, False]
+
+
+def test_inventory_selects_explicit_namespaces(tmp_path: Path) -> None:
+    _write_result(tmp_path, "canonical", instance=0, score=0.7)
+    _write_result(tmp_path, "historical", instance=0, score=0.8)
+
+    inventory = build_inventory(tmp_path, ["canonical"])
+
+    assert inventory["namespace"].tolist() == ["canonical"]
+    assert inventory["duplicate_sources"].tolist() == [1]
+    assert inventory["ready_for_analysis"].tolist() == [True]
+
+
+def test_inventory_rejects_missing_namespace(tmp_path: Path) -> None:
+    _write_result(tmp_path, "historical", instance=0, score=0.8)
+
+    with pytest.raises(FileNotFoundError, match="canonical"):
+        build_inventory(tmp_path, ["canonical"])
 
 
 def test_coverage_counts_complete_instances(tmp_path: Path) -> None:
