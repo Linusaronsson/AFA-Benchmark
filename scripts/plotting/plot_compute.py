@@ -1,10 +1,4 @@
-"""Render what generative restoration costs against what it buys."""
-
-# Both arms train for the same fixed number of batches, so this is the price of
-# restoration rather than a sample-efficiency curve. The price is one generator
-# pretraining, amortised over the strategy and method cells that share it, plus
-# a cheap pass to restore the training view. Reads the job-level costs written
-# by `scripts/analysis/collect_compute.py`.
+"""Plot paired restoration gain against generative/direct wall-time ratio."""
 
 from __future__ import annotations
 
@@ -21,145 +15,225 @@ from matplotlib.lines import Line2D
 
 METHOD_COLORS = {
     "aaco": "#2a78d6",
-    "ol_without_mask": "#eb6834",
     "dime": "#1baf7a",
+    "ol_with_mask": "#eb6834",
+    "ol_full_state": "#8c5fd3",
 }
-METHOD_LABELS = {"aaco": "AACO", "ol_without_mask": "OL", "dime": "DIME"}
-DATASET_LABELS = {"cube_nm": "CUBE-NM", "cube": "CUBE"}
+METHOD_LABELS = {
+    "aaco": "AACO",
+    "dime": "DIME",
+    "ol_with_mask": "OL + mask",
+    "ol_full_state": "OL + full state",
+}
+DATASET_MARKERS = {
+    "cube": "o",
+    "cube_nm": "s",
+    "cube_nonuniform_costs": "D",
+    "heart_disease": "P",
+    "actg": "^",
+    "diabetes": "v",
+    "nhanes_mortality": "X",
+}
+DATASET_LABELS = {
+    "cube": "CUBE",
+    "cube_nm": "CUBE-NM",
+    "cube_nonuniform_costs": "CUBE-NUC",
+    "heart_disease": "Heart disease",
+    "actg": "ACTG175",
+    "diabetes": "Diabetes",
+    "nhanes_mortality": "NHANES mortality",
+}
+ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
+DIRECT = "restricted"
+GENERATIVE = "pvae_label_conditioned"
+RESTORED = {"pvae_label_conditioned", "pvae_label_free", "pvae_stepwise"}
 
 INK = "#0b0b0b"
 INK_MUTED = "#52514e"
 GRID = "#d8d7d2"
 SURFACE = "#ffffff"
 
-DIRECT = "restricted"
-GENERATIVE = "pvae_label_conditioned"
-RESTORED_STRATEGIES = (
-    "pvae_label_conditioned",
-    "pvae_label_free",
-    "pvae_stepwise",
-)
-
 
 def _column(frame: pd.DataFrame, name: str) -> pd.Series:
-    """Typed column access, since a bare lookup widens to include ndarray."""
     return cast("pd.Series", frame[name])
 
 
 def _rows(frame: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
-    """Typed boolean selection, for the same reason."""
     return cast("pd.DataFrame", frame[mask])
 
 
-def attribute(compute: Path) -> pd.DataFrame:
-    """Total CPU seconds to produce one trained method, per cell and arm."""
-    jobs = pd.read_csv(compute)
-    jobs["p"] = pd.to_numeric(jobs["p"], errors="coerce")
-    jobs["instance"] = pd.to_numeric(jobs["instance"], errors="coerce")
-
-    cell = ["dataset", "mechanism", "p", "strategy", "instance"]
-    training = _rows(
-        jobs, _column(jobs, "rule").str.startswith("train_missing_data_method")
-    )
-    train_cost = training.groupby([*cell, "method"])["cpu_seconds"].sum()
-    method_pretrain = (
-        _rows(jobs, _column(jobs, "rule") == "pretrain_missing_data_method")
-        .groupby([*cell, "method"])["cpu_seconds"]
-        .sum()
-    )
-    view_cost = (
-        _rows(
-            jobs, _column(jobs, "rule") == "materialize_missing_training_view"
-        )
-        .groupby(cell)["cpu_seconds"]
-        .sum()
-    )
-    restore_cost = (
-        _rows(jobs, _column(jobs, "rule") == "restore_missing_training_view")
-        .groupby(cell)["cpu_seconds"]
-        .sum()
+def _sum_cost(frame: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
+    return cast(
+        "pd.DataFrame",
+        frame.groupby(keys, dropna=False).agg(
+            wall_seconds=("wall_seconds", "sum"),
+            cpu_seconds=("cpu_seconds", "sum"),
+            peak_rss_mb=("peak_rss_mb", "max"),
+        ),
     )
 
-    generator = ["dataset", "mechanism", "p", "instance"]
-    generator_cost = (
-        _rows(
-            jobs,
-            _column(jobs, "rule") == "pretrain_incomplete_restoration_pvae",
-        )
-        .groupby(generator)["cpu_seconds"]
-        .sum()
+
+def attribute(compute: pd.DataFrame) -> pd.DataFrame:
+    """Cost one direct or generative trained-method result within each cell."""
+    cell = [
+        "namespace",
+        "dataset",
+        "mechanism",
+        "p",
+        "strategy",
+        "instance",
+    ]
+    env = [
+        "hardware_signature",
+        "git_commit",
+        "device",
+        "architecture",
+        "torch",
+        "torch_cuda",
+    ]
+    training = _rows(compute, _column(compute, "rule") == "train_method")
+    training = _rows(training, _column(training, "method").isin(METHOD_COLORS))
+    pretraining = _rows(
+        compute, _column(compute, "rule") == "pretrain_method"
+    ).copy()
+    pretraining["method"] = pretraining["pretrain_key"]
+    evaluations = _rows(compute, _column(compute, "rule") == "eval_method")
+    restoration = _rows(compute, _column(compute, "rule") == "restore_view")
+    generators = _rows(
+        compute,
+        _column(compute, "rule") == "pretrain_restoration_pvae_incomplete",
     )
-    # One generator serves every restored strategy and every method, so charge
-    # each trained method only its share.
+
+    method_keys = [*cell, "method", *env]
+    train_cost = _sum_cost(training, method_keys)
+    eval_cost = _sum_cost(evaluations, method_keys)
+    pretrain_cost = _sum_cost(pretraining, method_keys)
+    generator_keys = [
+        "namespace",
+        "dataset",
+        "mechanism",
+        "p",
+        "instance",
+        *env,
+    ]
+    generator_cost = _sum_cost(generators, generator_keys)
+    restore_cost = _sum_cost(restoration, cell)
     consumers = (
-        _rows(
-            training, _column(training, "strategy").isin(RESTORED_STRATEGIES)
-        )
-        .groupby(generator)
+        _rows(training, _column(training, "strategy").isin(RESTORED))
+        .groupby(generator_keys, dropna=False)
         .size()
     )
+    strategy_consumers = training.groupby(cell, dropna=False).size()
 
-    rows = []
-    for (
-        dataset,
-        mechanism,
-        rate,
-        strategy,
-        instance,
-        method,
-    ), training_seconds in cast("Any", train_cost).items():
-        if strategy not in (DIRECT, GENERATIVE):
+    rows: list[dict[str, Any]] = []
+    for key, train in cast("Any", train_cost).iterrows():
+        record = dict(zip(method_keys, key, strict=True))
+        strategy = record["strategy"]
+        if strategy not in {DIRECT, GENERATIVE}:
             continue
-        key = (dataset, mechanism, rate, strategy, instance)
-        total = (
-            training_seconds
-            + method_pretrain.get((*key, method), 0.0)
-            + view_cost.get(key, 0.0)
-        )
+        components = [train]
+        if key in pretrain_cost.index:
+            components.append(pretrain_cost.loc[key])
+        if key in eval_cost.index:
+            components.append(eval_cost.loc[key])
         if strategy == GENERATIVE:
-            share = max(
-                int(
-                    consumers.get((dataset, mechanism, rate, instance), 1) or 1
-                ),
-                1,
-            )
-            total += restore_cost.get(key, 0.0)
-            generator_seconds = float(
-                generator_cost.get((dataset, mechanism, rate, instance), 0.0)
-                or 0.0
-            )
-            total += generator_seconds / share
+            generator_key = tuple(record[name] for name in generator_keys)
+            if generator_key in generator_cost.index:
+                share = max(
+                    int(cast("Any", consumers.get(generator_key, 1)) or 1),
+                    1,
+                )
+                components.append(generator_cost.loc[generator_key] / share)
+            strategy_key = tuple(record[name] for name in cell)
+            if strategy_key in restore_cost.index:
+                share = max(
+                    int(
+                        cast("Any", strategy_consumers.get(strategy_key, 1))
+                        or 1
+                    ),
+                    1,
+                )
+                components.append(restore_cost.loc[strategy_key] / share)
         rows.append(
             {
-                "dataset": dataset,
-                "mechanism": mechanism,
-                "p": rate,
-                "instance": instance,
-                "method": method,
+                **record,
                 "arm": "direct" if strategy == DIRECT else "generative",
-                "cpu_seconds": total,
+                "wall_seconds": sum(
+                    float(part["wall_seconds"]) for part in components
+                ),
+                "cpu_seconds": sum(
+                    float(part["cpu_seconds"]) for part in components
+                ),
+                "peak_rss_mb": max(
+                    float(part["peak_rss_mb"]) for part in components
+                ),
             }
         )
     return pd.DataFrame(rows)
 
 
-def merge_scores(
-    costs: pd.DataFrame, summary_root: Path, namespace: str
-) -> pd.DataFrame:
-    metrics = pd.read_csv(summary_root / namespace / "instance_metrics.csv")
-    metrics = _rows(
-        metrics,
-        _column(metrics, "eval_hard_budget")
-        == _column(metrics, "train_hard_budget"),
+def paired_costs(costs: pd.DataFrame, summary_root: Path) -> pd.DataFrame:
+    scores = []
+    for namespace in sorted(set(_column(costs, "namespace"))):
+        path = summary_root / str(namespace) / "instance_metrics.csv"
+        if not path.exists():
+            continue
+        frame = pd.read_csv(path)
+        frame["namespace"] = namespace
+        frame["arm"] = _column(frame, "strategy").map(
+            {DIRECT: "direct", GENERATIVE: "generative"}
+        )
+        for dataset in set(_column(frame, "dataset")):
+            metric = "accuracy" if dataset in ACCURACY_DATASETS else "f_score"
+            subset = _rows(frame, _column(frame, "dataset") == dataset).copy()
+            subset["score"] = subset[metric]
+            scores.append(subset)
+    if not scores:
+        return pd.DataFrame()
+    score_frame = pd.concat(scores, ignore_index=True)
+    keys = [
+        "namespace",
+        "dataset",
+        "mechanism",
+        "p",
+        "instance",
+        "method",
+        "arm",
+    ]
+    joined = costs.merge(score_frame[[*keys, "score"]], on=keys, how="inner")
+    index = [
+        "namespace",
+        "dataset",
+        "mechanism",
+        "p",
+        "instance",
+        "method",
+        "hardware_signature",
+        "git_commit",
+        "device",
+        "architecture",
+        "torch",
+        "torch_cuda",
+    ]
+    wide = joined.pivot_table(
+        index=index,
+        columns="arm",
+        values=["wall_seconds", "cpu_seconds", "peak_rss_mb", "score"],
     )
-    arm = _column(metrics, "strategy").map(
-        {DIRECT: "direct", GENERATIVE: "generative"}
+    wide.columns = [f"{measure}_{arm}" for measure, arm in wide.columns]
+    wide = wide.reset_index()
+    required = [
+        "wall_seconds_direct",
+        "wall_seconds_generative",
+        "score_direct",
+        "score_generative",
+    ]
+    wide = wide.dropna(subset=required)
+    wide["wall_time_ratio"] = (
+        wide["wall_seconds_generative"] / wide["wall_seconds_direct"]
     )
-    metrics["arm"] = arm
-    metrics = _rows(metrics, _column(metrics, "arm").notna())
-    keys = ["dataset", "mechanism", "p", "instance", "method", "arm"]
-    scores = metrics.groupby(keys)["accuracy"].mean().reset_index()
-    return costs.merge(scores, on=keys, how="inner")
+    wide["restoration_gain"] = wide["score_generative"] - wide["score_direct"]
+    return wide
 
 
 def plot(frame: pd.DataFrame, output: Path) -> None:
@@ -175,142 +249,100 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             "axes.facecolor": SURFACE,
         }
     )
-    datasets = [d for d in ("cube_nm", "cube") if d in set(frame["dataset"])]
-    figure, axes = plt.subplots(1, len(datasets), figsize=(7.0, 2.7))
-    axes = [axes] if len(datasets) == 1 else list(axes)
-
-    for axis, dataset in zip(axes, datasets, strict=True):
-        per_dataset = _rows(frame, _column(frame, "dataset") == dataset)
+    figure, axis = plt.subplots(figsize=(7.1, 3.4))
+    for dataset, marker in DATASET_MARKERS.items():
         for method, color in METHOD_COLORS.items():
-            per_method = _rows(
-                per_dataset, _column(per_dataset, "method") == method
+            subset = _rows(
+                frame,
+                (_column(frame, "dataset") == dataset)
+                & (_column(frame, "method") == method),
             )
-            if per_method.empty:
+            if subset.empty:
                 continue
-            summary = per_method.groupby("arm").agg(
-                cpu=("cpu_seconds", "median"), score=("accuracy", "mean")
-            )
-            if not {"direct", "generative"}.issubset(summary.index):
-                continue
-            direct, generative = (
-                summary.loc["direct"],
-                summary.loc["generative"],
-            )
-            axis.annotate(
-                "",
-                xy=(generative["cpu"], generative["score"]),
-                xytext=(direct["cpu"], direct["score"]),
-                arrowprops={
-                    "arrowstyle": "-|>",
-                    "color": color,
-                    "linewidth": 1.4,
-                    "shrinkA": 3,
-                    "shrinkB": 3,
-                },
-            )
             axis.scatter(
-                [direct["cpu"]],
-                [direct["score"]],
-                s=20,
-                facecolor=SURFACE,
-                edgecolor=color,
-                linewidth=1.2,
-                zorder=3,
-            )
-            axis.scatter(
-                [generative["cpu"]],
-                [generative["score"]],
-                s=24,
+                subset["wall_time_ratio"],
+                subset["restoration_gain"],
+                marker=marker,
+                s=22,
                 color=color,
-                zorder=4,
+                edgecolor=SURFACE,
+                linewidth=0.4,
+                alpha=0.55,
             )
-
-        axis.set_xscale("log")
-        axis.set_title(
-            DATASET_LABELS.get(dataset, dataset),
-            fontsize=8.5,
-            color=INK,
-            pad=4,
-        )
-        axis.set_xlabel(
-            "CPU seconds per trained method", color=INK_MUTED, fontsize=8
-        )
-        axis.grid(True, color=GRID, linewidth=0.4, alpha=0.6)
-        axis.set_axisbelow(True)
-        for spine in ("top", "right"):
-            axis.spines[spine].set_visible(False)
-    axes[0].set_ylabel("Accuracy", color=INK_MUTED, fontsize=8)
-
-    handles = [
-        Line2D([], [], color=color, linewidth=1.4, label=METHOD_LABELS[method])
-        for method, color in METHOD_COLORS.items()
-    ]
-    handles.append(
+    axis.axvline(1.0, color=GRID, linewidth=0.9)
+    axis.axhline(0.0, color=GRID, linewidth=0.9)
+    axis.set_xscale("log", base=2)
+    axis.set_xlabel("Generative / direct wall time (paired, fixed budget)")
+    axis.set_ylabel("Restoration gain in the dataset's primary metric")
+    axis.grid(True, color=GRID, linewidth=0.4, alpha=0.55)
+    for spine in ("top", "right"):
+        axis.spines[spine].set_visible(False)
+    method_handles = [
         Line2D(
             [],
             [],
             marker="o",
             linestyle="none",
-            markersize=4.5,
-            markerfacecolor=SURFACE,
-            markeredgecolor=INK_MUTED,
-            markeredgewidth=1.2,
-            label="Direct learning (arrow head is generative)",
+            color=color,
+            label=METHOD_LABELS[method],
         )
-    )
+        for method, color in METHOD_COLORS.items()
+    ]
+    dataset_handles = [
+        Line2D(
+            [],
+            [],
+            marker=marker,
+            linestyle="none",
+            color=INK_MUTED,
+            label=DATASET_LABELS[dataset],
+        )
+        for dataset, marker in DATASET_MARKERS.items()
+        if dataset in set(_column(frame, "dataset"))
+    ]
     figure.legend(
-        handles=handles,
+        handles=[*method_handles, *dataset_handles],
         loc="lower center",
-        ncol=4,
+        ncol=6,
         frameon=False,
-        fontsize=7.5,
-        labelcolor=INK_MUTED,
+        fontsize=7,
         bbox_to_anchor=(0.5, 0.0),
     )
-    figure.subplots_adjust(
-        left=0.09, right=0.99, top=0.90, bottom=0.31, wspace=0.18
-    )
+    figure.subplots_adjust(left=0.11, right=0.99, top=0.98, bottom=0.29)
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
-    figure.savefig(output.with_suffix(".png"), dpi=200)
+    figure.savefig(output.with_suffix(".svg"))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--compute",
-        type=Path,
-        default=Path(
-            "extra/output/missing_data/analysis/compute_core_group_missingness_v1.csv"
-        ),
-    )
+    parser.add_argument("--compute", type=Path, required=True)
     parser.add_argument(
         "--summary-root",
         type=Path,
         default=Path("extra/output/missing_data/summary/val"),
     )
-    parser.add_argument("--namespace", default="core_group_missingness_v1")
     parser.add_argument(
         "--output",
         type=Path,
         default=Path("extra/output/missing_data/analysis_figures/compute.pdf"),
     )
+    parser.add_argument("--table", type=Path)
     arguments = parser.parse_args()
 
-    costs = attribute(arguments.compute)
-    frame = merge_scores(costs, arguments.summary_root, arguments.namespace)
+    costs = attribute(pd.read_csv(arguments.compute))
+    frame = paired_costs(costs, arguments.summary_root)
     if frame.empty:
-        message = "no cells joined"
+        message = "no complete paired compute cells"
         raise SystemExit(message)
     plot(frame, arguments.output)
-
-    table = frame.groupby(["dataset", "method", "arm"]).agg(
-        cpu=("cpu_seconds", "median"),
-        score=("accuracy", "mean"),
-        n=("accuracy", "size"),
-    )
-    print(table.round(3).to_string())
-    print(f"wrote {arguments.output}")
+    table = arguments.table or arguments.output.with_suffix(".paired.csv")
+    if table.resolve() == arguments.compute.resolve():
+        message = "paired table must not overwrite the raw compute input"
+        raise ValueError(message)
+    frame.to_csv(table, index=False)
+    print(f"paired cells: {len(frame)}")
+    print(f"wrote {arguments.output} and {table}")
 
 
 if __name__ == "__main__":

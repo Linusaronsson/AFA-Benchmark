@@ -27,10 +27,16 @@ if TYPE_CHECKING:
 # all-pairs use such as scatter.
 METHOD_COLORS = {
     "aaco": "#2a78d6",
-    "ol_without_mask": "#eb6834",
     "dime": "#1baf7a",
+    "ol_with_mask": "#eb6834",
+    "ol_full_state": "#8c5fd3",
 }
-METHOD_LABELS = {"aaco": "AACO", "ol_without_mask": "OL", "dime": "DIME"}
+METHOD_LABELS = {
+    "aaco": "AACO",
+    "dime": "DIME",
+    "ol_with_mask": "OL + mask",
+    "ol_full_state": "OL + full state",
+}
 
 INK = "#0b0b0b"
 INK_MUTED = "#52514e"
@@ -39,15 +45,20 @@ SURFACE = "#ffffff"
 
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
 
-# Namespace to datasets. The native arm carries its own missing values and has
-# no complete-data reference.
+# Current confirmatory namespaces. Native missingness is excluded until the
+# evaluator enforces per-instance legal acquisition masks.
 SOURCES = {
-    "core_group_missingness_v1": ["cube_nm", "cube"],
-    "non_uniform_costs": ["cube_nonuniform_costs", "heart_disease"],
-    "synthetic_missingness": ["actg", "diabetes"],
-    "native_missingness": ["ckd", "physionet"],
+    "core_group_missingness_v2": ["cube_nm", "cube"],
+    "induced_nonuniform_missingness_v1": [
+        "cube_nonuniform_costs",
+        "heart_disease",
+    ],
+    "induced_real_missingness_v1": [
+        "actg",
+        "diabetes",
+        "nhanes_mortality",
+    ],
 }
-NATIVE = {"ckd", "physionet"}
 
 DATASET_LABELS = {
     "cube_nm": "CUBE-NM",
@@ -56,8 +67,7 @@ DATASET_LABELS = {
     "heart_disease": "Heart disease",
     "actg": "ACTG175",
     "diabetes": "Diabetes",
-    "ckd": "CKD",
-    "physionet": "PhysioNet",
+    "nhanes_mortality": "NHANES mortality",
 }
 
 DIRECT = "restricted"
@@ -95,7 +105,6 @@ def collect_panel_a(summary_root: Path) -> pd.DataFrame:
         for dataset in datasets:
             per_dataset = _largest_budget(frame, dataset)
             metric = primary_metric(dataset)
-            native = dataset in NATIVE
             for method in METHOD_COLORS:
                 per_method = _rows(
                     per_dataset, _column(per_dataset, "method") == method
@@ -107,12 +116,11 @@ def collect_panel_a(summary_root: Path) -> pd.DataFrame:
                     strategy: str,
                     per_method: pd.DataFrame = per_method,
                     metric: str = metric,
-                    native: bool = native,
                 ) -> float:
                     cells = _rows(
                         per_method, _column(per_method, "strategy") == strategy
                     )
-                    if strategy != "complete" and not native:
+                    if strategy != "complete":
                         cells = _rows(
                             cells,
                             (_column(cells, "mechanism") == PANEL_MECHANISM)
@@ -139,8 +147,6 @@ def collect_panel_a(summary_root: Path) -> pd.DataFrame:
 def collect_panel_b(summary_root: Path) -> pd.DataFrame:
     rows = []
     for namespace, datasets in SOURCES.items():
-        if namespace == "native_missingness":
-            continue  # no complete-data reference, so damage is undefined
         path = summary_root / namespace / "instance_metrics.csv"
         if not path.exists():
             continue
@@ -198,7 +204,12 @@ def _draw_panel_a(axis_a: Axes, panel_a: pd.DataFrame) -> None:
         "pd.Series", moves.groupby("dataset")["move"].max()
     ).sort_values(ascending=False)
     order = [str(dataset) for dataset in ranked.index]
-    offsets = {"aaco": 0.26, "ol_without_mask": 0.0, "dime": -0.26}
+    offsets = {
+        "aaco": 0.30,
+        "dime": 0.10,
+        "ol_with_mask": -0.10,
+        "ol_full_state": -0.30,
+    }
 
     for row_index, dataset in enumerate(order):
         base = len(order) - row_index
@@ -242,7 +253,7 @@ def _draw_panel_a(axis_a: Axes, panel_a: pd.DataFrame) -> None:
 
     axis_a.set_yticks([len(order) - i for i in range(len(order))])
     axis_a.set_yticklabels(
-        [f"{DATASET_LABELS[d]}{'*' if d in NATIVE else ''}" for d in order],
+        [DATASET_LABELS[d] for d in order],
         fontsize=7.5,
         color=INK,
     )
