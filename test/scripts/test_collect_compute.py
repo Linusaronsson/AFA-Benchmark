@@ -98,6 +98,26 @@ def test_namespace_provenance_rejects_mixed_mps_modes(
         namespace_provenance(tmp_path / "manifests", "study")
 
 
+def test_namespace_provenance_marks_every_missing_field_untracked(
+    tmp_path: Path,
+) -> None:
+    provenance = namespace_provenance(tmp_path / "manifests", "study")
+
+    assert provenance == {
+        "hardware_signature": "untracked",
+        "git_commit": "untracked",
+        "device": "untracked",
+        "cores": "untracked",
+        "mem_mb": "untracked",
+        "gpu_workers": "untracked",
+        "mps": "untracked",
+        "architecture": "untracked",
+        "torch": "untracked",
+        "torch_cuda": "untracked",
+        "cuda_devices": "[]",
+    }
+
+
 def test_namespace_gpu_telemetry_summarizes_active_samples(
     tmp_path: Path,
 ) -> None:
