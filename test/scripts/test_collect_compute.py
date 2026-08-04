@@ -34,7 +34,34 @@ def test_benchmark_identity_parses_current_train_path() -> None:
     }
 
 
-def _manifest(device: str) -> dict[str, object]:
+def test_benchmark_identity_preserves_decimal_eval_coordinates() -> None:
+    root = Path("eval")
+    path = (
+        root
+        / "dataset-diabetes"
+        / (
+            "method-aaco+mechanism-mnar_self+p-0.5+strategy-pvae_stepwise+"
+            "instance-3+train_hard_budget-20+eval_hard_budget-14"
+        )
+        / "benchmark.tsv"
+    )
+
+    identity = benchmark_identity(path, root, "eval_method")
+
+    assert identity == {
+        "rule": "eval_method",
+        "dataset": "diabetes",
+        "method": "aaco",
+        "mechanism": "mnar_self",
+        "p": 0.5,
+        "strategy": "pvae_stepwise",
+        "instance": 3,
+        "train_hard_budget": 20.0,
+        "eval_hard_budget": 14.0,
+    }
+
+
+def _manifest(device: str, *, mps: bool = False) -> dict[str, object]:
     return {
         "git_commit": "abc123",
         "command": {
@@ -42,6 +69,7 @@ def _manifest(device: str) -> dict[str, object]:
             "cores": 16,
             "mem_mb": 115_200,
             "gpu_workers": 4,
+            "mps": mps,
         },
         "host": {"architecture": "aarch64"},
         "software": {"torch": "2.11.0", "torch_cuda": "13.0"},
@@ -54,6 +82,18 @@ def test_namespace_provenance_rejects_mixed_hardware(tmp_path: Path) -> None:
     root.mkdir(parents=True)
     (root / "1.json").write_text(json.dumps(_manifest("cuda")))
     (root / "2.json").write_text(json.dumps(_manifest("cpu")))
+    with pytest.raises(ValueError, match="mixes execution environments"):
+        namespace_provenance(tmp_path / "manifests", "study")
+
+
+def test_namespace_provenance_rejects_mixed_mps_modes(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "manifests" / "study"
+    root.mkdir(parents=True)
+    (root / "1.json").write_text(json.dumps(_manifest("cuda")))
+    (root / "2.json").write_text(json.dumps(_manifest("cuda", mps=True)))
+
     with pytest.raises(ValueError, match="mixes execution environments"):
         namespace_provenance(tmp_path / "manifests", "study")
 

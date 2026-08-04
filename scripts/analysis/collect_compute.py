@@ -13,7 +13,8 @@ import pandas as pd
 def _tokens(parts: tuple[str, ...]) -> dict[str, str]:
     fields: dict[str, str] = {}
     for part in parts:
-        for token in Path(part).stem.split("+"):
+        name = part.removesuffix(".tsv")
+        for token in name.split("+"):
             if "-" not in token:
                 continue
             key, value = token.split("-", maxsplit=1)
@@ -57,6 +58,7 @@ def _manifest_signature(manifest: dict[str, Any]) -> dict[str, Any]:
         "cores": command["cores"],
         "mem_mb": command["mem_mb"],
         "gpu_workers": command.get("gpu_workers", command.get("gpu_slots", 0)),
+        "mps": command.get("mps", False),
         "architecture": host["architecture"],
         "torch": software["torch"],
         "torch_cuda": software["torch_cuda"],
@@ -74,6 +76,7 @@ def namespace_provenance(
             "hardware_signature": "untracked",
             "git_commit": "untracked",
             "device": "untracked",
+            "mps": "untracked",
             "architecture": "untracked",
             "torch": "untracked",
             "torch_cuda": "untracked",
