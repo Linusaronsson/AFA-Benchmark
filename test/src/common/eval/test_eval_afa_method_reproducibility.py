@@ -195,3 +195,5 @@ def test_eval_afa_method_batches_native_availability_with_samples() -> None:
     # two deterministic batches the expected episodes are [1,3], [2], [1,2],
     # and the empty episode, each followed by stop.
     assert result["action_performed"].tolist() == [1, 2, 3, 0, 0, 1, 0, 2, 0]
+    assert result["source_idx"].tolist() == [0, 1, 0, 1, 0, 2, 3, 2, 2]
+    assert result["selection_was_legal"].tolist() == [True] * 9

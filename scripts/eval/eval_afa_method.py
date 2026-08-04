@@ -284,6 +284,17 @@ class AFAEvaluator:
         # Add eval_seed and eval_hard_budget to dataframe
         self._df_eval["eval_seed"] = self._cfg.seed
         self._df_eval["eval_hard_budget"] = self._cfg.hard_budget
+        self._df_eval["respected_native_availability"] = (
+            self._cfg.respect_native_availability
+        )
+        if native_feature_availability is not None:
+            assert native_selection_availability is not None
+            self._df_eval["feature_availability_fraction"] = float(
+                native_feature_availability.float().mean()
+            )
+            self._df_eval["selection_availability_fraction"] = float(
+                native_selection_availability.float().mean()
+            )
 
     def _save(self) -> None:
         assert self._df_eval is not None

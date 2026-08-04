@@ -36,14 +36,12 @@ class _TensorDataset(Protocol):
 
 
 @final
-class _DatasetWithAvailability(
-    Dataset[tuple[torch.Tensor, torch.Tensor, FeatureMask, SelectionMask]]
-):
+class _EvaluationDataset(Dataset[tuple[torch.Tensor, ...]]):
     def __init__(
         self,
         dataset: _TensorDataset,
-        feature_availability: FeatureMask,
-        selection_availability: SelectionMask,
+        feature_availability: FeatureMask | None,
+        selection_availability: SelectionMask | None,
     ) -> None:
         self._dataset = dataset
         self._feature_availability = feature_availability
@@ -53,15 +51,17 @@ class _DatasetWithAvailability(
         return len(self._dataset)
 
     @override
-    def __getitem__(
-        self, idx: int
-    ) -> tuple[torch.Tensor, torch.Tensor, FeatureMask, SelectionMask]:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, ...]:
         features, label = self._dataset[idx]
+        if self._feature_availability is None:
+            return features, label, torch.tensor(idx)
+        assert self._selection_availability is not None
         return (
             features,
             label,
             self._feature_availability[idx],
             self._selection_availability[idx],
+            torch.tensor(idx),
         )
 
 
@@ -111,19 +111,18 @@ def _dataset_with_availability(
             "together."
         )
         raise ValueError(msg)
-    if feature_availability is None:
-        return cast(
-            "Dataset[tuple[torch.Tensor, ...]]", cast("object", dataset)
-        )
-    assert selection_availability is not None
-    if len(feature_availability) != len(dataset):
-        msg = "feature_availability must contain one row per dataset item."
-        raise ValueError(msg)
-    if len(selection_availability) != len(dataset):
-        msg = "selection_availability must contain one row per dataset item."
-        raise ValueError(msg)
+    if feature_availability is not None:
+        assert selection_availability is not None
+        if len(feature_availability) != len(dataset):
+            msg = "feature_availability must contain one row per dataset item."
+            raise ValueError(msg)
+        if len(selection_availability) != len(dataset):
+            msg = (
+                "selection_availability must contain one row per dataset item."
+            )
+            raise ValueError(msg)
     tensor_dataset = cast("_TensorDataset", cast("object", dataset))
-    return _DatasetWithAvailability(
+    return _EvaluationDataset(
         tensor_dataset,
         feature_availability,
         selection_availability,
@@ -283,10 +282,16 @@ class _RowBuffers:
     action: list[torch.Tensor] = field(default_factory=list)
     cost: list[torch.Tensor] = field(default_factory=list)
     forced: list[torch.Tensor] = field(default_factory=list)
+    legal: list[torch.Tensor] = field(default_factory=list)
     builtin: list[torch.Tensor] = field(default_factory=list)
     external: list[torch.Tensor] = field(default_factory=list)
 
-    def to_frame(self, true_label: Label, n_samples: int) -> pd.DataFrame:
+    def to_frame(
+        self,
+        true_label: Label,
+        n_samples: int,
+        source_indices: torch.Tensor,
+    ) -> pd.DataFrame:
         idx = torch.cat(self.idx).cpu().tolist()
         action = torch.cat(self.action).cpu().tolist()
         n_rows = len(idx)
@@ -309,9 +314,22 @@ class _RowBuffers:
                 "true_class": true_label.argmax(-1).cpu()[idx].tolist(),
                 "accumulated_cost": torch.cat(self.cost).cpu().tolist(),
                 "idx": idx,
+                "source_idx": source_indices[idx].cpu().tolist(),
                 "forced_stop": torch.cat(self.forced).cpu().tolist(),
+                "selection_was_legal": torch.cat(self.legal).cpu().tolist(),
             }
         )
+
+
+def _actions_are_legal(
+    actions: torch.Tensor, selection_mask: SelectionMask
+) -> torch.Tensor:
+    is_selection = actions > 0
+    legal = ~is_selection
+    legal[is_selection] = ~selection_mask[
+        is_selection, actions[is_selection] - 1
+    ]
+    return legal
 
 
 def _prev_selections(
@@ -348,6 +366,7 @@ def process_batch(
     builtin_afa_predict_fn: AFAPredictFn | None = None,
     selection_budget: float | None = None,
     selection_costs: Sequence[float] | None = None,
+    source_indices: torch.Tensor | None = None,
     *,
     force_acquisition: bool = False,
     feature_availability: FeatureMask | None = None,
@@ -375,6 +394,8 @@ def process_batch(
         builtin_afa_predict_fn (AFAPredictFn): A builtin classifier, if such exists.
         selection_budget (float|None): Total accumulated selection cost to allow per sample. If None, allow unlimited selections. Defaults to None.
         selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
+        source_indices: Original dataset index for each batch sample. Defaults
+            to the batch-local index.
         force_acquisition (bool): Whether to force feature acquisition, ignoring stop actions.
         feature_availability: Per-sample features that exist in the source
             data. Initial features are intersected with this mask.
@@ -390,7 +411,10 @@ def process_batch(
             - "true_class" (int)
             - "accumulated_cost" (float): Acculumulated cost from `prev_selections_performed` **and** the current action.
             - "idx" (int): Which sample the row corresponds to.
+            - "source_idx" (int): Original index in the evaluation dataset.
             - "forced_stop" (bool): Whether the episode terminated due to budget being exceeded.
+            - "selection_was_legal" (bool): Whether the action was stop or an
+              acquisition available at that timestep.
     """
     # TODO: remove cloning if necessary for speed up
     features = features.clone()
@@ -405,6 +429,11 @@ def process_batch(
 
     n_samples = features.shape[0]
     device = features.device
+    if source_indices is None:
+        source_indices = torch.arange(n_samples)
+    if source_indices.shape != (n_samples,):
+        msg = "source_indices must contain one index per batch sample."
+        raise ValueError(msg)
 
     # Per-sample state, kept on device so the acquisition loop never syncs to
     # read it back. float64 because these accumulate one addend per timestep and
@@ -473,6 +502,8 @@ def process_batch(
             actions[exceeds] = 0
             forced_stops[active_indices[exceeds]] = True
 
+        action_is_legal = _actions_are_legal(actions, active_selection_mask)
+
         # Update accumulated costs for valid selections (BEFORE appending rows)
         valid_selections = actions > 0
         valid_indices = active_indices[valid_selections]
@@ -485,6 +516,7 @@ def process_batch(
         rows.action.append(actions.clone())
         rows.cost.append(accumulated_costs[active_indices])
         rows.forced.append(forced_stops[active_indices])
+        rows.legal.append(action_is_legal)
         if step.builtin_prediction is not None:
             rows.builtin.append(step.builtin_prediction.argmax(-1))
         if step.external_prediction is not None:
@@ -503,7 +535,7 @@ def process_batch(
         # Filter out finished samples
         active_indices = active_indices[~finished_mask]
 
-    return rows.to_frame(true_label, n_samples)
+    return rows.to_frame(true_label, n_samples, source_indices)
 
 
 def eval_afa_method(
@@ -553,7 +585,10 @@ def eval_afa_method(
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
             - "true_class" (int)
+            - "source_idx" (int): Original index in the evaluation dataset.
             - "forced_stop" (bool): Whether stopping happened due to exceeding the budget.
+            - "selection_was_legal" (bool): Whether the action respected the
+              selection mask at that timestep.
     """
     assert isinstance(dataset, Dataset)
     if device is None:
@@ -595,6 +630,7 @@ def eval_afa_method(
             _batch_features, _batch_label = batch[:2]
             batch_features = _batch_features.to(device)
             batch_label = _batch_label.to(device)
+            batch_source_indices = batch[-1]
             batch_feature_availability = (
                 batch[2].to(device)
                 if feature_availability is not None
@@ -631,6 +667,7 @@ def eval_afa_method(
                     builtin_afa_predict_fn=builtin_afa_predict_fn,
                     selection_budget=selection_budget,
                     selection_costs=selection_costs,
+                    source_indices=batch_source_indices,
                     force_acquisition=force_acquisition,
                     feature_availability=batch_feature_availability,
                     selection_availability=batch_selection_availability,
@@ -645,7 +682,9 @@ def eval_afa_method(
         "builtin_predicted_class",
         "external_predicted_class",
         "true_class",
+        "source_idx",
         "forced_stop",
+        "selection_was_legal",
     }
     assert expected_columns.issubset(set(df_batches.columns)), (
         f"Expected columns {expected_columns}, but got {set(df_batches.columns)}"

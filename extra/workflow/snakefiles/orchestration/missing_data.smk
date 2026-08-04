@@ -20,6 +20,10 @@ Missing-data config keys:
     mechanisms, or probabilities without duplicating the experiment workflow.
     Optional ``include_method_variants`` omits missingness-specific controls
     from a focused experiment while retaining them by default.
+    A namespace containing the ``native`` mechanism also writes a mandatory
+    legality report. Its evaluation traces must retain source indices, prove
+    that every action respected factual availability, and omit oracle or
+    true-completion strategies.
 
 Every non-local production rule writes a Snakemake benchmark TSV under
 ``extra/output/missing_data/benchmark/<namespace>``. These records measure the
@@ -510,6 +514,9 @@ EXPERIMENTS = experiment_matrix()
 if not EXPERIMENTS:
     raise ValueError("The selected methods and datasets produce no experiments")
 EVALUATIONS = [evaluation_path(*row) for row in EXPERIMENTS]
+NATIVE_EVALUATIONS = [
+    evaluation_path(*row) for row in EXPERIMENTS if row[2] == "native"
+]
 SUMMARY_DIR = f"{ROOT}/summary/{EVAL_SPLIT}/{NAMESPACE}"
 FIGURE_DIR = f"{ROOT}/figures/{EVAL_SPLIT}/{NAMESPACE}"
 ANALYSIS_OUTPUTS = (
@@ -525,6 +532,11 @@ ANALYSIS_OUTPUTS = (
 MECHANISM_FIGURE_DIR = (
     f"{ROOT}/analysis_figures/{EVAL_SPLIT}/{NAMESPACE}"
     if RUN_CONFIRMATORY_ANALYSIS
+    else []
+)
+NATIVE_AUDIT_OUTPUTS = (
+    [f"{ROOT}/analysis/native_legality_{NAMESPACE}_{EVAL_SPLIT}.csv"]
+    if NATIVE_EVALUATIONS
     else []
 )
 
@@ -549,6 +561,7 @@ wildcard_constraints:
 localrules:
     all,
     analyze_missing_data_mechanisms,
+    audit_native_legality,
     plot_missing_data_mechanisms,
     summarize_missing_data,
     plot_missing_data,
@@ -570,6 +583,21 @@ rule all:
         FIGURE_DIR,
         ANALYSIS_OUTPUTS,
         MECHANISM_FIGURE_DIR,
+        NATIVE_AUDIT_OUTPUTS,
+
+
+rule audit_native_legality:
+    input:
+        NATIVE_EVALUATIONS,
+    output:
+        NATIVE_AUDIT_OUTPUTS,
+    params:
+        root=f"{ROOT}/eval/{EVAL_SPLIT}/{NAMESPACE}",
+    shell:
+        """
+        python scripts/analysis/audit_native_legality.py \
+            --input-root={params.root} --output={output}
+        """
 
 
 rule analyze_missing_data_mechanisms:
