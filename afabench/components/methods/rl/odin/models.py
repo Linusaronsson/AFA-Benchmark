@@ -110,11 +110,17 @@ class PointNet(nn.Module):
         )
 
         # Identity is a learnable embedding according to EDDI paper
-        identity = self.embedding_net(
-            torch.arange(
-                masked_features.shape[-1], device=masked_features.device
-            ).repeat(masked_features.shape[0], 1)
-        )  # Shape: (batch_size, n_features, identity_size)
+        # Embed each feature once; duplicate max-norm embedding indices make
+        # CUDA renormalisation and gradient accumulation nondeterministic.
+        identity = (
+            self.embedding_net(
+                torch.arange(
+                    masked_features.shape[-1], device=masked_features.device
+                )
+            )
+            .unsqueeze(0)
+            .expand(masked_features.shape[0], -1, -1)
+        )
 
         # Could not think of a better name than s...
         if self.pointnet_type == PointNetType.POINTNETPLUS:
