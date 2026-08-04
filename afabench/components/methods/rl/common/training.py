@@ -1,5 +1,6 @@
 import gc
 import logging
+import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -272,7 +273,10 @@ class RLTrainer(ABC):
         )
 
         for batch_idx, td in tqdm(
-            enumerate(collector), total=cfg.n_batches, desc="Training agent..."
+            enumerate(collector),
+            total=cfg.n_batches,
+            desc="Training agent...",
+            disable=not sys.stderr.isatty(),
         ):
             self._single_collector_step(collector, td, batch_idx, cfg)
 
@@ -305,13 +309,16 @@ class RLTrainer(ABC):
         self, td: TensorDictBase, batch_idx: int
     ) -> dict[str, Any]:
         # Environment specific logging
-        train_env_batch_info = self.train_env.get_batch_info(td)
-
         # Learning happens here
         agent_process_batch_info = self.agent.process_batch(td)
 
         # Some methods do stuff like joint training, do that here
         post_process_info = self._post_process_batch(td, batch_idx=batch_idx)
+
+        if not self.use_wandb:
+            return {}
+
+        train_env_batch_info = self.train_env.get_batch_info(td)
 
         train_dict_to_log = self._get_train_dict_to_log(
             td=td,
@@ -339,7 +346,11 @@ class RLTrainer(ABC):
                     eval_max_steps, self.agent.get_exploitative_policy()
                 ).squeeze(0)
                 # .cpu()
-                for _ in tqdm(range(n_eval_episodes), desc="Evaluating")
+                for _ in tqdm(
+                    range(n_eval_episodes),
+                    desc="Evaluating",
+                    disable=not sys.stderr.isatty(),
+                )
             ]
 
         eval_dict_to_log = self._get_eval_dict_to_log_from_rollouts(td_evals)

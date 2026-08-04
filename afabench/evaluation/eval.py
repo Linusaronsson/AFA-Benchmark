@@ -1,4 +1,5 @@
 import logging
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Protocol, cast, final, override
@@ -590,7 +591,7 @@ def eval_afa_method(
     # DIME's `act` and `predict` in particular carry no internal guard, so
     # without this every acquisition step allocates and discards one.
     with torch.inference_mode():
-        for batch in tqdm(dataloader):
+        for batch in tqdm(dataloader, disable=not sys.stderr.isatty()):
             _batch_features, _batch_label = batch[:2]
             batch_features = _batch_features.to(device)
             batch_label = _batch_label.to(device)

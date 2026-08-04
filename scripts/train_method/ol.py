@@ -1,5 +1,4 @@
 import logging
-from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
@@ -7,7 +6,7 @@ from typing import TYPE_CHECKING, Any, cast, override
 import hydra
 import torch
 from omegaconf.omegaconf import OmegaConf
-from tensordict import TensorDict, TensorDictBase
+from tensordict import TensorDictBase
 from torch import optim
 from torch.nn import functional as F
 
@@ -28,7 +27,6 @@ from afabench.components.methods.rl.ol.config import OLTrainConfig
 from afabench.components.methods.rl.ol.models import (
     LitOLPQModule,
     OLAFAClassifier,
-    OLPQModule,
 )
 from afabench.components.methods.rl.ol.reward import (
     get_ol_reward_fn,
@@ -47,62 +45,6 @@ if TYPE_CHECKING:
     from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 
 log = logging.getLogger(__name__)
-
-
-def get_post_process_batch_callback(
-    pq_module: OLPQModule,
-    pq_module_optim: optim.Adam,
-    activate_joint_training_after_batch: int,
-    class_weights: torch.Tensor,
-    feature_shape: torch.Size,
-) -> Callable[[TensorDict, int], dict[str, Any]]:
-    def f(td: TensorDict, batch_idx: int) -> dict[str, Any]:
-        # Train classifier and embedder jointly if we have reached the correct batch
-        assert td.batch_dims == 2, "Expected two batch dimensions"
-
-        if batch_idx >= activate_joint_training_after_batch:
-            if batch_idx == activate_joint_training_after_batch:
-                log.info(
-                    "Starting classifier fine-tuning alongside policy "
-                    "training at batch %d",
-                    batch_idx,
-                )
-            pq_module.train()
-            pq_module_optim.zero_grad()
-
-            n_feature_dims = len(feature_shape)
-
-            # Flatten feature dims
-            masked_features = cast(
-                "torch.Tensor", td.get(("next", "masked_features"))
-            )
-            label = cast("torch.Tensor", td.get(("next", "label")))
-            flat_masked_features = masked_features.flatten(
-                start_dim=-n_feature_dims
-            )
-            assert flat_masked_features.ndim == label.ndim, (
-                "Label should be 1D"
-            )
-
-            # Flatten batch dims
-            flat_masked_features = flat_masked_features.flatten(end_dim=-2)
-            flat_label = label.flatten(end_dim=-2)
-
-            logits_next, _qvalues = pq_module.forward(flat_masked_features)
-            class_loss_next = F.cross_entropy(
-                logits_next,
-                flat_label,
-                weight=class_weights,
-            )
-            class_loss_next.mean().backward()
-
-            pq_module_optim.step()
-            pq_module.eval()
-
-            return {"avg_class_loss": class_loss_next.mean().cpu().item()}
-        return {}
-
-    return f
 
 
 def method_specific_init(
@@ -233,6 +175,7 @@ class OLRLTrainer(RLTrainer):
             replay_buffer_device=self.replay_buffer_device,
             n_feature_dims=len(self.train_dataset.feature_shape),
             n_batches=self.typed_cfg.rl_training_loop.n_batches,
+            collect_metrics=self.use_wandb,
         )
 
     @override
@@ -293,7 +236,9 @@ class OLRLTrainer(RLTrainer):
             self.pretrained_model_optim.step()
             self.pretrained_model.pq_module.eval()
 
-            return {"avg_class_loss": class_loss_next.mean().cpu().item()}
+            if self.use_wandb:
+                return {"avg_class_loss": class_loss_next.mean().cpu().item()}
+            return {}
         return {}
 
     @override

@@ -1,4 +1,5 @@
 import logging
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -129,6 +130,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         devices=1,
         callbacks=[checkpoint_callback],
         enable_checkpointing=True,
+        enable_progress_bar=sys.stderr.isatty(),
     )
 
     trainer.fit(lit_model, datamodule)

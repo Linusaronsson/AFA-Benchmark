@@ -86,6 +86,8 @@ class OLAgent(Agent):
         replay_buffer_device: torch.device,  # device to place replay buffer on
         n_feature_dims: int,  # how many dimensions the feature shape needs. Used to flatten the features before they are passed to the pq module
         n_batches: int,  # total number of batches expected during training, needed for eps annealing
+        *,
+        collect_metrics: bool = True,
     ):
         self.cfg = cfg
         self.pq_module = pq_module.to(module_device)
@@ -94,6 +96,7 @@ class OLAgent(Agent):
         self.module_device = module_device
         self.replay_buffer_device = replay_buffer_device
         self.n_feature_dims = n_feature_dims
+        self.collect_metrics = collect_metrics
 
         self.action_value_module = OLActionValueModule(
             pq_module=self.pq_module,
@@ -225,13 +228,18 @@ class OLAgent(Agent):
             if self.target_net_updater is not None:
                 self.target_net_updater.step()
 
-            td_errors.append(sampled_td["td_error"])
+            if self.collect_metrics:
+                td_errors.append(sampled_td["td_error"])
 
             # Accumulate losses
-            total_loss_dict["loss"] += loss_td["loss"].item()
+            if self.collect_metrics:
+                total_loss_dict["loss"] += loss_td["loss"].item()
 
         # Anneal epsilon for epsilon greedy exploration
         self.egreedy_tdmodule.step()
+
+        if not self.collect_metrics:
+            return {}
 
         # Compute average loss
         process_dict = {

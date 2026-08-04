@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, override
@@ -191,6 +192,7 @@ def supervised_learning(
         val_check_interval=cfg.val_check_interval,
         check_val_every_n_epoch=None,
         default_root_dir=lightning_root(),
+        enable_progress_bar=sys.stderr.isatty(),
     )
 
     try:
