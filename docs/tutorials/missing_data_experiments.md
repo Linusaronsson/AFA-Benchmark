@@ -70,8 +70,8 @@ The current validation matrices have three named entry points:
 | Profile | Namespace | Datasets |
 |---|---|---|
 | `missing_data_core_group` | `core_group_missingness_v2` | CUBE, CUBE-NM |
-| `missing_data_induced_real` | `induced_real_missingness_v1` | ACTG175, Diabetes, NHANES mortality |
-| `missing_data_induced_nonuniform` | `induced_nonuniform_missingness_v1` | CUBE-NUC, heart disease |
+| `missing_data_induced_real` | `induced_real_missingness_v2` | ACTG175, Diabetes, NHANES mortality |
+| `missing_data_induced_nonuniform` | `induced_nonuniform_missingness_v2` | CUBE-NUC, heart disease |
 
 Run the same resource-aware entry point locally and inside a Slurm allocation:
 
@@ -192,8 +192,8 @@ memory. Collect complete namespaces and render the paired compute analysis:
 ```console
 uv run python scripts/analysis/collect_compute.py \
   --namespace core_group_missingness_v2 \
-  --namespace induced_real_missingness_v1 \
-  --namespace induced_nonuniform_missingness_v1 \
+  --namespace induced_real_missingness_v2 \
+  --namespace induced_nonuniform_missingness_v2 \
   --output extra/output/missing_data/analysis/compute.csv
 uv run python scripts/plotting/plot_compute.py \
   --compute extra/output/missing_data/analysis/compute.csv

@@ -50,11 +50,11 @@ ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
 # ceiling, so it belongs in a separate panel rather than this figure.
 SOURCES = {
     "core_group_missingness_v2": ["cube_nm", "cube"],
-    "induced_nonuniform_missingness_v1": [
+    "induced_nonuniform_missingness_v2": [
         "cube_nonuniform_costs",
         "heart_disease",
     ],
-    "induced_real_missingness_v1": [
+    "induced_real_missingness_v2": [
         "actg",
         "diabetes",
         "nhanes_mortality",

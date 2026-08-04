@@ -1,5 +1,5 @@
 # Induced missingness on the real datasets with a complete reference.
-artifact_namespace: induced_real_missingness_v1
+artifact_namespace: induced_real_missingness_v2
 classifier_scope: per_instance
 device: cuda
 smoke_test: false
