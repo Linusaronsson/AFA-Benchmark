@@ -73,6 +73,8 @@ def main() -> None:
     parser.add_argument("--mem-mb", type=int, required=True)
     parser.add_argument("--gpu-workers", type=int, required=True)
     parser.add_argument("--mps", action="store_true")
+    parser.add_argument("--archive-dir")
+    parser.add_argument("--remove-archived-source", action="store_true")
     parser.add_argument(
         "--snakemake-args", nargs=argparse.REMAINDER, default=[]
     )
@@ -105,6 +107,8 @@ def main() -> None:
             "mem_mb": arguments.mem_mb,
             "gpu_workers": arguments.gpu_workers,
             "mps": arguments.mps,
+            "archive_dir": arguments.archive_dir,
+            "remove_archived_source": arguments.remove_archived_source,
             "snakemake_args": arguments.snakemake_args,
         },
         "host": {

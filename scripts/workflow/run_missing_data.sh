@@ -10,6 +10,9 @@ options:
   --mem-mb N       schedulable memory in MiB (default: 90% of allocation or 22000)
   --gpu-workers N  concurrent CUDA processes (default: 1 for CUDA, otherwise 0)
   --mps            share one CUDA device through a job-local NVIDIA MPS server
+  --archive-dir D  archive the completed namespace into D
+  --remove-archived-source
+                   remove live namespace files after exact archive validation
 
 The same command runs locally or inside one Slurm allocation. CUDA rules each
 consume one `gpu` resource. On a large-memory accelerator this may exceed the
@@ -24,6 +27,8 @@ cores=""
 mem_mb=""
 gpu_workers=""
 mps=false
+archive_dir=""
+remove_archived_source=false
 snakemake_args=()
 
 while (($#)); do
@@ -34,6 +39,8 @@ while (($#)); do
         --mem-mb) mem_mb=${2:?}; shift 2 ;;
         --gpu-workers|--gpu-slots) gpu_workers=${2:?}; shift 2 ;;
         --mps) mps=true; shift ;;
+        --archive-dir) archive_dir=${2:?}; shift 2 ;;
+        --remove-archived-source) remove_archived_source=true; shift ;;
         --) shift; snakemake_args=("$@"); break ;;
         -h|--help) usage ;;
         *) echo "unknown argument: $1" >&2; usage ;;
@@ -80,6 +87,10 @@ if [[ ${mps} == true ]]; then
         echo "--mps is supported only inside a Slurm allocation" >&2
         exit 2
     }
+fi
+if [[ ${remove_archived_source} == true && -z ${archive_dir} ]]; then
+    echo "--remove-archived-source requires --archive-dir" >&2
+    exit 2
 fi
 
 repo_root=${AFABENCH_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
@@ -154,6 +165,9 @@ if [[ ${dry_run} == false ]]; then
         --gpu-workers "${gpu_workers}"
     )
     [[ ${mps} == true ]] && manifest_args+=(--mps)
+    [[ -n ${archive_dir} ]] && manifest_args+=(--archive-dir "${archive_dir}")
+    [[ ${remove_archived_source} == true ]] && \
+        manifest_args+=(--remove-archived-source)
     manifest_message=$(uv run python scripts/workflow/write_run_manifest.py \
         "${manifest_args[@]}" --snakemake-args "${snakemake_args[@]}")
     echo "${manifest_message}"
@@ -186,4 +200,13 @@ uv run snakemake \
     "${snakemake_args[@]}"
 status=$?
 set -e
+stop_runtime_services
+if [[ ${status} -eq 0 && ${dry_run} == false && -n ${archive_dir} ]]; then
+    archive_args=(
+        --namespace "${namespace}"
+        --archive-dir "${archive_dir}"
+    )
+    [[ ${remove_archived_source} == true ]] && archive_args+=(--remove-source)
+    scripts/workflow/archive_missing_data_namespace.sh "${archive_args[@]}"
+fi
 exit "${status}"

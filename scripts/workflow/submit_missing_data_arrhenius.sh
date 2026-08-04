@@ -5,7 +5,8 @@ usage() {
     cat >&2 <<'EOF'
 usage: submit_missing_data_arrhenius.sh --profile NAME --cores N --mem-mb N \
        --time HH:MM:SS [--gpus N] [--gpu-workers N] [--device DEVICE] \
-       [--mps] [--job-name NAME] [--afterok JOBID] \
+       [--mps] [--archive-dir DIR] [--remove-archived-source] \
+       [--job-name NAME] [--afterok JOBID] \
        [--test-only] [-- SNAKEMAKE_ARGS...]
 
 Submits one allocation after checking the live association run-minute cap and
@@ -21,6 +22,8 @@ walltime=""
 gpus=0
 gpu_workers=""
 mps=false
+archive_dir=""
+remove_archived_source=false
 device=""
 job_name=""
 afterok=""
@@ -36,6 +39,8 @@ while (($#)); do
         --gpus) gpus=${2:?}; shift 2 ;;
         --gpu-workers) gpu_workers=${2:?}; shift 2 ;;
         --mps) mps=true; shift ;;
+        --archive-dir) archive_dir=${2:?}; shift 2 ;;
+        --remove-archived-source) remove_archived_source=true; shift ;;
         --device) device=${2:?}; shift 2 ;;
         --job-name) job_name=${2:?}; shift 2 ;;
         --afterok) afterok=${2:?}; shift 2 ;;
@@ -88,6 +93,10 @@ if [[ ${mps} == true ]]; then
         echo "--mps requires CUDA and at least two GPU workers" >&2
         exit 2
     }
+fi
+if [[ ${remove_archived_source} == true && -z ${archive_dir} ]]; then
+    echo "--remove-archived-source requires --archive-dir" >&2
+    exit 2
 fi
 if ((gpus > 0)) && [[ ${device} != cuda* ]]; then
     echo "GPU allocation requested for a non-CUDA device" >&2
@@ -149,6 +158,8 @@ runner=(
     --gpu-workers "${gpu_workers}"
 )
 [[ ${mps} == true ]] && runner+=(--mps)
+[[ -n ${archive_dir} ]] && runner+=(--archive-dir "${archive_dir}")
+[[ ${remove_archived_source} == true ]] && runner+=(--remove-archived-source)
 runner+=(-- "${snakemake_args[@]}")
 sbatch_args=(
     --account="${account}"
