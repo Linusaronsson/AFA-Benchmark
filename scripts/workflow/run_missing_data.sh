@@ -9,6 +9,7 @@ options:
   --cores N        concurrent CPU slots (default: allocation CPUs or 4)
   --mem-mb N       schedulable memory in MiB (default: 90% of allocation or 22000)
   --gpu-workers N  concurrent CUDA processes (default: 1 for CUDA, otherwise 0)
+  --mps            share one CUDA device through a job-local NVIDIA MPS server
 
 The same command runs locally or inside one Slurm allocation. CUDA rules each
 consume one `gpu` resource. On a large-memory accelerator this may exceed the
@@ -22,6 +23,7 @@ device=""
 cores=""
 mem_mb=""
 gpu_workers=""
+mps=false
 snakemake_args=()
 
 while (($#)); do
@@ -31,6 +33,7 @@ while (($#)); do
         --cores) cores=${2:?}; shift 2 ;;
         --mem-mb) mem_mb=${2:?}; shift 2 ;;
         --gpu-workers|--gpu-slots) gpu_workers=${2:?}; shift 2 ;;
+        --mps) mps=true; shift ;;
         --) shift; snakemake_args=("$@"); break ;;
         -h|--help) usage ;;
         *) echo "unknown argument: $1" >&2; usage ;;
@@ -68,6 +71,16 @@ if [[ ${device} == cuda* && ${gpu_workers} -eq 0 ]]; then
     echo "CUDA execution requires at least one GPU worker" >&2
     exit 2
 fi
+if [[ ${mps} == true ]]; then
+    [[ ${device} == cuda* && ${gpu_workers} -gt 1 ]] || {
+        echo "--mps requires CUDA and at least two GPU workers" >&2
+        exit 2
+    }
+    [[ -n ${SLURM_JOB_ID:-} ]] || {
+        echo "--mps is supported only inside a Slurm allocation" >&2
+        exit 2
+    }
+fi
 
 repo_root=${AFABENCH_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 profile_dir="extra/workflow/profiles/config/${profile}"
@@ -100,34 +113,51 @@ else
     export UV_CACHE_DIR=${UV_CACHE_DIR:-/tmp/afabench-uv-cache}
 fi
 
-if [[ ${device} == cuda* ]]; then
-    uv run python -c 'import torch; assert torch.cuda.is_available(), "CUDA is unavailable in this environment"; print(f"torch={torch.__version__} cuda={torch.version.cuda} gpu={torch.cuda.get_device_name(0)}")'
-fi
-
 run_id=${SLURM_JOB_ID:-local-$(date -u +%Y%m%dT%H%M%SZ)-$$}
 dry_run=false
 for argument in "${snakemake_args[@]}"; do
     [[ ${argument} == -n || ${argument} == --dry-run ]] && dry_run=true
 done
 
-if [[ ${dry_run} == false ]]; then
-    manifest_message=$(uv run python scripts/workflow/write_run_manifest.py \
-        --profile "${profile}" --run-id "${run_id}" --device "${device}" \
-        --cores "${cores}" --mem-mb "${mem_mb}" \
-        --gpu-workers "${gpu_workers}" \
-        --snakemake-args "${snakemake_args[@]}")
-    echo "${manifest_message}"
-fi
-
 telemetry_pid=""
-stop_gpu_telemetry() {
+mps_started=false
+stop_runtime_services() {
     if [[ -n ${telemetry_pid} ]]; then
         kill "${telemetry_pid}" 2>/dev/null || true
         wait "${telemetry_pid}" 2>/dev/null || true
         telemetry_pid=""
     fi
+    if [[ ${mps_started} == true ]]; then
+        echo quit | nvidia-cuda-mps-control >/dev/null 2>&1 || true
+        mps_started=false
+    fi
 }
-trap stop_gpu_telemetry EXIT
+trap stop_runtime_services EXIT
+
+if [[ ${mps} == true ]]; then
+    export CUDA_MPS_PIPE_DIRECTORY="${SNIC_TMP}/afabench-mps-pipe"
+    export CUDA_MPS_LOG_DIRECTORY="${SNIC_TMP}/afabench-mps-log"
+    mkdir -p "${CUDA_MPS_PIPE_DIRECTORY}" "${CUDA_MPS_LOG_DIRECTORY}"
+    nvidia-cuda-mps-control -d
+    mps_started=true
+    echo "started job-local NVIDIA MPS server"
+fi
+
+if [[ ${device} == cuda* ]]; then
+    uv run python -c 'import torch; assert torch.cuda.is_available(), "CUDA is unavailable in this environment"; print(f"torch={torch.__version__} cuda={torch.version.cuda} gpu={torch.cuda.get_device_name(0)}")'
+fi
+
+if [[ ${dry_run} == false ]]; then
+    manifest_args=(
+        --profile "${profile}" --run-id "${run_id}" --device "${device}"
+        --cores "${cores}" --mem-mb "${mem_mb}"
+        --gpu-workers "${gpu_workers}"
+    )
+    [[ ${mps} == true ]] && manifest_args+=(--mps)
+    manifest_message=$(uv run python scripts/workflow/write_run_manifest.py \
+        "${manifest_args[@]}" --snakemake-args "${snakemake_args[@]}")
+    echo "${manifest_message}"
+fi
 
 if [[ ${dry_run} == false && ${device} == cuda* ]]; then
     manifest_path=${manifest_message##* }
