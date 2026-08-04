@@ -191,13 +191,16 @@ if [[ ${dry_run} == false && ${device} == cuda* ]]; then
 fi
 
 set +e
+# Reservations come from measured peak RSS on the GH200 timing gate: 3,187 MiB
+# over every rule and 3,098 MiB for evaluation. A larger reservation only caps
+# concurrency, which is the scarce resource once the allocation holds 72 cores.
 "${uv_run[@]}" snakemake \
     --profile "${profile_dir}" all \
     --apptainer-prefix .snakemake/apptainer \
     --cores "${cores}" \
     --resources "mem_mb=${mem_mb}" "gpu=${gpu_workers}" \
     --default-resources mem_mb=3000 gpu=0 \
-    --set-resources eval_missing_data_method:mem_mb=12000 \
+    --set-resources eval_missing_data_method:mem_mb=4000 \
     --rerun-incomplete \
     --printshellcmds \
     "${snakemake_args[@]}"
