@@ -26,8 +26,11 @@ from afabench.core.utils import (
     initialize_wandb_run,
     set_seed,
 )
-from afabench.datasets.utils import flatten_features_collate
 from afabench.training.supervised_learning import lightning_root
+from afabench.training.tensor_batches import (
+    TensorBatchDataset,
+    passthrough_batch,
+)
 
 if TYPE_CHECKING:
     from torch.utils.data import Dataset
@@ -81,19 +84,32 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     n_features = feature_shape.numel()
     n_classes = train_dataset.label_shape[0]
 
+    train_features, train_labels = train_dataset.get_all_data()
+    val_features, val_labels = val_dataset.get_all_data()
     datamodule = DataModuleFromDatasets(
         train_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
+            "Dataset[tuple[Features, Label]]",
+            cast(
+                "object",
+                TensorBatchDataset(
+                    train_features.flatten(start_dim=1), train_labels
+                ),
+            ),
         ),
         val_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
+            "Dataset[tuple[Features, Label]]",
+            cast(
+                "object",
+                TensorBatchDataset(
+                    val_features.flatten(start_dim=1), val_labels
+                ),
+            ),
         ),
         batch_size=cfg.batch_size,
-        collate_fn=flatten_features_collate(n_feature_dims=len(feature_shape)),
+        collate_fn=passthrough_batch,
     )
 
     # Class weights
-    _, train_labels = train_dataset.get_all_data()
     train_class_probabilities = get_class_frequencies(train_labels)
 
     # Model

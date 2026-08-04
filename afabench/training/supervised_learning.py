@@ -16,32 +16,16 @@ from afabench.components.methods.rl.common.dataset_utils import (
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.core.types import AFADataset
-from afabench.datasets.utils import flatten_features_collate
 from afabench.training.config import SupervisedLearningConfig
+from afabench.training.tensor_batches import (
+    TensorBatchDataset,
+    passthrough_batch,
+)
 
 if TYPE_CHECKING:
     from torch.utils.data.dataset import Dataset
 
     from afabench.core.types import Features, Label
-
-
-class _DatasetWithRowExtra:
-    dataset: AFADataset
-    row_extra: torch.Tensor
-
-    def __init__(self, dataset: AFADataset, row_extra: torch.Tensor) -> None:
-        if len(dataset) != len(row_extra):
-            msg = "Row extras must have one row per dataset instance."
-            raise ValueError(msg)
-        self.dataset = dataset
-        self.row_extra = row_extra
-
-    def __getitem__(self, index: int) -> tuple[object, ...]:
-        features, label = self.dataset[index]
-        return features, label, self.row_extra[index]
-
-    def __len__(self) -> int:
-        return len(self.dataset)
 
 
 log = logging.getLogger(__name__)
@@ -50,6 +34,21 @@ log = logging.getLogger(__name__)
 def lightning_root() -> Path:
     """Keep disposable Lightning files on node-local storage when available."""
     return Path(os.environ.get("SNIC_TMP", "extra/logs/lightning"))
+
+
+def _tensor_dataset(
+    dataset: AFADataset,
+    row_extras_fn: Callable[[AFADataset], torch.Tensor] | None,
+) -> TensorBatchDataset:
+    features, labels = dataset.get_all_data()
+    tensors = [features.flatten(start_dim=1), labels]
+    if row_extras_fn is not None:
+        row_extra = row_extras_fn(dataset)
+        if len(dataset) != len(row_extra):
+            msg = "Row extras must have one row per dataset instance."
+            raise ValueError(msg)
+        tensors.append(row_extra.flatten(start_dim=1))
+    return TensorBatchDataset(*tensors)
 
 
 class ModelCheckpointWithMinBatches(ModelCheckpoint):
@@ -130,33 +129,22 @@ def supervised_learning(
         Path(train_dataset_bundle_path),
     )
     train_dataset = cast("AFADataset", cast("object", train_dataset))
-    _train_features, _train_labels = train_dataset.get_all_data()
     val_dataset, _val_dataset_metadata = load_bundle(
         Path(val_dataset_bundle_path),
     )
     val_dataset = cast("AFADataset", cast("object", val_dataset))
-    train_data: object = train_dataset
-    val_data: object = val_dataset
-    if row_extras_fn is not None:
-        train_data = _DatasetWithRowExtra(
-            train_dataset,
-            row_extras_fn(train_dataset),
-        )
-        val_data = _DatasetWithRowExtra(
-            val_dataset,
-            row_extras_fn(val_dataset),
-        )
+
     datamodule = DataModuleFromDatasets(
         train_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", train_data)
+            "Dataset[tuple[Features, Label]]",
+            cast("object", _tensor_dataset(train_dataset, row_extras_fn)),
         ),
         val_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", val_data)
+            "Dataset[tuple[Features, Label]]",
+            cast("object", _tensor_dataset(val_dataset, row_extras_fn)),
         ),
         batch_size=cfg.batch_size,
-        collate_fn=flatten_features_collate(
-            n_feature_dims=len(train_dataset.feature_shape)
-        ),
+        collate_fn=passthrough_batch,
     )
     log.info("Loaded datasets.")
 

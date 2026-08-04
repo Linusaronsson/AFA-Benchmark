@@ -1,17 +1,19 @@
-from typing import final, override
+from typing import Any
 
-import torch
-from torch import Tensor
 from torch.utils.data import DataLoader
 
 from afabench.core.types import AFADataset
+from afabench.training.tensor_batches import (
+    TensorBatchDataset,
+    passthrough_batch,
+)
 
 
 def prepare_datasets(
     train_dataset: AFADataset, val_dataset: AFADataset, batch_size: int
 ) -> tuple[
-    DataLoader[tuple[Tensor, Tensor]],
-    DataLoader[tuple[Tensor, Tensor]],
+    DataLoader[Any],
+    DataLoader[Any],
     int,
     int,
 ]:
@@ -19,34 +21,25 @@ def prepare_datasets(
     d_in = train_dataset.feature_shape.numel()
     d_out = train_dataset.label_shape[0]
 
-    # Create new datasets with converted data format
-    @final
-    class ConvertedDataset(torch.utils.data.Dataset[tuple[Tensor, Tensor]]):
-        def __init__(self, original_dataset: AFADataset):
-            self.original_dataset: AFADataset = original_dataset
-            self.features, self.labels = original_dataset.get_all_data()
-            self.features = self.features.float()
-            self.labels = self.labels.argmax(dim=1).long()
-
-        @override
-        def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-            return self.features[idx], self.labels[idx]
-
-        def __len__(self) -> int:
-            return len(self.original_dataset)
-
-    converted_train_dataset = ConvertedDataset(train_dataset)
-    converted_val_dataset = ConvertedDataset(val_dataset)
+    def converted_dataset(dataset: AFADataset) -> TensorBatchDataset:
+        features, labels = dataset.get_all_data()
+        return TensorBatchDataset(
+            features.float(), labels.argmax(dim=1).long()
+        )
 
     train_loader = DataLoader(
-        converted_train_dataset,
+        converted_dataset(train_dataset),
         batch_size=batch_size,
         shuffle=True,
         pin_memory=True,
         drop_last=True,
+        collate_fn=passthrough_batch,
     )
     val_loader = DataLoader(
-        converted_val_dataset, batch_size=batch_size, pin_memory=True
+        converted_dataset(val_dataset),
+        batch_size=batch_size,
+        pin_memory=True,
+        collate_fn=passthrough_batch,
     )
 
     return train_loader, val_loader, d_in, d_out
