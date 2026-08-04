@@ -103,7 +103,7 @@ wall_minutes() {
     fi
     IFS=: read -r hours minutes seconds <<<"${value}"
     [[ ${days} =~ ^[0-9]+$ && ${hours} =~ ^[0-9]+$ && ${minutes} =~ ^[0-9]+$ && ${seconds} =~ ^[0-9]+$ ]] || return 1
-    echo $((days * 1440 + hours * 60 + minutes + (seconds > 0)))
+    echo $((10#${days} * 1440 + 10#${hours} * 60 + 10#${minutes} + (10#${seconds} > 0)))
 }
 
 minutes=$(wall_minutes "${walltime}") || {
