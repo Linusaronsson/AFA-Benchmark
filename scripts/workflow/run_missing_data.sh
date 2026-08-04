@@ -106,6 +106,8 @@ export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export NUMEXPR_NUM_THREADS=1
 export AFABENCH_DEVICE=${device}
+export PYTHONPATH="${repo_root}${PYTHONPATH:+:${PYTHONPATH}}"
+uv_run=(uv run)
 
 if [[ -n ${SLURM_JOB_ID:-} ]]; then
     # Arrhenius keeps one environment per architecture on project storage.
@@ -117,6 +119,7 @@ if [[ -n ${SLURM_JOB_ID:-} ]]; then
     fi
     : "${SNIC_TMP:?Arrhenius did not provide job-local scratch}"
     export AFABENCH_SCRATCH_ROOT=${SNIC_TMP}
+    uv_run+=(--no-sync)
     # A fresh directory per shell command prevents concurrent Hydra and
     # Lightning processes from sharing logs or checkpoints.
     export AFABENCH_SHELL_PREFIX='rule_tmp=$(mktemp -d "$AFABENCH_SCRATCH_ROOT/afabench-rule.XXXXXX"); export SNIC_TMP="$rule_tmp"; export TMPDIR="$rule_tmp"; '
@@ -155,7 +158,7 @@ if [[ ${mps} == true ]]; then
 fi
 
 if [[ ${device} == cuda* ]]; then
-    uv run python -c 'import torch; assert torch.cuda.is_available(), "CUDA is unavailable in this environment"; print(f"torch={torch.__version__} cuda={torch.version.cuda} gpu={torch.cuda.get_device_name(0)}")'
+    "${uv_run[@]}" python -c 'import torch; assert torch.cuda.is_available(), "CUDA is unavailable in this environment"; print(f"torch={torch.__version__} cuda={torch.version.cuda} gpu={torch.cuda.get_device_name(0)}")'
 fi
 
 if [[ ${dry_run} == false ]]; then
@@ -168,7 +171,7 @@ if [[ ${dry_run} == false ]]; then
     [[ -n ${archive_dir} ]] && manifest_args+=(--archive-dir "${archive_dir}")
     [[ ${remove_archived_source} == true ]] && \
         manifest_args+=(--remove-archived-source)
-    manifest_message=$(uv run python scripts/workflow/write_run_manifest.py \
+    manifest_message=$("${uv_run[@]}" python scripts/workflow/write_run_manifest.py \
         "${manifest_args[@]}" --snakemake-args "${snakemake_args[@]}")
     echo "${manifest_message}"
 fi
@@ -188,7 +191,7 @@ if [[ ${dry_run} == false && ${device} == cuda* ]]; then
 fi
 
 set +e
-uv run snakemake \
+"${uv_run[@]}" snakemake \
     --profile "${profile_dir}" all \
     --apptainer-prefix .snakemake/apptainer \
     --cores "${cores}" \
