@@ -95,6 +95,25 @@ def largest_hard_budget(
     return str(train), str(evaluation)
 
 
+def policy_training_coordinates(
+    mechanism: str,
+    probability: str,
+    strategy: str,
+) -> tuple[str, str, str]:
+    """
+    Return the unique training cell for a treatment's policy.
+
+    ``true_completion`` restores the original feature tensor exactly and its
+    factual source mask is inactive outside the restricted/stepwise paths.
+    With the same seed and budget, it therefore trains the complete-data
+    policy again. Reuse that policy while retaining separate evaluation traces
+    as an executable invariance check.
+    """
+    if strategy == "true_completion":
+        return "none", "0.0", "complete"
+    return mechanism, probability, strategy
+
+
 def strategy_enabled(
     filters: dict[str, dict[str, list[Any]]],
     strategy: str,

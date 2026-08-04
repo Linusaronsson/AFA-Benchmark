@@ -78,6 +78,17 @@ def test_largest_hard_budget_honors_train_eval_mapping() -> None:
     assert selected == ("20", "14")
 
 
+def test_true_completion_reuses_the_seeded_complete_policy() -> None:
+    module = _load_module()
+
+    assert module.policy_training_coordinates(
+        "mnar_self", "0.7", "true_completion"
+    ) == ("none", "0.0", "complete")
+    assert module.policy_training_coordinates(
+        "mnar_self", "0.7", "pvae_oracle"
+    ) == ("mnar_self", "0.7", "pvae_oracle")
+
+
 def test_strategy_filter_selects_only_declared_cells() -> None:
     module = _load_module()
     filters = {

@@ -54,6 +54,7 @@ from config import load_config, resolve_device
 from missing_data_config import (
     build_method_specs,
     largest_hard_budget,
+    policy_training_coordinates,
     strategy_enabled,
 )
 
@@ -395,15 +396,29 @@ def trained_method(
 
 
 def trained_method_input(wildcards):
-    return trained_method(
-        wildcards.dataset,
-        wildcards.method,
+    mechanism, probability, strategy = policy_training_coordinates(
         wildcards.mechanism,
         wildcards.p,
         wildcards.strategy,
+    )
+    return trained_method(
+        wildcards.dataset,
+        wildcards.method,
+        mechanism,
+        probability,
+        strategy,
         wildcards.instance,
         wildcards.train_budget,
     )
+
+
+def policy_reuse_guard(wildcards):
+    if wildcards.strategy != "true_completion":
+        return []
+    return [
+        training_view(wildcards, "train"),
+        training_view(wildcards, "val"),
+    ]
 
 
 def evaluation_path(
@@ -1079,6 +1094,7 @@ rule eval_missing_data_method:
     input:
         dataset=lambda wc: raw_dataset(wc.dataset, wc.instance, EVAL_SPLIT),
         method=trained_method_input,
+        reuse_guard=policy_reuse_guard,
         classifier=lambda wc: classifier_path(
             wc.dataset, wc.instance, wc.method
         ),
