@@ -948,7 +948,6 @@ class CMIEstimator(nn.Module):
         if ipw_max_weight <= 0.0:
             msg = "ipw_max_weight must be positive."
             raise ValueError(msg)
-
         value_network: nn.Module = self.value_network
         predictor: nn.Module = self.predictor
         mask_layer: MaskLayer | MaskLayer2d = self.mask_layer
@@ -1046,10 +1045,10 @@ class CMIEstimator(nn.Module):
                     train_feature_restoration_fn,
                 )
 
-                value_network.zero_grad()
-                predictor.zero_grad()
+                opt.zero_grad(set_to_none=True)
                 value_network_loss_total = 0
                 pred_loss_total = 0
+                step_losses: list[torch.Tensor] = []
 
                 # Predictor loss with initial features.
                 x_masked = _apply_model_mask(mask_layer, x, m_feat)
@@ -1060,7 +1059,7 @@ class CMIEstimator(nn.Module):
                 pred_loss = loss_without_next_feature.mean()
                 pred_loss_total += pred_loss.detach()
 
-                (pred_loss / (max_features + 1)).backward()
+                step_losses.append(pred_loss)
                 pred_without_next_feature = pred_without_next_feature.detach()
                 loss_without_next_feature = loss_without_next_feature.detach()
 
@@ -1158,17 +1157,20 @@ class CMIEstimator(nn.Module):
                     total_loss = torch.mean(value_network_loss) + torch.mean(
                         loss_with_next_feature
                     )
-                    (total_loss / (max_features + 1)).backward()
+                    step_losses.append(total_loss)
 
                     # Updates.
-                    value_network_loss_total += torch.mean(value_network_loss)
-                    pred_loss_total += torch.mean(loss_with_next_feature)
+                    value_network_loss_total += value_network_loss.detach()
+                    pred_loss_total += loss_with_next_feature.mean().detach()
                     loss_without_next_feature = loss_with_next_feature.detach()
                     pred_without_next_feature = pred_with_next_feature.detach()
 
-                # Take gradient step.
+                # Each acquisition state contributes independently because the
+                # prediction used by the next state is detached above. Build
+                # their mean once, then traverse autograd once per optimizer
+                # update instead of once per acquisition.
+                torch.stack(step_losses).mean().backward()
                 opt.step()
-                opt.zero_grad()
 
                 value_losses.append(value_network_loss_total / max_features)
                 pred_losses.append(pred_loss_total / (max_features + 1))
