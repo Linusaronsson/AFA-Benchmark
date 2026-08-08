@@ -67,11 +67,18 @@ NON_MYOPIC_METHODS = frozenset(
 def get_method_color_mapping(
     plotting_config: PlottingDisplayConfig,
 ) -> dict[str, str]:
+    """
+    Colour per method, falling back to the method's policy family.
+
+    Family colour alone aliases every variant onto one hex, which hides the
+    contrasts the missing-data study is about, so per-method overrides win.
+    """
     family_colors = plotting_config.method_family_color_schemes[
         plotting_config.active_method_color_scheme
     ]
+    overrides = plotting_config.method_color_overrides
     return {
-        method: family_colors[family]
+        method: overrides.get(method, family_colors[family])
         for method, family in plotting_config.method_policy_family_mapping.items()
     }
 

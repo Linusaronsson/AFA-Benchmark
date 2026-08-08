@@ -21,6 +21,10 @@ class PlottingDisplayConfig:
     method_policy_family_mapping: dict[str, str]
     method_family_color_schemes: dict[str, dict[str, str]]
     active_method_color_scheme: str
+    # Family colour aliases every method in a family, which makes variants such
+    # as ol_with_mask and ol_full_state indistinguishable. Methods listed here
+    # take their own colour instead.
+    method_color_overrides: dict[str, str]
     dataset_name_mapping: dict[str, str]
     datasets_with_f_score: list[str]
     dataset_sets: dict[str, list[str]]

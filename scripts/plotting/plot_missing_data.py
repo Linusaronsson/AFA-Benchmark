@@ -67,14 +67,30 @@ STRATEGY_DISPLAY = {
     "true_completion": "True completion",
     "zero_fill": "Zero fill",
 }
-CONTROL_VARIANTS = {
-    "aaco_doubly_robust": "Doubly robust",
-    "dime_feature_marginal_ipw": "Feature-marginal IPW",
+# Colour, marker and line style all key on the method, so identity survives
+# greyscale printing and colour-vision deficiency. Keying the marker on a
+# "standard vs control" label instead left ol_with_mask and ol_full_state
+# sharing a marker as well as a colour, which made them one line.
+METHOD_SHAPES = {
+    "aaco": "o",
+    "aaco_doubly_robust": "D",
+    "dime": "^",
+    "dime_feature_marginal_ipw": "s",
+    "ol_with_mask": "v",
+    "ol_full_state": "P",
+    "ol_without_mask": "X",
+    "random_dummy": "*",
 }
-CONTROL_SHAPES = {
-    "Standard": "o",
-    "Doubly robust": "D",
-    "Feature-marginal IPW": "s",
+# Solid is a method, dashed is a reweighting control of the method above it.
+METHOD_LINETYPES = {
+    "aaco": "solid",
+    "aaco_doubly_robust": "dashed",
+    "dime": "solid",
+    "dime_feature_marginal_ipw": "dashed",
+    "ol_with_mask": "solid",
+    "ol_full_state": "solid",
+    "ol_without_mask": "solid",
+    "random_dummy": "dotted",
 }
 
 INSTANCE_COLUMNS = {
@@ -217,9 +233,6 @@ def _prepare_performance_frame(
     frame["policy"] = frame["method"].map(
         lambda value: plotting_config.method_name_mapping.get(value, value)
     )
-    frame["training_variant"] = frame["method"].map(
-        lambda value: CONTROL_VARIANTS.get(value, "Standard")
-    )
     return frame, strategies
 
 
@@ -238,10 +251,18 @@ def _performance_plot(
         ncol=ncol,
         subplot_height=2.8,
     )
-    raw_colors = get_method_color_mapping(plotting_config)
+    display = plotting_config.method_name_mapping
     color_mapping = {
-        plotting_config.method_name_mapping.get(method, method): color
-        for method, color in raw_colors.items()
+        display.get(method, method): color
+        for method, color in get_method_color_mapping(plotting_config).items()
+    }
+    shape_mapping = {
+        display.get(method, method): shape
+        for method, shape in METHOD_SHAPES.items()
+    }
+    linetype_mapping = {
+        display.get(method, method): linetype
+        for method, linetype in METHOD_LINETYPES.items()
     }
     probabilities = sorted(frame["p"].unique())
     plot = (
@@ -252,15 +273,17 @@ def _performance_plot(
                 y="mean_metric",
                 color="policy",
                 fill="policy",
-                shape="training_variant",
+                shape="policy",
+                linetype="policy",
                 group="policy",
             ),
         )
-        + p9.geom_point()
+        + p9.geom_point(size=2.2)
         + p9.facet_wrap("training_completion", ncol=ncol, scales="fixed")
         + p9.scale_color_manual(values=color_mapping)
         + p9.scale_fill_manual(values=color_mapping)
-        + p9.scale_shape_manual(values=CONTROL_SHAPES)
+        + p9.scale_shape_manual(values=shape_mapping)
+        + p9.scale_linetype_manual(values=linetype_mapping)
         + p9.scale_x_continuous(
             breaks=probabilities,
             labels=[f"{value:g}" for value in probabilities],
@@ -275,7 +298,8 @@ def _performance_plot(
             y=y_label,
             color="Policy",
             fill="Policy",
-            shape="Training variant",
+            shape="Policy",
+            linetype="Policy",
         )
         + p9.theme_bw()
         + p9.theme(

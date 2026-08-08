@@ -20,23 +20,15 @@ import numpy as np
 import pandas as pd
 from matplotlib.lines import Line2D
 
+from afabench.plotting.methods import (
+    METHOD_COLORS,
+    METHOD_LABELS,
+    METHOD_MARKERS,
+    PRIMARY_METHODS,
+)
+
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
-
-# Categorical slots 1 to 3 of the reference palette, the validated cap for
-# all-pairs use such as scatter.
-METHOD_COLORS = {
-    "aaco": "#2a78d6",
-    "dime": "#1baf7a",
-    "ol_with_mask": "#eb6834",
-    "ol_full_state": "#8c5fd3",
-}
-METHOD_LABELS = {
-    "aaco": "AACO",
-    "dime": "DIME",
-    "ol_with_mask": "OL + mask",
-    "ol_full_state": "OL + full state",
-}
 
 INK = "#0b0b0b"
 INK_MUTED = "#52514e"
@@ -106,7 +98,7 @@ def collect_panel_a(summary_root: Path) -> pd.DataFrame:
         for dataset in datasets:
             per_dataset = _largest_budget(frame, dataset)
             metric = primary_metric(dataset)
-            for method in METHOD_COLORS:
+            for method in PRIMARY_METHODS:
                 per_method = _rows(
                     per_dataset, _column(per_dataset, "method") == method
                 )
@@ -155,7 +147,7 @@ def collect_panel_b(summary_root: Path) -> pd.DataFrame:
         for dataset in datasets:
             per_dataset = _largest_budget(frame, dataset)
             metric = primary_metric(dataset)
-            for method in METHOD_COLORS:
+            for method in PRIMARY_METHODS:
                 per_method = _rows(
                     per_dataset, _column(per_dataset, "method") == method
                 )
@@ -286,7 +278,8 @@ def _draw_panel_b(axis_b: Axes, panel_b: pd.DataFrame) -> None:
     )
     axis_b.axhline(0.0, color=GRID, linewidth=0.8, zorder=1)
     axis_b.axvline(0.0, color=GRID, linewidth=0.8, zorder=1)
-    for method, color in METHOD_COLORS.items():
+    for method in PRIMARY_METHODS:
+        color = METHOD_COLORS[method]
         subset = _rows(panel_b, _column(panel_b, "method") == method)
         if subset.empty:
             continue
@@ -294,6 +287,7 @@ def _draw_panel_b(axis_b: Axes, panel_b: pd.DataFrame) -> None:
             subset["damage"],
             subset["gain"],
             s=18,
+            marker=METHOD_MARKERS[method],
             facecolor=color,
             edgecolor=SURFACE,
             linewidth=0.5,
@@ -302,7 +296,7 @@ def _draw_panel_b(axis_b: Axes, panel_b: pd.DataFrame) -> None:
         )
     lines = [
         f"{METHOD_LABELS[m]} $r={_correlation(panel_b, m):.2f}$"
-        for m in METHOD_COLORS
+        for m in PRIMARY_METHODS
     ]
     axis_b.text(
         0.04,
@@ -352,16 +346,16 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
         }
     )
 
-    figure = plt.figure(figsize=(7.1, 3.5))
+    figure = plt.figure(figsize=(7.1, 3.9))
     grid = figure.add_gridspec(
         1,
         2,
         width_ratios=[1.25, 1.0],
         wspace=0.28,
         left=0.21,
-        right=0.99,
+        right=0.97,
         top=0.93,
-        bottom=0.23,
+        bottom=0.30,
     )
     axis_a = figure.add_subplot(grid[0, 0])
     axis_b = figure.add_subplot(grid[0, 1])
@@ -373,15 +367,15 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
         Line2D(
             [],
             [],
-            marker="o",
+            marker=METHOD_MARKERS[method],
             linestyle="none",
             markersize=4.5,
-            markerfacecolor=color,
+            markerfacecolor=METHOD_COLORS[method],
             markeredgecolor=SURFACE,
             markeredgewidth=0.5,
             label=METHOD_LABELS[method],
         )
-        for method, color in METHOD_COLORS.items()
+        for method in PRIMARY_METHODS
     ]
     handles += [
         Line2D(
@@ -406,11 +400,11 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
     figure.legend(
         handles=handles,
         loc="lower center",
-        ncol=5,
+        ncol=3,
         frameon=False,
         fontsize=7.5,
         labelcolor=INK_MUTED,
-        bbox_to_anchor=(0.5, 0.01),
+        bbox_to_anchor=(0.5, 0.005),
         columnspacing=1.4,
     )
 
@@ -433,6 +427,15 @@ def main() -> None:
             "extra/output/missing_data/analysis_figures/main_summary.pdf"
         ),
     )
+    parser.add_argument(
+        "--table",
+        type=Path,
+        default=None,
+        help=(
+            "Write the per-cell damage and restoration gain behind panel (b). "
+            "Defaults to <output>.cells.csv."
+        ),
+    )
     arguments = parser.parse_args()
 
     panel_a = collect_panel_a(arguments.summary_root)
@@ -442,19 +445,22 @@ def main() -> None:
         raise SystemExit(message)
     plot(panel_a, panel_b, arguments.output)
 
+    table = arguments.table or arguments.output.with_suffix(".cells.csv")
+    panel_b.to_csv(table, index=False)
+
     print(f"panel (a) rows: {len(panel_a)}   panel (b) cells: {len(panel_b)}")
     print(
         panel_a.assign(move=panel_a["generative"] - panel_a["direct"])
         .round(3)
         .to_string(index=False)
     )
-    for method in METHOD_COLORS:
+    for method in PRIMARY_METHODS:
         subset = _rows(panel_b, _column(panel_b, "method") == method)
         print(
             f"  {METHOD_LABELS[method]:5s} n={len(subset):3d} "
             f"r={_correlation(panel_b, method):+.3f}"
         )
-    print(f"wrote {arguments.output}")
+    print(f"wrote {arguments.output} and {table}")
 
 
 if __name__ == "__main__":

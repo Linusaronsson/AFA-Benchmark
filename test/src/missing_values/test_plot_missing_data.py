@@ -27,6 +27,9 @@ def _plotting_config() -> PlottingDisplayConfig:
         },
         method_family_color_schemes={"test": {"aaco": "#A6761D"}},
         active_method_color_scheme="test",
+        # A method and its reweighting control share a family, so without an
+        # override they would share a colour and draw as one line.
+        method_color_overrides={"aaco_doubly_robust": "#AA3377"},
         dataset_name_mapping={
             "cube": "CUBE",
             "bank_marketing": "BankMarketing",

@@ -13,18 +13,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.lines import Line2D
 
-METHOD_COLORS = {
-    "aaco": "#2a78d6",
-    "dime": "#1baf7a",
-    "ol_with_mask": "#eb6834",
-    "ol_full_state": "#8c5fd3",
-}
-METHOD_LABELS = {
-    "aaco": "AACO",
-    "dime": "DIME",
-    "ol_with_mask": "OL + mask",
-    "ol_full_state": "OL + full state",
-}
+from afabench.plotting.methods import (
+    METHOD_COLORS,
+    METHOD_LABELS,
+    PRIMARY_METHODS,
+)
+
 DATASET_MARKERS = {
     "cube": "o",
     "cube_nm": "s",
@@ -96,7 +90,9 @@ def attribute(compute: pd.DataFrame) -> pd.DataFrame:
         "torch_cuda",
     ]
     training = _rows(compute, _column(compute, "rule") == "train_method")
-    training = _rows(training, _column(training, "method").isin(METHOD_COLORS))
+    training = _rows(
+        training, _column(training, "method").isin(PRIMARY_METHODS)
+    )
     pretraining = _rows(
         compute, _column(compute, "rule") == "pretrain_method"
     ).copy()
@@ -257,9 +253,10 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             "axes.facecolor": SURFACE,
         }
     )
-    figure, axis = plt.subplots(figsize=(7.1, 3.4))
+    figure, axis = plt.subplots(figsize=(7.1, 3.9))
     for dataset, marker in DATASET_MARKERS.items():
-        for method, color in METHOD_COLORS.items():
+        for method in PRIMARY_METHODS:
+            color = METHOD_COLORS[method]
             subset = _rows(
                 frame,
                 (_column(frame, "dataset") == dataset)
@@ -281,7 +278,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
     axis.axhline(0.0, color=GRID, linewidth=0.9)
     axis.set_xscale("log", base=2)
     axis.set_xlabel("Generative / direct wall time (paired, fixed budget)")
-    axis.set_ylabel("Restoration gain in the dataset's primary metric")
+    axis.set_ylabel("Restoration gain (primary metric)")
     axis.grid(True, color=GRID, linewidth=0.4, alpha=0.55)
     for spine in ("top", "right"):
         axis.spines[spine].set_visible(False)
@@ -291,10 +288,10 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             [],
             marker="o",
             linestyle="none",
-            color=color,
+            color=METHOD_COLORS[method],
             label=METHOD_LABELS[method],
         )
-        for method, color in METHOD_COLORS.items()
+        for method in PRIMARY_METHODS
     ]
     dataset_handles = [
         Line2D(
@@ -311,12 +308,13 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
     figure.legend(
         handles=[*method_handles, *dataset_handles],
         loc="lower center",
-        ncol=6,
+        ncol=4,
         frameon=False,
         fontsize=7,
+        columnspacing=1.4,
         bbox_to_anchor=(0.5, 0.0),
     )
-    figure.subplots_adjust(left=0.11, right=0.99, top=0.98, bottom=0.29)
+    figure.subplots_adjust(left=0.09, right=0.98, top=0.97, bottom=0.30)
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
     figure.savefig(output.with_suffix(".svg"))

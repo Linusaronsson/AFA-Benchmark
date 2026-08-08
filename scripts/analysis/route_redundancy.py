@@ -31,6 +31,10 @@ if TYPE_CHECKING:
 
 type Route = tuple[int, ...]
 
+# Historical default, kept so the pre-v2 namespaces reproduce. No v2 namespace
+# trains ol_without_mask, so leaving this as the only choice silently reduced
+# every effects table to its AACO rows. Pass --methods, or let main() take the
+# methods the namespace actually contains.
 _NON_GREEDY_METHODS = ("aaco", "ol_without_mask")
 _GREEDY_METHOD = "dime"
 _F_SCORE_DATASETS = frozenset(
@@ -802,6 +806,14 @@ def main() -> None:
     parser.add_argument("--gate-output", type=Path)
     parser.add_argument("--planning-gate-output", type=Path)
     parser.add_argument("--datasets", nargs="*")
+    parser.add_argument(
+        "--methods",
+        nargs="*",
+        help=(
+            "Methods to contrast against the static route and against DIME. "
+            "Defaults to every method in the namespace except DIME itself."
+        ),
+    )
     parser.add_argument("--instances", nargs="*", type=int)
     parser.add_argument("--k", type=int, default=500)
     parser.add_argument("--top-frac", type=float, default=0.1)
@@ -853,7 +865,17 @@ def main() -> None:
     )
     if not instance_path.exists():
         return
-    planning, missingness = compute_effects(pd.read_csv(instance_path), routes)
+    instance_metrics = pd.read_csv(instance_path)
+    methods = tuple(
+        arguments.methods
+        if arguments.methods
+        else sorted(
+            set(instance_metrics["method"].unique()) - {_GREEDY_METHOD}
+        )
+    )
+    planning, missingness = compute_effects(
+        instance_metrics, routes, non_greedy_methods=methods
+    )
     planning_output = arguments.planning_output or analysis / (
         f"planning_effects_{arguments.namespace}.csv"
     )
@@ -868,11 +890,13 @@ def main() -> None:
     )
     planning.to_csv(planning_output, index=False)
     missingness.to_csv(missingness_output, index=False)
-    planning_gate_summary(planning).to_csv(
+    planning_gate_summary(planning, methods=methods).to_csv(
         planning_gate_output,
         index=False,
     )
-    gate_summary(planning, missingness).to_csv(gate_output, index=False)
+    gate_summary(planning, missingness, methods=methods).to_csv(
+        gate_output, index=False
+    )
     print(
         "wrote "
         f"{planning_output}, {missingness_output}, "

@@ -17,18 +17,16 @@ import pandas as pd
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
-COLORS = {
-    "aaco": "#1B9E77",
-    "dime": "#7570B3",
-    "ol_with_mask": "#E69F00",
-    "ol_full_state": "#D55E00",
-}
-METHOD_LABELS = {
-    "aaco": "AACO",
-    "dime": "DIME",
-    "ol_with_mask": "OL (mask)",
-    "ol_full_state": "OL (full state)",
-}
+from afabench.plotting.methods import (
+    METHOD_COLORS,
+    METHOD_LABELS,
+    PRIMARY_METHODS,
+)
+
+# These figures are laid out one panel or one offset per primary method. The
+# two reweighting controls train on the restricted view only, so they have no
+# generator-quality or stepwise cell to show.
+COLORS = {method: METHOD_COLORS[method] for method in PRIMARY_METHODS}
 STRATEGY_LABELS = {
     "complete": "Complete",
     "restricted": "Restricted",
@@ -144,11 +142,12 @@ def plot_generator_quality(frame: pd.DataFrame, output: Path) -> None:
         )
         axis.axhline(0, color="black", linewidth=0.7)
         axis.axvline(0, color="black", linewidth=0.7)
-        axis.set_title(METHOD_LABELS[method])
-        axis.set_xlabel("Oracle RMSE improvement")
+        axis.set_title(METHOD_LABELS[method], fontsize=9)
         axis.grid(alpha=0.2)
-    axes[0, 0].set_ylabel("Oracle score improvement")
-    axes[1, 0].set_ylabel("Oracle score improvement")
+    # One label per shared axis. Labelling each panel drew the top row's x-label
+    # across the panel beneath it.
+    fig.supxlabel("Oracle RMSE improvement")
+    fig.supylabel("Oracle score improvement")
     _save(fig, output, "generator_quality_vs_score")
 
 
