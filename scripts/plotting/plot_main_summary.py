@@ -21,12 +21,10 @@ import pandas as pd
 from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
-    INDUCED_MECHANISMS,
-    MECHANISM_LABELS,
-    MECHANISM_MARKERS,
     METHOD_COLORS,
     METHOD_LABELS,
     PRIMARY_METHODS,
+    TEXT_WIDTH_IN,
 )
 
 if TYPE_CHECKING:
@@ -35,6 +33,7 @@ if TYPE_CHECKING:
 INK = "#0b0b0b"
 INK_MUTED = "#52514e"
 GRID = "#d8d7d2"
+WEDGE = "#f0efec"
 SURFACE = "#ffffff"
 
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
@@ -270,53 +269,56 @@ def _draw_panel_a(axis_a: Axes, panel_a: pd.DataFrame) -> None:
 def _draw_panel_b(axis_b: Axes, panel_b: pd.DataFrame) -> None:
     lo = min(panel_b["damage"].min(), panel_b["gain"].min()) - 0.03
     hi = max(panel_b["damage"].max(), panel_b["gain"].max()) + 0.03
-    axis_b.plot(
-        [lo, hi],
-        [lo, hi],
-        color=GRID,
-        linewidth=1.0,
-        linestyle=(0, (4, 3)),
-        zorder=1,
+    # Name the two reference lines, so a point's height is read directly rather
+    # than decoded from the definitions of D and R. Everything between them is
+    # partial recovery; below zero restoration made the method worse.
+    axis_b.fill_between(
+        [0.0, hi],
+        [0.0, 0.0],
+        [0.0, hi],
+        color=WEDGE,
+        linewidth=0,
+        zorder=0,
     )
-    axis_b.axhline(0.0, color=GRID, linewidth=0.8, zorder=1)
+    axis_b.plot([lo, hi], [lo, hi], color=INK_MUTED, linewidth=0.9, zorder=2)
+    axis_b.axhline(0.0, color=INK_MUTED, linewidth=0.9, zorder=2)
     axis_b.axvline(0.0, color=GRID, linewidth=0.8, zorder=1)
-    # Colour carries the method, marker carries the mechanism, so a reader can
-    # ask either "which method" or "which mechanism" of the same cloud.
-    for method in PRIMARY_METHODS:
-        color = METHOD_COLORS[method]
-        for mechanism in INDUCED_MECHANISMS:
-            subset = _rows(
-                panel_b,
-                (_column(panel_b, "method") == method)
-                & (_column(panel_b, "mechanism") == mechanism),
-            )
-            if subset.empty:
-                continue
-            axis_b.scatter(
-                subset["damage"],
-                subset["gain"],
-                s=16,
-                marker=MECHANISM_MARKERS[mechanism],
-                facecolor=color,
-                edgecolor=SURFACE,
-                linewidth=0.4,
-                alpha=0.85,
-                zorder=3,
-            )
-    lines = [
-        f"{METHOD_LABELS[m]} $r={_correlation(panel_b, m):.2f}$"
-        for m in PRIMARY_METHODS
-    ]
-    axis_b.text(
-        0.04,
-        0.96,
-        "\n".join(lines),
-        transform=axis_b.transAxes,
-        fontsize=7,
+    axis_b.annotate(
+        "full recovery, $R=D$",
+        (hi, hi),
+        textcoords="offset points",
+        xytext=(-3, -9),
+        fontsize=6.5,
         color=INK_MUTED,
-        va="top",
-        linespacing=1.5,
+        ha="right",
     )
+    axis_b.annotate(
+        "nothing recovered, $R=0$",
+        (hi, 0.0),
+        textcoords="offset points",
+        xytext=(-3, -15),
+        fontsize=6.5,
+        color=INK_MUTED,
+        ha="right",
+        va="top",
+    )
+    # Colour alone carries the method here. Mechanism moved to the
+    # identification figure, which took this panel from 16 classes to 4.
+    for method in PRIMARY_METHODS:
+        subset = _rows(panel_b, _column(panel_b, "method") == method)
+        if subset.empty:
+            continue
+        axis_b.scatter(
+            subset["damage"],
+            subset["gain"],
+            s=17,
+            marker="o",
+            facecolor=METHOD_COLORS[method],
+            edgecolor=SURFACE,
+            linewidth=0.4,
+            alpha=0.85,
+            zorder=3,
+        )
     axis_b.set_xlim(lo, hi)
     axis_b.set_ylim(lo, hi)
     axis_b.set_aspect("equal")
@@ -358,9 +360,9 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
     # Panel (a) grows a band per dataset, so the figure has to grow with it or
     # the four method rows inside each band collide.
     n_datasets = panel_a["dataset"].nunique()
-    height = max(3.9, 1.55 + 0.52 * n_datasets)
+    height = max(3.4, 1.45 + 0.46 * n_datasets)
     legend_fraction = 1.05 / height
-    figure = plt.figure(figsize=(7.1, height))
+    figure = plt.figure(figsize=(TEXT_WIDTH_IN, height))
     grid = figure.add_gridspec(
         1,
         2,
@@ -390,20 +392,6 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
             label=METHOD_LABELS[method],
         )
         for method in PRIMARY_METHODS
-    ]
-    handles += [
-        Line2D(
-            [],
-            [],
-            marker=MECHANISM_MARKERS[mechanism],
-            linestyle="none",
-            markersize=4.0,
-            markerfacecolor=INK_MUTED,
-            markeredgecolor=SURFACE,
-            markeredgewidth=0.4,
-            label=MECHANISM_LABELS[mechanism],
-        )
-        for mechanism in INDUCED_MECHANISMS
     ]
     handles += [
         Line2D(

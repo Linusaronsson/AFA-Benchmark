@@ -10,6 +10,7 @@ import matplotlib as mpl
 
 mpl.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import pandas as pd
 from matplotlib.lines import Line2D
 
@@ -17,6 +18,7 @@ from afabench.plotting.methods import (
     METHOD_COLORS,
     METHOD_LABELS,
     PRIMARY_METHODS,
+    TEXT_WIDTH_IN,
 )
 
 DATASET_MARKERS = {
@@ -240,81 +242,159 @@ def paired_costs(costs: pd.DataFrame, summary_root: Path) -> pd.DataFrame:
     return wide
 
 
+PANEL_MECHANISM, PANEL_RATE = "mcar", 0.5
+
+
+def panel_cells(frame: pd.DataFrame) -> pd.DataFrame:
+    """
+    One direct and one generative point per dataset and method.
+
+    Fixed to the same reference cell as the dumbbell panel of the main figure,
+    so the two figures describe one cell rather than two different ones, and
+    averaged over the five dataset instances.
+    """
+    cell = _rows(
+        frame,
+        (_column(frame, "mechanism") == PANEL_MECHANISM)
+        & (_column(frame, "p") == PANEL_RATE),
+    )
+    return cast(
+        "pd.DataFrame",
+        cell.groupby(["dataset", "method"], as_index=False)[
+            [
+                "wall_seconds_direct",
+                "wall_seconds_generative",
+                "score_direct",
+                "score_generative",
+            ]
+        ].mean(),
+    )
+
+
 def plot(frame: pd.DataFrame, output: Path) -> None:
     plt.rcParams.update(
         {
-            "font.family": "serif",
             "font.size": 8,
             "axes.linewidth": 0.6,
-            "axes.edgecolor": INK_MUTED,
+            "axes.edgecolor": GRID,
+            "text.color": INK,
+            "axes.labelcolor": INK_MUTED,
             "xtick.color": INK_MUTED,
             "ytick.color": INK_MUTED,
             "figure.facecolor": SURFACE,
             "axes.facecolor": SURFACE,
         }
     )
-    figure, axis = plt.subplots(figsize=(7.1, 3.9))
-    for dataset, marker in DATASET_MARKERS.items():
+    cells = panel_cells(frame)
+    datasets = sorted(set(_column(cells, "dataset")))
+    columns = min(3, len(datasets))
+    rows = -(-len(datasets) // columns)
+    figure, axes = plt.subplots(
+        rows,
+        columns,
+        figsize=(TEXT_WIDTH_IN, 1.35 + 1.55 * rows),
+        squeeze=False,
+    )
+    for index, dataset in enumerate(datasets):
+        axis = axes[index // columns][index % columns]
+        per_dataset = _rows(cells, _column(cells, "dataset") == dataset)
         for method in PRIMARY_METHODS:
-            color = METHOD_COLORS[method]
-            subset = _rows(
-                frame,
-                (_column(frame, "dataset") == dataset)
-                & (_column(frame, "method") == method),
+            record = _rows(
+                per_dataset, _column(per_dataset, "method") == method
             )
-            if subset.empty:
+            if record.empty:
                 continue
-            axis.scatter(
-                subset["wall_time_ratio"],
-                subset["restoration_gain"],
-                marker=marker,
-                s=22,
-                color=color,
-                edgecolor=SURFACE,
-                linewidth=0.4,
-                alpha=0.55,
+            row = cast("Any", record.iloc[0])
+            color = METHOD_COLORS[method]
+            # An arrow from what direct learning bought to what restoration
+            # bought, in the plane the question is actually asked in: does the
+            # generative arm buy score, and at what multiple of the cost.
+            axis.annotate(
+                "",
+                xy=(row["wall_seconds_generative"], row["score_generative"]),
+                xytext=(row["wall_seconds_direct"], row["score_direct"]),
+                arrowprops={
+                    "arrowstyle": "-|>",
+                    "color": color,
+                    "linewidth": 1.3,
+                    "shrinkA": 2.0,
+                    "shrinkB": 2.0,
+                },
             )
-    axis.axvline(1.0, color=GRID, linewidth=0.9)
-    axis.axhline(0.0, color=GRID, linewidth=0.9)
-    axis.set_xscale("log", base=2)
-    axis.set_xlabel("Generative / direct wall time (paired, fixed budget)")
-    axis.set_ylabel("Restoration gain (primary metric)")
-    axis.grid(True, color=GRID, linewidth=0.4, alpha=0.55)
-    for spine in ("top", "right"):
-        axis.spines[spine].set_visible(False)
-    method_handles = [
+            axis.scatter(
+                [row["wall_seconds_direct"]],
+                [row["score_direct"]],
+                s=16,
+                facecolor=SURFACE,
+                edgecolor=color,
+                linewidth=1.1,
+                zorder=3,
+            )
+        axis.set_xscale("log")
+        # Wall time spans well under a decade per dataset. The default locator
+        # crowds the axis with 2x10^2, 3x10^2 and so on, and restricting it to
+        # decades leaves panels with no labelled tick at all, so tick the 1-2-5
+        # subdivisions.
+        axis.xaxis.set_major_locator(
+            mticker.LogLocator(base=10.0, subs=(1.0, 2.0, 5.0), numticks=12)
+        )
+        axis.xaxis.set_minor_locator(mticker.NullLocator())
+        axis.xaxis.set_major_formatter(
+            mticker.FuncFormatter(lambda value, _: f"{value:,.0f}")
+        )
+        axis.tick_params(labelsize=7)
+        axis.set_title(DATASET_LABELS.get(dataset, dataset), fontsize=8)
+        axis.grid(True, color=GRID, linewidth=0.4, alpha=0.55)
+        axis.set_axisbelow(True)
+        for spine in ("top", "right"):
+            axis.spines[spine].set_visible(False)
+    for index in range(len(datasets), rows * columns):
+        axes[index // columns][index % columns].set_visible(False)
+
+    figure.supxlabel("Wall seconds per trained method", fontsize=8, y=0.215)
+    figure.supylabel("Primary metric", fontsize=8, x=0.015)
+    handles = [
+        Line2D(
+            [],
+            [],
+            color=METHOD_COLORS[method],
+            linewidth=1.3,
+            label=METHOD_LABELS[method],
+        )
+        for method in PRIMARY_METHODS
+    ]
+    handles.append(
         Line2D(
             [],
             [],
             marker="o",
             linestyle="none",
-            color=METHOD_COLORS[method],
-            label=METHOD_LABELS[method],
+            markersize=4.5,
+            markerfacecolor=SURFACE,
+            markeredgecolor=INK_MUTED,
+            markeredgewidth=1.0,
+            label="Direct learning",
         )
-        for method in PRIMARY_METHODS
-    ]
-    dataset_handles = [
-        Line2D(
-            [],
-            [],
-            marker=marker,
-            linestyle="none",
-            color=INK_MUTED,
-            label=DATASET_LABELS[dataset],
-        )
-        for dataset, marker in DATASET_MARKERS.items()
-        if dataset in set(_column(frame, "dataset"))
-    ]
-    figure.legend(
-        handles=[*method_handles, *dataset_handles],
-        loc="lower center",
-        ncol=4,
-        frameon=False,
-        fontsize=7,
-        columnspacing=1.4,
-        bbox_to_anchor=(0.5, 0.0),
     )
-    figure.subplots_adjust(left=0.09, right=0.98, top=0.97, bottom=0.30)
+    figure.legend(
+        handles=handles,
+        loc="lower center",
+        ncol=5,
+        frameon=False,
+        fontsize=6.5,
+        labelcolor=INK_MUTED,
+        columnspacing=1.2,
+        handlelength=1.6,
+        bbox_to_anchor=(0.5, 0.005),
+    )
+    figure.subplots_adjust(
+        left=0.11,
+        right=0.985,
+        top=0.92,
+        bottom=0.32,
+        hspace=0.45,
+        wspace=0.32,
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
     figure.savefig(output.with_suffix(".svg"))

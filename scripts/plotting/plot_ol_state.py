@@ -25,7 +25,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib.lines import Line2D
 
-from afabench.plotting.methods import METHOD_COLORS, METHOD_LABELS
+from afabench.plotting.methods import (
+    METHOD_COLORS,
+    METHOD_LABELS,
+    TEXT_WIDTH_IN,
+)
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -140,7 +144,7 @@ def plot(
     )
     rates = sorted(set(frame["rate"]))
     figure, axes = plt.subplots(
-        1, 2, figsize=(6.6, 3.0), sharey=True, sharex=True
+        1, 2, figsize=(TEXT_WIDTH_IN, 2.8), sharey=True, sharex=True
     )
     for axis, method in zip(
         cast("list[Axes]", list(axes)), OL_STATES, strict=True

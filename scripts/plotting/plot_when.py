@@ -39,6 +39,7 @@ from afabench.plotting.methods import (
     METHOD_COLORS,
     METHOD_LABELS,
     PRIMARY_METHODS,
+    TEXT_WIDTH_IN,
 )
 
 if TYPE_CHECKING:
@@ -112,7 +113,9 @@ def structure_points(
     return damage.merge(structure, on="dataset", how="inner")
 
 
-def _draw_panel_a(axis: Axes, gaps: pd.DataFrame) -> None:
+def _draw_panel_a(
+    axis: Axes, gaps: pd.DataFrame, *, standalone: bool = False
+) -> None:
     rates = sorted({float(value) for value in gaps["p"]})
     for mechanism in INDUCED_MECHANISMS:
         subset = _rows(
@@ -141,7 +144,11 @@ def _draw_panel_a(axis: Axes, gaps: pd.DataFrame) -> None:
     axis.set_xlabel("Training missingness rate", fontsize=8)
     axis.set_ylabel("Oracle $-$ honest reconstruction error", fontsize=8)
     axis.set_title(
-        "(a) identification decides the generator", fontsize=8.5, pad=5
+        "Identification decides the generator"
+        if standalone
+        else "(a) identification decides the generator",
+        fontsize=8.5,
+        pad=5,
     )
     axis.grid(True, color=GRID, linewidth=0.4, alpha=0.7)
     axis.set_axisbelow(True)
@@ -208,7 +215,7 @@ def _draw_panel_b(axes: list[Axes], points: pd.DataFrame) -> None:
 
 def plot(
     gaps: pd.DataFrame,
-    points: pd.DataFrame,
+    points: pd.DataFrame | None,
     output: Path,
 ) -> None:
     mpl.rcParams.update(
@@ -223,7 +230,19 @@ def plot(
             "axes.facecolor": SURFACE,
         }
     )
-    figure = plt.figure(figsize=(7.1, 3.3))
+    if points is None:
+        # One panel while only three datasets have damage to explain. The
+        # structure panel returns under --with-structure once core_group lands
+        # CUBE and CUBE-NM, which is where the range in D comes from.
+        figure, axis_a = plt.subplots(figsize=(TEXT_WIDTH_IN, 2.9))
+        figure.subplots_adjust(left=0.12, right=0.98, top=0.90, bottom=0.16)
+        _draw_panel_a(axis_a, gaps, standalone=True)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        figure.savefig(output)
+        figure.savefig(output.with_suffix(".png"), dpi=200)
+        return
+
+    figure = plt.figure(figsize=(TEXT_WIDTH_IN, 3.3))
     grid = figure.add_gridspec(
         1,
         3,
@@ -240,7 +259,6 @@ def plot(
 
     _draw_panel_a(axis_a, gaps)
     _draw_panel_b([axis_b1, axis_b2], points)
-    # One title centred over the pair, since panel (b) is two axes.
     box1 = axis_b1.get_position()
     box2 = axis_b2.get_position()
     figure.text(
@@ -329,6 +347,15 @@ def main() -> None:
         help="CSV written by analyze_missing_data_mechanisms.py",
     )
     parser.add_argument(
+        "--with-structure",
+        action="store_true",
+        help=(
+            "Add the damage-against-route-structure panel. Needs more than the "
+            "three real datasets to say anything, so it is off until "
+            "core_group_missingness_v2 lands CUBE and CUBE-NM."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=Path("extra/output/paper/experiments/results/when.pdf"),
@@ -336,21 +363,28 @@ def main() -> None:
     arguments = parser.parse_args()
 
     cells = pd.read_csv(arguments.cells)
-    structure = load_structure(arguments.route_structure)
     gaps = identification_gap(pd.read_csv(arguments.generator_quality))
-    points = structure_points(cells, structure)
-    if gaps.empty or points.empty:
-        message = "no cells collected"
+    points = None
+    if arguments.with_structure:
+        points = structure_points(
+            cells, load_structure(arguments.route_structure)
+        )
+        if points.empty:
+            message = "no structure points collected"
+            raise SystemExit(message)
+    if gaps.empty:
+        message = "no generator cells collected"
         raise SystemExit(message)
     plot(gaps, points, arguments.output)
 
     print(gaps.round(4).to_string(index=False))
-    print()
-    print(
-        points[["dataset", "method", "D", "rho_top", "route_sensitivity"]]
-        .round(4)
-        .to_string(index=False)
-    )
+    if points is not None:
+        print()
+        print(
+            points[["dataset", "method", "D", "rho_top", "route_sensitivity"]]
+            .round(4)
+            .to_string(index=False)
+        )
     print(f"\nwrote {arguments.output}")
 
 

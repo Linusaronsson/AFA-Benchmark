@@ -9,9 +9,9 @@ method_name_mapping:
   dime: DIME
   dime_feature_marginal_ipw: DIME (feature-marginal IPW)
   jafa: JAFA
-  ol_with_mask: OL (values + acquired mask)
+  ol_with_mask: OL, $Q(x_S,S)$
   ol_without_mask: OL (values only)
-  ol_full_state: OL (+ legal-action mask)
+  ol_full_state: OL, $Q(x_S,S,m)$
   odin_model_based: ODIN(model-based)
   odin_model_free: ODIN(model-free)
   aaco: AACO

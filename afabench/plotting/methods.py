@@ -22,15 +22,22 @@ METHOD_COLORS = {
     "ol_full_state": "#E69F00",
 }
 
-# Name the state contents. "OL(with-mask)" and "OL(full-state)" do not tell a
-# reader what differs, and the difference is the whole point of the contrast.
+# ICLR 2026 is single column at 5.5in (iclr2026_conference.sty:50), and
+# \includegraphics[width=\textwidth] scales a figure to it. Author at this width
+# so nothing is resized on inclusion and a point size means what it says. The
+# 7.16in the older scripts used is an IEEEtran double-column leftover.
+TEXT_WIDTH_IN = 5.5
+
+# Name the two OL states in the paper's own notation, main.tex:162 writes
+# Q_k(x_S, S, a) and :228 writes Q_1^train(x_S, S, m, a). "OL(with-mask)" did
+# not say what differed, and the difference is the whole point of the contrast.
 METHOD_LABELS = {
     "aaco": "AACO",
     "aaco_doubly_robust": "AACO (doubly robust)",
     "dime": "DIME",
     "dime_feature_marginal_ipw": "DIME (feature-marginal IPW)",
-    "ol_with_mask": "OL (values + acquired mask)",
-    "ol_full_state": "OL (+ legal-action mask)",
+    "ol_with_mask": "OL, $Q(x_S,S)$",
+    "ol_full_state": "OL, $Q(x_S,S,m)$",
 }
 
 # Redundant channels, so identity survives greyscale printing and CVD.
