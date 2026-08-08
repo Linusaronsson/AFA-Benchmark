@@ -17,6 +17,7 @@ import matplotlib as mpl
 mpl.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from matplotlib.lines import Line2D
 
@@ -89,7 +90,39 @@ def _largest_budget(frame: pd.DataFrame, dataset: str) -> pd.DataFrame:
     return _rows(subset, budget == budget.max())
 
 
+BOOTSTRAP_DRAWS = 2000
+SEED = 0
+
+
+def _interval(
+    values: npt.NDArray[np.float64], rng: np.random.Generator
+) -> tuple[float, float]:
+    """
+    Percentile bootstrap over the dataset instances.
+
+    Five instances is few, which is the regime stratified bootstrap intervals
+    exist for; a normal-theory standard error would be assuming more than the
+    data supports.
+    """
+    if len(values) < 2:
+        return (float("nan"), float("nan"))
+    draws = values[
+        rng.integers(0, len(values), (BOOTSTRAP_DRAWS, len(values)))
+    ]
+    means = draws.mean(axis=1)
+    return float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
+
+
 def collect_panel_a(summary_root: Path) -> pd.DataFrame:
+    """
+    Distance below each method's own complete-data ceiling.
+
+    Reported as a gap rather than a raw score so every dataset shares a scale on
+    which zero means the same thing. In raw units ACTG175 spans 0.58 to 0.85 and
+    Diabetes 0.60 to 0.69, so one axis compresses both and an 0.02 move reads
+    differently per row.
+    """
+    rng = np.random.default_rng(SEED)
     rows = []
     for namespace, datasets in SOURCES.items():
         path = summary_root / namespace / "instance_metrics.csv"
@@ -99,6 +132,8 @@ def collect_panel_a(summary_root: Path) -> pd.DataFrame:
         for dataset in datasets:
             per_dataset = _largest_budget(frame, dataset)
             metric = primary_metric(dataset)
+            # summarize_missing_data.py writes score - complete, so negate it.
+            gap_column = f"{metric}_gap_to_complete"
             for method in PRIMARY_METHODS:
                 per_method = _rows(
                     per_dataset, _column(per_dataset, "method") == method
@@ -106,33 +141,37 @@ def collect_panel_a(summary_root: Path) -> pd.DataFrame:
                 if per_method.empty:
                     continue
 
-                def score(
+                def gaps(
                     strategy: str,
                     per_method: pd.DataFrame = per_method,
-                    metric: str = metric,
-                ) -> float:
+                    gap_column: str = gap_column,
+                ) -> npt.NDArray[np.float64]:
                     cells = _rows(
                         per_method, _column(per_method, "strategy") == strategy
                     )
-                    if strategy != "complete":
-                        cells = _rows(
-                            cells,
-                            (_column(cells, "mechanism") == PANEL_MECHANISM)
-                            & (_column(cells, "p") == PANEL_RATE),
-                        )
-                    values = _column(cells, metric).dropna()
-                    return (
-                        float(values.mean()) if len(values) else float("nan")
+                    cells = _rows(
+                        cells,
+                        (_column(cells, "mechanism") == PANEL_MECHANISM)
+                        & (_column(cells, "p") == PANEL_RATE),
                     )
+                    return -_column(cells, gap_column).dropna().to_numpy()
 
+                direct, generative = gaps(DIRECT), gaps(GENERATIVE)
+                if not len(direct) or not len(generative):
+                    continue
+                direct_lo, direct_hi = _interval(direct, rng)
+                generative_lo, generative_hi = _interval(generative, rng)
                 rows.append(
                     {
                         "dataset": dataset,
                         "method": method,
                         "metric": metric,
-                        "direct": score(DIRECT),
-                        "generative": score(GENERATIVE),
-                        "ceiling": score("complete"),
+                        "direct": float(direct.mean()),
+                        "direct_lo": direct_lo,
+                        "direct_hi": direct_hi,
+                        "generative": float(generative.mean()),
+                        "generative_lo": generative_lo,
+                        "generative_hi": generative_hi,
                     }
                 )
     return pd.DataFrame(rows)
@@ -191,7 +230,7 @@ def _draw_panel_a(axis_a: Axes, panel_a: pd.DataFrame) -> None:
     # Datasets ordered by the largest move any method makes on them.
     moves = panel_a.assign(
         move=(
-            _column(panel_a, "generative") - _column(panel_a, "direct")
+            _column(panel_a, "direct") - _column(panel_a, "generative")
         ).abs()
     )
     ranked = cast(
@@ -216,6 +255,19 @@ def _draw_panel_a(axis_a: Axes, panel_a: pd.DataFrame) -> None:
             record = cast("Any", cell.iloc[0])
             y = base + offset
             color = METHOD_COLORS[method]
+            for key, capsize in (("direct", 0.0), ("generative", 0.0)):
+                low, high = record[f"{key}_lo"], record[f"{key}_hi"]
+                if np.isnan(low):
+                    continue
+                axis_a.plot(
+                    [low, high],
+                    [y, y],
+                    color=color,
+                    linewidth=3.0,
+                    alpha=0.22,
+                    solid_capstyle="butt",
+                    zorder=1 + capsize,
+                )
             axis_a.plot(
                 [record["direct"], record["generative"]],
                 [y, y],
@@ -236,22 +288,21 @@ def _draw_panel_a(axis_a: Axes, panel_a: pd.DataFrame) -> None:
             axis_a.scatter(
                 [record["generative"]], [y], s=20, color=color, zorder=4
             )
-            if not np.isnan(record["ceiling"]):
-                axis_a.plot(
-                    [record["ceiling"], record["ceiling"]],
-                    [y - 0.16, y + 0.16],
-                    color=INK_MUTED,
-                    linewidth=0.9,
-                    zorder=5,
-                )
 
+    # Zero is the complete-data ceiling for every dataset, which is the whole
+    # point of plotting a gap: one scale on which zero means the same thing.
+    axis_a.axvline(0.0, color=INK_MUTED, linewidth=0.9, zorder=5)
     axis_a.set_yticks([len(order) - i for i in range(len(order))])
     axis_a.set_yticklabels(
         [DATASET_LABELS[d] for d in order],
         fontsize=7.5,
         color=INK,
     )
-    axis_a.set_xlabel("Primary metric", color=INK_MUTED, fontsize=8)
+    # Ceiling on the right, so the arrow of improvement points rightward.
+    axis_a.invert_xaxis()
+    axis_a.set_xlabel(
+        "Gap below complete-data ceiling", color=INK_MUTED, fontsize=8
+    )
     axis_a.set_title(
         "(a) direct learning $\\rightarrow$ generative",
         fontsize=8.5,
@@ -409,8 +460,10 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
             [],
             [],
             color=INK_MUTED,
-            linewidth=0.9,
-            label="Complete-data ceiling",
+            linewidth=3.0,
+            alpha=0.22,
+            solid_capstyle="butt",
+            label="95% bootstrap CI",
         ),
     ]
     figure.legend(

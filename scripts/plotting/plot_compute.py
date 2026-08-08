@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import matplotlib as mpl
 
@@ -20,6 +20,9 @@ from afabench.plotting.methods import (
     PRIMARY_METHODS,
     TEXT_WIDTH_IN,
 )
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 DATASET_MARKERS = {
     "cube": "o",
@@ -242,6 +245,22 @@ def paired_costs(costs: pd.DataFrame, summary_root: Path) -> pd.DataFrame:
     return wide
 
 
+def _thin_x_ticks(axis: Axes, keep: int = 3) -> None:
+    """
+    Drop every other label until at most ``keep`` remain.
+
+    A 1-2-5 log locator gives a sensible number of ticks over half a decade and
+    far too many over one and a half, which is the span between the cheapest and
+    dearest method on Diabetes.
+    """
+    axis.figure.canvas.draw()
+    lo, hi = axis.get_xlim()
+    visible = [t for t in axis.get_xticks() if lo <= t <= hi]
+    while len(visible) > keep:
+        visible = visible[::2]
+    axis.set_xticks(visible)
+
+
 PANEL_MECHANISM, PANEL_RATE = "mcar", 0.5
 
 
@@ -330,6 +349,15 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
                 linewidth=1.1,
                 zorder=3,
             )
+            # An annotation arrow contributes nothing to the data limits, so
+            # autoscaling from the direct endpoints alone cropped every arrow
+            # whose head landed further right. Register the head too, invisibly.
+            axis.scatter(
+                [row["wall_seconds_generative"]],
+                [row["score_generative"]],
+                s=0,
+                alpha=0.0,
+            )
         axis.set_xscale("log")
         # Wall time spans well under a decade per dataset. The default locator
         # crowds the axis with 2x10^2, 3x10^2 and so on, and restricting it to
@@ -343,6 +371,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             mticker.FuncFormatter(lambda value, _: f"{value:,.0f}")
         )
         axis.tick_params(labelsize=7)
+        _thin_x_ticks(axis)
         axis.set_title(DATASET_LABELS.get(dataset, dataset), fontsize=8)
         axis.grid(True, color=GRID, linewidth=0.4, alpha=0.55)
         axis.set_axisbelow(True)
@@ -351,7 +380,9 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
     for index in range(len(datasets), rows * columns):
         axes[index // columns][index % columns].set_visible(False)
 
-    figure.supxlabel("Wall seconds per trained method", fontsize=8, y=0.215)
+    figure.supxlabel(
+        "Wall-clock time per trained method (s)", fontsize=8, y=0.215
+    )
     figure.supylabel("Primary metric", fontsize=8, x=0.015)
     handles = [
         Line2D(
