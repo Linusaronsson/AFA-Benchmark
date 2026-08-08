@@ -113,9 +113,9 @@ def _interval(
     return float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
 
 
-def collect_panel_a(summary_root: Path) -> pd.DataFrame:
+def collect_levels(summary_root: Path) -> pd.DataFrame:
     """
-    Distance below each method's own complete-data ceiling.
+    Distance below each method's own complete-data ceiling, per rate.
 
     Reported as a gap rather than a raw score so every dataset shares a scale on
     which zero means the same thing. In raw units ACTG175 spans 0.58 to 0.85 and
@@ -140,40 +140,51 @@ def collect_panel_a(summary_root: Path) -> pd.DataFrame:
                 )
                 if per_method.empty:
                     continue
-
-                def gaps(
-                    strategy: str,
-                    per_method: pd.DataFrame = per_method,
-                    gap_column: str = gap_column,
-                ) -> npt.NDArray[np.float64]:
-                    cells = _rows(
-                        per_method, _column(per_method, "strategy") == strategy
-                    )
-                    cells = _rows(
-                        cells,
-                        (_column(cells, "mechanism") == PANEL_MECHANISM)
-                        & (_column(cells, "p") == PANEL_RATE),
-                    )
-                    return -_column(cells, gap_column).dropna().to_numpy()
-
-                direct, generative = gaps(DIRECT), gaps(GENERATIVE)
-                if not len(direct) or not len(generative):
-                    continue
-                direct_lo, direct_hi = _interval(direct, rng)
-                generative_lo, generative_hi = _interval(generative, rng)
-                rows.append(
+                rates = sorted(
                     {
-                        "dataset": dataset,
-                        "method": method,
-                        "metric": metric,
-                        "direct": float(direct.mean()),
-                        "direct_lo": direct_lo,
-                        "direct_hi": direct_hi,
-                        "generative": float(generative.mean()),
-                        "generative_lo": generative_lo,
-                        "generative_hi": generative_hi,
+                        float(value)
+                        for value in _column(per_method, "p")
+                        if float(value) > 0.0
                     }
                 )
+                for rate in rates:
+
+                    def gaps(
+                        strategy: str,
+                        per_method: pd.DataFrame = per_method,
+                        gap_column: str = gap_column,
+                        rate: float = rate,
+                    ) -> npt.NDArray[np.float64]:
+                        cells = _rows(
+                            per_method,
+                            (_column(per_method, "strategy") == strategy)
+                            & (
+                                _column(per_method, "mechanism")
+                                == PANEL_MECHANISM
+                            )
+                            & (_column(per_method, "p") == rate),
+                        )
+                        return -_column(cells, gap_column).dropna().to_numpy()
+
+                    direct, generative = gaps(DIRECT), gaps(GENERATIVE)
+                    if not len(direct) or not len(generative):
+                        continue
+                    direct_lo, direct_hi = _interval(direct, rng)
+                    generative_lo, generative_hi = _interval(generative, rng)
+                    rows.append(
+                        {
+                            "dataset": dataset,
+                            "method": method,
+                            "p": rate,
+                            "metric": metric,
+                            "direct": float(direct.mean()),
+                            "direct_lo": direct_lo,
+                            "direct_hi": direct_hi,
+                            "generative": float(generative.mean()),
+                            "generative_lo": generative_lo,
+                            "generative_hi": generative_hi,
+                        }
+                    )
     return pd.DataFrame(rows)
 
 
@@ -226,98 +237,66 @@ def collect_panel_b(summary_root: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _draw_panel_a(axis_a: Axes, panel_a: pd.DataFrame) -> None:
-    # Datasets ordered by the largest move any method makes on them.
-    moves = panel_a.assign(
-        move=(
-            _column(panel_a, "direct") - _column(panel_a, "generative")
-        ).abs()
-    )
-    ranked = cast(
-        "pd.Series", moves.groupby("dataset")["move"].max()
-    ).sort_values(ascending=False)
-    order = [str(dataset) for dataset in ranked.index]
-    offsets = {
-        "aaco": 0.30,
-        "dime": 0.10,
-        "ol_with_mask": -0.10,
-        "ol_full_state": -0.30,
-    }
-
-    for row_index, dataset in enumerate(order):
-        base = len(order) - row_index
-        for method, offset in offsets.items():
-            cell = panel_a[
-                (panel_a["dataset"] == dataset) & (panel_a["method"] == method)
-            ]
-            if cell.empty:
-                continue
-            record = cast("Any", cell.iloc[0])
-            y = base + offset
-            color = METHOD_COLORS[method]
-            for key, capsize in (("direct", 0.0), ("generative", 0.0)):
+def _draw_levels(axis: Axes, levels: pd.DataFrame, dataset: str) -> None:
+    """One dataset's panel: a dumbbell per method at each missingness rate."""
+    per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
+    rates = sorted({float(value) for value in _column(per_dataset, "p")})
+    offsets = np.linspace(-0.26, 0.26, len(PRIMARY_METHODS))
+    for offset, method in zip(offsets, PRIMARY_METHODS, strict=True):
+        per_method = _rows(
+            per_dataset, _column(per_dataset, "method") == method
+        )
+        color = METHOD_COLORS[method]
+        for _, record in per_method.iterrows():
+            x = rates.index(float(record["p"])) + offset
+            for key in ("direct", "generative"):
                 low, high = record[f"{key}_lo"], record[f"{key}_hi"]
                 if np.isnan(low):
                     continue
-                axis_a.plot(
+                axis.plot(
+                    [x, x],
                     [low, high],
-                    [y, y],
                     color=color,
                     linewidth=3.0,
                     alpha=0.22,
                     solid_capstyle="butt",
-                    zorder=1 + capsize,
+                    zorder=1,
                 )
-            axis_a.plot(
+            axis.plot(
+                [x, x],
                 [record["direct"], record["generative"]],
-                [y, y],
                 color=color,
-                linewidth=1.4,
+                linewidth=1.3,
                 solid_capstyle="round",
                 zorder=2,
             )
-            axis_a.scatter(
+            axis.scatter(
+                [x],
                 [record["direct"]],
-                [y],
-                s=16,
+                s=13,
                 facecolor=SURFACE,
                 edgecolor=color,
-                linewidth=1.1,
+                linewidth=1.0,
                 zorder=3,
             )
-            axis_a.scatter(
-                [record["generative"]], [y], s=20, color=color, zorder=4
+            axis.scatter(
+                [x], [record["generative"]], s=16, color=color, zorder=4
             )
-
-    # Zero is the complete-data ceiling for every dataset, which is the whole
-    # point of plotting a gap: one scale on which zero means the same thing.
-    axis_a.axvline(0.0, color=INK_MUTED, linewidth=0.9, zorder=5)
-    axis_a.set_yticks([len(order) - i for i in range(len(order))])
-    axis_a.set_yticklabels(
-        [DATASET_LABELS[d] for d in order],
-        fontsize=7.5,
-        color=INK,
-    )
-    # Ceiling on the right, so the arrow of improvement points rightward.
-    axis_a.invert_xaxis()
-    axis_a.set_xlabel(
-        "Gap below complete-data ceiling", color=INK_MUTED, fontsize=8
-    )
-    axis_a.set_title(
-        "(a) direct learning $\\rightarrow$ generative",
-        fontsize=8.5,
-        color=INK,
-        pad=5,
-    )
-    axis_a.grid(True, axis="x", color=GRID, linewidth=0.4, alpha=0.7)
-    axis_a.set_axisbelow(True)
-    axis_a.set_ylim(0.4, len(order) + 0.7)
-    for spine in ("top", "right", "left"):
-        axis_a.spines[spine].set_visible(False)
-    axis_a.tick_params(axis="y", length=0)
+    # Zero is the complete-data ceiling for every dataset, which is the point of
+    # plotting a gap: one scale on which zero means the same thing.
+    axis.axhline(0.0, color=INK_MUTED, linewidth=0.9, zorder=5)
+    axis.set_xticks(range(len(rates)))
+    axis.set_xticklabels([f"{rate:g}" for rate in rates], fontsize=7)
+    axis.set_xlim(-0.55, len(rates) - 0.45)
+    axis.set_title(DATASET_LABELS.get(dataset, dataset), fontsize=8)
+    axis.grid(True, axis="y", color=GRID, linewidth=0.4, alpha=0.7)
+    axis.set_axisbelow(True)
+    axis.tick_params(labelsize=7)
+    for spine in ("top", "right"):
+        axis.spines[spine].set_visible(False)
 
 
-def _draw_panel_b(axis_b: Axes, panel_b: pd.DataFrame) -> None:
+def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
     lo = min(panel_b["damage"].min(), panel_b["gain"].min()) - 0.03
     hi = max(panel_b["damage"].max(), panel_b["gain"].max()) + 0.03
     # Name the two reference lines, so a point's height is read directly rather
@@ -392,13 +371,13 @@ def _correlation(panel_b: pd.DataFrame, method: str) -> float:
     return float(_column(subset, "damage").corr(_column(subset, "gain")))
 
 
-def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
-    plt.rcParams.update(
+def _style() -> None:
+    mpl.rcParams.update(
         {
-            "font.family": "serif",
             "font.size": 8,
-            "axes.linewidth": 0.6,
-            "axes.edgecolor": INK_MUTED,
+            "text.color": INK,
+            "axes.labelcolor": INK_MUTED,
+            "axes.edgecolor": GRID,
             "xtick.color": INK_MUTED,
             "ytick.color": INK_MUTED,
             "xtick.major.width": 0.6,
@@ -408,29 +387,9 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
         }
     )
 
-    # Panel (a) grows a band per dataset, so the figure has to grow with it or
-    # the four method rows inside each band collide.
-    n_datasets = panel_a["dataset"].nunique()
-    height = max(3.4, 1.45 + 0.46 * n_datasets)
-    legend_fraction = 1.05 / height
-    figure = plt.figure(figsize=(TEXT_WIDTH_IN, height))
-    grid = figure.add_gridspec(
-        1,
-        2,
-        width_ratios=[1.25, 1.0],
-        wspace=0.28,
-        left=0.21,
-        right=0.97,
-        top=1.0 - 0.28 / height,
-        bottom=legend_fraction,
-    )
-    axis_a = figure.add_subplot(grid[0, 0])
-    axis_b = figure.add_subplot(grid[0, 1])
 
-    _draw_panel_a(axis_a, panel_a)
-    _draw_panel_b(axis_b, panel_b)
-
-    handles = [
+def _method_handles() -> list[Line2D]:
+    return [
         Line2D(
             [],
             [],
@@ -444,7 +403,39 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
         )
         for method in PRIMARY_METHODS
     ]
-    handles += [
+
+
+def plot_levels(levels: pd.DataFrame, output: Path) -> None:
+    _style()
+    # Datasets ordered by the largest move any method makes on them.
+    moves = levels.assign(
+        move=(_column(levels, "direct") - _column(levels, "generative")).abs()
+    )
+    ranked = cast(
+        "pd.Series", moves.groupby("dataset")["move"].max()
+    ).sort_values(ascending=False)
+    datasets = [str(dataset) for dataset in ranked.index]
+    columns = min(3, len(datasets))
+    rows = -(-len(datasets) // columns)
+    # Shared y, because a gap scale whose panels autoscale independently is no
+    # longer shared and the whole reason for plotting a gap is lost. That NHANES
+    # then looks flat beside ACTG175 is the finding, not a defect.
+    figure, axes = plt.subplots(
+        rows,
+        columns,
+        figsize=(TEXT_WIDTH_IN, 1.35 + 1.55 * rows),
+        squeeze=False,
+        sharey=True,
+    )
+    for index, dataset in enumerate(datasets):
+        _draw_levels(axes[index // columns][index % columns], levels, dataset)
+    for index in range(len(datasets), rows * columns):
+        axes[index // columns][index % columns].set_visible(False)
+
+    figure.supxlabel("Training missingness rate", fontsize=8, y=0.215)
+    figure.supylabel("Gap below complete-data ceiling", fontsize=8, x=0.015)
+    handles = [
+        *_method_handles(),
         Line2D(
             [],
             [],
@@ -456,27 +447,62 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
             markeredgewidth=1.0,
             label="Direct learning",
         ),
-        Line2D(
-            [],
-            [],
-            color=INK_MUTED,
-            linewidth=3.0,
-            alpha=0.22,
-            solid_capstyle="butt",
-            label="95% bootstrap CI",
-        ),
     ]
     figure.legend(
         handles=handles,
         loc="lower center",
-        ncol=3,
+        ncol=5,
         frameon=False,
-        fontsize=7.5,
+        fontsize=6.5,
         labelcolor=INK_MUTED,
+        columnspacing=1.2,
+        handlelength=1.4,
         bbox_to_anchor=(0.5, 0.005),
-        columnspacing=1.4,
     )
+    figure.subplots_adjust(
+        left=0.11, right=0.985, top=0.92, bottom=0.32, hspace=0.45, wspace=0.30
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output)
+    figure.savefig(output.with_suffix(".png"), dpi=200)
 
+
+def plot_law(law: pd.DataFrame, output: Path) -> None:
+    _style()
+    # The data box is square, since a 45 degree diagonal is what makes "full
+    # recovery" read as a position. A square box cannot fill the text width, so
+    # the legend takes the space beside it and carries each correlation.
+    figure = plt.figure(figsize=(TEXT_WIDTH_IN, 3.1))
+    axis = figure.add_axes((0.11, 0.13, 0.55, 0.84))
+    _draw_law(axis, law)
+    axis.set_title("")
+    handles = [
+        Line2D(
+            [],
+            [],
+            marker="o",
+            linestyle="none",
+            markersize=4.5,
+            markerfacecolor=METHOD_COLORS[method],
+            markeredgecolor=SURFACE,
+            markeredgewidth=0.5,
+            label=(
+                f"{METHOD_LABELS[method]}\n"
+                f"    $r={_correlation(law, method):.2f}$"
+            ),
+        )
+        for method in PRIMARY_METHODS
+    ]
+    figure.legend(
+        handles=handles,
+        loc="center left",
+        frameon=False,
+        fontsize=7,
+        labelcolor=INK_MUTED,
+        labelspacing=1.1,
+        handletextpad=0.6,
+        bbox_to_anchor=(0.68, 0.55),
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
     figure.savefig(output.with_suffix(".png"), dpi=200)
@@ -497,39 +523,50 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--law-output",
+        type=Path,
+        default=None,
+        help=(
+            "Where to write the gain-against-damage figure. Defaults to "
+            "law.pdf beside --output."
+        ),
+    )
+    parser.add_argument(
         "--table",
         type=Path,
         default=None,
         help=(
-            "Write the per-cell damage and restoration gain behind panel (b). "
-            "Defaults to <output>.cells.csv."
+            "Write the per-cell damage and restoration gain behind the law "
+            "figure. Defaults to <output>.cells.csv."
         ),
     )
     arguments = parser.parse_args()
 
-    panel_a = collect_panel_a(arguments.summary_root)
-    panel_b = collect_panel_b(arguments.summary_root)
-    if panel_a.empty or panel_b.empty:
+    levels = collect_levels(arguments.summary_root)
+    law = collect_panel_b(arguments.summary_root)
+    if levels.empty or law.empty:
         message = "no cells collected"
         raise SystemExit(message)
-    plot(panel_a, panel_b, arguments.output)
+    law_output = arguments.law_output or arguments.output.with_name("law.pdf")
+    plot_levels(levels, arguments.output)
+    plot_law(law, law_output)
 
     table = arguments.table or arguments.output.with_suffix(".cells.csv")
-    panel_b.to_csv(table, index=False)
+    law.to_csv(table, index=False)
 
-    print(f"panel (a) rows: {len(panel_a)}   panel (b) cells: {len(panel_b)}")
+    print(f"level rows: {len(levels)}   law cells: {len(law)}")
     print(
-        panel_a.assign(move=panel_a["generative"] - panel_a["direct"])
+        levels.assign(closed=levels["direct"] - levels["generative"])
         .round(3)
         .to_string(index=False)
     )
     for method in PRIMARY_METHODS:
-        subset = _rows(panel_b, _column(panel_b, "method") == method)
+        subset = _rows(law, _column(law, "method") == method)
         print(
             f"  {METHOD_LABELS[method]:5s} n={len(subset):3d} "
-            f"r={_correlation(panel_b, method):+.3f}"
+            f"r={_correlation(law, method):+.3f}"
         )
-    print(f"wrote {arguments.output} and {table}")
+    print(f"wrote {arguments.output}, {law_output} and {table}")
 
 
 if __name__ == "__main__":
