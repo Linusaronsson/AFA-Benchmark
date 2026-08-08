@@ -18,6 +18,9 @@ if TYPE_CHECKING:
     from matplotlib.figure import Figure
 
 from afabench.plotting.methods import (
+    INDUCED_MECHANISMS,
+    MECHANISM_LABELS,
+    MECHANISM_MARKERS,
     METHOD_COLORS,
     METHOD_LABELS,
     PRIMARY_METHODS,
@@ -133,17 +136,27 @@ def plot_generator_quality(frame: pd.DataFrame, output: Path) -> None:
     )
     for axis, method in zip(axes.flat, COLORS, strict=True):
         method_frame = selected.loc[selected["method"] == method]
-        axis.scatter(
-            method_frame["rmse_improvement"],
-            method_frame["score_improvement"],
-            color=COLORS[method],
-            alpha=0.65,
-            s=24,
-        )
+        # Marker separates the mechanism. Identification is what decides how far
+        # the oracle can pull ahead, so pooling mechanisms hid the one effect
+        # this figure exists to show (prop:mnar).
+        for mechanism in INDUCED_MECHANISMS:
+            cells = method_frame.loc[method_frame["mechanism"] == mechanism]
+            if cells.empty:
+                continue
+            axis.scatter(
+                cells["rmse_improvement"],
+                cells["score_improvement"],
+                color=COLORS[method],
+                marker=MECHANISM_MARKERS[mechanism],
+                alpha=0.5 if mechanism != "mnar_self" else 0.9,
+                s=22,
+                label=MECHANISM_LABELS[mechanism],
+            )
         axis.axhline(0, color="black", linewidth=0.7)
         axis.axvline(0, color="black", linewidth=0.7)
         axis.set_title(METHOD_LABELS[method], fontsize=9)
         axis.grid(alpha=0.2)
+    axes.flat[0].legend(frameon=False, fontsize=6.5, loc="upper right")
     # One label per shared axis. Labelling each panel drew the top row's x-label
     # across the panel beneath it.
     fig.supxlabel("Oracle RMSE improvement")

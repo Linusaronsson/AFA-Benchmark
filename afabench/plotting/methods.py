@@ -57,3 +57,22 @@ METHOD_LINESTYLES = {
 # reweighting controls are trained on the restricted view only, so figures that
 # compare training views iterate over these.
 PRIMARY_METHODS = ("aaco", "dime", "ol_with_mask", "ol_full_state")
+
+# Induced mechanisms, ordered by how much of the damage restoration recovers,
+# which is also the order in which identification degrades. Self-masking MNAR is
+# last because an entry's own value decides whether it is observed, so the
+# conditional the generator needs is not identified (prop:mnar).
+INDUCED_MECHANISMS = ("mcar", "mar", "mnar_logistic", "mnar_self")
+MECHANISM_LABELS = {
+    "mcar": "MCAR",
+    "mar": "MAR",
+    "mnar_logistic": "MNAR (logistic)",
+    "mnar_self": "MNAR (self-masking)",
+    "native": "Native",
+}
+MECHANISM_MARKERS = {
+    "mcar": "o",
+    "mar": "^",
+    "mnar_logistic": "s",
+    "mnar_self": "D",
+}

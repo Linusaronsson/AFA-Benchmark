@@ -175,6 +175,9 @@ def test_mechanism_figures_render(tmp_path: Path) -> None:
         pd.DataFrame(
             {
                 "method": ["aaco", "ol_without_mask"],
+                # generator_quality_pairs always keys on the mechanism, and the
+                # figure separates by it, so the fixture carries it too.
+                "mechanism": ["mcar", "mnar_self"],
                 "rmse_improvement": [0.2, 0.1],
                 "score_improvement": [0.05, 0.02],
             }

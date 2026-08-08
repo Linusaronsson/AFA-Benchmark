@@ -777,6 +777,21 @@ def process_dataset(  # noqa: PLR0915
     return rows
 
 
+def _contrast_methods(
+    instance_metrics: pd.DataFrame, requested: list[str] | None
+) -> tuple[str, ...]:
+    """
+    Methods to contrast, defaulting to whatever the namespace contains.
+
+    The historical default named ol_without_mask, which no v2 namespace trains,
+    so an unfiltered run silently reduced every effects table to its AACO rows.
+    """
+    if requested:
+        return tuple(requested)
+    present = set(instance_metrics["method"].unique()) - {_GREEDY_METHOD}
+    return tuple(sorted(present))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -866,27 +881,18 @@ def main() -> None:
     if not instance_path.exists():
         return
     instance_metrics = pd.read_csv(instance_path)
-    methods = tuple(
-        arguments.methods
-        if arguments.methods
-        else sorted(
-            set(instance_metrics["method"].unique()) - {_GREEDY_METHOD}
-        )
-    )
+    methods = _contrast_methods(instance_metrics, arguments.methods)
     planning, missingness = compute_effects(
         instance_metrics, routes, non_greedy_methods=methods
     )
-    planning_output = arguments.planning_output or analysis / (
-        f"planning_effects_{arguments.namespace}.csv"
-    )
-    missingness_output = arguments.missingness_output or analysis / (
-        f"missingness_effects_{arguments.namespace}.csv"
-    )
-    gate_output = arguments.gate_output or analysis / (
-        f"route_gate_{arguments.namespace}.csv"
-    )
-    planning_gate_output = arguments.planning_gate_output or analysis / (
-        f"planning_gate_{arguments.namespace}.csv"
+    planning_output, missingness_output, gate_output, planning_gate_output = (
+        given or analysis / f"{stem}_{arguments.namespace}.csv"
+        for given, stem in (
+            (arguments.planning_output, "planning_effects"),
+            (arguments.missingness_output, "missingness_effects"),
+            (arguments.gate_output, "route_gate"),
+            (arguments.planning_gate_output, "planning_gate"),
+        )
     )
     planning.to_csv(planning_output, index=False)
     missingness.to_csv(missingness_output, index=False)

@@ -21,9 +21,11 @@ import pandas as pd
 from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
+    INDUCED_MECHANISMS,
+    MECHANISM_LABELS,
+    MECHANISM_MARKERS,
     METHOD_COLORS,
     METHOD_LABELS,
-    METHOD_MARKERS,
     PRIMARY_METHODS,
 )
 
@@ -278,22 +280,29 @@ def _draw_panel_b(axis_b: Axes, panel_b: pd.DataFrame) -> None:
     )
     axis_b.axhline(0.0, color=GRID, linewidth=0.8, zorder=1)
     axis_b.axvline(0.0, color=GRID, linewidth=0.8, zorder=1)
+    # Colour carries the method, marker carries the mechanism, so a reader can
+    # ask either "which method" or "which mechanism" of the same cloud.
     for method in PRIMARY_METHODS:
         color = METHOD_COLORS[method]
-        subset = _rows(panel_b, _column(panel_b, "method") == method)
-        if subset.empty:
-            continue
-        axis_b.scatter(
-            subset["damage"],
-            subset["gain"],
-            s=18,
-            marker=METHOD_MARKERS[method],
-            facecolor=color,
-            edgecolor=SURFACE,
-            linewidth=0.5,
-            alpha=0.9,
-            zorder=3,
-        )
+        for mechanism in INDUCED_MECHANISMS:
+            subset = _rows(
+                panel_b,
+                (_column(panel_b, "method") == method)
+                & (_column(panel_b, "mechanism") == mechanism),
+            )
+            if subset.empty:
+                continue
+            axis_b.scatter(
+                subset["damage"],
+                subset["gain"],
+                s=16,
+                marker=MECHANISM_MARKERS[mechanism],
+                facecolor=color,
+                edgecolor=SURFACE,
+                linewidth=0.4,
+                alpha=0.85,
+                zorder=3,
+            )
     lines = [
         f"{METHOD_LABELS[m]} $r={_correlation(panel_b, m):.2f}$"
         for m in PRIMARY_METHODS
@@ -346,7 +355,12 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
         }
     )
 
-    figure = plt.figure(figsize=(7.1, 3.9))
+    # Panel (a) grows a band per dataset, so the figure has to grow with it or
+    # the four method rows inside each band collide.
+    n_datasets = panel_a["dataset"].nunique()
+    height = max(3.9, 1.55 + 0.52 * n_datasets)
+    legend_fraction = 1.05 / height
+    figure = plt.figure(figsize=(7.1, height))
     grid = figure.add_gridspec(
         1,
         2,
@@ -354,8 +368,8 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
         wspace=0.28,
         left=0.21,
         right=0.97,
-        top=0.93,
-        bottom=0.30,
+        top=1.0 - 0.28 / height,
+        bottom=legend_fraction,
     )
     axis_a = figure.add_subplot(grid[0, 0])
     axis_b = figure.add_subplot(grid[0, 1])
@@ -367,7 +381,7 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
         Line2D(
             [],
             [],
-            marker=METHOD_MARKERS[method],
+            marker="o",
             linestyle="none",
             markersize=4.5,
             markerfacecolor=METHOD_COLORS[method],
@@ -376,6 +390,20 @@ def plot(panel_a: pd.DataFrame, panel_b: pd.DataFrame, output: Path) -> None:
             label=METHOD_LABELS[method],
         )
         for method in PRIMARY_METHODS
+    ]
+    handles += [
+        Line2D(
+            [],
+            [],
+            marker=MECHANISM_MARKERS[mechanism],
+            linestyle="none",
+            markersize=4.0,
+            markerfacecolor=INK_MUTED,
+            markeredgecolor=SURFACE,
+            markeredgewidth=0.4,
+            label=MECHANISM_LABELS[mechanism],
+        )
+        for mechanism in INDUCED_MECHANISMS
     ]
     handles += [
         Line2D(
