@@ -110,7 +110,12 @@ def namespace_runs(
         manifest = json.loads(path.read_text())
         runs.append(
             (
-                pd.Timestamp(manifest["created_at"]),
+                # UTC on both sides. `created_at` carries an offset while a file
+                # mtime is bare epoch seconds, and pandas refuses to order a
+                # tz-aware index against a naive one.
+                pd.Timestamp(manifest["created_at"]).tz_convert("UTC")
+                if pd.Timestamp(manifest["created_at"]).tzinfo
+                else pd.Timestamp(manifest["created_at"]).tz_localize("UTC"),
                 _manifest_signature(manifest),
             )
         )
@@ -126,7 +131,9 @@ def attribute_runs(
         return frame.assign(**dict.fromkeys(_PROVENANCE_KEYS, _UNTRACKED))
     starts = pd.DatetimeIndex([start for start, _ in runs])
     written = pd.to_datetime(
-        [Path(path).stat().st_mtime for path in frame["path"]], unit="s"
+        [Path(path).stat().st_mtime for path in frame["path"]],
+        unit="s",
+        utc=True,
     )
     # A benchmark predating every manifest belongs to the earliest run, since
     # `created_at` is recorded after the allocation has already begun working.
@@ -237,9 +244,7 @@ def main() -> None:
     frames = []
     for namespace in arguments.namespace:
         frame = collect_namespace(arguments.output_root, namespace)
-        frame = attribute_runs(
-            frame, namespace_runs(manifest_root, namespace)
-        )
+        frame = attribute_runs(frame, namespace_runs(manifest_root, namespace))
         for key, value in namespace_gpu_telemetry(
             telemetry_root, namespace
         ).items():

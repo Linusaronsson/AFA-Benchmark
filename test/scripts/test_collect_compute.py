@@ -81,13 +81,20 @@ def _manifest(device: str, *, mps: bool = False) -> dict[str, object]:
     }
 
 
-def _write_runs(root: Path) -> None:
+def _write_runs(root: Path, *, created_at_suffix: str = "+00:00") -> None:
+    """
+    Write runs in the shape production writes them.
+
+    `run_manifest.py` stamps `created_at` from an aware `datetime`, so the
+    default suffix is the offset a real manifest carries. A file mtime is bare
+    epoch seconds, and ordering the two requires both sides in UTC.
+    """
     root.mkdir(parents=True)
     first = _manifest("cuda")
-    first["created_at"] = "2026-08-01T00:00:00"
+    first["created_at"] = f"2026-08-01T00:00:00{created_at_suffix}"
     first["git_commit"] = "aaaa"
     second = _manifest("cuda")
-    second["created_at"] = "2026-08-05T00:00:00"
+    second["created_at"] = f"2026-08-05T00:00:00{created_at_suffix}"
     second["git_commit"] = "bbbb"
     (root / "1.json").write_text(json.dumps(first))
     (root / "2.json").write_text(json.dumps(second))
@@ -110,6 +117,23 @@ def test_attribute_runs_gives_each_benchmark_its_own_run(
     )
 
     assert list(attributed["git_commit"]) == ["aaaa", "bbbb"]
+
+
+def test_attribute_runs_accepts_a_manifest_without_an_offset(
+    tmp_path: Path,
+) -> None:
+    """A naive `created_at` is read as UTC rather than refusing to order."""
+    _write_runs(tmp_path / "manifests" / "study", created_at_suffix="")
+    path = tmp_path / "late.tsv"
+    path.write_text("x")
+    os.utime(path, (0, datetime(2026, 8, 6, tzinfo=UTC).timestamp()))
+
+    attributed = attribute_runs(
+        pd.DataFrame({"path": [str(path)]}),
+        namespace_runs(tmp_path / "manifests", "study"),
+    )
+
+    assert list(attributed["git_commit"]) == ["bbbb"]
 
 
 def test_attribute_runs_assigns_a_pre_manifest_benchmark_to_the_first_run(
