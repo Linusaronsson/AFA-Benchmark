@@ -52,6 +52,7 @@ SOURCES = {
         "actg",
         "diabetes",
         "nhanes_mortality",
+        "miniboone",
     ],
 }
 
@@ -415,7 +416,9 @@ def plot_levels(levels: pd.DataFrame, output: Path) -> None:
         "pd.Series", moves.groupby("dataset")["move"].max()
     ).sort_values(ascending=False)
     datasets = [str(dataset) for dataset in ranked.index]
-    columns = min(3, len(datasets))
+    # Four columns past six datasets, so eight fills a 2x4 exactly rather than
+    # leaving a hole in a 3x3. Below that three columns keep the panels wide.
+    columns = 4 if len(datasets) > 6 else min(3, len(datasets))
     rows = -(-len(datasets) // columns)
     # Shared y, because a gap scale whose panels autoscale independently is no
     # longer shared and the whole reason for plotting a gap is lost. That NHANES
