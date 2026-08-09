@@ -5,7 +5,7 @@ device: cuda
 smoke_test: false
 eval_dataset_split: val
 dataset_instance_indices: [0, 1, 2, 3, 4]
-datasets: [actg, diabetes, nhanes_mortality]
+datasets: [actg, diabetes, nhanes_mortality, miniboone]
 
 dataset_generation_params:
   nhanes_mortality:
@@ -15,6 +15,9 @@ dataset_generation_params:
     - fixed_test_seed=100
     - stratify=true
   diabetes:
+    - fixed_test_seed=100
+    - stratify=true
+  miniboone:
     - fixed_test_seed=100
     - stratify=true
 
