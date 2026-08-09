@@ -1,12 +1,16 @@
 import json
+import os
+from datetime import UTC, datetime
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 from scripts.analysis.collect_compute import (
+    attribute_runs,
     benchmark_identity,
     namespace_gpu_telemetry,
-    namespace_provenance,
+    namespace_runs,
 )
 
 
@@ -77,45 +81,66 @@ def _manifest(device: str, *, mps: bool = False) -> dict[str, object]:
     }
 
 
-def test_namespace_provenance_rejects_mixed_hardware(tmp_path: Path) -> None:
-    root = tmp_path / "manifests" / "study"
+def _write_runs(root: Path) -> None:
     root.mkdir(parents=True)
-    (root / "1.json").write_text(json.dumps(_manifest("cuda")))
-    (root / "2.json").write_text(json.dumps(_manifest("cpu")))
-    with pytest.raises(ValueError, match="mixes execution environments"):
-        namespace_provenance(tmp_path / "manifests", "study")
+    first = _manifest("cuda")
+    first["created_at"] = "2026-08-01T00:00:00"
+    first["git_commit"] = "aaaa"
+    second = _manifest("cuda")
+    second["created_at"] = "2026-08-05T00:00:00"
+    second["git_commit"] = "bbbb"
+    (root / "1.json").write_text(json.dumps(first))
+    (root / "2.json").write_text(json.dumps(second))
 
 
-def test_namespace_provenance_rejects_mixed_mps_modes(
+def test_attribute_runs_gives_each_benchmark_its_own_run(
     tmp_path: Path,
 ) -> None:
-    root = tmp_path / "manifests" / "study"
-    root.mkdir(parents=True)
-    (root / "1.json").write_text(json.dumps(_manifest("cuda")))
-    (root / "2.json").write_text(json.dumps(_manifest("cuda", mps=True)))
+    """A namespace may hold several runs; each cell keeps the one that made it."""
+    _write_runs(tmp_path / "manifests" / "study")
+    early, late = tmp_path / "early.tsv", tmp_path / "late.tsv"
+    early.write_text("x")
+    late.write_text("x")
+    os.utime(early, (0, datetime(2026, 8, 2, tzinfo=UTC).timestamp()))
+    os.utime(late, (0, datetime(2026, 8, 6, tzinfo=UTC).timestamp()))
+    frame = pd.DataFrame({"path": [str(early), str(late)]})
 
-    with pytest.raises(ValueError, match="mixes execution environments"):
-        namespace_provenance(tmp_path / "manifests", "study")
+    attributed = attribute_runs(
+        frame, namespace_runs(tmp_path / "manifests", "study")
+    )
+
+    assert list(attributed["git_commit"]) == ["aaaa", "bbbb"]
 
 
-def test_namespace_provenance_marks_every_missing_field_untracked(
+def test_attribute_runs_assigns_a_pre_manifest_benchmark_to_the_first_run(
     tmp_path: Path,
 ) -> None:
-    provenance = namespace_provenance(tmp_path / "manifests", "study")
+    _write_runs(tmp_path / "manifests" / "study")
+    path = tmp_path / "old.tsv"
+    path.write_text("x")
+    os.utime(path, (0, datetime(2026, 7, 1, tzinfo=UTC).timestamp()))
 
-    assert provenance == {
-        "hardware_signature": "untracked",
-        "git_commit": "untracked",
-        "device": "untracked",
-        "cores": "untracked",
-        "mem_mb": "untracked",
-        "gpu_workers": "untracked",
-        "mps": "untracked",
-        "architecture": "untracked",
-        "torch": "untracked",
-        "torch_cuda": "untracked",
-        "cuda_devices": "[]",
-    }
+    attributed = attribute_runs(
+        pd.DataFrame({"path": [str(path)]}),
+        namespace_runs(tmp_path / "manifests", "study"),
+    )
+
+    assert list(attributed["git_commit"]) == ["aaaa"]
+
+
+def test_attribute_runs_marks_every_field_untracked_without_manifests(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "a.tsv"
+    path.write_text("x")
+
+    attributed = attribute_runs(
+        pd.DataFrame({"path": [str(path)]}),
+        namespace_runs(tmp_path / "manifests", "study"),
+    )
+
+    assert attributed["hardware_signature"].tolist() == ["untracked"]
+    assert attributed["git_commit"].tolist() == ["untracked"]
 
 
 def test_namespace_gpu_telemetry_summarizes_active_samples(

@@ -66,35 +66,23 @@ def _manifest_signature(manifest: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def namespace_provenance(
-    manifest_root: Path, namespace: str
-) -> dict[str, Any]:
-    """Return one signature, rejecting mixed hardware within a namespace."""
-    paths = sorted((manifest_root / namespace).glob("*.json"))
-    if not paths:
-        return {
-            "hardware_signature": "untracked",
-            "git_commit": "untracked",
-            "device": "untracked",
-            "cores": "untracked",
-            "mem_mb": "untracked",
-            "gpu_workers": "untracked",
-            "mps": "untracked",
-            "architecture": "untracked",
-            "torch": "untracked",
-            "torch_cuda": "untracked",
-            "cuda_devices": "[]",
-        }
-    signatures = {
-        json.dumps(
-            _manifest_signature(json.loads(path.read_text())), sort_keys=True
-        )
-        for path in paths
-    }
-    if len(signatures) != 1:
-        message = f"namespace {namespace} mixes execution environments"
-        raise ValueError(message)
-    signature = json.loads(signatures.pop())
+_UNTRACKED = "untracked"
+_PROVENANCE_KEYS = (
+    "hardware_signature",
+    "git_commit",
+    "device",
+    "cores",
+    "mem_mb",
+    "gpu_workers",
+    "mps",
+    "architecture",
+    "torch",
+    "torch_cuda",
+    "cuda_devices",
+)
+
+
+def _signature_columns(signature: dict[str, Any]) -> dict[str, Any]:
     return {
         "hardware_signature": json.dumps(signature, sort_keys=True),
         **{
@@ -102,6 +90,51 @@ def namespace_provenance(
             for key, value in signature.items()
         },
     }
+
+
+def namespace_runs(
+    manifest_root: Path, namespace: str
+) -> list[tuple[pd.Timestamp, dict[str, Any]]]:
+    """
+    Each run's execution signature, ordered by when the run started.
+
+    One signature per run rather than one per namespace. A namespace legitimately
+    accumulates runs, as a resume or a later dataset added to a finished matrix,
+    and those differ in `git_commit` without making anything incomparable. What
+    must not span environments is a compared pair, and `plot_compute.py` already
+    carries `hardware_signature` in its pairing index, so that is enforced where
+    the comparison actually happens.
+    """
+    runs = []
+    for path in sorted((manifest_root / namespace).glob("*.json")):
+        manifest = json.loads(path.read_text())
+        runs.append(
+            (
+                pd.Timestamp(manifest["created_at"]),
+                _manifest_signature(manifest),
+            )
+        )
+    return sorted(runs, key=lambda run: run[0])
+
+
+def attribute_runs(
+    frame: pd.DataFrame,
+    runs: list[tuple[pd.Timestamp, dict[str, Any]]],
+) -> pd.DataFrame:
+    """Attach each benchmark's own run signature, by file modification time."""
+    if not runs:
+        return frame.assign(**dict.fromkeys(_PROVENANCE_KEYS, _UNTRACKED))
+    starts = pd.DatetimeIndex([start for start, _ in runs])
+    written = pd.to_datetime(
+        [Path(path).stat().st_mtime for path in frame["path"]], unit="s"
+    )
+    # A benchmark predating every manifest belongs to the earliest run, since
+    # `created_at` is recorded after the allocation has already begun working.
+    placed = starts.searchsorted(written, side="right")
+    columns = [
+        _signature_columns(runs[max(0, int(index) - 1)][1]) for index in placed
+    ]
+    return frame.join(pd.DataFrame(columns, index=frame.index))
 
 
 def namespace_gpu_telemetry(
@@ -204,9 +237,12 @@ def main() -> None:
     frames = []
     for namespace in arguments.namespace:
         frame = collect_namespace(arguments.output_root, namespace)
-        provenance = namespace_provenance(manifest_root, namespace)
-        provenance.update(namespace_gpu_telemetry(telemetry_root, namespace))
-        for key, value in provenance.items():
+        frame = attribute_runs(
+            frame, namespace_runs(manifest_root, namespace)
+        )
+        for key, value in namespace_gpu_telemetry(
+            telemetry_root, namespace
+        ).items():
             frame[key] = value
         frames.append(frame)
     combined = pd.concat(frames, ignore_index=True)
