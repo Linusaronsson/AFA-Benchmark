@@ -94,6 +94,9 @@ def _largest_budget(frame: pd.DataFrame, dataset: str) -> pd.DataFrame:
 BOOTSTRAP_DRAWS = 2000
 SEED = 0
 
+# Height reserved below the panels for the shared x label and the legend.
+LEGEND_STRIP_IN = 0.95
+
 
 def _interval(
     values: npt.NDArray[np.float64], rng: np.random.Generator
@@ -114,14 +117,48 @@ def _interval(
     return float(np.percentile(means, 2.5)), float(np.percentile(means, 97.5))
 
 
+def _level_row(
+    per_method: pd.DataFrame,
+    metric: str,
+    gap_column: str,
+    rate: float,
+    rng: np.random.Generator,
+) -> dict[str, float] | None:
+    """One method's direct and restored levels at one rate, in both units."""
+
+    def cells(strategy: str) -> pd.DataFrame:
+        return _rows(
+            per_method,
+            (_column(per_method, "strategy") == strategy)
+            & (_column(per_method, "mechanism") == PANEL_MECHANISM)
+            & (_column(per_method, "p") == rate),
+        )
+
+    columns: dict[str, float] = {}
+    for key, strategy in (("direct", DIRECT), ("generative", GENERATIVE)):
+        selected = cells(strategy)
+        # The gap column is written as score - complete, so negate it.
+        gap = -_column(selected, gap_column).dropna().to_numpy()
+        score = _column(selected, metric).dropna().to_numpy()
+        if not len(gap) or not len(score):
+            return None
+        for name, values in ((key, gap), (f"{key}_abs", score)):
+            low, high = _interval(values, rng)
+            columns[name] = float(values.mean())
+            columns[f"{name}_lo"] = low
+            columns[f"{name}_hi"] = high
+    return columns
+
+
 def collect_levels(summary_root: Path) -> pd.DataFrame:
     """
-    Distance below each method's own complete-data ceiling, per rate.
+    Where each method lands under missingness, per rate, both ways.
 
-    Reported as a gap rather than a raw score so every dataset shares a scale on
-    which zero means the same thing. In raw units ACTG175 spans 0.58 to 0.85 and
-    Diabetes 0.60 to 0.69, so one axis compresses both and an 0.02 move reads
-    differently per row.
+    The gap columns are the distance below that method's own complete-data
+    ceiling, which is what lets every dataset share one scale on which zero means
+    the same thing. The `_abs` columns are the same cells in the dataset's raw
+    primary metric, together with the ceiling itself, for the absolute view where
+    each dataset keeps its own scale.
     """
     rng = np.random.default_rng(SEED)
     rows = []
@@ -141,6 +178,15 @@ def collect_levels(summary_root: Path) -> pd.DataFrame:
                 )
                 if per_method.empty:
                     continue
+                ceiling = float(
+                    _column(
+                        _rows(
+                            per_method,
+                            _column(per_method, "strategy") == "complete",
+                        ),
+                        metric,
+                    ).mean()
+                )
                 rates = sorted(
                     {
                         float(value)
@@ -149,41 +195,19 @@ def collect_levels(summary_root: Path) -> pd.DataFrame:
                     }
                 )
                 for rate in rates:
-
-                    def gaps(
-                        strategy: str,
-                        per_method: pd.DataFrame = per_method,
-                        gap_column: str = gap_column,
-                        rate: float = rate,
-                    ) -> npt.NDArray[np.float64]:
-                        cells = _rows(
-                            per_method,
-                            (_column(per_method, "strategy") == strategy)
-                            & (
-                                _column(per_method, "mechanism")
-                                == PANEL_MECHANISM
-                            )
-                            & (_column(per_method, "p") == rate),
-                        )
-                        return -_column(cells, gap_column).dropna().to_numpy()
-
-                    direct, generative = gaps(DIRECT), gaps(GENERATIVE)
-                    if not len(direct) or not len(generative):
+                    record = _level_row(
+                        per_method, metric, gap_column, rate, rng
+                    )
+                    if record is None:
                         continue
-                    direct_lo, direct_hi = _interval(direct, rng)
-                    generative_lo, generative_hi = _interval(generative, rng)
                     rows.append(
                         {
                             "dataset": dataset,
                             "method": method,
                             "p": rate,
                             "metric": metric,
-                            "direct": float(direct.mean()),
-                            "direct_lo": direct_lo,
-                            "direct_hi": direct_hi,
-                            "generative": float(generative.mean()),
-                            "generative_lo": generative_lo,
-                            "generative_hi": generative_hi,
+                            "ceiling_abs": ceiling,
+                            **record,
                         }
                     )
     return pd.DataFrame(rows)
@@ -238,8 +262,11 @@ def collect_panel_b(summary_root: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def _draw_levels(axis: Axes, levels: pd.DataFrame, dataset: str) -> None:
+def _draw_levels(
+    axis: Axes, levels: pd.DataFrame, dataset: str, *, absolute: bool = False
+) -> None:
     """One dataset's panel: a dumbbell per method at each missingness rate."""
+    suffix = "_abs" if absolute else ""
     per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
     rates = sorted({float(value) for value in _column(per_dataset, "p")})
     offsets = np.linspace(-0.26, 0.26, len(PRIMARY_METHODS))
@@ -250,7 +277,7 @@ def _draw_levels(axis: Axes, levels: pd.DataFrame, dataset: str) -> None:
         color = METHOD_COLORS[method]
         for _, record in per_method.iterrows():
             x = rates.index(float(record["p"])) + offset
-            for key in ("direct", "generative"):
+            for key in (f"direct{suffix}", f"generative{suffix}"):
                 low, high = record[f"{key}_lo"], record[f"{key}_hi"]
                 if np.isnan(low):
                     continue
@@ -265,7 +292,7 @@ def _draw_levels(axis: Axes, levels: pd.DataFrame, dataset: str) -> None:
                 )
             axis.plot(
                 [x, x],
-                [record["direct"], record["generative"]],
+                [record[f"direct{suffix}"], record[f"generative{suffix}"]],
                 color=color,
                 linewidth=1.3,
                 solid_capstyle="round",
@@ -273,7 +300,7 @@ def _draw_levels(axis: Axes, levels: pd.DataFrame, dataset: str) -> None:
             )
             axis.scatter(
                 [x],
-                [record["direct"]],
+                [record[f"direct{suffix}"]],
                 s=13,
                 facecolor=SURFACE,
                 edgecolor=color,
@@ -281,11 +308,29 @@ def _draw_levels(axis: Axes, levels: pd.DataFrame, dataset: str) -> None:
                 zorder=3,
             )
             axis.scatter(
-                [x], [record["generative"]], s=16, color=color, zorder=4
+                [x],
+                [record[f"generative{suffix}"]],
+                s=16,
+                color=color,
+                zorder=4,
             )
-    # Zero is the complete-data ceiling for every dataset, which is the point of
-    # plotting a gap: one scale on which zero means the same thing.
-    axis.axhline(0.0, color=INK_MUTED, linewidth=0.9, zorder=5)
+            if absolute:
+                # In raw units the ceiling is a different number for every
+                # method, so it cannot be one line across the panel. A tick at
+                # the method's own offset keeps each dumbbell beside the target
+                # it is trying to reach.
+                axis.plot(
+                    [x - 0.075, x + 0.075],
+                    [record["ceiling_abs"]] * 2,
+                    color=color,
+                    linewidth=1.1,
+                    solid_capstyle="butt",
+                    zorder=5,
+                )
+    if not absolute:
+        # Zero is the complete-data ceiling for every dataset, which is the
+        # point of plotting a gap: one scale on which zero means the same thing.
+        axis.axhline(0.0, color=INK_MUTED, linewidth=0.9, zorder=5)
     axis.set_xticks(range(len(rates)))
     axis.set_xticklabels([f"{rate:g}" for rate in rates], fontsize=7)
     axis.set_xlim(-0.55, len(rates) - 0.45)
@@ -406,11 +451,17 @@ def _method_handles() -> list[Line2D]:
     ]
 
 
-def plot_levels(levels: pd.DataFrame, output: Path) -> None:
+def plot_levels(
+    levels: pd.DataFrame, output: Path, *, absolute: bool = False
+) -> None:
     _style()
+    suffix = "_abs" if absolute else ""
     # Datasets ordered by the largest move any method makes on them.
     moves = levels.assign(
-        move=(_column(levels, "direct") - _column(levels, "generative")).abs()
+        move=(
+            _column(levels, f"direct{suffix}")
+            - _column(levels, f"generative{suffix}")
+        ).abs()
     )
     ranked = cast(
         "pd.Series", moves.groupby("dataset")["move"].max()
@@ -420,23 +471,45 @@ def plot_levels(levels: pd.DataFrame, output: Path) -> None:
     # leaving a hole in a 3x3. Below that three columns keep the panels wide.
     columns = 4 if len(datasets) > 6 else min(3, len(datasets))
     rows = -(-len(datasets) // columns)
-    # Shared y, because a gap scale whose panels autoscale independently is no
-    # longer shared and the whole reason for plotting a gap is lost. That NHANES
-    # then looks flat beside ACTG175 is the finding, not a defect.
+    # Gap units share y, because a gap scale whose panels autoscale
+    # independently is no longer shared and the whole reason for plotting a gap
+    # is lost. That NHANES then looks flat beside ACTG175 is the finding, not a
+    # defect. Raw units cannot share it: the datasets sit at different levels
+    # and mix accuracy with macro-F1, so one axis would compress every panel to
+    # fit the widest.
     figure, axes = plt.subplots(
         rows,
         columns,
         figsize=(TEXT_WIDTH_IN, 1.35 + 1.55 * rows),
         squeeze=False,
-        sharey=True,
+        sharey=not absolute,
     )
     for index, dataset in enumerate(datasets):
-        _draw_levels(axes[index // columns][index % columns], levels, dataset)
+        _draw_levels(
+            axes[index // columns][index % columns],
+            levels,
+            dataset,
+            absolute=absolute,
+        )
     for index in range(len(datasets), rows * columns):
         axes[index // columns][index % columns].set_visible(False)
 
-    figure.supxlabel("Training missingness rate", fontsize=8, y=0.215)
-    figure.supylabel("Gap below complete-data ceiling", fontsize=8, x=0.015)
+    # The legend strip is a fixed height in inches, not a fraction of the
+    # figure. As a fraction it was tuned at one row and over-reserves half an
+    # inch of white once the dataset count forces a second.
+    height = 1.35 + 1.55 * rows
+    figure.supxlabel(
+        "Training missingness rate",
+        fontsize=8,
+        y=LEGEND_STRIP_IN * 0.65 / height,
+    )
+    figure.supylabel(
+        "Score in the dataset's primary metric"
+        if absolute
+        else "Gap below complete-data ceiling",
+        fontsize=8,
+        x=0.015,
+    )
     handles = [
         *_method_handles(),
         Line2D(
@@ -451,10 +524,23 @@ def plot_levels(levels: pd.DataFrame, output: Path) -> None:
             label="Direct learning",
         ),
     ]
+    if absolute:
+        handles.append(
+            Line2D(
+                [],
+                [],
+                marker="_",
+                linestyle="none",
+                markersize=7,
+                markeredgecolor=INK_MUTED,
+                markeredgewidth=1.2,
+                label="Complete-data ceiling",
+            )
+        )
     figure.legend(
         handles=handles,
         loc="lower center",
-        ncol=5,
+        ncol=3 if absolute else 5,
         frameon=False,
         fontsize=6.5,
         labelcolor=INK_MUTED,
@@ -463,7 +549,12 @@ def plot_levels(levels: pd.DataFrame, output: Path) -> None:
         bbox_to_anchor=(0.5, 0.005),
     )
     figure.subplots_adjust(
-        left=0.11, right=0.985, top=0.92, bottom=0.32, hspace=0.45, wspace=0.30
+        left=0.11,
+        right=0.985,
+        top=0.92,
+        bottom=LEGEND_STRIP_IN / height,
+        hspace=0.45,
+        wspace=0.30,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
@@ -535,6 +626,16 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--absolute-output",
+        type=Path,
+        default=None,
+        help=(
+            "Where to write the same levels in raw metric units with each "
+            "method's complete-data ceiling ticked. Defaults to "
+            "<output>_absolute.pdf."
+        ),
+    )
+    parser.add_argument(
         "--table",
         type=Path,
         default=None,
@@ -551,7 +652,11 @@ def main() -> None:
         message = "no cells collected"
         raise SystemExit(message)
     law_output = arguments.law_output or arguments.output.with_name("law.pdf")
+    absolute_output = arguments.absolute_output or arguments.output.with_name(
+        f"{arguments.output.stem}_absolute{arguments.output.suffix}"
+    )
     plot_levels(levels, arguments.output)
+    plot_levels(levels, absolute_output, absolute=True)
     plot_law(law, law_output)
 
     table = arguments.table or arguments.output.with_suffix(".cells.csv")
@@ -569,7 +674,10 @@ def main() -> None:
             f"  {METHOD_LABELS[method]:5s} n={len(subset):3d} "
             f"r={_correlation(law, method):+.3f}"
         )
-    print(f"wrote {arguments.output}, {law_output} and {table}")
+    print(
+        f"wrote {arguments.output}, {absolute_output}, {law_output} "
+        f"and {table}"
+    )
 
 
 if __name__ == "__main__":
