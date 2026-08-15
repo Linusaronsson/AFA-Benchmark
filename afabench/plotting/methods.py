@@ -28,6 +28,11 @@ METHOD_COLORS = {
 # 7.16in the older scripts used is an IEEEtran double-column leftover.
 TEXT_WIDTH_IN = 5.5
 
+# Height reserved below a faceted figure for its shared x label and legend.
+# In inches, not a fraction of the figure: as a fraction it was tuned at one row
+# of facets and wasted an inch of white once the dataset count forced three.
+LEGEND_STRIP_IN = 0.95
+
 # Name the two OL states in the paper's own notation, main.tex:162 writes
 # Q_k(x_S, S, a) and :228 writes Q_1^train(x_S, S, m, a). "OL(with-mask)" did
 # not say what differed, and the difference is the whole point of the contrast.

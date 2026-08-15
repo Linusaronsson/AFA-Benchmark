@@ -23,6 +23,7 @@ from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     DATASET_LABELS,
+    LEGEND_STRIP_IN,
     METHOD_COLORS,
     METHOD_LABELS,
     PRIMARY_METHODS,
@@ -85,9 +86,6 @@ def _largest_budget(frame: pd.DataFrame, dataset: str) -> pd.DataFrame:
 
 BOOTSTRAP_DRAWS = 2000
 SEED = 0
-
-# Height reserved below the panels for the shared x label and the legend.
-LEGEND_STRIP_IN = 0.95
 
 
 def _interval(

@@ -16,6 +16,7 @@ from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     DATASET_LABELS_SHORT,
+    LEGEND_STRIP_IN,
     METHOD_COLORS,
     METHOD_LABELS,
     PRIMARY_METHODS,
@@ -372,8 +373,11 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
     for index in range(len(datasets), rows * columns):
         axes[index // columns][index % columns].set_visible(False)
 
+    height = 1.35 + 1.55 * rows
     figure.supxlabel(
-        "Wall-clock time per trained method (s)", fontsize=8, y=0.215
+        "Wall-clock time per trained method (s)",
+        fontsize=8,
+        y=LEGEND_STRIP_IN * 0.65 / height,
     )
     figure.supylabel("Primary metric", fontsize=8, x=0.015)
     handles = [
@@ -414,7 +418,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
         left=0.11,
         right=0.985,
         top=0.92,
-        bottom=0.32,
+        bottom=LEGEND_STRIP_IN / height,
         hspace=0.45,
         wspace=0.32,
     )
