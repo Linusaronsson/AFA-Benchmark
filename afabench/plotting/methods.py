@@ -112,3 +112,17 @@ MECHANISM_MARKERS = {
     "mnar_logistic": "s",
     "mnar_self": "D",
 }
+
+# One hue light to dark, because the mechanisms are ordered rather than
+# categorical: identification degrades along this list and the ramp says so.
+# Purple is clear of every method hue, so a mechanism can never be misread as a
+# method; the identification figure previously drew self-masking MNAR in AACO's
+# vermillion. Adjacent steps separate by at least 13.9 in OKLab dE x100 under
+# normal vision and all three CVD simulations, and the lightest step still
+# carries on white in print.
+MECHANISM_COLORS = {
+    "mcar": "#b7a3d4",
+    "mar": "#8f6fba",
+    "mnar_logistic": "#644191",
+    "mnar_self": "#37225c",
+}

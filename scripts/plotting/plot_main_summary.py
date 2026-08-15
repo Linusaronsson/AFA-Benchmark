@@ -338,6 +338,10 @@ def _draw_levels(
 def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
     lo = min(panel_b["damage"].min(), panel_b["gain"].min()) - 0.03
     hi = max(panel_b["damage"].max(), panel_b["gain"].max()) + 0.03
+    # The wedge and the diagonal run to the right edge rather than stopping at
+    # the data, so the reference geometry does not appear to be cut off where
+    # the tip labels begin.
+    edge = hi + 0.34 * (hi - lo)
     # Name the two reference lines, so a point's height is read directly rather
     # than decoded from the definitions of D and R. Everything between them is
     # partial recovery; below zero restoration made the method worse.
@@ -363,9 +367,9 @@ def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
     )
     axis_b.annotate(
         "nothing recovered, $R=0$",
-        (hi, 0.0),
+        (edge, 0.0),
         textcoords="offset points",
-        xytext=(-3, -15),
+        xytext=(-3, -6),
         fontsize=6.5,
         color=INK_MUTED,
         ha="right",
@@ -378,16 +382,25 @@ def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
         subset = _rows(panel_b, _column(panel_b, "method") == method)
         if subset.empty:
             continue
-        # The fitted share as a ray from the origin. A point's height above or
-        # below its method's ray is what it contributes to that share, which is
-        # the reading the legend numbers are meant to support.
-        share, _, _ = _share(panel_b, method)
+        # The fitted share as a ray from the origin, with its bootstrap interval
+        # as a fan. Uncertainty is then width rather than a bracketed number, so
+        # DIME's fragility is seen instead of read.
+        share, low, high = _share(panel_b, method)
         if not np.isnan(share):
             # Each ray stops at that method's own largest damage, so its length
             # shows the lever arm the share was fitted over. DIME reaches only
             # 0.056 against 0.332 for the OL full state, and a short ray is the
             # honest picture rather than a defect to extrapolate away.
             span = float(_column(subset, "damage").max())
+            axis_b.fill_between(
+                [0.0, span],
+                [0.0, low * span],
+                [0.0, high * span],
+                color=METHOD_COLORS[method],
+                alpha=0.16,
+                linewidth=0,
+                zorder=2,
+            )
             axis_b.plot(
                 [0.0, span],
                 [0.0, share * span],
@@ -403,6 +416,35 @@ def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
                 ],
                 zorder=4,
             )
+            # Direct labels at the tip, so four series need no legend to decode.
+            # A ray that ends well short of the widest one has its label sitting
+            # in the middle of the plot, where it runs into the next label, so
+            # those are lifted above their own ray instead of trailing it.
+            widest = max(
+                float(
+                    _column(
+                        _rows(panel_b, _column(panel_b, "method") == other),
+                        "damage",
+                    ).max()
+                )
+                for other in PRIMARY_METHODS
+            )
+            trailing = span > 0.6 * widest
+            axis_b.annotate(
+                f"{METHOD_LABELS[method]}  {share:.2f}",
+                (span, share * span),
+                textcoords="offset points",
+                xytext=(4, -1) if trailing else (-2, 5),
+                fontsize=6.5,
+                color=METHOD_COLORS[method],
+                va="center" if trailing else "bottom",
+                ha="left" if trailing else "right",
+                zorder=6,
+                path_effects=[
+                    patheffects.Stroke(linewidth=2.0, foreground=SURFACE),
+                    patheffects.Normal(),
+                ],
+            )
         axis_b.scatter(
             subset["damage"],
             subset["gain"],
@@ -416,11 +458,12 @@ def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
             alpha=0.7,
             zorder=3,
         )
-    axis_b.set_xlim(lo, hi)
+    # Room to the right of the longest ray for its tip label. The aspect stays
+    # equal, so the box is wider than tall but the diagonal is still 45 degrees,
+    # which is what makes "full recovery" readable as a position.
+    axis_b.set_xlim(lo, edge)
     axis_b.set_ylim(lo, hi)
     axis_b.set_aspect("equal")
-    # Square data box, so anchor it to the top of its cell to keep the two
-    # panel titles on one line.
     axis_b.set_anchor("C")
     axis_b.set_xlabel("Missingness damage $D_r$", color=INK_MUTED, fontsize=8)
     axis_b.set_ylabel("Restoration gain $R_r$", color=INK_MUTED, fontsize=8)
@@ -619,53 +662,14 @@ def plot_levels(
 
 def plot_law(law: pd.DataFrame, output: Path) -> None:
     _style()
-    # The data box is square, since a 45 degree diagonal is what makes "full
-    # recovery" read as a position. A square box cannot fill the text width, so
-    # the legend takes the space beside it and carries each method's numbers.
-    figure = plt.figure(figsize=(TEXT_WIDTH_IN, 3.1))
-    axis = figure.add_axes((0.11, 0.13, 0.55, 0.84))
+    # No legend box. Four series are within the count that should be direct
+    # labelled, and the labels sit at the ray tips where the number they carry
+    # is the slope of the line they are attached to. The interval is the fan
+    # around each ray rather than a bracket to parse, and `r` moves to prose.
+    figure = plt.figure(figsize=(TEXT_WIDTH_IN, 3.3))
+    axis = figure.add_axes((0.10, 0.13, 0.88, 0.84))
     _draw_law(axis, law)
     axis.set_title("")
-    handles = []
-    for method in PRIMARY_METHODS:
-        share, low, high = _share(law, method)
-        subset = _rows(law, _column(law, "method") == method)
-        span = float(_column(subset, "damage").max())
-        # Share first, because it is the claim. Then the interval, and the range
-        # it was fitted over: DIME never loses more than 0.06 while the OL full
-        # state reaches 0.33, so the same-looking number rests on a sixth of the
-        # lever arm, which is what its wide interval is reporting.
-        handles.append(
-            Line2D(
-                [],
-                [],
-                marker=METHOD_MARKERS[method],
-                linestyle="none",
-                markersize=4.5,
-                markerfacecolor=METHOD_COLORS[method],
-                markeredgecolor=SURFACE,
-                markeredgewidth=0.5,
-                label=(
-                    f"{METHOD_LABELS[method]}\n"
-                    f"    returns ${share:.2f}$ "
-                    f"$[{low:.2f}, {high:.2f}]$\n"
-                    f"    $r={_correlation(law, method):.2f}$, "
-                    f"over $D_r \\leq {span:.2f}$"
-                ),
-            )
-        )
-    figure.legend(
-        handles=handles,
-        loc="center left",
-        frameon=False,
-        # 6.5pt and a tighter anchor, because the three-line entries overran the
-        # page edge at 7pt; verified by measuring the legend extent, not by eye.
-        fontsize=6.5,
-        labelcolor=INK_MUTED,
-        labelspacing=1.0,
-        handletextpad=0.5,
-        bbox_to_anchor=(0.655, 0.55),
-    )
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
     figure.savefig(output.with_suffix(".png"), dpi=200)

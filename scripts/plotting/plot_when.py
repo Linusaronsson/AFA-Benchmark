@@ -2,21 +2,25 @@
 When training missingness matters, and how much of it comes back.
 
 Two things decide whether restoration is worth anything, and neither is visible
-in the direct-versus-generative comparison itself.
+in the direct-versus-generative comparison itself. They are two separate
+questions, so this writes two separate figures rather than one two-panel float
+whose halves shared nothing but a caption.
 
-Panel (a), the mechanism decides whether the completion is identified at all. We
-plot the oracle generator's advantage over the honest one in reconstruction
-error on mechanism-missing entries. That is a property of the generator, not of
-any method, and it needs no division, which matters because a recovered share
-`R / D` is meaningless on the many cells where `D` is near zero. Self-masking
-MNAR is the mechanism `prop:mnar` says is not identified, and it is the one that
-separates.
+The identification figure: the mechanism decides whether the completion is
+identified at all. We plot the oracle generator's advantage over the honest one
+in reconstruction error on mechanism-missing entries. That is a property of the
+generator, not of any method, and it needs no division, which matters because a
+recovered share `R / D` is meaningless on the many cells where `D` is near zero.
+Self-masking MNAR is the mechanism `prop:mnar` says is not identified, and it is
+the one that separates.
 
-Panel (b), the dataset decides how much damage there is in the first place. We
-plot the damage against the two route-structure descriptors of
-`tab:route-structure`. Read them together with `V_static`, since a small route
-sensitivity means "every route is equally good" on a saturated dataset and "no
-fixed route is any good" on one that needs adaptive acquisition.
+The structure figure: the dataset decides how much damage there is in the first
+place. Datasets are ordered by `rho_top`, so the claim is the ordering itself,
+and the dataset names are axis ticks rather than annotations scattered over the
+points, which is what used to collide. Read `rho_top` together with `V_static`
+from `tab:route-structure`, since a small route sensitivity means "every route
+is equally good" on a saturated dataset and "no fixed route is any good" on one
+that needs adaptive acquisition.
 """
 
 from __future__ import annotations
@@ -35,10 +39,12 @@ from matplotlib.lines import Line2D
 from afabench.plotting.methods import (
     DATASET_LABELS_SHORT,
     INDUCED_MECHANISMS,
+    MECHANISM_COLORS,
     MECHANISM_LABELS,
     MECHANISM_MARKERS,
     METHOD_COLORS,
     METHOD_LABELS,
+    METHOD_MARKERS,
     PRIMARY_METHODS,
     TEXT_WIDTH_IN,
 )
@@ -51,13 +57,10 @@ INK_MUTED = "#52514e"
 GRID = "#d8d7d2"
 SURFACE = "#ffffff"
 
-# Panel (b) fixes the rate rather than averaging over it, because damage grows
-# with the rate and mixing rates would blur the very spread being explained.
+# The structure figure fixes the rate rather than averaging over it, because
+# damage grows with the rate and mixing rates would blur the very spread being
+# explained.
 STRUCTURE_RATE = 0.7
-# Three mechanisms leave the completion identified and one does not, so the
-# encoding says that rather than giving four arbitrary hues.
-IDENTIFIED_INK = "#8a8985"
-UNIDENTIFIED = "#D55E00"
 
 
 def _column(frame: pd.DataFrame, name: str) -> pd.Series:
@@ -103,9 +106,7 @@ def structure_points(
     return damage.merge(structure, on="dataset", how="inner")
 
 
-def _draw_panel_a(
-    axis: Axes, gaps: pd.DataFrame, *, standalone: bool = False
-) -> None:
+def _draw_identification(axis: Axes, gaps: pd.DataFrame) -> None:
     rates = sorted({float(value) for value in gaps["p"]})
     for mechanism in INDUCED_MECHANISMS:
         subset = _rows(
@@ -113,33 +114,31 @@ def _draw_panel_a(
         ).sort_values("p")
         if subset.empty:
             continue
-        identified = mechanism != "mnar_self"
-        color = IDENTIFIED_INK if identified else UNIDENTIFIED
+        # The mechanisms are ordered by how far identification degrades, so they
+        # take the sequential ramp rather than four hues. Self-masking MNAR is
+        # the darkest and the only solid line because it is the one `prop:mnar`
+        # says is not identified. The old encoding drew it in AACO's vermillion,
+        # which made a mechanism look like a method.
+        unidentified = mechanism == "mnar_self"
+        color = MECHANISM_COLORS[mechanism]
         axis.errorbar(
             subset["p"],
             subset["gap"],
             yerr=subset["sem"],
             marker=MECHANISM_MARKERS[mechanism],
             markersize=4.0,
-            linewidth=1.0 if identified else 1.5,
-            linestyle=(0, (4, 2)) if identified else "solid",
+            linewidth=1.6 if unidentified else 1.0,
+            linestyle="solid" if unidentified else (0, (4, 2)),
             color=color,
             ecolor=color,
             elinewidth=0.8,
             capsize=2.0,
             label=MECHANISM_LABELS[mechanism],
-            zorder=3 if identified else 4,
+            zorder=4 if unidentified else 3,
         )
     axis.set_xticks(rates)
-    axis.set_xlabel("Training missingness rate", fontsize=8)
-    axis.set_ylabel("Oracle $-$ honest reconstruction error", fontsize=8)
-    axis.set_title(
-        "Identification decides the generator"
-        if standalone
-        else "(a) identification decides the generator",
-        fontsize=8.5,
-        pad=5,
-    )
+    axis.set_xlabel("Missingness rate $p$", fontsize=8)
+    axis.set_ylabel("Oracle $-$ honest error", fontsize=8)
     axis.grid(True, color=GRID, linewidth=0.4, alpha=0.7)
     axis.set_axisbelow(True)
     axis.legend(
@@ -149,58 +148,84 @@ def _draw_panel_a(
         axis.spines[spine].set_visible(False)
 
 
-def _draw_panel_b(axes: list[Axes], points: pd.DataFrame) -> None:
-    for axis, (column, label) in zip(
-        axes,
-        [
-            ("rho_top", r"$\rho_{\mathrm{top}}$"),
-            ("route_sensitivity", r"$\Delta_{\mathrm{route}}$"),
-        ],
-        strict=True,
-    ):
-        axis.axhline(0.0, color=GRID, linewidth=0.8, zorder=1)
+def _draw_structure(axis: Axes, points: pd.DataFrame) -> None:
+    """
+    Damage per dataset, datasets ordered by how interchangeable their routes are.
+
+    A dot plot rather than damage against a continuous `rho_top`, because the
+    claim is an ordering and the dataset is the unit. Names become axis ticks,
+    which is what removes the overlapping annotations the scatter needed, and
+    the four methods sit on one row so a reader compares them where they differ
+    rather than across two sub-panels.
+    """
+    order = cast(
+        "pd.Series",
+        points.groupby("dataset")["rho_top"].first(),
+    ).sort_values(ascending=False)
+    datasets = [str(name) for name in order.index]
+    axis.axvline(0.0, color=INK_MUTED, linewidth=0.8, zorder=1)
+    for row, dataset in enumerate(datasets):
+        group = _rows(points, _column(points, "dataset") == dataset)
+        # A hairline through each row's methods, so the spread within a dataset
+        # reads as one object before the individual methods are picked out.
+        axis.plot(
+            [float(group["D"].min()), float(group["D"].max())],
+            [row, row],
+            color=GRID,
+            linewidth=2.6,
+            solid_capstyle="round",
+            zorder=2,
+        )
         for method in PRIMARY_METHODS:
-            subset = _rows(points, _column(points, "method") == method)
-            if subset.empty:
+            cell = _rows(group, _column(group, "method") == method)
+            if cell.empty:
                 continue
             axis.scatter(
-                subset[column],
-                subset["D"],
-                s=18,
-                marker="o",
+                cell["D"],
+                [row] * len(cell),
+                s=22,
+                marker=METHOD_MARKERS[method],
                 facecolor=METHOD_COLORS[method],
                 edgecolor=SURFACE,
                 linewidth=0.4,
-                alpha=0.9,
                 zorder=3,
             )
-        span = float(points[column].max() - points[column].min()) or 1.0
-        midpoint = float(points[column].mean())
-        for dataset, group in points.groupby("dataset"):
-            x = float(group[column].iloc[0])
-            # Labels lean away from the nearer axis edge, so neither the y-axis
-            # of this panel nor the one beside it is overwritten.
-            leans_left = x > midpoint
-            axis.annotate(
-                DATASET_LABELS_SHORT.get(str(dataset), str(dataset)),
-                (x, float(group["D"].max())),
-                textcoords="offset points",
-                xytext=(-4 if leans_left else 4, 4),
-                fontsize=5.5,
-                color=INK_MUTED,
-                ha="right" if leans_left else "left",
-            )
-        axis.set_xlim(
-            points[column].min() - 0.22 * span,
-            points[column].max() + 0.22 * span,
-        )
-        axis.set_xlabel(label, fontsize=8)
-        axis.grid(True, color=GRID, linewidth=0.4, alpha=0.7)
-        axis.set_axisbelow(True)
-        for spine in ("top", "right"):
-            axis.spines[spine].set_visible(False)
-    axes[0].set_ylabel(f"Damage $D$ at $p={STRUCTURE_RATE:g}$", fontsize=8)
-    axes[1].tick_params(labelleft=False)
+    axis.set_yticks(range(len(datasets)))
+    axis.set_yticklabels(
+        [DATASET_LABELS_SHORT.get(name, name) for name in datasets],
+        fontsize=7,
+    )
+    axis.set_ylim(-0.7, len(datasets) - 0.3)
+    axis.set_xlabel(
+        f"Missingness damage $D_r$ at $p={STRUCTURE_RATE:g}$", fontsize=8
+    )
+    # The ordering variable belongs on the figure, since the ordering is the
+    # claim. A right-hand column keeps it out of the data area.
+    right = axis.twinx()
+    right.set_ylim(axis.get_ylim())
+    right.set_yticks(range(len(datasets)))
+    right.set_yticklabels(
+        [f"{float(order[name]):.2f}" for name in datasets], fontsize=6.5
+    )
+    # Head the column rather than labelling its middle, where a centred label
+    # lands on top of the centre row's own value.
+    right.annotate(
+        r"$\rho_{\mathrm{top}}$",
+        (1.0, 1.0),
+        xycoords="axes fraction",
+        textcoords="offset points",
+        xytext=(26, 5),
+        fontsize=8,
+        color=INK_MUTED,
+        ha="right",
+    )
+    right.tick_params(length=0, colors=INK_MUTED)
+    for spine in ("top", "right", "left"):
+        right.spines[spine].set_visible(False)
+    axis.grid(True, axis="x", color=GRID, linewidth=0.4, alpha=0.7)
+    axis.set_axisbelow(True)
+    for spine in ("top", "right"):
+        axis.spines[spine].set_visible(False)
 
 
 def plot(
@@ -220,51 +245,31 @@ def plot(
             "axes.facecolor": SURFACE,
         }
     )
+    output.parent.mkdir(parents=True, exist_ok=True)
+
+    figure, axis = plt.subplots(figsize=(TEXT_WIDTH_IN, 2.9))
+    figure.subplots_adjust(left=0.12, right=0.98, top=0.95, bottom=0.16)
+    _draw_identification(axis, gaps)
+    figure.savefig(output)
+    figure.savefig(output.with_suffix(".png"), dpi=200)
+
     if points is None:
-        # One panel while only three datasets have damage to explain. The
-        # structure panel returns under --with-structure once core_group lands
-        # CUBE and CUBE-NM, which is where the range in D comes from.
-        figure, axis_a = plt.subplots(figsize=(TEXT_WIDTH_IN, 2.9))
-        figure.subplots_adjust(left=0.12, right=0.98, top=0.90, bottom=0.16)
-        _draw_panel_a(axis_a, gaps, standalone=True)
-        output.parent.mkdir(parents=True, exist_ok=True)
-        figure.savefig(output)
-        figure.savefig(output.with_suffix(".png"), dpi=200)
         return
 
-    figure = plt.figure(figsize=(TEXT_WIDTH_IN, 3.3))
-    grid = figure.add_gridspec(
-        1,
-        3,
-        width_ratios=[1.20, 1.0, 1.0],
-        wspace=0.30,
-        left=0.095,
-        right=0.985,
-        top=0.87,
-        bottom=0.29,
+    # The structure claim is its own figure. Two questions that share nothing
+    # but a caption do not belong in one float.
+    structure_output = output.with_name(
+        f"{output.stem}_structure{output.suffix}"
     )
-    axis_a = figure.add_subplot(grid[0, 0])
-    axis_b1 = figure.add_subplot(grid[0, 1])
-    axis_b2 = figure.add_subplot(grid[0, 2], sharey=axis_b1)
-
-    _draw_panel_a(axis_a, gaps)
-    _draw_panel_b([axis_b1, axis_b2], points)
-    box1 = axis_b1.get_position()
-    box2 = axis_b2.get_position()
-    figure.text(
-        (box1.x0 + box2.x1) / 2,
-        0.925,
-        "(b) the dataset decides how much there is",
-        fontsize=8.5,
-        color=INK,
-        ha="center",
-    )
-
+    rows = points["dataset"].nunique()
+    figure = plt.figure(figsize=(TEXT_WIDTH_IN, 1.05 + 0.30 * rows))
+    axis = figure.add_axes((0.16, 0.30 - 0.012 * rows, 0.76, 0.66))
+    _draw_structure(axis, points)
     handles = [
         Line2D(
             [],
             [],
-            marker="o",
+            marker=METHOD_MARKERS[method],
             linestyle="none",
             markersize=4.5,
             markerfacecolor=METHOD_COLORS[method],
@@ -279,13 +284,14 @@ def plot(
         loc="lower center",
         ncol=4,
         frameon=False,
-        fontsize=7,
+        fontsize=6.5,
         labelcolor=INK_MUTED,
-        bbox_to_anchor=(0.5, 0.0),
+        columnspacing=1.2,
+        handletextpad=0.5,
+        bbox_to_anchor=(0.5, 0.005),
     )
-    output.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(output)
-    figure.savefig(output.with_suffix(".png"), dpi=200)
+    figure.savefig(structure_output)
+    figure.savefig(structure_output.with_suffix(".png"), dpi=200)
 
 
 def load_structure(path: Path) -> pd.DataFrame:
