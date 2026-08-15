@@ -26,6 +26,7 @@ import pandas as pd
 from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
+    DATASET_LABELS,
     METHOD_COLORS,
     METHOD_LABELS,
     TEXT_WIDTH_IN,
@@ -45,18 +46,9 @@ OL_STATES = ("ol_with_mask", "ol_full_state")
 # undo it", in the order a reader climbs them.
 RUNGS = (
     ("restricted", "Direct"),
-    ("pvae_label_conditioned", "Restored"),
+    ("pvae_label_conditioned", "Episode-start"),
     ("complete", "Complete"),
 )
-DATASET_LABELS = {
-    "cube": "CUBE",
-    "cube_nm": "CUBE-NM",
-    "cube_nonuniform_costs": "CUBE non-uniform cost",
-    "heart_disease": "Heart disease",
-    "actg": "ACTG175",
-    "diabetes": "Diabetes",
-    "nhanes_mortality": "NHANES mortality",
-}
 
 
 def _column(frame: pd.DataFrame, name: str) -> pd.Series:
@@ -190,7 +182,7 @@ def plot(
             color=INK_MUTED,
             markerfacecolor=SURFACE,
             markeredgecolor=INK_MUTED,
-            label="Direct (restricted view)",
+            label="Direct",
         ),
         Line2D(
             [],
@@ -199,7 +191,7 @@ def plot(
             markersize=4.0,
             linewidth=1.6,
             color=INK_MUTED,
-            label="Restored (label-conditioned PVAE)",
+            label="Episode-start (PVAE)",
         ),
         Line2D(
             [],

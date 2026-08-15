@@ -22,6 +22,7 @@ import pandas as pd
 from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
+    DATASET_LABELS,
     METHOD_COLORS,
     METHOD_LABELS,
     PRIMARY_METHODS,
@@ -56,15 +57,6 @@ SOURCES = {
     ],
 }
 
-DATASET_LABELS = {
-    "cube_nm": "CUBE-NM",
-    "cube": "CUBE",
-    "cube_nonuniform_costs": "CUBE non-uniform cost",
-    "heart_disease": "Heart disease",
-    "actg": "ACTG175",
-    "diabetes": "Diabetes",
-    "nhanes_mortality": "NHANES mortality",
-}
 
 DIRECT = "restricted"
 GENERATIVE = "pvae_label_conditioned"

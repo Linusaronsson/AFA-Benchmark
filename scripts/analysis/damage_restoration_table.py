@@ -20,17 +20,12 @@ from typing import cast
 
 import pandas as pd
 
-from afabench.plotting.methods import METHOD_LABELS, PRIMARY_METHODS
+from afabench.plotting.methods import (
+    DATASET_LABELS_SHORT,
+    METHOD_LABELS,
+    PRIMARY_METHODS,
+)
 
-DATASET_LABELS = {
-    "cube": "CUBE",
-    "cube_nm": "CUBE-NM",
-    "cube_nonuniform_costs": "CUBE non-unif.\\ cost",
-    "heart_disease": "Heart disease",
-    "actg": "ACTG175",
-    "diabetes": "Diabetes",
-    "nhanes_mortality": "NHANES Mortality",
-}
 # Short forms, because the table has one row per dataset and method and the
 # full state descriptions do not fit a two-column layout.
 METHOD_SHORT = {
@@ -90,7 +85,7 @@ def render(frame: pd.DataFrame, mechanism: str) -> str:
                     f"${float(cell['damage'].mean()):+.3f}$",
                     f"${float(cell['gain'].mean()):+.3f}$",
                 ]
-            label = DATASET_LABELS.get(dataset, dataset) if first else ""
+            label = DATASET_LABELS_SHORT.get(dataset, dataset) if first else ""
             lines.append(
                 f"{label} & {METHOD_SHORT.get(method, METHOD_LABELS[method])}"
                 f" & " + " & ".join(values) + " \\\\"

@@ -230,7 +230,7 @@ def main() -> None:
             )
             + p9.labs(
                 x="Training missingness rate",
-                y="Primary-metric gain (PVAE - Restricted)",
+                y="Primary-metric gain (episode-start - direct)",
                 color="Method",
                 linetype="Mechanism",
             )

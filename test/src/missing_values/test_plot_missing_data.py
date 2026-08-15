@@ -104,7 +104,7 @@ def _action_rates() -> pd.DataFrame:
                     "p": 0.5,
                     "strategy": "restricted",
                     "instance": 0,
-                    "strategy_display_name": "Restricted",
+                    "strategy_display_name": "Direct",
                     "selection": 0,
                     "acquisitions_per_sample": 0.6,
                 },

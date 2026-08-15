@@ -262,11 +262,11 @@ def stepwise_effects(instance_metrics: pd.DataFrame) -> pd.DataFrame:
     if not required.issubset(pivot.columns):
         return pd.DataFrame()
     output = pivot.dropna(subset=list(required)).reset_index()
-    output["one_shot_gain"] = (
+    output["episode_start_gain"] = (
         output["pvae_label_conditioned"] - output["restricted"]
     )
     output["stepwise_gain"] = output["pvae_stepwise"] - output["restricted"]
-    output["stepwise_minus_one_shot"] = (
+    output["stepwise_minus_episode_start"] = (
         output["pvae_stepwise"] - output["pvae_label_conditioned"]
     )
     return output

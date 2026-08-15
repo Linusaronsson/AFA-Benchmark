@@ -58,11 +58,11 @@ STRATEGY_ORDER = [
 ]
 STRATEGY_DISPLAY = {
     "complete": "Complete data",
-    "restricted": "Restricted",
+    "restricted": "Direct",
     "mean_fill": "Mean completion",
-    "pvae_label_conditioned": "PVAE (label-conditioned)",
+    "pvae_label_conditioned": "Episode-start (PVAE)",
     "pvae_label_free": "PVAE (label-free)",
-    "pvae_stepwise": "PVAE (stepwise, label-free)",
+    "pvae_stepwise": "Stepwise (PVAE)",
     "pvae_oracle": "PVAE (oracle)",
     "true_completion": "True completion",
     "zero_fill": "Zero fill",

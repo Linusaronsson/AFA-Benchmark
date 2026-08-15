@@ -15,6 +15,7 @@ import pandas as pd
 from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
+    DATASET_LABELS_SHORT,
     METHOD_COLORS,
     METHOD_LABELS,
     PRIMARY_METHODS,
@@ -32,15 +33,6 @@ DATASET_MARKERS = {
     "actg": "^",
     "diabetes": "v",
     "nhanes_mortality": "X",
-}
-DATASET_LABELS = {
-    "cube": "CUBE",
-    "cube_nm": "CUBE-NM",
-    "cube_nonuniform_costs": "CUBE-NUC",
-    "heart_disease": "Heart disease",
-    "actg": "ACTG175",
-    "diabetes": "Diabetes",
-    "nhanes_mortality": "NHANES mortality",
 }
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
 DIRECT = "restricted"
@@ -372,7 +364,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
         )
         axis.tick_params(labelsize=7)
         _thin_x_ticks(axis)
-        axis.set_title(DATASET_LABELS.get(dataset, dataset), fontsize=8)
+        axis.set_title(DATASET_LABELS_SHORT.get(dataset, dataset), fontsize=8)
         axis.grid(True, color=GRID, linewidth=0.4, alpha=0.55)
         axis.set_axisbelow(True)
         for spine in ("top", "right"):

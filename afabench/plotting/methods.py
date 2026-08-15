@@ -40,6 +40,30 @@ METHOD_LABELS = {
     "ol_full_state": "OL, $Q(x_S,S,m)$",
 }
 
+# Dataset names in two registers, because a wide facet title and a narrow table
+# column want different lengths. Five scripts carried private copies of these,
+# which is why adding MiniBooNE printed a correct title in one figure and the
+# raw key in four others. A dataset missing here shows its key, so add both.
+DATASET_LABELS = {
+    "cube": "CUBE",
+    "cube_nm": "CUBE-NM",
+    "cube_nonuniform_costs": "CUBE non-uniform cost",
+    "heart_disease": "Heart disease",
+    "actg": "ACTG175",
+    "diabetes": "Diabetes",
+    "nhanes_mortality": "NHANES mortality",
+    "miniboone": "MiniBooNE",
+    "ckd": "CKD",
+    "physionet": "PhysioNet",
+}
+
+# Compact forms for narrow panels and for table columns, so they stay LaTeX-safe.
+DATASET_LABELS_SHORT = {
+    **DATASET_LABELS,
+    "cube_nonuniform_costs": "CUBE-NUC",
+    "nhanes_mortality": "NHANES",
+}
+
 # Redundant channels, so identity survives greyscale printing and CVD.
 METHOD_MARKERS = {
     "aaco": "o",

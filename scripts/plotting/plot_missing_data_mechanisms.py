@@ -32,8 +32,8 @@ from afabench.plotting.methods import (
 COLORS = {method: METHOD_COLORS[method] for method in PRIMARY_METHODS}
 STRATEGY_LABELS = {
     "complete": "Complete",
-    "restricted": "Restricted",
-    "pvae_label_conditioned": "One-shot",
+    "restricted": "Direct",
+    "pvae_label_conditioned": "Episode-start",
     "pvae_stepwise": "Stepwise",
 }
 
@@ -174,7 +174,7 @@ def plot_stepwise(frame: pd.DataFrame, output: Path) -> None:
             values = selected.loc[
                 (selected["method"] == method)
                 & (selected["dataset"] == dataset),
-                "stepwise_minus_one_shot",
+                "stepwise_minus_episode_start",
             ].dropna()
             if values.empty:
                 continue
@@ -199,10 +199,10 @@ def plot_stepwise(frame: pd.DataFrame, output: Path) -> None:
     axis.axhline(0, color="black", linewidth=0.8)
     axis.set_xticks(range(len(datasets)))
     axis.set_xticklabels(datasets)
-    axis.set_ylabel("Stepwise minus one-shot score")
+    axis.set_ylabel("Stepwise minus episode-start score")
     axis.grid(axis="y", alpha=0.2)
     axis.legend(frameon=False)
-    _save(fig, output, "stepwise_vs_one_shot")
+    _save(fig, output, "stepwise_vs_episode_start")
 
 
 def main() -> None:

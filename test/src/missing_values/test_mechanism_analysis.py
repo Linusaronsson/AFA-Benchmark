@@ -108,9 +108,11 @@ def _instance_metrics() -> pd.DataFrame:
 def test_stepwise_effects_are_exactly_paired() -> None:
     effects = stepwise_effects(_instance_metrics())
 
-    assert effects.loc[0, "one_shot_gain"] == pytest.approx(0.06)
+    assert effects.loc[0, "episode_start_gain"] == pytest.approx(0.06)
     assert effects.loc[0, "stepwise_gain"] == pytest.approx(0.09)
-    assert effects.loc[0, "stepwise_minus_one_shot"] == pytest.approx(0.03)
+    assert effects.loc[0, "stepwise_minus_episode_start"] == pytest.approx(
+        0.03
+    )
 
 
 def test_generator_quality_pairs_exact_cells() -> None:
@@ -189,7 +191,7 @@ def test_mechanism_figures_render(tmp_path: Path) -> None:
             {
                 "method": ["aaco", "ol_without_mask"],
                 "dataset": ["cube_nm", "cube_nm"],
-                "stepwise_minus_one_shot": [0.03, 0.01],
+                "stepwise_minus_episode_start": [0.03, 0.01],
             }
         ),
         tmp_path,
@@ -197,4 +199,4 @@ def test_mechanism_figures_render(tmp_path: Path) -> None:
 
     assert (tmp_path / "cube_nm_path_fidelity.pdf").exists()
     assert (tmp_path / "generator_quality_vs_score.svg").exists()
-    assert (tmp_path / "stepwise_vs_one_shot.pdf").exists()
+    assert (tmp_path / "stepwise_vs_episode_start.pdf").exists()

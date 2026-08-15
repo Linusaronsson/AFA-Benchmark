@@ -25,7 +25,7 @@ just qa
 ## 2. Local smoke checks
 
 These use one instance, one missingness cell, small datasets, and smoke-test
-training. The core smoke includes one-shot and stepwise PVAE.
+training. The core smoke includes episode-start and stepwise PVAE.
 
 ```bash
 uv run snakemake \
@@ -40,7 +40,7 @@ uv run snakemake \
 ## 3. Clean CUBE/CUBE-NM validation
 
 The complete matrix has 3,370 evaluation cells. Stepwise PVAE contributes 90
-secondary MCAR cells. It does not alter the primary one-shot gate.
+secondary MCAR cells. It does not alter the primary episode-start gate.
 
 ```bash
 uv run snakemake \
@@ -57,7 +57,7 @@ uv run python scripts/analysis/route_redundancy.py \
 Open
 `extra/output/missing_data/analysis/route_gate_core_group_missingness_v1.csv`.
 CUBE-NM proceeds to test only when both AACO and OL pass all three
-predeclared gains at MCAR `p=0.7`: adaptive, nongreedy, and one-shot
+predeclared gains at MCAR `p=0.7`: adaptive, nongreedy, and episode-start
 restoration mean at least `0.01`, with each contrast positive in at least four
 of five instances.
 

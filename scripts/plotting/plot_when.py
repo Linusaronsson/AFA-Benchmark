@@ -33,6 +33,7 @@ import pandas as pd
 from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
+    DATASET_LABELS_SHORT,
     INDUCED_MECHANISMS,
     MECHANISM_LABELS,
     MECHANISM_MARKERS,
@@ -50,17 +51,6 @@ INK_MUTED = "#52514e"
 GRID = "#d8d7d2"
 SURFACE = "#ffffff"
 
-DATASET_LABELS = {
-    "cube": "CUBE",
-    "cube_nm": "CUBE-NM",
-    "cube_nonuniform_costs": "CUBE-NUC",
-    "heart_disease": "Heart disease",
-    "actg": "ACTG175",
-    "diabetes": "Diabetes",
-    "nhanes_mortality": "NHANES",
-    "ckd": "CKD",
-    "physionet": "PhysioNet",
-}
 # Panel (b) fixes the rate rather than averaging over it, because damage grows
 # with the rate and mixing rates would blur the very spread being explained.
 STRUCTURE_RATE = 0.7
@@ -192,7 +182,7 @@ def _draw_panel_b(axes: list[Axes], points: pd.DataFrame) -> None:
             # of this panel nor the one beside it is overwritten.
             leans_left = x > midpoint
             axis.annotate(
-                DATASET_LABELS.get(str(dataset), str(dataset)),
+                DATASET_LABELS_SHORT.get(str(dataset), str(dataset)),
                 (x, float(group["D"].max())),
                 textcoords="offset points",
                 xytext=(-4 if leans_left else 4, 4),
