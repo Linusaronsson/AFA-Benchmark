@@ -98,12 +98,10 @@ def namespace_runs(
     """
     Each run's execution signature, ordered by when the run started.
 
-    One signature per run rather than one per namespace. A namespace legitimately
-    accumulates runs, as a resume or a later dataset added to a finished matrix,
-    and those differ in `git_commit` without making anything incomparable. What
-    must not span environments is a compared pair, and `plot_compute.py` already
-    carries `hardware_signature` in its pairing index, so that is enforced where
-    the comparison actually happens.
+    One signature per run, not per namespace: a namespace accumulates runs from
+    resumes and later datasets, which differ in `git_commit` without making
+    anything incomparable. `plot_compute.py` carries `hardware_signature` in its
+    pairing index, so no compared pair can span environments.
     """
     runs = []
     for path in sorted((manifest_root / namespace).glob("*.json")):

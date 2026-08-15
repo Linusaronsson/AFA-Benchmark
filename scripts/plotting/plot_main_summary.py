@@ -1,10 +1,7 @@
 """Render the paper's main figure, direct learning against generative restoration."""
 
-# Panel (a) is what a practitioner gets, one dumbbell per dataset and method in
-# that dataset's own primary metric with the complete-data ceiling ticked. The
-# comparison is within a row, so mixing accuracy and macro-F1 across rows is
-# sound. Panel (b) is why, the restoration gain against the missingness damage
-# over every dataset, method, mechanism and rate.
+# Writes three figures: the per-dataset levels in raw units and in gap units,
+# and the restoration gain against the missingness damage over every cell.
 
 from __future__ import annotations
 
@@ -24,23 +21,24 @@ from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     DATASET_LABELS,
+    GRID,
+    INK,
+    INK_MUTED,
     LEGEND_STRIP_IN,
     MECHANISM_LABELS,
     METHOD_COLORS,
     METHOD_LABELS,
     METHOD_MARKERS,
     PRIMARY_METHODS,
+    SURFACE,
     TEXT_WIDTH_IN,
+    WEDGE,
+    apply_paper_style,
 )
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-INK = "#0b0b0b"
-INK_MUTED = "#52514e"
-GRID = "#d8d7d2"
-WEDGE = "#f0efec"
-SURFACE = "#ffffff"
 
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
 
@@ -375,22 +373,16 @@ def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
         ha="right",
         va="top",
     )
-    # Marker as well as colour, so method identity survives a greyscale print
-    # and does not rest on hue alone. Mechanism moved to the identification
-    # figure, which took this panel from 16 visual classes to 4.
+    # Marker as well as colour, so identity survives a greyscale print.
     for method in PRIMARY_METHODS:
         subset = _rows(panel_b, _column(panel_b, "method") == method)
         if subset.empty:
             continue
-        # The fitted share as a ray from the origin, with its bootstrap interval
-        # as a fan. Uncertainty is then width rather than a bracketed number, so
-        # DIME's fragility is seen instead of read.
+        # The fitted share as a ray, its bootstrap interval as a fan.
         share, low, high = _share(panel_b, method)
         if not np.isnan(share):
-            # Each ray stops at that method's own largest damage, so its length
-            # shows the lever arm the share was fitted over. DIME reaches only
-            # 0.056 against 0.332 for the OL full state, and a short ray is the
-            # honest picture rather than a defect to extrapolate away.
+            # Each ray stops at that method's own largest damage, so its
+            # length shows the lever arm the share was fitted over.
             span = float(_column(subset, "damage").max())
             axis_b.fill_between(
                 [0.0, span],
@@ -407,19 +399,17 @@ def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
                 color=METHOD_COLORS[method],
                 linewidth=1.4,
                 solid_capstyle="round",
-                # Cased in the surface colour, because the short rays live
-                # inside the dense cluster near the origin and would otherwise
-                # be invisible under the points they summarise.
+                # Cased, or the short rays vanish into the cluster at the
+                # origin that they summarise.
                 path_effects=[
                     patheffects.Stroke(linewidth=2.8, foreground=SURFACE),
                     patheffects.Normal(),
                 ],
                 zorder=4,
             )
-            # Direct labels at the tip, so four series need no legend to decode.
-            # A ray that ends well short of the widest one has its label sitting
-            # in the middle of the plot, where it runs into the next label, so
-            # those are lifted above their own ray instead of trailing it.
+            # Direct labels at the tip, so four series need no legend. A short
+            # ray's label would land mid-plot on its neighbour, so those are
+            # lifted above their own ray instead of trailing it.
             widest = max(
                 float(
                     _column(
@@ -516,23 +506,6 @@ def _share(
     )
 
 
-def _style() -> None:
-    mpl.rcParams.update(
-        {
-            "font.size": 8,
-            "text.color": INK,
-            "axes.labelcolor": INK_MUTED,
-            "axes.edgecolor": GRID,
-            "xtick.color": INK_MUTED,
-            "ytick.color": INK_MUTED,
-            "xtick.major.width": 0.6,
-            "ytick.major.width": 0.6,
-            "figure.facecolor": SURFACE,
-            "axes.facecolor": SURFACE,
-        }
-    )
-
-
 def _method_handles() -> list[Line2D]:
     return [
         Line2D(
@@ -553,7 +526,7 @@ def _method_handles() -> list[Line2D]:
 def plot_levels(
     levels: pd.DataFrame, output: Path, *, absolute: bool = False
 ) -> None:
-    _style()
+    apply_paper_style()
     suffix = "_abs" if absolute else ""
     # Datasets ordered by the largest move any method makes on them.
     moves = levels.assign(
@@ -570,12 +543,9 @@ def plot_levels(
     # leaving a hole in a 3x3. Below that three columns keep the panels wide.
     columns = 4 if len(datasets) > 6 else min(3, len(datasets))
     rows = -(-len(datasets) // columns)
-    # Gap units share y, because a gap scale whose panels autoscale
-    # independently is no longer shared and the whole reason for plotting a gap
-    # is lost. That NHANES then looks flat beside ACTG175 is the finding, not a
-    # defect. Raw units cannot share it: the datasets sit at different levels
-    # and mix accuracy with macro-F1, so one axis would compress every panel to
-    # fit the widest.
+    # Gap units share y, since a gap whose panels autoscale independently is
+    # not shared at all. Raw units cannot: the datasets sit at different levels
+    # and mix accuracy with macro-F1, so one axis compresses every panel.
     figure, axes = plt.subplots(
         rows,
         columns,
@@ -593,12 +563,8 @@ def plot_levels(
     for index in range(len(datasets), rows * columns):
         axes[index // columns][index % columns].set_visible(False)
 
-    # The legend strip is a fixed height in inches, not a fraction of the
-    # figure. As a fraction it was tuned at one row and over-reserves half an
-    # inch of white once the dataset count forces a second.
     height = 1.35 + 1.55 * rows
-    # Name the mechanism on the axis, from the constant rather than a literal,
-    # so the label cannot drift from the cell the figure actually shows.
+    # From the constant, so the label cannot drift from the cell shown.
     figure.supxlabel(
         f"{MECHANISM_LABELS[PANEL_MECHANISM]} missingness rate $p$",
         fontsize=8,
@@ -661,11 +627,9 @@ def plot_levels(
 
 
 def plot_law(law: pd.DataFrame, output: Path) -> None:
-    _style()
-    # No legend box. Four series are within the count that should be direct
-    # labelled, and the labels sit at the ray tips where the number they carry
-    # is the slope of the line they are attached to. The interval is the fan
-    # around each ray rather than a bracket to parse, and `r` moves to prose.
+    apply_paper_style()
+    # No legend box: four series are direct-labelled at the ray tips, where the
+    # number each carries is the slope of the line it sits on.
     figure = plt.figure(figsize=(TEXT_WIDTH_IN, 3.3))
     axis = figure.add_axes((0.10, 0.13, 0.88, 0.84))
     _draw_law(axis, law)
@@ -744,9 +708,8 @@ def main() -> None:
     for method in PRIMARY_METHODS:
         subset = _rows(law, _column(law, "method") == method)
         share, low, high = _share(law, method)
-        # Also report the share over materially damaged cells alone. Where the
-        # two disagree the fit is being carried by cells that lost nothing, and
-        # on DIME they do disagree.
+        # The share over materially damaged cells alone. Where the two
+        # disagree, the fit is carried by cells that lost nothing.
         material = _rows(subset, _column(subset, "damage") >= 0.01)
         damage = _column(material, "damage").to_numpy()
         gain = _column(material, "gain").to_numpy()

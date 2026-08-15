@@ -34,18 +34,19 @@ from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     DATASET_LABELS,
+    GRID,
+    INK_MUTED,
     LEGEND_STRIP_IN,
     MECHANISM_LABELS,
+    METHOD_COLORS,
+    SURFACE,
     TEXT_WIDTH_IN,
+    apply_paper_style,
 )
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-INK = "#0b0b0b"
-INK_MUTED = "#52514e"
-GRID = "#d8d7d2"
-SURFACE = "#ffffff"
 
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
 SHORT, FULL = "ol_with_mask", "ol_full_state"
@@ -145,11 +146,12 @@ def collect(summary_root: Path, mechanism: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# Direct against restored, which is the open-versus-filled distinction the other
-# figures use, in one ink because neither series is a method.
+# The quantity is the full state's disadvantage, so it takes that method's
+# colour; fill separates the training view, as in every other figure.
+STATE_COLOR = METHOD_COLORS[FULL]
 SERIES = (
     ("direct", "Direct learning", (0, (4, 2)), SURFACE),
-    ("restored", "Episode-start restoration", "solid", INK_MUTED),
+    ("restored", "Episode-start restoration", "solid", STATE_COLOR),
 )
 
 
@@ -174,9 +176,9 @@ def _draw(axis: Axes, per_dataset: pd.DataFrame, dataset: str) -> None:
             markersize=4.0,
             linewidth=1.5,
             linestyle=linestyle,
-            color=INK_MUTED,
+            color=STATE_COLOR,
             markerfacecolor=facecolor,
-            markeredgecolor=INK_MUTED,
+            markeredgecolor=STATE_COLOR,
             markeredgewidth=1.1,
             zorder=3,
         )
@@ -192,18 +194,7 @@ def _draw(axis: Axes, per_dataset: pd.DataFrame, dataset: str) -> None:
 
 
 def plot(frame: pd.DataFrame, mechanism: str, output: Path) -> None:
-    mpl.rcParams.update(
-        {
-            "font.size": 8,
-            "text.color": INK,
-            "axes.labelcolor": INK_MUTED,
-            "axes.edgecolor": GRID,
-            "xtick.color": INK_MUTED,
-            "ytick.color": INK_MUTED,
-            "figure.facecolor": SURFACE,
-            "axes.facecolor": SURFACE,
-        }
-    )
+    apply_paper_style()
     # Datasets ordered by how far the two states separate, so the panels that
     # carry the finding come first.
     spread = cast(
@@ -235,7 +226,7 @@ def plot(frame: pd.DataFrame, mechanism: str, output: Path) -> None:
         fontsize=8,
         y=LEGEND_STRIP_IN * 0.65 / height,
     )
-    # Both series are OL, so the shared prefix is dead weight on the axis.
+
     figure.supylabel("$Q(x_S,S,m) - Q(x_S,S)$", fontsize=8, x=0.015)
     handles = [
         Line2D(
@@ -245,9 +236,9 @@ def plot(frame: pd.DataFrame, mechanism: str, output: Path) -> None:
             markersize=4.0,
             linewidth=1.5,
             linestyle=linestyle,
-            color=INK_MUTED,
+            color=STATE_COLOR,
             markerfacecolor=facecolor,
-            markeredgecolor=INK_MUTED,
+            markeredgecolor=STATE_COLOR,
             markeredgewidth=1.1,
             label=label,
         )

@@ -1,17 +1,19 @@
 """
-Shared visual identity for the missing-data methods.
+Shared visual identity for the paper's figures.
 
-Four plotting scripts used to carry four private palettes for the same methods,
-which is how ol_with_mask and ol_full_state ended up as two near-identical
-oranges in one figure and as one colour in another. Everything method-shaped
-lives here instead, and the Hydra plotting config mirrors the colours through
-``method_color_overrides`` (``test_plotting_methods.py`` keeps the two equal).
+Every method-shaped, dataset-shaped and mechanism-shaped constant lives here, so
+figures cannot disagree about what a colour or a name means. The Hydra plotting
+config mirrors the colours through ``method_color_overrides``;
+``test_plotting_methods.py`` keeps the two equal and enforces the separation
+floors below.
 
-The palette is validated over *every* pair rather than adjacent ones only, for
-deuteranopia, protanopia and tritanopia: worst pair 10.3 (deutan) and 15.6
-(normal vision) in OKLab dE x100, against floors of 8 and 15. Re-stepping a
-single entry breaks that guarantee, so change the set as a set.
+The palette is validated over *every* pair, not adjacent ones only, for
+deuteranopia, protanopia and tritanopia: floors of 8 under CVD and 15 for normal
+vision, in OKLab dE x100. Re-stepping one entry breaks that, so change the set
+as a set.
 """
+
+import matplotlib as mpl
 
 METHOD_COLORS = {
     "aaco": "#D55E00",
@@ -22,20 +24,52 @@ METHOD_COLORS = {
     "ol_full_state": "#E69F00",
 }
 
-# ICLR 2026 is single column at 5.5in (iclr2026_conference.sty:50), and
-# \includegraphics[width=\textwidth] scales a figure to it. Author at this width
-# so nothing is resized on inclusion and a point size means what it says. The
-# 7.16in the older scripts used is an IEEEtran double-column leftover.
+# ICLR 2026 is single column at 5.5in (iclr2026_conference.sty:50), so
+# authoring here means \includegraphics[width=\textwidth] scales by 1.0 and a
+# point size means what it says.
 TEXT_WIDTH_IN = 5.5
 
 # Height reserved below a faceted figure for its shared x label and legend.
-# In inches, not a fraction of the figure: as a fraction it was tuned at one row
-# of facets and wasted an inch of white once the dataset count forced three.
+# In inches rather than a fraction, so it does not grow with the row count.
 LEGEND_STRIP_IN = 0.95
 
-# Name the two OL states in the paper's own notation, main.tex:162 writes
-# Q_k(x_S, S, a) and :228 writes Q_1^train(x_S, S, m, a). "OL(with-mask)" did
-# not say what differed, and the difference is the whole point of the contrast.
+# Ink.
+INK = "#0b0b0b"
+INK_MUTED = "#52514e"
+GRID = "#d8d7d2"
+WEDGE = "#f0efec"
+SURFACE = "#ffffff"
+
+
+def apply_paper_style() -> None:
+    """
+    Set the rcParams every paper figure shares.
+
+    ``fonttype 42`` matters beyond consistency: matplotlib defaults to Type 3,
+    which arXiv flags and several venues reject, and Type 3 text neither copies
+    nor searches.
+    """
+    mpl.rcParams.update(
+        {
+            "font.size": 8,
+            "axes.linewidth": 0.6,
+            "text.color": INK,
+            "axes.labelcolor": INK_MUTED,
+            "axes.edgecolor": GRID,
+            "xtick.color": INK_MUTED,
+            "ytick.color": INK_MUTED,
+            "xtick.major.width": 0.6,
+            "ytick.major.width": 0.6,
+            "figure.facecolor": SURFACE,
+            "axes.facecolor": SURFACE,
+            "pdf.fonttype": 42,
+            "ps.fonttype": 42,
+        }
+    )
+
+
+# The two OL states in the paper's own notation: main.tex:162 writes
+# Q_k(x_S, S, a) and :228 writes Q_1^train(x_S, S, m, a).
 METHOD_LABELS = {
     "aaco": "AACO",
     "aaco_doubly_robust": "AACO (doubly robust)",
@@ -45,10 +79,8 @@ METHOD_LABELS = {
     "ol_full_state": "OL, $Q(x_S,S,m)$",
 }
 
-# Dataset names in two registers, because a wide facet title and a narrow table
-# column want different lengths. Five scripts carried private copies of these,
-# which is why adding MiniBooNE printed a correct title in one figure and the
-# raw key in four others. A dataset missing here shows its key, so add both.
+# Two registers, because a wide facet title and a narrow table column want
+# different lengths. A dataset missing here shows its raw key, so add both.
 DATASET_LABELS = {
     "cube": "CUBE",
     "cube_nm": "CUBE-NM",
@@ -114,12 +146,10 @@ MECHANISM_MARKERS = {
 }
 
 # One hue light to dark, because the mechanisms are ordered rather than
-# categorical: identification degrades along this list and the ramp says so.
-# Purple is clear of every method hue, so a mechanism can never be misread as a
-# method; the identification figure previously drew self-masking MNAR in AACO's
-# vermillion. Adjacent steps separate by at least 13.9 in OKLab dE x100 under
-# normal vision and all three CVD simulations, and the lightest step still
-# carries on white in print.
+# categorical: identification degrades along this list. Purple is clear of every
+# method hue, so a mechanism cannot be misread as a method. Adjacent steps
+# separate by at least 13.9 in OKLab dE x100 under normal vision and all three
+# CVD simulations.
 MECHANISM_COLORS = {
     "mcar": "#b7a3d4",
     "mar": "#8f6fba",

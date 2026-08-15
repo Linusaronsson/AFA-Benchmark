@@ -38,7 +38,9 @@ from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     DATASET_LABELS_SHORT,
+    GRID,
     INDUCED_MECHANISMS,
+    INK_MUTED,
     MECHANISM_COLORS,
     MECHANISM_LABELS,
     MECHANISM_MARKERS,
@@ -46,16 +48,14 @@ from afabench.plotting.methods import (
     METHOD_LABELS,
     METHOD_MARKERS,
     PRIMARY_METHODS,
+    SURFACE,
     TEXT_WIDTH_IN,
+    apply_paper_style,
 )
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
-INK = "#0b0b0b"
-INK_MUTED = "#52514e"
-GRID = "#d8d7d2"
-SURFACE = "#ffffff"
 
 # The structure figure fixes the rate rather than averaging over it, because
 # damage grows with the rate and mixing rates would blur the very spread being
@@ -114,11 +114,8 @@ def _draw_identification(axis: Axes, gaps: pd.DataFrame) -> None:
         ).sort_values("p")
         if subset.empty:
             continue
-        # The mechanisms are ordered by how far identification degrades, so they
-        # take the sequential ramp rather than four hues. Self-masking MNAR is
-        # the darkest and the only solid line because it is the one `prop:mnar`
-        # says is not identified. The old encoding drew it in AACO's vermillion,
-        # which made a mechanism look like a method.
+        # Self-masking MNAR is darkest and the only solid line: it is the one
+        # `prop:mnar` says is not identified.
         unidentified = mechanism == "mnar_self"
         color = MECHANISM_COLORS[mechanism]
         axis.errorbar(
@@ -153,10 +150,8 @@ def _draw_structure(axis: Axes, points: pd.DataFrame) -> None:
     Damage per dataset, datasets ordered by how interchangeable their routes are.
 
     A dot plot rather than damage against a continuous `rho_top`, because the
-    claim is an ordering and the dataset is the unit. Names become axis ticks,
-    which is what removes the overlapping annotations the scatter needed, and
-    the four methods sit on one row so a reader compares them where they differ
-    rather than across two sub-panels.
+    claim is an ordering and the dataset is the unit. Names become axis ticks
+    and the four methods share a row, so they are compared where they differ.
     """
     order = cast(
         "pd.Series",
@@ -207,8 +202,7 @@ def _draw_structure(axis: Axes, points: pd.DataFrame) -> None:
     right.set_yticklabels(
         [f"{float(order[name]):.2f}" for name in datasets], fontsize=6.5
     )
-    # Head the column rather than labelling its middle, where a centred label
-    # lands on top of the centre row's own value.
+    # Head the column; a centred label lands on the middle row's own value.
     right.annotate(
         r"$\rho_{\mathrm{top}}$",
         (1.0, 1.0),
@@ -233,18 +227,7 @@ def plot(
     points: pd.DataFrame | None,
     output: Path,
 ) -> None:
-    mpl.rcParams.update(
-        {
-            "font.size": 8,
-            "text.color": INK,
-            "axes.labelcolor": INK_MUTED,
-            "axes.edgecolor": GRID,
-            "xtick.color": INK_MUTED,
-            "ytick.color": INK_MUTED,
-            "figure.facecolor": SURFACE,
-            "axes.facecolor": SURFACE,
-        }
-    )
+    apply_paper_style()
     output.parent.mkdir(parents=True, exist_ok=True)
 
     figure, axis = plt.subplots(figsize=(TEXT_WIDTH_IN, 2.9))
@@ -256,8 +239,7 @@ def plot(
     if points is None:
         return
 
-    # The structure claim is its own figure. Two questions that share nothing
-    # but a caption do not belong in one float.
+    # The structure claim is its own figure.
     structure_output = output.with_name(
         f"{output.stem}_structure{output.suffix}"
     )

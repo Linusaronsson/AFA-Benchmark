@@ -16,11 +16,15 @@ from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     DATASET_LABELS_SHORT,
+    GRID,
+    INK_MUTED,
     LEGEND_STRIP_IN,
     METHOD_COLORS,
     METHOD_LABELS,
     PRIMARY_METHODS,
+    SURFACE,
     TEXT_WIDTH_IN,
+    apply_paper_style,
 )
 
 if TYPE_CHECKING:
@@ -39,11 +43,6 @@ ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
 DIRECT = "restricted"
 GENERATIVE = "pvae_label_conditioned"
 RESTORED = {"pvae_label_conditioned", "pvae_label_free", "pvae_stepwise"}
-
-INK = "#0b0b0b"
-INK_MUTED = "#52514e"
-GRID = "#d8d7d2"
-SURFACE = "#ffffff"
 
 
 def _column(frame: pd.DataFrame, name: str) -> pd.Series:
@@ -284,23 +283,10 @@ def panel_cells(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def plot(frame: pd.DataFrame, output: Path) -> None:
-    plt.rcParams.update(
-        {
-            "font.size": 8,
-            "axes.linewidth": 0.6,
-            "axes.edgecolor": GRID,
-            "text.color": INK,
-            "axes.labelcolor": INK_MUTED,
-            "xtick.color": INK_MUTED,
-            "ytick.color": INK_MUTED,
-            "figure.facecolor": SURFACE,
-            "axes.facecolor": SURFACE,
-        }
-    )
+    apply_paper_style()
     cells = panel_cells(frame)
     datasets = sorted(set(_column(cells, "dataset")))
-    # Four columns past six datasets, so eight fills a 2x4 exactly rather than
-    # leaving a hole in a 3x3 and a third of a page of white.
+    # Four columns past six datasets, so eight fills a 2x4 exactly.
     columns = 4 if len(datasets) > 6 else min(3, len(datasets))
     rows = -(-len(datasets) // columns)
     figure, axes = plt.subplots(
@@ -366,8 +352,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             mticker.FuncFormatter(lambda value, _: f"{value:,.0f}")
         )
         axis.tick_params(labelsize=7)
-        # A 1.2in panel at four columns cannot carry three log labels like
-        # "10,000" without them touching, so thin harder as the grid widens.
+        # A 1.2in panel cannot carry three log labels without them touching.
         _thin_x_ticks(axis, keep=2 if columns > 3 else 3)
         axis.set_title(DATASET_LABELS_SHORT.get(dataset, dataset), fontsize=8)
         axis.grid(True, color=GRID, linewidth=0.4, alpha=0.55)
