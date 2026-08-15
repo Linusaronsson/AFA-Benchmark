@@ -299,7 +299,9 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
     )
     cells = panel_cells(frame)
     datasets = sorted(set(_column(cells, "dataset")))
-    columns = min(3, len(datasets))
+    # Four columns past six datasets, so eight fills a 2x4 exactly rather than
+    # leaving a hole in a 3x3 and a third of a page of white.
+    columns = 4 if len(datasets) > 6 else min(3, len(datasets))
     rows = -(-len(datasets) // columns)
     figure, axes = plt.subplots(
         rows,
@@ -364,7 +366,9 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             mticker.FuncFormatter(lambda value, _: f"{value:,.0f}")
         )
         axis.tick_params(labelsize=7)
-        _thin_x_ticks(axis)
+        # A 1.2in panel at four columns cannot carry three log labels like
+        # "10,000" without them touching, so thin harder as the grid widens.
+        _thin_x_ticks(axis, keep=2 if columns > 3 else 3)
         axis.set_title(DATASET_LABELS_SHORT.get(dataset, dataset), fontsize=8)
         axis.grid(True, color=GRID, linewidth=0.4, alpha=0.55)
         axis.set_axisbelow(True)
@@ -379,7 +383,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
         fontsize=8,
         y=LEGEND_STRIP_IN * 0.65 / height,
     )
-    figure.supylabel("Primary metric", fontsize=8, x=0.015)
+    figure.supylabel("Accuracy or macro-F1", fontsize=8, x=0.015)
     handles = [
         Line2D(
             [],

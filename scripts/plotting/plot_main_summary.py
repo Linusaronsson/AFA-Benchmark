@@ -19,13 +19,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from matplotlib import patheffects
 from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     DATASET_LABELS,
     LEGEND_STRIP_IN,
+    MECHANISM_LABELS,
     METHOD_COLORS,
     METHOD_LABELS,
+    METHOD_MARKERS,
     PRIMARY_METHODS,
     TEXT_WIDTH_IN,
 )
@@ -368,21 +371,49 @@ def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
         ha="right",
         va="top",
     )
-    # Colour alone carries the method here. Mechanism moved to the
-    # identification figure, which took this panel from 16 classes to 4.
+    # Marker as well as colour, so method identity survives a greyscale print
+    # and does not rest on hue alone. Mechanism moved to the identification
+    # figure, which took this panel from 16 visual classes to 4.
     for method in PRIMARY_METHODS:
         subset = _rows(panel_b, _column(panel_b, "method") == method)
         if subset.empty:
             continue
+        # The fitted share as a ray from the origin. A point's height above or
+        # below its method's ray is what it contributes to that share, which is
+        # the reading the legend numbers are meant to support.
+        share, _, _ = _share(panel_b, method)
+        if not np.isnan(share):
+            # Each ray stops at that method's own largest damage, so its length
+            # shows the lever arm the share was fitted over. DIME reaches only
+            # 0.056 against 0.332 for the OL full state, and a short ray is the
+            # honest picture rather than a defect to extrapolate away.
+            span = float(_column(subset, "damage").max())
+            axis_b.plot(
+                [0.0, span],
+                [0.0, share * span],
+                color=METHOD_COLORS[method],
+                linewidth=1.4,
+                solid_capstyle="round",
+                # Cased in the surface colour, because the short rays live
+                # inside the dense cluster near the origin and would otherwise
+                # be invisible under the points they summarise.
+                path_effects=[
+                    patheffects.Stroke(linewidth=2.8, foreground=SURFACE),
+                    patheffects.Normal(),
+                ],
+                zorder=4,
+            )
         axis_b.scatter(
             subset["damage"],
             subset["gain"],
-            s=17,
-            marker="o",
+            s=15,
+            marker=METHOD_MARKERS[method],
             facecolor=METHOD_COLORS[method],
             edgecolor=SURFACE,
-            linewidth=0.4,
-            alpha=0.85,
+            linewidth=0.35,
+            # More than half the cells sit near the origin, so keep the marks
+            # light enough that the pile there reads as density.
+            alpha=0.7,
             zorder=3,
         )
     axis_b.set_xlim(lo, hi)
@@ -405,6 +436,41 @@ def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
 def _correlation(panel_b: pd.DataFrame, method: str) -> float:
     subset = _rows(panel_b, _column(panel_b, "method") == method)
     return float(_column(subset, "damage").corr(_column(subset, "gain")))
+
+
+def _share(
+    panel_b: pd.DataFrame, method: str, rng: np.random.Generator | None = None
+) -> tuple[float, float, float]:
+    """
+    Fraction of the damage restoration returns, with a bootstrap interval.
+
+    Least squares through the origin, which is the quantity the paper claims and
+    the estimator settled on when the pooled `mean(R)/mean(D)` was retracted as a
+    pooling artifact. Correlation answers a different question, whether `R` moves
+    with `D`, and the two rank the methods differently.
+
+    The fit weights each cell by `D^2`, so the more than half of all cells that
+    sit at `|D| < 0.01` barely count. That is the point: a cell that lost nothing
+    carries no information about what share comes back.
+    """
+    subset = _rows(panel_b, _column(panel_b, "method") == method)
+    damage = _column(subset, "damage").to_numpy()
+    gain = _column(subset, "gain").to_numpy()
+    if not len(damage) or not float(damage @ damage):
+        return (float("nan"), float("nan"), float("nan"))
+    point = float(damage @ gain / (damage @ damage))
+    rng = rng or np.random.default_rng(SEED)
+    draws = rng.integers(0, len(damage), (BOOTSTRAP_DRAWS, len(damage)))
+    shares = [
+        float(damage[i] @ gain[i] / (damage[i] @ damage[i]))
+        for i in draws
+        if float(damage[i] @ damage[i])
+    ]
+    return (
+        point,
+        float(np.percentile(shares, 2.5)),
+        float(np.percentile(shares, 97.5)),
+    )
 
 
 def _style() -> None:
@@ -488,15 +554,15 @@ def plot_levels(
     # figure. As a fraction it was tuned at one row and over-reserves half an
     # inch of white once the dataset count forces a second.
     height = 1.35 + 1.55 * rows
+    # Name the mechanism on the axis, from the constant rather than a literal,
+    # so the label cannot drift from the cell the figure actually shows.
     figure.supxlabel(
-        "Training missingness rate",
+        f"{MECHANISM_LABELS[PANEL_MECHANISM]} missingness rate $p$",
         fontsize=8,
         y=LEGEND_STRIP_IN * 0.65 / height,
     )
     figure.supylabel(
-        "Score in the dataset's primary metric"
-        if absolute
-        else "Gap below complete-data ceiling",
+        "Accuracy or macro-F1" if absolute else "Gap below ceiling",
         fontsize=8,
         x=0.015,
     )
@@ -555,37 +621,50 @@ def plot_law(law: pd.DataFrame, output: Path) -> None:
     _style()
     # The data box is square, since a 45 degree diagonal is what makes "full
     # recovery" read as a position. A square box cannot fill the text width, so
-    # the legend takes the space beside it and carries each correlation.
+    # the legend takes the space beside it and carries each method's numbers.
     figure = plt.figure(figsize=(TEXT_WIDTH_IN, 3.1))
     axis = figure.add_axes((0.11, 0.13, 0.55, 0.84))
     _draw_law(axis, law)
     axis.set_title("")
-    handles = [
-        Line2D(
-            [],
-            [],
-            marker="o",
-            linestyle="none",
-            markersize=4.5,
-            markerfacecolor=METHOD_COLORS[method],
-            markeredgecolor=SURFACE,
-            markeredgewidth=0.5,
-            label=(
-                f"{METHOD_LABELS[method]}\n"
-                f"    $r={_correlation(law, method):.2f}$"
-            ),
+    handles = []
+    for method in PRIMARY_METHODS:
+        share, low, high = _share(law, method)
+        subset = _rows(law, _column(law, "method") == method)
+        span = float(_column(subset, "damage").max())
+        # Share first, because it is the claim. Then the interval, and the range
+        # it was fitted over: DIME never loses more than 0.06 while the OL full
+        # state reaches 0.33, so the same-looking number rests on a sixth of the
+        # lever arm, which is what its wide interval is reporting.
+        handles.append(
+            Line2D(
+                [],
+                [],
+                marker=METHOD_MARKERS[method],
+                linestyle="none",
+                markersize=4.5,
+                markerfacecolor=METHOD_COLORS[method],
+                markeredgecolor=SURFACE,
+                markeredgewidth=0.5,
+                label=(
+                    f"{METHOD_LABELS[method]}\n"
+                    f"    returns ${share:.2f}$ "
+                    f"$[{low:.2f}, {high:.2f}]$\n"
+                    f"    $r={_correlation(law, method):.2f}$, "
+                    f"over $D_r \\leq {span:.2f}$"
+                ),
+            )
         )
-        for method in PRIMARY_METHODS
-    ]
     figure.legend(
         handles=handles,
         loc="center left",
         frameon=False,
-        fontsize=7,
+        # 6.5pt and a tighter anchor, because the three-line entries overran the
+        # page edge at 7pt; verified by measuring the legend extent, not by eye.
+        fontsize=6.5,
         labelcolor=INK_MUTED,
-        labelspacing=1.1,
-        handletextpad=0.6,
-        bbox_to_anchor=(0.68, 0.55),
+        labelspacing=1.0,
+        handletextpad=0.5,
+        bbox_to_anchor=(0.655, 0.55),
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
@@ -660,9 +739,23 @@ def main() -> None:
     )
     for method in PRIMARY_METHODS:
         subset = _rows(law, _column(law, "method") == method)
+        share, low, high = _share(law, method)
+        # Also report the share over materially damaged cells alone. Where the
+        # two disagree the fit is being carried by cells that lost nothing, and
+        # on DIME they do disagree.
+        material = _rows(subset, _column(subset, "damage") >= 0.01)
+        damage = _column(material, "damage").to_numpy()
+        gain = _column(material, "gain").to_numpy()
+        restricted = (
+            float(damage @ gain / (damage @ damage))
+            if len(damage)
+            else float("nan")
+        )
         print(
-            f"  {METHOD_LABELS[method]:5s} n={len(subset):3d} "
-            f"r={_correlation(law, method):+.3f}"
+            f"  {METHOD_LABELS[method]:18s} n={len(subset):3d} "
+            f"r={_correlation(law, method):+.3f} "
+            f"share={share:.3f} [{low:.3f}, {high:.3f}] "
+            f"share|D>=0.01={restricted:.3f} (n={len(material)})"
         )
     print(
         f"wrote {arguments.output}, {absolute_output}, {law_output} "
