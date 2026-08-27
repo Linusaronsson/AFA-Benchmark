@@ -210,8 +210,8 @@ class GreedyDynamicSelection(nn.Module):
 
     def fit(  # noqa: PLR0915, PLR0912, C901
         self,
-        train_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
-        val_loader: DataLoader[tuple[torch.Tensor, torch.Tensor]],
+        train_loader: DataLoader[Any],
+        val_loader: DataLoader[Any],
         lr: float,
         nepochs: int,
         max_features: int,
@@ -359,7 +359,7 @@ class GreedyDynamicSelection(nn.Module):
                         # Get selections.
                         # soft = selector_layer(logits, temp)
                         soft = selector_layer(logits_cost, temp)
-                        soft *= has_available.unsqueeze(1)
+                        soft = soft * has_available.unsqueeze(1)
                         if len(x.shape) == 4:
                             soft_feat = patch_soft_to_feature_soft(soft, x)
                         elif isinstance(unmasker, CubeNMUnmasker):
@@ -385,7 +385,7 @@ class GreedyDynamicSelection(nn.Module):
 
                         # Update mask, ensure no repeats.
                         dist = selector_layer(logits_cost, 1e-6)
-                        dist *= has_available.unsqueeze(1)
+                        dist = dist * has_available.unsqueeze(1)
                         sel_idx = torch.argmax(dist, dim=1, keepdim=True)
                         # Zero-based indexing for unmaskers
                         afa_selection = sel_idx.to(torch.long)
@@ -458,7 +458,7 @@ class GreedyDynamicSelection(nn.Module):
                                 )
                             else:
                                 soft = selector_layer(logits_cost, temp)
-                            soft *= has_available.unsqueeze(1)
+                            soft = soft * has_available.unsqueeze(1)
                             if len(x.shape) == 4:
                                 soft_feat = patch_soft_to_feature_soft(soft, x)
                             elif isinstance(unmasker, CubeNMUnmasker):
