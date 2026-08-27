@@ -177,6 +177,7 @@ RESTORATION_PVAE_PARAMS = config.get("restoration_pvae_params", {})
 PRETRAIN_RUNTIME_PARAMS = config.get("pretrain_runtime_params", {})
 TRAIN_RUNTIME_PARAMS = config.get("train_runtime_params", {})
 EVAL_PARAMS = config.get("eval_params", {})
+PRETRAIN_REUSE = config.get("missing_data_pretrain_reuse", {})
 RESTORATION_BATCH_SIZE = int(config.get("restoration_batch_size", 1024))
 EVAL_BATCH_SIZE_OVERRIDE = config.get("eval_batch_size")
 STEPWISE_EVAL_BATCH_SIZE = int(config.get("stepwise_eval_batch_size", 16))
@@ -375,6 +376,21 @@ def method_pretrain(wildcards):
         if wildcards.strategy == "pvae_stepwise"
         else wildcards.strategy
     )
+    reuse_kind = PRETRAIN_REUSE.get(key, {}).get(strategy)
+    if reuse_kind == "incomplete_restoration_pvae":
+        return incomplete_pvae(
+            wildcards.dataset,
+            wildcards.mechanism,
+            wildcards.p,
+            wildcards.instance,
+        )
+    if reuse_kind == "oracle_restoration_pvae":
+        return oracle_pvae(wildcards.dataset, wildcards.instance)
+    if reuse_kind is not None:
+        raise ValueError(
+            f"Unknown pretraining reuse target for {key}/{strategy}: "
+            f"{reuse_kind}"
+        )
     return (
         f"{ROOT}/pretrained/{NAMESPACE}/{key}/dataset-{wildcards.dataset}/"
         f"mechanism-{wildcards.mechanism}+p-{wildcards.p}+"
@@ -921,7 +937,7 @@ def pretrain_extra(wildcards):
     key = wildcards.pretrain_key
     script = PRETRAIN_SCRIPT_NAMES[key]
     params = [PRETRAIN_PARAMS[key]] if PRETRAIN_PARAMS[key] else []
-    if script == "odin":
+    if script in {"jafa", "odin"}:
         respect = wildcards.strategy == "restricted"
         params.append(
             f"respect_source_availability={str(respect).lower()}"

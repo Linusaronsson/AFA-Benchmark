@@ -9,11 +9,13 @@ method_name_mapping:
   dime: DIME
   dime_feature_marginal_ipw: DIME (feature-marginal IPW)
   jafa: JAFA
+  jafa_full_state: JAFA (full state)
   ol_with_mask: OL, $Q(x_S,S)$
   ol_without_mask: OL (values only)
   ol_full_state: OL, $Q(x_S,S,m)$
   odin_model_based: ODIN(model-based)
   odin_model_free: ODIN(model-free)
+  odin_model_free_full_state: ODIN(model-free, full state)
   aaco: AACO
   aaco_doubly_robust: AACO (doubly robust)
   aaco_nn: AACO(NN)
@@ -29,11 +31,13 @@ method_policy_family_mapping:
   dime: dime
   dime_feature_marginal_ipw: dime
   jafa: jafa
+  jafa_full_state: jafa
   ol_with_mask: ol
   ol_without_mask: ol
   ol_full_state: ol
   odin_model_based: odin
   odin_model_free: odin
+  odin_model_free_full_state: odin
   aaco: aaco
   aaco_doubly_robust: aaco
   aaco_nn: aaco

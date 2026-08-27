@@ -63,6 +63,16 @@ missing_data_method_overrides:
     allowed_strategies: []
 
 missing_data_method_variants:
+  jafa_full_state:
+    base_method: jafa
+    train_params:
+      - agent.use_action_availability=true
+    include_complete_data: true
+  odin_model_free_full_state:
+    base_method: odin_model_free
+    train_params:
+      - agent.use_action_availability=true
+    include_complete_data: true
   aaco_doubly_robust:
     base_method: aaco
     train_params:

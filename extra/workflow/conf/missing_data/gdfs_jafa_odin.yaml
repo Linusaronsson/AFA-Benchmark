@@ -1,0 +1,10 @@
+methods: [gdfs, jafa, odin_model_free]
+strategies: [restricted, pvae_label_conditioned]
+include_complete_data: true
+include_method_variants: true
+run_confirmatory_analysis: false
+
+missing_data_pretrain_reuse:
+  pvae:
+    complete: oracle_restoration_pvae
+    restricted: incomplete_restoration_pvae

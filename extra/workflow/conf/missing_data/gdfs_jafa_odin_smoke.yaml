@@ -1,0 +1,40 @@
+artifact_namespace: gdfs_jafa_odin_smoke_v1
+classifier_scope: per_instance
+device: cpu
+smoke_test: true
+eval_dataset_split: val
+dataset_instance_indices: [0]
+datasets: [cube_nm]
+
+dataset_generation_params:
+  cube_nm:
+    - dataset.kwargs.n_samples=128
+
+classifier_params:
+  default:
+    - batch_size=32
+
+eval_batch_size: 32
+restoration_batch_size: 64
+include_complete_data: true
+include_method_variants: true
+run_confirmatory_analysis: false
+
+missingness:
+  mechanisms: [mcar]
+  probabilities: [0.5]
+
+methods: [gdfs, jafa, odin_model_free]
+strategies: [restricted, pvae_label_conditioned]
+
+pretrain_runtime_params:
+  gdfs:
+    - batch_size=32
+
+missing_data_pretrain_reuse:
+  pvae:
+    complete: oracle_restoration_pvae
+    restricted: incomplete_restoration_pvae
+
+eval_params:
+  - eval_only_n_samples=128
