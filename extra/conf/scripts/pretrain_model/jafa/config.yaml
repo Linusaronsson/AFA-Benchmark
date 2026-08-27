@@ -40,3 +40,4 @@ classifier:
 seed: null
 use_wandb: false
 smoke_test: false
+respect_source_availability: false

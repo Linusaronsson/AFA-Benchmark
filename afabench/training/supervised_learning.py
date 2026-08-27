@@ -31,6 +31,14 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def dataset_source_availability(dataset: AFADataset) -> torch.Tensor:
+    availability = getattr(dataset, "source_availability", None)
+    if availability is None:
+        msg = "Dataset does not define source availability."
+        raise ValueError(msg)
+    return cast("torch.Tensor", availability)
+
+
 def lightning_root() -> Path:
     """Keep disposable Lightning files on node-local storage when available."""
     return Path(os.environ.get("SNIC_TMP", "extra/logs/lightning"))

@@ -48,6 +48,7 @@ class JAFAPretrainConfig:
     use_wandb: bool = False
     smoke_test: bool = False
     initializer: InitializerConfig | None = None
+    respect_source_availability: bool = False
 
 
 cs.store(name="pretrain_jafa", node=JAFAPretrainConfig)

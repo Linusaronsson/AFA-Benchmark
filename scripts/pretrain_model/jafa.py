@@ -22,7 +22,10 @@ from afabench.core.utils import (
     initialize_wandb_run,
     set_seed,
 )
-from afabench.training.supervised_learning import supervised_learning
+from afabench.training.supervised_learning import (
+    dataset_source_availability,
+    supervised_learning,
+)
 
 log = logging.getLogger(__name__)
 
@@ -101,8 +104,14 @@ def main(cfg: JAFAPretrainConfig) -> None:
         metadata_to_save_in_bundle={
             "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
             "seed": cfg.seed,
+            "respect_source_availability": cfg.respect_source_availability,
             "config": asdict(cfg),
         },
+        row_extras_fn=(
+            dataset_source_availability
+            if cfg.respect_source_availability
+            else None
+        ),
     )
 
 

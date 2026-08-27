@@ -264,10 +264,28 @@ class LitJAFAEmbedderClassifier(pl.LightningModule):
 
         return embedding, logits
 
+    @staticmethod
+    def _masked_training_input(
+        features: Features,
+        masking_probability: float,
+        source_availability: Tensor | None,
+    ) -> tuple[MaskedFeatures, FeatureMask]:
+        masked_features, feature_mask, _ = mask_data(
+            features, p=masking_probability
+        )
+        if source_availability is None:
+            return masked_features, feature_mask
+        if source_availability.shape != features.shape:
+            msg = "JAFA source availability must match the feature tensor."
+            raise ValueError(msg)
+        feature_mask &= source_availability.bool()
+        return features * feature_mask.to(dtype=features.dtype), feature_mask
+
     @override
-    def training_step(self, batch: tuple[Tensor, Tensor], batch_idx: int):  # noqa: ANN201
+    def training_step(self, batch: tuple[Tensor, ...], batch_idx: int):  # noqa: ANN201
         features: Features = batch[0]
         label: Label = batch[1]
+        source_availability = batch[2] if len(batch) > 2 else None
 
         assert features.ndim == 2, (
             f"Expected a single batch dimension and single feature dimension, got {features.ndim}"
@@ -283,8 +301,10 @@ class LitJAFAEmbedderClassifier(pl.LightningModule):
         )
         self.log("masking_probability", masking_probability, sync_dist=True)
 
-        masked_features, feature_mask, _ = mask_data(
-            features, p=masking_probability
+        masked_features, feature_mask = self._masked_training_input(
+            features,
+            masking_probability,
+            source_availability,
         )
         _, logits = self(masked_features, feature_mask)
         loss = F.cross_entropy(
@@ -310,9 +330,10 @@ class LitJAFAEmbedderClassifier(pl.LightningModule):
 
     @override
     def validation_step(
-        self, batch: tuple[Tensor, Tensor], batch_idx: int
+        self, batch: tuple[Tensor, ...], batch_idx: int
     ) -> None:
-        feature_values, y = batch
+        feature_values, y = batch[:2]
+        source_availability = batch[2] if len(batch) > 2 else None
 
         assert feature_values.ndim == 2, (
             f"Expected a single batch dimension and single feature dimension, got {feature_values.ndim}"
@@ -322,14 +343,14 @@ class LitJAFAEmbedderClassifier(pl.LightningModule):
         )
 
         # Mask features with minimum probability -> see many features (observations)
-        feature_mask_many_observations = (
-            torch.rand(feature_values.shape, device=feature_values.device)
-            > self.min_masking_probability
+        (
+            feature_values_many_observations,
+            feature_mask_many_observations,
+        ) = self._masked_training_input(
+            feature_values,
+            self.min_masking_probability,
+            source_availability,
         )
-        feature_values_many_observations = feature_values.clone()
-        feature_values_many_observations[
-            feature_mask_many_observations == 0
-        ] = 0
         loss_many_observations, acc_many_observations = self._get_loss_and_acc(
             feature_values_many_observations, feature_mask_many_observations, y
         )
@@ -337,12 +358,14 @@ class LitJAFAEmbedderClassifier(pl.LightningModule):
         self.log("val_acc_many_observations", acc_many_observations)
 
         # Mask features with maximum probability -> see few features (observations)
-        feature_mask_few_observations = (
-            torch.rand(feature_values.shape, device=feature_values.device)
-            > self.max_masking_probability
+        (
+            feature_values_few_observations,
+            feature_mask_few_observations,
+        ) = self._masked_training_input(
+            feature_values,
+            self.max_masking_probability,
+            source_availability,
         )
-        feature_values_few_observations = feature_values.clone()
-        feature_values_few_observations[feature_mask_few_observations == 0] = 0
         loss_few_observations, acc_few_observations = self._get_loss_and_acc(
             feature_values_few_observations, feature_mask_few_observations, y
         )
