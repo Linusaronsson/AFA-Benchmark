@@ -592,6 +592,7 @@ shell.prefix(os.environ.get("AFABENCH_SHELL_PREFIX", ""))
 
 rule all:
     input:
+        EVALUATIONS,
         f"{SUMMARY_DIR}/instance_metrics.csv",
         f"{SUMMARY_DIR}/summary.csv",
         f"{SUMMARY_DIR}/action_rates.csv",
