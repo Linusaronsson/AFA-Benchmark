@@ -97,6 +97,7 @@ class ODINAgentConfig:
     value_dropout: float
     policy_num_cells: list[int]
     policy_dropout: float
+    use_action_availability: bool = False
 
 
 @dataclass

@@ -74,6 +74,7 @@ class JAFAAgentConfig:
 
     gamma: float
     lmbda: float
+    use_action_availability: bool = False
 
 
 @dataclass

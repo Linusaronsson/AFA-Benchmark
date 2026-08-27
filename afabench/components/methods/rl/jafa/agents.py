@@ -33,6 +33,7 @@ class JAFAActionValueModule(nn.Module):
         n_feature_dims: int,
         *,
         allow_stop_action: bool = True,
+        use_action_availability: bool = False,
     ):
         super().__init__()
         self.embedder = embedder
@@ -42,9 +43,11 @@ class JAFAActionValueModule(nn.Module):
         self.dropout = dropout
         self.n_feature_dims = n_feature_dims
         self.allow_stop_action = allow_stop_action
+        self.use_action_availability = use_action_availability
 
         self.net = MLP(
-            in_features=self.embedding_size,
+            in_features=self.embedding_size
+            + (self.action_size - 1 if self.use_action_availability else 0),
             out_features=self.action_size,
             num_cells=self.num_cells,
             dropout=self.dropout,
@@ -65,13 +68,34 @@ class JAFAActionValueModule(nn.Module):
         flat_feature_mask = feature_mask.flatten(
             start_dim=-self.n_feature_dims
         )
+        expected_action_mask_shape = masked_features.shape[
+            : -self.n_feature_dims
+        ] + (self.action_size,)
+        if action_mask.shape != expected_action_mask_shape:
+            msg = (
+                "JAFA action availability must have shape "
+                f"{expected_action_mask_shape}, got {action_mask.shape}."
+            )
+            raise ValueError(msg)
         # Flatten batch dimensions
         flat_masked_features = flat_masked_features.flatten(end_dim=-2)
         flat_feature_mask = flat_feature_mask.flatten(end_dim=-2)
         # We do not want to update the embedder weights using the Q-values, this is done separately in the training loop
         with torch.no_grad():
             embedding = self.embedder(flat_masked_features, flat_feature_mask)
-        qvalues = self.net(embedding)
+        q_input = embedding
+        if self.use_action_availability:
+            continuation_availability = action_mask[..., 1:].flatten(
+                end_dim=-2
+            )
+            q_input = torch.cat(
+                [
+                    embedding,
+                    continuation_availability.to(dtype=embedding.dtype),
+                ],
+                dim=-1,
+            )
+        qvalues = self.net(q_input)
 
         # Unflatten batch dimensions
         qvalues = qvalues.unflatten(
@@ -121,6 +145,7 @@ class JAFAAgent(Agent):
             dropout=self.cfg.action_value_dropout,
             n_feature_dims=self.n_feature_dims,
             allow_stop_action=self.allow_stop_action,
+            use_action_availability=self.cfg.use_action_availability,
         ).to(self.module_device)
 
         self.action_value_tdmodule = TensorDictModule(

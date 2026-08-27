@@ -25,26 +25,64 @@ from afabench.components.methods.rl.odin.models import PointNet
 from afabench.core.types import FeatureMask, MaskedFeatures
 
 
+def _policy_state(
+    mu: Tensor,
+    action_mask: Tensor,
+    *,
+    n_actions: int,
+    use_action_availability: bool,
+) -> Tensor:
+    expected_shape = mu.shape[:-1] + (n_actions,)
+    if action_mask.shape != expected_shape:
+        msg = (
+            "ODIN action availability must have shape "
+            f"{expected_shape}, got {action_mask.shape}."
+        )
+        raise ValueError(msg)
+    if not use_action_availability:
+        return mu
+    return torch.cat(
+        [mu, action_mask[..., 1:].to(dtype=mu.dtype)],
+        dim=-1,
+    )
+
+
 @final
 class ODINValueModule(nn.Module):
     def __init__(
-        self, latent_size: int, num_cells: tuple[int, ...], dropout: float
+        self,
+        latent_size: int,
+        n_actions: int,
+        num_cells: tuple[int, ...],
+        dropout: float,
+        *,
+        use_action_availability: bool = False,
     ):
         super().__init__()
         self.latent_size = latent_size
+        self.n_actions = n_actions
         self.num_cells = num_cells
         self.dropout = dropout
+        self.use_action_availability = use_action_availability
 
         self.net = MLP(
-            in_features=latent_size,
+            in_features=latent_size
+            + (n_actions - 1 if use_action_availability else 0),
             out_features=1,
             num_cells=self.num_cells,
             dropout=self.dropout,
         )
 
     @override
-    def forward(self, mu: Tensor) -> torch.Tensor:
-        return self.net(mu)
+    def forward(self, mu: Tensor, action_mask: Tensor) -> torch.Tensor:
+        return self.net(
+            _policy_state(
+                mu,
+                action_mask,
+                n_actions=self.n_actions,
+                use_action_availability=self.use_action_availability,
+            )
+        )
 
 
 @final
@@ -55,15 +93,19 @@ class ODINPolicyModule(nn.Module):
         n_actions: int,
         num_cells: tuple[int, ...],
         dropout: float,
+        *,
+        use_action_availability: bool = False,
     ):
         super().__init__()
         self.latent_size = latent_size
         self.n_actions = n_actions
         self.num_cells = num_cells
         self.dropout = dropout
+        self.use_action_availability = use_action_availability
 
         self.net = MLP(
-            in_features=latent_size,
+            in_features=latent_size
+            + (n_actions - 1 if use_action_availability else 0),
             out_features=n_actions,
             num_cells=self.num_cells,
             dropout=self.dropout,
@@ -75,7 +117,14 @@ class ODINPolicyModule(nn.Module):
         mu: Tensor,
         action_mask: Bool[Tensor, "batch n_actions"],
     ) -> torch.Tensor:
-        action_logits = self.net(mu)
+        action_logits = self.net(
+            _policy_state(
+                mu,
+                action_mask,
+                n_actions=self.n_actions,
+                use_action_availability=self.use_action_availability,
+            )
+        )
         # By setting the logits of invalid actions to -inf, we prevent them from being selected.
         action_logits[~action_mask] = float("-inf")
         return action_logits
@@ -180,6 +229,7 @@ class ODINAgent(Agent):
             n_actions=self.action_spec.n,  # pyright: ignore[reportAttributeAccessIssue]
             num_cells=tuple(self.cfg.policy_num_cells),
             dropout=self.cfg.policy_dropout,
+            use_action_availability=self.cfg.use_action_availability,
         ).to(self.module_device)
         self.policy_tdmodule = TensorDictSequential(
             [
@@ -202,8 +252,10 @@ class ODINAgent(Agent):
 
         self.value_head = ODINValueModule(
             latent_size=self.latent_size,
+            n_actions=self.action_spec.n,  # pyright: ignore[reportAttributeAccessIssue]
             num_cells=tuple(self.cfg.value_num_cells),
             dropout=self.cfg.value_dropout,
+            use_action_availability=self.cfg.use_action_availability,
         ).to(self.module_device)
 
         self.state_value_tdmodule = TensorDictSequential(
@@ -211,7 +263,7 @@ class ODINAgent(Agent):
                 self.common_tdmodule,
                 TensorDictModule(
                     self.value_head,
-                    in_keys=["mu"],
+                    in_keys=["mu", self.action_mask_key],
                     out_keys=["state_value"],
                 ),
             ]
@@ -222,8 +274,8 @@ class ODINAgent(Agent):
             critic_network=self.state_value_tdmodule,
             clip_epsilon=self.cfg.clip_epsilon,
             entropy_bonus=self.cfg.entropy_bonus,
-            entropy_coef=self.cfg.entropy_coef,
-            critic_coef=self.cfg.critic_coef,
+            entropy_coeff=self.cfg.entropy_coef,
+            critic_coeff=self.cfg.critic_coef,
             loss_critic_type=self.cfg.loss_critic_type,
         ).to(self.module_device)
         self.loss_tdmodule.make_value_estimator(
