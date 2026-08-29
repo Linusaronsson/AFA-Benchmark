@@ -8,7 +8,6 @@ import wandb
 from jaxtyping import Float, Integer
 from tensordict import TensorDictBase
 from torch import Tensor, nn
-from torch.nn import functional as F
 
 from afabench.components.methods.rl.common.custom_types import FeatureSet
 from afabench.core.types import (
@@ -32,37 +31,24 @@ def get_feature_set(
     """Convert partially observed features and their indices to the set representation, together with the number of observed features for each batch element, expected by the embedder."""
     batch_size, n_features = masked_features.shape
 
-    # Preallocate the result tensors
-    feature_set = torch.zeros(
-        (batch_size, n_features, n_features + 1),
-        dtype=torch.float32,
-        device=masked_features.device,
+    observed = feature_mask.bool()
+    lengths = observed.sum(dim=1, dtype=torch.int64)
+    positions = observed.cumsum(dim=1) - 1
+
+    identities = torch.eye(
+        n_features, dtype=torch.float32, device=masked_features.device
+    ).expand(batch_size, -1, -1)
+    elements = torch.cat(
+        (masked_features.float().unsqueeze(-1), identities), dim=-1
     )
-    lengths = torch.zeros(
-        (batch_size,), dtype=torch.int64, device=masked_features.device
+    elements = elements * observed.unsqueeze(-1)
+
+    feature_set = torch.zeros_like(elements)
+    feature_set.scatter_add_(
+        1,
+        positions.clamp_min(0).unsqueeze(-1).expand(-1, -1, n_features + 1),
+        elements,
     )
-
-    # Iterate over the batch
-    for i in range(batch_size):
-        # Get the indices of the observed features
-        observed_feature_indices = feature_mask[i].nonzero(as_tuple=True)[0]
-        lengths[i] = len(observed_feature_indices)
-
-        # Create a mask for the observed features
-        mask = torch.zeros(
-            n_features, dtype=torch.bool, device=masked_features.device
-        )
-        mask[observed_feature_indices] = 1
-
-        # Update feature_set: first column with masked feature values
-        feature_set[i, : len(observed_feature_indices), 0] = masked_features[
-            i, observed_feature_indices
-        ]
-
-        # Update the rest of the feature_set with one-hot encoded indices
-        feature_set[i, : len(observed_feature_indices), 1:] = F.one_hot(
-            observed_feature_indices, num_classes=n_features
-        ).float()
 
     return feature_set, lengths
 
@@ -71,16 +57,18 @@ def shuffle_feature_set(
     feature_set: FeatureSet, lengths: Tensor
 ) -> FeatureSet:
     """Shuffle a feature set."""
-    shuffled_feature_set = torch.zeros_like(
-        feature_set, device=feature_set.device
+    batch_size, set_size, element_size = feature_set.shape
+    valid = torch.arange(set_size, device=feature_set.device).unsqueeze(
+        0
+    ) < lengths.unsqueeze(1)
+    keys = torch.rand(
+        batch_size, set_size, device=feature_set.device
+    ).masked_fill(~valid, float("inf"))
+    order = keys.argsort(dim=1)
+    shuffled = feature_set.gather(
+        1, order.unsqueeze(-1).expand(-1, -1, element_size)
     )
-    for i in range(feature_set.shape[0]):
-        shuffled_feature_set[i, : lengths[i]] = feature_set[
-            i,
-            torch.randperm(int(lengths[i].item()), device=feature_set.device),
-        ]
-
-    return shuffled_feature_set
+    return shuffled.masked_fill(~valid.unsqueeze(-1), 0)
 
 
 def get_image_feature_set(

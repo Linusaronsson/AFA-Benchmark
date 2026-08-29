@@ -49,3 +49,30 @@ def test_is_permutation_invariant() -> None:
     assert torch.allclose(output_1, output_2), (
         "The outputs are not equal for the same input data with different permutations."
     )
+
+
+def test_ignores_padding_and_represents_empty_sets() -> None:
+    encoder = ReadProcessEncoder(
+        set_element_size=2,
+        output_size=3,
+        reading_block_cells=(2,),
+        writing_block_cells=(2,),
+        memory_size=4,
+        processing_steps=2,
+    )
+    lengths = torch.tensor([2, 0])
+    input_set = torch.tensor(
+        [
+            [[1.0, 2.0], [3.0, 4.0], [0.0, 0.0]],
+            [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+        ]
+    )
+    changed_padding = input_set.clone()
+    changed_padding[0, 2] = torch.tensor([100.0, -100.0])
+    changed_padding[1] = 100.0
+
+    output = encoder(input_set, lengths)
+    changed_output = encoder(changed_padding, lengths)
+
+    assert torch.allclose(output, changed_output)
+    assert torch.equal(output[1], encoder.empty_set_vector)

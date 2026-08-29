@@ -112,6 +112,9 @@ class ReadProcessEncoder(nn.Module):
         memories = self.reading_block(
             input_set
         )  # (batch_size, set_size, memory_size)
+        valid = torch.arange(set_size, device=input_set.device).unsqueeze(
+            0
+        ) < lengths.unsqueeze(1)
 
         # Initialize lstm state
         q_t = torch.zeros(
@@ -138,10 +141,7 @@ class ReadProcessEncoder(nn.Module):
             )  # (batch_size, set_size)
 
             # Mask padding elements
-            mask = torch.arange(set_size, device=input_set.device).repeat(
-                batch_size, 1
-            ) < lengths.unsqueeze(1).repeat(1, set_size)
-            e_t[~mask] = float("-inf")
+            e_t.masked_fill_(~valid, float("-inf"))
 
             # Compute attention weights
             a_t = torch.softmax(e_t, dim=-1)  # (batch_size, set_size)

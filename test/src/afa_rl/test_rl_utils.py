@@ -6,56 +6,77 @@ from afabench.components.methods.rl.common.utils import (
     get_feature_set,
     get_image_feature_set,
     resample_invalid_actions,
+    shuffle_feature_set,
 )
 
 
 def test_get_feature_set() -> None:
-    # First case
-    masked_features1 = torch.tensor([3, 0, 0, 2, 0], dtype=torch.float32)
-    feature_mask1 = torch.tensor([1, 0, 0, 1, 0], dtype=torch.bool)
-    expected_feature_set1 = torch.tensor(
+    masked_features = torch.tensor(
         [
-            [3, 1, 0, 0, 0, 0],
-            [2, 0, 0, 0, 1, 0],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0],
+            [3.0, 0.0, 0.0, 2.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 4.0, 3.0, 2.0],
+        ]
+    )
+    feature_mask = torch.tensor(
+        [
+            [True, False, False, True],
+            [False, False, False, False],
+            [True, True, True, True],
+        ]
+    )
+    expected_feature_set = torch.tensor(
+        [
+            [
+                [3, 1, 0, 0, 0],
+                [2, 0, 0, 0, 1],
+                [0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0],
+            ],
+            [[0, 0, 0, 0, 0]] * 4,
+            [
+                [0, 1, 0, 0, 0],
+                [4, 0, 1, 0, 0],
+                [3, 0, 0, 1, 0],
+                [2, 0, 0, 0, 1],
+            ],
         ],
         dtype=torch.float32,
     )
-    expected_length1 = torch.tensor(2, dtype=torch.int64)
-
-    # Second case
-    masked_features2 = torch.tensor([0, 4, 0, 3, 2], dtype=torch.float32)
-    feature_mask2 = torch.tensor([1, 1, 0, 1, 1], dtype=torch.bool)
-    expected_feature_set2 = torch.tensor(
-        [
-            [0, 1, 0, 0, 0, 0],
-            [4, 0, 1, 0, 0, 0],
-            [3, 0, 0, 0, 1, 0],
-            [2, 0, 0, 0, 0, 1],
-            [0, 0, 0, 0, 0, 0],
-        ],
-        dtype=torch.float32,
-    )
-    expected_length2 = torch.tensor(4, dtype=torch.int64)
-
-    # Batched, stack them
-    masked_features = torch.stack([masked_features1, masked_features2])
-    feature_mask = torch.stack([feature_mask1, feature_mask2])
-    expected_feature_set = torch.stack(
-        [expected_feature_set1, expected_feature_set2]
-    )
-    expected_lengths = torch.stack([expected_length1, expected_length2])
+    expected_lengths = torch.tensor([2, 0, 4], dtype=torch.int64)
 
     feature_set, lengths = get_feature_set(masked_features, feature_mask)
-    assert torch.allclose(feature_set, expected_feature_set)
-    assert torch.allclose(lengths, expected_lengths)
+    assert torch.equal(feature_set, expected_feature_set)
+    assert torch.equal(lengths, expected_lengths)
 
-    # Should not crash for large inputs
-    masked_features = torch.randn(64, 128)  # Adjust size as needed
-    feature_mask = torch.randint(0, 2, (64, 128))  # Adjust size as needed
-    get_feature_set(masked_features, feature_mask)
+
+def test_shuffle_feature_set_preserves_observed_features() -> None:
+    masked_features = torch.tensor(
+        [[3.0, 0.0, 0.0, 2.0], [0.0, 0.0, 0.0, 0.0]]
+    ).requires_grad_()
+    feature_mask = torch.tensor(
+        [[True, True, False, True], [False, False, False, False]]
+    )
+    feature_set, lengths = get_feature_set(masked_features, feature_mask)
+
+    shuffled = shuffle_feature_set(feature_set, lengths)
+    identities = shuffled[..., 1:]
+    values_by_feature = (shuffled[..., :1] * identities).sum(dim=1)
+
+    assert torch.equal(identities.sum(dim=1), feature_mask.float())
+    assert torch.equal(
+        values_by_feature, masked_features.detach() * feature_mask
+    )
+    valid = torch.arange(feature_set.shape[1]).unsqueeze(
+        0
+    ) < lengths.unsqueeze(1)
+    assert (
+        torch.count_nonzero(shuffled.masked_select(~valid.unsqueeze(-1))) == 0
+    )
+
+    shuffled[..., 0].sum().backward()
+    assert masked_features.grad is not None
+    assert torch.equal(masked_features.grad, feature_mask.float())
 
 
 def test_get_1d_identity() -> None:
