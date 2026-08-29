@@ -71,6 +71,7 @@ def main() -> None:
     parser.add_argument("--device", required=True)
     parser.add_argument("--cores", type=int, required=True)
     parser.add_argument("--mem-mb", type=int, required=True)
+    parser.add_argument("--job-mem-mb", type=int, required=True)
     parser.add_argument("--gpu-workers", type=int, required=True)
     parser.add_argument("--mps", action="store_true")
     parser.add_argument("--archive-dir")
@@ -105,6 +106,7 @@ def main() -> None:
             "device": arguments.device,
             "cores": arguments.cores,
             "mem_mb": arguments.mem_mb,
+            "job_mem_mb": arguments.job_mem_mb,
             "gpu_workers": arguments.gpu_workers,
             "mps": arguments.mps,
             "archive_dir": arguments.archive_dir,

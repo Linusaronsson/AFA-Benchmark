@@ -8,6 +8,7 @@ usage: run_missing_data.sh --profile NAME --device DEVICE [options] [-- SNAKEMAK
 options:
   --cores N        concurrent CPU slots (default: allocation CPUs or 4)
   --mem-mb N       schedulable memory in MiB (default: 90% of allocation or 22000)
+  --job-mem-mb N   per-rule memory reservation in MiB (default: 3000)
   --gpu-workers N  concurrent CUDA processes (default: 1 for CUDA, otherwise 0)
   --mps            share one CUDA device through a job-local NVIDIA MPS server
   --archive-dir D  archive the completed namespace into D
@@ -25,6 +26,7 @@ profile=""
 device=""
 cores=""
 mem_mb=""
+job_mem_mb=""
 gpu_workers=""
 mps=false
 archive_dir=""
@@ -37,6 +39,7 @@ while (($#)); do
         --device) device=${2:?}; shift 2 ;;
         --cores) cores=${2:?}; shift 2 ;;
         --mem-mb) mem_mb=${2:?}; shift 2 ;;
+        --job-mem-mb) job_mem_mb=${2:?}; shift 2 ;;
         --gpu-workers|--gpu-slots) gpu_workers=${2:?}; shift 2 ;;
         --mps) mps=true; shift ;;
         --archive-dir) archive_dir=${2:?}; shift 2 ;;
@@ -63,6 +66,12 @@ if [[ -z ${mem_mb} ]]; then
 fi
 [[ ${mem_mb} =~ ^[1-9][0-9]*$ ]] || {
     echo "--mem-mb must be a positive integer" >&2
+    exit 2
+}
+
+job_mem_mb=${job_mem_mb:-3000}
+[[ ${job_mem_mb} =~ ^[1-9][0-9]*$ ]] || {
+    echo "--job-mem-mb must be a positive integer" >&2
     exit 2
 }
 
@@ -165,6 +174,7 @@ if [[ ${dry_run} == false ]]; then
     manifest_args=(
         --profile "${profile}" --run-id "${run_id}" --device "${device}"
         --cores "${cores}" --mem-mb "${mem_mb}"
+        --job-mem-mb "${job_mem_mb}"
         --gpu-workers "${gpu_workers}"
     )
     [[ ${mps} == true ]] && manifest_args+=(--mps)
@@ -199,7 +209,7 @@ set +e
     --apptainer-prefix .snakemake/apptainer \
     --cores "${cores}" \
     --resources "mem_mb=${mem_mb}" "gpu=${gpu_workers}" \
-    --default-resources mem_mb=3000 gpu=0 \
+    --default-resources "mem_mb=${job_mem_mb}" gpu=0 \
     --set-resources eval_missing_data_method:mem_mb=4000 \
     --rerun-incomplete \
     --printshellcmds \
