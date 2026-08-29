@@ -27,12 +27,15 @@ from afabench.components.methods.discriminative.common.utils import (
     make_onehot,
     patch_soft_to_feature_soft,
     restore_parameters,
-    selection_soft_to_feature_soft,
 )
 from afabench.components.methods.rl.common.custom_types import (
     AFAFeatureRestorationFn,
 )
-from afabench.components.unmaskers import CubeNMUnmasker
+from afabench.components.unmaskers import (
+    CubeNMUnmasker,
+    DirectUnmasker,
+    GroupedFeatureUnmasker,
+)
 from afabench.core.types import (
     AFAAction,
     AFAInitializer,
@@ -120,21 +123,56 @@ def _unmask_available_rows(
     selection_mask: torch.Tensor,
     has_available: torch.Tensor,
     feature_shape: torch.Size,
+    feature_selection_ids: torch.Tensor | None,
 ) -> torch.Tensor:
-    new_feature_mask = feature_mask.clone().bool()
-    # One `nonzero` shared by the five gathers below, rather than five boolean
-    # index expansions. The `has_available.any()` guard it replaces cost a
-    # device sync to answer a question the empty-index case answers for free.
-    rows = has_available.nonzero(as_tuple=True)[0]
-    new_feature_mask[rows] = unmasker.unmask(
-        masked_features=masked_features[rows],
-        feature_mask=feature_mask[rows].bool(),
-        features=features[rows],
-        afa_selection=selection[rows],
-        selection_mask=selection_mask[rows],
-        feature_shape=feature_shape,
-    )
+    if feature_selection_ids is None:
+        new_feature_mask = unmasker.unmask(
+            masked_features=masked_features,
+            feature_mask=feature_mask.bool(),
+            features=features,
+            afa_selection=selection,
+            selection_mask=selection_mask,
+            feature_shape=feature_shape,
+        )
+        available = has_available.reshape((-1,) + (1,) * len(feature_shape))
+        new_feature_mask = torch.where(
+            available, new_feature_mask, feature_mask.bool()
+        )
+        return new_feature_mask.to(dtype=feature_mask.dtype)
+
+    flat_feature_mask = feature_mask.flatten(start_dim=1).bool()
+    selected_features = selection.reshape(-1, 1) == feature_selection_ids
+    selected_features &= has_available.reshape(-1, 1)
+    new_feature_mask = flat_feature_mask | selected_features
+    new_feature_mask = new_feature_mask.reshape_as(feature_mask)
     return new_feature_mask.to(dtype=feature_mask.dtype)
+
+
+def _feature_selection_ids(
+    unmasker: AFAUnmasker,
+    feature_shape: torch.Size,
+    device: torch.device,
+) -> torch.Tensor | None:
+    if isinstance(unmasker, DirectUnmasker):
+        return torch.arange(feature_shape.numel(), device=device)
+    if isinstance(unmasker, CubeNMUnmasker):
+        return torch.cat(
+            [
+                torch.zeros(
+                    unmasker.n_contexts,
+                    dtype=torch.long,
+                    device=device,
+                ),
+                torch.arange(
+                    1,
+                    feature_shape.numel() - unmasker.n_contexts + 1,
+                    device=device,
+                ),
+            ]
+        )
+    if isinstance(unmasker, GroupedFeatureUnmasker):
+        return unmasker.group_ids.to(device)
+    return None
 
 
 def _feature_marginal_selection_propensities(
@@ -262,6 +300,9 @@ class GreedyDynamicSelection(nn.Module):
         x0 = next(iter(val_loader))[0]
         x0 = x0.to(device)
         feature_shape = torch.Size(list(x0.shape[1:]))
+        feature_selection_ids = _feature_selection_ids(
+            unmasker, feature_shape, device
+        )
 
         if feature_costs is None:
             if len(feature_shape) == 3:
@@ -362,12 +403,12 @@ class GreedyDynamicSelection(nn.Module):
                         soft = soft * has_available.unsqueeze(1)
                         if len(x.shape) == 4:
                             soft_feat = patch_soft_to_feature_soft(soft, x)
-                        elif isinstance(unmasker, CubeNMUnmasker):
-                            soft_feat = selection_soft_to_feature_soft(
-                                soft,
-                                mask_size=mask_size,
-                                n_contexts=unmasker.n_contexts,
-                            )
+                        elif isinstance(
+                            unmasker,
+                            (CubeNMUnmasker, GroupedFeatureUnmasker),
+                        ):
+                            assert feature_selection_ids is not None
+                            soft_feat = soft[:, feature_selection_ids]
                         else:
                             soft_feat = soft
                         m_soft_feat = torch.maximum(m_feat, soft_feat)
@@ -402,6 +443,7 @@ class GreedyDynamicSelection(nn.Module):
                             selection_mask=m_sel,
                             has_available=has_available,
                             feature_shape=feature_shape,
+                            feature_selection_ids=feature_selection_ids,
                         ).to(dtype=x.dtype)
 
                     # Take gradient step.
@@ -441,11 +483,13 @@ class GreedyDynamicSelection(nn.Module):
                             initializer=initializer,
                             selection_availability=selection_availability,
                         )
+                        hard_x_masked = _apply_model_mask(
+                            mask_layer, x, m_feat
+                        )
 
                         for _ in range(max_features):
                             # Evaluate selector model.
-                            x_masked = _apply_model_mask(mask_layer, x, m_feat)
-                            logits = selector(x_masked).flatten(1)
+                            logits = selector(hard_x_masked).flatten(1)
                             logits_cost = logits - log_cost
                             logits_cost = logits_cost - 1e6 * m_sel
                             has_available = (~m_sel.bool()).any(dim=1)
@@ -461,10 +505,12 @@ class GreedyDynamicSelection(nn.Module):
                             soft = soft * has_available.unsqueeze(1)
                             if len(x.shape) == 4:
                                 soft_feat = patch_soft_to_feature_soft(soft, x)
-                            elif isinstance(unmasker, CubeNMUnmasker):
-                                soft_feat = selection_soft_to_feature_soft(
-                                    soft, mask_size, unmasker.n_contexts
-                                )
+                            elif isinstance(
+                                unmasker,
+                                (CubeNMUnmasker, GroupedFeatureUnmasker),
+                            ):
+                                assert feature_selection_ids is not None
+                                soft_feat = soft[:, feature_selection_ids]
                             else:
                                 soft_feat = soft
                             m_soft_feat = torch.maximum(m_feat, soft_feat)
@@ -473,13 +519,14 @@ class GreedyDynamicSelection(nn.Module):
                             afa_selection = sel_idx.to(torch.long)
                             m_feat = _unmask_available_rows(
                                 unmasker=unmasker,
-                                masked_features=x_masked,
+                                masked_features=hard_x_masked,
                                 feature_mask=m_feat,
                                 features=x,
                                 selection=afa_selection,
                                 selection_mask=m_sel,
                                 has_available=has_available,
                                 feature_shape=feature_shape,
+                                feature_selection_ids=feature_selection_ids,
                             ).to(dtype=x.dtype)
 
                             # Evaluate predictor with soft sample.
@@ -489,8 +536,10 @@ class GreedyDynamicSelection(nn.Module):
                             pred = predictor(x_masked)
 
                             # Evaluate predictor with hard sample.
-                            x_masked = _apply_model_mask(mask_layer, x, m_feat)
-                            hard_pred = predictor(x_masked)
+                            hard_x_masked = _apply_model_mask(
+                                mask_layer, x, m_feat
+                            )
+                            hard_pred = predictor(hard_x_masked)
 
                             # Append predictions and labels.
                             pred_list.append(pred)
@@ -967,6 +1016,9 @@ class CMIEstimator(nn.Module):
         x0 = next(iter(val_loader))[0]
         x0 = x0.to(device)
         feature_shape = torch.Size(list(x0.shape[1:]))
+        feature_selection_ids = _feature_selection_ids(
+            unmasker, feature_shape, device
+        )
 
         if feature_costs is None:
             if len(feature_shape) == 3:
@@ -1112,6 +1164,7 @@ class CMIEstimator(nn.Module):
                         selection_mask=m_sel,
                         has_available=has_available,
                         feature_shape=feature_shape,
+                        feature_selection_ids=feature_selection_ids,
                     )
                     x = restore_acquired_features(
                         x,
@@ -1264,6 +1317,7 @@ class CMIEstimator(nn.Module):
                             selection_mask=m_sel,
                             has_available=has_available,
                             feature_shape=feature_shape,
+                            feature_selection_ids=feature_selection_ids,
                         )
                         x = restore_acquired_features(
                             x,

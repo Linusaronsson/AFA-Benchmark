@@ -268,7 +268,9 @@ class MaskingPretrainer(nn.Module):
         for epoch in range(nepochs):
             # Switch model to training mode.
             model.train()
-            epoch_train_loss = 0.0
+            epoch_train_loss = torch.zeros(
+                (), device=device, dtype=torch.float64
+            )
             for batch in train_loader:
                 x, y = batch[:2]
                 availability = batch[3] if len(batch) == 4 else None
@@ -294,9 +296,9 @@ class MaskingPretrainer(nn.Module):
                 loss.backward()
                 opt.step()
                 model.zero_grad()
-                epoch_train_loss += loss.item()
+                epoch_train_loss += loss.detach().double()
 
-            avg_train = epoch_train_loss / len(train_loader)
+            avg_train = epoch_train_loss.item() / len(train_loader)
 
             # Calculate validation loss.
             model.eval()

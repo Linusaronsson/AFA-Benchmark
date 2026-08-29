@@ -35,7 +35,7 @@ def make_onehot(x: torch.Tensor) -> torch.Tensor:
     """Make an approximately one-hot vector one-hot."""
     argmax = torch.argmax(x, dim=1)
     onehot = torch.zeros(x.shape, dtype=x.dtype, device=x.device)
-    onehot[torch.arange(len(x)), argmax] = 1
+    onehot.scatter_(1, argmax.unsqueeze(1), 1)
     return onehot
 
 
