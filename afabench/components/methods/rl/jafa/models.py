@@ -99,14 +99,8 @@ class ReadProcessEncoder(nn.Module):
             f"Expected lengths to have shape (batch_size,), instead got {lengths.shape}"
         )
 
-        # We want to support empty sets as well, but these have to be handled separately, look at the end of the function
-        original_batch_size = input_set.shape[0]
-        nonempty_set_mask = lengths > 0
-
-        # Now only treat the non-empty sets
-        input_set = input_set[nonempty_set_mask]
-        lengths = lengths[nonempty_set_mask]
         batch_size, set_size, _ = input_set.shape
+        nonempty_set_mask = (lengths > 0).unsqueeze(-1)
 
         # Read: Map each set elements to a memory vector
         memories = self.reading_block(
@@ -115,6 +109,7 @@ class ReadProcessEncoder(nn.Module):
         valid = torch.arange(set_size, device=input_set.device).unsqueeze(
             0
         ) < lengths.unsqueeze(1)
+        valid = valid | ~nonempty_set_mask
 
         # Initialize lstm state
         q_t = torch.zeros(
@@ -156,13 +151,11 @@ class ReadProcessEncoder(nn.Module):
             torch.cat((q_t, r_t), dim=1)
         )  # (batch_size, output_size)
 
-        # Empty sets are represented by a learnable vector
-        complete_output = self.empty_set_vector.expand(
-            original_batch_size, -1
-        ).clone()
-        complete_output[nonempty_set_mask] = output
-
-        return complete_output
+        return torch.where(
+            nonempty_set_mask,
+            output,
+            self.empty_set_vector.expand_as(output),
+        )
 
 
 @final

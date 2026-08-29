@@ -103,7 +103,7 @@ class JAFAActionValueModule(nn.Module):
         )
 
         # By setting the Q-values of invalid actions to -inf, we prevent them from being selected greedily.
-        qvalues[~action_mask] = float("-inf")
+        qvalues = qvalues.masked_fill(~action_mask, float("-inf"))
 
         # When trained in a hard budget context, the agent never learns anything about the stop action (0). This becomes a problem during evaluation when it **is** allowed to choose the stop action. Hence, we prevent it from choosing the stop action here. Note that this is not a problem when the agent is trained in a soft budget setting where it collects information about the stop action as well.
         # Using hasattr only because we don't want to retrain soft budget methods
