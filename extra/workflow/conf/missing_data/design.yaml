@@ -49,6 +49,11 @@ train_runtime_params:
     - rl_training_loop.eval_n_times=10
   ol_with_mask: *ol_training
   ol_full_state: *ol_training
+  # JAFA and ODIN plateau by batch 4000. The full-state variants inherit this
+  # through their base method.
+  jafa: &rl_training
+    - rl_training_loop.n_batches=4000
+  odin_model_free: *rl_training
 
 # Missingness-only behavior is layered onto shared base methods. Definitions
 # such as script names, pretrained models, dataset exclusions, and normal
