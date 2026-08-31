@@ -44,6 +44,18 @@ def lightning_root() -> Path:
     return Path(os.environ.get("SNIC_TMP", "extra/logs/lightning"))
 
 
+def ensure_finite_module_state(module: torch.nn.Module) -> None:
+    nonfinite_state = [
+        name
+        for name, tensor in module.state_dict().items()
+        if (tensor.is_floating_point() or tensor.is_complex())
+        and not torch.isfinite(tensor).all()
+    ]
+    if nonfinite_state:
+        msg = f"Refusing to save non-finite model state: {nonfinite_state}"
+        raise FloatingPointError(msg)
+
+
 def _tensor_dataset(
     dataset: AFADataset,
     row_extras_fn: Callable[[AFADataset], torch.Tensor] | None,
@@ -218,6 +230,8 @@ def supervised_learning(
         else:
             log.warning("No best model found. Keeping current model...")
         log.info("Finished setting model state.")
+
+        ensure_finite_module_state(lit_model)
 
         log.info("Saving model...")
 
