@@ -200,7 +200,7 @@ class PartialVAE(nn.Module):
 
         mu = encoding[..., : encoding.shape[1] // 2]
         logvar = encoding[..., encoding.shape[1] // 2 :]
-        std = torch.exp(0.5 * logvar)
+        std = torch.exp(0.5 * logvar.clamp_max(20.0))
         noise = torch.randn(
             std.shape,
             dtype=std.dtype,

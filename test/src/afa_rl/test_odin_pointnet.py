@@ -4,7 +4,11 @@ import pytest
 import torch
 from torch import nn
 
-from afabench.components.methods.rl.odin.models import PointNet, PointNetType
+from afabench.components.methods.rl.odin.models import (
+    PartialVAE,
+    PointNet,
+    PointNetType,
+)
 
 
 def _legacy_forward(
@@ -62,3 +66,32 @@ def test_unique_identity_lookup_preserves_pointnet_update(
             unique_parameter.grad,
             legacy_parameter.grad,
         )
+
+
+def test_partial_vae_bounds_sampling_variance() -> None:
+    model = PartialVAE(
+        pointnet=PointNet(
+            identity_size=1,
+            n_features=1,
+            feature_map_encoder=nn.Identity(),
+            pointnet_type=PointNetType.POINTNETPLUS,
+        ),
+        encoder=nn.Linear(1, 2),
+        decoder=nn.Identity(),
+        latent_size=1,
+    )
+    with torch.no_grad():
+        model.encoder.weight.zero_()
+        model.encoder.bias.copy_(torch.tensor([0.0, 100.0]))
+
+    expected_generator = torch.Generator().manual_seed(1)
+    expected = torch.randn((2, 1), generator=expected_generator) * torch.exp(
+        torch.tensor(10.0)
+    )
+    generator = torch.Generator().manual_seed(1)
+    _, _, logvar, sampled = model.encode(
+        torch.ones((2, 1)), torch.ones((2, 1), dtype=torch.bool), generator
+    )
+
+    torch.testing.assert_close(logvar, torch.full_like(logvar, 100.0))
+    torch.testing.assert_close(sampled, expected)
