@@ -25,7 +25,7 @@ just qa
 ## 2. Local smoke checks
 
 These use one instance, one missingness cell, small datasets, and smoke-test
-training. The core smoke includes episode-start and stepwise PVAE.
+training. The core smoke includes generative restoration and its stepwise PVAE control.
 
 ```bash
 uv run snakemake \
@@ -40,7 +40,7 @@ uv run snakemake \
 ## 3. Clean CUBE/CUBE-NM validation
 
 The complete matrix has 3,370 evaluation cells. Stepwise PVAE contributes 90
-secondary MCAR cells. It does not alter the primary episode-start gate.
+secondary MCAR cells. It does not alter the primary generative-restoration gate.
 
 ```bash
 uv run snakemake \
@@ -49,15 +49,15 @@ uv run snakemake \
 
 uv run python scripts/analysis/route_redundancy.py \
   --namespace core_group_missingness_v1 \
-  --selection-split val --split val --device cuda \
-  --seed 0 --k 500 --top-frac 0.1 --max-samples 4096 \
+  --selection-split train --split val --device cpu \
+  --seed 0 --k 2000 --max-samples 4096 \
   --route-batch-size 16
 ```
 
 Open
 `extra/output/missing_data/analysis/route_gate_core_group_missingness_v1.csv`.
 CUBE-NM proceeds to test only when both AACO and OL pass all three
-predeclared gains at MCAR `p=0.7`: adaptive, nongreedy, and episode-start
+predeclared gains at MCAR `p=0.7`: adaptive, nongreedy, and generative-restoration
 restoration mean at least `0.01`, with each contrast positive in at least four
 of five instances.
 
@@ -71,8 +71,8 @@ uv run snakemake \
 
 uv run python scripts/analysis/route_redundancy.py \
   --namespace core_group_missingness_v1 \
-  --selection-split val --split test --device cuda \
-  --seed 0 --k 500 --top-frac 0.1 --max-samples 4096 \
+  --selection-split val --split test --device cpu \
+  --seed 0 --k 2000 --max-samples 4096 \
   --route-batch-size 16
 ```
 
@@ -91,8 +91,8 @@ uv run snakemake \
 
 uv run python scripts/analysis/route_redundancy.py \
   --namespace real_planning_v1 \
-  --selection-split val --split val --device cuda \
-  --seed 0 --k 500 --top-frac 0.1 --max-samples 4096 \
+  --selection-split train --split val --device cpu \
+  --seed 0 --k 2000 --max-samples 4096 \
   --route-batch-size 16
 ```
 

@@ -28,6 +28,7 @@ from plotnine import (
 from sklearn.metrics import accuracy_score, f1_score
 
 from afabench.plotting.config import PlotEvalPerfConfig, PlottingDisplayConfig
+from afabench.plotting.methods import NON_MYOPIC_METHODS
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -50,18 +51,6 @@ SUBPLOT_TITLE_FONT_SIZE = 10
 # }
 
 EXCLUSION_MAPPING = {}
-
-NON_MYOPIC_METHODS = frozenset(
-    {
-        "aaco",
-        "aaco_nn",
-        "jafa",
-        "odin_model_based",
-        "odin_model_free",
-        "ol_with_mask",
-        "ol_without_mask",
-    }
-)
 
 
 def get_method_color_mapping(

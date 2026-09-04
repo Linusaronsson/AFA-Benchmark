@@ -9,8 +9,10 @@ import pytest
 from scripts.analysis.collect_compute import (
     attribute_runs,
     benchmark_identity,
+    filter_methods,
     namespace_gpu_telemetry,
     namespace_runs,
+    validate_unique_records,
 )
 
 
@@ -188,3 +190,39 @@ def test_namespace_gpu_telemetry_summarizes_active_samples(
     assert summary["gpu_utilization_active_median_percent"] == 50
     assert summary["gpu_memory_peak_mb"] == 400
     assert summary["gpu_power_peak_w"] == 90
+
+
+def test_filter_methods_excludes_shared_archive_records() -> None:
+    frame = pd.DataFrame(
+        [
+            {"rule": "train_method", "method": "gdfs"},
+            {"rule": "eval_method", "method": "jafa"},
+            {"rule": "pretrain_method", "pretrain_key": "gdfs"},
+            {"rule": "restore_view"},
+            {"rule": "train_method", "method": "aaco"},
+        ]
+    )
+
+    selected = filter_methods(frame, {"gdfs", "jafa"})
+
+    assert selected["rule"].tolist() == [
+        "train_method",
+        "eval_method",
+        "pretrain_method",
+    ]
+
+
+def test_validate_unique_records_rejects_a_repeated_scientific_cell() -> None:
+    row = {
+        "namespace": "study",
+        "rule": "train_method",
+        "dataset": "cube",
+        "mechanism": "mcar",
+        "p": 0.5,
+        "strategy": "restricted",
+        "instance": 0,
+        "method": "gdfs",
+    }
+
+    with pytest.raises(ValueError, match="duplicate compute records"):
+        validate_unique_records(pd.DataFrame([row, row]))

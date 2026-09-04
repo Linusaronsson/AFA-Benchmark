@@ -58,9 +58,9 @@ STRATEGY_ORDER = [
 ]
 STRATEGY_DISPLAY = {
     "complete": "Complete data",
-    "restricted": "Direct",
+    "restricted": "Restricted-action training",
     "mean_fill": "Mean completion",
-    "pvae_label_conditioned": "Episode-start (PVAE)",
+    "pvae_label_conditioned": "Generative restoration",
     "pvae_label_free": "PVAE (label-free)",
     "pvae_stepwise": "Stepwise (PVAE)",
     "pvae_oracle": "PVAE (oracle)",

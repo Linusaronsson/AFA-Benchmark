@@ -56,6 +56,68 @@ _CELL_KEYS = [
     "instance",
     "eval_hard_budget",
 ]
+_PLANNING_COLUMNS = pd.Index(
+    [
+        "dataset",
+        "method",
+        "instance",
+        "eval_hard_budget",
+        "metric",
+        "complete_score",
+        "static_reference_score",
+        "dime_complete_score",
+        "adaptive_gain",
+        "nongreedy_gain",
+    ]
+)
+_MISSINGNESS_COLUMNS = pd.Index(
+    [
+        "dataset",
+        "method",
+        "instance",
+        "mechanism",
+        "p",
+        "eval_hard_budget",
+        "metric",
+        "complete_score",
+        "restricted_score",
+        "pvae_label_conditioned_score",
+        "missingness_damage",
+        "restoration_gain",
+    ]
+)
+_GATE_COLUMNS = pd.Index(
+    [
+        "dataset",
+        "method",
+        "eval_hard_budget",
+        "n_planning_instances",
+        "adaptive_gain_mean",
+        "nongreedy_gain_mean",
+        "planning_pass",
+        "n_restoration_instances",
+        "restoration_mechanism",
+        "restoration_p",
+        "restoration_gain_mean",
+        "restoration_pass",
+        "method_pass",
+        "dataset_concordant",
+    ]
+)
+_PLANNING_GATE_COLUMNS = pd.Index(
+    [
+        "dataset",
+        "method",
+        "eval_hard_budget",
+        "n_instances",
+        "adaptive_gain_mean",
+        "adaptive_positive_instances",
+        "nongreedy_gain_mean",
+        "nongreedy_positive_instances",
+        "planning_pass",
+        "dataset_concordant",
+    ]
+)
 
 
 @final
@@ -211,101 +273,35 @@ def _route_cost(route: Route, costs: npt.NDArray[np.float64]) -> float:
     return float(costs[np.asarray(route, dtype=int)].sum()) if route else 0.0
 
 
-def _greedy_route(
-    scorer: RouteScorer,
-    costs: npt.NDArray[np.float64],
-    budget: float,
-) -> Route:
-    route: Route = ()
-    current = float(scorer.evaluate([route])[1][0])
-    while True:
-        candidates = [
-            tuple(sorted((*route, selection)))
-            for selection in range(len(costs))
-            if selection not in route
-            and _route_cost((*route, selection), costs) <= budget + 1e-9
-        ]
-        if not candidates:
-            return route
-        scores = scorer.evaluate(candidates)[1]
-        best = int(scores.argmax())
-        if float(scores[best]) <= current + 1e-12:
-            return route
-        route, current = candidates[best], float(scores[best])
-
-
-def _local_search(
-    initial: Route,
-    scorer: RouteScorer,
-    costs: npt.NDArray[np.float64],
-    budget: float,
-) -> Route:
-    route = initial
-    current = float(scorer.evaluate([route])[1][0])
-    while True:
-        selected = set(route)
-        unselected = set(range(len(costs))) - selected
-        neighbors: set[Route] = {
-            tuple(sorted(selected - {old})) for old in selected
-        }
-        neighbors |= {
-            tuple(sorted(selected | {new}))
-            for new in unselected
-            if _route_cost(tuple(selected | {new}), costs) <= budget + 1e-9
-        }
-        neighbors |= {
-            tuple(sorted((selected - {old}) | {new}))
-            for old in selected
-            for new in unselected
-            if _route_cost(tuple((selected - {old}) | {new}), costs)
-            <= budget + 1e-9
-        }
-        neighbors.discard(route)
-        if not neighbors:
-            return route
-        candidates = sorted(neighbors)
-        scores = scorer.evaluate(candidates)[1]
-        best = int(scores.argmax())
-        if float(scores[best]) <= current + 1e-12:
-            return route
-        route, current = candidates[best], float(scores[best])
-
-
-def static_reference(
-    sampled: list[Route],
-    scorer: RouteScorer,
-    costs: npt.NDArray[np.float64],
-    budget: float,
-) -> Route:
-    """Best found route after random search, greedy search, and 1-swap refinement."""
-    greedy = _greedy_route(scorer, costs, budget)
-    candidates = list(dict.fromkeys([(), greedy, *sampled]))
-    scores = scorer.evaluate(candidates)[1]
-    start = candidates[int(scores.argmax())]
-    return _local_search(start, scorer, costs, budget)
-
-
-def route_metrics(
-    correct: npt.NDArray[np.bool_],
+def weighted_route_overlap(
+    routes: list[Route],
     scores: npt.NDArray[np.float64],
-    selection_scores: npt.NDArray[np.float64],
-    top_frac: float,
-) -> dict[str, float]:
-    n_top = min(len(scores), max(2, int(np.ceil(top_frac * len(scores)))))
-    ranking = np.argsort(selection_scores)[::-1]
-    top = correct[ranking[:n_top]].astype(float)
-    top = top[top.var(axis=1) > 0]
-    correlation = float("nan")
-    if len(top) >= 2:
-        matrix = np.corrcoef(top)
-        correlation = float(
-            np.nanmean(matrix[np.triu_indices_from(matrix, 1)])
-        )
-    return {
-        "random_route_score_mean": float(scores.mean()),
-        "selected_sampled_route_score": float(scores[ranking[0]]),
-        "top_route_correctness_correlation": correlation,
-    }
+    empty_route_score: float,
+) -> float:
+    """Average route Jaccard similarity, weighted by predictive gain."""
+    if len(routes) != len(scores):
+        msg = "routes and scores must have equal lengths"
+        raise ValueError(msg)
+    weights = np.maximum(scores - empty_route_score, 0.0)
+    weighted_similarity = 0.0
+    pair_weight = 0.0
+    route_sets = [set(route) for route in routes]
+    for first in range(len(routes)):
+        for second in range(first + 1, len(routes)):
+            weight = float(weights[first] * weights[second])
+            if weight == 0.0:
+                continue
+            union = route_sets[first] | route_sets[second]
+            if not union:
+                continue
+            similarity = len(route_sets[first] & route_sets[second]) / len(
+                union
+            )
+            weighted_similarity += weight * similarity
+            pair_weight += weight
+    if pair_weight == 0.0:
+        return float("nan")
+    return weighted_similarity / pair_weight
 
 
 def compute_effects(
@@ -447,7 +443,10 @@ def compute_effects(
                 "restoration_gain": restored - restricted,
             }
         )
-    return pd.DataFrame(planning_rows), pd.DataFrame(missing_rows)
+    return (
+        pd.DataFrame(planning_rows, columns=_PLANNING_COLUMNS),
+        pd.DataFrame(missing_rows, columns=_MISSINGNESS_COLUMNS),
+    )
 
 
 def gate_summary(
@@ -462,19 +461,10 @@ def gate_summary(
     methods: tuple[str, ...] = _NON_GREEDY_METHODS,
 ) -> pd.DataFrame:
     """Apply the predeclared gate independently to AACO and OL."""
+    if planning.empty:
+        return pd.DataFrame(columns=_GATE_COLUMNS)
     if missingness.empty:
-        missingness = pd.DataFrame(
-            columns=pd.Index(
-                [
-                    "dataset",
-                    "method",
-                    "eval_hard_budget",
-                    "mechanism",
-                    "p",
-                    "restoration_gain",
-                ]
-            )
-        )
+        missingness = pd.DataFrame(columns=_MISSINGNESS_COLUMNS)
     rows: list[dict[str, Any]] = []
     cells = planning[["dataset", "eval_hard_budget"]].drop_duplicates()
     for dataset, budget in cells.itertuples(index=False, name=None):
@@ -533,7 +523,7 @@ def gate_summary(
         for row in dataset_rows:
             row["dataset_concordant"] = concordant
             rows.append(row)
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=_GATE_COLUMNS)
 
 
 def planning_gate_summary(
@@ -545,6 +535,8 @@ def planning_gate_summary(
     methods: tuple[str, ...] = _NON_GREEDY_METHODS,
 ) -> pd.DataFrame:
     """Gate complete-data planning before running a restoration matrix."""
+    if planning.empty:
+        return pd.DataFrame(columns=_PLANNING_GATE_COLUMNS)
     rows: list[dict[str, Any]] = []
     cells = planning[["dataset", "eval_hard_budget"]].drop_duplicates()
     for dataset, budget in cells.itertuples(index=False, name=None):
@@ -589,7 +581,7 @@ def planning_gate_summary(
         for row in dataset_rows:
             row["dataset_concordant"] = concordant
             rows.append(row)
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=_PLANNING_GATE_COLUMNS)
 
 
 def _read_unmasker(
@@ -736,14 +728,15 @@ def process_dataset(  # noqa: PLR0915
             sampled = sample_feasible_routes(
                 costs, float(budget), arguments.k, generator
             )
-            reference = static_reference(
-                sampled, selection_scorer, costs, float(budget)
-            )
             _, selection_scores = selection_scorer.evaluate(sampled)
-            correct, scores = eval_scorer.evaluate(sampled)
-            _, reference_score = eval_scorer.evaluate([reference])
-            metrics = route_metrics(
-                correct, scores, selection_scores, arguments.top_frac
+            ranking = np.argsort(selection_scores)[::-1]
+            reference = sampled[int(ranking[0])]
+            _, scores = eval_scorer.evaluate(sampled)
+            _, empty_score = selection_scorer.evaluate([()])
+            overlap = weighted_route_overlap(
+                sampled,
+                selection_scores,
+                float(empty_score[0]),
             )
             rows.append(
                 {
@@ -761,18 +754,19 @@ def process_dataset(  # noqa: PLR0915
                     "k_unique": len(sampled),
                     "static_reference_route": json.dumps(reference),
                     "static_reference_cost": _route_cost(reference, costs),
-                    "static_reference_score": float(reference_score[0]),
+                    "static_reference_score": float(scores[ranking[0]]),
+                    "empty_route_selection_score": float(empty_score[0]),
                     "route_sensitivity": float(
-                        reference_score[0] - scores.mean()
+                        scores[ranking[0]] - scores.mean()
                     ),
-                    **metrics,
+                    "random_route_score_mean": float(scores.mean()),
+                    "weighted_route_overlap": overlap,
                 }
             )
             print(
                 f"{dataset:12s} i={instance} b={budget:g} "
-                f"static={reference_score[0]:.3f} "
-                f"sampled={metrics['selected_sampled_route_score']:.3f} "
-                f"corr={metrics['top_route_correctness_correlation']:.3f}"
+                f"static={scores[ranking[0]]:.3f} "
+                f"overlap={overlap:.3f}"
             )
     return rows
 
@@ -799,7 +793,7 @@ def main() -> None:
     )
     parser.add_argument("--namespace", required=True)
     parser.add_argument("--split", default="val")
-    parser.add_argument("--selection-split", default="val")
+    parser.add_argument("--selection-split", default="train")
     parser.add_argument(
         "--budgets",
         type=Path,
@@ -830,8 +824,7 @@ def main() -> None:
         ),
     )
     parser.add_argument("--instances", nargs="*", type=int)
-    parser.add_argument("--k", type=int, default=500)
-    parser.add_argument("--top-frac", type=float, default=0.1)
+    parser.add_argument("--k", type=int, default=2000)
     parser.add_argument("--max-samples", type=int, default=4096)
     parser.add_argument("--route-batch-size", type=int, default=16)
     parser.add_argument("--device", default="cpu")
@@ -864,7 +857,7 @@ def main() -> None:
         raise SystemExit(msg)
     analysis = arguments.root / "analysis"
     route_output = arguments.output or analysis / (
-        f"route_redundancy_{arguments.namespace}.csv"
+        f"route_redundancy_{arguments.namespace}_{arguments.split}.csv"
     )
     route_output.parent.mkdir(parents=True, exist_ok=True)
     routes = pd.DataFrame(rows)

@@ -1,7 +1,7 @@
-"""Render the paper's main figure, direct learning against generative restoration."""
+"""Render restricted-action training against generative restoration."""
 
-# Writes three figures: the per-dataset levels in raw units and in gap units,
-# and the restoration gain against the missingness damage over every cell.
+# Writes a full-width level figure and a restoration-law figure for every
+# induced missingness mechanism.
 
 from __future__ import annotations
 
@@ -20,20 +20,21 @@ from matplotlib import patheffects
 from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
-    DATASET_LABELS,
+    DATASET_LABELS_SHORT,
     GRID,
-    INK,
+    INDUCED_MECHANISMS,
     INK_MUTED,
-    LEGEND_STRIP_IN,
     MECHANISM_LABELS,
     METHOD_COLORS,
+    METHOD_FAMILIES,
     METHOD_LABELS,
-    METHOD_MARKERS,
+    POLICY_TYPE_LINESTYLES,
     PRIMARY_METHODS,
     SURFACE,
     TEXT_WIDTH_IN,
     WEDGE,
     apply_paper_style,
+    policy_type,
 )
 
 if TYPE_CHECKING:
@@ -62,7 +63,10 @@ SOURCES = {
 
 DIRECT = "restricted"
 GENERATIVE = "pvae_label_conditioned"
-PANEL_MECHANISM, PANEL_RATE = "mcar", 0.5
+MAIN_MECHANISM = "mcar"
+# 56% of cells carry damage of at least 0.01 at p = 0.7 against 35% at
+# p = 0.3, where a third of the panel would be dumbbells of zero length.
+MAIN_RATE = 0.7
 
 
 def _column(frame: pd.DataFrame, name: str) -> pd.Series:
@@ -112,6 +116,7 @@ def _level_row(
     per_method: pd.DataFrame,
     metric: str,
     gap_column: str,
+    mechanism: str,
     rate: float,
     rng: np.random.Generator,
 ) -> dict[str, float] | None:
@@ -121,7 +126,7 @@ def _level_row(
         return _rows(
             per_method,
             (_column(per_method, "strategy") == strategy)
-            & (_column(per_method, "mechanism") == PANEL_MECHANISM)
+            & (_column(per_method, "mechanism") == mechanism)
             & (_column(per_method, "p") == rate),
         )
 
@@ -178,29 +183,40 @@ def collect_levels(summary_root: Path) -> pd.DataFrame:
                         metric,
                     ).mean()
                 )
-                rates = sorted(
-                    {
-                        float(value)
-                        for value in _column(per_method, "p")
-                        if float(value) > 0.0
-                    }
-                )
-                for rate in rates:
-                    record = _level_row(
-                        per_method, metric, gap_column, rate, rng
+                for mechanism in INDUCED_MECHANISMS:
+                    mechanism_rows = _rows(
+                        per_method,
+                        _column(per_method, "mechanism") == mechanism,
                     )
-                    if record is None:
-                        continue
-                    rows.append(
+                    rates = sorted(
                         {
-                            "dataset": dataset,
-                            "method": method,
-                            "p": rate,
-                            "metric": metric,
-                            "ceiling_abs": ceiling,
-                            **record,
+                            float(value)
+                            for value in _column(mechanism_rows, "p")
+                            if float(value) > 0.0
                         }
                     )
+                    for rate in rates:
+                        record = _level_row(
+                            per_method,
+                            metric,
+                            gap_column,
+                            mechanism,
+                            rate,
+                            rng,
+                        )
+                        if record is None:
+                            continue
+                        rows.append(
+                            {
+                                "dataset": dataset,
+                                "method": method,
+                                "mechanism": mechanism,
+                                "p": rate,
+                                "metric": metric,
+                                "ceiling_abs": ceiling,
+                                **record,
+                            }
+                        )
     return pd.DataFrame(rows)
 
 
@@ -254,216 +270,171 @@ def collect_panel_b(summary_root: Path) -> pd.DataFrame:
 
 
 def _draw_levels(
-    axis: Axes, levels: pd.DataFrame, dataset: str, *, absolute: bool = False
+    axis: Axes,
+    levels: pd.DataFrame,
+    dataset: str,
+    methods: list[str],
+    *,
+    x_limits: tuple[float, float] | None = None,
 ) -> None:
-    """One dataset's panel: a dumbbell per method at each missingness rate."""
-    suffix = "_abs" if absolute else ""
+    """One dataset's panel: a dumbbell per method, methods down the y axis."""
     per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
-    rates = sorted({float(value) for value in _column(per_dataset, "p")})
-    offsets = np.linspace(-0.26, 0.26, len(PRIMARY_METHODS))
-    for offset, method in zip(offsets, PRIMARY_METHODS, strict=True):
-        per_method = _rows(
+    for index, method in enumerate(methods):
+        if policy_type(method) == "Myopic":
+            axis.axhspan(
+                index - 0.5, index + 0.5, color=WEDGE, linewidth=0, zorder=0
+            )
+    for index, method in enumerate(methods):
+        record = _rows(
             per_dataset, _column(per_dataset, "method") == method
-        )
+        ).iloc[0]
         color = METHOD_COLORS[method]
-        for _, record in per_method.iterrows():
-            x = rates.index(float(record["p"])) + offset
-            for key in (f"direct{suffix}", f"generative{suffix}"):
-                low, high = record[f"{key}_lo"], record[f"{key}_hi"]
-                if np.isnan(low):
-                    continue
-                axis.plot(
-                    [x, x],
-                    [low, high],
-                    color=color,
-                    linewidth=3.0,
-                    alpha=0.22,
-                    solid_capstyle="butt",
-                    zorder=1,
-                )
+        for key in ("direct_abs", "generative_abs"):
+            low, high = record[f"{key}_lo"], record[f"{key}_hi"]
+            if np.isnan(low):
+                continue
             axis.plot(
-                [x, x],
-                [record[f"direct{suffix}"], record[f"generative{suffix}"]],
+                [low, high],
+                [index, index],
                 color=color,
-                linewidth=1.3,
-                solid_capstyle="round",
-                zorder=2,
+                linewidth=2.6,
+                alpha=0.18,
+                solid_capstyle="butt",
+                zorder=1,
             )
-            axis.scatter(
-                [x],
-                [record[f"direct{suffix}"]],
-                s=13,
-                facecolor=SURFACE,
-                edgecolor=color,
-                linewidth=1.0,
-                zorder=3,
-            )
-            axis.scatter(
-                [x],
-                [record[f"generative{suffix}"]],
-                s=16,
-                color=color,
-                zorder=4,
-            )
-            if absolute:
-                # In raw units the ceiling is a different number for every
-                # method, so it cannot be one line across the panel. A tick at
-                # the method's own offset keeps each dumbbell beside the target
-                # it is trying to reach.
-                axis.plot(
-                    [x - 0.075, x + 0.075],
-                    [record["ceiling_abs"]] * 2,
-                    color=color,
-                    linewidth=1.1,
-                    solid_capstyle="butt",
-                    zorder=5,
-                )
-    if not absolute:
-        # Zero is the complete-data ceiling for every dataset, which is the
-        # point of plotting a gap: one scale on which zero means the same thing.
-        axis.axhline(0.0, color=INK_MUTED, linewidth=0.9, zorder=5)
-    axis.set_xticks(range(len(rates)))
-    axis.set_xticklabels([f"{rate:g}" for rate in rates], fontsize=7)
-    axis.set_xlim(-0.55, len(rates) - 0.45)
-    axis.set_title(DATASET_LABELS.get(dataset, dataset), fontsize=8)
-    axis.grid(True, axis="y", color=GRID, linewidth=0.4, alpha=0.7)
+        axis.plot(
+            [record["direct_abs"], record["generative_abs"]],
+            [index, index],
+            color=color,
+            linewidth=1.2,
+            linestyle=POLICY_TYPE_LINESTYLES[policy_type(method)],
+            zorder=2,
+        )
+        # Grey, because the ceiling is a reference rather than a third series.
+        # It has to stay: DIME and ODIN take almost no damage on the datasets
+        # where their ceiling is already the lowest of the nine, and without
+        # this mark that floor effect reads as robustness.
+        axis.plot(
+            [record["ceiling_abs"]] * 2,
+            [index - 0.32, index + 0.32],
+            color=INK_MUTED,
+            linewidth=1.0,
+            zorder=3,
+        )
+        axis.scatter(
+            [record["direct_abs"]],
+            [index],
+            s=17,
+            facecolor=SURFACE,
+            edgecolor=color,
+            linewidth=0.9,
+            zorder=4,
+        )
+        axis.scatter(
+            [record["generative_abs"]],
+            [index],
+            s=20,
+            color=color,
+            zorder=5,
+        )
+    axis.set_ylim(len(methods) - 0.5, -0.5)
+    axis.set_yticks(range(len(methods)))
+    # Set on every panel, not only the first: the axes share y, so a bare
+    # list on a later panel would clear the shared formatter for all of them.
+    # sharey hides the inner columns' copies.
+    axis.set_yticklabels(
+        [METHOD_LABELS[method] for method in methods], fontsize=6
+    )
+    axis.tick_params(axis="y", length=0)
+    if x_limits is not None:
+        axis.set_xlim(*x_limits)
+    axis.set_title(DATASET_LABELS_SHORT.get(dataset, dataset), fontsize=7.5)
+    axis.grid(True, axis="x", color=GRID, linewidth=0.4, alpha=0.7)
     axis.set_axisbelow(True)
-    axis.tick_params(labelsize=7)
-    for spine in ("top", "right"):
+    axis.tick_params(axis="x", labelsize=6)
+    axis.locator_params(axis="x", nbins=4)
+    for spine in ("top", "right", "left"):
         axis.spines[spine].set_visible(False)
 
 
-def _draw_law(axis_b: Axes, panel_b: pd.DataFrame) -> None:
-    lo = min(panel_b["damage"].min(), panel_b["gain"].min()) - 0.03
-    hi = max(panel_b["damage"].max(), panel_b["gain"].max()) + 0.03
-    # The wedge and the diagonal run to the right edge rather than stopping at
-    # the data, so the reference geometry does not appear to be cut off where
-    # the tip labels begin.
-    edge = hi + 0.34 * (hi - lo)
-    # Name the two reference lines, so a point's height is read directly rather
-    # than decoded from the definitions of D and R. Everything between them is
-    # partial recovery; below zero restoration made the method worse.
-    axis_b.fill_between(
-        [0.0, hi],
-        [0.0, 0.0],
-        [0.0, hi],
-        color=WEDGE,
-        linewidth=0,
-        zorder=0,
+def _law_bounds(law: pd.DataFrame) -> tuple[float, float]:
+    lo = min(law["damage"].min(), law["gain"].min()) - 0.03
+    hi = max(law["damage"].max(), law["gain"].max()) + 0.03
+    return lo, hi
+
+
+def _draw_law(
+    axis: Axes,
+    cells: pd.DataFrame,
+    method: str,
+    bounds: tuple[float, float],
+) -> None:
+    """One method's panel: its cells, its fitted share, the two references."""
+    lo, hi = bounds
+    axis.fill_between(
+        [0.0, hi], [0.0, 0.0], [0.0, hi], color=WEDGE, linewidth=0, zorder=0
     )
-    axis_b.plot([lo, hi], [lo, hi], color=INK_MUTED, linewidth=0.9, zorder=2)
-    axis_b.axhline(0.0, color=INK_MUTED, linewidth=0.9, zorder=2)
-    axis_b.axvline(0.0, color=GRID, linewidth=0.8, zorder=1)
-    axis_b.annotate(
-        "full recovery, $R=D$",
-        (hi, hi),
-        textcoords="offset points",
-        xytext=(-3, -9),
-        fontsize=6.5,
-        color=INK_MUTED,
-        ha="right",
+    axis.plot([lo, hi], [lo, hi], color=INK_MUTED, linewidth=0.7, zorder=1)
+    axis.axhline(0.0, color=INK_MUTED, linewidth=0.7, zorder=1)
+    subset = _rows(cells, _column(cells, "method") == method)
+    color = METHOD_COLORS[method]
+    share, low, high = _share(cells, method)
+    span = float(_column(subset, "damage").max()) if not subset.empty else 0.0
+    if not np.isnan(share) and span > 0:
+        axis.fill_between(
+            [0.0, span],
+            [0.0, low * span],
+            [0.0, high * span],
+            color=color,
+            alpha=0.16,
+            linewidth=0,
+            zorder=2,
+        )
+        axis.plot(
+            [0.0, span],
+            [0.0, share * span],
+            color=color,
+            linewidth=1.4,
+            linestyle=POLICY_TYPE_LINESTYLES[policy_type(method)],
+            solid_capstyle="round",
+            path_effects=[
+                patheffects.Stroke(linewidth=2.8, foreground=SURFACE),
+                patheffects.Normal(),
+            ],
+            zorder=4,
+        )
+    axis.scatter(
+        subset["damage"],
+        subset["gain"],
+        s=9,
+        facecolor=color,
+        edgecolor=SURFACE,
+        linewidth=0.3,
+        alpha=0.75,
+        zorder=3,
     )
-    axis_b.annotate(
-        "nothing recovered, $R=0$",
-        (edge, 0.0),
-        textcoords="offset points",
-        xytext=(-3, -6),
-        fontsize=6.5,
+    material = int((_column(subset, "damage") >= 0.01).sum())
+    axis.set_title(METHOD_LABELS[method], fontsize=7)
+    # The count is the number that says whether the slope means anything: a
+    # share fitted over six damaged cells is not the same claim as one over
+    # eighteen.
+    axis.annotate(
+        f"{share:.2f}  ($n={material}$)",
+        (0.05, 0.94),
+        xycoords="axes fraction",
+        fontsize=6,
         color=INK_MUTED,
-        ha="right",
         va="top",
     )
-    # Marker as well as colour, so identity survives a greyscale print.
-    for method in PRIMARY_METHODS:
-        subset = _rows(panel_b, _column(panel_b, "method") == method)
-        if subset.empty:
-            continue
-        # The fitted share as a ray, its bootstrap interval as a fan.
-        share, low, high = _share(panel_b, method)
-        if not np.isnan(share):
-            # Each ray stops at that method's own largest damage, so its
-            # length shows the lever arm the share was fitted over.
-            span = float(_column(subset, "damage").max())
-            axis_b.fill_between(
-                [0.0, span],
-                [0.0, low * span],
-                [0.0, high * span],
-                color=METHOD_COLORS[method],
-                alpha=0.16,
-                linewidth=0,
-                zorder=2,
-            )
-            axis_b.plot(
-                [0.0, span],
-                [0.0, share * span],
-                color=METHOD_COLORS[method],
-                linewidth=1.4,
-                solid_capstyle="round",
-                # Cased, or the short rays vanish into the cluster at the
-                # origin that they summarise.
-                path_effects=[
-                    patheffects.Stroke(linewidth=2.8, foreground=SURFACE),
-                    patheffects.Normal(),
-                ],
-                zorder=4,
-            )
-            # Direct labels at the tip, so four series need no legend. A short
-            # ray's label would land mid-plot on its neighbour, so those are
-            # lifted above their own ray instead of trailing it.
-            widest = max(
-                float(
-                    _column(
-                        _rows(panel_b, _column(panel_b, "method") == other),
-                        "damage",
-                    ).max()
-                )
-                for other in PRIMARY_METHODS
-            )
-            trailing = span > 0.6 * widest
-            axis_b.annotate(
-                f"{METHOD_LABELS[method]}  {share:.2f}",
-                (span, share * span),
-                textcoords="offset points",
-                xytext=(4, -1) if trailing else (-2, 5),
-                fontsize=6.5,
-                color=METHOD_COLORS[method],
-                va="center" if trailing else "bottom",
-                ha="left" if trailing else "right",
-                zorder=6,
-                path_effects=[
-                    patheffects.Stroke(linewidth=2.0, foreground=SURFACE),
-                    patheffects.Normal(),
-                ],
-            )
-        axis_b.scatter(
-            subset["damage"],
-            subset["gain"],
-            s=15,
-            marker=METHOD_MARKERS[method],
-            facecolor=METHOD_COLORS[method],
-            edgecolor=SURFACE,
-            linewidth=0.35,
-            # More than half the cells sit near the origin, so keep the marks
-            # light enough that the pile there reads as density.
-            alpha=0.7,
-            zorder=3,
-        )
-    # Room to the right of the longest ray for its tip label. The aspect stays
-    # equal, so the box is wider than tall but the diagonal is still 45 degrees,
-    # which is what makes "full recovery" readable as a position.
-    axis_b.set_xlim(lo, edge)
-    axis_b.set_ylim(lo, hi)
-    axis_b.set_aspect("equal")
-    axis_b.set_anchor("C")
-    axis_b.set_xlabel("Missingness damage $D_r$", color=INK_MUTED, fontsize=8)
-    axis_b.set_ylabel("Restoration gain $R_r$", color=INK_MUTED, fontsize=8)
-    axis_b.set_title(
-        "(b) the gain tracks the damage", fontsize=8.5, color=INK, pad=5
-    )
-    axis_b.grid(True, color=GRID, linewidth=0.4, alpha=0.6)
-    axis_b.set_axisbelow(True)
+    axis.set_xlim(lo, hi)
+    axis.set_ylim(lo, hi)
+    axis.set_aspect("equal")
+    axis.grid(True, color=GRID, linewidth=0.4, alpha=0.6)
+    axis.set_axisbelow(True)
+    axis.tick_params(labelsize=6)
+    axis.locator_params(nbins=4)
     for spine in ("top", "right"):
-        axis_b.spines[spine].set_visible(False)
+        axis.spines[spine].set_visible(False)
 
 
 def _correlation(panel_b: pd.DataFrame, method: str) -> float:
@@ -506,77 +477,76 @@ def _share(
     )
 
 
-def _method_handles() -> list[Line2D]:
+def _mechanism_rows(frame: pd.DataFrame, mechanism: str) -> pd.DataFrame:
+    selected = _rows(frame, _column(frame, "mechanism") == mechanism)
+    if selected.empty:
+        message = f"no cells for mechanism {mechanism}"
+        raise ValueError(message)
+    return selected
+
+
+def _method_order(levels: pd.DataFrame) -> list[str]:
+    """
+    Families most damaged first, and inside a family $Q(s,a)$ above $Q(s,m,a)$.
+
+    Ordering by damage rather than by policy type is what makes GDFS legible: a
+    greedy method sits fourth, among the non-myopic ones, which the myopic band
+    marks where it happens.
+    """
+    damaged = levels.assign(
+        damage=_column(levels, "ceiling_abs") - _column(levels, "direct_abs"),
+        family=_column(levels, "method").map(METHOD_FAMILIES),
+    )
+    ranked = cast(
+        "pd.Series", damaged.groupby("family")["damage"].mean()
+    ).sort_values(ascending=False)
+    present = set(_column(levels, "method"))
     return [
-        Line2D(
-            [],
-            [],
-            marker="o",
-            linestyle="none",
-            markersize=4.5,
-            markerfacecolor=METHOD_COLORS[method],
-            markeredgecolor=SURFACE,
-            markeredgewidth=0.5,
-            label=METHOD_LABELS[method],
-        )
+        method
+        for family in ranked.index
         for method in PRIMARY_METHODS
+        if METHOD_FAMILIES[method] == family and method in present
     ]
 
 
-def plot_levels(
-    levels: pd.DataFrame, output: Path, *, absolute: bool = False
-) -> None:
-    apply_paper_style()
-    suffix = "_abs" if absolute else ""
-    # Datasets ordered by the largest move any method makes on them.
-    moves = levels.assign(
-        move=(
-            _column(levels, f"direct{suffix}")
-            - _column(levels, f"generative{suffix}")
-        ).abs()
+def _dataset_order(levels: pd.DataFrame) -> list[str]:
+    """Most damaged first, which is also the route-structure ordering."""
+    damaged = levels.assign(
+        damage=_column(levels, "ceiling_abs") - _column(levels, "direct_abs")
     )
     ranked = cast(
-        "pd.Series", moves.groupby("dataset")["move"].max()
+        "pd.Series", damaged.groupby("dataset")["damage"].mean()
     ).sort_values(ascending=False)
-    datasets = [str(dataset) for dataset in ranked.index]
-    # Four columns past six datasets, so eight fills a 2x4 exactly rather than
-    # leaving a hole in a 3x3. Below that three columns keep the panels wide.
-    columns = 4 if len(datasets) > 6 else min(3, len(datasets))
-    rows = -(-len(datasets) // columns)
-    # Gap units share y, since a gap whose panels autoscale independently is
-    # not shared at all. Raw units cannot: the datasets sit at different levels
-    # and mix accuracy with macro-F1, so one axis compresses every panel.
-    figure, axes = plt.subplots(
-        rows,
-        columns,
-        figsize=(TEXT_WIDTH_IN, 1.35 + 1.55 * rows),
-        squeeze=False,
-        sharey=not absolute,
-    )
-    for index, dataset in enumerate(datasets):
-        _draw_levels(
-            axes[index // columns][index % columns],
-            levels,
-            dataset,
-            absolute=absolute,
-        )
-    for index in range(len(datasets), rows * columns):
-        axes[index // columns][index % columns].set_visible(False)
+    return [str(dataset) for dataset in ranked.index]
 
-    height = 1.35 + 1.55 * rows
-    # From the constant, so the label cannot drift from the cell shown.
-    figure.supxlabel(
-        f"{MECHANISM_LABELS[PANEL_MECHANISM]} missingness rate $p$",
-        fontsize=8,
-        y=LEGEND_STRIP_IN * 0.65 / height,
-    )
-    figure.supylabel(
-        "Accuracy or macro-F1" if absolute else "Gap below ceiling",
-        fontsize=8,
-        x=0.015,
-    )
-    handles = [
-        *_method_handles(),
+
+def _absolute_limits(levels: pd.DataFrame) -> dict[str, tuple[float, float]]:
+    columns = [
+        "direct_abs_lo",
+        "direct_abs_hi",
+        "generative_abs_lo",
+        "generative_abs_hi",
+        "ceiling_abs",
+    ]
+    limits = {}
+    for dataset in _column(levels, "dataset").unique():
+        per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
+        values = per_dataset[columns].to_numpy(dtype=float)
+        low, high = float(np.nanmin(values)), float(np.nanmax(values))
+        padding = max(0.015, 0.09 * (high - low))
+        limits[str(dataset)] = (low - padding, high + padding)
+    return limits
+
+
+def _level_legend() -> list[Line2D]:
+    """
+    Five entries, because the y axis already names every method.
+
+    Identity moved to position, which is what freed colour to mean family and
+    freed the legend to explain the two training views instead of listing nine
+    series.
+    """
+    return [
         Line2D(
             [],
             [],
@@ -585,58 +555,200 @@ def plot_levels(
             markersize=4.5,
             markerfacecolor=SURFACE,
             markeredgecolor=INK_MUTED,
-            markeredgewidth=1.0,
-            label="Direct learning",
+            markeredgewidth=0.9,
+            label="Restricted-action training",
+        ),
+        Line2D(
+            [],
+            [],
+            marker="o",
+            linestyle="none",
+            markersize=4.5,
+            color=INK_MUTED,
+            label="Generative restoration",
+        ),
+        Line2D(
+            [],
+            [],
+            marker="|",
+            linestyle="none",
+            markersize=6,
+            markeredgecolor=INK_MUTED,
+            markeredgewidth=1.1,
+            label="Complete-data ceiling",
+        ),
+        Line2D(
+            [],
+            [],
+            color=INK_MUTED,
+            linewidth=1.2,
+            linestyle=POLICY_TYPE_LINESTYLES["Myopic"],
+            label="Myopic",
+        ),
+        Line2D(
+            [],
+            [],
+            color=INK_MUTED,
+            linewidth=1.2,
+            linestyle=POLICY_TYPE_LINESTYLES["Non-myopic"],
+            label="Non-myopic",
         ),
     ]
-    if absolute:
-        handles.append(
-            Line2D(
-                [],
-                [],
-                marker="_",
-                linestyle="none",
-                markersize=7,
-                markeredgecolor=INK_MUTED,
-                markeredgewidth=1.2,
-                label="Complete-data ceiling",
-            )
+
+
+def plot_levels(
+    levels: pd.DataFrame,
+    output: Path,
+    *,
+    mechanism: str,
+    rate: float,
+    dataset_order: list[str] | None = None,
+    method_order: list[str] | None = None,
+) -> None:
+    apply_paper_style()
+    per_mechanism = _mechanism_rows(levels, mechanism)
+    frame = _rows(per_mechanism, _column(per_mechanism, "p") == rate)
+    if frame.empty:
+        message = f"no cells for {mechanism} at p={rate}"
+        raise ValueError(message)
+    datasets = dataset_order or _dataset_order(frame)
+    methods = method_order or _method_order(frame)
+    limits = _absolute_limits(frame)
+    columns = 4
+    rows = -(-len(datasets) // columns)
+    # Method identity is on the y axis; this strip carries the two training
+    # views, ceiling, and policy-type conventions in two compact rows.
+    strip = 0.82
+    height = strip + 1.75 * rows
+    figure, axes = plt.subplots(
+        rows,
+        columns,
+        figsize=(TEXT_WIDTH_IN, height),
+        squeeze=False,
+        sharey=True,
+    )
+    for index, dataset in enumerate(datasets):
+        row, column = divmod(index, columns)
+        _draw_levels(
+            axes[row][column],
+            frame,
+            dataset,
+            methods,
+            x_limits=limits.get(dataset),
         )
+    for index in range(len(datasets), rows * columns):
+        row, column = divmod(index, columns)
+        axes[row][column].set_visible(False)
+
+    figure.supxlabel(
+        "Accuracy or macro-F1",
+        fontsize=8,
+        y=0.48 / height,
+    )
     figure.legend(
-        handles=handles,
+        handles=_level_legend(),
         loc="lower center",
-        ncol=3 if absolute else 5,
+        ncol=3,
         frameon=False,
         fontsize=6.5,
         labelcolor=INK_MUTED,
-        columnspacing=1.2,
-        handlelength=1.4,
-        bbox_to_anchor=(0.5, 0.005),
+        columnspacing=1.0,
+        handlelength=1.6,
+        bbox_to_anchor=(0.5, 0.012),
     )
     figure.subplots_adjust(
-        left=0.11,
+        left=0.195,
         right=0.985,
-        top=0.92,
-        bottom=LEGEND_STRIP_IN / height,
-        hspace=0.45,
-        wspace=0.30,
+        top=0.93,
+        bottom=strip / height,
+        hspace=0.34,
+        wspace=0.14,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
     figure.savefig(output.with_suffix(".png"), dpi=200)
+    plt.close(figure)
 
 
-def plot_law(law: pd.DataFrame, output: Path) -> None:
+def plot_law(
+    law: pd.DataFrame,
+    output: Path,
+    *,
+    mechanism: str,
+    bounds: tuple[float, float] | None = None,
+    method_order: list[str] | None = None,
+) -> None:
     apply_paper_style()
-    # No legend box: four series are direct-labelled at the ray tips, where the
-    # number each carries is the slope of the line it sits on.
-    figure = plt.figure(figsize=(TEXT_WIDTH_IN, 3.3))
-    axis = figure.add_axes((0.10, 0.13, 0.88, 0.84))
-    _draw_law(axis, law)
-    axis.set_title("")
+    per_mechanism = _mechanism_rows(law, mechanism)
+    methods = method_order or [
+        method
+        for method in PRIMARY_METHODS
+        if (_column(per_mechanism, "method") == method).any()
+    ]
+    columns = 3
+    rows = -(-len(methods) // columns)
+    figure, axes = plt.subplots(
+        rows,
+        columns,
+        figsize=(TEXT_WIDTH_IN, 1.72 * rows + 0.55),
+        squeeze=False,
+        sharex=True,
+        sharey=True,
+    )
+    for index, method in enumerate(methods):
+        row, column = divmod(index, columns)
+        _draw_law(
+            axes[row][column],
+            per_mechanism,
+            method,
+            bounds or _law_bounds(per_mechanism),
+        )
+    for index in range(len(methods), rows * columns):
+        row, column = divmod(index, columns)
+        axes[row][column].set_visible(False)
+    figure.supxlabel("Missingness damage $D_r$", fontsize=8, y=0.02)
+    figure.supylabel("Restoration gain $R_r$", fontsize=8, x=0.015)
+    figure.subplots_adjust(
+        left=0.10, right=0.99, top=0.955, bottom=0.10, hspace=0.30, wspace=0.10
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
     figure.savefig(output.with_suffix(".png"), dpi=200)
+    plt.close(figure)
+
+
+def plot_mechanism_figures(
+    levels: pd.DataFrame,
+    law: pd.DataFrame,
+    output_dir: Path,
+) -> list[Path]:
+    """Render a full-width level/law pair for every mechanism."""
+    main = _mechanism_rows(levels, MAIN_MECHANISM)
+    main = _rows(main, _column(main, "p") == MAIN_RATE)
+    order = _dataset_order(main)
+    methods = _method_order(main)
+    bounds = _law_bounds(law)
+    outputs = []
+    for mechanism in INDUCED_MECHANISMS:
+        levels_output = output_dir / f"main_summary_absolute_{mechanism}.pdf"
+        law_output = output_dir / f"law_{mechanism}.pdf"
+        plot_levels(
+            levels,
+            levels_output,
+            mechanism=mechanism,
+            rate=MAIN_RATE,
+            dataset_order=order,
+            method_order=methods,
+        )
+        plot_law(
+            law,
+            law_output,
+            mechanism=mechanism,
+            bounds=bounds,
+            method_order=methods,
+        )
+        outputs.extend([levels_output, law_output])
+    return outputs
 
 
 def main() -> None:
@@ -647,30 +759,10 @@ def main() -> None:
         default=Path("extra/output/missing_data/summary/val"),
     )
     parser.add_argument(
-        "--output",
+        "--output-dir",
         type=Path,
-        default=Path(
-            "extra/output/missing_data/analysis_figures/main_summary.pdf"
-        ),
-    )
-    parser.add_argument(
-        "--law-output",
-        type=Path,
-        default=None,
-        help=(
-            "Where to write the gain-against-damage figure. Defaults to "
-            "law.pdf beside --output."
-        ),
-    )
-    parser.add_argument(
-        "--absolute-output",
-        type=Path,
-        default=None,
-        help=(
-            "Where to write the same levels in raw metric units with each "
-            "method's complete-data ceiling ticked. Defaults to "
-            "<output>_absolute.pdf."
-        ),
+        default=Path("extra/output/missing_data/analysis_figures"),
+        help="Where the per-mechanism level and law figures are written.",
     )
     parser.add_argument(
         "--table",
@@ -678,7 +770,7 @@ def main() -> None:
         default=None,
         help=(
             "Write the per-cell damage and restoration gain behind the law "
-            "figure. Defaults to <output>.cells.csv."
+            "figure. Defaults to main_summary.cells.csv beside --output-dir."
         ),
     )
     arguments = parser.parse_args()
@@ -688,45 +780,30 @@ def main() -> None:
     if levels.empty or law.empty:
         message = "no cells collected"
         raise SystemExit(message)
-    law_output = arguments.law_output or arguments.output.with_name("law.pdf")
-    absolute_output = arguments.absolute_output or arguments.output.with_name(
-        f"{arguments.output.stem}_absolute{arguments.output.suffix}"
-    )
-    plot_levels(levels, arguments.output)
-    plot_levels(levels, absolute_output, absolute=True)
-    plot_law(law, law_output)
+    outputs = plot_mechanism_figures(levels, law, arguments.output_dir)
 
-    table = arguments.table or arguments.output.with_suffix(".cells.csv")
+    table = arguments.table or arguments.output_dir / "main_summary.cells.csv"
+    table.parent.mkdir(parents=True, exist_ok=True)
     law.to_csv(table, index=False)
 
     print(f"level rows: {len(levels)}   law cells: {len(law)}")
+    for mechanism in INDUCED_MECHANISMS:
+        per_mechanism = _mechanism_rows(law, mechanism)
+        print(f"{MECHANISM_LABELS[mechanism]}:")
+        for method in PRIMARY_METHODS:
+            subset = _rows(
+                per_mechanism, _column(per_mechanism, "method") == method
+            )
+            share, low, high = _share(per_mechanism, method)
+            material = _rows(subset, _column(subset, "damage") >= 0.01)
+            print(
+                f"  {METHOD_LABELS[method]:20s} n={len(subset):3d} "
+                f"r={_correlation(per_mechanism, method):+.3f} "
+                f"share={share:.3f} [{low:.3f}, {high:.3f}] "
+                f"material={len(material)}"
+            )
     print(
-        levels.assign(closed=levels["direct"] - levels["generative"])
-        .round(3)
-        .to_string(index=False)
-    )
-    for method in PRIMARY_METHODS:
-        subset = _rows(law, _column(law, "method") == method)
-        share, low, high = _share(law, method)
-        # The share over materially damaged cells alone. Where the two
-        # disagree, the fit is carried by cells that lost nothing.
-        material = _rows(subset, _column(subset, "damage") >= 0.01)
-        damage = _column(material, "damage").to_numpy()
-        gain = _column(material, "gain").to_numpy()
-        restricted = (
-            float(damage @ gain / (damage @ damage))
-            if len(damage)
-            else float("nan")
-        )
-        print(
-            f"  {METHOD_LABELS[method]:18s} n={len(subset):3d} "
-            f"r={_correlation(law, method):+.3f} "
-            f"share={share:.3f} [{low:.3f}, {high:.3f}] "
-            f"share|D>=0.01={restricted:.3f} (n={len(material)})"
-        )
-    print(
-        f"wrote {arguments.output}, {absolute_output}, {law_output} "
-        f"and {table}"
+        "wrote " + ", ".join(str(path) for path in outputs) + f" and {table}"
     )
 
 

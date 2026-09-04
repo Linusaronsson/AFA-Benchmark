@@ -22,8 +22,7 @@ from scripts.plotting.plot_eval_perf import calculate_figure_dimensions
 
 _REFERENCE_LABELS = {
     "random_route_score_mean": "Random legal route",
-    "selected_sampled_route_score": "Validation-selected sampled route",
-    "static_reference_score": "Static reference",
+    "static_reference_score": "Best sampled static route",
 }
 _EFFECT_LABELS = {
     "adaptive_gain": "Non-myopic - static",
@@ -230,7 +229,7 @@ def main() -> None:
             )
             + p9.labs(
                 x="Training missingness rate",
-                y="Primary-metric gain (episode-start - direct)",
+                y="Primary-metric gain from generative restoration",
                 color="Method",
                 linetype="Mechanism",
             )

@@ -1,4 +1,4 @@
-"""Plot paired restoration gain against generative/direct wall-time ratio."""
+"""Plot score and compute for restricted and generatively restored training."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from afabench.plotting.methods import (
     LEGEND_STRIP_IN,
     METHOD_COLORS,
     METHOD_LABELS,
+    METHOD_MARKERS,
     PRIMARY_METHODS,
     SURFACE,
     TEXT_WIDTH_IN,
@@ -38,11 +39,29 @@ DATASET_MARKERS = {
     "actg": "^",
     "diabetes": "v",
     "nhanes_mortality": "X",
+    "miniboone": "*",
 }
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
-DIRECT = "restricted"
+RESTRICTED = "restricted"
 GENERATIVE = "pvae_label_conditioned"
 RESTORED = {"pvae_label_conditioned", "pvae_label_free", "pvae_stepwise"}
+HARDWARE_FIELDS = [
+    "device",
+    "cores",
+    "mem_mb",
+    "gpu_workers",
+    "mps",
+    "architecture",
+    "torch",
+    "torch_cuda",
+    "cuda_devices",
+]
+# `gpu_workers` is workflow concurrency, not a property of the allocated GH200.
+# Keep it for each arm as provenance, but do not discard a scientific pair when
+# a resumed allocation used a different number of concurrent workers.
+PAIR_ENVIRONMENT_FIELDS = [
+    field for field in HARDWARE_FIELDS if field != "gpu_workers"
+]
 
 
 def _column(frame: pd.DataFrame, name: str) -> pd.Series:
@@ -64,8 +83,43 @@ def _sum_cost(frame: pd.DataFrame, keys: list[str]) -> pd.DataFrame:
     )
 
 
+def _component_totals(
+    components: dict[str, Any],
+    generator_share: int,
+    restore_share: int,
+) -> tuple[dict[str, float], float, float]:
+    wall = {
+        "train": float(components["train"]["wall_seconds"]),
+        "pretrain": float(
+            components.get("pretrain", {}).get("wall_seconds", 0.0)
+        ),
+        "eval": float(components.get("eval", {}).get("wall_seconds", 0.0)),
+        "generator_share": float(
+            components.get("generator", {}).get("wall_seconds", 0.0)
+        )
+        / generator_share,
+        "restore_share": float(
+            components.get("restore", {}).get("wall_seconds", 0.0)
+        )
+        / restore_share,
+    }
+    cpu_seconds = 0.0
+    peak_rss_mb = 0.0
+    for name, component in components.items():
+        share = (
+            generator_share
+            if name == "generator"
+            else restore_share
+            if name == "restore"
+            else 1
+        )
+        cpu_seconds += float(component["cpu_seconds"]) / share
+        peak_rss_mb = max(peak_rss_mb, float(component["peak_rss_mb"]))
+    return wall, cpu_seconds, peak_rss_mb
+
+
 def attribute(compute: pd.DataFrame) -> pd.DataFrame:
-    """Cost one direct or generative trained-method result within each cell."""
+    """Cost one restricted or restored result within each scientific cell."""
     cell = [
         "namespace",
         "dataset",
@@ -74,18 +128,7 @@ def attribute(compute: pd.DataFrame) -> pd.DataFrame:
         "strategy",
         "instance",
     ]
-    env = [
-        "hardware_signature",
-        "git_commit",
-        "device",
-        "cores",
-        "mem_mb",
-        "gpu_workers",
-        "mps",
-        "architecture",
-        "torch",
-        "torch_cuda",
-    ]
+    provenance = ["hardware_signature", "git_commit", *HARDWARE_FIELDS]
     training = _rows(compute, _column(compute, "rule") == "train_method")
     training = _rows(
         training, _column(training, "method").isin(PRIMARY_METHODS)
@@ -101,17 +144,17 @@ def attribute(compute: pd.DataFrame) -> pd.DataFrame:
         _column(compute, "rule") == "pretrain_restoration_pvae_incomplete",
     )
 
-    method_keys = [*cell, "method", *env]
+    method_cell = [*cell, "method"]
+    method_keys = [*method_cell, *provenance]
     train_cost = _sum_cost(training, method_keys)
-    eval_cost = _sum_cost(evaluations, method_keys)
-    pretrain_cost = _sum_cost(pretraining, method_keys)
+    eval_cost = _sum_cost(evaluations, method_cell)
+    pretrain_cost = _sum_cost(pretraining, method_cell)
     generator_keys = [
         "namespace",
         "dataset",
         "mechanism",
         "p",
         "instance",
-        *env,
     ]
     generator_cost = _sum_cost(generators, generator_keys)
     restore_cost = _sum_cost(restoration, cell)
@@ -121,49 +164,85 @@ def attribute(compute: pd.DataFrame) -> pd.DataFrame:
         .size()
     )
     strategy_consumers = training.groupby(cell, dropna=False).size()
+    generator_provenance = cast(
+        "pd.DataFrame",
+        generators.groupby(generator_keys, dropna=False).agg(
+            generator_git_commit=(
+                "git_commit",
+                lambda values: ";".join(
+                    sorted({str(value) for value in values})
+                ),
+            ),
+            generator_hardware_signature=(
+                "hardware_signature",
+                lambda values: ";".join(
+                    sorted({str(value) for value in values})
+                ),
+            ),
+        ),
+    )
 
     rows: list[dict[str, Any]] = []
     for key, train in cast("Any", train_cost).iterrows():
         record = dict(zip(method_keys, key, strict=True))
         strategy = record["strategy"]
-        if strategy not in {DIRECT, GENERATIVE}:
+        if strategy not in {RESTRICTED, GENERATIVE}:
             continue
-        components = [train]
-        if key in pretrain_cost.index:
-            components.append(pretrain_cost.loc[key])
-        if key in eval_cost.index:
-            components.append(eval_cost.loc[key])
+        scientific_key = tuple(record[name] for name in method_cell)
+        component_rows: dict[str, Any] = {"train": train}
+        if scientific_key in pretrain_cost.index:
+            component_rows["pretrain"] = pretrain_cost.loc[scientific_key]
+        if scientific_key in eval_cost.index:
+            component_rows["eval"] = eval_cost.loc[scientific_key]
+        generator_share = 1
+        restore_share = 1
+        generator_key = tuple(record[name] for name in generator_keys)
         if strategy == GENERATIVE:
-            generator_key = tuple(record[name] for name in generator_keys)
             if generator_key in generator_cost.index:
-                share = max(
+                generator_share = max(
                     int(cast("Any", consumers.get(generator_key, 1)) or 1),
                     1,
                 )
-                components.append(generator_cost.loc[generator_key] / share)
+                component_rows["generator"] = generator_cost.loc[generator_key]
             strategy_key = tuple(record[name] for name in cell)
             if strategy_key in restore_cost.index:
-                share = max(
+                restore_share = max(
                     int(
                         cast("Any", strategy_consumers.get(strategy_key, 1))
                         or 1
                     ),
                     1,
                 )
-                components.append(restore_cost.loc[strategy_key] / share)
+                component_rows["restore"] = restore_cost.loc[strategy_key]
+        wall_components, cpu_seconds, peak_rss_mb = _component_totals(
+            component_rows, generator_share, restore_share
+        )
+        generator_meta = {
+            "generator_git_commit": "",
+            "generator_hardware_signature": "",
+        }
+        if (
+            strategy == GENERATIVE
+            and generator_key in generator_provenance.index
+        ):
+            generator_meta = cast(
+                "dict[str, str]",
+                generator_provenance.loc[generator_key].to_dict(),
+            )
         rows.append(
             {
                 **record,
-                "arm": "direct" if strategy == DIRECT else "generative",
-                "wall_seconds": sum(
-                    float(part["wall_seconds"]) for part in components
+                **generator_meta,
+                "arm": (
+                    "restricted" if strategy == RESTRICTED else "generative"
                 ),
-                "cpu_seconds": sum(
-                    float(part["cpu_seconds"]) for part in components
-                ),
-                "peak_rss_mb": max(
-                    float(part["peak_rss_mb"]) for part in components
-                ),
+                "wall_seconds": sum(wall_components.values()),
+                "cpu_seconds": cpu_seconds,
+                "peak_rss_mb": peak_rss_mb,
+                **{
+                    f"{name}_wall_seconds": value
+                    for name, value in wall_components.items()
+                },
             }
         )
     return pd.DataFrame(rows)
@@ -178,7 +257,7 @@ def paired_costs(costs: pd.DataFrame, summary_root: Path) -> pd.DataFrame:
         frame = pd.read_csv(path)
         frame["namespace"] = namespace
         frame["arm"] = _column(frame, "strategy").map(
-            {DIRECT: "direct", GENERATIVE: "generative"}
+            {RESTRICTED: "restricted", GENERATIVE: "generative"}
         )
         for dataset in set(_column(frame, "dataset")):
             metric = "accuracy" if dataset in ACCURACY_DATASETS else "f_score"
@@ -198,42 +277,47 @@ def paired_costs(costs: pd.DataFrame, summary_root: Path) -> pd.DataFrame:
         "arm",
     ]
     joined = costs.merge(score_frame[[*keys, "score"]], on=keys, how="inner")
-    index = [
+    pair_keys = [
         "namespace",
         "dataset",
         "mechanism",
         "p",
         "instance",
         "method",
-        "hardware_signature",
-        "git_commit",
-        "device",
-        "cores",
-        "mem_mb",
-        "gpu_workers",
-        "mps",
-        "architecture",
-        "torch",
-        "torch_cuda",
+        *PAIR_ENVIRONMENT_FIELDS,
     ]
-    wide = joined.pivot_table(
-        index=index,
-        columns="arm",
-        values=["wall_seconds", "cpu_seconds", "peak_rss_mb", "score"],
+    restricted = _rows(joined, _column(joined, "arm") == "restricted")
+    generative = _rows(joined, _column(joined, "arm") == "generative")
+    wide = restricted.merge(
+        generative,
+        on=pair_keys,
+        how="inner",
+        suffixes=("_restricted", "_generative"),
+        validate="one_to_one",
     )
-    wide.columns = [f"{measure}_{arm}" for measure, arm in wide.columns]
-    wide = wide.reset_index()
     required = [
-        "wall_seconds_direct",
+        "wall_seconds_restricted",
         "wall_seconds_generative",
-        "score_direct",
+        "score_restricted",
         "score_generative",
     ]
     wide = wide.dropna(subset=required)
     wide["wall_time_ratio"] = (
-        wide["wall_seconds_generative"] / wide["wall_seconds_direct"]
+        wide["wall_seconds_generative"] / wide["wall_seconds_restricted"]
     )
-    wide["restoration_gain"] = wide["score_generative"] - wide["score_direct"]
+    wide["restoration_gain"] = (
+        wide["score_generative"] - wide["score_restricted"]
+    )
+    wide["generator_git_commit"] = wide.pop("generator_git_commit_generative")
+    wide["generator_hardware_signature"] = wide.pop(
+        "generator_hardware_signature_generative"
+    )
+    wide = wide.drop(
+        columns=[
+            "generator_git_commit_restricted",
+            "generator_hardware_signature_restricted",
+        ]
+    )
     return wide
 
 
@@ -258,7 +342,7 @@ PANEL_MECHANISM, PANEL_RATE = "mcar", 0.5
 
 def panel_cells(frame: pd.DataFrame) -> pd.DataFrame:
     """
-    One direct and one generative point per dataset and method.
+    One restricted and one generative point per dataset and method.
 
     Fixed to the same reference cell as the dumbbell panel of the main figure,
     so the two figures describe one cell rather than two different ones, and
@@ -269,13 +353,28 @@ def panel_cells(frame: pd.DataFrame) -> pd.DataFrame:
         (_column(frame, "mechanism") == PANEL_MECHANISM)
         & (_column(frame, "p") == PANEL_RATE),
     )
+    expected = {
+        (dataset, method)
+        for dataset in DATASET_MARKERS
+        for method in PRIMARY_METHODS
+    }
+    counts = cell.groupby(["dataset", "method"]).size()
+    observed = set(counts.index)
+    if observed != expected or not (counts == 5).all():
+        missing = sorted(expected - observed)
+        incomplete = counts[counts != 5].to_dict()
+        message = (
+            "compute panel coverage mismatch: "
+            f"missing={missing}; non-five-instance groups={incomplete}"
+        )
+        raise ValueError(message)
     return cast(
         "pd.DataFrame",
         cell.groupby(["dataset", "method"], as_index=False)[
             [
-                "wall_seconds_direct",
+                "wall_seconds_restricted",
                 "wall_seconds_generative",
-                "score_direct",
+                "score_restricted",
                 "score_generative",
             ]
         ].mean(),
@@ -306,13 +405,14 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
                 continue
             row = cast("Any", record.iloc[0])
             color = METHOD_COLORS[method]
-            # An arrow from what direct learning bought to what restoration
-            # bought, in the plane the question is actually asked in: does the
-            # generative arm buy score, and at what multiple of the cost.
+            marker = METHOD_MARKERS[method]
             axis.annotate(
                 "",
                 xy=(row["wall_seconds_generative"], row["score_generative"]),
-                xytext=(row["wall_seconds_direct"], row["score_direct"]),
+                xytext=(
+                    row["wall_seconds_restricted"],
+                    row["score_restricted"],
+                ),
                 arrowprops={
                     "arrowstyle": "-|>",
                     "color": color,
@@ -322,22 +422,24 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
                 },
             )
             axis.scatter(
-                [row["wall_seconds_direct"]],
-                [row["score_direct"]],
-                s=16,
+                [row["wall_seconds_restricted"]],
+                [row["score_restricted"]],
+                marker=marker,
+                s=22,
                 facecolor=SURFACE,
                 edgecolor=color,
                 linewidth=1.1,
                 zorder=3,
             )
-            # An annotation arrow contributes nothing to the data limits, so
-            # autoscaling from the direct endpoints alone cropped every arrow
-            # whose head landed further right. Register the head too, invisibly.
             axis.scatter(
                 [row["wall_seconds_generative"]],
                 [row["score_generative"]],
-                s=0,
-                alpha=0.0,
+                marker=marker,
+                s=22,
+                facecolor=color,
+                edgecolor=color,
+                linewidth=1.0,
+                zorder=3,
             )
         axis.set_xscale("log")
         # Wall time spans well under a decade per dataset. The default locator
@@ -366,20 +468,23 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
     figure.supxlabel(
         "Wall-clock time per trained method (s)",
         fontsize=8,
-        y=LEGEND_STRIP_IN * 0.65 / height,
+        y=0.75 / height,
     )
     figure.supylabel("Accuracy or macro-F1", fontsize=8, x=0.015)
-    handles = [
+    method_handles = [
         Line2D(
             [],
             [],
             color=METHOD_COLORS[method],
-            linewidth=1.3,
+            marker=METHOD_MARKERS[method],
+            markerfacecolor=METHOD_COLORS[method],
+            markersize=4.0,
+            linewidth=1.0,
             label=METHOD_LABELS[method],
         )
         for method in PRIMARY_METHODS
     ]
-    handles.append(
+    arm_handles = [
         Line2D(
             [],
             [],
@@ -389,19 +494,41 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             markerfacecolor=SURFACE,
             markeredgecolor=INK_MUTED,
             markeredgewidth=1.0,
-            label="Direct learning",
-        )
-    )
-    figure.legend(
-        handles=handles,
+            label="Restricted-action training",
+        ),
+        Line2D(
+            [],
+            [],
+            marker="o",
+            linestyle="none",
+            markersize=4.5,
+            markerfacecolor=INK_MUTED,
+            markeredgecolor=INK_MUTED,
+            label="Generative restoration",
+        ),
+    ]
+    method_legend = figure.legend(
+        handles=method_handles,
         loc="lower center",
-        ncol=5,
+        ncol=3,
         frameon=False,
-        fontsize=6.5,
+        fontsize=6.0,
+        labelcolor=INK_MUTED,
+        columnspacing=0.9,
+        handlelength=1.4,
+        bbox_to_anchor=(0.5, 0.045),
+    )
+    figure.add_artist(method_legend)
+    figure.legend(
+        handles=arm_handles,
+        loc="lower center",
+        ncol=2,
+        frameon=False,
+        fontsize=6.0,
         labelcolor=INK_MUTED,
         columnspacing=1.2,
-        handlelength=1.6,
-        bbox_to_anchor=(0.5, 0.005),
+        handlelength=1.4,
+        bbox_to_anchor=(0.5, 0.002),
     )
     figure.subplots_adjust(
         left=0.11,

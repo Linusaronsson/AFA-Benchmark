@@ -11,9 +11,9 @@ from scripts.analysis.route_redundancy import (
     gate_summary,
     planning_gate_summary,
     primary_metric,
-    route_metrics,
     sample_feasible_routes,
     selection_feature_masks,
+    weighted_route_overlap,
 )
 
 
@@ -68,18 +68,56 @@ def test_primary_metric_is_predeclared_by_dataset() -> None:
     assert primary_metric("nhanes_mortality") == "f_score"
 
 
-def test_top_routes_are_selected_without_evaluation_scores() -> None:
-    correct = np.asarray(
-        [[True, True, False], [True, False, False], [False, True, True]]
-    )
-    evaluation_scores = np.asarray([0.9, 0.2, 0.8])
-    validation_scores = np.asarray([0.1, 0.9, 0.8])
+def test_route_overlap_uses_gain_over_empty_route() -> None:
+    routes = [(0, 1), (0, 2), (0, 1, 2)]
+    scores = np.asarray([0.9, 0.7, 0.5])
 
-    metrics = route_metrics(
-        correct, evaluation_scores, validation_scores, top_frac=0.5
+    overlap = weighted_route_overlap(
+        routes,
+        scores,
+        empty_route_score=0.5,
     )
 
-    assert metrics["selected_sampled_route_score"] == 0.2
+    assert overlap == pytest.approx(1 / 3)
+
+
+def test_route_overlap_is_zero_for_disjoint_useful_routes() -> None:
+    overlap = weighted_route_overlap(
+        [(0, 1), (2, 3)],
+        np.asarray([0.8, 0.7]),
+        empty_route_score=0.5,
+    )
+
+    assert overlap == 0.0
+
+
+def test_route_overlap_is_invariant_to_route_order() -> None:
+    routes = [(0, 1), (0, 2), (1, 2)]
+    scores = np.asarray([0.9, 0.8, 0.7])
+
+    forward = weighted_route_overlap(routes, scores, 0.5)
+    reverse = weighted_route_overlap(
+        list(reversed(routes)),
+        scores[::-1],
+        0.5,
+    )
+
+    assert forward == pytest.approx(reverse)
+
+
+def test_route_overlap_is_undefined_without_two_useful_routes() -> None:
+    overlap = weighted_route_overlap(
+        [(0,), (1,)],
+        np.asarray([0.6, 0.5]),
+        empty_route_score=0.5,
+    )
+
+    assert np.isnan(overlap)
+
+
+def test_route_overlap_rejects_mismatched_inputs() -> None:
+    with pytest.raises(ValueError, match="equal lengths"):
+        weighted_route_overlap([(0,)], np.asarray([0.8, 0.7]), 0.5)
 
 
 def _effect_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -220,6 +258,27 @@ def test_gates_require_all_five_instances() -> None:
 
     assert not planning_gate_summary(planning)["planning_pass"].any()
     assert not gate_summary(planning, missingness)["method_pass"].any()
+
+
+def test_empty_effects_and_gates_keep_stable_schemas() -> None:
+    metrics, routes = _effect_inputs()
+
+    planning, missingness = compute_effects(
+        metrics,
+        routes,
+        non_greedy_methods=("method_not_present",),
+    )
+
+    assert planning.empty
+    assert missingness.empty
+    assert {"dataset", "eval_hard_budget", "adaptive_gain"} <= set(
+        planning.columns
+    )
+    assert {"dataset", "mechanism", "restoration_gain"} <= set(
+        missingness.columns
+    )
+    assert planning_gate_summary(planning).empty
+    assert gate_summary(planning, missingness).empty
 
 
 def test_duplicate_cells_are_rejected() -> None:

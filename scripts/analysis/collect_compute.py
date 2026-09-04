@@ -82,6 +82,47 @@ _PROVENANCE_KEYS = (
 )
 
 
+def filter_methods(frame: pd.DataFrame, methods: set[str]) -> pd.DataFrame:
+    """Keep only method-owned records from a selectively restored archive."""
+    method_rows = _column(frame, "rule").isin(
+        ["train_method", "eval_method"]
+    ) & _column(frame, "method").isin(methods)
+    pretrain_rows = (_column(frame, "rule") == "pretrain_method") & _column(
+        frame, "pretrain_key"
+    ).isin(methods)
+    return cast("pd.DataFrame", frame[method_rows | pretrain_rows]).copy()
+
+
+def _column(frame: pd.DataFrame, name: str) -> pd.Series:
+    if name not in frame:
+        return pd.Series(index=frame.index, dtype=object)
+    return cast("pd.Series", frame[name])
+
+
+def validate_unique_records(frame: pd.DataFrame) -> None:
+    """Reject repeated workflow measurements after merging archive batches."""
+    identity = [
+        "namespace",
+        "rule",
+        "dataset",
+        "mechanism",
+        "p",
+        "strategy",
+        "instance",
+        "method",
+        "pretrain_key",
+        "train_hard_budget",
+        "eval_hard_budget",
+        "eval_split",
+    ]
+    identity = [column for column in identity if column in frame]
+    duplicate = frame.duplicated(identity, keep=False)
+    if duplicate.any():
+        examples = frame.loc[duplicate, identity].head(5).to_dict("records")
+        message = f"duplicate compute records after merge: {examples}"
+        raise ValueError(message)
+
+
 def _signature_columns(signature: dict[str, Any]) -> dict[str, Any]:
     return {
         "hardware_signature": json.dumps(signature, sort_keys=True),
@@ -100,8 +141,8 @@ def namespace_runs(
 
     One signature per run, not per namespace: a namespace accumulates runs from
     resumes and later datasets, which differ in `git_commit` without making
-    anything incomparable. `plot_compute.py` carries `hardware_signature` in its
-    pairing index, so no compared pair can span environments.
+    anything incomparable. The compute analysis pairs on the explicit hardware
+    and software fields while retaining each arm's commit as provenance.
     """
     runs = []
     for path in sorted((manifest_root / namespace).glob("*.json")):
@@ -235,6 +276,17 @@ def main() -> None:
         default=Path("extra/output/missing_data"),
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--base-input",
+        type=Path,
+        help="Existing collected CSV to extend with the selected methods.",
+    )
+    parser.add_argument(
+        "--method",
+        action="append",
+        default=[],
+        help="Keep only records owned by this method (repeatable).",
+    )
     arguments = parser.parse_args()
 
     manifest_root = arguments.output_root / "run_manifests"
@@ -247,8 +299,14 @@ def main() -> None:
             telemetry_root, namespace
         ).items():
             frame[key] = value
+        if arguments.method:
+            frame = filter_methods(frame, set(arguments.method))
         frames.append(frame)
     combined = pd.concat(frames, ignore_index=True)
+    if arguments.base_input:
+        base = pd.read_csv(arguments.base_input)
+        combined = pd.concat([base, combined], ignore_index=True)
+    validate_unique_records(combined)
     arguments.output.parent.mkdir(parents=True, exist_ok=True)
     combined.to_csv(arguments.output, index=False)
     print(

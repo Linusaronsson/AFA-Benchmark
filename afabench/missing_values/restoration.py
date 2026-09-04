@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from afabench.missing_values.config import RestoreTrainingViewsConfig
 
 _STRATEGY_DISPLAY_NAMES = {
-    "pvae_label_conditioned": "PVAE (label-conditioned)",
+    "pvae_label_conditioned": "Generative restoration",
     "pvae_label_free": "PVAE (label-free)",
     "pvae_oracle": "PVAE (oracle)",
 }

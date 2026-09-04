@@ -61,7 +61,7 @@ uv run snakemake \
 ```
 
 The smoke matrix covers AACO, DIME, OL, both reweighting controls,
-episode-start and stepwise restoration, oracle and true-completion controls,
+generative and stepwise restoration, oracle and true-completion controls,
 evaluation, summarization, and plotting. It writes only to the `smoke`
 namespace.
 
@@ -200,11 +200,19 @@ uv run python scripts/plotting/plot_compute.py \
 ```
 
 The primary figure reports, within the same dataset, method, mechanism, rate,
-instance, and hardware, the generative/direct wall-time ratio against
-restoration gain. Generator training is amortized over its actual consumers.
-The paired CSV retains absolute wall time, CPU time, peak RAM, architecture,
-PyTorch, and CUDA. Mixed execution environments inside one namespace are
-rejected; GPU-seconds and CPU-seconds are never pooled.
+instance, hardware, and software environment, the restored/restricted
+wall-time ratio against restoration gain. Generator training is joined by its
+dataset, mechanism, rate, and instance, then amortized over all actual restored
+consumers. The paired CSV retains per-component wall time, total CPU time,
+peak RAM, both method-run commits, generator provenance, workflow concurrency,
+architecture, PyTorch, and CUDA. A true hardware or software mismatch rejects
+the pair; a commit or workflow-worker change is retained as provenance.
+
+To extend an existing collection with method-owned rows from a selectively
+restored archive, pass `--base-input`, repeat `--method` for the newly restored
+methods, and point `--output-root` at the local staging tree. Shared restoration
+and generator records are deliberately taken from the base input rather than
+duplicated from the later archive.
 
 Native-missingness results remain exploratory until evaluation enforces each
 instance's legal acquisition mask. Mean-imputed but factually absent values
@@ -216,26 +224,37 @@ must never become acquirable measurements.
 AACO and OL, separately against DIME and a fixed static reference. The static
 reference is searched in the dataset's legal selection space: grouped features
 remain indivisible and the sum of selection costs must fit the hard budget.
-The script uses random feasible routes, greedy forward selection, and local
-one-swap refinement. The result is therefore named `static_reference`, not an
-exact best static route.
+The static reference is the selection-split best of the same sampled feasible
+routes used to characterize the dataset; it is not claimed to be the global
+best subset.
 
-Two summaries describe fixed-route structure. `route_sensitivity` is the test
-score of the validation-selected static reference minus the mean test score of
-the sampled legal routes. `top_route_correctness_correlation` is the mean
-pairwise correlation of test-set correctness among the top 10% of sampled
-routes, where the top routes are chosen on validation data. Thus neither route
-selection nor the definition of the top set reads test labels.
+Two summaries describe fixed-route structure. `route_sensitivity` is the
+evaluation score of the selection-split static reference minus the mean
+evaluation score of the sampled legal routes. `weighted_route_overlap` is the
+pairwise Jaccard overlap of the routes' acquisition-action sets, weighted by
+each route's positive predictive gain over the empty route. The weights and
+the static reference use only the selection split; route sensitivity is
+reported on the requested evaluation split. The overlap is normalized to
+`[0, 1]` and avoids an arbitrary score cutoff: high values mean that useful
+routes repeatedly rely on the same acquisitions, while low values indicate
+distinct substitute routes.
 
 Run the diagnostic after `instance_metrics.csv` exists:
 
 ```console
 uv run python scripts/analysis/route_redundancy.py \
-  --namespace synthetic_missingness --split val --selection-split val \
-  --device cuda
+  --namespace synthetic_missingness --split val --selection-split train \
+  --k 2000 --device cpu
 ```
 
-The analysis directory receives four tables:
+The diagnostic needs only the namespace's dataset and classifier bundles, so
+it can run locally after those two trees are copied from archival storage. It
+does not require trained AFA methods or evaluation traces to compute route
+structure. If `instance_metrics.csv` is present locally, the same invocation
+also refreshes the optional planning, missingness, and gate tables.
+
+The analysis directory receives the route table and, when
+`instance_metrics.csv` is available, four effect and gate tables:
 
 - legal-route scores by dataset instance and budget;
 - fixed-budget planning effects for AACO and OL separately;

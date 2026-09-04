@@ -32,8 +32,8 @@ from afabench.plotting.methods import (
 COLORS = {method: METHOD_COLORS[method] for method in PRIMARY_METHODS}
 STRATEGY_LABELS = {
     "complete": "Complete",
-    "restricted": "Direct",
-    "pvae_label_conditioned": "Episode-start",
+    "restricted": "Restricted-action training",
+    "pvae_label_conditioned": "Generative restoration",
     "pvae_stepwise": "Stepwise",
 }
 
@@ -131,10 +131,19 @@ def plot_path_fidelity(frame: pd.DataFrame, output: Path) -> None:
 
 def plot_generator_quality(frame: pd.DataFrame, output: Path) -> None:
     selected = frame.loc[frame["method"].isin(COLORS)].copy()
+    columns = 3 if len(COLORS) > 4 else 2
+    rows = -(-len(COLORS) // columns)
     fig, axes = plt.subplots(
-        2, 2, figsize=(7.4, 6.2), sharex=True, sharey=True
+        rows,
+        columns,
+        figsize=(2.5 * columns, 2.1 * rows),
+        sharex=True,
+        sharey=True,
+        squeeze=False,
     )
-    for axis, method in zip(axes.flat, COLORS, strict=True):
+    for axis in axes.flat[len(COLORS) :]:
+        axis.set_visible(False)
+    for axis, method in zip(axes.flat, COLORS, strict=False):
         method_frame = selected.loc[selected["method"] == method]
         # Marker separates the mechanism. Identification is what decides how far
         # the oracle can pull ahead, so pooling mechanisms hid the one effect
@@ -199,7 +208,7 @@ def plot_stepwise(frame: pd.DataFrame, output: Path) -> None:
     axis.axhline(0, color="black", linewidth=0.8)
     axis.set_xticks(range(len(datasets)))
     axis.set_xticklabels(datasets)
-    axis.set_ylabel("Stepwise minus episode-start score")
+    axis.set_ylabel("Stepwise minus generative-restoration score")
     axis.grid(axis="y", alpha=0.2)
     axis.legend(frameon=False)
     _save(fig, output, "stepwise_vs_episode_start")

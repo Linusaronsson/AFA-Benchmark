@@ -90,21 +90,25 @@ method_family_color_schemes:
 
 active_method_color_scheme: colorbrewer_dark2
 
-# Per-method colours, which win over the family colour above. Family colour
-# alone gives ol_with_mask and ol_full_state the same hex, and likewise each
-# base method and its reweighting control, so the contrasts the missing-data
-# study reports are invisible. These six are the methods in the v2 production
-# matrices. Validated for deuteranopia, protanopia and tritanopia over every
-# pair, not only adjacent ones: worst pair 10.3 (deutan) and 15.6 (normal
-# vision) in OKLab dE x100, against a floor of 8 and 15. Do not re-step one
-# entry in isolation.
+# Per-method colours, mirroring afabench/plotting/methods.py, which
+# test_plotting_methods.py keeps equal to this block. One Okabe-Ito hue per
+# method family; methods inside a family share it and separate by marker and by
+# row position, because eleven mutually separated hues cannot be calm. The six
+# are validated for deuteranopia, protanopia and tritanopia over every pair, not
+# only adjacent ones, against floors of 8 under CVD and 15 under normal vision
+# in OKLab dE x100. Do not re-step one entry in isolation.
 method_color_overrides:
   aaco: '#D55E00'
-  aaco_doubly_robust: '#AA3377'
-  dime: '#0072B2'
+  aaco_doubly_robust: '#D55E00'
+  dime: '#56B4E9'
   dime_feature_marginal_ipw: '#56B4E9'
-  ol_with_mask: '#009E73'
+  gdfs: '#009E73'
+  jafa: '#882255'
+  jafa_full_state: '#882255'
+  ol_with_mask: '#E69F00'
   ol_full_state: '#E69F00'
+  odin_model_free: '#7570B3'
+  odin_model_free_full_state: '#7570B3'
 
 dataset_name_mapping:
   cube: CUBE

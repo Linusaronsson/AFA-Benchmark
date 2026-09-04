@@ -2,7 +2,7 @@
 When training missingness matters, and how much of it comes back.
 
 Two things decide whether restoration is worth anything, and neither is visible
-in the direct-versus-generative comparison itself. They are two separate
+in the restricted-versus-restored comparison itself. They are two separate
 questions, so this writes two separate figures rather than one two-panel float
 whose halves shared nothing but a caption.
 
@@ -15,12 +15,12 @@ Self-masking MNAR is the mechanism `prop:mnar` says is not identified, and it is
 the one that separates.
 
 The structure figure: the dataset decides how much damage there is in the first
-place. Datasets are ordered by `rho_top`, so the claim is the ordering itself,
-and the dataset names are axis ticks rather than annotations scattered over the
-points, which is what used to collide. Read `rho_top` together with `V_static`
-from `tab:route-structure`, since a small route sensitivity means "every route
-is equally good" on a saturated dataset and "no fixed route is any good" on one
-that needs adaptive acquisition.
+place. Datasets are ordered by performance-weighted route overlap, so the claim
+is the ordering itself, and the dataset names are axis ticks rather than
+annotations scattered over the points. Read the overlap together with
+`V_static` from `tab:route-structure`, since a small route sensitivity means
+"every route is equally good" on a saturated dataset and "no fixed route is any
+good" on one that needs adaptive acquisition.
 """
 
 from __future__ import annotations
@@ -149,13 +149,13 @@ def _draw_structure(axis: Axes, points: pd.DataFrame) -> None:
     """
     Damage per dataset, datasets ordered by how interchangeable their routes are.
 
-    A dot plot rather than damage against a continuous `rho_top`, because the
-    claim is an ordering and the dataset is the unit. Names become axis ticks
-    and the four methods share a row, so they are compared where they differ.
+    A dot plot rather than damage against continuous route overlap, because
+    the claim is an ordering and the dataset is the unit. Names become axis
+    ticks and the methods share a row, so they are compared where they differ.
     """
     order = cast(
         "pd.Series",
-        points.groupby("dataset")["rho_top"].first(),
+        points.groupby("dataset")["weighted_route_overlap"].first(),
     ).sort_values(ascending=False)
     datasets = [str(name) for name in order.index]
     axis.axvline(0.0, color=INK_MUTED, linewidth=0.8, zorder=1)
@@ -204,7 +204,7 @@ def _draw_structure(axis: Axes, points: pd.DataFrame) -> None:
     )
     # Head the column; a centred label lands on the middle row's own value.
     right.annotate(
-        r"$\rho_{\mathrm{top}}$",
+        r"$\omega_{\mathrm{route}}$",
         (1.0, 1.0),
         xycoords="axes fraction",
         textcoords="offset points",
@@ -245,7 +245,10 @@ def plot(
     )
     rows = points["dataset"].nunique()
     figure = plt.figure(figsize=(TEXT_WIDTH_IN, 1.05 + 0.30 * rows))
-    axis = figure.add_axes((0.16, 0.30 - 0.012 * rows, 0.76, 0.66))
+    # Reserve a stable footer for the three-row method legend. Tying the axes'
+    # bottom margin to the number of datasets pushed the x label into that
+    # footer once the eighth production dataset was added.
+    axis = figure.add_axes((0.16, 0.31, 0.76, 0.64))
     _draw_structure(axis, points)
     handles = [
         Line2D(
@@ -264,7 +267,7 @@ def plot(
     figure.legend(
         handles=handles,
         loc="lower center",
-        ncol=4,
+        ncol=5,
         frameon=False,
         fontsize=6.5,
         labelcolor=INK_MUTED,
@@ -279,18 +282,17 @@ def plot(
 def load_structure(path: Path) -> pd.DataFrame:
     """Accept either the aggregated table or route_redundancy.py's own output."""
     frame = pd.read_csv(path)
-    if "top_route_correctness_correlation" not in frame.columns:
+    if "static_reference_score" not in frame.columns:
         return frame
     renamed = frame.rename(
         columns={
-            "top_route_correctness_correlation": "rho_top",
             "static_reference_score": "v_static",
         }
     )
     return cast(
         "pd.DataFrame",
         renamed.groupby("dataset", as_index=False)[
-            ["v_static", "route_sensitivity", "rho_top"]
+            ["v_static", "route_sensitivity", "weighted_route_overlap"]
         ].mean(),
     )
 
@@ -359,7 +361,15 @@ def main() -> None:
     if points is not None:
         print()
         print(
-            points[["dataset", "method", "D", "rho_top", "route_sensitivity"]]
+            points[
+                [
+                    "dataset",
+                    "method",
+                    "D",
+                    "weighted_route_overlap",
+                    "route_sensitivity",
+                ]
+            ]
             .round(4)
             .to_string(index=False)
         )

@@ -8,12 +8,19 @@ import pytest
 import yaml
 
 from afabench.plotting.methods import (
+    FAMILY_COLORS,
     METHOD_COLORS,
+    METHOD_FAMILIES,
     METHOD_LABELS,
     METHOD_LINESTYLES,
     METHOD_MARKERS,
+    NON_MYOPIC_METHODS,
     PRIMARY_METHODS,
+    policy_type,
 )
+from scripts.analysis.summarize_missing_data import _STRATEGY_DISPLAY
+from scripts.plotting.plot_missing_data import STRATEGY_DISPLAY
+from scripts.plotting.plot_missing_data_mechanisms import STRATEGY_LABELS
 
 COMMON_CONFIG = Path("extra/conf/scripts/plotting/common/default.yaml")
 
@@ -32,18 +39,57 @@ def test_primary_methods_are_methods() -> None:
 
 
 @pytest.mark.parametrize(
-    "channel",
-    [METHOD_COLORS, METHOD_MARKERS],
-    ids=["colors", "markers"],
+    "mapping",
+    [_STRATEGY_DISPLAY, STRATEGY_DISPLAY, STRATEGY_LABELS],
 )
-def test_channel_separates_every_method(channel: dict[str, str]) -> None:
-    """
-    No two methods may share a colour, or a marker.
+def test_primary_training_views_have_exact_public_labels(
+    mapping: dict[str, str],
+) -> None:
+    assert mapping["restricted"] == "Restricted-action training"
+    assert mapping["pvae_label_conditioned"] == "Generative restoration"
 
-    Family colour used to alias ol_with_mask onto ol_full_state, which drew the
-    study's headline contrast as a single line.
+
+def test_paired_state_variants_name_their_conditioning() -> None:
+    assert METHOD_LABELS["jafa"].endswith("$Q(s,a)$")
+    assert METHOD_LABELS["jafa_full_state"].endswith("$Q(s,m,a)$")
+    assert METHOD_LABELS["ol_with_mask"].endswith("$Q(s,a)$")
+    assert METHOD_LABELS["ol_full_state"].endswith("$Q(s,m,a)$")
+    assert METHOD_LABELS["odin_model_free"].endswith("$Q(s,a)$")
+    assert METHOD_LABELS["odin_model_free_full_state"].endswith(
+        "$Q(s,m,a)$"
+    )
+
+
+def test_markers_separate_every_method() -> None:
+    """Marker is the per-method channel, since hue is per family."""
+    assert len(set(METHOD_MARKERS.values())) == len(METHOD_MARKERS)
+
+
+def test_families_separate_every_hue() -> None:
+    assert len(set(FAMILY_COLORS.values())) == len(FAMILY_COLORS)
+
+
+def test_methods_sharing_a_hue_differ_in_marker() -> None:
     """
-    assert len(set(channel.values())) == len(channel)
+    Identity is never colour-alone.
+
+    ol_with_mask and ol_full_state share the OL hue, so the study's headline
+    contrast is carried by marker and by row position instead.
+    """
+    for family in FAMILY_COLORS:
+        members = [
+            method for method, key in METHOD_FAMILIES.items() if key == family
+        ]
+        markers = {METHOD_MARKERS[method] for method in members}
+        assert len(markers) == len(members), family
+
+
+def test_every_method_is_classified() -> None:
+    assert set(METHOD_FAMILIES) == set(METHOD_COLORS)
+    assert set(METHOD_COLORS) <= set(METHOD_FAMILIES)
+    for method in METHOD_COLORS:
+        assert policy_type(method) in {"Myopic", "Non-myopic"}
+    assert {"dime", "gdfs"}.isdisjoint(NON_MYOPIC_METHODS)
 
 
 # Machado, Oliveira and Fernandes (2009), severity 1.0, applied in linear sRGB.
@@ -113,7 +159,7 @@ def test_every_pair_stays_separable(
     floor: float,
 ) -> None:
     """
-    Every pair of method colours, not only adjacent ones.
+    Every pair of family colours, not only adjacent ones.
 
     The module docstring promises this and nothing used to check it, so
     re-stepping one entry could quietly collapse a pair under deuteranopia while
@@ -125,12 +171,12 @@ def test_every_pair_stays_separable(
             (
                 100
                 * math.dist(
-                    _oklab(METHOD_COLORS[left], matrix),
-                    _oklab(METHOD_COLORS[right], matrix),
+                    _oklab(FAMILY_COLORS[left], matrix),
+                    _oklab(FAMILY_COLORS[right], matrix),
                 ),
                 (left, right),
             )
-            for left, right in itertools.combinations(METHOD_COLORS, 2)
+            for left, right in itertools.combinations(FAMILY_COLORS, 2)
         ),
     )
     assert worst >= floor, (
