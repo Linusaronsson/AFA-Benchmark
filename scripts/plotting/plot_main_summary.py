@@ -18,6 +18,7 @@ import numpy.typing as npt
 import pandas as pd
 from matplotlib import patheffects
 from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 from afabench.plotting.methods import (
     DATASET_LABELS_SHORT,
@@ -26,7 +27,6 @@ from afabench.plotting.methods import (
     INK_MUTED,
     MECHANISM_LABELS,
     METHOD_COLORS,
-    METHOD_FAMILIES,
     METHOD_LABELS,
     POLICY_TYPE_LINESTYLES,
     PRIMARY_METHODS,
@@ -35,6 +35,12 @@ from afabench.plotting.methods import (
     WEDGE,
     apply_paper_style,
     policy_type,
+)
+from scripts.plotting.family_summary import (
+    FAMILY_LABELS,
+    FAMILY_MEMBERS,
+    average_states,
+    summarize_families,
 )
 
 if TYPE_CHECKING:
@@ -269,6 +275,36 @@ def collect_panel_b(summary_root: Path) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def collect_family_instances(summary_root: Path) -> pd.DataFrame:
+    """Collect all predeclared cells and average states within each instance."""
+    frames = []
+    for namespace, datasets in SOURCES.items():
+        frame = pd.read_csv(summary_root / namespace / "instance_metrics.csv")
+        for dataset in datasets:
+            selected = _largest_budget(frame, dataset).copy()
+            selected["metric"] = primary_metric(dataset)
+            selected["score"] = selected[primary_metric(dataset)]
+            frames.append(selected)
+    result = average_states(pd.concat(frames, ignore_index=True))
+    expected = {
+        (dataset, method, mechanism, rate)
+        for datasets in SOURCES.values()
+        for dataset in datasets
+        for method in FAMILY_MEMBERS
+        for mechanism in INDUCED_MECHANISMS
+        for rate in (0.3, 0.5, 0.7)
+    }
+    observed = set(
+        result[["dataset", "method", "mechanism", "p"]].itertuples(
+            index=False, name=None
+        )
+    )
+    if observed != expected or len(result) != len(expected) * 5:
+        message = "family-summary production coverage mismatch"
+        raise ValueError(message)
+    return result
+
+
 def _draw_levels(
     axis: Axes,
     levels: pd.DataFrame,
@@ -276,6 +312,7 @@ def _draw_levels(
     methods: list[str],
     *,
     x_limits: tuple[float, float] | None = None,
+    family_average: bool = False,
 ) -> None:
     """One dataset's panel: a dumbbell per method, methods down the y axis."""
     per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
@@ -284,11 +321,31 @@ def _draw_levels(
             axis.axhspan(
                 index - 0.5, index + 0.5, color=WEDGE, linewidth=0, zorder=0
             )
+        elif method in {
+            "ol",
+            "ol_with_mask",
+            "ol_full_state",
+            "odin",
+            "odin_model_free",
+            "odin_model_free_full_state",
+        }:
+            axis.axhspan(
+                index - 0.5,
+                index + 0.5,
+                facecolor="none",
+                edgecolor="#d5d4cf",
+                hatch="//",
+                linewidth=0,
+                zorder=0,
+            )
     for index, method in enumerate(methods):
         record = _rows(
             per_dataset, _column(per_dataset, "method") == method
         ).iloc[0]
-        color = METHOD_COLORS[method]
+        method_key = (
+            method if method in METHOD_COLORS else FAMILY_MEMBERS[method][0]
+        )
+        color = METHOD_COLORS[method_key]
         for key in ("direct_abs", "generative_abs"):
             low, high = record[f"{key}_lo"], record[f"{key}_hi"]
             if np.isnan(low):
@@ -307,7 +364,7 @@ def _draw_levels(
             [index, index],
             color=color,
             linewidth=1.2,
-            linestyle=POLICY_TYPE_LINESTYLES[policy_type(method)],
+            linestyle=POLICY_TYPE_LINESTYLES[policy_type(method_key)],
             zorder=2,
         )
         # Grey, because the ceiling is a reference rather than a third series.
@@ -343,7 +400,11 @@ def _draw_levels(
     # list on a later panel would clear the shared formatter for all of them.
     # sharey hides the inner columns' copies.
     axis.set_yticklabels(
-        [METHOD_LABELS[method] for method in methods], fontsize=6
+        [
+            (FAMILY_LABELS if family_average else METHOD_LABELS)[method]
+            for method in methods
+        ],
+        fontsize=6,
     )
     axis.tick_params(axis="y", length=0)
     if x_limits is not None:
@@ -486,27 +547,14 @@ def _mechanism_rows(frame: pd.DataFrame, mechanism: str) -> pd.DataFrame:
 
 
 def _method_order(levels: pd.DataFrame) -> list[str]:
-    """
-    Families most damaged first, and inside a family $Q(s,a)$ above $Q(s,m,a)$.
-
-    Ordering by damage rather than by policy type is what makes GDFS legible: a
-    greedy method sits fourth, among the non-myopic ones, which the myopic band
-    marks where it happens.
-    """
+    """Most damaged first, so the top row is the method missingness costs most."""
     damaged = levels.assign(
-        damage=_column(levels, "ceiling_abs") - _column(levels, "direct_abs"),
-        family=_column(levels, "method").map(METHOD_FAMILIES),
+        damage=_column(levels, "ceiling_abs") - _column(levels, "direct_abs")
     )
     ranked = cast(
-        "pd.Series", damaged.groupby("family")["damage"].mean()
+        "pd.Series", damaged.groupby("method")["damage"].mean()
     ).sort_values(ascending=False)
-    present = set(_column(levels, "method"))
-    return [
-        method
-        for family in ranked.index
-        for method in PRIMARY_METHODS
-        if METHOD_FAMILIES[method] == family and method in present
-    ]
+    return [str(method) for method in ranked.index]
 
 
 def _dataset_order(levels: pd.DataFrame) -> list[str]:
@@ -521,6 +569,15 @@ def _dataset_order(levels: pd.DataFrame) -> list[str]:
 
 
 def _absolute_limits(levels: pd.DataFrame) -> dict[str, tuple[float, float]]:
+    """
+    Each panel keeps its own centre and every panel gets the same width.
+
+    Autoscaling each facet made one inch mean up to 3.9x different damage
+    depending on the panel, which magnified the two flattest datasets to look
+    like the ones that lose real performance. A common span keeps the absolute
+    levels and the ceiling's position while making dumbbell lengths comparable
+    across datasets.
+    """
     columns = [
         "direct_abs_lo",
         "direct_abs_hi",
@@ -528,19 +585,30 @@ def _absolute_limits(levels: pd.DataFrame) -> dict[str, tuple[float, float]]:
         "generative_abs_hi",
         "ceiling_abs",
     ]
-    limits = {}
+    bounds = {}
     for dataset in _column(levels, "dataset").unique():
         per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
         values = per_dataset[columns].to_numpy(dtype=float)
         low, high = float(np.nanmin(values)), float(np.nanmax(values))
-        padding = max(0.015, 0.09 * (high - low))
-        limits[str(dataset)] = (low - padding, high + padding)
+        bounds[str(dataset)] = (low, high)
+    span = max(
+        (high - low) + 2 * max(0.015, 0.09 * (high - low))
+        for low, high in bounds.values()
+    )
+    limits = {}
+    for dataset, (low, high) in bounds.items():
+        start = (low + high - span) / 2
+        # Accuracy and macro-F1 are both bounded by 1, so slide a window that
+        # would run past it back inside rather than showing axis no data can
+        # reach. Sliding keeps the span; shrinking would not.
+        start = min(max(start, 0.0), 1.0 - span) if span <= 1.0 else start
+        limits[dataset] = (start, start + span)
     return limits
 
 
-def _level_legend() -> list[Line2D]:
+def _level_legend() -> list[Line2D | Patch]:
     """
-    Five entries, because the y axis already names every method.
+    Explain treatments, policy types, and intermediate predictive rewards.
 
     Identity moved to position, which is what freed colour to mean family and
     freed the legend to explain the two training views instead of listing nine
@@ -593,6 +661,12 @@ def _level_legend() -> list[Line2D]:
             linestyle=POLICY_TYPE_LINESTYLES["Non-myopic"],
             label="Non-myopic",
         ),
+        Patch(
+            facecolor="white",
+            edgecolor="#a4a39d",
+            hatch="//",
+            label="Intermediate predictive reward",
+        ),
     ]
 
 
@@ -604,8 +678,11 @@ def plot_levels(
     rate: float,
     dataset_order: list[str] | None = None,
     method_order: list[str] | None = None,
+    limits: dict[str, tuple[float, float]] | None = None,
+    family_average: bool = False,
 ) -> None:
     apply_paper_style()
+    mpl.rcParams["hatch.linewidth"] = 0.35
     per_mechanism = _mechanism_rows(levels, mechanism)
     frame = _rows(per_mechanism, _column(per_mechanism, "p") == rate)
     if frame.empty:
@@ -613,7 +690,7 @@ def plot_levels(
         raise ValueError(message)
     datasets = dataset_order or _dataset_order(frame)
     methods = method_order or _method_order(frame)
-    limits = _absolute_limits(frame)
+    limits = limits or _absolute_limits(frame)
     columns = 4
     rows = -(-len(datasets) // columns)
     # Method identity is on the y axis; this strip carries the two training
@@ -635,13 +712,15 @@ def plot_levels(
             dataset,
             methods,
             x_limits=limits.get(dataset),
+            family_average=family_average,
         )
     for index in range(len(datasets), rows * columns):
         row, column = divmod(index, columns)
         axes[row][column].set_visible(False)
 
     figure.supxlabel(
-        "Accuracy or macro-F1",
+        "Accuracy or macro-F1"
+        + (" (family averages)" if family_average else ""),
         fontsize=8,
         y=0.48 / height,
     )
@@ -721,24 +800,48 @@ def plot_mechanism_figures(
     levels: pd.DataFrame,
     law: pd.DataFrame,
     output_dir: Path,
+    *,
+    family_levels: pd.DataFrame,
 ) -> list[Path]:
     """Render a full-width level/law pair for every mechanism."""
     main = _mechanism_rows(levels, MAIN_MECHANISM)
     main = _rows(main, _column(main, "p") == MAIN_RATE)
-    order = _dataset_order(main)
     methods = _method_order(main)
+    family_main = _rows(
+        family_levels,
+        (_column(family_levels, "mechanism") == MAIN_MECHANISM)
+        & (_column(family_levels, "p") == MAIN_RATE),
+    )
+    order = _dataset_order(family_main)
+    families = _method_order(family_main)
+    variants = [m for family in families for m in FAMILY_MEMBERS[family]]
     bounds = _law_bounds(law)
+    # One span over every mechanism, so a dumbbell is the same length in
+    # Figure 4 and its three appendix twins as well as across panels.
+    limits = _absolute_limits(_rows(levels, _column(levels, "p") == MAIN_RATE))
     outputs = []
     for mechanism in INDUCED_MECHANISMS:
         levels_output = output_dir / f"main_summary_absolute_{mechanism}.pdf"
         law_output = output_dir / f"law_{mechanism}.pdf"
         plot_levels(
-            levels,
+            family_levels,
             levels_output,
             mechanism=mechanism,
             rate=MAIN_RATE,
             dataset_order=order,
-            method_order=methods,
+            method_order=families,
+            limits=limits,
+            family_average=True,
+        )
+        variants_output = output_dir / f"main_summary_variants_{mechanism}.pdf"
+        plot_levels(
+            levels,
+            variants_output,
+            mechanism=mechanism,
+            rate=MAIN_RATE,
+            dataset_order=order,
+            method_order=variants,
+            limits=limits,
         )
         plot_law(
             law,
@@ -747,7 +850,7 @@ def plot_mechanism_figures(
             bounds=bounds,
             method_order=methods,
         )
-        outputs.extend([levels_output, law_output])
+        outputs.extend([levels_output, variants_output, law_output])
     return outputs
 
 
@@ -780,7 +883,17 @@ def main() -> None:
     if levels.empty or law.empty:
         message = "no cells collected"
         raise SystemExit(message)
-    outputs = plot_mechanism_figures(levels, law, arguments.output_dir)
+    family_instances = collect_family_instances(arguments.summary_root)
+    family_levels = summarize_families(family_instances)
+    outputs = plot_mechanism_figures(
+        levels, law, arguments.output_dir, family_levels=family_levels
+    )
+    family_instances.to_csv(
+        arguments.output_dir / "main_summary.family_instances.csv", index=False
+    )
+    family_levels.to_csv(
+        arguments.output_dir / "main_summary.family_cells.csv", index=False
+    )
 
     table = arguments.table or arguments.output_dir / "main_summary.cells.csv"
     table.parent.mkdir(parents=True, exist_ok=True)

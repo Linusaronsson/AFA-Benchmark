@@ -17,8 +17,10 @@ from afabench.plotting.methods import (
     DATASET_LABELS_SHORT,
     FAMILY_COLORS,
     GRID,
+    INDUCED_MECHANISMS,
     INK_MUTED,
     LEGEND_STRIP_IN,
+    MECHANISM_LABELS,
     SURFACE,
     TEXT_WIDTH_IN,
     apply_paper_style,
@@ -276,21 +278,46 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
     values = pd.concat([frame["restricted"], frame["restored"]])
     extent = max(abs(float(values.min())), abs(float(values.max()))) * 1.08
     limits = (-extent, extent)
-    height = 2.75
+    mechanisms = [
+        mechanism
+        for mechanism in INDUCED_MECHANISMS
+        if mechanism in set(frame["mechanism"])
+    ]
+    height = 1.8 * len(mechanisms) + LEGEND_STRIP_IN
     figure, axes = plt.subplots(
-        1,
+        len(mechanisms),
         3,
         figsize=(TEXT_WIDTH_IN, height),
         sharex=True,
         sharey=True,
+        squeeze=False,
     )
-    for axis, family in zip(axes, FAMILY_METHODS, strict=True):
-        _draw(
-            axis,
-            _rows(frame, _column(frame, "family") == family),
-            family,
-            limits,
-        )
+    for row, mechanism in enumerate(mechanisms):
+        for column, family in enumerate(FAMILY_METHODS):
+            axis = axes[row, column]
+            _draw(
+                axis,
+                _rows(
+                    frame,
+                    (_column(frame, "family") == family)
+                    & (_column(frame, "mechanism") == mechanism),
+                ),
+                family,
+                limits,
+            )
+            if row:
+                axis.set_title("")
+        if len(mechanisms) > 1:
+            axes[row, 0].text(
+                -0.37,
+                0.5,
+                MECHANISM_LABELS[mechanism],
+                transform=axes[row, 0].transAxes,
+                rotation=90,
+                ha="center",
+                va="center",
+                fontsize=6.5,
+            )
     figure.supxlabel(
         "Adjusted contrast under restricted-action training",
         fontsize=8,
@@ -351,15 +378,17 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
         bbox_to_anchor=(0.5, 0.002),
     )
     figure.subplots_adjust(
-        left=0.105,
+        left=0.15 if len(mechanisms) > 1 else 0.105,
         right=0.99,
-        top=0.91,
+        top=0.97 if len(mechanisms) > 1 else 0.91,
         bottom=LEGEND_STRIP_IN / height,
         wspace=0.14,
+        hspace=0.23,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
     figure.savefig(output.with_suffix(".png"), dpi=200)
+    plt.close(figure)
 
 
 def main() -> None:
@@ -369,7 +398,9 @@ def main() -> None:
         type=Path,
         default=Path("extra/output/missing_data/summary/val"),
     )
-    parser.add_argument("--mechanism", default="mcar")
+    parser.add_argument(
+        "--mechanism", default="mcar", choices=[*INDUCED_MECHANISMS, "all"]
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -380,14 +411,25 @@ def main() -> None:
     parser.add_argument("--table", type=Path)
     arguments = parser.parse_args()
 
-    frame = collect(arguments.summary_root, arguments.mechanism)
+    mechanisms = (
+        INDUCED_MECHANISMS
+        if arguments.mechanism == "all"
+        else (arguments.mechanism,)
+    )
+    frame = pd.concat(
+        [
+            collect(arguments.summary_root, mechanism)
+            for mechanism in mechanisms
+        ],
+        ignore_index=True,
+    )
     if frame.empty:
         message = "no cells collected"
         raise SystemExit(message)
     plot(frame, arguments.output)
     table = arguments.table or arguments.output.with_suffix(".csv")
     frame.to_csv(table, index=False)
-    summary = frame.groupby("family").agg(
+    summary = frame.groupby(["mechanism", "family"]).agg(
         restricted=("restricted", "mean"),
         restored=("restored", "mean"),
     )

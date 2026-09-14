@@ -43,7 +43,7 @@ def test_collect_keeps_largest_budget_and_orders_by_overlap(
     assert frame.set_index("dataset").loc["first", "budget"] == 2
 
 
-def test_render_reports_se_and_bolds_only_clear_extremes() -> None:
+def test_render_ranks_each_column_independently() -> None:
     frame = pd.DataFrame(
         [
             {
@@ -81,10 +81,19 @@ def test_render_reports_se_and_bolds_only_clear_extremes() -> None:
 
     latex = render(frame)
 
-    assert "$\\boldsymbol{0.200 \\pm 0.010}$" in latex
-    assert "$\\boldsymbol{0.700 \\pm 0.010}$" in latex
-    assert "$\\boldsymbol{0.900 \\pm 0.010}$" in latex
-    assert "$0.500 \\pm 0.010$" in latex
+    assert (
+        "third & $0.600 \\pm 0.010$ & first & $0.700 \\pm 0.010$ "
+        "& first & $0.900 \\pm 0.010$ \\\\" in latex
+    )
+    assert (
+        "second & $0.500 \\pm 0.010$ & second & $0.400 \\pm 0.010$ "
+        "& second & $0.600 \\pm 0.010$ \\\\" in latex
+    )
+    assert (
+        "first & $0.200 \\pm 0.010$ & third & $0.200 \\pm 0.010$ "
+        "& third & $0.500 \\pm 0.010$ \\\\" in latex
+    )
+    assert "budget $b$, which is 3 for first, second and third." in latex
 
 
 def test_collect_requires_every_input_path(tmp_path: Path) -> None:
