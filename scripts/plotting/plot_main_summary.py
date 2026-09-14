@@ -317,17 +317,16 @@ def _draw_levels(
     """One dataset's panel: a dumbbell per method, methods down the y axis."""
     per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
     for index, method in enumerate(methods):
-        if policy_type(method) == "Myopic":
+        method_key = (
+            method if method in METHOD_COLORS else FAMILY_MEMBERS[method][0]
+        )
+        if policy_type(method_key) == "Myopic":
             axis.axhspan(
                 index - 0.5, index + 0.5, color=WEDGE, linewidth=0, zorder=0
             )
-        elif method in {
-            "ol",
+        elif method_key in {
             "ol_with_mask",
-            "ol_full_state",
-            "odin",
             "odin_model_free",
-            "odin_model_free_full_state",
         }:
             axis.axhspan(
                 index - 0.5,
