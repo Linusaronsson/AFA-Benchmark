@@ -358,11 +358,15 @@ def panel_cells(frame: pd.DataFrame) -> pd.DataFrame:
         for dataset in DATASET_MARKERS
         for method in PRIMARY_METHODS
     }
-    counts = cell.groupby(["dataset", "method"]).size()
-    observed = set(counts.index)
+    counts = cast("pd.Series", cell.groupby(["dataset", "method"]).size())
+    observed = set(
+        cell[["dataset", "method"]].itertuples(index=False, name=None)
+    )
     if observed != expected or not (counts == 5).all():
         missing = sorted(expected - observed)
-        incomplete = counts[counts != 5].to_dict()
+        incomplete = {
+            key: value for key, value in counts.items() if value != 5
+        }
         message = (
             "compute panel coverage mismatch: "
             f"missing={missing}; non-five-instance groups={incomplete}"

@@ -11,19 +11,17 @@ repeated training sets, so bias and support are visible as position and spread.
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, cast
 
+import matplotlib as mpl
 import numpy as np
+import numpy.typing as npt
 from scipy.stats import gaussian_kde
 
-sys.path.insert(0, str(Path(__file__).parent))
-
-import matplotlib
-
-matplotlib.use("Agg")
+mpl.use("Agg")
 import matplotlib.pyplot as plt
-from overview_backup import ARMS, draws
+from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     INK,
@@ -31,6 +29,10 @@ from afabench.plotting.methods import (
     TEXT_WIDTH_IN,
     apply_paper_style,
 )
+from scripts.paper.overview_backup import ARMS, draws
+
+if TYPE_CHECKING:
+    from matplotlib.axes import Axes
 
 COLORS = {
     "mask_agnostic": "#B5479B",
@@ -51,22 +53,27 @@ BANDWIDTH = 2.0
 CACHE = Path("extra/output/paper/experiments/results/overview_draws.npz")
 
 
-def _load(reps: int) -> dict[tuple[str, int], np.ndarray]:
+def _load(reps: int) -> dict[tuple[str, int], npt.NDArray[np.float64]]:
     if CACHE.exists():
         stored = np.load(CACHE)
         wanted = [f"{a}_{n}" for a in ARMS for n in PANELS]
         if int(stored["reps"]) == reps and all(k in stored for k in wanted):
             return {(a, n): stored[f"{a}_{n}"] for a in ARMS for n in PANELS}
-    out: dict[tuple[str, int], np.ndarray] = {}
+    out: dict[tuple[str, int], npt.NDArray[np.float64]] = {}
     for n in PANELS:
         for arm, pairs in draws(D, P, n, reps, SEED).items():
             out[(arm, n)] = pairs
     CACHE.parent.mkdir(parents=True, exist_ok=True)
-    np.savez(CACHE, reps=reps, **{f"{a}_{n}": out[(a, n)] for a, n in out})
+    np.savez(
+        CACHE,
+        allow_pickle=False,
+        reps=reps,
+        **{f"{a}_{n}": out[(a, n)] for a, n in out},
+    )
     return out
 
 
-def _density(axis, pairs: np.ndarray, color: str) -> None:
+def _density(axis: Axes, pairs: npt.NDArray[np.float64], color: str) -> None:
     """
     Draw one approach's sampling distribution and its centre.
 
@@ -84,7 +91,7 @@ def _density(axis, pairs: np.ndarray, color: str) -> None:
         # values, and the default bandwidth resolves them as separate ridges.
         # Widening it shows the shape of the distribution rather than the
         # lattice the estimator happens to land on.
-        kernel.set_bandwidth(kernel.factor * BANDWIDTH)
+        kernel.set_bandwidth(cast("float", kernel.factor) * BANDWIDTH)
         density = kernel(np.vstack([grid_x.ravel(), grid_y.ravel()]))
         density = (density / density.max()).reshape(grid_x.shape)
         axis.contourf(
@@ -121,7 +128,12 @@ def _density(axis, pairs: np.ndarray, color: str) -> None:
     )
 
 
-def _panel(axis, data, n: int, first: bool) -> None:
+def _panel(
+    axis: Axes,
+    data: dict[tuple[str, int], npt.NDArray[np.float64]],
+    n: int,
+    first: bool,
+) -> None:
     axis.plot([LO, HI], [LO, HI], color=INK_MUTED, linewidth=0.7, zorder=2)
     for arm in ARMS:
         _density(axis, data[(arm, n)], COLORS[arm])
@@ -185,8 +197,8 @@ def build(reps: int, out: Path) -> None:
 
     fig = plt.figure(figsize=(TEXT_WIDTH_IN, 3.02))
     axes = [
-        fig.add_axes([0.070, 0.235, 0.400, 0.715]),
-        fig.add_axes([0.545, 0.235, 0.400, 0.715]),
+        fig.add_axes((0.070, 0.235, 0.400, 0.715)),
+        fig.add_axes((0.545, 0.235, 0.400, 0.715)),
     ]
     for axis, n in zip(axes, PANELS, strict=True):
         _panel(axis, data, n, first=n == PANELS[0])
@@ -200,7 +212,7 @@ def build(reps: int, out: Path) -> None:
     )
 
     handles = [
-        plt.Line2D(
+        Line2D(
             [0],
             [0],
             marker="o",
@@ -212,7 +224,7 @@ def build(reps: int, out: Path) -> None:
         for arm in ARMS
     ]
     handles.append(
-        plt.Line2D(
+        Line2D(
             [0],
             [0],
             marker="*",

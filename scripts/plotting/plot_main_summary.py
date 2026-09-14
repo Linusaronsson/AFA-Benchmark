@@ -27,6 +27,7 @@ from afabench.plotting.methods import (
     INK_MUTED,
     MECHANISM_LABELS,
     METHOD_COLORS,
+    METHOD_FAMILIES,
     METHOD_LABELS,
     POLICY_TYPE_LINESTYLES,
     PRIMARY_METHODS,
@@ -73,6 +74,10 @@ MAIN_MECHANISM = "mcar"
 # 56% of cells carry damage of at least 0.01 at p = 0.7 against 35% at
 # p = 0.3, where a third of the panel would be dumbbells of zero length.
 MAIN_RATE = 0.7
+
+ROW_GRAY = "#dedede"
+ROW_HATCH_COLOR = "#b0b0b0"
+ROW_HATCH = "///"
 
 
 def _column(frame: pd.DataFrame, name: str) -> pd.Series:
@@ -322,18 +327,15 @@ def _draw_levels(
         )
         if policy_type(method_key) == "Myopic":
             axis.axhspan(
-                index - 0.5, index + 0.5, color=WEDGE, linewidth=0, zorder=0
+                index - 0.5, index + 0.5, color=ROW_GRAY, linewidth=0, zorder=0
             )
-        elif method_key in {
-            "ol_with_mask",
-            "odin_model_free",
-        }:
+        elif METHOD_FAMILIES[method_key] in {"ol", "odin"}:
             axis.axhspan(
                 index - 0.5,
                 index + 0.5,
                 facecolor="none",
-                edgecolor="#d5d4cf",
-                hatch="//",
+                edgecolor=ROW_HATCH_COLOR,
+                hatch=ROW_HATCH,
                 linewidth=0,
                 zorder=0,
             )
@@ -363,7 +365,7 @@ def _draw_levels(
             [index, index],
             color=color,
             linewidth=1.2,
-            linestyle=POLICY_TYPE_LINESTYLES[policy_type(method_key)],
+            linestyle="dashed",
             zorder=2,
         )
         # Grey, because the ceiling is a reference rather than a third series.
@@ -607,7 +609,7 @@ def _absolute_limits(levels: pd.DataFrame) -> dict[str, tuple[float, float]]:
 
 def _level_legend() -> list[Line2D | Patch]:
     """
-    Explain treatments, policy types, and intermediate predictive rewards.
+    Explain treatments and acquisition objectives through markers and fills.
 
     Identity moved to position, which is what freed colour to mean family and
     freed the legend to explain the two training views instead of listing nine
@@ -644,27 +646,21 @@ def _level_legend() -> list[Line2D | Patch]:
             markeredgewidth=1.1,
             label="Complete-data ceiling",
         ),
-        Line2D(
-            [],
-            [],
-            color=INK_MUTED,
-            linewidth=1.2,
-            linestyle=POLICY_TYPE_LINESTYLES["Myopic"],
+        Patch(
+            facecolor=ROW_GRAY,
+            edgecolor=INK_MUTED,
             label="Myopic",
         ),
-        Line2D(
-            [],
-            [],
-            color=INK_MUTED,
-            linewidth=1.2,
-            linestyle=POLICY_TYPE_LINESTYLES["Non-myopic"],
-            label="Non-myopic",
+        Patch(
+            facecolor=SURFACE,
+            edgecolor=ROW_HATCH_COLOR,
+            hatch=ROW_HATCH,
+            label="Non-myopic\nIntermediate predictive reward",
         ),
         Patch(
-            facecolor="white",
-            edgecolor="#a4a39d",
-            hatch="//",
-            label="Intermediate predictive reward",
+            facecolor=SURFACE,
+            edgecolor=INK_MUTED,
+            label="Non-myopic\nTerminal prediction objective",
         ),
     ]
 
@@ -693,8 +689,8 @@ def plot_levels(
     columns = 4
     rows = -(-len(datasets) // columns)
     # Method identity is on the y axis; this strip carries the two training
-    # views, ceiling, and policy-type conventions in two compact rows.
-    strip = 0.82
+    # views and acquisition objectives in separate legend groups.
+    strip = 1.35
     height = strip + 1.75 * rows
     figure, axes = plt.subplots(
         rows,
@@ -721,18 +717,35 @@ def plot_levels(
         "Accuracy or macro-F1"
         + (" (family averages)" if family_average else ""),
         fontsize=8,
-        y=0.48 / height,
+        y=1.03 / height,
     )
+    handles = _level_legend()
     figure.legend(
-        handles=_level_legend(),
+        handles=handles[:3],
+        title="Training condition (markers)",
+        title_fontsize=7,
         loc="lower center",
         ncol=3,
         frameon=False,
-        fontsize=6.5,
+        fontsize=7,
         labelcolor=INK_MUTED,
-        columnspacing=1.0,
-        handlelength=1.6,
-        bbox_to_anchor=(0.5, 0.012),
+        columnspacing=1.2,
+        handlelength=1.4,
+        bbox_to_anchor=(0.5, 0.57 / height),
+    )
+    figure.legend(
+        handles=handles[3:],
+        title="Acquisition objective (row backgrounds)",
+        title_fontsize=7,
+        loc="lower center",
+        ncol=3,
+        frameon=False,
+        fontsize=7,
+        labelcolor=INK_MUTED,
+        columnspacing=1.4,
+        handlelength=2.6,
+        handleheight=1.8,
+        bbox_to_anchor=(0.5, 0.015),
     )
     figure.subplots_adjust(
         left=0.195,

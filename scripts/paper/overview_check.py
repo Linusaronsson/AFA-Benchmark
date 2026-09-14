@@ -13,6 +13,7 @@ import subprocess
 from pathlib import Path
 
 import numpy as np
+import numpy.typing as npt
 from PIL import Image
 
 BUILD = Path("extra/output/paper/figs/overview/build")
@@ -29,11 +30,11 @@ CVD = {
 }
 
 
-def _srgb_to_linear(a: np.ndarray) -> np.ndarray:
+def _srgb_to_linear(a: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return np.where(a <= 0.04045, a / 12.92, ((a + 0.055) / 1.055) ** 2.4)
 
 
-def _linear_to_srgb(a: np.ndarray) -> np.ndarray:
+def _linear_to_srgb(a: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
     return np.where(a <= 0.0031308, a * 12.92, 1.055 * a ** (1 / 2.4) - 0.055)
 
 
@@ -64,7 +65,7 @@ def trim(image: Image.Image, pad: int = 12) -> Image.Image:
 def process(variant: str, dpi: int) -> None:
     pdf = BUILD / f"{variant}-figure.pdf"
     subprocess.run(
-        [
+        [  # noqa: S607 - pdftoppm is resolved from PATH.
             "pdftoppm",
             "-r",
             str(dpi),

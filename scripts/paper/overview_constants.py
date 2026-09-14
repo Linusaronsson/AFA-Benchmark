@@ -21,8 +21,10 @@ import argparse
 import csv
 import math
 from pathlib import Path
+from typing import TypedDict
 
 import numpy as np
+import numpy.typing as npt
 
 # The lattice is drawn at this rate because the exact availabilities are then
 # 0.5, 0.25 and 0.125, which stay visible as literal opacities. No floor, no
@@ -93,17 +95,35 @@ HEART_PICK = (3, 4, 8, 13)
 FAN_EVAL_PATH = (1, 2, 3)
 
 
-def _fan_tree() -> tuple[dict, list]:
+type State = tuple[int, ...]
+
+
+class FanNode(TypedDict):
+    level: int
+    children: list[State]
+    x: float
+    y: float
+
+
+type FanTree = dict[State, FanNode]
+
+
+def _fan_tree() -> tuple[FanTree, list[State]]:
     """Build the displayed acquisition tree and lay it out bottom-up."""
-    nodes: dict[tuple[int, ...], dict] = {(): {"level": 0, "children": []}}
-    frontier = [()]
+    nodes: FanTree = {(): {"level": 0, "children": [], "x": 0.0, "y": 0.0}}
+    frontier: list[State] = [()]
     for level in range(1, LATTICE_DEPTH + 1):
         nxt = []
         for state in frontier:
             free = [f for f in range(1, LATTICE_WIDTH + 1) if f not in state]
             for feature in free:
                 child = (*state, feature)
-                nodes[child] = {"level": level, "children": []}
+                nodes[child] = {
+                    "level": level,
+                    "children": [],
+                    "x": 0.0,
+                    "y": 0.0,
+                }
                 nodes[state]["children"].append(child)
                 nxt.append(child)
         frontier = nxt
@@ -112,7 +132,7 @@ def _fan_tree() -> tuple[dict, list]:
     for index, leaf in enumerate(leaves):
         nodes[leaf]["y"] = FAN_SPAN / 2 - FAN_SPAN * index / (len(leaves) - 1)
     for level in range(LATTICE_DEPTH - 1, -1, -1):
-        for state, node in nodes.items():
+        for node in nodes.values():
             if node["level"] == level:
                 node["y"] = sum(nodes[c]["y"] for c in node["children"]) / len(
                     node["children"]
@@ -122,7 +142,7 @@ def _fan_tree() -> tuple[dict, list]:
     return nodes, leaves
 
 
-def _fan_edges(nodes: dict, mask=None) -> str:
+def _fan_edges(nodes: FanTree, mask: State | None = None) -> str:
     """
     Emit x1/y1/x2/y2/depth/feature/severed for every displayed edge.
 
@@ -131,7 +151,7 @@ def _fan_edges(nodes: dict, mask=None) -> str:
     cascades: nothing below an illegal acquisition is reachable either.
     """
     parts = []
-    for state, node in sorted(
+    for _state, node in sorted(
         nodes.items(), key=lambda kv: (kv[1]["level"], kv[0])
     ):
         for child in node["children"]:
@@ -145,7 +165,7 @@ def _fan_edges(nodes: dict, mask=None) -> str:
     return ",".join(parts)
 
 
-def _fan_path(nodes: dict, features) -> str:
+def _fan_path(nodes: FanTree, features: State) -> str:
     """Emit the polyline for one acquisition plan."""
     points, state = [], ()
     for feature in features:
@@ -157,8 +177,8 @@ def _fan_path(nodes: dict, features) -> str:
     return " ".join(points)
 
 
-def _fan_dots(nodes: dict, features) -> str:
-    """The same plan as a comma list, so TikZ can place a marker per vertex."""
+def _fan_dots(nodes: FanTree, features: State) -> str:
+    """Emit a comma list so TikZ can place a marker per vertex."""
     dots, state = [], ()
     for feature in (None, *features):
         if feature is not None:
@@ -167,17 +187,19 @@ def _fan_dots(nodes: dict, features) -> str:
     return ",".join(dots)
 
 
-def _fan_legal_path(nodes: dict) -> tuple:
-    """The deepest plan that survives the displayed mask, preferring low indices."""
-    best = ()
-    stack = [()]
+def _fan_legal_path(nodes: FanTree) -> State:
+    """Find the deepest legal plan, preferring low indices."""
+    best: State = ()
+    stack: list[State] = [()]
     while stack:
         state = stack.pop()
         if len(state) > len(best):
             best = state
-        for child in nodes[state]["children"]:
-            if child[-1] not in FAN_MASK:
-                stack.append(child)
+        stack.extend(
+            child
+            for child in nodes[state]["children"]
+            if child[-1] not in FAN_MASK
+        )
     return best
 
 
@@ -203,7 +225,7 @@ def _curve(exponent: int, x_span: float, y_span: float, decades: float) -> str:
     return " ".join(points)
 
 
-def _heart_sample() -> tuple[list[list[str]], np.ndarray]:
+def _heart_sample() -> tuple[list[list[str]], npt.NDArray[np.bool_]]:
     """
     Read real patient records and draw one seeded MCAR mask over them.
 
