@@ -97,5 +97,5 @@ def test_theoretical_arms_have_public_paper_labels() -> None:
     assert dict(PANELS) == {
         "mask_local": "(a) Filtering",
         "mask_agnostic": "(b) Aliasing",
-        "generative": "(c) Generative restoration",
+        "generative": "(c) Generative Restoration",
     }

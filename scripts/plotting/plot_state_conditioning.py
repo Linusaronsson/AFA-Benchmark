@@ -18,7 +18,7 @@ from afabench.plotting.methods import (
     FAMILY_COLORS,
     GRID,
     INDUCED_MECHANISMS,
-    INK_MUTED,
+    INK,
     LEGEND_STRIP_IN,
     MECHANISM_LABELS,
     SURFACE,
@@ -246,7 +246,7 @@ def _draw(
     axis.plot(
         [lo, hi],
         [lo, hi],
-        color=INK_MUTED,
+        color=INK,
         linestyle="--",
         linewidth=0.8,
     )
@@ -335,7 +335,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             marker=marker,
             linestyle="none",
             markersize=4.2,
-            markerfacecolor=INK_MUTED,
+            markerfacecolor=INK,
             markeredgecolor=SURFACE,
             label=DATASET_LABELS_SHORT[dataset],
         )
@@ -348,7 +348,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             marker="o",
             linestyle="none",
             markersize=(size**0.5) * 0.72,
-            markerfacecolor=INK_MUTED,
+            markerfacecolor=INK,
             markeredgecolor=SURFACE,
             label=f"$p={rate:g}$",
         )
@@ -360,7 +360,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
         ncol=8,
         frameon=False,
         fontsize=5.7,
-        labelcolor=INK_MUTED,
+        labelcolor=INK,
         columnspacing=0.65,
         handletextpad=0.25,
         bbox_to_anchor=(0.5, 0.065),
@@ -372,7 +372,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
         ncol=3,
         frameon=False,
         fontsize=6.0,
-        labelcolor=INK_MUTED,
+        labelcolor=INK,
         columnspacing=1.1,
         handletextpad=0.25,
         bbox_to_anchor=(0.5, 0.002),

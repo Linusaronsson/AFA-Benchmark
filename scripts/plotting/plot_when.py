@@ -40,7 +40,7 @@ from afabench.plotting.methods import (
     DATASET_LABELS_SHORT,
     GRID,
     INDUCED_MECHANISMS,
-    INK_MUTED,
+    INK,
     MECHANISM_COLORS,
     MECHANISM_LABELS,
     MECHANISM_MARKERS,
@@ -57,9 +57,7 @@ if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
 
-# The structure figure fixes the rate rather than averaging over it, because
-# damage grows with the rate and mixing rates would blur the very spread being
-# explained.
+# Damage grows with the rate, so fix it rather than averaging over it.
 STRUCTURE_RATE = 0.7
 
 
@@ -158,11 +156,10 @@ def _draw_structure(axis: Axes, points: pd.DataFrame) -> None:
         points.groupby("dataset")["weighted_route_overlap"].first(),
     ).sort_values(ascending=False)
     datasets = [str(name) for name in order.index]
-    axis.axvline(0.0, color=INK_MUTED, linewidth=0.8, zorder=1)
+    axis.axvline(0.0, color=INK, linewidth=0.8, zorder=1)
     for row, dataset in enumerate(datasets):
         group = _rows(points, _column(points, "dataset") == dataset)
-        # A hairline through each row's methods, so the spread within a dataset
-        # reads as one object before the individual methods are picked out.
+        # A hairline through each row, so the spread reads as one object.
         axis.plot(
             [float(group["D"].min()), float(group["D"].max())],
             [row, row],
@@ -194,15 +191,13 @@ def _draw_structure(axis: Axes, points: pd.DataFrame) -> None:
     axis.set_xlabel(
         f"Missingness damage $D_r$ at $p={STRUCTURE_RATE:g}$", fontsize=8
     )
-    # The ordering variable belongs on the figure, since the ordering is the
-    # claim. A right-hand column keeps it out of the data area.
+    # The ordering variable is the claim, so keep it out of the data area.
     right = axis.twinx()
     right.set_ylim(axis.get_ylim())
     right.set_yticks(range(len(datasets)))
     right.set_yticklabels(
         [f"{float(order[name]):.2f}" for name in datasets], fontsize=6.5
     )
-    # Head the column; a centred label lands on the middle row's own value.
     right.annotate(
         r"$\omega_{\mathrm{route}}$",
         (1.0, 1.0),
@@ -210,10 +205,10 @@ def _draw_structure(axis: Axes, points: pd.DataFrame) -> None:
         textcoords="offset points",
         xytext=(26, 5),
         fontsize=8,
-        color=INK_MUTED,
+        color=INK,
         ha="right",
     )
-    right.tick_params(length=0, colors=INK_MUTED)
+    right.tick_params(length=0, colors=INK)
     for spine in ("top", "right", "left"):
         right.spines[spine].set_visible(False)
     axis.grid(True, axis="x", color=GRID, linewidth=0.4, alpha=0.7)
@@ -239,15 +234,13 @@ def plot(
     if points is None:
         return
 
-    # The structure claim is its own figure.
     structure_output = output.with_name(
         f"{output.stem}_structure{output.suffix}"
     )
     rows = points["dataset"].nunique()
     figure = plt.figure(figsize=(TEXT_WIDTH_IN, 1.05 + 0.30 * rows))
-    # Reserve a stable footer for the three-row method legend. Tying the axes'
-    # bottom margin to the number of datasets pushed the x label into that
-    # footer once the eighth production dataset was added.
+    # Footer height is fixed, not tied to the dataset count, so the x label
+    # never lands in the legend.
     axis = figure.add_axes((0.16, 0.31, 0.76, 0.64))
     _draw_structure(axis, points)
     handles = [
@@ -270,7 +263,7 @@ def plot(
         ncol=5,
         frameon=False,
         fontsize=6.5,
-        labelcolor=INK_MUTED,
+        labelcolor=INK,
         columnspacing=1.2,
         handletextpad=0.5,
         bbox_to_anchor=(0.5, 0.005),

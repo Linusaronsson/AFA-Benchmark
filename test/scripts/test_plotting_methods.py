@@ -55,9 +55,7 @@ def test_paired_state_variants_name_their_conditioning() -> None:
     assert METHOD_LABELS["ol_with_mask"].endswith("$Q(s,a)$")
     assert METHOD_LABELS["ol_full_state"].endswith("$Q(s,m,a)$")
     assert METHOD_LABELS["odin_model_free"].endswith("$Q(s,a)$")
-    assert METHOD_LABELS["odin_model_free_full_state"].endswith(
-        "$Q(s,m,a)$"
-    )
+    assert METHOD_LABELS["odin_model_free_full_state"].endswith("$Q(s,m,a)$")
 
 
 def test_markers_separate_every_method() -> None:

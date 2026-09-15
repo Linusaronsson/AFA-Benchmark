@@ -16,17 +16,17 @@ from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     DATASET_LABELS_SHORT,
+    FAMILY_COLORS,
     GRID,
-    INK_MUTED,
-    LEGEND_STRIP_IN,
-    METHOD_COLORS,
-    METHOD_LABELS,
+    INK,
+    METHOD_FAMILIES,
     METHOD_MARKERS,
     PRIMARY_METHODS,
     SURFACE,
     TEXT_WIDTH_IN,
     apply_paper_style,
 )
+from scripts.plotting.family_summary import FAMILY_LABELS, FAMILY_MEMBERS
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
@@ -42,6 +42,17 @@ DATASET_MARKERS = {
     "miniboone": "*",
 }
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
+# Variants differ in state, not in compute, so nine series become six families.
+FAMILY_ORDER = tuple(
+    dict.fromkeys(METHOD_FAMILIES[method] for method in PRIMARY_METHODS)
+)
+FAMILY_MARKERS = {
+    family: METHOD_MARKERS[FAMILY_MEMBERS[family][0]]
+    for family in FAMILY_ORDER
+}
+# Strip under the axes, in inches: x label, family key, arm key.
+STRIP_IN = 1.08
+LABEL_IN, FAMILY_KEY_IN, ARM_KEY_IN = 0.74, 0.38, 0.02
 RESTRICTED = "restricted"
 GENERATIVE = "pvae_label_conditioned"
 RESTORED = {"pvae_label_conditioned", "pvae_label_free", "pvae_stepwise"}
@@ -56,9 +67,8 @@ HARDWARE_FIELDS = [
     "torch_cuda",
     "cuda_devices",
 ]
-# `gpu_workers` is workflow concurrency, not a property of the allocated GH200.
-# Keep it for each arm as provenance, but do not discard a scientific pair when
-# a resumed allocation used a different number of concurrent workers.
+# `gpu_workers` is workflow concurrency, not hardware: keep it as provenance
+# but never reject a pair over it.
 PAIR_ENVIRONMENT_FIELDS = [
     field for field in HARDWARE_FIELDS if field != "gpu_workers"
 ]
@@ -341,13 +351,6 @@ PANEL_MECHANISM, PANEL_RATE = "mcar", 0.5
 
 
 def panel_cells(frame: pd.DataFrame) -> pd.DataFrame:
-    """
-    One restricted and one generative point per dataset and method.
-
-    Fixed to the same reference cell as the dumbbell panel of the main figure,
-    so the two figures describe one cell rather than two different ones, and
-    averaged over the five dataset instances.
-    """
     cell = _rows(
         frame,
         (_column(frame, "mechanism") == PANEL_MECHANISM)
@@ -372,15 +375,21 @@ def panel_cells(frame: pd.DataFrame) -> pd.DataFrame:
             f"missing={missing}; non-five-instance groups={incomplete}"
         )
         raise ValueError(message)
+    columns = [
+        "wall_seconds_restricted",
+        "wall_seconds_generative",
+        "score_restricted",
+        "score_generative",
+    ]
+    per_method = cast(
+        "pd.DataFrame",
+        cell.groupby(["dataset", "method"], as_index=False)[columns].mean(),
+    )
+    per_method["family"] = _column(per_method, "method").map(METHOD_FAMILIES)
     return cast(
         "pd.DataFrame",
-        cell.groupby(["dataset", "method"], as_index=False)[
-            [
-                "wall_seconds_restricted",
-                "wall_seconds_generative",
-                "score_restricted",
-                "score_generative",
-            ]
+        per_method.groupby(["dataset", "family"], as_index=False)[
+            columns
         ].mean(),
     )
 
@@ -395,21 +404,21 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
     figure, axes = plt.subplots(
         rows,
         columns,
-        figsize=(TEXT_WIDTH_IN, 1.35 + 1.55 * rows),
+        figsize=(TEXT_WIDTH_IN, STRIP_IN + 0.35 + 1.55 * rows),
         squeeze=False,
     )
     for index, dataset in enumerate(datasets):
         axis = axes[index // columns][index % columns]
         per_dataset = _rows(cells, _column(cells, "dataset") == dataset)
-        for method in PRIMARY_METHODS:
+        for family in FAMILY_ORDER:
             record = _rows(
-                per_dataset, _column(per_dataset, "method") == method
+                per_dataset, _column(per_dataset, "family") == family
             )
             if record.empty:
                 continue
             row = cast("Any", record.iloc[0])
-            color = METHOD_COLORS[method]
-            marker = METHOD_MARKERS[method]
+            color = FAMILY_COLORS[family]
+            marker = FAMILY_MARKERS[family]
             axis.annotate(
                 "",
                 xy=(row["wall_seconds_generative"], row["score_generative"]),
@@ -446,10 +455,6 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
                 zorder=3,
             )
         axis.set_xscale("log")
-        # Wall time spans well under a decade per dataset. The default locator
-        # crowds the axis with 2x10^2, 3x10^2 and so on, and restricting it to
-        # decades leaves panels with no labelled tick at all, so tick the 1-2-5
-        # subdivisions.
         axis.xaxis.set_major_locator(
             mticker.LogLocator(base=10.0, subs=(1.0, 2.0, 5.0), numticks=12)
         )
@@ -457,6 +462,8 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
         axis.xaxis.set_major_formatter(
             mticker.FuncFormatter(lambda value, _: f"{value:,.0f}")
         )
+        # Family means narrow the range; cap the ticks a 1.2in axis can hold.
+        axis.yaxis.set_major_locator(mticker.MaxNLocator(nbins=4))
         axis.tick_params(labelsize=7)
         # A 1.2in panel cannot carry three log labels without them touching.
         _thin_x_ticks(axis, keep=2 if columns > 3 else 3)
@@ -468,25 +475,25 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
     for index in range(len(datasets), rows * columns):
         axes[index // columns][index % columns].set_visible(False)
 
-    height = 1.35 + 1.55 * rows
+    height = STRIP_IN + 0.35 + 1.55 * rows
     figure.supxlabel(
-        "Wall-clock time per trained method (s)",
+        "Wall-clock Time per Trained Method (s)",
         fontsize=8,
-        y=0.75 / height,
+        y=LABEL_IN / height,
     )
-    figure.supylabel("Accuracy or macro-F1", fontsize=8, x=0.015)
-    method_handles = [
+    figure.supylabel("Accuracy or Macro-F1", fontsize=8, x=0.015)
+    family_handles = [
         Line2D(
             [],
             [],
-            color=METHOD_COLORS[method],
-            marker=METHOD_MARKERS[method],
-            markerfacecolor=METHOD_COLORS[method],
+            color=FAMILY_COLORS[family],
+            marker=FAMILY_MARKERS[family],
+            markerfacecolor=FAMILY_COLORS[family],
             markersize=4.0,
             linewidth=1.0,
-            label=METHOD_LABELS[method],
+            label=FAMILY_LABELS[family],
         )
-        for method in PRIMARY_METHODS
+        for family in FAMILY_ORDER
     ]
     arm_handles = [
         Line2D(
@@ -496,9 +503,9 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             linestyle="none",
             markersize=4.5,
             markerfacecolor=SURFACE,
-            markeredgecolor=INK_MUTED,
+            markeredgecolor=INK,
             markeredgewidth=1.0,
-            label="Restricted-action training",
+            label="Restricted-action Training",
         ),
         Line2D(
             [],
@@ -506,39 +513,39 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             marker="o",
             linestyle="none",
             markersize=4.5,
-            markerfacecolor=INK_MUTED,
-            markeredgecolor=INK_MUTED,
-            label="Generative restoration",
+            markerfacecolor=INK,
+            markeredgecolor=INK,
+            label="Generative Restoration",
         ),
     ]
-    method_legend = figure.legend(
-        handles=method_handles,
+    family_legend = figure.legend(
+        handles=family_handles,
         loc="lower center",
-        ncol=3,
+        ncol=len(FAMILY_ORDER),
         frameon=False,
-        fontsize=6.0,
-        labelcolor=INK_MUTED,
-        columnspacing=0.9,
+        fontsize=7.0,
+        labelcolor=INK,
+        columnspacing=1.1,
         handlelength=1.4,
-        bbox_to_anchor=(0.5, 0.045),
+        bbox_to_anchor=(0.5, FAMILY_KEY_IN / height),
     )
-    figure.add_artist(method_legend)
+    figure.add_artist(family_legend)
     figure.legend(
         handles=arm_handles,
         loc="lower center",
         ncol=2,
         frameon=False,
-        fontsize=6.0,
-        labelcolor=INK_MUTED,
+        fontsize=7.0,
+        labelcolor=INK,
         columnspacing=1.2,
         handlelength=1.4,
-        bbox_to_anchor=(0.5, 0.002),
+        bbox_to_anchor=(0.5, ARM_KEY_IN / height),
     )
     figure.subplots_adjust(
         left=0.11,
         right=0.985,
-        top=0.92,
-        bottom=LEGEND_STRIP_IN / height,
+        top=0.955,
+        bottom=STRIP_IN / height,
         hspace=0.45,
         wspace=0.32,
     )

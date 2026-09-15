@@ -1,13 +1,3 @@
-"""
-Overview figure: what incomplete training data makes of an acquisition value.
-
-Two candidate acquisitions at the same state span a plane. Because both axes
-carry the same quantity on the same scale, the diagonal is the decision
-boundary: an estimate on the far side of it produces a policy that acquires the
-other feature. Each approach is drawn as the distribution of its estimate over
-repeated training sets, so bias and support are visible as position and spread.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -25,7 +15,6 @@ from matplotlib.lines import Line2D
 
 from afabench.plotting.methods import (
     INK,
-    INK_MUTED,
     TEXT_WIDTH_IN,
     apply_paper_style,
 )
@@ -74,23 +63,9 @@ def _load(reps: int) -> dict[tuple[str, int], npt.NDArray[np.float64]]:
 
 
 def _density(axis: Axes, pairs: npt.NDArray[np.float64], color: str) -> None:
-    """
-    Draw one approach's sampling distribution and its centre.
-
-    The estimator has a degenerate branch: with no training instance to support
-    an estimate it falls back to a fixed value, so a large share of the draws
-    can sit on one point. The kernel renders that pile as a small lobe rather
-    than a spike, which is where the mass is but is smoother than the truth;
-    drawing it as a separate point mass instead splits one approach into two
-    disconnected marks and reads worse than the smoothing costs.
-    """
     if pairs.std(axis=0).min() > 1e-6:
         grid_x, grid_y = np.mgrid[LO:HI:260j, LO:HI:260j]
         kernel = gaussian_kde(pairs.T)
-        # With very little support an estimate takes only a handful of discrete
-        # values, and the default bandwidth resolves them as separate ridges.
-        # Widening it shows the shape of the distribution rather than the
-        # lattice the estimator happens to land on.
         kernel.set_bandwidth(cast("float", kernel.factor) * BANDWIDTH)
         density = kernel(np.vstack([grid_x.ravel(), grid_y.ravel()]))
         density = (density / density.max()).reshape(grid_x.shape)
@@ -134,7 +109,7 @@ def _panel(
     n: int,
     first: bool,
 ) -> None:
-    axis.plot([LO, HI], [LO, HI], color=INK_MUTED, linewidth=0.7, zorder=2)
+    axis.plot([LO, HI], [LO, HI], color=INK, linewidth=0.7, zorder=2)
     for arm in ARMS:
         _density(axis, data[(arm, n)], COLORS[arm])
     axis.plot(
@@ -153,30 +128,36 @@ def _panel(
     axis.set_xticks([0.2, 0.4, 0.6, 0.8, 1.0])
     axis.set_yticks([0.2, 0.4, 0.6, 0.8, 1.0])
     axis.set_title(
-        f"$n=10^{{{round(np.log10(n))}}}$", fontsize=8.5, color=INK, pad=3
+        f"({'b' if first else 'c'}) $n=10^{{{round(np.log10(n))}}}$",
+        fontsize=8,
+        color=INK,
+        pad=3,
     )
     for spine in ("top", "right"):
         axis.spines[spine].set_visible(False)
     if first:
-        axis.set_ylabel(r"$\widehat{Q}(s,a_2)$", fontsize=8.5, labelpad=1)
-        # The boundary, named on the boundary.
+        axis.set_ylabel(
+            r"Shortcut $x_4$",
+            fontsize=8,
+            labelpad=1,
+        )
         axis.text(
             0.05,
             0.95,
-            "Prefers $a_2$",
+            r"Prefers shortcut $x_4$",
             transform=axis.transAxes,
             fontsize=8,
-            color=INK_MUTED,
+            color=INK,
             ha="left",
             va="top",
         )
         axis.text(
             0.95,
             0.05,
-            "Prefers $a_1$",
+            r"Prefers context $x_1$",
             transform=axis.transAxes,
             fontsize=8,
-            color=INK_MUTED,
+            color=INK,
             ha="right",
             va="bottom",
         )
@@ -197,18 +178,18 @@ def build(reps: int, out: Path) -> None:
 
     fig = plt.figure(figsize=(TEXT_WIDTH_IN, 3.02))
     axes = [
-        fig.add_axes((0.070, 0.235, 0.400, 0.715)),
-        fig.add_axes((0.545, 0.235, 0.400, 0.715)),
+        fig.add_axes((0.065, 0.235, 0.435, 0.715)),
+        fig.add_axes((0.550, 0.235, 0.435, 0.715)),
     ]
     for axis, n in zip(axes, PANELS, strict=True):
         _panel(axis, data, n, first=n == PANELS[0])
     fig.text(
         0.51,
         0.108,
-        r"$\widehat{Q}(s,a_1)$",
+        r"Context $x_1$",
         ha="center",
-        fontsize=8.5,
-        color=INK_MUTED,
+        fontsize=8,
+        color=INK,
     )
 
     handles = [
@@ -231,7 +212,7 @@ def build(reps: int, out: Path) -> None:
             linestyle="none",
             markersize=8,
             color=INK,
-            label=r"Optimum $Q^{\star}$",
+            label="= (1.0, 0.75) Optimal Evaluation",
         )
     )
     fig.legend(
@@ -242,12 +223,12 @@ def build(reps: int, out: Path) -> None:
         fontsize=8,
         bbox_to_anchor=(0.5, 0.0),
         handletextpad=0.35,
-        columnspacing=1.5,
+        columnspacing=0.8,
     )
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=400)
     fig.savefig(out.with_suffix(".png"), dpi=400)
-    print(f"wrote {out}")
+    print(f"Wrote {out} and {out.with_suffix('.png')}")
 
 
 def main() -> None:

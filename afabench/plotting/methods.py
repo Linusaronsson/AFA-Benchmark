@@ -1,19 +1,3 @@
-"""
-Shared visual identity for the paper's figures.
-
-Every method-shaped, dataset-shaped and mechanism-shaped constant lives here, so
-figures cannot disagree about what a colour or a name means. The Hydra plotting
-config mirrors the colours through ``method_color_overrides``;
-``test_plotting_methods.py`` keeps the two equal and enforces the floors below.
-
-Hue is a *family*, not a method: eleven mutually separated hues cannot be calm,
-and a ninth generated hue is indistinguishable from an existing one under CVD.
-Methods inside a family share a hue and are told apart by marker and by row
-position. The six family hues are validated over every pair, not adjacent ones
-only, for deuteranopia, protanopia and tritanopia: floors of 8 under CVD and 15
-for normal vision, in OKLab dE x100.
-"""
-
 import matplotlib as mpl
 
 # Okabe-Ito, one hue per method family.
@@ -55,7 +39,6 @@ LEGEND_STRIP_IN = 0.95
 
 # Ink.
 INK = "#0b0b0b"
-INK_MUTED = "#52514e"
 GRID = "#d8d7d2"
 WEDGE = "#f0efec"
 SURFACE = "#ffffff"
@@ -74,10 +57,10 @@ def apply_paper_style() -> None:
             "font.size": 8,
             "axes.linewidth": 0.6,
             "text.color": INK,
-            "axes.labelcolor": INK_MUTED,
+            "axes.labelcolor": INK,
             "axes.edgecolor": GRID,
-            "xtick.color": INK_MUTED,
-            "ytick.color": INK_MUTED,
+            "xtick.color": INK,
+            "ytick.color": INK,
             "xtick.major.width": 0.6,
             "ytick.major.width": 0.6,
             "figure.facecolor": SURFACE,

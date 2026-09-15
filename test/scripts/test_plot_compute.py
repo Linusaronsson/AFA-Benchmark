@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from afabench.plotting.methods import PRIMARY_METHODS
+from scripts.plotting.family_summary import FAMILY_MEMBERS
 from scripts.plotting.plot_compute import attribute, paired_costs, panel_cells
 
 
@@ -182,7 +183,12 @@ PRODUCTION_PAIRED = Path(
     not PRODUCTION_PAIRED.exists(),
     reason="paper compute artifact is not present in a clean checkout",
 )
-def test_production_compute_panel_has_72_groups_of_five() -> None:
+def test_production_compute_panel_averages_nine_methods_into_six_families() -> (
+    None
+):
+    """Eight datasets by six families, with per-method coverage still checked."""
     cells = panel_cells(pd.read_csv(PRODUCTION_PAIRED))
 
-    assert len(cells) == 72
+    assert len(cells) == 8 * len(FAMILY_MEMBERS)
+    assert set(cells["family"]) == set(FAMILY_MEMBERS)
+    assert cells.groupby("dataset").size().eq(len(FAMILY_MEMBERS)).all()

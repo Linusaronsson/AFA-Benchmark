@@ -19,7 +19,6 @@ from matplotlib.lines import Line2D
 from afabench.plotting.methods import (
     GRID,
     INK,
-    INK_MUTED,
     TEXT_WIDTH_IN,
     apply_paper_style,
 )
@@ -39,7 +38,7 @@ class Curve(NamedTuple):
 PANELS = (
     ("mask_local", "(a) Filtering"),
     ("mask_agnostic", "(b) Aliasing"),
-    ("generative", "(c) Generative restoration"),
+    ("generative", "(c) Generative Restoration"),
 )
 COLORS = {0.3: "#b7a3d4", 0.5: "#7752a5", 0.7: "#37225c"}
 MARKERS = {6: "o", 8: "s", 10: "D"}
@@ -103,7 +102,7 @@ def render(input_path: Path, output_stem: Path) -> None:
                     markevery=2,
                 )
         if arm == "mask_agnostic":
-            axis.axhline(0.25, color=INK_MUTED, linewidth=0.7, linestyle="--")
+            axis.axhline(0.25, color=INK, linewidth=0.7, linestyle="--")
             axis.text(
                 8.5e4,
                 0.263,
@@ -114,16 +113,15 @@ def render(input_path: Path, output_stem: Path) -> None:
             )
         axis.set_title(title, fontsize=8.5, color=INK, pad=4)
         axis.set_xscale("log")
-        axis.set_xlim(9, 1.2e5)
         axis.set_ylim(-0.015, 0.52)
         axis.set_yticks((0.0, 0.25, 0.5))
         axis.grid(axis="y", color=GRID, linewidth=0.5)
         axis.spines[["top", "right"]].set_visible(False)
         axis.tick_params(length=2.5, labelsize=7)
 
-    axes[0].set_ylabel("Evaluation regret")
+    axes[0].set_ylabel("Evaluation Regret")
     figure.supxlabel(
-        "Training data instances", x=0.48, y=0.16, fontsize=8, color=INK_MUTED
+        "Training Instances", x=0.48, y=0.16, fontsize=8, color=INK
     )
 
     handles = [
@@ -150,17 +148,15 @@ def render(input_path: Path, output_stem: Path) -> None:
         fontsize=7,
         handlelength=1.4,
         columnspacing=0.9,
-        bbox_to_anchor=(0.5, -0.01),
+        bbox_to_anchor=(0.5, 0.005),
     )
     figure.subplots_adjust(
-        left=0.09, right=0.995, top=0.86, bottom=0.31, wspace=0.11
+        left=0.085, right=0.995, top=0.90, bottom=0.30, wspace=0.11
     )
 
     output_stem.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(output_stem.with_suffix(".pdf"), bbox_inches="tight")
-    figure.savefig(
-        output_stem.with_suffix(".png"), dpi=240, bbox_inches="tight"
-    )
+    figure.savefig(output_stem.with_suffix(".pdf"))
+    figure.savefig(output_stem.with_suffix(".png"), dpi=240)
     plt.close(figure)
 
 

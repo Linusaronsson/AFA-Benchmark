@@ -1,7 +1,6 @@
 """Render restricted-action training against generative restoration."""
 
-# Writes a full-width level figure and a restoration-law figure for every
-# induced missingness mechanism.
+# Writes per-mechanism level and law figures plus their appendix grids.
 
 from __future__ import annotations
 
@@ -24,7 +23,7 @@ from afabench.plotting.methods import (
     DATASET_LABELS_SHORT,
     GRID,
     INDUCED_MECHANISMS,
-    INK_MUTED,
+    INK,
     MECHANISM_LABELS,
     METHOD_COLORS,
     METHOD_FAMILIES,
@@ -46,6 +45,7 @@ from scripts.plotting.family_summary import (
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
+    from matplotlib.figure import Figure
 
 
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
@@ -71,10 +71,21 @@ SOURCES = {
 DIRECT = "restricted"
 GENERATIVE = "pvae_label_conditioned"
 MAIN_MECHANISM = "mcar"
-# 56% of cells carry damage of at least 0.01 at p = 0.7 against 35% at
-# p = 0.3, where a third of the panel would be dumbbells of zero length.
 MAIN_RATE = 0.7
 
+# Datasets stack 4x2 inside each mechanism block of the appendix grid.
+_GRID_DATASET_ROWS = 4
+_GRID_METHOD_LABELS = {
+    "dime": "DIME",
+    "gdfs": "GDFS",
+    "aaco": "AACO",
+    "jafa": r"JAFA $s$",
+    "jafa_full_state": r"JAFA $s{,}m$",
+    "ol_with_mask": r"OL $s$",
+    "ol_full_state": r"OL $s{,}m$",
+    "odin_model_free": r"ODIN $s$",
+    "odin_model_free_full_state": r"ODIN $s{,}m$",
+}
 ROW_GRAY = "#dedede"
 ROW_HATCH_COLOR = "#b0b0b0"
 ROW_HATCH = "///"
@@ -318,6 +329,10 @@ def _draw_levels(
     *,
     x_limits: tuple[float, float] | None = None,
     family_average: bool = False,
+    labels: dict[str, str] | None = None,
+    label_size: float = 6,
+    title_size: float = 7.5,
+    tick_size: float = 6,
 ) -> None:
     """One dataset's panel: a dumbbell per method, methods down the y axis."""
     per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
@@ -369,13 +384,10 @@ def _draw_levels(
             zorder=2,
         )
         # Grey, because the ceiling is a reference rather than a third series.
-        # It has to stay: DIME and ODIN take almost no damage on the datasets
-        # where their ceiling is already the lowest of the nine, and without
-        # this mark that floor effect reads as robustness.
         axis.plot(
             [record["ceiling_abs"]] * 2,
             [index - 0.32, index + 0.32],
-            color=INK_MUTED,
+            color=INK,
             linewidth=1.0,
             zorder=3,
         )
@@ -400,20 +412,19 @@ def _draw_levels(
     # Set on every panel, not only the first: the axes share y, so a bare
     # list on a later panel would clear the shared formatter for all of them.
     # sharey hides the inner columns' copies.
+    names = labels or (FAMILY_LABELS if family_average else METHOD_LABELS)
     axis.set_yticklabels(
-        [
-            (FAMILY_LABELS if family_average else METHOD_LABELS)[method]
-            for method in methods
-        ],
-        fontsize=6,
+        [names[method] for method in methods], fontsize=label_size
     )
     axis.tick_params(axis="y", length=0)
     if x_limits is not None:
         axis.set_xlim(*x_limits)
-    axis.set_title(DATASET_LABELS_SHORT.get(dataset, dataset), fontsize=7.5)
+    axis.set_title(
+        DATASET_LABELS_SHORT.get(dataset, dataset), fontsize=title_size, pad=2
+    )
     axis.grid(True, axis="x", color=GRID, linewidth=0.4, alpha=0.7)
     axis.set_axisbelow(True)
-    axis.tick_params(axis="x", labelsize=6)
+    axis.tick_params(axis="x", labelsize=tick_size)
     axis.locator_params(axis="x", nbins=4)
     for spine in ("top", "right", "left"):
         axis.spines[spine].set_visible(False)
@@ -430,14 +441,17 @@ def _draw_law(
     cells: pd.DataFrame,
     method: str,
     bounds: tuple[float, float],
+    *,
+    labels: dict[str, str] | None = None,
+    title_size: float = 7,
 ) -> None:
     """One method's panel: its cells, its fitted share, the two references."""
     lo, hi = bounds
     axis.fill_between(
         [0.0, hi], [0.0, 0.0], [0.0, hi], color=WEDGE, linewidth=0, zorder=0
     )
-    axis.plot([lo, hi], [lo, hi], color=INK_MUTED, linewidth=0.7, zorder=1)
-    axis.axhline(0.0, color=INK_MUTED, linewidth=0.7, zorder=1)
+    axis.plot([lo, hi], [lo, hi], color=INK, linewidth=0.7, zorder=1)
+    axis.axhline(0.0, color=INK, linewidth=0.7, zorder=1)
     subset = _rows(cells, _column(cells, "method") == method)
     color = METHOD_COLORS[method]
     share, low, high = _share(cells, method)
@@ -476,16 +490,15 @@ def _draw_law(
         zorder=3,
     )
     material = int((_column(subset, "damage") >= 0.01).sum())
-    axis.set_title(METHOD_LABELS[method], fontsize=7)
-    # The count is the number that says whether the slope means anything: a
-    # share fitted over six damaged cells is not the same claim as one over
-    # eighteen.
+    axis.set_title(
+        (labels or METHOD_LABELS)[method], fontsize=title_size, pad=2
+    )
     axis.annotate(
         f"{share:.2f}  ($n={material}$)",
         (0.05, 0.94),
         xycoords="axes fraction",
         fontsize=6,
-        color=INK_MUTED,
+        color=INK,
         va="top",
     )
     axis.set_xlim(lo, hi)
@@ -599,22 +612,15 @@ def _absolute_limits(levels: pd.DataFrame) -> dict[str, tuple[float, float]]:
     limits = {}
     for dataset, (low, high) in bounds.items():
         start = (low + high - span) / 2
-        # Accuracy and macro-F1 are both bounded by 1, so slide a window that
-        # would run past it back inside rather than showing axis no data can
-        # reach. Sliding keeps the span; shrinking would not.
+        # Both metrics are bounded by 1, so slide the window back inside
+        # rather than shrinking it.
         start = min(max(start, 0.0), 1.0 - span) if span <= 1.0 else start
         limits[dataset] = (start, start + span)
     return limits
 
 
 def _level_legend() -> list[Line2D | Patch]:
-    """
-    Explain treatments and acquisition objectives through markers and fills.
-
-    Identity moved to position, which is what freed colour to mean family and
-    freed the legend to explain the two training views instead of listing nine
-    series.
-    """
+    """Markers carry the training regime, row fills the acquisition objective."""
     return [
         Line2D(
             [],
@@ -623,9 +629,9 @@ def _level_legend() -> list[Line2D | Patch]:
             linestyle="none",
             markersize=4.5,
             markerfacecolor=SURFACE,
-            markeredgecolor=INK_MUTED,
+            markeredgecolor=INK,
             markeredgewidth=0.9,
-            label="Restricted-action training",
+            label="Restricted-action Training",
         ),
         Line2D(
             [],
@@ -633,8 +639,8 @@ def _level_legend() -> list[Line2D | Patch]:
             marker="o",
             linestyle="none",
             markersize=4.5,
-            color=INK_MUTED,
-            label="Generative restoration",
+            color=INK,
+            label="Generative Restoration",
         ),
         Line2D(
             [],
@@ -642,27 +648,44 @@ def _level_legend() -> list[Line2D | Patch]:
             marker="|",
             linestyle="none",
             markersize=6,
-            markeredgecolor=INK_MUTED,
+            markeredgecolor=INK,
             markeredgewidth=1.1,
-            label="Complete-data ceiling",
+            label="Complete-data",
         ),
         Patch(
             facecolor=ROW_GRAY,
-            edgecolor=INK_MUTED,
+            edgecolor=INK,
             label="Myopic",
         ),
         Patch(
             facecolor=SURFACE,
             edgecolor=ROW_HATCH_COLOR,
             hatch=ROW_HATCH,
-            label="Non-myopic\nIntermediate predictive reward",
+            label="Non-myopic, intermediate reward",
         ),
         Patch(
             facecolor=SURFACE,
-            edgecolor=INK_MUTED,
-            label="Non-myopic\nTerminal prediction objective",
+            edgecolor=INK,
+            label="Non-myopic, terminal objective",
         ),
     ]
+
+
+def _draw_level_legend(figure: Figure, height: float, base: float) -> None:
+    """Two rows of three, no group titles, anchored `base` inches up."""
+    figure.legend(
+        handles=_level_legend(),
+        loc="lower center",
+        ncol=3,
+        frameon=False,
+        fontsize=6.5,
+        labelcolor=INK,
+        columnspacing=1.1,
+        handlelength=1.5,
+        handleheight=1.1,
+        labelspacing=0.5,
+        bbox_to_anchor=(0.5, base / height),
+    )
 
 
 def plot_levels(
@@ -688,9 +711,7 @@ def plot_levels(
     limits = limits or _absolute_limits(frame)
     columns = 4
     rows = -(-len(datasets) // columns)
-    # Method identity is on the y axis; this strip carries the two training
-    # views and acquisition objectives in separate legend groups.
-    strip = 1.35
+    strip = 0.76
     height = strip + 1.75 * rows
     figure, axes = plt.subplots(
         rows,
@@ -714,47 +735,98 @@ def plot_levels(
         axes[row][column].set_visible(False)
 
     figure.supxlabel(
-        "Accuracy or macro-F1"
-        + (" (family averages)" if family_average else ""),
+        "Accuracy or Macro-F1"
+        + (" (Family Averages)" if family_average else ""),
         fontsize=8,
-        y=1.03 / height,
+        y=0.46 / height,
     )
-    handles = _level_legend()
-    figure.legend(
-        handles=handles[:3],
-        title="Training condition (markers)",
-        title_fontsize=7,
-        loc="lower center",
-        ncol=3,
-        frameon=False,
-        fontsize=7,
-        labelcolor=INK_MUTED,
-        columnspacing=1.2,
-        handlelength=1.4,
-        bbox_to_anchor=(0.5, 0.57 / height),
-    )
-    figure.legend(
-        handles=handles[3:],
-        title="Acquisition objective (row backgrounds)",
-        title_fontsize=7,
-        loc="lower center",
-        ncol=3,
-        frameon=False,
-        fontsize=7,
-        labelcolor=INK_MUTED,
-        columnspacing=1.4,
-        handlelength=2.6,
-        handleheight=1.8,
-        bbox_to_anchor=(0.5, 0.015),
-    )
+    _draw_level_legend(figure, height, 0.02)
     figure.subplots_adjust(
-        left=0.195,
-        right=0.985,
-        top=0.93,
+        left=0.055 if family_average else 0.135,
+        right=0.99,
+        top=0.96,
         bottom=strip / height,
         hspace=0.34,
         wspace=0.14,
     )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output)
+    figure.savefig(output.with_suffix(".png"), dpi=200)
+    plt.close(figure)
+
+
+def plot_levels_grid(
+    levels: pd.DataFrame,
+    output: Path,
+    *,
+    rate: float,
+    dataset_order: list[str],
+    method_order: list[str],
+    limits: dict[str, tuple[float, float]],
+    family_average: bool = False,
+) -> None:
+    """All four mechanisms as a 2x2 of blocks, each block a 2x4 dataset grid."""
+    apply_paper_style()
+    mpl.rcParams["hatch.linewidth"] = 0.35
+    labels = None if family_average else _GRID_METHOD_LABELS
+    label_size = 6 if family_average else 4.6
+    title_size = 7.5 if family_average else 6.5
+    tick_size = 6 if family_average else 5.2
+    gutter = 0.20 if family_average else 0.27
+    strip = 0.86
+    height = strip + 1.02 * 2 * _GRID_DATASET_ROWS
+    figure = plt.figure(figsize=(TEXT_WIDTH_IN, height))
+    body, _ = figure.subfigures(2, 1, height_ratios=[height - strip, strip])
+    blocks = body.subfigures(2, 2, wspace=0.07, hspace=0.12)
+    for index, mechanism in enumerate(INDUCED_MECHANISMS):
+        block = blocks[index // 2][index % 2]
+        block.suptitle(
+            MECHANISM_LABELS[mechanism],
+            fontsize=8,
+            color=INK,
+            x=(gutter + 0.985) / 2,
+            y=0.998,
+        )
+        frame = _rows(
+            _mechanism_rows(levels, mechanism),
+            _column(_mechanism_rows(levels, mechanism), "p") == rate,
+        )
+        axes = block.subplots(
+            _GRID_DATASET_ROWS, 2, sharey=True, squeeze=False
+        )
+        for position, dataset in enumerate(dataset_order):
+            row, column = divmod(position, 2)
+            _draw_levels(
+                axes[row][column],
+                frame,
+                dataset,
+                method_order,
+                x_limits=limits.get(dataset),
+                family_average=family_average,
+                labels=labels,
+                label_size=label_size,
+                title_size=title_size,
+                tick_size=tick_size,
+            )
+        for position in range(len(dataset_order), _GRID_DATASET_ROWS * 2):
+            row, column = divmod(position, 2)
+            axes[row][column].set_visible(False)
+        block.subplots_adjust(
+            left=gutter,
+            right=0.985,
+            top=0.915,
+            bottom=0.04,
+            hspace=0.80,
+            wspace=0.14,
+        )
+
+    figure.supxlabel(
+        "Accuracy or Macro-F1"
+        + (" (Family Averages)" if family_average else ""),
+        fontsize=8,
+        y=0.64 / height,
+    )
+    _draw_level_legend(figure, height, 0.05)
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
     figure.savefig(output.with_suffix(".png"), dpi=200)
@@ -808,6 +880,60 @@ def plot_law(
     plt.close(figure)
 
 
+def plot_law_grid(
+    law: pd.DataFrame,
+    output: Path,
+    *,
+    bounds: tuple[float, float],
+    method_order: list[str],
+) -> None:
+    """All four mechanisms as a 2x2 of blocks, each block a 3x3 method grid."""
+    apply_paper_style()
+    columns = 3
+    rows = -(-len(method_order) // columns)
+    strip = 0.40
+    height = strip + 1.08 * rows * 2
+    figure = plt.figure(figsize=(TEXT_WIDTH_IN, height))
+    body, _ = figure.subfigures(2, 1, height_ratios=[height - strip, strip])
+    blocks = body.subfigures(2, 2, wspace=0.07, hspace=0.05)
+    for index, mechanism in enumerate(INDUCED_MECHANISMS):
+        block = blocks[index // 2][index % 2]
+        block.suptitle(
+            MECHANISM_LABELS[mechanism], fontsize=8, color=INK, y=0.995
+        )
+        per_mechanism = _mechanism_rows(law, mechanism)
+        axes = block.subplots(
+            rows, columns, squeeze=False, sharex=True, sharey=True
+        )
+        for position, method in enumerate(method_order):
+            row, column = divmod(position, columns)
+            _draw_law(
+                axes[row][column],
+                per_mechanism,
+                method,
+                bounds,
+                labels=_GRID_METHOD_LABELS,
+                title_size=6.5,
+            )
+        for position in range(len(method_order), rows * columns):
+            row, column = divmod(position, columns)
+            axes[row][column].set_visible(False)
+        block.subplots_adjust(
+            left=0.17,
+            right=0.985,
+            top=0.90,
+            bottom=0.09,
+            hspace=0.28,
+            wspace=0.12,
+        )
+    figure.supxlabel("Missingness Damage $D_r$", fontsize=8, y=0.10 / height)
+    figure.supylabel("Restoration Gain $R_r$", fontsize=8, x=0.015)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output)
+    figure.savefig(output.with_suffix(".png"), dpi=200)
+    plt.close(figure)
+
+
 def plot_mechanism_figures(
     levels: pd.DataFrame,
     law: pd.DataFrame,
@@ -829,7 +955,7 @@ def plot_mechanism_figures(
     variants = [m for family in families for m in FAMILY_MEMBERS[family]]
     bounds = _law_bounds(law)
     # One span over every mechanism, so a dumbbell is the same length in
-    # Figure 4 and its three appendix twins as well as across panels.
+    # every panel and every figure.
     limits = _absolute_limits(_rows(levels, _column(levels, "p") == MAIN_RATE))
     outputs = []
     for mechanism in INDUCED_MECHANISMS:
@@ -863,6 +989,26 @@ def plot_mechanism_figures(
             method_order=methods,
         )
         outputs.extend([levels_output, variants_output, law_output])
+
+    for name, frame, order_of in (
+        ("main_summary_absolute_grid", family_levels, families),
+        ("main_summary_variants_grid", levels, variants),
+    ):
+        grid_output = output_dir / f"{name}.pdf"
+        plot_levels_grid(
+            frame,
+            grid_output,
+            rate=MAIN_RATE,
+            dataset_order=order,
+            method_order=order_of,
+            limits=limits,
+            family_average=frame is family_levels,
+        )
+        outputs.append(grid_output)
+
+    law_grid = output_dir / "law_grid.pdf"
+    plot_law_grid(law, law_grid, bounds=bounds, method_order=methods)
+    outputs.append(law_grid)
     return outputs
 
 
