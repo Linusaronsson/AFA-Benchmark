@@ -51,12 +51,11 @@ if TYPE_CHECKING:
 ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
 
 SOURCES = {
-    "core_group_missingness_v2": ["cube_nm", "cube"],
-    "induced_nonuniform_missingness_v2": [
+    "induced": [
+        "cube_nm",
+        "cube",
         "cube_nonuniform_costs",
         "heart_disease",
-    ],
-    "induced_real_missingness_v2": [
         "actg",
         "diabetes",
         "nhanes_mortality",
@@ -830,53 +829,6 @@ def plot_levels_grid(
     plt.close(figure)
 
 
-def plot_law(
-    law: pd.DataFrame,
-    output: Path,
-    *,
-    mechanism: str,
-    bounds: tuple[float, float] | None = None,
-    method_order: list[str] | None = None,
-) -> None:
-    apply_paper_style()
-    per_mechanism = _mechanism_rows(law, mechanism)
-    methods = method_order or [
-        method
-        for method in PRIMARY_METHODS
-        if (_column(per_mechanism, "method") == method).any()
-    ]
-    columns = 3
-    rows = -(-len(methods) // columns)
-    figure, axes = plt.subplots(
-        rows,
-        columns,
-        figsize=(TEXT_WIDTH_IN, 1.72 * rows + 0.55),
-        squeeze=False,
-        sharex=True,
-        sharey=True,
-    )
-    for index, method in enumerate(methods):
-        row, column = divmod(index, columns)
-        _draw_law(
-            axes[row][column],
-            per_mechanism,
-            method,
-            bounds or _law_bounds(per_mechanism),
-        )
-    for index in range(len(methods), rows * columns):
-        row, column = divmod(index, columns)
-        axes[row][column].set_visible(False)
-    figure.supxlabel("Missingness damage $D_r$", fontsize=8, y=0.02)
-    figure.supylabel("Restoration gain $R_r$", fontsize=8, x=0.015)
-    figure.subplots_adjust(
-        left=0.10, right=0.99, top=0.955, bottom=0.10, hspace=0.30, wspace=0.10
-    )
-    output.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(output)
-    figure.savefig(output.with_suffix(".png"), dpi=200)
-    plt.close(figure)
-
-
 def plot_law_grid(
     law: pd.DataFrame,
     output: Path,
@@ -931,14 +883,14 @@ def plot_law_grid(
     plt.close(figure)
 
 
-def plot_mechanism_figures(
+def plot_summary_figures(
     levels: pd.DataFrame,
     law: pd.DataFrame,
     output_dir: Path,
     *,
     family_levels: pd.DataFrame,
 ) -> list[Path]:
-    """Render a full-width level/law pair for every mechanism."""
+    """Render the main comparison and the three appendix grids."""
     main = _mechanism_rows(levels, MAIN_MECHANISM)
     main = _rows(main, _column(main, "p") == MAIN_RATE)
     methods = _method_order(main)
@@ -954,39 +906,19 @@ def plot_mechanism_figures(
     # One span over every mechanism, so a dumbbell is the same length in
     # every panel and every figure.
     limits = _absolute_limits(_rows(levels, _column(levels, "p") == MAIN_RATE))
-    outputs = []
-    for mechanism in INDUCED_MECHANISMS:
-        levels_output = output_dir / f"main_summary_absolute_{mechanism}.pdf"
-        law_output = output_dir / f"law_{mechanism}.pdf"
-        plot_levels(
-            family_levels,
-            levels_output,
-            mechanism=mechanism,
-            rate=MAIN_RATE,
-            dataset_order=order,
-            method_order=families,
-            limits=limits,
-            family_average=True,
-        )
-        variants_output = output_dir / f"main_summary_variants_{mechanism}.pdf"
-        plot_levels(
-            levels,
-            variants_output,
-            mechanism=mechanism,
-            rate=MAIN_RATE,
-            dataset_order=order,
-            method_order=variants,
-            limits=limits,
-        )
-        plot_law(
-            law,
-            law_output,
-            mechanism=mechanism,
-            bounds=bounds,
-            method_order=methods,
-        )
-        outputs.extend([levels_output, variants_output, law_output])
 
+    output = output_dir / "main_summary_absolute_mcar.pdf"
+    plot_levels(
+        family_levels,
+        output,
+        mechanism=MAIN_MECHANISM,
+        rate=MAIN_RATE,
+        dataset_order=order,
+        method_order=families,
+        limits=limits,
+        family_average=True,
+    )
+    outputs = [output]
     for name, frame, order_of in (
         ("main_summary_absolute_grid", family_levels, families),
         ("main_summary_variants_grid", levels, variants),
@@ -1020,7 +952,7 @@ def main() -> None:
         "--output-dir",
         type=Path,
         default=Path("extra/output/missing_data/analysis_figures"),
-        help="Where the per-mechanism level and law figures are written.",
+        help="Where the main comparison and appendix grids are written.",
     )
     parser.add_argument(
         "--table",
@@ -1040,7 +972,7 @@ def main() -> None:
         raise SystemExit(message)
     family_instances = collect_family_instances(arguments.summary_root)
     family_levels = summarize_families(family_instances)
-    outputs = plot_mechanism_figures(
+    outputs = plot_summary_figures(
         levels, law, arguments.output_dir, family_levels=family_levels
     )
     family_instances.to_csv(

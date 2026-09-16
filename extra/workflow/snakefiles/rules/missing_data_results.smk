@@ -64,8 +64,7 @@ rule state_conditioning_figure:
 
 rule route_structure:
     input:
-        classifiers=[classifier_path(dataset, instance)
-                     for dataset in DATASETS for instance in INSTANCES],
+        classifiers=ROUTE_CLASSIFIERS,
         data=f"{SUMMARY_DIR}/instance_metrics.csv",
         script="scripts/analysis/route_redundancy.py",
     output:
@@ -88,7 +87,7 @@ rule route_structure_table:
 
 rule collect_study_compute:
     input:
-        EVALUATIONS,
+        COMPUTE_TRIGGERS,
     output:
         f"{RESULTS}/compute.csv",
     shell:
@@ -105,3 +104,26 @@ rule compute_figure:
         f"{RESULTS}/compute.pdf",
     shell:
         "python {input.script} --compute {input.data} --output {output}"
+
+
+rule plot_missing_data:
+    input:
+        script="scripts/plotting/plot_missing_data.py",
+        style="extra/conf/scripts/plotting/common/default.yaml",
+        study_style="extra/conf/scripts/plotting/common/missing_data.yaml",
+        instances=f"{SUMMARY_DIR}/instance_metrics.csv",
+        summary=f"{SUMMARY_DIR}/summary.csv",
+        actions=f"{SUMMARY_DIR}/action_rates.csv",
+        restoration=f"{SUMMARY_DIR}/restoration_rmse.csv",
+    output:
+        directory(FIGURE_DIR),
+    resources:
+        shell_exec="bash"
+    shell:
+        """
+        python {input.script} \
+            instance_metrics={input.instances} summary={input.summary} \
+            action_rates={input.actions} restoration_rmse={input.restoration} \
+            output_folder={output} formats='[pdf,svg]' \
+            {HYDRA_WORKFLOW_OVERRIDES}
+        """

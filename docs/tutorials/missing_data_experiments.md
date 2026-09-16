@@ -17,14 +17,21 @@ policies, and produces summaries, the exact control study, route descriptors,
 and paper figures/tables. Add `--dry-run` to inspect it. Completed outputs are
 reused by Snakemake; use `--rerun-incomplete` after an interrupted run.
 
-The `plots` target updates the figures and tables from their dependencies:
+Rebuild only the figures and tables, from results that already exist:
 
 ```sh
-uv run snakemake --profile extra/workflow/profiles/config/missing_data --cores 4 plots
+uv run snakemake --profile extra/workflow/profiles/config/missing_data_plots --cores 4
 ```
 
-This reuses existing results. Missing upstream results are scheduled normally;
-use `--dry-run` first when working from a partial result archive.
+That profile excludes dataset generation, training, evaluation, and
+summarisation, so the summary CSVs and route descriptors are inputs rather than
+products and a missing result fails immediately. Use it on a machine holding a
+result bundle but not the trained artifacts. The `plots` target of the full
+profile schedules whatever is missing upstream, which on a partial checkout is
+the entire study.
+
+Paper artifacts are written to `extra/output/paper/experiments/results/`, which
+is what `extra/output/paper/justfile` compiles.
 
 The study contains eight datasets, nine policy variants, five instances,
 four mechanisms, and three missingness rates. Each method has a complete-data
@@ -44,7 +51,6 @@ the current study; this command does not open the sealed test split.
   availability and has no complete-data or oracle ceiling.
 
 Current results use the `induced` namespace under `extra/output/missing_data/`.
-The full study writes publication artifacts to `extra/output/missing_data/results/`.
 The manuscript is managed separately and remains ignored by Git; reproducing
 experiment artifacts does not require its source. No PDF compilation or copying
 into the manuscript directory is performed automatically.
