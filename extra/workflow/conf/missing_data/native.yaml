@@ -2,9 +2,9 @@
 # instance's source-observation mask: a value imputed during preprocessing is
 # never exposed to the acquisition policy as a measurement. There is no
 # true-completion/oracle arm because an unmeasured factual value is unknown.
-artifact_namespace: native_missingness_v2
+artifact_namespace: native
 classifier_scope: per_instance
-device: cuda
+device: cpu
 smoke_test: false
 eval_dataset_split: val
 dataset_instance_indices: [0, 1, 2, 3, 4]

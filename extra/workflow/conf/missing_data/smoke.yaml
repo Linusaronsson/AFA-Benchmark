@@ -1,6 +1,6 @@
 # Fast end-to-end integration check.
-artifact_namespace: smoke_full_state_v1
-device: cuda
+artifact_namespace: smoke
+device: cpu
 smoke_test: true
 eval_dataset_split: val
 dataset_instance_indices: [0]
@@ -18,26 +18,18 @@ missingness:
   mechanisms: [mcar]
   probabilities: [0.5]
 
-strategies:
-  - restricted
-  - zero_fill
-  - pvae_label_conditioned
-  - pvae_label_free
-  - pvae_oracle
-  - true_completion
-  - pvae_stepwise
+strategies: [restricted, pvae_label_conditioned]
+methods: [aaco, dime, gdfs, jafa, ol_with_mask, ol_full_state, odin_model_free]
+classifier_scope: per_instance
+paper_artifacts: false
+missing_data_pretrain_reuse:
+  pvae:
+    complete: oracle_restoration_pvae
+    restricted: incomplete_restoration_pvae
 
-# Covers direct and reweighted training, both PVAE deployments, evaluation,
-# summarization, and plotting.
-methods:
-  - aaco
-  - dime
-  - ol_with_mask
-  - ol_full_state
-
-# DIME exposes smoke_test for interface consistency but does not internally
-# shorten its tabular training loop, so its smoke schedule is explicit here.
 pretrain_runtime_params:
+  gdfs:
+    - batch_size=32
   dime:
     - batch_size=32
     - nepochs=1
@@ -45,10 +37,6 @@ pretrain_runtime_params:
 
 train_runtime_params:
   dime:
-    - batch_size=32
-    - nepochs=1
-    - patience=1
-  dime_feature_marginal_ipw:
     - batch_size=32
     - nepochs=1
     - patience=1

@@ -83,6 +83,13 @@ def main() -> None:
 
     repo = Path(__file__).resolve().parents[2]
     config = resolved_config(repo, arguments.profile, arguments.snakemake_args)
+    write_manifest(repo, config, arguments)
+
+
+def write_manifest(
+    repo: Path, config: dict[str, Any], arguments: argparse.Namespace
+) -> None:
+    """Record the resolved scientific settings and execution environment."""
     namespace = str(config["artifact_namespace"])
     cuda_devices = [
         torch.cuda.get_device_name(index)
@@ -102,6 +109,7 @@ def main() -> None:
         "eval_dataset_split": config.get("eval_dataset_split"),
         "git_commit": git_commit,
         "git_dirty": git_dirty,
+        "config": config,
         "command": {
             "device": arguments.device,
             "cores": arguments.cores,

@@ -157,7 +157,7 @@ stop_runtime_services() {
 }
 trap stop_runtime_services EXIT
 
-if [[ ${mps} == true ]]; then
+if [[ ${mps} == true && ${dry_run} == false ]]; then
     export CUDA_MPS_PIPE_DIRECTORY="${SNIC_TMP}/afabench-mps-pipe"
     export CUDA_MPS_LOG_DIRECTORY="${SNIC_TMP}/afabench-mps-log"
     mkdir -p "${CUDA_MPS_PIPE_DIRECTORY}" "${CUDA_MPS_LOG_DIRECTORY}"
@@ -166,7 +166,7 @@ if [[ ${mps} == true ]]; then
     echo "started job-local NVIDIA MPS server"
 fi
 
-if [[ ${device} == cuda* ]]; then
+if [[ ${device} == cuda* && ${dry_run} == false ]]; then
     "${uv_run[@]}" python -c 'import torch; assert torch.cuda.is_available(), "CUDA is unavailable in this environment"; print(f"torch={torch.__version__} cuda={torch.version.cuda} gpu={torch.cuda.get_device_name(0)}")'
 fi
 
@@ -184,11 +184,11 @@ if [[ ${dry_run} == false ]]; then
     manifest_message=$("${uv_run[@]}" python scripts/workflow/write_run_manifest.py \
         "${manifest_args[@]}" --snakemake-args "${snakemake_args[@]}")
     echo "${manifest_message}"
+    export AFABENCH_RUN_MANIFEST=${manifest_message##* }
+    namespace=$(basename "$(dirname "${AFABENCH_RUN_MANIFEST}")")
 fi
 
 if [[ ${dry_run} == false && ${device} == cuda* ]]; then
-    manifest_path=${manifest_message##* }
-    namespace=$(basename "$(dirname "${manifest_path}")")
     telemetry_dir="extra/output/missing_data/gpu_telemetry/${namespace}"
     telemetry_path="${telemetry_dir}/${run_id}.csv"
     mkdir -p "${telemetry_dir}"

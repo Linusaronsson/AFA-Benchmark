@@ -23,8 +23,6 @@ from afabench.core.utils import get_class_frequencies
 
 logger = logging.getLogger(__name__)
 
-MISSINGNESS_OBJECTIVES = {"support_aware", "doubly_robust"}
-
 
 class _SelectionSpace(NamedTuple):
     """
@@ -178,30 +176,12 @@ class AACOOracle:
         k_neighbors: int = 5,
         acquisition_cost: float = 0.05,
         hide_val: float = 0.0,  # Use 0 for consistency with MLP training
-        missingness_objective: str = "support_aware",
-        dr_min_propensity: float = 1e-3,
-        dr_max_weight: float | None = 20.0,
         mask_seed: int = 0,
         device: torch.device | None = None,
     ):
-        if missingness_objective not in MISSINGNESS_OBJECTIVES:
-            msg = (
-                "missingness_objective must be one of "
-                f"{sorted(MISSINGNESS_OBJECTIVES)}."
-            )
-            raise ValueError(msg)
-        if not 0.0 < dr_min_propensity <= 1.0:
-            msg = "dr_min_propensity must be in (0, 1]."
-            raise ValueError(msg)
-        if dr_max_weight is not None and dr_max_weight <= 0.0:
-            msg = "dr_max_weight must be positive when provided."
-            raise ValueError(msg)
         self.k_neighbors: int = k_neighbors
         self.acquisition_cost: float = acquisition_cost
         self.hide_val: float = hide_val
-        self.missingness_objective: str = missingness_objective
-        self.dr_min_propensity: float = dr_min_propensity
-        self.dr_max_weight: float | None = dr_max_weight
         self.mask_seed: int = mask_seed
         self.classifier: AFAClassifier | None = None
         self.mask_generator: RandomMaskGenerator | None = None
@@ -209,8 +189,6 @@ class AACOOracle:
         self.X_train: torch.Tensor | None = None
         self.y_train: torch.Tensor | None = None
         self.train_observed_mask: torch.Tensor | None = None
-        self.observation_group_ids: torch.Tensor | None = None
-        self.marginal_observation_probabilities: torch.Tensor | None = None
         self.device: torch.device = device or torch.device("cpu")
         self.class_weights: torch.Tensor | None = None
         self.feature_restoration_fn: AFAFeatureRestorationFn | None = None
@@ -220,7 +198,6 @@ class AACOOracle:
         X_train: torch.Tensor,  # noqa: N803
         y_train: torch.Tensor,
         observed_mask: torch.Tensor | None = None,
-        observation_group_ids: torch.Tensor | None = None,
     ) -> None:
         """
         Fit the oracle on training data.
@@ -233,8 +210,6 @@ class AACOOracle:
         self.y_train = y_train.to(self.device)
         if observed_mask is None:
             self.train_observed_mask = None
-            self.observation_group_ids = None
-            self.marginal_observation_probabilities = None
         else:
             observed_mask = observed_mask.to(self.device).bool()
             if observed_mask.shape != self.X_train.shape:
@@ -243,38 +218,6 @@ class AACOOracle:
             self.train_observed_mask = (
                 None if observed_mask.all() else observed_mask
             )
-            if self.train_observed_mask is None:
-                self.observation_group_ids = None
-                self.marginal_observation_probabilities = None
-            else:
-                group_ids = (
-                    torch.arange(self.X_train.shape[1], device=self.device)
-                    if observation_group_ids is None
-                    else observation_group_ids.to(self.device).flatten()
-                )
-                if len(group_ids) != self.X_train.shape[1]:
-                    msg = "observation_group_ids must match the feature count."
-                    raise ValueError(msg)
-                _, group_ids = torch.unique(
-                    group_ids.long(),
-                    sorted=True,
-                    return_inverse=True,
-                )
-                self.observation_group_ids = group_ids
-                group_observed = torch.stack(
-                    [
-                        self.train_observed_mask[:, group_ids == group].all(
-                            dim=1
-                        )
-                        for group in range(int(group_ids.max().item()) + 1)
-                    ],
-                    dim=1,
-                )
-                group_marginal = group_observed.float().mean(dim=0)
-                group_sizes = torch.bincount(group_ids)
-                self.marginal_observation_probabilities = group_marginal[
-                    group_ids
-                ].pow(1 / group_sizes[group_ids])
 
         train_class_probabilities = get_class_frequencies(self.y_train)
         self.class_weights = len(train_class_probabilities) / (
@@ -308,12 +251,6 @@ class AACOOracle:
             self.class_weights = self.class_weights.to(device)
         if self.train_observed_mask is not None:
             self.train_observed_mask = self.train_observed_mask.to(device)
-        if self.observation_group_ids is not None:
-            self.observation_group_ids = self.observation_group_ids.to(device)
-        if self.marginal_observation_probabilities is not None:
-            self.marginal_observation_probabilities = (
-                self.marginal_observation_probabilities.to(device)
-            )
         return self
 
     def _neighbor_observed_mask(
@@ -442,21 +379,6 @@ class AACOOracle:
             candidate_masks,
         )
 
-    def _candidate_support_propensities(
-        self,
-        candidate_feature_masks: torch.Tensor,
-    ) -> torch.Tensor:
-        if self.marginal_observation_probabilities is None:
-            return torch.ones(
-                candidate_feature_masks.shape[:-1],
-                device=self.device,
-            )
-        marginal = self.marginal_observation_probabilities.clamp_min(1e-12)
-        log_propensity = (
-            candidate_feature_masks.float() * marginal.log()
-        ).sum(dim=-1)
-        return log_propensity.exp()
-
     def _expected_candidate_losses(
         self,
         candidate_feature_masks: torch.Tensor,
@@ -493,35 +415,7 @@ class AACOOracle:
             neighbor_labels,
             overlap_masks,
         )
-        if (
-            self.missingness_objective != "doubly_robust"
-            or self.train_observed_mask is None
-        ):
-            return overlap_losses.mean(dim=-1)
-
-        full_masks = candidate_feature_masks.unsqueeze(2).expand_as(
-            overlap_masks
-        )
-        full_losses = self._neighbor_losses(
-            neighbor_features,
-            neighbor_labels,
-            full_masks,
-        )
-        fully_supported = (
-            (~candidate_feature_masks.unsqueeze(2)) | observed.unsqueeze(1)
-        ).all(dim=-1)
-        inverse_weights = (
-            self._candidate_support_propensities(candidate_feature_masks)
-            .clamp_min(self.dr_min_propensity)
-            .reciprocal()
-        )
-        if self.dr_max_weight is not None:
-            inverse_weights = inverse_weights.clamp_max(self.dr_max_weight)
-        baseline = overlap_losses.mean(dim=-1, keepdim=True)
-        corrected = baseline + fully_supported.float() * (
-            inverse_weights.unsqueeze(-1) * (full_losses - baseline)
-        )
-        return corrected.mean(dim=-1)
+        return overlap_losses.mean(dim=-1)
 
     def _selection_space(
         self,

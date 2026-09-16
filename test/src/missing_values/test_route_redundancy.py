@@ -8,8 +8,6 @@ import torch
 from afabench.components.unmaskers.cube_nm_unmasker import CubeNMUnmasker
 from scripts.analysis.route_redundancy import (
     compute_effects,
-    gate_summary,
-    planning_gate_summary,
     primary_metric,
     sample_feasible_routes,
     selection_feature_masks,
@@ -61,6 +59,8 @@ def test_random_routes_are_cost_feasible() -> None:
 
 def test_primary_metric_is_predeclared_by_dataset() -> None:
     assert primary_metric("actg") == "f_score"
+    assert primary_metric("heart_disease") == "f_score"
+    assert primary_metric("miniboone") == "f_score"
     assert primary_metric("diabetes") == "f_score"
     assert primary_metric("physionet") == "f_score"
     assert primary_metric("cube_nm") == "accuracy"
@@ -125,7 +125,7 @@ def _effect_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
     route_rows = []
     complete_scores = {
         "aaco": 0.75,
-        "ol_without_mask": 0.74,
+        "ol_with_mask": 0.74,
         "dime": 0.72,
     }
     missing_scores = {
@@ -134,7 +134,7 @@ def _effect_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
                 "restricted": 0.72,
                 "pvae_label_conditioned": 0.74,
             },
-            "ol_without_mask": {
+            "ol_with_mask": {
                 "restricted": 0.71,
                 "pvae_label_conditioned": 0.73,
             },
@@ -144,7 +144,7 @@ def _effect_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
                 "restricted": 0.70,
                 "pvae_label_conditioned": 0.73,
             },
-            "ol_without_mask": {
+            "ol_with_mask": {
                 "restricted": 0.69,
                 "pvae_label_conditioned": 0.71,
             },
@@ -199,14 +199,14 @@ def test_effects_keep_aaco_and_ol_separate() -> None:
 
     planning, missingness = compute_effects(metrics, routes)
 
-    assert set(planning["method"]) == {"aaco", "ol_without_mask"}
+    assert set(planning["method"]) == {"aaco", "ol_with_mask"}
     assert planning["metric"].eq("f_score").all()
     assert missingness["metric"].eq("f_score").all()
     assert planning["eval_hard_budget"].eq(10.0).all()
     assert missingness["eval_hard_budget"].eq(10.0).all()
     assert set(missingness["p"]) == {0.3, 0.7}
     aaco = planning.loc[planning["method"] == "aaco"]
-    ol = planning.loc[planning["method"] == "ol_without_mask"]
+    ol = planning.loc[planning["method"] == "ol_with_mask"]
     assert np.allclose(aaco["adaptive_gain"], 0.05)
     assert np.allclose(aaco["nongreedy_gain"], 0.03)
     assert np.allclose(ol["adaptive_gain"], 0.04)
@@ -216,8 +216,7 @@ def test_effects_keep_aaco_and_ol_separate() -> None:
         (missingness["method"] == "aaco") & (missingness["p"] == 0.7)
     ]
     ol_missing = missingness.loc[
-        (missingness["method"] == "ol_without_mask")
-        & (missingness["p"] == 0.7)
+        (missingness["method"] == "ol_with_mask") & (missingness["p"] == 0.7)
     ]
     assert np.allclose(aaco_missing["missingness_damage"], 0.05)
     assert np.allclose(aaco_missing["restoration_gain"], 0.03)
@@ -225,42 +224,7 @@ def test_effects_keep_aaco_and_ol_separate() -> None:
     assert np.allclose(ol_missing["restoration_gain"], 0.02)
 
 
-def test_gate_requires_both_non_greedy_methods() -> None:
-    metrics, routes = _effect_inputs()
-    planning, missingness = compute_effects(metrics, routes)
-
-    gate = gate_summary(planning, missingness)
-
-    assert gate["method_pass"].all()
-    assert gate["dataset_concordant"].all()
-
-    missingness = missingness.loc[missingness["method"] == "aaco"]
-    gate = gate_summary(planning, missingness)
-    assert gate.loc[gate["method"] == "aaco", "method_pass"].all()
-    assert not gate["dataset_concordant"].any()
-
-
-def test_planning_gate_does_not_require_restoration_rows() -> None:
-    metrics, routes = _effect_inputs()
-    planning, _ = compute_effects(metrics, routes)
-
-    gate = planning_gate_summary(planning)
-
-    assert gate["planning_pass"].all()
-    assert gate["dataset_concordant"].all()
-
-
-def test_gates_require_all_five_instances() -> None:
-    metrics, routes = _effect_inputs()
-    planning, missingness = compute_effects(metrics, routes)
-    planning = planning.loc[planning["instance"] != 4]
-    missingness = missingness.loc[missingness["instance"] != 4]
-
-    assert not planning_gate_summary(planning)["planning_pass"].any()
-    assert not gate_summary(planning, missingness)["method_pass"].any()
-
-
-def test_empty_effects_and_gates_keep_stable_schemas() -> None:
+def test_empty_effects_keep_stable_schemas() -> None:
     metrics, routes = _effect_inputs()
 
     planning, missingness = compute_effects(
@@ -277,8 +241,6 @@ def test_empty_effects_and_gates_keep_stable_schemas() -> None:
     assert {"dataset", "mechanism", "restoration_gain"} <= set(
         missingness.columns
     )
-    assert planning_gate_summary(planning).empty
-    assert gate_summary(planning, missingness).empty
 
 
 def test_duplicate_cells_are_rejected() -> None:

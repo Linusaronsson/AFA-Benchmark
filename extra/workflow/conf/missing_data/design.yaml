@@ -1,6 +1,4 @@
-# Scientific design shared by the smoke check and named experiments.
-# Dataset/method selections and their implementation details come from the
-# ordinary benchmark configuration files included by each profile.
+# Shared training settings for the induced and native studies.
 initializer: cold
 use_wandb: false
 include_complete_data: true
@@ -38,34 +36,18 @@ strategies:
 # A smaller evaluation batch is equivalent but avoids a large candidate tensor.
 stepwise_eval_batch_size: 16
 
-# Two thousand batches recovered OL's non-myopic CUBE-NM route in the
-# complete-data calibration; 200 undertrained it and the global 10000-batch
-# benchmark default is unnecessary here. Keep this study-wide so every OL
-# state representation receives the same training budget.
+# Training budgets fixed by complete-data calibration.
 train_runtime_params:
-  ol_without_mask: &ol_training
+  ol_with_mask: &ol_training
     - rl_training_loop.n_batches=2000
     - rl_training_loop.frames_per_batch=256
     - rl_training_loop.eval_n_times=10
-  ol_with_mask: *ol_training
   ol_full_state: *ol_training
   # JAFA and ODIN plateau by batch 4000. The full-state variants inherit this
   # through their base method.
   jafa: &rl_training
     - rl_training_loop.n_batches=4000
   odin_model_free: *rl_training
-
-# Missingness-only behavior is layered onto shared base methods. Definitions
-# such as script names, pretrained models, dataset exclusions, and normal
-# method parameters continue to come from method_options/*.yaml.
-missing_data_method_overrides:
-  aaco:
-    train_params:
-      - aco.missingness_objective=support_aware
-  random_dummy:
-    # Random acquisition does not learn from the training view. One
-    # complete-data run is the reference for every missingness cell.
-    allowed_strategies: []
 
 missing_data_method_variants:
   jafa_full_state:
@@ -78,17 +60,3 @@ missing_data_method_variants:
     train_params:
       - agent.use_action_availability=true
     include_complete_data: true
-  aaco_doubly_robust:
-    base_method: aaco
-    train_params:
-      - aco.missingness_objective=doubly_robust
-    allowed_strategies:
-      - restricted
-    include_complete_data: false
-  dime_feature_marginal_ipw:
-    base_method: dime
-    train_params:
-      - ipw_mode=feature_marginal
-    allowed_strategies:
-      - restricted
-    include_complete_data: false

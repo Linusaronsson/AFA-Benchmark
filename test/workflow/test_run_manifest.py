@@ -25,9 +25,9 @@ def test_config_overrides_extracts_only_snakemake_config() -> None:
 def test_resolved_config_includes_profile_and_command_line() -> None:
     config = resolved_config(
         REPO,
-        "missing_data_local_nonuniform_pilot",
+        "missing_data_smoke",
         ["--config", "artifact_namespace=gh200_pilot"],
     )
     assert config["artifact_namespace"] == "gh200_pilot"
-    assert config["datasets"] == ["cube_nonuniform_costs"]
+    assert config["datasets"] == ["cube_nm"]
     assert config["dataset_instance_indices"] == [0]

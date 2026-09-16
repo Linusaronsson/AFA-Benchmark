@@ -95,7 +95,7 @@ def restore_view_with_pvae(
     strategy: str,
     batch_size: int,
 ) -> TrainingDatasetView:
-    """Draw one joint reconstruction per row and preserve factual cells."""
+    """Draw one joint reconstruction per instance and preserve factual cells."""
     if strategy not in _STRATEGY_DISPLAY_NAMES:
         msg = f"Unsupported PVAE restoration strategy: {strategy}"
         raise ValueError(msg)

@@ -20,9 +20,8 @@ from afabench.plotting.methods import (
 )
 from scripts.analysis.summarize_missing_data import _STRATEGY_DISPLAY
 from scripts.plotting.plot_missing_data import STRATEGY_DISPLAY
-from scripts.plotting.plot_missing_data_mechanisms import STRATEGY_LABELS
 
-COMMON_CONFIG = Path("extra/conf/scripts/plotting/common/default.yaml")
+COMMON_CONFIG = Path("extra/conf/scripts/plotting/common/missing_data.yaml")
 
 
 @pytest.mark.parametrize(
@@ -40,7 +39,7 @@ def test_primary_methods_are_methods() -> None:
 
 @pytest.mark.parametrize(
     "mapping",
-    [_STRATEGY_DISPLAY, STRATEGY_DISPLAY, STRATEGY_LABELS],
+    [_STRATEGY_DISPLAY, STRATEGY_DISPLAY],
 )
 def test_primary_training_views_have_exact_public_labels(
     mapping: dict[str, str],

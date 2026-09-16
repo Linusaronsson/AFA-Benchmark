@@ -37,7 +37,7 @@ class _SmoothToyClassifier:
 
 
 def _fitted_oracle(
-    objective: str, *, restricted: bool, acquisition_cost: float
+    *, restricted: bool, acquisition_cost: float
 ) -> tuple[AACOOracle, torch.Tensor]:
     g = torch.Generator().manual_seed(7)
     features = torch.randn(N_TRAIN, N_FEATURES, generator=g)
@@ -51,7 +51,6 @@ def _fitted_oracle(
     oracle = AACOOracle(
         k_neighbors=3,
         acquisition_cost=acquisition_cost,
-        missingness_objective=objective,
         mask_seed=0,
     )
     oracle.set_classifier(
@@ -73,13 +72,10 @@ def _queries() -> tuple[torch.Tensor, torch.Tensor]:
 
 @pytest.mark.parametrize("restricted", [False, True])
 @pytest.mark.parametrize("force_acquisition", [False, True])
-@pytest.mark.parametrize("objective", ["support_aware", "doubly_robust"])
 def test_batched_matches_one_instance_at_a_time(
-    *, restricted: bool, force_acquisition: bool, objective: str
+    *, restricted: bool, force_acquisition: bool
 ) -> None:
-    oracle, _ = _fitted_oracle(
-        objective, restricted=restricted, acquisition_cost=0.05
-    )
+    oracle, _ = _fitted_oracle(restricted=restricted, acquisition_cost=0.05)
     x, mask = _queries()
     instance_idx = torch.arange(N_INSTANCES)
 
@@ -105,9 +101,7 @@ def test_batched_matches_one_instance_at_a_time(
 
 def test_soft_budget_can_still_choose_to_stop() -> None:
     """A high acquisition cost must make stopping win, not just be reachable."""
-    oracle, _ = _fitted_oracle(
-        "support_aware", restricted=False, acquisition_cost=1e6
-    )
+    oracle, _ = _fitted_oracle(restricted=False, acquisition_cost=1e6)
     x, mask = _queries()
 
     chosen = oracle.select_next_features_batched(
@@ -123,9 +117,7 @@ def test_forced_acquisition_returns_a_feature_unless_nothing_is_left() -> None:
     Instance 1 of the fixture is fully observed, and there None is the only
     honest answer; the evaluator, not the oracle, owns that case.
     """
-    oracle, _ = _fitted_oracle(
-        "support_aware", restricted=False, acquisition_cost=1e6
-    )
+    oracle, _ = _fitted_oracle(restricted=False, acquisition_cost=1e6)
     x, mask = _queries()
 
     chosen = oracle.select_next_features_batched(
@@ -217,9 +209,7 @@ def test_selection_path_matches_the_greedy_one_step_spec(
     *, force_acquisition: bool
 ) -> None:
     """Pin the semantics now that the serial implementation is gone."""
-    oracle, _ = _fitted_oracle(
-        "support_aware", restricted=False, acquisition_cost=0.05
-    )
+    oracle, _ = _fitted_oracle(restricted=False, acquisition_cost=0.05)
     x, observed, taken = _selection_queries()
     assert oracle.X_train is not None
 
@@ -250,9 +240,7 @@ def test_selection_path_matches_the_greedy_one_step_spec(
 def test_selection_batching_matches_one_instance_at_a_time(
     *, force_acquisition: bool
 ) -> None:
-    oracle, _ = _fitted_oracle(
-        "doubly_robust", restricted=True, acquisition_cost=0.05
-    )
+    oracle, _ = _fitted_oracle(restricted=True, acquisition_cost=0.05)
     x, observed, taken = _selection_queries()
     table = _selection_to_feature()
     instance_idx = torch.arange(N_INSTANCES)
@@ -288,9 +276,7 @@ def test_a_taken_selection_is_never_returned() -> None:
     The taken ones are excluded by cost rather than by being left out, so this
     is the assertion that the masking actually holds.
     """
-    oracle, _ = _fitted_oracle(
-        "support_aware", restricted=False, acquisition_cost=0.0
-    )
+    oracle, _ = _fitted_oracle(restricted=False, acquisition_cost=0.0)
     x, observed, taken = _selection_queries()
 
     chosen = oracle.select_next_selections_batched(
@@ -320,9 +306,7 @@ def test_tiebreak_path_is_exercised_and_batches() -> None:
     ordering pass has to run. Without this the parametrized test could pass
     while never touching that branch.
     """
-    oracle, _ = _fitted_oracle(
-        "support_aware", restricted=False, acquisition_cost=0.0
-    )
+    oracle, _ = _fitted_oracle(restricted=False, acquisition_cost=0.0)
     x, mask = _queries()
 
     calls = {"n": 0}

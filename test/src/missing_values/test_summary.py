@@ -120,12 +120,12 @@ def _metric_row(
 def test_complete_references_are_scoped_by_dataset_and_base_method() -> None:
     instances = pd.DataFrame.from_records(
         [
-            _metric_row("cube", "aaco", "complete", 0.9, 0.8),
-            _metric_row("bank_marketing", "aaco", "complete", 0.6, 0.5),
-            _metric_row("cube", "aaco_doubly_robust", "restricted", 0.8, 0.7),
+            _metric_row("cube", "jafa", "complete", 0.9, 0.8),
+            _metric_row("bank_marketing", "jafa", "complete", 0.6, 0.5),
+            _metric_row("cube", "jafa_full_state", "restricted", 0.8, 0.7),
             _metric_row(
                 "bank_marketing",
-                "aaco_doubly_robust",
+                "jafa_full_state",
                 "restricted",
                 0.55,
                 0.45,
@@ -133,9 +133,7 @@ def test_complete_references_are_scoped_by_dataset_and_base_method() -> None:
         ]
     )
 
-    with_gaps = _add_complete_data_gaps(
-        instances, {"aaco_doubly_robust": "aaco"}
-    )
+    with_gaps = _add_complete_data_gaps(instances, {"jafa_full_state": "jafa"})
     summary = _aggregate(with_gaps)
 
     restricted = with_gaps.loc[with_gaps["strategy"] == "restricted"]

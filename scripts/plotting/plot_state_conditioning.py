@@ -25,12 +25,12 @@ from afabench.plotting.methods import (
     TEXT_WIDTH_IN,
     apply_paper_style,
 )
+from scripts.plotting.plot_main_summary import SOURCES, primary_metric
 
 if TYPE_CHECKING:
     from matplotlib.axes import Axes
 
 
-ACCURACY_DATASETS = {"cube", "cube_nm", "cube_nonuniform_costs"}
 RESTRICTED = "restricted"
 GENERATIVE = "pvae_label_conditioned"
 FAMILY_METHODS = {
@@ -39,19 +39,7 @@ FAMILY_METHODS = {
     "ODIN": ("odin_model_free", "odin_model_free_full_state"),
 }
 FAMILY_KEYS = {"JAFA": "jafa", "OL": "ol", "ODIN": "odin"}
-SOURCES = {
-    "core_group_missingness_v2": ["cube_nm", "cube"],
-    "induced_nonuniform_missingness_v2": [
-        "cube_nonuniform_costs",
-        "heart_disease",
-    ],
-    "induced_real_missingness_v2": [
-        "actg",
-        "diabetes",
-        "nhanes_mortality",
-        "miniboone",
-    ],
-}
+
 DATASET_MARKERS = {
     "cube": "o",
     "cube_nm": "s",
@@ -71,10 +59,6 @@ def _column(frame: pd.DataFrame, name: str) -> pd.Series:
 
 def _rows(frame: pd.DataFrame, mask: pd.Series) -> pd.DataFrame:
     return cast("pd.DataFrame", frame[mask])
-
-
-def primary_metric(dataset: str) -> str:
-    return "accuracy" if dataset in ACCURACY_DATASETS else "f_score"
 
 
 def _paired_state_difference(

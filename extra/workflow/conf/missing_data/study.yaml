@@ -1,0 +1,31 @@
+artifact_namespace: induced
+classifier_scope: per_instance
+device: cpu
+smoke_test: false
+eval_dataset_split: val
+dataset_instance_indices: [0, 1, 2, 3, 4]
+datasets: [cube, cube_nm, cube_nonuniform_costs, actg, diabetes, nhanes_mortality, miniboone, heart_disease]
+methods: [aaco, dime, gdfs, jafa, ol_with_mask, ol_full_state, odin_model_free]
+
+strategies: [restricted, pvae_label_conditioned]
+include_complete_data: true
+include_method_variants: true
+paper_artifacts: true
+
+dataset_generation_params:
+  nhanes_mortality: &fixed_test
+    - fixed_test_seed=100
+    - stratify=true
+  actg: *fixed_test
+  diabetes: *fixed_test
+  miniboone: *fixed_test
+
+eval_batch_size: 128
+restoration_batch_size: 1024
+eval_params:
+  - eval_only_n_samples=4096
+
+missing_data_pretrain_reuse:
+  pvae:
+    complete: oracle_restoration_pvae
+    restricted: incomplete_restoration_pvae

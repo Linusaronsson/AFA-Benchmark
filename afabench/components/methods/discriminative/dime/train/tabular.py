@@ -117,10 +117,6 @@ def train_tabular(
         feature_costs=feature_costs.to(device),
         metric_logger=metric_logger,
         metric_prefix="dime",
-        ipw_mode=cfg.ipw_mode,
-        ipw_min_propensity=cfg.ipw_min_propensity,
-        ipw_max_weight=cfg.ipw_max_weight,
-        ipw_normalize_weights=cfg.ipw_normalize_weights,
         train_feature_restoration_fn=(
             None
             if stepwise_pvae is None

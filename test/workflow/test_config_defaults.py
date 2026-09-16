@@ -4,6 +4,28 @@ from types import ModuleType
 
 from omegaconf import OmegaConf
 
+from afabench.plotting.methods import PRIMARY_METHODS
+from scripts.workflow.write_run_manifest import resolved_config
+
+
+def test_current_study_matches_the_reported_method_matrix() -> None:
+    config = resolved_config(Path(__file__).parents[2], "missing_data", [])
+    methods = set(config["methods"])
+    methods.update(
+        name
+        for name, variant in config["missing_data_method_variants"].items()
+        if variant["base_method"] in methods
+    )
+    assert methods == set(PRIMARY_METHODS)
+    assert len(config["datasets"]) == 8
+    assert config["dataset_instance_indices"] == list(range(5))
+    assert config["strategies"] == ["restricted", "pvae_label_conditioned"]
+    assert config["missingness"]["probabilities"] == [0.3, 0.5, 0.7]
+    assert len(config["missingness"]["mechanisms"]) == 4
+    assert config["artifact_namespace"] == "induced"
+    assert config["eval_dataset_split"] == "val"
+    assert config["paper_artifacts"]
+
 
 def test_non_smoke_missing_data_configs_keep_canonical_cube_size() -> None:
     root = Path(__file__).parents[2]
@@ -40,7 +62,7 @@ def test_missing_data_ol_variants_share_calibrated_training_budget() -> None:
         "rl_training_loop.eval_n_times=10",
     ]
 
-    for method in ("ol_without_mask", "ol_with_mask", "ol_full_state"):
+    for method in ("ol_with_mask", "ol_full_state"):
         assert list(runtime_params[method]) == expected
 
 

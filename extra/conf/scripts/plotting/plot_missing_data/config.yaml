@@ -6,7 +6,7 @@ hydra:
 defaults:
   - plot_missing_data
   - hydra: custom
-  - /scripts/plotting/common@plotting: default
+  - /scripts/plotting/common@plotting: missing_data
   - _self_
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog

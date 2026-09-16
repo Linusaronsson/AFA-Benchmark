@@ -1,14 +1,31 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, cast
 
+import pytest
 import torch
 
+from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
 from afabench.components.methods.oracle.aaco.core import (
     AACOOracle,
     get_knn_batched,
 )
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from afabench.core.types import AFAClassifier
+
+
+def test_retired_bundle_is_not_loaded_as_the_current_estimator(
+    tmp_path: Path,
+) -> None:
+    torch.save(
+        {"missingness_objective": "doubly_robust"},
+        tmp_path / "aaco_oracle_legacy.pt",
+    )
+    with pytest.raises(ValueError, match="retired"):
+        AACOAFAMethod.load(tmp_path)
 
 
 class _MaskAwareToyClassifier:
@@ -28,15 +45,13 @@ class _MaskAwareToyClassifier:
         return probabilities
 
 
-def _fitted_oracle(objective: str) -> AACOOracle:
+def _fitted_oracle() -> AACOOracle:
     features = torch.tensor([[1.0, 1.0], [-1.0, 0.0]])
     labels = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
     source_availability = torch.tensor([[True, True], [True, False]])
     oracle = AACOOracle(
         k_neighbors=2,
         acquisition_cost=0.0,
-        missingness_objective=objective,
-        dr_max_weight=None,
     )
     oracle.set_classifier(
         cast("AFAClassifier", cast("object", _MaskAwareToyClassifier()))
@@ -48,7 +63,7 @@ def _fitted_oracle(objective: str) -> AACOOracle:
 def test_support_aware_loss_uses_only_each_neighbors_available_features() -> (
     None
 ):
-    oracle = _fitted_oracle("support_aware")
+    oracle = _fitted_oracle()
 
     # Shapes carry an instance dimension: (B, n_masks, d) and (B, k).
     loss = oracle._expected_candidate_losses(  # noqa: SLF001
@@ -63,38 +78,6 @@ def test_support_aware_loss_uses_only_each_neighbors_available_features() -> (
     assert torch.allclose(loss, expected.reshape(1, 1) / 2)
 
 
-def test_doubly_robust_loss_corrects_supported_neighbors() -> None:
-    oracle = _fitted_oracle("doubly_robust")
-
-    loss = oracle._expected_candidate_losses(  # noqa: SLF001
-        torch.tensor([[[True, True]]]),
-        torch.tensor([[0, 1]]),
-    )
-
-    expected = -2 * torch.log(torch.tensor(0.9))
-    assert loss.shape == (1, 1)
-    assert torch.allclose(loss, expected.reshape(1, 1))
-
-
-def test_grouped_support_propensity_counts_atomic_group_once() -> None:
-    features = torch.zeros((2, 3))
-    labels = torch.tensor([[1.0, 0.0], [0.0, 1.0]])
-    availability = torch.tensor([[False, False, True], [True, True, True]])
-    oracle = AACOOracle(missingness_objective="doubly_robust")
-    oracle.fit(
-        features,
-        labels,
-        observed_mask=availability,
-        observation_group_ids=torch.tensor([0, 0, 1]),
-    )
-
-    propensity = oracle._candidate_support_propensities(  # noqa: SLF001
-        torch.tensor([[[True, True, False]]])
-    )
-
-    assert torch.allclose(propensity, torch.tensor([[0.5]]))
-
-
 def test_stepwise_aaco_restores_unsupported_candidate_values() -> None:
     calls: list[tuple[torch.Tensor, torch.Tensor]] = []
 
@@ -105,7 +88,7 @@ def test_stepwise_aaco_restores_unsupported_candidate_values() -> None:
         calls.append((masked_features.clone(), feature_mask.clone()))
         return torch.full_like(masked_features, 7.0)
 
-    oracle = _fitted_oracle("support_aware")
+    oracle = _fitted_oracle()
     oracle.set_feature_restorer(restore)
     loss = oracle._expected_candidate_losses(  # noqa: SLF001
         torch.tensor([[[True, True]]]),

@@ -1,3 +1,5 @@
+"""Shared colors, labels, and plotting style."""
+
 import matplotlib as mpl
 
 # Okabe-Ito, one hue per method family.
@@ -12,9 +14,7 @@ FAMILY_COLORS = {
 
 METHOD_FAMILIES = {
     "aaco": "aaco",
-    "aaco_doubly_robust": "aaco",
     "dime": "dime",
-    "dime_feature_marginal_ipw": "dime",
     "gdfs": "gdfs",
     "jafa": "jafa",
     "jafa_full_state": "jafa",
@@ -75,9 +75,7 @@ def apply_paper_style() -> None:
 # aliasing Q(s, a), so the two implemented states are named after those.
 METHOD_LABELS = {
     "aaco": "AACO",
-    "aaco_doubly_robust": "AACO (doubly robust)",
     "dime": "DIME",
-    "dime_feature_marginal_ipw": "DIME (feature-marginal IPW)",
     "gdfs": "GDFS",
     "jafa": "JAFA, $Q(s,a)$",
     "jafa_full_state": "JAFA, $Q(s,m,a)$",
@@ -113,9 +111,7 @@ DATASET_LABELS_SHORT = {
 # so identity survives greyscale printing.
 METHOD_MARKERS = {
     "aaco": "o",
-    "aaco_doubly_robust": "D",
     "dime": "^",
-    "dime_feature_marginal_ipw": "v",
     "gdfs": "s",
     "jafa": "P",
     "jafa_full_state": "X",
@@ -128,9 +124,7 @@ METHOD_MARKERS = {
 # Solid is a method, dashed is a reweighting control of a method.
 METHOD_LINESTYLES = {
     "aaco": "solid",
-    "aaco_doubly_robust": "dashed",
     "dime": "solid",
-    "dime_feature_marginal_ipw": "dashed",
     "gdfs": "solid",
     "jafa": "solid",
     "jafa_full_state": "dashed",
@@ -146,7 +140,6 @@ METHOD_LINESTYLES = {
 NON_MYOPIC_METHODS = frozenset(
     {
         "aaco",
-        "aaco_doubly_robust",
         "aaco_nn",
         "jafa",
         "jafa_full_state",
@@ -166,10 +159,7 @@ def policy_type(method: str) -> str:
     return "Non-myopic" if method in NON_MYOPIC_METHODS else "Myopic"
 
 
-# Methods with both restricted-action and generative-restoration arms, in display
-# order: the myopic pair first, then the non-myopic methods with each family's
-# two Q states adjacent. The reweighting controls are trained on the restricted
-# view only, so figures that compare training views omit them.
+# Methods in display order, with state variants adjacent.
 PRIMARY_METHODS = (
     "dime",
     "gdfs",
@@ -193,22 +183,4 @@ MECHANISM_LABELS = {
     "mnar_logistic": "MNAR (logistic)",
     "mnar_self": "MNAR (self-masking)",
     "native": "Native",
-}
-MECHANISM_MARKERS = {
-    "mcar": "o",
-    "mar": "^",
-    "mnar_logistic": "s",
-    "mnar_self": "D",
-}
-
-# One hue light to dark, because the mechanisms are ordered rather than
-# categorical: identification degrades along this list. Purple is clear of every
-# method hue, so a mechanism cannot be misread as a method. Adjacent steps
-# separate by at least 13.9 in OKLab dE x100 under normal vision and all three
-# CVD simulations.
-MECHANISM_COLORS = {
-    "mcar": "#b7a3d4",
-    "mar": "#8f6fba",
-    "mnar_logistic": "#644191",
-    "mnar_self": "#37225c",
 }

@@ -30,18 +30,7 @@ def _load_dataset(path: Path) -> tuple[AFADataset, dict[str, object]]:
 
 
 def native_observed_mask(dataset: AFADataset) -> torch.Tensor:
-    """
-    Return the missingness the dataset arrived with, not one we imposed.
-
-    Every other mechanism samples a mask from a model we chose, which makes it
-    known by construction and lets `true_completion` grade restoration against
-    a ground truth we hold. Real missingness has neither property, which is why
-    it is worth measuring against.
-
-    Datasets may call the mask ``native_observed_mask`` or retain it as
-    ``source_value_observed`` when preprocessing imputes the stored tensor.
-    Both mean whether a value existed in the source data.
-    """
+    """Read factual availability retained before preprocessing imputation."""
     mask = getattr(dataset, "native_observed_mask", None)
     if mask is None:
         mask = getattr(dataset, "source_value_observed", None)

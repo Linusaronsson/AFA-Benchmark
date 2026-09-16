@@ -1,7 +1,5 @@
 snakefile: extra/workflow/snakefiles/orchestration/missing_data.smk
 
-# Local runs: missing_data.smk is a flat, embarrassingly parallel DAG.
-# Without this the whole matrix runs serially. Lower it if the GPU OOMs.
 cores: 4
 
 configfile:

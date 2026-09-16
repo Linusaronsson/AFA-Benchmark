@@ -18,18 +18,18 @@ def _plotting_config() -> PlottingDisplayConfig:
         plot_height=4.0,
         plot_font_family="DejaVu Serif",
         method_name_mapping={
-            "aaco": "AACO",
-            "aaco_doubly_robust": "AACO (doubly robust)",
+            "jafa": "AACO",
+            "jafa_full_state": "JAFA full state",
         },
         method_policy_family_mapping={
-            "aaco": "aaco",
-            "aaco_doubly_robust": "aaco",
+            "jafa": "jafa",
+            "jafa_full_state": "jafa",
         },
-        method_family_color_schemes={"test": {"aaco": "#A6761D"}},
+        method_family_color_schemes={"test": {"jafa": "#A6761D"}},
         active_method_color_scheme="test",
         # A method and its reweighting control share a family, so without an
         # override they would share a colour and draw as one line.
-        method_color_overrides={"aaco_doubly_robust": "#AA3377"},
+        method_color_overrides={"jafa_full_state": "#AA3377"},
         dataset_name_mapping={
             "cube": "CUBE",
             "bank_marketing": "BankMarketing",
@@ -45,9 +45,9 @@ def _instance_metrics() -> pd.DataFrame:
     for dataset in DATASETS:
         for instance in [0, 1]:
             for method, strategy in [
-                ("aaco", "restricted"),
-                ("aaco", "mean_fill"),
-                ("aaco_doubly_robust", "restricted"),
+                ("jafa", "restricted"),
+                ("jafa", "mean_fill"),
+                ("jafa_full_state", "restricted"),
             ]:
                 rows.append(
                     {
@@ -67,9 +67,9 @@ def _summary() -> pd.DataFrame:
     rows = []
     for dataset in DATASETS:
         for method, strategy, value, sem in [
-            ("aaco", "restricted", 0.7, 0.02),
-            ("aaco", "mean_fill", 0.75, float("nan")),
-            ("aaco_doubly_robust", "restricted", 0.72, 0.01),
+            ("jafa", "restricted", 0.7, 0.02),
+            ("jafa", "mean_fill", 0.75, float("nan")),
+            ("jafa_full_state", "restricted", 0.72, 0.01),
         ]:
             rows.append(
                 {
@@ -99,7 +99,7 @@ def _action_rates() -> pd.DataFrame:
             [
                 {
                     "dataset": dataset,
-                    "method": "aaco",
+                    "method": "jafa",
                     "mechanism": "mcar",
                     "p": 0.5,
                     "strategy": "restricted",
@@ -110,7 +110,7 @@ def _action_rates() -> pd.DataFrame:
                 },
                 {
                     "dataset": dataset,
-                    "method": "aaco",
+                    "method": "jafa",
                     "mechanism": "mcar",
                     "p": 0.5,
                     "strategy": "mean_fill",
@@ -155,7 +155,7 @@ def test_action_aggregation_is_dataset_scoped_and_fills_zeros() -> None:
     )
 
     row = aggregated.loc[
-        (aggregated["method"] == "aaco")
+        (aggregated["method"] == "jafa")
         & (aggregated["strategy"] == "restricted")
     ].iloc[0]
     assert row["acquisitions_per_sample"] == 0.3

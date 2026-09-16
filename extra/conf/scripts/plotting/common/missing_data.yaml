@@ -1,0 +1,35 @@
+defaults:
+- default
+- _self_
+method_name_mapping:
+  jafa_full_state: JAFA (full state)
+  ol_with_mask: OL, $Q(x_S,S)$
+  ol_without_mask: OL (values only)
+  ol_full_state: OL, $Q(x_S,S,m)$
+  odin_model_free_full_state: ODIN(model-free, full state)
+method_policy_family_mapping:
+  jafa_full_state: jafa
+  ol_full_state: ol
+  odin_model_free_full_state: odin
+method_color_overrides:
+  aaco: '#D55E00'
+  dime: '#56B4E9'
+  gdfs: '#009E73'
+  jafa: '#882255'
+  jafa_full_state: '#882255'
+  ol_with_mask: '#E69F00'
+  ol_full_state: '#E69F00'
+  odin_model_free: '#7570B3'
+  odin_model_free_full_state: '#7570B3'
+dataset_name_mapping:
+  nhanes_mortality: NHANES Mortality
+  heart_disease: Heart disease
+datasets_with_f_score:
+- actg
+- bank_marketing
+- ckd
+- diabetes
+- heart_disease
+- miniboone
+- nhanes_mortality
+- physionet

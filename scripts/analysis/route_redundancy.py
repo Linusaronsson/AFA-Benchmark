@@ -31,11 +31,7 @@ if TYPE_CHECKING:
 
 type Route = tuple[int, ...]
 
-# Historical default, kept so the pre-v2 namespaces reproduce. No v2 namespace
-# trains ol_without_mask, so leaving this as the only choice silently reduced
-# every effects table to its AACO rows. Pass --methods, or let main() take the
-# methods the namespace actually contains.
-_NON_GREEDY_METHODS = ("aaco", "ol_without_mask")
+_NON_GREEDY_METHODS = ("aaco", "ol_with_mask")
 _GREEDY_METHOD = "dime"
 _F_SCORE_DATASETS = frozenset(
     {
@@ -43,6 +39,8 @@ _F_SCORE_DATASETS = frozenset(
         "bank_marketing",
         "ckd",
         "diabetes",
+        "heart_disease",
+        "miniboone",
         "nhanes_mortality",
         "physionet",
     }
@@ -84,38 +82,6 @@ _MISSINGNESS_COLUMNS = pd.Index(
         "pvae_label_conditioned_score",
         "missingness_damage",
         "restoration_gain",
-    ]
-)
-_GATE_COLUMNS = pd.Index(
-    [
-        "dataset",
-        "method",
-        "eval_hard_budget",
-        "n_planning_instances",
-        "adaptive_gain_mean",
-        "nongreedy_gain_mean",
-        "planning_pass",
-        "n_restoration_instances",
-        "restoration_mechanism",
-        "restoration_p",
-        "restoration_gain_mean",
-        "restoration_pass",
-        "method_pass",
-        "dataset_concordant",
-    ]
-)
-_PLANNING_GATE_COLUMNS = pd.Index(
-    [
-        "dataset",
-        "method",
-        "eval_hard_budget",
-        "n_instances",
-        "adaptive_gain_mean",
-        "adaptive_positive_instances",
-        "nongreedy_gain_mean",
-        "nongreedy_positive_instances",
-        "planning_pass",
-        "dataset_concordant",
     ]
 )
 
@@ -449,141 +415,6 @@ def compute_effects(
     )
 
 
-def gate_summary(
-    planning: pd.DataFrame,
-    missingness: pd.DataFrame,
-    *,
-    threshold: float = 0.01,
-    expected_instances: int = 5,
-    min_positive_instances: int = 4,
-    mechanism: str = "mcar",
-    probability: float = 0.7,
-    methods: tuple[str, ...] = _NON_GREEDY_METHODS,
-) -> pd.DataFrame:
-    """Apply the predeclared gate independently to AACO and OL."""
-    if planning.empty:
-        return pd.DataFrame(columns=_GATE_COLUMNS)
-    if missingness.empty:
-        missingness = pd.DataFrame(columns=_MISSINGNESS_COLUMNS)
-    rows: list[dict[str, Any]] = []
-    cells = planning[["dataset", "eval_hard_budget"]].drop_duplicates()
-    for dataset, budget in cells.itertuples(index=False, name=None):
-        dataset_rows: list[dict[str, Any]] = []
-        for method in methods:
-            plan = planning.loc[
-                (planning["dataset"] == dataset)
-                & (planning["method"] == method)
-                & (planning["eval_hard_budget"] == budget)
-            ]
-            restore = missingness.loc[
-                (missingness["dataset"] == dataset)
-                & (missingness["method"] == method)
-                & (missingness["eval_hard_budget"] == budget)
-                & (missingness["mechanism"] == mechanism)
-                & np.isclose(missingness["p"], probability)
-            ]
-            adaptive_mean = float(plan["adaptive_gain"].mean())
-            nongreedy_mean = float(plan["nongreedy_gain"].mean())
-            restoration_mean = float(restore["restoration_gain"].mean())
-            planning_pass = bool(
-                len(plan) == expected_instances
-                and adaptive_mean >= threshold
-                and nongreedy_mean >= threshold
-                and int((plan["adaptive_gain"] > 0).sum())
-                >= min_positive_instances
-                and int((plan["nongreedy_gain"] > 0).sum())
-                >= min_positive_instances
-            )
-            restoration_pass = bool(
-                len(restore) == expected_instances
-                and restoration_mean >= threshold
-                and int((restore["restoration_gain"] > 0).sum())
-                >= min_positive_instances
-            )
-            row = {
-                "dataset": dataset,
-                "method": method,
-                "eval_hard_budget": float(budget),
-                "n_planning_instances": len(plan),
-                "adaptive_gain_mean": adaptive_mean,
-                "nongreedy_gain_mean": nongreedy_mean,
-                "planning_pass": planning_pass,
-                "n_restoration_instances": len(restore),
-                "restoration_mechanism": mechanism,
-                "restoration_p": probability,
-                "restoration_gain_mean": restoration_mean,
-                "restoration_pass": restoration_pass,
-                "method_pass": planning_pass and restoration_pass,
-            }
-            dataset_rows.append(row)
-        concordant = bool(
-            len(dataset_rows) == len(methods)
-            and all(bool(row["method_pass"]) for row in dataset_rows)
-        )
-        for row in dataset_rows:
-            row["dataset_concordant"] = concordant
-            rows.append(row)
-    return pd.DataFrame(rows, columns=_GATE_COLUMNS)
-
-
-def planning_gate_summary(
-    planning: pd.DataFrame,
-    *,
-    threshold: float = 0.01,
-    expected_instances: int = 5,
-    min_positive_instances: int = 4,
-    methods: tuple[str, ...] = _NON_GREEDY_METHODS,
-) -> pd.DataFrame:
-    """Gate complete-data planning before running a restoration matrix."""
-    if planning.empty:
-        return pd.DataFrame(columns=_PLANNING_GATE_COLUMNS)
-    rows: list[dict[str, Any]] = []
-    cells = planning[["dataset", "eval_hard_budget"]].drop_duplicates()
-    for dataset, budget in cells.itertuples(index=False, name=None):
-        dataset_rows: list[dict[str, Any]] = []
-        for method in methods:
-            method_rows = planning.loc[
-                (planning["dataset"] == dataset)
-                & (planning["method"] == method)
-                & (planning["eval_hard_budget"] == budget)
-            ]
-            adaptive_mean = float(method_rows["adaptive_gain"].mean())
-            nongreedy_mean = float(method_rows["nongreedy_gain"].mean())
-            passed = bool(
-                len(method_rows) == expected_instances
-                and adaptive_mean >= threshold
-                and nongreedy_mean >= threshold
-                and int((method_rows["adaptive_gain"] > 0).sum())
-                >= min_positive_instances
-                and int((method_rows["nongreedy_gain"] > 0).sum())
-                >= min_positive_instances
-            )
-            row = {
-                "dataset": dataset,
-                "method": method,
-                "eval_hard_budget": float(budget),
-                "n_instances": len(method_rows),
-                "adaptive_gain_mean": adaptive_mean,
-                "adaptive_positive_instances": int(
-                    (method_rows["adaptive_gain"] > 0).sum()
-                ),
-                "nongreedy_gain_mean": nongreedy_mean,
-                "nongreedy_positive_instances": int(
-                    (method_rows["nongreedy_gain"] > 0).sum()
-                ),
-                "planning_pass": passed,
-            }
-            dataset_rows.append(row)
-        concordant = bool(
-            len(dataset_rows) == len(methods)
-            and all(bool(row["planning_pass"]) for row in dataset_rows)
-        )
-        for row in dataset_rows:
-            row["dataset_concordant"] = concordant
-            rows.append(row)
-    return pd.DataFrame(rows, columns=_PLANNING_GATE_COLUMNS)
-
-
 def _read_unmasker(
     dataset: str,
     mapping_path: Path,
@@ -812,8 +643,6 @@ def main() -> None:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--planning-output", type=Path)
     parser.add_argument("--missingness-output", type=Path)
-    parser.add_argument("--gate-output", type=Path)
-    parser.add_argument("--planning-gate-output", type=Path)
     parser.add_argument("--datasets", nargs="*")
     parser.add_argument(
         "--methods",
@@ -878,29 +707,16 @@ def main() -> None:
     planning, missingness = compute_effects(
         instance_metrics, routes, non_greedy_methods=methods
     )
-    planning_output, missingness_output, gate_output, planning_gate_output = (
+    planning_output, missingness_output = (
         given or analysis / f"{stem}_{arguments.namespace}.csv"
         for given, stem in (
             (arguments.planning_output, "planning_effects"),
             (arguments.missingness_output, "missingness_effects"),
-            (arguments.gate_output, "route_gate"),
-            (arguments.planning_gate_output, "planning_gate"),
         )
     )
     planning.to_csv(planning_output, index=False)
     missingness.to_csv(missingness_output, index=False)
-    planning_gate_summary(planning, methods=methods).to_csv(
-        planning_gate_output,
-        index=False,
-    )
-    gate_summary(planning, missingness, methods=methods).to_csv(
-        gate_output, index=False
-    )
-    print(
-        "wrote "
-        f"{planning_output}, {missingness_output}, "
-        f"{planning_gate_output}, {gate_output}"
-    )
+    print(f"wrote {planning_output}, {missingness_output}")
 
 
 if __name__ == "__main__":

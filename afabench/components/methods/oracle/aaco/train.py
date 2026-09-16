@@ -117,9 +117,6 @@ def run(cfg: AACOTrainConfig) -> None:
         k_neighbors=cfg.aco.k_neighbors,
         acquisition_cost=soft_budget_param,
         hide_val=cfg.aco.hide_val,
-        missingness_objective=cfg.aco.missingness_objective,
-        dr_min_propensity=cfg.aco.dr_min_propensity,
-        dr_max_weight=cfg.aco.dr_max_weight,
         mask_seed=cfg.aco.mask_seed,
         force_acquisition=force_acquisition,
         selection_size=selection_size,
@@ -138,7 +135,6 @@ def run(cfg: AACOTrainConfig) -> None:
         X_train,
         y_train,
         observed_mask=train_observed_mask,
-        observation_group_ids=dataset.get_missingness_group_ids(),
     )
     logger.info(
         "AACO oracle fitted with classifier from %s",
@@ -159,9 +155,6 @@ def run(cfg: AACOTrainConfig) -> None:
             "selection_size": selection_size,
             "k_neighbors": cfg.aco.k_neighbors,
             "hide_val": cfg.aco.hide_val,
-            "missingness_objective": cfg.aco.missingness_objective,
-            "dr_min_propensity": cfg.aco.dr_min_propensity,
-            "dr_max_weight": cfg.aco.dr_max_weight,
             "mask_seed": cfg.aco.mask_seed,
             "training_view_strategy": getattr(dataset, "strategy", None),
             "classifier_bundle_path": str(classifier_bundle_path),

@@ -67,15 +67,10 @@ STRATEGY_DISPLAY = {
     "true_completion": "True completion",
     "zero_fill": "Zero fill",
 }
-# Colour, marker and line style all key on the method, so identity survives
-# greyscale printing and colour-vision deficiency. Keying the marker on a
-# "standard vs control" label instead left ol_with_mask and ol_full_state
-# sharing a marker as well as a colour, which made them one line.
+# Distinct markers distinguish policy-state variants within each family.
 METHOD_SHAPES = {
     "aaco": "o",
-    "aaco_doubly_robust": "D",
     "dime": "^",
-    "dime_feature_marginal_ipw": "s",
     "gdfs": "h",
     "jafa": "<",
     "jafa_full_state": ">",
@@ -87,23 +82,8 @@ METHOD_SHAPES = {
     "ol_without_mask": "X",
     "random_dummy": "*",
 }
-# Solid is a method, dashed is a reweighting control of the method above it.
-METHOD_LINETYPES = {
-    "aaco": "solid",
-    "aaco_doubly_robust": "dashed",
-    "dime": "solid",
-    "dime_feature_marginal_ipw": "dashed",
-    "gdfs": "solid",
-    "jafa": "solid",
-    "jafa_full_state": "solid",
-    "odin_model_based": "solid",
-    "odin_model_free": "solid",
-    "odin_model_free_full_state": "solid",
-    "ol_with_mask": "solid",
-    "ol_full_state": "solid",
-    "ol_without_mask": "solid",
-    "random_dummy": "dotted",
-}
+METHOD_LINETYPES = dict.fromkeys(METHOD_SHAPES, "solid")
+METHOD_LINETYPES["random_dummy"] = "dotted"
 
 INSTANCE_COLUMNS = {
     "dataset",

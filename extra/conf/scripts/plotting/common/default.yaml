@@ -7,17 +7,12 @@ method_name_mapping:
   eddi_builtin: EDDI(builtin)
   gdfs: GDFS
   dime: DIME
-  dime_feature_marginal_ipw: DIME (feature-marginal IPW)
   jafa: JAFA
-  jafa_full_state: JAFA (full state)
-  ol_with_mask: OL, $Q(x_S,S)$
-  ol_without_mask: OL (values only)
-  ol_full_state: OL, $Q(x_S,S,m)$
+  ol_with_mask: OL(with-mask)
+  ol_without_mask: OL(without-mask)
   odin_model_based: ODIN(model-based)
   odin_model_free: ODIN(model-free)
-  odin_model_free_full_state: ODIN(model-free, full state)
   aaco: AACO
-  aaco_doubly_robust: AACO (doubly robust)
   aaco_nn: AACO(NN)
   permutation: PT
   cae: CAE
@@ -29,17 +24,12 @@ method_policy_family_mapping:
   eddi_builtin: eddi
   gdfs: gdfs
   dime: dime
-  dime_feature_marginal_ipw: dime
   jafa: jafa
-  jafa_full_state: jafa
   ol_with_mask: ol
   ol_without_mask: ol
-  ol_full_state: ol
   odin_model_based: odin
   odin_model_free: odin
-  odin_model_free_full_state: odin
   aaco: aaco
-  aaco_doubly_robust: aaco
   aaco_nn: aaco
   permutation: static
   cae: static
@@ -90,26 +80,6 @@ method_family_color_schemes:
 
 active_method_color_scheme: colorbrewer_dark2
 
-# Per-method colours, mirroring afabench/plotting/methods.py, which
-# test_plotting_methods.py keeps equal to this block. One Okabe-Ito hue per
-# method family; methods inside a family share it and separate by marker and by
-# row position, because eleven mutually separated hues cannot be calm. The six
-# are validated for deuteranopia, protanopia and tritanopia over every pair, not
-# only adjacent ones, against floors of 8 under CVD and 15 under normal vision
-# in OKLab dE x100. Do not re-step one entry in isolation.
-method_color_overrides:
-  aaco: '#D55E00'
-  aaco_doubly_robust: '#D55E00'
-  dime: '#56B4E9'
-  dime_feature_marginal_ipw: '#56B4E9'
-  gdfs: '#009E73'
-  jafa: '#882255'
-  jafa_full_state: '#882255'
-  ol_with_mask: '#E69F00'
-  ol_full_state: '#E69F00'
-  odin_model_free: '#7570B3'
-  odin_model_free_full_state: '#7570B3'
-
 dataset_name_mapping:
   cube: CUBE
   cube_nonuniform_costs: CUBE-NUC
@@ -125,15 +95,10 @@ dataset_name_mapping:
   diabetes: Diabetes
   fashion_mnist: FashionMNIST
   miniboone: MiniBooNE
-  nhanes_mortality: NHANES Mortality
   physionet: PhysioNet
   imagenette: Imagenette
 
 datasets_with_f_score:
-  - actg
-  - ckd
-  - diabetes
-  - nhanes_mortality
   - physionet
   - bank_marketing
 

@@ -32,11 +32,7 @@ HEADERS = {
     "weighted_route_overlap": "\\omega_{\\mathrm{route}}",
 }
 
-DEFAULT_NAMESPACES = (
-    "core_group_missingness_v2",
-    "induced_nonuniform_missingness_v2",
-    "induced_real_missingness_v2",
-)
+DEFAULT_NAMESPACES = ("induced",)
 PAPER_DATASETS = frozenset(
     {
         "actg",
@@ -294,7 +290,7 @@ def main() -> None:
         "--namespace",
         action="append",
         default=None,
-        help="Namespaces to pool. Defaults to the three induced matrices.",
+        help="Namespaces to pool. Defaults to the induced study.",
     )
     parser.add_argument(
         "--csv-output",

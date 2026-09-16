@@ -395,9 +395,6 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             "k_neighbors": self.aaco_oracle.k_neighbors,
             "acquisition_cost": self.aaco_oracle.acquisition_cost,
             "hide_val": self.aaco_oracle.hide_val,
-            "missingness_objective": self.aaco_oracle.missingness_objective,
-            "dr_min_propensity": self.aaco_oracle.dr_min_propensity,
-            "dr_max_weight": self.aaco_oracle.dr_max_weight,
             "mask_seed": self.aaco_oracle.mask_seed,
             "dataset_name": self.dataset_name,
             "force_acquisition": self.force_acquisition,
@@ -421,11 +418,6 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             "train_observed_mask": (
                 self.aaco_oracle.train_observed_mask.cpu()
                 if self.aaco_oracle.train_observed_mask is not None
-                else None
-            ),
-            "observation_group_ids": (
-                self.aaco_oracle.observation_group_ids.cpu()
-                if self.aaco_oracle.observation_group_ids is not None
                 else None
             ),
             "stepwise_pvae_bundle_path": (
@@ -457,13 +449,17 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             oracle_files[0], map_location=device, weights_only=False
         )
 
+        if (
+            oracle_state.get("missingness_objective", "support_aware")
+            != "support_aware"
+        ):
+            msg = "This bundle uses the retired AACO doubly robust objective."
+            raise ValueError(msg)
+
         aaco_oracle = AACOOracle(
             k_neighbors=oracle_state["k_neighbors"],
             acquisition_cost=oracle_state["acquisition_cost"],
             hide_val=oracle_state["hide_val"],
-            missingness_objective=oracle_state["missingness_objective"],
-            dr_min_propensity=oracle_state["dr_min_propensity"],
-            dr_max_weight=oracle_state["dr_max_weight"],
             mask_seed=oracle_state.get("mask_seed", 0),
             device=device,
         )
@@ -477,9 +473,6 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
                 oracle_state["X_train"].to(device),
                 oracle_state["y_train"].to(device),
                 observed_mask=oracle_state["train_observed_mask"],
-                observation_group_ids=oracle_state.get(
-                    "observation_group_ids"
-                ),
             )
 
         # Get classifier path from saved state
@@ -532,9 +525,6 @@ def create_aaco_method(
     k_neighbors: int = 5,
     acquisition_cost: float = 0.05,
     hide_val: float = 0.0,  # Use 0 for consistency with MLP training
-    missingness_objective: str = "support_aware",
-    dr_min_propensity: float = 1e-3,
-    dr_max_weight: float | None = 20.0,
     mask_seed: int = 0,
     *,
     force_acquisition: bool = False,
@@ -574,9 +564,6 @@ def create_aaco_method(
         k_neighbors=k_neighbors,
         acquisition_cost=acquisition_cost,
         hide_val=hide_val,
-        missingness_objective=missingness_objective,
-        dr_min_propensity=dr_min_propensity,
-        dr_max_weight=dr_max_weight,
         mask_seed=mask_seed,
         device=device,
     )

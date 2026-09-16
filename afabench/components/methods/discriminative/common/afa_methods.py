@@ -175,39 +175,6 @@ def _feature_selection_ids(
     return None
 
 
-def _feature_marginal_selection_propensities(
-    feature_availability: torch.Tensor,
-    unmasker: AFAUnmasker,
-) -> torch.Tensor:
-    selection_availability = (
-        unmasker.feature_availability_to_selection_availability(
-            feature_availability.bool()
-        )
-    )
-    return selection_availability.float().mean(dim=0)
-
-
-def _training_selection_propensities(
-    train_loader: DataLoader[Any],
-    unmasker: AFAUnmasker,
-    *,
-    n_selections: int,
-    device: torch.device,
-) -> torch.Tensor:
-    """Estimate feature-marginal support once from the full training view."""
-    source_availability = getattr(
-        train_loader.dataset,
-        "source_availability",
-        None,
-    )
-    if source_availability is None:
-        return torch.ones(n_selections, device=device)
-    return _feature_marginal_selection_propensities(
-        source_availability.to(device),
-        unmasker,
-    )
-
-
 class GreedyDynamicSelection(nn.Module):
     """
     Greedy adaptive feature selection.
@@ -970,10 +937,6 @@ class CMIEstimator(nn.Module):
         eps_steps: int = 1,
         feature_costs: torch.Tensor | None = None,
         cmi_scaling: str = "bounded",
-        ipw_mode: str = "none",
-        ipw_min_propensity: float = 1e-3,
-        ipw_max_weight: float = 10.0,
-        ipw_normalize_weights: bool = True,  # noqa: FBT002
         verbose: bool = True,  # noqa: FBT002
         metric_logger: Callable[[dict[str, float]], None] | None = None,
         metric_prefix: str = "cmi_estimator",
@@ -988,15 +951,6 @@ class CMIEstimator(nn.Module):
             raise ValueError(msg)
         if early_stopping_epochs is None:
             early_stopping_epochs = patience + 1
-        if ipw_mode not in {"none", "feature_marginal"}:
-            msg = "ipw_mode must be one of {'none', 'feature_marginal'}."
-            raise ValueError(msg)
-        if not 0.0 < ipw_min_propensity <= 1.0:
-            msg = "ipw_min_propensity must be in (0, 1]."
-            raise ValueError(msg)
-        if ipw_max_weight <= 0.0:
-            msg = "ipw_max_weight must be positive."
-            raise ValueError(msg)
         value_network: nn.Module = self.value_network
         predictor: nn.Module = self.predictor
         mask_layer: MaskLayer | MaskLayer2d = self.mask_layer
@@ -1034,13 +988,6 @@ class CMIEstimator(nn.Module):
         selection_costs = torch.clamp(selection_costs, min=1e-12)
 
         n_selections = unmasker.get_n_selections(feature_shape)
-        selection_propensities = _training_selection_propensities(
-            train_loader,
-            unmasker,
-            n_selections=n_selections,
-            device=device,
-        )
-
         opt = optim.Adam(
             nn.ModuleList([value_network, predictor]).parameters(),
             lr=lr,
@@ -1190,18 +1137,6 @@ class CMIEstimator(nn.Module):
                         - delta
                     )
                     squared_error *= has_available
-                    if ipw_mode == "feature_marginal":
-                        weights = (
-                            selection_propensities[actions]
-                            .clamp_min(ipw_min_propensity)
-                            .reciprocal()
-                        )
-                        weights = weights.clamp_max(ipw_max_weight)
-                        if ipw_normalize_weights and has_available.any():
-                            weights /= (
-                                weights[has_available].mean().clamp_min(1e-12)
-                            )
-                        squared_error *= weights.detach()
                     value_network_loss = squared_error.sum() / (
                         has_available.sum().clamp_min(1)
                     )

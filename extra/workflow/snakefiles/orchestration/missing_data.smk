@@ -14,12 +14,15 @@ Missing-data config keys:
     artifact_namespace, missingness, strategies, eval_dataset_split
     Optional ``classifier_scope`` is ``shared`` for legacy experiments or
     ``per_instance`` to fit classifiers on each dataset split independently.
-    Optional ``run_confirmatory_analysis`` writes paired path, restoration,
-    stepwise, and DIME-invariance tables after aggregation.
     Optional ``strategy_filters`` restricts one strategy by datasets, methods,
     mechanisms, or probabilities without duplicating the experiment workflow.
     Optional ``include_method_variants`` omits missingness-specific controls
     from a focused experiment while retaining them by default.
+    Optional ``paper_artifacts`` adds the exact study, route analysis, compute
+    accounting, and paper figures under ``extra/output/missing_data/results``.
+    This requires the complete induced study on the validation split.
+    The ``plots`` target regenerates plots/tables and schedules any missing
+    upstream results. The default ``all`` target includes these artifacts.
     A namespace containing the ``native`` mechanism also writes a mandatory
     legality report. Its evaluation traces must retain source indices, prove
     that every action respected factual availability, and omit oracle or
@@ -42,7 +45,10 @@ Device routing:
 
 Example:
     uv run snakemake \
-      --profile extra/workflow/profiles/config/missing_data_smoke --cores 4
+      --profile extra/workflow/profiles/config/missing_data --cores 4
+    Add ``--dry-run`` to inspect the DAG, or use ``missing_data_smoke`` for
+    a small training/evaluation check. Dataset source requirements are listed
+    in docs/tutorials/missing_data_experiments.md.
 """
 
 import os
@@ -156,6 +162,19 @@ if EVAL_SPLIT not in {"val", "test"}:
     raise ValueError("eval_dataset_split must be either 'val' or 'test'")
 
 ROOT = "extra/output/missing_data"
+RESULTS = f"{ROOT}/results"
+PAPER_ARTIFACTS = bool(config.get("paper_artifacts", False))
+if PAPER_ARTIFACTS and (NAMESPACE != "induced" or EVAL_SPLIT != "val" or SMOKE_TEST):
+    raise ValueError("paper_artifacts requires the full induced validation study")
+PAPER_OUTPUTS = [
+    f"{RESULTS}/{name}"
+    for name in (
+        "conceptual_constants.tex", "exact_study_raw.pdf",
+        "main_summary_absolute_mcar.pdf", "main_summary_absolute_grid.pdf",
+        "main_summary_variants_grid.pdf", "law_grid.pdf",
+        "state_conditioning.pdf", "compute.pdf", "route_structure.tex",
+    )
+] if PAPER_ARTIFACTS else []
 BENCHMARK_ROOT = f"{ROOT}/benchmark/{NAMESPACE}"
 HYDRA_WORKFLOW_OVERRIDES = (
     "hydra/job_logging=workflow_console "
@@ -181,9 +200,7 @@ PRETRAIN_REUSE = config.get("missing_data_pretrain_reuse", {})
 RESTORATION_BATCH_SIZE = int(config.get("restoration_batch_size", 1024))
 EVAL_BATCH_SIZE_OVERRIDE = config.get("eval_batch_size")
 STEPWISE_EVAL_BATCH_SIZE = int(config.get("stepwise_eval_batch_size", 16))
-RUN_CONFIRMATORY_ANALYSIS = bool(
-    config.get("run_confirmatory_analysis", False)
-)
+
 
 
 def wildcard_pattern(values):
@@ -535,21 +552,6 @@ NATIVE_EVALUATIONS = [
 ]
 SUMMARY_DIR = f"{ROOT}/summary/{EVAL_SPLIT}/{NAMESPACE}"
 FIGURE_DIR = f"{ROOT}/figures/{EVAL_SPLIT}/{NAMESPACE}"
-ANALYSIS_OUTPUTS = (
-    [
-        f"{ROOT}/analysis/path_fidelity_{NAMESPACE}_{EVAL_SPLIT}.csv",
-        f"{ROOT}/analysis/stepwise_effects_{NAMESPACE}_{EVAL_SPLIT}.csv",
-        f"{ROOT}/analysis/generator_quality_{NAMESPACE}_{EVAL_SPLIT}.csv",
-        f"{ROOT}/analysis/dime_invariance_{NAMESPACE}_{EVAL_SPLIT}.csv",
-    ]
-    if RUN_CONFIRMATORY_ANALYSIS
-    else []
-)
-MECHANISM_FIGURE_DIR = (
-    f"{ROOT}/analysis_figures/{EVAL_SPLIT}/{NAMESPACE}"
-    if RUN_CONFIRMATORY_ANALYSIS
-    else []
-)
 NATIVE_AUDIT_OUTPUTS = (
     [f"{ROOT}/analysis/native_legality_{NAMESPACE}_{EVAL_SPLIT}.csv"]
     if NATIVE_EVALUATIONS
@@ -572,22 +574,34 @@ wildcard_constraints:
     eval_budget=r"[0-9.]+"
 
 
-# Aggregation is seconds of pandas over files the submitting host can already
-# read. On a cluster each of these would otherwise cost a full queue round trip.
+# Run aggregation on the submitting host.
 localrules:
     all,
-    analyze_missing_data_mechanisms,
     audit_native_legality,
-    plot_missing_data_mechanisms,
     summarize_missing_data,
     plot_missing_data,
 
 
-# Arrhenius has x86_64 CPU nodes and aarch64 Grace Hopper GPU nodes, and
-# Snakemake exports the submitting environment to both, which would put the
-# login node's venv on the wrong architecture. This lets a cluster select the
-# right one per job without any rule knowing about it. Empty everywhere else.
+# The cluster runner selects its architecture-specific environment.
 shell.prefix(os.environ.get("AFABENCH_SHELL_PREFIX", ""))
+
+
+onstart:
+    if not os.environ.get("AFABENCH_RUN_MANIFEST"):
+        from argparse import Namespace
+        from datetime import datetime, timezone
+        from pathlib import Path
+        from scripts.workflow.write_run_manifest import write_manifest
+
+        write_manifest(Path.cwd(), dict(config), Namespace(
+            profile="missing_data.smk",
+            run_id=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S") + f"-{os.getpid()}",
+            device=DEFAULT_DEVICE, cores=workflow.cores,
+            mem_mb=workflow.global_resources.get("mem_mb"),
+            job_mem_mb=None, gpu_workers=workflow.global_resources.get("gpu", 0),
+            mps=False, archive_dir=None, remove_archived_source=False,
+            snakemake_args=sys.argv[1:],
+        ))
 
 
 rule all:
@@ -598,9 +612,14 @@ rule all:
         f"{SUMMARY_DIR}/action_rates.csv",
         f"{SUMMARY_DIR}/restoration_rmse.csv",
         FIGURE_DIR,
-        ANALYSIS_OUTPUTS,
-        MECHANISM_FIGURE_DIR,
         NATIVE_AUDIT_OUTPUTS,
+        PAPER_OUTPUTS,
+
+
+rule plots:
+    input:
+        FIGURE_DIR,
+        PAPER_OUTPUTS,
 
 
 rule audit_native_legality:
@@ -614,45 +633,6 @@ rule audit_native_legality:
         """
         python scripts/analysis/audit_native_legality.py \
             --input-root={params.root} --output={output}
-        """
-
-
-rule analyze_missing_data_mechanisms:
-    input:
-        evaluations=EVALUATIONS,
-        instances=f"{SUMMARY_DIR}/instance_metrics.csv",
-        restoration=f"{SUMMARY_DIR}/restoration_rmse.csv",
-        datasets=[
-            raw_dataset(dataset, instance, EVAL_SPLIT)
-            for dataset in DATASETS
-            for instance in INSTANCES
-        ],
-    output:
-        ANALYSIS_OUTPUTS,
-    params:
-        require_invariance=(
-            "--require-dime-invariance"
-            if RUN_CONFIRMATORY_ANALYSIS
-            else ""
-        ),
-    shell:
-        """
-        python scripts/analysis/analyze_missing_data_mechanisms.py \
-            --namespace={NAMESPACE} --split={EVAL_SPLIT} \
-            {params.require_invariance}
-        """
-
-
-rule plot_missing_data_mechanisms:
-    input:
-        ANALYSIS_OUTPUTS,
-    output:
-        directory(MECHANISM_FIGURE_DIR),
-    shell:
-        """
-        python scripts/plotting/plot_missing_data_mechanisms.py \
-            --analysis-dir={ROOT}/analysis --namespace={NAMESPACE} \
-            --split={EVAL_SPLIT} --output-dir={output}
         """
 
 
@@ -1217,6 +1197,9 @@ rule summarize_missing_data:
 
 rule plot_missing_data:
     input:
+        script="scripts/plotting/plot_missing_data.py",
+        style="extra/conf/scripts/plotting/common/default.yaml",
+        study_style="extra/conf/scripts/plotting/common/missing_data.yaml",
         instances=f"{SUMMARY_DIR}/instance_metrics.csv",
         summary=f"{SUMMARY_DIR}/summary.csv",
         actions=f"{SUMMARY_DIR}/action_rates.csv",
@@ -1227,9 +1210,12 @@ rule plot_missing_data:
         shell_exec="bash"
     shell:
         """
-        python scripts/plotting/plot_missing_data.py \
+        python {input.script} \
             instance_metrics={input.instances} summary={input.summary} \
             action_rates={input.actions} restoration_rmse={input.restoration} \
             output_folder={output} formats='[pdf,svg]' \
             {HYDRA_WORKFLOW_OVERRIDES}
         """
+
+
+include: "../rules/missing_data_results.smk"
