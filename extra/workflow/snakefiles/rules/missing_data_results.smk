@@ -5,6 +5,7 @@ rule exact_control:
         "scripts/paper/exact_study.py",
     output:
         f"{RESULTS}/exact_study.csv",
+        f"{RESULTS}/exact_study_values.csv",
     threads: 4
     shell:
         "python {input} --jobs {threads} --output-dir {RESULTS}"
@@ -14,11 +15,50 @@ rule plot_exact_control:
     input:
         data=f"{RESULTS}/exact_study.csv",
         script="scripts/paper/plot_exact_study.py",
+        style="afabench/plotting/methods.py",
     output:
         f"{RESULTS}/exact_study_raw.pdf",
     shell:
         "python {input.script} --input {input.data} "
         "--output-stem {RESULTS}/exact_study_raw"
+
+
+rule budget_control:
+    input:
+        script="scripts/paper/budget_study.py",
+        problem="scripts/paper/budget_problem.py",
+        reference="scripts/paper/exact_study.py",
+    output:
+        f"{RESULTS}/budget_study.csv",
+    threads: 4
+    shell:
+        "python {input.script} --jobs {threads} --output-dir {RESULTS}"
+
+
+rule plot_budget_control:
+    input:
+        data=f"{RESULTS}/budget_study.csv",
+        script="scripts/paper/plot_exact_study.py",
+        style="afabench/plotting/methods.py",
+    output:
+        f"{RESULTS}/budget_study.pdf",
+    shell:
+        "python {input.script} --vary-budget --input {input.data} "
+        "--output-stem {RESULTS}/budget_study"
+
+
+rule plot_combined_control:
+    input:
+        dimension=f"{RESULTS}/exact_study.csv",
+        budget=f"{RESULTS}/budget_study.csv",
+        script="scripts/paper/plot_exact_study.py",
+        style="afabench/plotting/methods.py",
+    output:
+        f"{RESULTS}/exact_study_combined.pdf",
+    shell:
+        "python {input.script} --input {input.dimension} "
+        "--budget-input {input.budget} "
+        "--output-stem {RESULTS}/exact_study_combined"
 
 
 rule conceptual_constants:

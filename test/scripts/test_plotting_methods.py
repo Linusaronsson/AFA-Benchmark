@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from hydra import compose, initialize_config_dir
 
 from afabench.plotting.methods import (
     FAMILY_COLORS,
@@ -189,6 +190,10 @@ def test_yaml_overrides_match_the_module() -> None:
 
 
 def test_yaml_names_every_method_the_module_colours() -> None:
-    config = yaml.safe_load(COMMON_CONFIG.read_text())
+    # Study-specific overrides inherit the base method names and families.
+    with initialize_config_dir(
+        version_base=None, config_dir=str(COMMON_CONFIG.parent.resolve())
+    ):
+        config = compose(config_name=COMMON_CONFIG.stem)
     assert set(METHOD_COLORS) <= set(config["method_policy_family_mapping"])
     assert set(METHOD_COLORS) <= set(config["method_name_mapping"])

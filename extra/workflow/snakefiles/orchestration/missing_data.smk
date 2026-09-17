@@ -19,7 +19,11 @@ Missing-data config keys:
     Optional ``include_method_variants`` omits missingness-specific controls
     from a focused experiment while retaining them by default.
     Optional ``paper_artifacts`` adds the exact study, route analysis, compute
-    accounting, and paper figures under ``extra/output/missing_data/results``.
+    accounting, and paper figures under ``extra/output/paper/experiments/results``.
+    The exact study compares myopic and two-step policies as dimension varies;
+    the budget study compares myopic and full-horizon policies on
+    parity branches at budgets 2, 3, and 4, with complete-data controls.
+    The combined main-paper figure shows both policies across both sweeps.
     This requires the complete induced study on the validation split.
     The ``plots`` target regenerates plots/tables and schedules any missing
     upstream results. The default ``all`` target includes these artifacts.
@@ -49,6 +53,9 @@ Example:
     Add ``--dry-run`` to inspect the DAG, or use ``missing_data_smoke`` for
     a small training/evaluation check. Dataset source requirements are listed
     in docs/tutorials/missing_data_experiments.md.
+    To inspect only the synthetic appendix DAG, append ``--dry-run
+    extra/output/paper/experiments/results/budget_study.pdf``. This target
+    requires no benchmark datasets or trained model bundles.
 """
 
 

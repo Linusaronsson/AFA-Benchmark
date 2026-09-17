@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Sequence
 
 BUDGET = 2
+HORIZONS = (1, 2)
 SHORTCUT_ACCURACY = 0.75
 LAPLACE = 0.5
 CONTEXT, BLOCK0, BLOCK1, SHORTCUT = 0, 1, 2, 3
@@ -68,6 +69,24 @@ class StudyResult(NamedTuple):
     arm: str
     rep: int
     regret: float
+    horizon: int
+    population_accuracy: float
+
+
+class ActionValue(NamedTuple):
+    d: int
+    p_miss: float
+    n: int
+    arm: str
+    rep: int
+    horizon: int
+    action: int
+    accuracy: float
+
+
+class StudyOutput(NamedTuple):
+    regrets: list[StudyResult]
+    values: list[ActionValue]
 
 
 @dataclass(frozen=True)
@@ -94,6 +113,7 @@ class Plan:
     root_prediction: int
     single_prediction: UIntArray
     pair_prediction: UIntArray
+    root_q: FloatArray
 
 
 class FixedPredictor(NamedTuple):
@@ -225,8 +245,10 @@ class Problem:
                         )
         return FixedPredictor(root, single, pair)
 
-    def optimal_value(self) -> float:
-        return self._optimal_value((), (), BUDGET, self.fixed_predictor())
+    def optimal_value(self, horizon: int = BUDGET) -> float:
+        return self._optimal_value(
+            (), (), BUDGET, self.fixed_predictor(), horizon
+        )
 
     def _optimal_value(
         self,
@@ -234,19 +256,30 @@ class Problem:
         values: tuple[int, ...],
         remaining_budget: int,
         predictor: FixedPredictor,
+        horizon: int,
     ) -> float:
         p_y1 = self.label_probability(features, values)
         prediction = predictor.predict(features, values)
         best = p_y1 if prediction == 1 else 1 - p_y1
+        if horizon == 0:
+            return best
         for action, cost in enumerate(self.costs):
             if action in features or cost > remaining_budget:
                 continue
             p_one = self.feature_probability(features, values, action)
             next_budget = remaining_budget - int(cost)
             candidate = (1 - p_one) * self._optimal_value(
-                (*features, action), (*values, 0), next_budget, predictor
+                (*features, action),
+                (*values, 0),
+                next_budget,
+                predictor,
+                horizon - 1,
             ) + p_one * self._optimal_value(
-                (*features, action), (*values, 1), next_budget, predictor
+                (*features, action),
+                (*values, 1),
+                next_budget,
+                predictor,
+                horizon - 1,
             )
             best = max(best, candidate)
         return best
@@ -412,12 +445,21 @@ def _assemble_plan(
         predictor.root,
         predictor.single,
         predictor.pair,
+        root_q,
     )
 
 
 def plan_model_based(
-    tables: CountTables, costs: IntArray, predictor: FixedPredictor
+    tables: CountTables,
+    costs: IntArray,
+    predictor: FixedPredictor,
+    *,
+    horizon: int = 2,
 ) -> Plan:
+    """Plan with one or two acquisitions of lookahead, retaining budget two."""
+    if horizon not in HORIZONS:
+        message = "horizon must be 1 or 2."
+        raise ValueError(message)
     quantities = _base_plan_quantities(tables, costs, predictor)
     root_q = np.full(len(costs), -np.inf, dtype=np.float64)
     for action, cost in enumerate(costs):
@@ -426,7 +468,7 @@ def plan_model_based(
         counts = tables.single_count[action]
         p_one = float(_smoothed_probability(counts[1], counts.sum()))
         values = quantities.single_stop[action].copy()
-        if cost < BUDGET:
+        if horizon == 2 and cost < BUDGET:
             values = np.maximum(values, quantities.q_last[action].max(axis=1))
         root_q[action] = (1 - p_one) * values[0] + p_one * values[1]
     return _assemble_plan(root_q, quantities, predictor)
@@ -437,8 +479,13 @@ def plan_mask_agnostic(
     tables: CountTables,
     costs: IntArray,
     predictor: FixedPredictor,
+    *,
+    horizon: int = 2,
 ) -> Plan:
     """Fit one shared Q table using each instance's legal continuation set."""
+    if horizon not in HORIZONS:
+        message = "horizon must be 1 or 2."
+        raise ValueError(message)
     quantities = _base_plan_quantities(tables, costs, predictor)
     root_q = np.full(len(costs), -np.inf, dtype=np.float64)
     for action, cost in enumerate(costs):
@@ -451,7 +498,7 @@ def plan_mask_agnostic(
             continue
         values = quantities.single_stop[action, data.x[:, action]].copy()
         for continuation, continuation_cost in enumerate(costs):
-            if cost + continuation_cost > BUDGET:
+            if horizon == 1 or cost + continuation_cost > BUDGET:
                 continue
             candidate = quantities.q_last[
                 action, data.x[:, action], continuation
@@ -467,40 +514,77 @@ def plan_mask_agnostic(
     return _assemble_plan(root_q, quantities, predictor)
 
 
-def fit_regrets(problem: Problem, data: Dataset) -> dict[str, float]:
+def fit_plans(problem: Problem, data: Dataset) -> dict[tuple[str, int], Plan]:
+    """Fit paired horizons and training views from shared sufficient statistics."""
     pooled = build_count_tables(data)
     complete_only = build_count_tables(data, complete_only=True)
     predictor = problem.fixed_predictor()
     complete_data = Dataset(
         data.x, data.y, np.ones_like(data.available, dtype=bool)
     )
+    tables_by_arm = {
+        ARM_LOCAL: complete_only,
+        ARM_GENERATIVE: pooled,
+        ARM_COMPLETE: build_count_tables(complete_data),
+    }
     plans = {
-        ARM_LOCAL: plan_model_based(complete_only, problem.costs, predictor),
-        ARM_AGNOSTIC: plan_mask_agnostic(
-            data, pooled, problem.costs, predictor
-        ),
-        ARM_GENERATIVE: plan_model_based(pooled, problem.costs, predictor),
-        ARM_COMPLETE: plan_model_based(
-            build_count_tables(complete_data), problem.costs, predictor
-        ),
+        (arm, horizon): plan_model_based(
+            tables, problem.costs, predictor, horizon=horizon
+        )
+        for arm, tables in tables_by_arm.items()
+        for horizon in HORIZONS
     }
-    optimum = problem.optimal_value()
-    return {
-        arm: max(0.0, optimum - problem.evaluate(plan))
-        for arm, plan in plans.items()
-    }
+    for horizon in HORIZONS:
+        plans[ARM_AGNOSTIC, horizon] = plan_mask_agnostic(
+            data, pooled, problem.costs, predictor, horizon=horizon
+        )
+    return plans
 
 
 def _rng(seed: int, *keys: int) -> np.random.Generator:
     return np.random.default_rng(np.random.SeedSequence((seed, *keys)))
 
 
-def _study_task(args: tuple[int, float, int, int, int]) -> list[StudyResult]:
+def _study_task(args: tuple[int, float, int, int, int]) -> StudyOutput:
     d, p_miss, n, rep, seed = args
     problem = Problem(d)
     rng = _rng(seed, d, round(1000 * p_miss), n, rep)
-    regrets = fit_regrets(problem, problem.sample(rng, n, p_miss))
-    return [StudyResult(d, p_miss, n, arm, rep, regrets[arm]) for arm in ARMS]
+    plans = fit_plans(problem, problem.sample(rng, n, p_miss))
+    optimum = problem.optimal_value()
+    # In this problem, replanning with population Q_1 also gives accuracy .75:
+    # neither branch acquisition has a strictly beneficial myopic continuation.
+    population = {h: problem.optimal_value(h) for h in HORIZONS}
+    return StudyOutput(
+        [
+            StudyResult(
+                d,
+                p_miss,
+                n,
+                arm,
+                rep,
+                max(0.0, optimum - problem.evaluate(plans[arm, h])),
+                h,
+                population[h],
+            )
+            for arm in ARMS
+            for h in HORIZONS
+        ],
+        [
+            ActionValue(
+                d,
+                p_miss,
+                n,
+                arm,
+                rep,
+                h,
+                action,
+                float(plans[arm, h].root_q[action]),
+            )
+            for arm in ARMS
+            for h in HORIZONS
+            for action in (CONTEXT, SHORTCUT)
+        ],
+    )
 
 
 def _map_tasks[TaskT, ResultT](
@@ -518,7 +602,7 @@ def _map_tasks[TaskT, ResultT](
 
 def run_study(
     *, reps: int, seed: int, jobs: int, smoke: bool = False
-) -> list[StudyResult]:
+) -> StudyOutput:
     dimensions = (6,) if smoke else DIMENSIONS
     sample_sizes = (10, 100, 1000) if smoke else SAMPLE_SIZES
     run_reps = min(reps, 3) if smoke else reps
@@ -530,7 +614,10 @@ def run_study(
         for rep in range(run_reps)
     ]
     nested = _map_tasks(_study_task, tasks, jobs)
-    return [result for results in nested for result in results]
+    return StudyOutput(
+        [row for result in nested for row in result.regrets],
+        [row for result in nested for row in result.values],
+    )
 
 
 def write_results(path: Path, results: Iterable[StudyResult]) -> None:
@@ -541,21 +628,31 @@ def write_results(path: Path, results: Iterable[StudyResult]) -> None:
         writer.writerows(results)
 
 
+def write_action_values(path: Path, results: Iterable[ActionValue]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(ActionValue._fields)
+        writer.writerows(results)
+
+
 def write_log(path: Path, results: Sequence[StudyResult]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    grouped: dict[tuple[int, float, int], list[StudyResult]] = {}
+    grouped: dict[tuple[int, float, int, int], list[StudyResult]] = {}
     for result in results:
-        grouped.setdefault((result.d, result.p_miss, result.n), []).append(
-            result
-        )
+        grouped.setdefault(
+            (result.d, result.p_miss, result.n, result.horizon), []
+        ).append(result)
     lines = []
-    for (d, p_miss, n), group in grouped.items():
+    for (d, p_miss, n, horizon), group in grouped.items():
         means = {
             arm: np.mean([item.regret for item in group if item.arm == arm])
             for arm in ARMS
         }
         summary = " ".join(f"{arm}={means[arm]:.4f}" for arm in ARMS)
-        lines.append(f"d={d} p={p_miss:g} n={n:6d} regret {summary}")
+        lines.append(
+            f"d={d} p={p_miss:g} n={n:6d} k={horizon} regret {summary}"
+        )
     path.write_text("\n".join(lines) + "\n")
 
 
@@ -583,9 +680,15 @@ def main() -> None:
     results = run_study(
         reps=args.reps, seed=args.seed, jobs=args.jobs, smoke=args.smoke
     )
-    write_results(args.output_dir / "exact_study.csv", results)
-    write_log(args.output_dir / "exact_study.log", results)
-    print(f"wrote {len(results):,} results to {args.output_dir}")
+    write_results(args.output_dir / "exact_study.csv", results.regrets)
+    write_action_values(
+        args.output_dir / "exact_study_values.csv", results.values
+    )
+    write_log(args.output_dir / "exact_study.log", results.regrets)
+    print(
+        f"wrote {len(results.regrets):,} regrets and "
+        f"{len(results.values):,} action values to {args.output_dir}"
+    )
 
 
 if __name__ == "__main__":
