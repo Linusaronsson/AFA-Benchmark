@@ -28,6 +28,7 @@ from afabench.plotting.methods import (
     METHOD_COLORS,
     METHOD_FAMILIES,
     METHOD_LABELS,
+    METHOD_LABELS_SHORT,
     POLICY_TYPE_LINESTYLES,
     PRIMARY_METHODS,
     SURFACE,
@@ -37,7 +38,6 @@ from afabench.plotting.methods import (
     policy_type,
 )
 from scripts.plotting.family_summary import (
-    FAMILY_LABELS,
     FAMILY_MEMBERS,
     average_states,
     summarize_families,
@@ -71,17 +71,7 @@ MAIN_RATE = 0.7
 
 # Datasets stack 4x2 inside each mechanism block of the appendix grid.
 _GRID_DATASET_ROWS = 4
-_GRID_METHOD_LABELS = {
-    "dime": "DIME",
-    "gdfs": "GDFS",
-    "aaco": "AACO",
-    "jafa": r"JAFA $s$",
-    "jafa_full_state": r"JAFA $s{,}m$",
-    "ol_with_mask": r"OL $s$",
-    "ol_full_state": r"OL $s{,}m$",
-    "odin_model_free": r"ODIN $s$",
-    "odin_model_free_full_state": r"ODIN $s{,}m$",
-}
+RATE_SIZES = {0.3: 4.0, 0.5: 9.0, 0.7: 18.0}
 ROW_GRAY = "#dedede"
 ROW_HATCH_COLOR = "#b0b0b0"
 ROW_HATCH = "///"
@@ -324,7 +314,6 @@ def _draw_levels(
     methods: list[str],
     *,
     x_limits: tuple[float, float] | None = None,
-    family_average: bool = False,
     labels: dict[str, str] | None = None,
     label_size: float = 6,
     title_size: float = 7.5,
@@ -333,9 +322,7 @@ def _draw_levels(
     """One dataset's panel: a dumbbell per method, methods down the y axis."""
     per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
     for index, method in enumerate(methods):
-        method_key = (
-            method if method in METHOD_COLORS else FAMILY_MEMBERS[method][0]
-        )
+        method_key = method
         if policy_type(method_key) == "Myopic":
             axis.axhspan(
                 index - 0.5, index + 0.5, color=ROW_GRAY, linewidth=0, zorder=0
@@ -354,9 +341,7 @@ def _draw_levels(
         record = _rows(
             per_dataset, _column(per_dataset, "method") == method
         ).iloc[0]
-        method_key = (
-            method if method in METHOD_COLORS else FAMILY_MEMBERS[method][0]
-        )
+        method_key = method
         color = METHOD_COLORS[method_key]
         for key in ("direct_abs", "generative_abs"):
             low, high = record[f"{key}_lo"], record[f"{key}_hi"]
@@ -408,7 +393,7 @@ def _draw_levels(
     # Set on every panel, not only the first: the axes share y, so a bare
     # list on a later panel would clear the shared formatter for all of them.
     # sharey hides the inner columns' copies.
-    names = labels or (FAMILY_LABELS if family_average else METHOD_LABELS)
+    names = labels or METHOD_LABELS
     axis.set_yticklabels(
         [names[method] for method in methods], fontsize=label_size
     )
@@ -478,24 +463,15 @@ def _draw_law(
     axis.scatter(
         subset["damage"],
         subset["gain"],
-        s=9,
+        s=_column(subset, "p").map(RATE_SIZES).to_numpy(dtype=float),
         facecolor=color,
         edgecolor=SURFACE,
         linewidth=0.3,
         alpha=0.75,
         zorder=3,
     )
-    material = int((_column(subset, "damage") >= 0.01).sum())
     axis.set_title(
         (labels or METHOD_LABELS)[method], fontsize=title_size, pad=2
-    )
-    axis.annotate(
-        f"{share:.2f}  ($n={material}$)",
-        (0.05, 0.94),
-        xycoords="axes fraction",
-        fontsize=6,
-        color=INK,
-        va="top",
     )
     axis.set_xlim(lo, hi)
     axis.set_ylim(lo, hi)
@@ -667,6 +643,21 @@ def _level_legend() -> list[Line2D | Patch]:
     ]
 
 
+def _rate_legend() -> list[Line2D]:
+    return [
+        Line2D(
+            [],
+            [],
+            marker="o",
+            linestyle="none",
+            markersize=size**0.5,
+            color=INK,
+            label=f"$p={rate}$",
+        )
+        for rate, size in sorted(RATE_SIZES.items())
+    ]
+
+
 def _draw_level_legend(figure: Figure, height: float, base: float) -> None:
     """Two rows of three, no group titles, anchored `base` inches up."""
     figure.legend(
@@ -693,7 +684,7 @@ def plot_levels(
     dataset_order: list[str] | None = None,
     method_order: list[str] | None = None,
     limits: dict[str, tuple[float, float]] | None = None,
-    family_average: bool = False,
+    labels: dict[str, str] | None = None,
 ) -> None:
     apply_paper_style()
     mpl.rcParams["hatch.linewidth"] = 0.35
@@ -708,7 +699,7 @@ def plot_levels(
     columns = 4
     rows = -(-len(datasets) // columns)
     strip = 0.76
-    height = strip + 1.75 * rows
+    height = strip + (0.30 + 0.24 * len(methods)) * rows
     figure, axes = plt.subplots(
         rows,
         columns,
@@ -724,21 +715,16 @@ def plot_levels(
             dataset,
             methods,
             x_limits=limits.get(dataset),
-            family_average=family_average,
+            labels=labels,
         )
     for index in range(len(datasets), rows * columns):
         row, column = divmod(index, columns)
         axes[row][column].set_visible(False)
 
-    figure.supxlabel(
-        "Accuracy or Macro-F1"
-        + (" (Family Averages)" if family_average else ""),
-        fontsize=8,
-        y=0.46 / height,
-    )
+    figure.supxlabel("Accuracy or Macro-F1", fontsize=8, y=0.46 / height)
     _draw_level_legend(figure, height, 0.02)
     figure.subplots_adjust(
-        left=0.055 if family_average else 0.135,
+        left=0.135,
         right=0.99,
         top=0.96,
         bottom=strip / height,
@@ -759,16 +745,15 @@ def plot_levels_grid(
     dataset_order: list[str],
     method_order: list[str],
     limits: dict[str, tuple[float, float]],
-    family_average: bool = False,
 ) -> None:
     """All four mechanisms as a 2x2 of blocks, each block a 2x4 dataset grid."""
     apply_paper_style()
     mpl.rcParams["hatch.linewidth"] = 0.35
-    labels = None if family_average else _GRID_METHOD_LABELS
-    label_size = 6 if family_average else 4.6
-    title_size = 7.5 if family_average else 6.5
-    tick_size = 6 if family_average else 5.2
-    gutter = 0.20 if family_average else 0.27
+    labels = METHOD_LABELS_SHORT
+    label_size = 4.6
+    title_size = 6.5
+    tick_size = 5.2
+    gutter = 0.27
     strip = 0.86
     height = strip + 1.02 * 2 * _GRID_DATASET_ROWS
     figure = plt.figure(figsize=(TEXT_WIDTH_IN, height))
@@ -798,7 +783,6 @@ def plot_levels_grid(
                 dataset,
                 method_order,
                 x_limits=limits.get(dataset),
-                family_average=family_average,
                 labels=labels,
                 label_size=label_size,
                 title_size=title_size,
@@ -816,12 +800,7 @@ def plot_levels_grid(
             wspace=0.14,
         )
 
-    figure.supxlabel(
-        "Accuracy or Macro-F1"
-        + (" (Family Averages)" if family_average else ""),
-        fontsize=8,
-        y=0.64 / height,
-    )
+    figure.supxlabel("Accuracy or Macro-F1", fontsize=8, y=0.64 / height)
     _draw_level_legend(figure, height, 0.05)
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
@@ -840,7 +819,7 @@ def plot_law_grid(
     apply_paper_style()
     columns = 3
     rows = -(-len(method_order) // columns)
-    strip = 0.40
+    strip = 0.62
     height = strip + 1.08 * rows * 2
     figure = plt.figure(figsize=(TEXT_WIDTH_IN, height))
     body, _ = figure.subfigures(2, 1, height_ratios=[height - strip, strip])
@@ -861,7 +840,7 @@ def plot_law_grid(
                 per_mechanism,
                 method,
                 bounds,
-                labels=_GRID_METHOD_LABELS,
+                labels=METHOD_LABELS_SHORT,
                 title_size=6.5,
             )
         for position in range(len(method_order), rows * columns):
@@ -877,6 +856,17 @@ def plot_law_grid(
         )
     figure.supxlabel("Missingness Damage $D_r$", fontsize=8, y=0.10 / height)
     figure.supylabel("Restoration Gain $R_r$", fontsize=8, x=0.015)
+    figure.legend(
+        handles=_rate_legend(),
+        loc="lower center",
+        ncol=3,
+        frameon=False,
+        fontsize=6.5,
+        labelcolor=INK,
+        columnspacing=1.4,
+        handlelength=1.0,
+        bbox_to_anchor=(0.5, 0.26 / height),
+    )
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)
     figure.savefig(output.with_suffix(".png"), dpi=200)
@@ -900,8 +890,6 @@ def plot_summary_figures(
         & (_column(family_levels, "p") == MAIN_RATE),
     )
     order = _dataset_order(family_main)
-    families = _method_order(family_main)
-    variants = [m for family in families for m in FAMILY_MEMBERS[family]]
     bounds = _law_bounds(law)
     # One span over every mechanism, so a dumbbell is the same length in
     # every panel and every figure.
@@ -909,31 +897,25 @@ def plot_summary_figures(
 
     output = output_dir / "main_summary_absolute_mcar.pdf"
     plot_levels(
-        family_levels,
+        levels,
         output,
         mechanism=MAIN_MECHANISM,
         rate=MAIN_RATE,
         dataset_order=order,
-        method_order=families,
+        method_order=methods,
         limits=limits,
-        family_average=True,
+        labels=METHOD_LABELS_SHORT,
     )
-    outputs = [output]
-    for name, frame, order_of in (
-        ("main_summary_absolute_grid", family_levels, families),
-        ("main_summary_variants_grid", levels, variants),
-    ):
-        grid_output = output_dir / f"{name}.pdf"
-        plot_levels_grid(
-            frame,
-            grid_output,
-            rate=MAIN_RATE,
-            dataset_order=order,
-            method_order=order_of,
-            limits=limits,
-            family_average=frame is family_levels,
-        )
-        outputs.append(grid_output)
+    grid_output = output_dir / "main_summary_variants_grid.pdf"
+    plot_levels_grid(
+        levels,
+        grid_output,
+        rate=MAIN_RATE,
+        dataset_order=order,
+        method_order=methods,
+        limits=limits,
+    )
+    outputs = [output, grid_output]
 
     law_grid = output_dir / "law_grid.pdf"
     plot_law_grid(law, law_grid, bounds=bounds, method_order=methods)

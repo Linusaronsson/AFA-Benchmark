@@ -13,6 +13,7 @@ from afabench.plotting.methods import (
     METHOD_COLORS,
     METHOD_FAMILIES,
     METHOD_LABELS,
+    METHOD_LABELS_SHORT,
     METHOD_LINESTYLES,
     METHOD_MARKERS,
     NON_MYOPIC_METHODS,
@@ -27,8 +28,8 @@ COMMON_CONFIG = Path("extra/conf/scripts/plotting/common/missing_data.yaml")
 
 @pytest.mark.parametrize(
     "mapping",
-    [METHOD_LABELS, METHOD_MARKERS, METHOD_LINESTYLES],
-    ids=["labels", "markers", "linestyles"],
+    [METHOD_LABELS, METHOD_LABELS_SHORT, METHOD_MARKERS, METHOD_LINESTYLES],
+    ids=["labels", "short_labels", "markers", "linestyles"],
 )
 def test_every_method_has_every_channel(mapping: dict[str, str]) -> None:
     assert set(mapping) == set(METHOD_COLORS)

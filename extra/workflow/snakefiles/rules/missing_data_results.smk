@@ -79,7 +79,7 @@ rule main_result_figures:
     output:
         expand(
             f"{RESULTS}/{{name}}.pdf",
-            name=["main_summary_absolute_mcar", "main_summary_absolute_grid",
+            name=["main_summary_absolute_mcar",
                   "main_summary_variants_grid", "law_grid"],
         ),
         f"{RESULTS}/main_summary.variant_cells.csv",
@@ -89,17 +89,6 @@ rule main_result_figures:
     shell:
         "python {input.script} --summary-root {ROOT}/summary/val "
         "--output-dir {RESULTS}"
-
-
-rule state_conditioning_figure:
-    input:
-        data=f"{SUMMARY_DIR}/instance_metrics.csv",
-        script="scripts/plotting/plot_state_conditioning.py",
-    output:
-        f"{RESULTS}/state_conditioning.pdf",
-    shell:
-        "python {input.script} --summary-root {ROOT}/summary/val "
-        "--mechanism all --output {output}"
 
 
 rule route_structure:

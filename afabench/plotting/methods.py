@@ -85,6 +85,18 @@ METHOD_LABELS = {
     "odin_model_free_full_state": "ODIN, $Q(s,m,a)$",
 }
 
+METHOD_LABELS_SHORT = {
+    "aaco": "AACO",
+    "dime": "DIME",
+    "gdfs": "GDFS",
+    "jafa": r"JAFA $s$",
+    "jafa_full_state": r"JAFA $s{,}m$",
+    "ol_with_mask": r"OL $s$",
+    "ol_full_state": r"OL $s{,}m$",
+    "odin_model_free": r"ODIN $s$",
+    "odin_model_free_full_state": r"ODIN $s{,}m$",
+}
+
 # Two registers, because a wide facet title and a narrow table column want
 # different lengths. A dataset missing here shows its raw key, so add both.
 DATASET_LABELS = {
