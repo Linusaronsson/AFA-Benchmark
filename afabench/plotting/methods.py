@@ -54,6 +54,15 @@ def apply_paper_style() -> None:
     """
     mpl.rcParams.update(
         {
+            # Match the paper's Times.
+            "font.family": "serif",
+            "font.serif": [
+                "Times New Roman",
+                "Times",
+                "Nimbus Roman",
+                "STIXGeneral",
+            ],
+            "mathtext.fontset": "stix",
             "font.size": 8,
             "axes.linewidth": 0.6,
             "text.color": INK,
@@ -89,12 +98,12 @@ METHOD_LABELS_SHORT = {
     "aaco": "AACO",
     "dime": "DIME",
     "gdfs": "GDFS",
-    "jafa": r"JAFA $s$",
-    "jafa_full_state": r"JAFA $s{,}m$",
-    "ol_with_mask": r"OL $s$",
-    "ol_full_state": r"OL $s{,}m$",
-    "odin_model_free": r"ODIN $s$",
-    "odin_model_free_full_state": r"ODIN $s{,}m$",
+    "jafa": r"JAFA ($s$)",
+    "jafa_full_state": r"JAFA ($s{,}m)$",
+    "ol_with_mask": r"OL ($s$)",
+    "ol_full_state": r"OL ($s{,}m)$",
+    "odin_model_free": r"ODIN ($s$)",
+    "odin_model_free_full_state": r"ODIN ($s{,}m)$",
 }
 
 # Two registers, because a wide facet title and a narrow table column want
@@ -103,7 +112,7 @@ DATASET_LABELS = {
     "cube": "CUBE",
     "cube_nm": "CUBE-NM",
     "cube_nonuniform_costs": "CUBE non-uniform cost",
-    "heart_disease": "Heart disease",
+    "heart_disease": "Heart Disease",
     "actg": "ACTG175",
     "diabetes": "Diabetes",
     "nhanes_mortality": "NHANES mortality",

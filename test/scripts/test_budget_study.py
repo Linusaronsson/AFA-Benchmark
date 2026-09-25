@@ -233,9 +233,10 @@ def test_combined_plot_selects_paired_horizons_and_fixed_slices(
                 )
                 assert line.get_linestyle() == ("--" if myopic else "-")
                 assert line.get_marker() == "None"
-                assert (
-                    line.get_color()
-                    == (plotting.DIMENSION_COLORS, plotting.BUDGET_COLORS)[
+                assert line.get_color() == (
+                    plotting.MYOPIC_COLOR
+                    if myopic
+                    else (plotting.DIMENSION_COLORS, plotting.BUDGET_COLORS)[
                         row_index
                     ][index // 2]
                 )

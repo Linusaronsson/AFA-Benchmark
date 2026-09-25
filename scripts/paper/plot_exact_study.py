@@ -13,6 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 from matplotlib.lines import Line2D
+from matplotlib.ticker import NullLocator
 
 from afabench.plotting.methods import (
     GRID,
@@ -44,14 +45,18 @@ class Estimate(NamedTuple):
 
 
 PANELS = (
-    ("mask_local", "(a) Filtering"),
-    ("mask_agnostic", "(b) Aliasing"),
+    ("mask_agnostic", "(a) Aliasing"),
+    ("mask_local", "(b) Filtering"),
     ("generative", "(c) Generative Restoration"),
 )
 COLORS = {0.3: "#9b80c6", 0.5: "#6b479c", 0.7: "#331f57"}
 
-DIMENSION_COLORS = ("#0072B2", "#D55E00", "#009E73")
-BUDGET_COLORS = ("#882255", "#7570B3", "#8C6D00")
+# Ordinal sweeps: one sequential hue each.
+DIMENSION_COLORS = ("#6BAED6", "#2171B5", "#08306B")
+BUDGET_COLORS = ("#FD8D3C", "#D94801", "#7F2704")
+
+MYOPIC_COLOR = "#9A9994"
+BAND_ALPHA = 0.18
 
 MYOPIC_ALPHA = 0.4
 MARKERS = {6: "o", 8: "s", 10: "D"}
@@ -59,7 +64,7 @@ BUDGET_MARKERS = {2: "o", 3: "s", 4: "D"}
 
 MAIN_RATE = 0.5
 POLICIES = (
-    (r"Full-horizon ($\widehat Q_b$)", "-", False),
+    (r"Full-Horizon ($\widehat Q_b$)", "-", False),
     (r"Myopic ($\widehat Q_1$)", "--", True),
 )
 
@@ -152,7 +157,7 @@ def _style_axis(axis: Axes, title: str, horizon: int) -> None:
 
 def _save(figure: Figure, output_stem: Path, handles: list[Line2D]) -> None:
     figure.supxlabel(
-        "Training Instances", x=0.54, y=0.10, fontsize=8, color=INK
+        "Training Instances $n$", x=0.54, y=0.10, fontsize=8, color=INK
     )
     figure.legend(
         handles=handles,
@@ -234,7 +239,7 @@ def render(
         name = (
             "Myopic"
             if horizon == 1
-            else ("Full-horizon" if vary_budget else "Two-step")
+            else ("Full-Horizon" if vary_budget else "Two-Step")
         )
         label = "b" if vary_budget and horizon != 1 else str(horizon)
         row[0].set_ylabel(
@@ -293,14 +298,23 @@ def render_combined(
                         1 if myopic else budget,
                         budget=budget,
                     )
-                    x, y, _ = curves[key]
+                    x, y, ci = curves[key]
+                    if not myopic:
+                        axis.fill_between(
+                            x,
+                            y - ci,
+                            y + ci,
+                            color=color,
+                            alpha=BAND_ALPHA,
+                            linewidth=0,
+                            zorder=1,
+                        )
                     axis.plot(
                         x,
                         y,
-                        color=color,
+                        color=MYOPIC_COLOR if myopic else color,
                         linestyle=linestyle,
-                        linewidth=1.2,
-                        alpha=MYOPIC_ALPHA if myopic else 1.0,
+                        linewidth=0.8 if myopic else 1.2,
                         zorder=2 if myopic else 3,
                     )
             _style_axis(axis, title, row_index + 1)
@@ -318,15 +332,90 @@ def render_combined(
         Line2D(
             [0],
             [0],
-            color=INK,
+            color=MYOPIC_COLOR if myopic else INK,
             linestyle=linestyle,
-            linewidth=1.2,
-            alpha=MYOPIC_ALPHA if myopic else 1.0,
+            linewidth=0.8 if myopic else 1.2,
             label=label,
         )
         for label, linestyle, myopic in POLICIES
     ]
     _save(figure, output_stem, handles)
+
+
+# Effective sample sizes in thm:data-requirements.
+EFFECTIVE_SIZES = (
+    ("mask_local", "(a) Filtering", r"$n(1-p)^d$"),
+    ("generative", "(b) Generative Restoration", r"$n(1-p)^b$"),
+)
+RATE_LINESTYLES = {0.3: ":", 0.5: "-", 0.7: "--"}
+
+
+def effective_size(
+    arm: str, n: npt.NDArray[np.int64], key: Curve
+) -> npt.NDArray[np.float64]:
+    exponent = key.d if arm == "mask_local" else key.budget
+    return n.astype(np.float64) * (1 - key.p_miss) ** exponent
+
+
+def render_collapse(input_path: Path, output_stem: Path) -> None:
+    apply_paper_style()
+    curves = read_means(input_path)
+    figure, axes = plt.subplots(
+        1, 2, figsize=(TEXT_WIDTH_IN, 2.3), sharey=True
+    )
+    for axis, (arm, title, xlabel) in zip(axes, EFFECTIVE_SIZES, strict=True):
+        for color, d in zip(DIMENSION_COLORS, (6, 8, 10), strict=True):
+            for p_miss, linestyle in RATE_LINESTYLES.items():
+                key = Curve(arm, d, p_miss, 2)
+                n, y, _ = curves[key]
+                axis.plot(
+                    effective_size(arm, n, key),
+                    y,
+                    color=color,
+                    linestyle=linestyle,
+                    linewidth=1.1,
+                )
+        axis.set_title(title, fontsize=7.5, color=INK, pad=5)
+        axis.set_xlabel(f"Effective Training Instances {xlabel}", fontsize=8)
+        axis.set_xscale("log")
+        axis.xaxis.set_minor_locator(NullLocator())
+        axis.grid(axis="y", color=GRID, linewidth=0.5)
+        axis.spines[["top", "right"]].set_visible(False)
+        axis.tick_params(length=2.5, labelsize=7)
+        axis.set_ylim(-0.015, 0.52)
+        axis.set_yticks((0.0, 0.25, 0.5))
+    axes[0].set_ylabel("Evaluation Regret ($b=2$)", fontsize=8)
+    handles = [
+        Line2D([0], [0], color=color, linewidth=1.4, label=f"$d={d}$")
+        for color, d in zip(DIMENSION_COLORS, (6, 8, 10), strict=True)
+    ] + [
+        Line2D(
+            [0],
+            [0],
+            color=INK,
+            linestyle=linestyle,
+            linewidth=1.1,
+            label=f"$p={p_miss:g}$",
+        )
+        for p_miss, linestyle in RATE_LINESTYLES.items()
+    ]
+    figure.legend(
+        handles=handles,
+        loc="lower center",
+        ncol=len(handles),
+        frameon=False,
+        fontsize=7,
+        handlelength=1.8,
+        columnspacing=0.9,
+        bbox_to_anchor=(0.5, 0.0),
+    )
+    figure.subplots_adjust(
+        left=0.11, right=0.98, top=0.89, bottom=0.34, wspace=0.10
+    )
+    output_stem.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output_stem.with_suffix(".pdf"))
+    figure.savefig(output_stem.with_suffix(".png"), dpi=240)
+    plt.close(figure)
 
 
 def parse_args() -> argparse.Namespace:
@@ -337,6 +426,11 @@ def parse_args() -> argparse.Namespace:
         "--budget-input",
         type=Path,
         help="Combine the dimension input with this budget sweep CSV.",
+    )
+    layout.add_argument(
+        "--collapse",
+        action="store_true",
+        help="Plot regret against each approach's effective sample size.",
     )
     parser.add_argument(
         "--input",
@@ -353,7 +447,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    if args.budget_input:
+    if args.collapse:
+        render_collapse(args.input, args.output_stem)
+    elif args.budget_input:
         render_combined(args.input, args.budget_input, args.output_stem)
     else:
         render(args.input, args.output_stem, vary_budget=args.vary_budget)

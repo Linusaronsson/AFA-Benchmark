@@ -119,7 +119,7 @@ PAPER_OUTPUTS = [
     f"{RESULTS}/{name}"
     for name in (
         "conceptual_constants.tex", "exact_study_raw.pdf",
-        "exact_study_combined.pdf",
+        "exact_study_combined.pdf", "exact_study_collapse.pdf",
         "budget_study.pdf",
         "main_summary_absolute_mcar.pdf",
         "main_summary_variants_grid.pdf", "law_grid.pdf",

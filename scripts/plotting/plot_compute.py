@@ -477,11 +477,13 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
 
     height = STRIP_IN + 0.35 + 1.55 * rows
     figure.supxlabel(
-        "Wall-clock Time per Trained Method (s)",
+        "Wall-Clock Time per Trained Method (s)",
         fontsize=8,
         y=LABEL_IN / height,
     )
-    figure.supylabel("Accuracy or Macro-F1", fontsize=8, x=0.015)
+    figure.supylabel(
+        "Accuracy (CUBE) or Macro-F1 (Real-World)", fontsize=8, x=0.015
+    )
     family_handles = [
         Line2D(
             [],
@@ -505,7 +507,7 @@ def plot(frame: pd.DataFrame, output: Path) -> None:
             markerfacecolor=SURFACE,
             markeredgecolor=INK,
             markeredgewidth=1.0,
-            label="Restricted-action Training",
+            label="Restricted-Action Training",
         ),
         Line2D(
             [],

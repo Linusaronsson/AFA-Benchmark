@@ -73,8 +73,9 @@ MAIN_RATE = 0.7
 _GRID_DATASET_ROWS = 4
 RATE_SIZES = {0.3: 4.0, 0.5: 9.0, 0.7: 18.0}
 ROW_GRAY = "#dedede"
-ROW_HATCH_COLOR = "#b0b0b0"
-ROW_HATCH = "///"
+ROW_HATCH_COLOR = "#c4c4c4"
+ROW_HATCH = "//"
+MIN_ARROW = 0.015
 
 
 def _column(frame: pd.DataFrame, name: str) -> pd.Series:
@@ -307,20 +308,7 @@ def collect_family_instances(summary_root: Path) -> pd.DataFrame:
     return result
 
 
-def _draw_levels(
-    axis: Axes,
-    levels: pd.DataFrame,
-    dataset: str,
-    methods: list[str],
-    *,
-    x_limits: tuple[float, float] | None = None,
-    labels: dict[str, str] | None = None,
-    label_size: float = 6,
-    title_size: float = 7.5,
-    tick_size: float = 6,
-) -> None:
-    """One dataset's panel: a dumbbell per method, methods down the y axis."""
-    per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
+def _shade_rows(axis: Axes, methods: list[str]) -> None:
     for index, method in enumerate(methods):
         method_key = method
         if policy_type(method_key) == "Myopic":
@@ -337,6 +325,23 @@ def _draw_levels(
                 linewidth=0,
                 zorder=0,
             )
+
+
+def _draw_levels(
+    axis: Axes,
+    levels: pd.DataFrame,
+    dataset: str,
+    methods: list[str],
+    *,
+    x_limits: tuple[float, float] | None = None,
+    labels: dict[str, str] | None = None,
+    label_size: float = 6,
+    title_size: float = 7.5,
+    tick_size: float = 6,
+) -> None:
+    """One dataset's panel: a dumbbell per method, methods down the y axis."""
+    per_dataset = _rows(levels, _column(levels, "dataset") == dataset)
+    _shade_rows(axis, methods)
     for index, method in enumerate(methods):
         record = _rows(
             per_dataset, _column(per_dataset, "method") == method
@@ -356,15 +361,21 @@ def _draw_levels(
                 solid_capstyle="butt",
                 zorder=1,
             )
-        axis.plot(
-            [record["direct_abs"], record["generative_abs"]],
-            [index, index],
-            color=color,
-            linewidth=1.2,
-            linestyle="dashed",
-            zorder=2,
-        )
-        # Grey, because the ceiling is a reference rather than a third series.
+        if abs(record["generative_abs"] - record["direct_abs"]) >= MIN_ARROW:
+            axis.annotate(
+                "",
+                xy=(record["generative_abs"], index),
+                xytext=(record["direct_abs"], index),
+                arrowprops={
+                    "arrowstyle": "-|>",
+                    "color": color,
+                    "linewidth": 1.0,
+                    "shrinkA": 3,
+                    "shrinkB": 3.5,
+                    "mutation_scale": 6,
+                },
+                zorder=2,
+            )
         axis.plot(
             [record["ceiling_abs"]] * 2,
             [index - 0.32, index + 0.32],
@@ -603,7 +614,7 @@ def _level_legend() -> list[Line2D | Patch]:
             markerfacecolor=SURFACE,
             markeredgecolor=INK,
             markeredgewidth=0.9,
-            label="Restricted-action Training",
+            label="Restricted-Action Training",
         ),
         Line2D(
             [],
@@ -622,7 +633,7 @@ def _level_legend() -> list[Line2D | Patch]:
             markersize=6,
             markeredgecolor=INK,
             markeredgewidth=1.1,
-            label="Complete-data",
+            label="Complete Data",
         ),
         Patch(
             facecolor=ROW_GRAY,
@@ -633,12 +644,12 @@ def _level_legend() -> list[Line2D | Patch]:
             facecolor=SURFACE,
             edgecolor=ROW_HATCH_COLOR,
             hatch=ROW_HATCH,
-            label="Non-myopic, intermediate reward",
+            label="Non-Myopic, Intermediate Reward",
         ),
         Patch(
             facecolor=SURFACE,
             edgecolor=INK,
-            label="Non-myopic, terminal objective",
+            label="Non-Myopic, Terminal Objective",
         ),
     ]
 
@@ -721,7 +732,11 @@ def plot_levels(
         row, column = divmod(index, columns)
         axes[row][column].set_visible(False)
 
-    figure.supxlabel("Accuracy or Macro-F1", fontsize=8, y=0.46 / height)
+    figure.supxlabel(
+        "Accuracy (CUBE) or Macro-F1 (Real-World)",
+        fontsize=8,
+        y=0.46 / height,
+    )
     _draw_level_legend(figure, height, 0.02)
     figure.subplots_adjust(
         left=0.135,
@@ -800,7 +815,9 @@ def plot_levels_grid(
             wspace=0.14,
         )
 
-    figure.supxlabel("Accuracy or Macro-F1", fontsize=8, y=0.64 / height)
+    figure.supxlabel(
+        "Accuracy (CUBE) or Macro-F1 (Real-World)", fontsize=8, y=0.64 / height
+    )
     _draw_level_legend(figure, height, 0.05)
     output.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output)

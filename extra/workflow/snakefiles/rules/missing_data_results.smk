@@ -61,6 +61,18 @@ rule plot_combined_control:
         "--output-stem {RESULTS}/exact_study_combined"
 
 
+
+rule plot_collapse_control:
+    input:
+        data=f"{RESULTS}/exact_study.csv",
+        script="scripts/paper/plot_exact_study.py",
+        style="afabench/plotting/methods.py",
+    output:
+        f"{RESULTS}/exact_study_collapse.pdf",
+    shell:
+        "python {input.script} --collapse --input {input.data} "
+        "--output-stem {RESULTS}/exact_study_collapse"
+
 rule conceptual_constants:
     input:
         "scripts/paper/conceptual_constants.py",

@@ -28,6 +28,8 @@ from scripts.paper.exact_study import (
 )
 from scripts.paper.plot_exact_study import (
     PANELS,
+    Curve,
+    effective_size,
     read_means,
 )
 from scripts.paper.plot_exact_study import (
@@ -217,8 +219,15 @@ def test_conceptual_constants_match_the_displayed_mask() -> None:
 
 
 def test_theoretical_arms_have_public_paper_labels() -> None:
-    assert dict(PANELS) == {
-        "mask_local": "(a) Filtering",
-        "mask_agnostic": "(b) Aliasing",
-        "generative": "(c) Generative Restoration",
-    }
+    assert PANELS == (
+        ("mask_agnostic", "(a) Aliasing"),
+        ("mask_local", "(b) Filtering"),
+        ("generative", "(c) Generative Restoration"),
+    )
+
+
+def test_collapse_plot_rescales_by_each_approach_effective_size() -> None:
+    key = Curve("mask_local", 8, 0.5, 2)
+    n = np.array([256, 1024])
+    np.testing.assert_allclose(effective_size("mask_local", n, key), [1, 4])
+    np.testing.assert_allclose(effective_size("generative", n, key), [64, 256])

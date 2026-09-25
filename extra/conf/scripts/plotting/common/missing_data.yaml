@@ -23,7 +23,7 @@ method_color_overrides:
   odin_model_free_full_state: '#7570B3'
 dataset_name_mapping:
   nhanes_mortality: NHANES Mortality
-  heart_disease: Heart disease
+  heart_disease: Heart Disease
 datasets_with_f_score:
 - actg
 - bank_marketing
