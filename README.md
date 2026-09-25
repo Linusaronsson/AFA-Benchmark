@@ -10,7 +10,6 @@ scenarios where acquiring features is costly. Includes implementations of
 multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 
 ## Installation
-
 [uv](https://docs.astral.sh/uv/getting-started/installation/) is the only external dependency.
 
 ```bash
@@ -22,8 +21,22 @@ cd AFA-Benchmark
 uv sync
 ```
 
-## Quickstart
+## Missing training data study
+```shell
+# full study
+uv run snakemake --profile extra/workflow/profiles/config/missing_data --cores 4
 
+# synthetic controlled study only
+uv run snakemake --profile extra/workflow/profiles/config/missing_data --cores 4 \
+  extra/output/paper/experiments/results/exact_study_combined.pdf
+
+# smoke test
+uv run snakemake --profile extra/workflow/profiles/config/missing_data_smoke --cores 4
+```
+
+Details: [docs/tutorials/missing_data_experiments.md](docs/tutorials/missing_data_experiments.md).
+
+## Quickstart
 Local execution is not recommended for reproducing the full benchmark because
 the pipeline generates a large number of jobs. If you still want to run it
 locally with 8 CPU cores, execute this command from the repo root:
@@ -51,11 +64,7 @@ To reproduce the full benchmark results, use SLURM instead. See the
 [reproducing full results](docs/tutorials/reproduce_full_results.md) tutorial
 for the exact commands.
 
-The missing-training-data study has a separate staged workflow; see
-[missing-training-data experiments](docs/tutorials/missing_data_experiments.md).
-
 ## Features
-
 - Accessible configuration using
   [hydra](https://hydra.cc/)
 - Reproducible pipeline using [snakemake](https://snakemake.readthedocs.io/en/stable/).
@@ -128,7 +137,6 @@ Learn more in our tutorials:
   - [Adding a new method](docs/tutorials/add_method.md)
 
 ## Development
-
 We encourage researchers to fork this repository and implement their own methods. Take a look at the [tutorials](#tutorials) to get started.
 
 To follow repo conventions, run
