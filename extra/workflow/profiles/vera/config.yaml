@@ -1,30 +1,9 @@
-# Snakemake profile for Vera (C3SE, Chalmers). Secondary; prefer Arrhenius.
-#
-# Verified against the live system on 2026-07-20:
-#
-#   PARTITION  GRES              TIMELIMIT   CPUS  NODES
-#   vera*      (mixed, default)  7-00:00:00    64    222
-#   gpu        gpu:A40:4 / A100:4 / H100:4 / T4:8    64     67
-#   cpu        (none)            7-00:00:00    64    155
-#
-# Vera has the better hardware fit for this workload -- one architecture, a
-# 7-day walltime, and T4/A40 class GPUs rather than a Grace Hopper that would
-# sit mostly idle on a ~5.6s eval job. The problem is storage, not compute.
-# Alvis and its national Mimer allocations are being decommissioned, Cephyr
-# left NAISS on 2026-07-01, and there is no durable project storage attached to
-# a Vera allocation beyond a 30 GiB home. Until e-Commons confirms a
-# Chalmers-local Mimer or departmental Cephyr allocation, work that must
-# survive belongs on Arrhenius.
-#
-# Costing note: an A40 bills like 16 extra cores, larger GPUs proportionally
-# more, so ask for the smallest that fits.
+# Vera. Secondary to Arrhenius.
 executor: slurm
 jobs: 200
 latency-wait: 30 # seconds
 retries: 2
 
-# Data preparation and anything unresourced lands on plain CPU nodes. Only the
-# rules listed under the `gpu` anchors below consume GPU hours.
 default-resources:
   slurm_partition: cpu
   slurm_account: C3SE2026-1-12
@@ -32,14 +11,9 @@ default-resources:
   cpus_per_task: 4
   mem_mb: 16000
 
-# Snakemake silently ignores a `set-resources` key that matches no rule, so a
-# stale name downgrades the job to `default-resources` rather than failing.
-# Two workflows are in play with differently named rules, so both sets appear.
-# `test/workflow/test_cluster_profiles.py` asserts every key is a real rule.
+# Unknown keys are ignored silently; test_cluster_profiles.py checks them.
 set-resources:
-  # --- orchestration/missing_data.smk (the restoration study) ---------------
-  # Network training. T4 is the cheapest unit that fits; raise to A40 if a
-  # model stops fitting in 16 GB.
+  # orchestration/missing_data.smk
   pretrain_incomplete_restoration_pvae: &gpu_long
     slurm_partition: gpu
     slurm_extra: "--gpus-per-node=T4:1"
@@ -59,18 +33,11 @@ set-resources:
     mem_mb: 32000
   train_missing_data_method_classifier: *gpu_short
   restore_missing_training_view: *gpu_short
-  eval_missing_data_method:
-    # Deliberately CPU. Rollout is 2-4x slower there, but after the batching
-    # work it is a small part of a job dominated by startup and load, so the
-    # job costs only 1.04-1.44x more. Throughput per node then favours CPU: a
-    # GPU node fits ~4 concurrent jobs against ~8 on a 64-core CPU node, and
-    # Vera has 155 cpu nodes against 67 with GPUs.
-    # Move back to `gpu` if a dataset appears whose rollout dominates again.
+  eval_missing_data_method: # CPU
     runtime: 240
     cpus_per_task: 8
     mem_mb: 32000
 
-  # CPU-only: numpy and pandas, no model involved.
   generate_missing_data_dataset:
     runtime: 120
     cpus_per_task: 8
@@ -80,7 +47,7 @@ set-resources:
     cpus_per_task: 4
     mem_mb: 16000
 
-  # --- orchestration/pipeline.smk (the main benchmark) ---------------------
+  # orchestration/pipeline.smk
   pretrain_model:
     runtime: 6000 # 100 hours
     cpus_per_task: 8

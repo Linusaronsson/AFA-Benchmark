@@ -1,9 +1,4 @@
-# Vera CPU-only launcher, for work that needs no GPU (data preparation,
-# aggregation, plotting). For GPU work on Vera use `custom_slurm`, which is the
-# default and already targets Vera's `gpu` partition.
-#
-# Vera has 155 CPU-only nodes against 67 with GPUs, so anything that genuinely
-# does not need a GPU queues far better here.
+# Vera CPU partition. GPU work uses `custom_slurm`.
 defaults:
     - submitit_slurm
 
