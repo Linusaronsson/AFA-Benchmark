@@ -262,7 +262,11 @@ def render(
 
 
 def render_combined(
-    input_path: Path, budget_input: Path, output_stem: Path
+    input_path: Path,
+    budget_input: Path,
+    output_stem: Path,
+    *,
+    main_rate: float = MAIN_RATE,
 ) -> None:
     figure, axes = _figure()
     figure.set_size_inches(TEXT_WIDTH_IN, 3.9)
@@ -294,7 +298,7 @@ def render_combined(
                     key = Curve(
                         arm,
                         dimension,
-                        MAIN_RATE,
+                        main_rate,
                         1 if myopic else budget,
                         budget=budget,
                     )
@@ -433,6 +437,12 @@ def parse_args() -> argparse.Namespace:
         help="Plot regret against each approach's effective sample size.",
     )
     parser.add_argument(
+        "--main-rate",
+        type=float,
+        default=MAIN_RATE,
+        help="Missingness rate shown in the combined figure.",
+    )
+    parser.add_argument(
         "--input",
         type=Path,
         default=Path("extra/output/paper/experiments/results/exact_study.csv"),
@@ -450,7 +460,12 @@ def main() -> None:
     if args.collapse:
         render_collapse(args.input, args.output_stem)
     elif args.budget_input:
-        render_combined(args.input, args.budget_input, args.output_stem)
+        render_combined(
+            args.input,
+            args.budget_input,
+            args.output_stem,
+            main_rate=args.main_rate,
+        )
     else:
         render(args.input, args.output_stem, vary_budget=args.vary_budget)
     print(f"wrote figures to {args.output_stem.parent}")

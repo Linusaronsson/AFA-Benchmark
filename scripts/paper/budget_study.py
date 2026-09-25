@@ -13,7 +13,7 @@ import csv
 import os
 from functools import cache
 from pathlib import Path
-from typing import NamedTuple
+from typing import TYPE_CHECKING, NamedTuple
 
 from scripts.paper.budget_problem import BudgetProblem
 from scripts.paper.exact_study import (
@@ -26,6 +26,9 @@ from scripts.paper.exact_study import (
     _rng,
     _study_task,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 BUDGETS = (2, 3, 4)
 DIMENSION = 10
@@ -88,7 +91,12 @@ def study_task(args: tuple[int, float, int, int, int]) -> list[BudgetResult]:
 
 
 def run_study(
-    *, reps: int, seed: int, jobs: int, smoke: bool = False
+    *,
+    reps: int,
+    seed: int,
+    jobs: int,
+    smoke: bool = False,
+    rates: Sequence[float] = MISSING_RATES,
 ) -> list[BudgetResult]:
     if reps <= 0 or jobs <= 0:
         message = "reps and jobs must be positive."
@@ -97,7 +105,7 @@ def run_study(
     tasks = [
         (budget, p, n, rep, seed)
         for budget in BUDGETS
-        for p in MISSING_RATES
+        for p in rates
         for n in sizes
         for rep in range(min(reps, 3) if smoke else reps)
     ]
@@ -123,13 +131,20 @@ def main() -> None:
     )
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument(
+        "--rates", type=float, nargs="+", default=list(MISSING_RATES)
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("extra/output/paper/experiments/results"),
     )
     args = parser.parse_args()
     results = run_study(
-        reps=args.reps, seed=args.seed, jobs=args.jobs, smoke=args.smoke
+        reps=args.reps,
+        seed=args.seed,
+        jobs=args.jobs,
+        smoke=args.smoke,
+        rates=args.rates,
     )
     write_results(args.output_dir / "budget_study.csv", results)
     print(f"wrote {len(results):,} regrets to {args.output_dir}")

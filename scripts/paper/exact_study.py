@@ -601,7 +601,12 @@ def _map_tasks[TaskT, ResultT](
 
 
 def run_study(
-    *, reps: int, seed: int, jobs: int, smoke: bool = False
+    *,
+    reps: int,
+    seed: int,
+    jobs: int,
+    smoke: bool = False,
+    rates: Sequence[float] = MISSING_RATES,
 ) -> StudyOutput:
     dimensions = (6,) if smoke else DIMENSIONS
     sample_sizes = (10, 100, 1000) if smoke else SAMPLE_SIZES
@@ -609,7 +614,7 @@ def run_study(
     tasks = [
         (d, p_miss, n, rep, seed)
         for d in dimensions
-        for p_miss in MISSING_RATES
+        for p_miss in rates
         for n in sample_sizes
         for rep in range(run_reps)
     ]
@@ -665,6 +670,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument(
+        "--rates", type=float, nargs="+", default=list(MISSING_RATES)
+    )
+    parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("extra/output/paper/experiments/results"),
@@ -678,7 +686,11 @@ def main() -> None:
         message = "reps and jobs must be positive."
         raise ValueError(message)
     results = run_study(
-        reps=args.reps, seed=args.seed, jobs=args.jobs, smoke=args.smoke
+        reps=args.reps,
+        seed=args.seed,
+        jobs=args.jobs,
+        smoke=args.smoke,
+        rates=args.rates,
     )
     write_results(args.output_dir / "exact_study.csv", results.regrets)
     write_action_values(
