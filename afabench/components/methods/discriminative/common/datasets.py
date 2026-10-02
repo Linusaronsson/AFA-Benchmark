@@ -4,6 +4,10 @@ from torch.utils.data import DataLoader
 
 from afabench.core.types import AFADataset
 from afabench.training.smoke_test import dataset_subset, training_batch_size
+from afabench.training.tensor_batches import (
+    TensorBatchDataset,
+    passthrough_batch,
+)
 
 
 def prepare_datasets(
@@ -23,34 +27,26 @@ def prepare_datasets(
         default_batch_size=batch_size,
     )
 
-    # Create new datasets with converted data format
-    class ConvertedDataset:
-        def __init__(self, original_dataset: AFADataset):
-            self.original_dataset: Any = original_dataset
-            self.features, self.labels = original_dataset.get_all_data()
-            self.features: Any = self.features.float()
-            self.labels: Any = self.labels.argmax(dim=1).long()
-
-        def __getitem__(self, idx: int):
-            return self.features[idx], self.labels[idx]
-
-        def __len__(self):
-            return len(self.original_dataset)
-
-    train_dataset = ConvertedDataset(train_dataset)
-    val_dataset = ConvertedDataset(val_dataset)
+    # Convert to float features and class-index labels
+    def converted_dataset(dataset: AFADataset) -> TensorBatchDataset:
+        features, labels = dataset.get_all_data()
+        return TensorBatchDataset(
+            features.float(), labels.argmax(dim=1).long()
+        )
 
     train_loader = DataLoader(
-        train_dataset,  # pyright: ignore[reportArgumentType]
+        converted_dataset(train_dataset),
         batch_size=batch_size,
         shuffle=True,
         pin_memory=True,
         drop_last=True,
+        collate_fn=passthrough_batch,
     )
     val_loader = DataLoader(
-        val_dataset,  # pyright: ignore[reportArgumentType]
+        converted_dataset(val_dataset),
         batch_size=batch_size,
         pin_memory=True,
+        collate_fn=passthrough_batch,
     )
 
     return train_loader, val_loader, d_in, d_out

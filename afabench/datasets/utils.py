@@ -1,8 +1,6 @@
 import copy
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
-
-from torch.utils.data.dataloader import default_collate
 
 if TYPE_CHECKING:
     from afabench.core.types import AFADataset
@@ -25,14 +23,3 @@ def default_create_subset[T: AFADataset](
         msg = "default_create_subset requires 'features' and 'labels' attributes on the dataset."
         raise AttributeError(msg)
     return subset
-
-
-def flatten_features_collate(n_feature_dims: int) -> Callable:  # pyright: ignore[reportMissingTypeArgument]
-    def collate(batch):  # noqa: ANN001, ANN202
-        features, labels = default_collate(batch)
-
-        flat_features = features.flatten(start_dim=-n_feature_dims)
-
-        return flat_features, labels
-
-    return collate

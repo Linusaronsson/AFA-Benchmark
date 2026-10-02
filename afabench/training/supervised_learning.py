@@ -13,7 +13,6 @@ from afabench.components.methods.rl.common.dataset_utils import (
 )
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
-from afabench.datasets.utils import flatten_features_collate
 
 if TYPE_CHECKING:
     from torch.utils.data.dataset import Dataset
@@ -23,6 +22,10 @@ if TYPE_CHECKING:
 
 from afabench.core.types import AFADataset
 from afabench.training.config import SupervisedLearningConfig
+from afabench.training.tensor_batches import (
+    TensorBatchDataset,
+    passthrough_batch,
+)
 
 log = logging.getLogger(__name__)
 
@@ -77,6 +80,11 @@ class EarlyStoppingWithMinBatches(EarlyStopping):
         # else: do nothing, don't check for early stopping yet
 
 
+def _flat_tensor_dataset(dataset: AFADataset) -> TensorBatchDataset:
+    features, labels = dataset.get_all_data()
+    return TensorBatchDataset(features.flatten(start_dim=1), labels)
+
+
 def ensure_finite_module_state(module: torch.nn.Module) -> None:
     nonfinite_state = [
         name
@@ -116,22 +124,21 @@ def supervised_learning(
         Path(train_dataset_bundle_path),
     )
     train_dataset = cast("AFADataset", cast("object", train_dataset))
-    _train_features, _train_labels = train_dataset.get_all_data()
     val_dataset, _val_dataset_metadata = load_bundle(
         Path(val_dataset_bundle_path),
     )
     val_dataset = cast("AFADataset", cast("object", val_dataset))
     datamodule = DataModuleFromDatasets(
         train_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", train_dataset)
+            "Dataset[tuple[Features, Label]]",
+            cast("object", _flat_tensor_dataset(train_dataset)),
         ),
         val_dataset=cast(
-            "Dataset[tuple[Features, Label]]", cast("object", val_dataset)
+            "Dataset[tuple[Features, Label]]",
+            cast("object", _flat_tensor_dataset(val_dataset)),
         ),
         batch_size=cfg.batch_size,
-        collate_fn=flatten_features_collate(
-            n_feature_dims=len(train_dataset.feature_shape)
-        ),
+        collate_fn=passthrough_batch,
     )
     log.info("Loaded datasets.")
 
