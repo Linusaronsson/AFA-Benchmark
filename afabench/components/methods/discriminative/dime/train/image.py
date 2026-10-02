@@ -56,6 +56,7 @@ def train_image(  # noqa: PLR0915
             val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
             initializer_cfg=cfg.initializer,
             unmasker_cfg=cfg.unmasker,
+            seed=cfg.seed,
         )
     )
     batch_size = training_batch_size(

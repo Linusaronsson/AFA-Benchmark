@@ -53,6 +53,119 @@ class FakeDataset:
         raise NotImplementedError
 
 
+class StochasticUnmasker:
+    """Stand-in for a stochastic unmasker, since no production unmasker is stochastic yet."""
+
+    def __init__(self) -> None:
+        self.rng = torch.Generator()
+
+    def set_seed(self, seed: int | None) -> None:
+        if seed is not None:
+            self.rng.manual_seed(seed)
+
+    def get_n_selections(self, feature_shape: torch.Size) -> int:
+        return feature_shape.numel()
+
+    def get_selection_costs(self, feature_costs: torch.Tensor) -> torch.Tensor:
+        return feature_costs
+
+    def unmask(
+        self,
+        masked_features: torch.Tensor,  # noqa: ARG002
+        feature_mask: torch.Tensor,
+        features: torch.Tensor,  # noqa: ARG002
+        afa_selection: torch.Tensor,  # noqa: ARG002
+        selection_mask: torch.Tensor,  # noqa: ARG002
+        label: torch.Tensor | None = None,  # noqa: ARG002
+        feature_shape: torch.Size | None = None,  # noqa: ARG002
+    ) -> torch.Tensor:
+        new_mask = feature_mask.clone()
+        for row in range(new_mask.shape[0]):
+            available = (~new_mask[row]).nonzero().squeeze(-1)
+            chosen = available[
+                torch.randint(available.numel(), (1,), generator=self.rng)
+            ]
+            new_mask[row, chosen] = True
+        return new_mask
+
+
+def _training_prep_with_seed(
+    monkeypatch: pytest.MonkeyPatch, seed: int
+) -> tuple[torch.Tensor, torch.Tensor]:
+    features = torch.zeros((4, 6))
+    train_dataset = FakeDataset(
+        features=features,
+        labels=torch.tensor([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0], [0.0, 1.0]]),
+    )
+    val_dataset = FakeDataset(
+        features=torch.zeros((1, 6)), labels=torch.tensor([[0.0, 1.0]])
+    )
+    loaded_datasets = iter([(train_dataset, {}), (val_dataset, {})])
+
+    monkeypatch.setattr(
+        utils, "load_bundle", lambda _path: next(loaded_datasets)
+    )
+    monkeypatch.setattr(
+        utils,
+        "get_afa_unmasker_from_config",
+        lambda _cfg: StochasticUnmasker(),
+    )
+
+    _, _, initializer, unmasker, _ = utils.afa_discriminative_training_prep(
+        train_dataset_bundle_path=Path("train.bundle"),
+        val_dataset_bundle_path=Path("val.bundle"),
+        initializer_cfg=InitializerConfig(
+            class_name="RandomInitializer",
+            kwargs={"num_initial_features": 2},
+        ),
+        unmasker_cfg=UnmaskerConfig(class_name="ignored", kwargs={}),
+        seed=seed,
+    )
+
+    feature_shape = torch.Size((6,))
+    initial_mask = initializer.initialize(
+        features=features, feature_shape=feature_shape
+    )
+    unmasked_mask = unmasker.unmask(
+        masked_features=features,
+        feature_mask=initial_mask,
+        features=features,
+        afa_selection=torch.zeros((4, 1), dtype=torch.long),
+        selection_mask=initial_mask,
+        feature_shape=feature_shape,
+    )
+    return initial_mask, unmasked_mask
+
+
+def test_training_prep_seed_reproduces_initial_mask_and_unmasking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_mask, first_unmasked = _training_prep_with_seed(
+        monkeypatch, seed=123
+    )
+    second_mask, second_unmasked = _training_prep_with_seed(
+        monkeypatch, seed=123
+    )
+
+    assert torch.equal(first_mask, second_mask)
+    assert torch.equal(first_unmasked, second_unmasked)
+
+
+def test_training_prep_different_seeds_change_initial_mask_or_unmasking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_mask, first_unmasked = _training_prep_with_seed(
+        monkeypatch, seed=123
+    )
+    second_mask, second_unmasked = _training_prep_with_seed(
+        monkeypatch, seed=456
+    )
+
+    assert not torch.equal(first_mask, second_mask) or not torch.equal(
+        first_unmasked, second_unmasked
+    )
+
+
 def test_training_prep_calculates_class_weights_for_image_dataset(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

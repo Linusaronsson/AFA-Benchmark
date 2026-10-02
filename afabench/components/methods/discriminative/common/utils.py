@@ -56,6 +56,7 @@ def afa_discriminative_training_prep(
     val_dataset_bundle_path: Path,
     initializer_cfg: InitializerConfig,
     unmasker_cfg: UnmaskerConfig,
+    seed: int | None = None,
 ) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor]:
     train_dataset, _train_dataset_manifest = load_bundle(
         train_dataset_bundle_path,
@@ -67,8 +68,10 @@ def afa_discriminative_training_prep(
     val_dataset = cast("AFADataset", cast("object", val_dataset))
 
     initializer = get_afa_initializer_from_config(initializer_cfg)
-
     unmasker = get_afa_unmasker_from_config(unmasker_cfg)
+    if seed is not None:
+        initializer.set_seed(seed)
+        unmasker.set_seed(seed)
 
     _, train_labels = train_dataset.get_all_data()
     train_class_probabilities = get_class_frequencies(train_labels)
