@@ -365,4 +365,4 @@ Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root (not yet created; `docs/terminology.md` is the interim glossary). See `docs/agents/domain.md`.
+Single-context: the glossary is `CONTEXT.md` at the repo root (reconciles paper and code vocabulary; supersedes `docs/terminology.md`). `docs/adr/` is created on the first ADR. See `docs/agents/domain.md`.

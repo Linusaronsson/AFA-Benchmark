@@ -1,55 +1,93 @@
 # Domain Docs
 
-How the engineering skills should consume this repo's domain documentation when exploring the codebase.
+How the engineering skills should consume this repo's domain documentation
+when exploring the codebase.
 
 ## Before exploring, read these
 
-- **`CONTEXT.md`** at the repo root, or
-- **`CONTEXT-MAP.md`** at the repo root if it exists: it points at one `CONTEXT.md` per context. Read each one relevant to the topic.
-- **`docs/adr/`**: read ADRs that touch the area you're about to work in. In multi-context repos, also check `src/<context>/docs/adr/` for context-scoped decisions.
+- **`CONTEXT.md`** at the repo root. It is the glossary for AFABench and is
+  the source of truth for naming. It reconciles the paper's vocabulary with
+  the code's vocabulary and lists the synonyms to avoid.
+- **`docs/adr/`**: read ADRs that touch the area you're about to work in.
+  This directory does not exist yet; proceed silently until the first ADR is
+  written. Do not create it speculatively. The `/domain-modeling` skill
+  (reached via `/grill-with-docs` and `/improve-codebase-architecture`)
+  creates ADRs lazily when a decision actually gets resolved.
 
-This repo currently has no `CONTEXT.md` or `docs/adr/`. Until they exist,
-`docs/terminology.md` is the working glossary for AFA vocabulary
-(selection, action, unmasker, initializer); use its terms.
+Supporting background, in order of authority when they disagree:
 
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
+1. `CONTEXT.md` (canonical terms).
+2. The code's protocols in `afabench/core/types.py` (what the terms mean
+   operationally).
+3. The paper "AFABench: A Generic Framework for Benchmarking Active Feature
+   Acquisition" (Schütz, Wu, Rezvan, Aronsson, Haghir Chehreghani, KDD '26,
+   arXiv:2508.14734). Sections 2 and 3 define the problem and the episode
+   components; Section 4.3 defines CUBE-NM.
+4. `docs/terminology.md`, an older short note on selections, actions,
+   unmaskers and initializers. `CONTEXT.md` supersedes it.
+5. `docs/tutorials/pipeline_explanation.md` for pipeline-level terms
+   (method options, method sets, pretrain mappings, hard budgets, soft-budget
+   parameters).
 
 ## File structure
 
-Single-context repo (most repos):
+Single-context repo:
 
 ```
 /
 ├── CONTEXT.md
-├── docs/adr/
-│   ├── 0001-event-sourced-orders.md
-│   └── 0002-postgres-for-write-model.md
-└── src/
-```
-
-Multi-context repo (presence of `CONTEXT-MAP.md` at the root):
-
-```
-/
-├── CONTEXT-MAP.md
-├── docs/adr/                          ← system-wide decisions
-└── src/
-    ├── ordering/
-    │   ├── CONTEXT.md
-    │   └── docs/adr/                  ← context-specific decisions
-    └── billing/
-        ├── CONTEXT.md
-        └── docs/adr/
+├── docs/adr/            ← not yet created; add on first ADR
+├── afabench/            ← library code
+├── scripts/             ← pipeline entry points
+└── extra/               ← configs, workflows, data, outputs
 ```
 
 ## Use the glossary's vocabulary
 
-When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
+When your output names a domain concept (in an issue title, a refactor
+proposal, a hypothesis, a test name), use the term as defined in
+`CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.
 
-If the concept you need isn't in the glossary yet, that's a signal: either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
+Known traps in this repo:
+
+- **Action vs selection.** Action 0 is stop; selection i is action i + 1 and
+  never includes stop. Never use them interchangeably.
+- **Feature vs feature group vs selection.** With the direct Unmasker these
+  coincide. With image patches or CUBE-NM they do not. A hard budget counts
+  selection cost, not features.
+- **Classifier vs predictor.** The paper says predictor; the code says
+  classifier. Use classifier.
+- **Built-in vs internal.** The paper says internal predictor; the code says
+  built-in classifier. Use built-in.
+- **Myopic vs greedy.** The paper and code say myopic; only the README table
+  still says greedy. Use myopic.
+- **Dataset instance vs seed.** The seed is the input; the instance is the
+  generated, split dataset.
+
+If the concept you need isn't in the glossary yet, that's a signal: either
+you're inventing language the project doesn't use (reconsider) or there's a
+real gap (note it for `/domain-modeling`).
 
 ## Flag ADR conflicts
 
-If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
+If your output contradicts an existing ADR, surface it explicitly rather than
+silently overriding:
 
 > _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
+
+## Decisions worth an ADR if reopened
+
+No ADRs exist yet. The following are documented design choices from the paper
+(Sections 3 and 4.4) that satisfy the hard-to-reverse, surprising, and
+trade-off criteria. Write an ADR before changing any of them:
+
+- Evaluation is a single shared script for all methods; methods may train
+  however they like but must conform to the episode protocol at evaluation.
+- Hard-budget and soft-budget settings are evaluated separately and never
+  mixed in one comparison.
+- Headline results use a shared external classifier per dataset; built-in
+  classifiers are reported separately.
+- Methods keep the hyperparameters of their original implementations rather
+  than being tuned per dataset, with documented exceptions.
+- An action that would exceed the hard budget is overridden to stop, and the
+  episode is marked as a forced stop.

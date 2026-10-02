@@ -1,6 +1,30 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+Issues and specs for this repo live as GitHub issues on
+`Linusaronsson/AFA-Benchmark`. Use the `gh` CLI for all operations.
+
+## Repo-specific conventions
+
+- **Use glossary terms in titles and bodies.** Name methods, datasets, and
+  episode components as defined in `CONTEXT.md` (for example "selection"
+  vs "action", "built-in classifier" vs "internal predictor").
+- **Identify the pipeline stage.** When an issue concerns a method, say
+  whether it is about pretraining, training, or evaluation. These are
+  separate scripts and Snakemake rules.
+- **Identify the budget setting.** Results issues should state whether they
+  concern the hard-budget or soft-budget setting, since methods are
+  configured and compared separately in each.
+- **Name datasets by dataset key** (`cube_nm`, `fashion_mnist`,
+  `imagenette`, and so on) and methods by pipeline method name
+  (`eddi_external`, `odin_model_based`, `ol_with_mask`, and so on) so the
+  issue maps directly onto configs under `extra/workflow/conf/`.
+- **Paper linkage.** The repo accompanies the KDD '26 paper
+  (arXiv:2508.14734). The `kdd26` config variants under
+  `extra/workflow/conf/` reproduce the paper; an issue that changes paper
+  results should say so explicitly.
+- **Quality gate.** Every implementation ticket is done only when `just qa`
+  passes; say so in acceptance criteria rather than listing individual lint
+  or test commands.
 
 ## Conventions
 
