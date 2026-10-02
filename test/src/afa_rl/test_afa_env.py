@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 
 from afabench.components.initializers.fixed_random_initializer import (
@@ -87,7 +89,7 @@ def test_initializer_and_unmasker_integration() -> None:
         feature_shape=torch.Size((2, 4, 4)),
         n_selections=4,
         n_classes=3,
-        hard_budget=1.99,
+        hard_budget=2.0,
         initialize_fn=FixedRandomInitializer(
             num_initial_features=0
         ).initialize,
@@ -217,7 +219,7 @@ def test_initializer_and_unmasker_integration() -> None:
     # Pick the first patch for the first sample and the fourth patch for the second sample
     td["action"] = torch.tensor([1, 4], dtype=torch.int64)
 
-    # t = 2 (final step due to hard_budget=1.99)
+    # t = 2 (reaches hard_budget=2.0)
     td = env.step(td)
     td = td["next"]
     expected_feature_mask_t2 = torch.tensor(
@@ -289,12 +291,23 @@ def test_initializer_and_unmasker_integration() -> None:
     )
     assert torch.allclose(td["masked_features"], expected_masked_features_t2)
 
-    # Episode should be done due to hard budget
-    assert td["done"].all(), "Episode should be terminated due to hard budget"
+    assert not td["done"].any(), (
+        "Episode should not terminate when budget is reached"
+    )
+
+    # t = 3, any further selection would exceed the hard budget
+    feature_mask_t2 = td["feature_mask"].clone()
+    td["action"] = torch.tensor([3, 1], dtype=torch.int64)
+    td = env.step(td)["next"]
+
+    # Forced stop: the proposed selections are not executed
+    assert torch.equal(td["feature_mask"], feature_mask_t2)
+    assert torch.allclose(td["masked_features"], expected_masked_features_t2)
+    assert td["done"].all(), "Episode should be a forced stop"
 
 
 def test_stop_due_to_hard_budget() -> None:
-    """Test that the environment terminates when hard budget is **exceeded**."""
+    """Test a forced stop when a selection would **exceed** the hard budget."""
     # Use simple 1D features for easy testing
     all_features = torch.tensor(
         [
@@ -321,7 +334,7 @@ def test_stop_due_to_hard_budget() -> None:
         feature_shape=torch.Size((6,)),
         n_selections=6,  # 4 possible selections
         n_classes=2,
-        hard_budget=2.0,  # Should terminate after 3 selections
+        hard_budget=2.0,  # A third selection would exceed the budget
         initialize_fn=FixedRandomInitializer(
             num_initial_features=0
         ).initialize,
@@ -354,16 +367,99 @@ def test_stop_due_to_hard_budget() -> None:
         "Environment should not terminate when budget is reached, only if it is exceeded."
     )
 
-    # Third selection - should terminate due to hard budget
+    # Third selection - would exceed hard budget, so forced stop
     td["action"] = torch.tensor(
         [5, 6], dtype=torch.int64
-    )  # Select features 4 and 5
+    )  # Select features 5 and 6
     td = env.step(td)
     td = td["next"]
 
     assert td["done"].all(), (
-        "Environment should terminate after exceeding hard budget"
+        "Environment should force a stop when a selection would exceed the "
+        "hard budget"
     )
+    assert torch.equal(td["accumulated_cost"], torch.tensor([2.0, 2.0])), (
+        "Forced stop should not charge the over-budget selection"
+    )
+
+
+def test_over_budget_selection_is_forced_stop_without_acquisition() -> None:
+    """An over-budget selection ends the episode without being executed."""
+    all_features = torch.tensor(
+        [
+            [1.0, 2.0, 3.0],  # Sample 1
+            [4.0, 5.0, 6.0],  # Sample 2
+        ]
+    )
+    all_labels = torch.tensor([[1, 0], [0, 1]])
+    dataset_fn = get_afa_dataset_fn(all_features, all_labels, shuffle=False)
+
+    unmasked_selections: list[torch.Tensor] = []
+    direct_unmask_fn = DirectUnmasker().unmask
+
+    def recording_unmask_fn(**kwargs: Any) -> torch.Tensor:  # noqa: ANN401
+        unmasked_selections.append(kwargs["afa_selection"].clone())
+        return direct_unmask_fn(**kwargs)
+
+    env = AFAEnv(
+        dataset_fn=dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=5.0, reward_otherwise=-1.0
+        ),
+        device=torch.device("cpu"),
+        batch_size=torch.Size((2,)),
+        feature_shape=torch.Size((3,)),
+        n_selections=3,
+        n_classes=2,
+        hard_budget=3.0,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
+        unmask_fn=recording_unmask_fn,
+        seed=123,
+        selection_costs=[1.0, 2.0, 3.0],
+    )
+
+    td = env.reset()
+    td["action"] = torch.tensor([1, 1], dtype=torch.int64)
+    td = env.step(td)["next"]
+    before = td.clone()
+    unmasked_selections.clear()
+
+    # Sample 1 proposes selection 2 (cost 3, total 4 > 3): forced stop.
+    # Sample 2 proposes selection 1 (cost 2, total 3 <= 3): executed.
+    proposed_action = torch.tensor([3, 2], dtype=torch.int64)
+    td["action"] = proposed_action.clone()
+    td = env.step(td)
+
+    # The proposed action stays in the output exactly as proposed
+    assert torch.equal(td["action"], proposed_action)
+    after = td["next"]
+
+    # Only the within-budget selection reaches the unmasker
+    assert len(unmasked_selections) == 1
+    assert torch.equal(unmasked_selections[0], torch.tensor([[1]]))
+
+    # The forced stop leaves the state unchanged and charges no cost
+    for key in (
+        "features",
+        "masked_features",
+        "feature_mask",
+        "performed_selection_mask",
+        "performed_action_mask",
+        "allowed_action_mask",
+        "accumulated_cost",
+    ):
+        assert torch.equal(after[key][0], before[key][0]), key
+    assert after["done"][0].item(), "Over-budget proposal should be done"
+    assert after["reward"][0].item() == 5.0, "Forced stop gets stop reward"
+
+    # The within-budget selection in the same batch is executed normally
+    assert torch.equal(
+        after["feature_mask"][1], torch.tensor([True, True, False])
+    )
+    assert after["accumulated_cost"][1].item() == 3.0
+    assert not after["done"][1].item()
 
 
 def test_stop_due_to_no_more_actions() -> None:
@@ -541,14 +637,16 @@ def test_per_sample_termination_hard_budget() -> None:
         f"Expected done={expected_done}, got {td['done']}"
     )
 
-    # Second step: Sample 1 makes another selection (reaches hard budget)
+    # Second step: Sample 1 proposes a selection that would exceed the hard
+    # budget (forced stop)
     td["action"] = torch.tensor([2, 0, 0], dtype=torch.int64)
     td = env.step(td)
     td = td["next"]
 
     # Now all samples should be done
     assert td["done"].all(), (
-        "All samples should be done - sample 1 reached hard budget, others already stopped"
+        "All samples should be done - sample 1 was forced to stop by the "
+        "hard budget, others already stopped"
     )
 
 
@@ -1937,7 +2035,7 @@ def test_accumulated_cost_tracked() -> None:
         feature_shape=torch.Size((6,)),
         n_selections=6,  # 4 possible selections
         n_classes=2,
-        hard_budget=10.0,  # Large, should not terminate
+        hard_budget=20.0,  # Large, should not terminate
         initialize_fn=FixedRandomInitializer(
             num_initial_features=0
         ).initialize,

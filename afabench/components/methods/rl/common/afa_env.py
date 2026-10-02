@@ -67,13 +67,12 @@ class AFAEnv(EnvBase):
         self.feature_shape = feature_shape
         self.n_selections = n_selections
         self.n_classes = n_classes
+        self.hard_budget = hard_budget
         if hard_budget is None:
             # If hard budget is not set, always allow agent to stop
-            self.hard_budget = self.n_selections
             self.allow_stop_action = True
         else:
             # If hard budget is set, stop action is only allowed if force_hard_budget is false
-            self.hard_budget = hard_budget
             self.allow_stop_action = not force_hard_budget
         self.force_hard_budget = force_hard_budget
         self.initialize_fn = initialize_fn
@@ -240,66 +239,86 @@ class AFAEnv(EnvBase):
     def _step(self, tensordict: TensorDictBase) -> TensorDictBase:
         batch_numel = tensordict.batch_size.numel()
         batch_indices = torch.arange(batch_numel, device=tensordict.device)
+        action = tensordict["action"]
+        stop_mask = action == 0
 
-        # Acquire new features from unmasker if we don't choose the stop action
-        no_stop_mask = tensordict["action"] != 0
-        new_feature_mask_no_stop = self.unmask_fn(
-            masked_features=tensordict["masked_features"][no_stop_mask],
-            feature_mask=tensordict["feature_mask"][no_stop_mask],
-            features=tensordict["features"][no_stop_mask],
-            afa_selection=(tensordict["action"] - 1)[no_stop_mask].unsqueeze(
-                -1
-            ),
-            selection_mask=tensordict["performed_selection_mask"][
-                no_stop_mask
-            ],
-            label=tensordict["label"][no_stop_mask],
-            feature_shape=self.feature_shape,
-        )
+        # Forced stop, matching the evaluation loop: a selection whose cost
+        # would push the accumulated cost past the hard budget is not
+        # executed, and the episode ends with the state unchanged.
+        forced_stop_mask = torch.zeros_like(stop_mask)
+        if self.hard_budget is not None:
+            proposed_cost = torch.zeros_like(tensordict["accumulated_cost"])
+            proposed_cost[~stop_mask] = self.selection_costs[
+                action[~stop_mask] - 1
+            ]
+            forced_stop_mask = ~stop_mask & (
+                tensordict["accumulated_cost"] + proposed_cost
+                > self.hard_budget
+            )
+
+        # Acquire new features from unmasker for executed selections
+        executes_selection = ~stop_mask & ~forced_stop_mask
         new_feature_mask = tensordict["feature_mask"].clone()
-        new_feature_mask[no_stop_mask] = new_feature_mask_no_stop
+        if executes_selection.any():
+            new_feature_mask[executes_selection] = self.unmask_fn(
+                masked_features=tensordict["masked_features"][
+                    executes_selection
+                ],
+                feature_mask=tensordict["feature_mask"][executes_selection],
+                features=tensordict["features"][executes_selection],
+                afa_selection=(action - 1)[executes_selection].unsqueeze(-1),
+                selection_mask=tensordict["performed_selection_mask"][
+                    executes_selection
+                ],
+                label=tensordict["label"][executes_selection],
+                feature_shape=self.feature_shape,
+            )
 
         new_masked_features = tensordict["features"].clone()
         new_masked_features[~new_feature_mask] = 0.0
 
         # Add up costs
         new_accumulated_cost = tensordict["accumulated_cost"].clone()
-        new_accumulated_cost[no_stop_mask] += self.selection_costs[
-            (tensordict["action"] - 1)[no_stop_mask]
+        new_accumulated_cost[executes_selection] += self.selection_costs[
+            (action - 1)[executes_selection]
         ]
 
         # Update masks
+        executes_action = stop_mask | executes_selection
         new_performed_action_mask = tensordict["performed_action_mask"].clone()
-        new_performed_action_mask[batch_indices, tensordict["action"]] = True
+        new_performed_action_mask[
+            batch_indices[executes_action], action[executes_action]
+        ] = True
         new_allowed_action_mask = tensordict["allowed_action_mask"].clone()
         new_performed_selection_mask = tensordict[
             "performed_selection_mask"
         ].clone()
 
-        # For non-stop actions, update selection mask and disable that action
-        if no_stop_mask.any():
-            non_stop_indices = batch_indices[no_stop_mask]
+        # For executed selections, update selection mask and disable that
+        # action
+        if executes_selection.any():
+            selection_indices = batch_indices[executes_selection]
             selections = (
-                tensordict["action"][no_stop_mask] - 1
+                action[executes_selection] - 1
             )  # Convert to 0-based selection index
-            new_performed_selection_mask[non_stop_indices, selections] = True
+            new_performed_selection_mask[selection_indices, selections] = True
             new_allowed_action_mask[
-                non_stop_indices, tensordict["action"][no_stop_mask]
+                selection_indices, action[executes_selection]
             ] = False
 
         # If stop action is not allowed, ensure it stays disabled
         if not self.allow_stop_action:
             new_allowed_action_mask[:, 0] = False
 
-        # Done if we **exceed** the hard budget, have chosen all the actions, choose to stop (action 0),
-        # or all selection actions are exhausted
-        # Check if all selection actions (actions 1 through n_selections) are disabled
+        # Done if we choose to stop (action 0), are forced to stop by the hard
+        # budget, or all selection actions (1 through n_selections) are
+        # exhausted
         selection_actions_available = new_allowed_action_mask[:, 1:].any(
             dim=-1
         )
         done = (
-            ((new_accumulated_cost > self.hard_budget).unsqueeze(-1))
-            | (tensordict["action"] == 0).unsqueeze(-1)
+            stop_mask.unsqueeze(-1)
+            | forced_stop_mask.unsqueeze(-1)
             | (~selection_actions_available).unsqueeze(-1)
         )
 
@@ -312,7 +331,7 @@ class AFAEnv(EnvBase):
                 new_masked_features,
                 new_feature_mask,
                 new_performed_selection_mask,
-                tensordict["action"],
+                action,
                 tensordict["features"],
                 tensordict["label"],
                 done,
