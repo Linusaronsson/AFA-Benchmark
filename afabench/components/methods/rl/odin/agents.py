@@ -181,15 +181,13 @@ class ODINAgent(Agent):
             num_cells=tuple(self.cfg.policy_num_cells),
             dropout=self.cfg.policy_dropout,
         ).to(self.module_device)
+        self.policy_head_tdmodule = TensorDictModule(
+            self.policy_head,
+            in_keys=["mu", self.action_mask_key],
+            out_keys=["logits"],
+        )
         self.policy_tdmodule = TensorDictSequential(
-            [
-                self.common_tdmodule,
-                TensorDictModule(
-                    self.policy_head,
-                    in_keys=["mu", self.action_mask_key],
-                    out_keys=["logits"],
-                ),
-            ]
+            [self.common_tdmodule, self.policy_head_tdmodule]
         )
 
         self.probabilistic_policy_tdmodule = ProbabilisticActor(
@@ -206,20 +204,26 @@ class ODINAgent(Agent):
             dropout=self.cfg.value_dropout,
         ).to(self.module_device)
 
-        self.state_value_tdmodule = TensorDictSequential(
-            [
-                self.common_tdmodule,
-                TensorDictModule(
-                    self.value_head,
-                    in_keys=["mu"],
-                    out_keys=["state_value"],
-                ),
-            ]
+        self.value_head_tdmodule = TensorDictModule(
+            self.value_head,
+            in_keys=["mu"],
+            out_keys=["state_value"],
+        )
+
+        # The common module is frozen, so the loss reuses the "mu" encoding
+        # written during collection instead of re-encoding each state for
+        # the actor and the critic
+        self.loss_policy_tdmodule = ProbabilisticActor(
+            module=self.policy_head_tdmodule,
+            spec=self.action_spec,
+            in_keys=["logits"],
+            distribution_class=Categorical,
+            return_log_prob=True,
         )
 
         self.loss_tdmodule = ClipPPOLoss(
-            actor_network=self.probabilistic_policy_tdmodule,
-            critic_network=self.state_value_tdmodule,
+            actor_network=self.loss_policy_tdmodule,
+            critic_network=self.value_head_tdmodule,
             clip_epsilon=self.cfg.clip_epsilon,
             entropy_bonus=self.cfg.entropy_bonus,
             entropy_coef=self.cfg.entropy_coef,
@@ -258,6 +262,11 @@ class ODINAgent(Agent):
     def process_batch(self, td: TensorDictBase) -> dict[str, Any]:
         # Initialize total loss dictionary
         total_loss_dict = dict.fromkeys(self.loss_keys + ["loss"], 0.0)
+
+        # Collection already encoded the current states; encode the next
+        # states once for the critic's bootstrap values
+        with torch.no_grad():
+            self.common_tdmodule(td["next"])
 
         # Perform multiple epochs of training
         for _ in range(self.cfg.num_epochs):
