@@ -77,6 +77,18 @@ class EarlyStoppingWithMinBatches(EarlyStopping):
         # else: do nothing, don't check for early stopping yet
 
 
+def ensure_finite_module_state(module: torch.nn.Module) -> None:
+    nonfinite_state = [
+        name
+        for name, tensor in module.state_dict().items()
+        if (tensor.is_floating_point() or tensor.is_complex())
+        and not torch.isfinite(tensor).all()
+    ]
+    if nonfinite_state:
+        msg = f"Refusing to save non-finite model state: {nonfinite_state}"
+        raise FloatingPointError(msg)
+
+
 def supervised_learning(
     train_dataset_bundle_path: Path,
     val_dataset_bundle_path: Path,
@@ -184,6 +196,8 @@ def supervised_learning(
         else:
             log.warning("No best model found. Keeping current model...")
         log.info("Finished setting model state.")
+
+        ensure_finite_module_state(lit_model)
 
         log.info("Saving model...")
 
