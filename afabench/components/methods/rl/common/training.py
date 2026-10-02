@@ -52,6 +52,11 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+def _should_disable_collector_cuda_sync(device: torch.device) -> bool:
+    """Disable collector CUDA sync for CPU-only runs."""
+    return device.type == "cpu"
+
+
 class RLTrainer(ABC):
     train_dataset_bundle_path: Path
     val_dataset_bundle_path: Path
@@ -97,7 +102,7 @@ class RLTrainer(ABC):
         self.mdp_cfg = mdp_cfg
         self.n_agents = n_agents
         self.seed = seed
-        self.device = device
+        self.device = torch.device(device)
         self.cfg = cfg
         self.use_wandb = use_wandb
 
@@ -218,6 +223,7 @@ class RLTrainer(ABC):
             frames_per_batch=cfg.frames_per_batch,
             total_frames=cfg.n_batches * cfg.frames_per_batch,
             device=self.device,
+            no_cuda_sync=_should_disable_collector_cuda_sync(self.device),
         )
 
         for batch_idx, td in tqdm(
@@ -398,6 +404,6 @@ class RLTrainer(ABC):
             self.run.finish()
 
         gc.collect()
-        if torch.cuda.is_available():
+        if self.device.type == "cuda":
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
