@@ -22,11 +22,14 @@ defaults:
 #   - Higher cost = fewer features acquired
 #   - Typical range: 0.001 - 0.2 depending on dataset
 # hide_val: Value used for unobserved features (0.0 for consistency with MLP)
+# mask_seed: Seed for the random candidate mask generator, so the candidate
+#   masks the oracle scores are reproducible
 
 aco:
   k_neighbors: 5
   acquisition_cost: 0.05
   hide_val: 0.0
+  mask_seed: 0
   evaluate_final_performance: true
   eval_only_n_samples: null
 

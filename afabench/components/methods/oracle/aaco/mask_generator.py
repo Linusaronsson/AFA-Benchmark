@@ -65,16 +65,26 @@ def generate_ball(
 
 
 class RandomMaskGenerator:
-    """Their exact random mask generator implementation."""
+    """
+    Their exact random mask generator implementation.
+
+    The masks are drawn from a generator seeded with `seed`, so two
+    generators built with the same arguments produce identical candidate
+    masks.
+    """
 
     def __init__(
-        self, num_samples: int, feature_dim: int, num_generated_masks: int
+        self,
+        num_samples: int,
+        feature_dim: int,
+        num_generated_masks: int,
+        seed: int,
     ) -> None:
         self.num_samples: int = num_samples
         self.feature_dim: int = feature_dim
         self.num_generated_masks: int = num_generated_masks
         self._cached_masks: torch.Tensor | None = None
-        self._rng: np.random.Generator = np.random.default_rng()
+        self._rng: np.random.Generator = np.random.default_rng(seed)
 
     def __call__(self, _mask_curr: torch.Tensor) -> torch.Tensor:
         # Cache masks to avoid repeated numpy generation in tight loops.

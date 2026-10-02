@@ -14,6 +14,7 @@ class AACOConfig:
     k_neighbors: int = 5
     acquisition_cost: float = 0.05
     hide_val: float = 0.0
+    mask_seed: int = 0
     evaluate_final_performance: bool = True
     eval_only_n_samples: int | None = None
 
