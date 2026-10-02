@@ -1977,3 +1977,74 @@ def test_accumulated_cost_tracked() -> None:
         td["accumulated_cost"],
         torch.tensor([1.1 + 3.1 + 5.1, 2.1 + 4.1 + 6.1]),
     )
+
+
+def test_partial_reset_only_restarts_reset_episodes() -> None:
+    """A partial reset starts fresh episodes only where `_reset` is set."""
+    all_features = torch.tensor(
+        [
+            [1.0, 2.0, 3.0, 4.0],  # Sample 1
+            [5.0, 6.0, 7.0, 8.0],  # Sample 2
+            [9.0, 10.0, 11.0, 12.0],  # Sample 3
+            [13.0, 14.0, 15.0, 16.0],  # Sample 4
+        ]
+    )
+    all_labels = torch.tensor([[1, 0], [0, 1], [1, 0], [0, 1]])
+    dataset_fn = get_afa_dataset_fn(all_features, all_labels, shuffle=False)
+
+    env = AFAEnv(
+        dataset_fn=dataset_fn,
+        reward_fn=get_fixed_reward_reward_fn(
+            reward_for_stop=0.0, reward_otherwise=-1.0
+        ),
+        device=torch.device("cpu"),
+        batch_size=torch.Size((2,)),
+        feature_shape=torch.Size((4,)),
+        n_selections=4,
+        n_classes=2,
+        hard_budget=10.0,
+        initialize_fn=FixedRandomInitializer(
+            num_initial_features=0
+        ).initialize,
+        unmask_fn=DirectUnmasker().unmask,
+        seed=123,
+        selection_costs=[1.5, 2.5, 3.5, 4.5],
+    )
+
+    td = env.reset()
+    td["action"] = torch.tensor([1, 2], dtype=torch.int64)
+    td = env.step(td)["next"]
+    ongoing = td.clone()
+
+    # Reset only the second episode
+    td["_reset"] = torch.tensor([[False], [True]])
+    td = env.reset(td)
+
+    # The first episode continues untouched
+    for key in (
+        "features",
+        "label",
+        "feature_mask",
+        "masked_features",
+        "performed_selection_mask",
+        "performed_action_mask",
+        "allowed_action_mask",
+        "accumulated_cost",
+    ):
+        assert torch.equal(td[key][0], ongoing[key][0]), key
+    assert td["accumulated_cost"][0] == 1.5
+
+    # The second episode restarts on the next training instance
+    assert torch.equal(td["features"][1], all_features[2])
+    assert torch.equal(td["label"][1], all_labels[2])
+    assert not td["feature_mask"][1].any()
+    assert not td["masked_features"][1].any()
+    assert not td["performed_selection_mask"][1].any()
+    assert not td["performed_action_mask"][1].any()
+    assert td["allowed_action_mask"][1].all()
+    assert td["accumulated_cost"][1] == 0.0
+    assert not td["done"].any()
+
+    # Only one training instance was consumed by the partial reset
+    td = env.reset()
+    assert torch.equal(td["features"], all_features[[3, 0]])

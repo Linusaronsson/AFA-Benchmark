@@ -159,10 +159,39 @@ class AFAEnv(EnvBase):
                 {}, batch_size=self.batch_size, device=self.device
             )
 
-        # Get a batch from the dataset
-        features, label = self.dataset_fn(tensordict.batch_size)
-        features: Features = features.to(tensordict.device)
-        label: Label = label.to(tensordict.device)
+        # TorchRL calls _reset whenever *any* episode is done, passing a reset
+        # mask of which ones, and then keeps only those entries of what we
+        # return. Draw exactly that many training instances so that the
+        # dataset pointer advances only by the instances actually consumed.
+        reset_mask = tensordict.get("_reset", None)
+        if reset_mask is None:
+            return self._new_episodes(tensordict.batch_size, tensordict.device)
+
+        reset_mask = reset_mask.reshape(tensordict.batch_size)
+        new_episodes = self._new_episodes(
+            torch.Size((int(reset_mask.sum()),)), tensordict.device
+        )
+        # Scatter the new episodes back to full batch shape. Entries outside
+        # the reset mask are replaced by the ongoing episodes during TorchRL's
+        # reset update, so their value does not matter.
+        td = TensorDict(
+            {
+                key: value.new_zeros(tensordict.batch_size + value.shape[1:])
+                for key, value in new_episodes.items()
+            },
+            batch_size=tensordict.batch_size,
+            device=tensordict.device,
+        )
+        td[reset_mask] = new_episodes
+        return td
+
+    def _new_episodes(
+        self, batch_size: torch.Size, device: torch.device | None
+    ) -> TensorDict:
+        """Start a batch of episodes on fresh training instances."""
+        features, label = self.dataset_fn(batch_size)
+        features: Features = features.to(device)
+        label: Label = label.to(device)
 
         # Initialize features
         initial_feature_mask = self.initialize_fn(
@@ -176,33 +205,29 @@ class AFAEnv(EnvBase):
             {
                 "feature_mask": initial_feature_mask,
                 "performed_action_mask": torch.zeros(
-                    tensordict.batch_size
-                    + torch.Size((self.n_selections + 1,)),
+                    batch_size + torch.Size((self.n_selections + 1,)),
                     dtype=torch.bool,
-                    device=tensordict.device,
+                    device=device,
                 ),
                 "allowed_action_mask": torch.ones(
-                    tensordict.batch_size
-                    + torch.Size((self.n_selections + 1,)),
+                    batch_size + torch.Size((self.n_selections + 1,)),
                     dtype=torch.bool,
-                    device=tensordict.device,
+                    device=device,
                 ),
                 "performed_selection_mask": torch.zeros(
-                    tensordict.batch_size + torch.Size((self.n_selections,)),
+                    batch_size + torch.Size((self.n_selections,)),
                     dtype=torch.bool,
-                    device=tensordict.device,
+                    device=device,
                 ),
                 "masked_features": initial_masked_features,
                 "features": features,
                 "label": label,
                 "accumulated_cost": torch.zeros(
-                    tensordict.batch_size,
-                    dtype=torch.float32,
-                    device=tensordict.device,
+                    batch_size, dtype=torch.float32, device=device
                 ),
             },
-            batch_size=tensordict.batch_size,
-            device=tensordict.device,
+            batch_size=batch_size,
+            device=device,
         )
 
         # If stop action is not allowed, disable it in the action mask
