@@ -101,8 +101,23 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
         assert selection_mask is not None, (
             "RLAFAMethod requires selection_mask"
         )
+        selection_mask = selection_mask.to(self._device)
+
+        batch_size = masked_features.shape[0]
+        actions = torch.zeros(
+            (batch_size, 1), dtype=torch.long, device=self._device
+        )
+
+        # Instances whose selection mask is fully performed have no
+        # feature left to acquire, so stop without consulting the policy.
+        active_mask = (~selection_mask).any(dim=-1)
+        if not active_mask.any():
+            return actions.to(original_device)
+
         td = self.get_td_from_masked_features(
-            masked_features, feature_mask, selection_mask
+            masked_features[active_mask],
+            feature_mask[active_mask],
+            selection_mask[active_mask],
         )
 
         # Apply the agent's policy to the tensordict
@@ -113,9 +128,9 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
             td = self.policy_tdmodule(td)
 
         # Get the action from the tensordict
-        afa_selection = td["action"].unsqueeze(-1)
+        actions[active_mask] = td["action"].unsqueeze(-1)
 
-        return afa_selection.to(original_device)
+        return actions.to(original_device)
 
     @override
     def predict(
