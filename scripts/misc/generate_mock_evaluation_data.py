@@ -191,7 +191,8 @@ def generate_mock_data(  # noqa: C901, PLR0912, PLR0915
     return results_df
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Generate mock evaluation results and save them as Parquet."""
     results_df = generate_mock_data()
 
     results_df["training_seed"] = results_df["training_seed"].astype(int)
@@ -204,5 +205,9 @@ if __name__ == "__main__":
         "predicted_label_builtin"
     ].astype("Int64")
 
-    results_df.to_csv("eval_results.csv", index=False)
-    print("Mock results saved to eval_results.csv")
+    results_df.to_parquet("eval_results.parquet", index=False)
+    print("Mock results saved to eval_results.parquet")
+
+
+if __name__ == "__main__":
+    main()

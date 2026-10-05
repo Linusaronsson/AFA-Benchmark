@@ -1,10 +1,10 @@
 """
-Combine multiple CSV files with soft budget evaluation results.
+Combine multiple Parquet files with soft budget evaluation results.
 
 Replaces scripts/misc/combine_soft_budget_results.R with pure Python.
 
 Usage:
-    python combine_soft_budget_results.py file1.csv file2.csv ... combined.csv
+    python combine_soft_budget_results.py a.parquet b.parquet combined.parquet
 """
 
 from __future__ import annotations
@@ -29,13 +29,13 @@ REQUIRED_COLS = [
 def main() -> None:
     """Run the main entry point."""
     parser = argparse.ArgumentParser(
-        description="Combine soft budget result CSVs"
+        description="Combine soft budget result Parquet files"
     )
     parser.add_argument(
         "files",
         nargs="+",
         type=Path,
-        help="Input CSV files (last one is output path)",
+        help="Input Parquet files (last one is output path)",
     )
 
     args = parser.parse_args()
@@ -48,7 +48,7 @@ def main() -> None:
 
     dfs = []
     for path in input_paths:
-        df = pd.read_csv(path)
+        df = pd.read_parquet(path)
 
         # Validate required columns
         missing = set(REQUIRED_COLS) - set(df.columns)
@@ -61,7 +61,7 @@ def main() -> None:
     combined = pd.concat(dfs, ignore_index=True)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    combined.to_csv(output_path, index=False)
+    combined.to_parquet(output_path, index=False)
 
     print(f"Combined {len(input_paths)} files into {output_path}")
 
