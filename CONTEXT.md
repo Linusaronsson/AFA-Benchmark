@@ -253,6 +253,11 @@ _Avoid_: Clean variant, deterministic variant
 
 ### Pipeline
 
+**Benchmark release**:
+A curated, versioned collection of benchmark results and reusable outputs
+produced with an identified code revision and pipeline configuration.
+_Avoid_: Latest results, pipeline run (a run need not be published)
+
 **Pipeline stage**:
 One of **pretraining**, **training**, and **evaluation**. The first two are
 optional per method; evaluation is mandatory and shared by all methods.
