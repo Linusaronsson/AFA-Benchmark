@@ -2,6 +2,7 @@
 check:
     uv run ruff format .
     uv run ruff check . --fix
+    uv run python scripts/dev/sync_excludes.py
     uv run basedpyright --warnings
 
 # Fast tests

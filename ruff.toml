@@ -1,6 +1,6 @@
 line-length = 79
 # NOTE: These exclude patterns are automatically synced to pyrightconfig.json
-# by scripts/sync_excludes.py (runs as a pre-commit hook)
+# by scripts/dev/sync_excludes.py (runs as part of `just check`)
 exclude = []
 
 [lint]

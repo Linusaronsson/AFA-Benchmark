@@ -16,7 +16,6 @@
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
           copier
-          pre-commit
           just
           uv
           basedpyright

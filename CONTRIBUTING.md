@@ -8,9 +8,6 @@ repository, human or AI agent.
 ```bash
 # Install dependencies
 uv sync
-
-# Install pre-commit hooks
-pre-commit install
 ```
 
 ## Before opening a PR

@@ -16,9 +16,6 @@ This guide provides essential information for AI coding agents working with the 
 # Install dependencies
 uv sync
 
-# Install pre-commit hooks
-pre-commit install
-
 # Run all quality checks (format, lint, type check, tests)
 just qa
 
@@ -48,9 +45,6 @@ uv run ruff check . --fix
 
 # Type check with basedpyright
 uv run basedpyright --warnings
-
-# Run all pre-commit hooks, including basedpyright
-pre-commit run --all-files
 ```
 
 ### Testing
@@ -327,16 +321,9 @@ data/, outputs/, plots/    # Root-level local/generated artifacts; do not rely o
    uv run pytest .
    ```
 
-4. **Pre-commit hooks automatically:**
-   - Fix trailing whitespace and EOF issues
-   - Format code with ruff
-   - Lint and auto-fix with ruff
-   - Sync exclude patterns between configs
-   - Type check with basedpyright
-
 ## Important Notes
 
-- **Excluded files:** `ruff.toml` currently has no project-specific excludes; keep it synchronized with `pyrightconfig.json` through the pre-commit hook when this changes
+- **Excluded files:** `ruff.toml` currently has no project-specific excludes; keep it synchronized with `pyrightconfig.json` via `scripts/dev/sync_excludes.py` (run as part of `just check`) when this changes
 - **Bundle format:** Serializable objects use `.bundle/` directory format (see docs/bundle_format.md) through `afabench.core.bundle_system`
 - **Hydra configs:** Scripts use `@hydra.main()` decorator for configuration management
 - **CUDA support:** Optional GPU acceleration via cupy-cuda12x (Linux only)
@@ -349,7 +336,6 @@ data/, outputs/, plots/    # Root-level local/generated artifacts; do not rely o
 - `ruff.toml` - Linting and formatting configuration
 - `pyrightconfig.json` - Type checking configuration
 - `pytest.ini` - Test configuration
-- `.pre-commit-config.yaml` - Pre-commit hooks
 - `justfile` - Common development commands
 - `docs/` - Additional documentation
 
