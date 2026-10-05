@@ -7,9 +7,6 @@ import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-# WARNING: LLM generated, supposedly fixes OOM errors compared to
-# concatenating all inputs in memory
-
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
