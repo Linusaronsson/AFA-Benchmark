@@ -91,7 +91,8 @@ The caller must attest to original producer ordering. Legacy `idx` resets in
 each batch; conversion starts a new episode when an index first appears or
 reappears after stop. Stored histories must match the preceding actions,
 every episode must terminate, and indices/actions/selections must be
-nonnegative integers. Inconsistent or incomplete logs fail rather than guess.
+nonnegative integers. A stopped index cannot be reused while another episode
+in its batch is still active. Inconsistent or incomplete logs fail rather than guess.
 The converter cannot prove provenance or detect an entirely omitted episode;
 identity cannot be inferred safely from arbitrary reordered legacy tables.
 Do not convert classifier-expanded plotting tables or combine source runs.

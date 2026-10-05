@@ -54,6 +54,8 @@ def test_converts_complete_original_order_legacy_log() -> None:
         ([True], [0], [[]]),
         ([0, 0], [2, 0], [[], [True]]),
         ([0, 0], [1, 0], [[], [0.0]]),
+        ([0, 1, 0, 0, 1], [1, 1, 0, 0, 0], [[], [], [0], [], [0]]),
+        ([0, 1, 0, 1], [0, 1, 0, 0], [[], [], [], [0]]),
     ],
 )
 def test_legacy_conversion_rejects_invalid_or_partial_logs(
@@ -70,6 +72,19 @@ def test_legacy_conversion_rejects_invalid_or_partial_logs(
     )
     with pytest.raises(ValueError, match="Legacy"):
         convert_legacy_episode_log(legacy, original_order=True)
+
+
+def test_legacy_batches_can_start_with_immediate_stops() -> None:
+    legacy = pd.DataFrame(
+        {
+            "idx": [0, 1, 1, 0, 1, 0],
+            "action_performed": [0, 2, 0, 1, 0, 0],
+            "prev_selections_performed": [[], [], [1], [], [], [0]],
+        }
+    )
+    compact = convert_legacy_episode_log(legacy, original_order=True)
+    assert compact["episode_id"].tolist() == [0, 1, 1, 2, 3, 2]
+    assert compact["step"].tolist() == [0, 0, 1, 0, 0, 1]
 
 
 @pytest.mark.parametrize("string_history", [False, True])

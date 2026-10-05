@@ -2,6 +2,10 @@
 
 import ast
 from numbers import Integral
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 import pandas as pd
 
@@ -38,6 +42,30 @@ def validate_episode_log(frame: pd.DataFrame) -> None:
             raise ValueError(msg)
 
 
+def _legacy_selections(stored: object) -> list[int]:
+    parsed = ast.literal_eval(stored) if isinstance(stored, str) else stored
+    try:
+        selections = list(cast("Iterable[object]", parsed))
+    except TypeError as exc:
+        msg = "Legacy history must be a sequence of selections"
+        raise ValueError(msg) from exc
+    if not all(_nonnegative_integer(value) for value in selections):
+        msg = "Legacy history must contain nonnegative integer selections"
+        raise ValueError(msg)
+    return [int(value) for value in cast("list[Integral]", selections)]
+
+
+def _validate_legacy_columns(frame: pd.DataFrame) -> None:
+    required = {"idx", "action_performed", "prev_selections_performed"}
+    if (
+        not required.issubset(frame.columns)
+        or not frame.columns.is_unique
+        or {"episode_id", "step"}.intersection(frame.columns)
+    ):
+        msg = "Expected an unambiguous legacy episode log"
+        raise ValueError(msg)
+
+
 def convert_legacy_episode_log(
     frame: pd.DataFrame, *, original_order: bool = False
 ) -> pd.DataFrame:
@@ -52,15 +80,9 @@ def convert_legacy_episode_log(
     if not original_order:
         msg = "Legacy conversion requires original producer row order"
         raise ValueError(msg)
-    required = {"idx", "action_performed", "prev_selections_performed"}
-    if (
-        not required.issubset(frame.columns)
-        or not frame.columns.is_unique
-        or {"episode_id", "step"}.intersection(frame.columns)
-    ):
-        msg = "Expected an unambiguous legacy episode log"
-        raise ValueError(msg)
+    _validate_legacy_columns(frame)
     active: dict[int, tuple[int, list[int]]] = {}
+    completed: set[int] = set()
     episode_ids: list[int] = []
     steps: list[int] = []
     next_episode_id = 0
@@ -73,22 +95,19 @@ def convert_legacy_episode_log(
         if not _nonnegative_integer(idx) or not _nonnegative_integer(action):
             msg = "Legacy indices and actions must be nonnegative integers"
             raise ValueError(msg)
+        if idx in completed:
+            if active:
+                msg = "Legacy batch index reused before the batch terminated"
+                raise ValueError(msg)
+            # A new batch can reuse indices only after all prior episodes stop.
+            # Keep completed indices even when an early step-zero stop briefly
+            # leaves no active episodes before later instances first appear.
+            completed.clear()
         if idx not in active:
             active[idx] = (next_episode_id, [])
             next_episode_id += 1
         episode_id, history = active[idx]
-        stored_history = (
-            ast.literal_eval(stored) if isinstance(stored, str) else stored
-        )
-        try:
-            stored_selections = list(stored_history)
-        except TypeError as exc:
-            msg = "Legacy history must be a sequence of selections"
-            raise ValueError(msg) from exc
-        if (
-            not all(_nonnegative_integer(value) for value in stored_selections)
-            or stored_selections != history
-        ):
+        if _legacy_selections(stored) != history:
             msg = (
                 "Legacy history does not match the complete ordered action log"
             )
@@ -97,6 +116,7 @@ def convert_legacy_episode_log(
         steps.append(len(history))
         if action == 0:
             del active[idx]
+            completed.add(idx)
         else:
             history.append(int(action) - 1)
     if active:

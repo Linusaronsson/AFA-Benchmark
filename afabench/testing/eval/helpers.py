@@ -16,30 +16,34 @@ from afabench.evaluation.eval import process_batch
 from afabench.evaluation.history import reconstruct_selection_history
 
 
+def _row_at_selection_history(
+    df: pd.DataFrame, selections: Sequence[int]
+) -> pd.Series:
+    histories = reconstruct_selection_history(df)
+    expected = list(selections)
+    rows = df[histories.apply(lambda history: history == expected)]
+    assert len(rows) == 1, (
+        f"Expected one row with selection history {expected}, got:\n{rows}"
+    )
+    return rows.iloc[0]
+
+
 def assert_where_selections_there_cost(
     df: pd.DataFrame, selections: Sequence[int], cost: float
 ) -> None:
     """Assert the cost at the specified pre-action selection history."""
-    histories = reconstruct_selection_history(df)
-    rows = df[histories.apply(lambda history: history == list(selections))]
-    assert len(rows) == 1, (
-        f"While evaluating dataframe \n{df}\n, expected exactly one row to contain prev_selections_performed={selections}, instead got \n{rows}\n"
+    assert (
+        _row_at_selection_history(df, selections)["accumulated_cost"] == cost
     )
-    row = rows.iloc[0]
-    assert row["accumulated_cost"] == cost
 
 
 def assert_where_selections_there_action(
     df: pd.DataFrame, selections: Sequence[int], action: int
 ) -> None:
     """Assert the action at the specified pre-action selection history."""
-    histories = reconstruct_selection_history(df)
-    rows = df[histories.apply(lambda history: history == list(selections))]
-    assert len(rows) == 1, (
-        f"While evaluating dataframe \n{df}\n, expected exactly one row to contain prev_selections_performed={selections}, instead got \n{rows}\n"
+    assert (
+        _row_at_selection_history(df, selections)["action_performed"] == action
     )
-    row = rows.iloc[0]
-    assert row["action_performed"] == action
 
 
 def get_deterministic_afa_action_fn(actions: Sequence[int]) -> AFAActionFn:
