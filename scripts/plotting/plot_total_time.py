@@ -14,8 +14,8 @@ from typing import cast
 
 import hydra
 import numpy as np
+import pandas as pd
 import plotnine as p9
-import polars as pl
 from omegaconf import OmegaConf
 from plotnine import (
     aes,
@@ -35,7 +35,7 @@ from afabench.plotting.config import PlottingDisplayConfig, PlotTotalTimeConfig
 PLOT_FONT_SIZE = 12
 
 
-def get_mock_df() -> pl.DataFrame:
+def get_mock_df() -> pd.DataFrame:
     """Generate mock dataframe for testing."""
     methods = ["jafa", "odin"]
     datasets = ["cube", "cube_nm"]
@@ -44,7 +44,7 @@ def get_mock_df() -> pl.DataFrame:
     rows = [(m, d, s) for m in methods for d in datasets for s in seeds]
 
     rng = np.random.default_rng(42)
-    df = pl.DataFrame(
+    df = pd.DataFrame(
         {
             "afa_method": [r[0] for r in rows],
             "dataset": [r[1] for r in rows],
@@ -57,29 +57,35 @@ def get_mock_df() -> pl.DataFrame:
     return df
 
 
-def read_parquet_safe(path: Path) -> pl.DataFrame:
+def read_parquet_safe(path: Path) -> pd.DataFrame:
     """Read CSV file with appropriate data types."""
-    df = pl.read_parquet(
+    df = pd.read_parquet(
         path,
-        schema={
-            "afa_method": pl.String,
-            "dataset": pl.String,
-            "time_pretrain": pl.Float64,
-            "time_train": pl.Float64,
-            "time_eval": pl.Float64,
-        },
+        columns=[
+            "afa_method",
+            "dataset",
+            "time_pretrain",
+            "time_train",
+            "time_eval",
+        ],
+    ).astype(
+        {
+            "afa_method": "string",
+            "dataset": "string",
+            "time_pretrain": "float64",
+            "time_train": "float64",
+            "time_eval": "float64",
+        }
     )
 
     # Treat null times as 0
-    df = df.select(
-        "afa_method",
-        "dataset",
-        pl.col("time_pretrain").fill_null(0).alias("pretrain"),
-        pl.col("time_train").fill_null(0).alias("train"),
-        pl.col("time_eval").fill_null(0).alias("eval"),
-    )
-
-    return df
+    return df.rename(
+        columns={
+            "time_pretrain": "pretrain",
+            "time_train": "train",
+            "time_eval": "eval",
+        }
+    ).fillna({"pretrain": 0, "train": 0, "eval": 0})
 
 
 def common_plot_operations(
@@ -109,7 +115,7 @@ def common_plot_operations(
     )
 
 
-def filter_common_datasets(df: pl.DataFrame) -> pl.DataFrame:
+def filter_common_datasets(df: pd.DataFrame) -> pd.DataFrame:
     """
     Filter dataframe to only include datasets present in all methods.
 
@@ -117,32 +123,24 @@ def filter_common_datasets(df: pl.DataFrame) -> pl.DataFrame:
     a subset of datasets won't be penalized by missing data from larger datasets.
     """
     # Get the set of datasets for each method
-    datasets_per_method = df.group_by("afa_method").agg(
-        pl.col("dataset").unique().sort()
-    )
-
-    # Convert to sets and find intersection
     method_dataset_sets = [
-        set(row["dataset"])
-        for row in datasets_per_method.iter_rows(named=True)
+        set(datasets) for _, datasets in df.groupby("afa_method")["dataset"]
     ]
 
     # Find datasets that appear in all methods
     common_datasets = set.intersection(*method_dataset_sets)
 
     # Filter the dataframe to only include common datasets
-    return df.filter(pl.col("dataset").is_in(list(common_datasets)))
+    return df.loc[df["dataset"].isin(list(common_datasets))]
 
 
 def get_plots(
-    df: pl.DataFrame, plotting_config: PlottingDisplayConfig
+    df: pd.DataFrame, plotting_config: PlottingDisplayConfig
 ) -> tuple[p9.ggplot, p9.ggplot]:
     # Apply name transforms
-    df = df.with_columns(
-        dataset=pl.col("dataset").replace(
-            plotting_config.dataset_name_mapping
-        ),
-        afa_method=pl.col("afa_method").replace(
+    df = df.assign(
+        dataset=df["dataset"].replace(plotting_config.dataset_name_mapping),
+        afa_method=df["afa_method"].replace(
             plotting_config.method_name_mapping
         ),
     )
@@ -160,24 +158,23 @@ def get_plots(
     method_order.reverse()
 
     # Filter to only mapped methods present in the data.
-    available_methods = set(df["afa_method"].unique().to_list())
+    available_methods = set(df["afa_method"].unique().tolist())
     method_order_filtered = [m for m in method_order if m in available_methods]
     # Include methods that are present in data but not in METHOD_NAME_MAPPING.
-    # This avoids enum-cast failures when new/experimental methods appear.
+    # This keeps new/experimental methods from becoming nulls in the cast.
     unknown_methods = sorted(available_methods - set(method_order_filtered))
     method_order_filtered.extend(unknown_methods)
 
-    # Cast to Enum with the correct order
-    df_common = df_common.with_columns(
-        afa_method=pl.col("afa_method").cast(pl.Enum(method_order_filtered))
-    )
-    df = df.with_columns(
-        afa_method=pl.col("afa_method").cast(pl.Enum(method_order_filtered))
-    )
+    # Cast to categorical with the correct order
+    method_dtype = pd.CategoricalDtype(method_order_filtered)
+    df_common = df_common.astype({"afa_method": method_dtype})
+    df = df.astype({"afa_method": method_dtype})
 
     # One plot averaged over datasets (using only common datasets)
     averaged_plot = ggplot(
-        df_common.group_by(["afa_method", "stage"]).mean()
+        df_common.groupby(["afa_method", "stage"], observed=True)["time"]
+        .mean()
+        .reset_index()
     ) + geom_bar(
         aes(x="afa_method", y="time", fill="stage"),
         stat="identity",
@@ -196,18 +193,17 @@ def get_plots(
     return averaged_plot, dataset_plot
 
 
-def unpivot(df: pl.DataFrame) -> pl.DataFrame:
-    df_long = df.unpivot(
-        on=["pretrain", "train", "eval"],
-        index=["afa_method", "dataset"],
-        variable_name="stage",
+def unpivot(df: pd.DataFrame) -> pd.DataFrame:
+    df_long = df.melt(
+        id_vars=["afa_method", "dataset"],
+        value_vars=["pretrain", "train", "eval"],
+        var_name="stage",
         value_name="time",
     )
     # Convert stage to categorical with correct order for stacking
     # This ensures bars are stacked as: eval (bottom), train, pretrain (top)
     stage_order = ["eval", "train", "pretrain"]
-    df_long = df_long.with_columns(pl.col("stage").cast(pl.Enum(stage_order)))
-    return df_long
+    return df_long.astype({"stage": pd.CategoricalDtype(stage_order)})
 
 
 @hydra.main(

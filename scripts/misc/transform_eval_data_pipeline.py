@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, cast
 if TYPE_CHECKING:
     from collections.abc import Sized
 
-import polars as pl
+import pandas as pd
 
 
 def parse_nullable(s: str) -> str | None:
@@ -58,45 +58,35 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    df = pl.read_parquet(args.input_path).with_columns(
-        action_performed=pl.col("action_performed").cast(
-            pl.UInt64, strict=False
-        ),
-        builtin_predicted_class=pl.col("builtin_predicted_class").cast(
-            pl.UInt64, strict=False
-        ),
-        external_predicted_class=pl.col("external_predicted_class").cast(
-            pl.UInt64, strict=False
-        ),
-        true_class=pl.col("true_class").cast(pl.UInt64, strict=False),
-        accumulated_cost=pl.col("accumulated_cost").cast(
-            pl.Float64, strict=False
-        ),
-        idx=pl.col("idx").cast(pl.UInt64, strict=False),
-        forced_stop=pl.col("forced_stop").cast(pl.Boolean, strict=False),
-        eval_seed=pl.col("eval_seed").cast(pl.UInt64, strict=False),
-        eval_hard_budget=pl.col("eval_hard_budget").cast(
-            pl.Float64, strict=False
-        ),
+    df = pd.read_parquet(args.input_path).astype(
+        {
+            "action_performed": "UInt64",
+            "builtin_predicted_class": "UInt64",
+            "external_predicted_class": "UInt64",
+            "true_class": "UInt64",
+            "accumulated_cost": "Float64",
+            "idx": "UInt64",
+            "forced_stop": "boolean",
+            "eval_seed": "UInt64",
+            "eval_hard_budget": "Float64",
+        }
     )
 
     # Change prev_selections_performed (a history of selections) to instead just be the number of selections performed, which is the same as the time step
-    df = df.with_columns(
-        n_selections_performed=pl.col(
-            "prev_selections_performed"
-        ).map_elements(count_selections, return_dtype=pl.UInt64)
-    ).drop("prev_selections_performed")
+    df["n_selections_performed"] = (
+        df["prev_selections_performed"].map(count_selections).astype("UInt64")
+    )
+    df = df.drop(columns="prev_selections_performed")
 
     # Pivot long on classifier type
     df = df.rename(
-        {
+        columns={
             "builtin_predicted_class": "builtin",
             "external_predicted_class": "external",
         }
-    ).unpivot(
-        on=["builtin", "external"],
+    ).melt(
         # Index is everything else except stuff we don't care about for plotting
-        index=[
+        id_vars=[
             "action_performed",
             "true_class",
             "accumulated_cost",
@@ -105,28 +95,34 @@ def main() -> None:
             "eval_hard_budget",
             "n_selections_performed",
         ],
-        variable_name="classifier",
+        value_vars=["builtin", "external"],
+        var_name="classifier",
         value_name="predicted_class",
     )
 
     # Add some columns provided as args
-    df = df.with_columns(
-        afa_method=pl.lit(args.method, dtype=pl.String),
-        dataset=pl.lit(args.dataset, dtype=pl.String),
-        initializer=pl.lit(args.initializer, dtype=pl.String),
-        train_seed=pl.lit(parse_nullable(args.train_seed), dtype=pl.UInt64),
-        train_hard_budget=pl.lit(
-            parse_nullable(args.train_hard_budget), dtype=pl.Float64
+    metadata = {
+        "afa_method": (args.method, "string"),
+        "dataset": (args.dataset, "string"),
+        "initializer": (args.initializer, "string"),
+        "train_seed": (parse_nullable(args.train_seed), "UInt64"),
+        "train_hard_budget": (
+            parse_nullable(args.train_hard_budget),
+            "Float64",
         ),
-        train_soft_budget_param=pl.lit(
-            parse_nullable(args.train_soft_budget_param), dtype=pl.Float64
+        "train_soft_budget_param": (
+            parse_nullable(args.train_soft_budget_param),
+            "Float64",
         ),
-        eval_soft_budget_param=pl.lit(
-            parse_nullable(args.eval_soft_budget_param), dtype=pl.Float64
+        "eval_soft_budget_param": (
+            parse_nullable(args.eval_soft_budget_param),
+            "Float64",
         ),
-    )
+    }
+    for name, (value, dtype) in metadata.items():
+        df[name] = pd.Series(value, index=df.index, dtype=object).astype(dtype)
 
-    df.write_parquet(args.output_path)
+    df.to_parquet(args.output_path, index=False)
 
 
 if __name__ == "__main__":

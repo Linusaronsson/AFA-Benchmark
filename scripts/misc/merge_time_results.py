@@ -1,7 +1,7 @@
 import argparse
 from pathlib import Path
 
-import polars as pl
+import pandas as pd
 
 
 def _read_time(path: Path | None) -> float | None:
@@ -35,17 +35,16 @@ def main() -> None:
         "time_eval": _read_time(args.time_eval_path),
     }
 
-    # Write as a one-row Polars DataFrame in Parquet format
-    pl.DataFrame(
-        [row],
-        schema={
-            "afa_method": pl.String,
-            "dataset": pl.String,
-            "time_pretrain": pl.Float64,
-            "time_train": pl.Float64,
-            "time_eval": pl.Float64,
-        },
-    ).write_parquet(str(output_path))
+    # Write as a one-row DataFrame in Parquet format
+    pd.DataFrame([row]).astype(
+        {
+            "afa_method": "string",
+            "dataset": "string",
+            "time_pretrain": "Float64",
+            "time_train": "Float64",
+            "time_eval": "Float64",
+        }
+    ).to_parquet(output_path, index=False)
 
 
 if __name__ == "__main__":

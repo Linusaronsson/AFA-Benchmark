@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, cast, final
 
 import hydra
 import numpy as np
+import pandas as pd
 import plotnine as p9
-import polars as pl
 from omegaconf import OmegaConf
 from plotnine import (
     aes,
@@ -86,7 +86,7 @@ def get_dataset_name_mapping_including_metric(
     }
 
 
-def create_dummy_data() -> pl.DataFrame:  # noqa: C901
+def create_dummy_data() -> pd.DataFrame:  # noqa: C901
     """Create minimal dummy data for testing both hard and soft budget plots."""
     rows = []
 
@@ -152,181 +152,149 @@ def create_dummy_data() -> pl.DataFrame:  # noqa: C901
                             }
                         )
 
-    return pl.DataFrame(
-        rows,
-        schema={
-            "action_performed": pl.UInt64,
-            "true_class": pl.UInt64,
-            "accumulated_cost": pl.Float64,
-            "idx": pl.UInt64,
-            "forced_stop": pl.Boolean,
-            "eval_seed": pl.UInt64,
-            "eval_hard_budget": pl.Float64,
-            "soft_budget_param": pl.Float64,
-            "selections_performed": pl.UInt64,
-            "afa_method": pl.String,
-            "dataset": pl.String,
-            "train_seed": pl.UInt64,
-            "train_hard_budget": pl.Float64,
-            "predicted_class": pl.UInt64,
-        },
+    return pd.DataFrame(rows).astype(
+        {
+            "action_performed": "UInt64",
+            "true_class": "UInt64",
+            "accumulated_cost": "Float64",
+            "idx": "UInt64",
+            "forced_stop": "boolean",
+            "eval_seed": "UInt64",
+            "eval_hard_budget": "Float64",
+            "soft_budget_param": "Float64",
+            "selections_performed": "UInt64",
+            "afa_method": "string",
+            "dataset": "string",
+            "train_seed": "UInt64",
+            "train_hard_budget": "Float64",
+            "predicted_class": "UInt64",
+        }
     )
 
 
-def get_metrics_at_stop_action(df: pl.DataFrame) -> pl.DataFrame:
-    return df.group_by(
-        "afa_method",
-        "dataset",
-        "train_seed",
-        "eval_seed",
-        "eval_hard_budget",
-        "soft_budget_param",
-    ).map_groups(
-        lambda group_df: pl.DataFrame(
-            {
-                "afa_method": [group_df["afa_method"].first()],
-                "dataset": [group_df["dataset"].first()],
-                "train_seed": [group_df["train_seed"].first()],
-                "eval_seed": [group_df["eval_seed"].first()],
-                "eval_hard_budget": [group_df["eval_hard_budget"].first()],
-                "soft_budget_param": [group_df["soft_budget_param"].first()],
-                "accuracy": [
-                    accuracy_score(
-                        group_df["true_class"], group_df["predicted_class"]
-                    )
-                ],
-                "f_score": [
-                    f1_score(
-                        group_df["true_class"],
-                        group_df["predicted_class"],
-                        average="macro",
-                    )
-                ],
-                "avg_accumulated_cost": [group_df["accumulated_cost"].mean()],
-            },
-            schema={
-                "afa_method": pl.String,
-                "dataset": pl.String,
-                "train_seed": pl.Int64,
-                "eval_seed": pl.Int64,
-                "eval_hard_budget": pl.Float64,
-                "soft_budget_param": pl.Float64,
-                "accuracy": pl.Float64,
-                "f_score": pl.Float64,
-                "avg_accumulated_cost": pl.Float64,
-            },
-        )
+def get_classification_metrics(group_df: pd.DataFrame) -> pd.Series:
+    true_class = group_df["true_class"].to_numpy(dtype=np.int64)
+    predicted_class = group_df["predicted_class"].to_numpy(dtype=np.int64)
+    return pd.Series(
+        {
+            "accuracy": accuracy_score(true_class, predicted_class),
+            "f_score": f1_score(true_class, predicted_class, average="macro"),
+        }
     )
 
 
-def get_metrics_at_every_action(df: pl.DataFrame) -> pl.DataFrame:
-    return df.group_by(
-        "afa_method",
-        "dataset",
-        "train_seed",
-        "eval_seed",
-        "eval_hard_budget",
-        "soft_budget_param",
-        "n_selections_performed",
-    ).map_groups(
-        lambda group_df: pl.DataFrame(
-            {
-                "afa_method": [group_df["afa_method"].first()],
-                "dataset": [group_df["dataset"].first()],
-                "train_seed": [group_df["train_seed"].first()],
-                "eval_seed": [group_df["eval_seed"].first()],
-                "eval_hard_budget": [group_df["eval_hard_budget"].first()],
-                "soft_budget_param": [group_df["soft_budget_param"].first()],
-                "n_selections_performed": [
-                    group_df["n_selections_performed"].first()
-                ],
-                "accuracy": [
-                    accuracy_score(
-                        group_df["true_class"], group_df["predicted_class"]
-                    )
-                ],
-                "f_score": [
-                    f1_score(
-                        group_df["true_class"],
-                        group_df["predicted_class"],
-                        average="macro",
-                    )
-                ],
-            },
-            schema={
-                "afa_method": pl.String,
-                "dataset": pl.String,
-                "train_seed": pl.Int64,
-                "eval_seed": pl.Int64,
-                "eval_hard_budget": pl.Float64,
-                "soft_budget_param": pl.Float64,
-                "n_selections_performed": pl.UInt64,
-                "accuracy": pl.Float64,
-                "f_score": pl.Float64,
-            },
-        )
+def get_metrics_at_stop_action(df: pd.DataFrame) -> pd.DataFrame:
+    grouped = df.groupby(
+        [
+            "afa_method",
+            "dataset",
+            "train_seed",
+            "eval_seed",
+            "eval_hard_budget",
+            "soft_budget_param",
+        ],
+        dropna=False,
+    )
+    metrics = grouped[["true_class", "predicted_class"]].apply(
+        get_classification_metrics
+    )
+    metrics["avg_accumulated_cost"] = grouped["accumulated_cost"].mean()
+    return metrics.reset_index()
+
+
+def get_metrics_at_every_action(df: pd.DataFrame) -> pd.DataFrame:
+    return (
+        df.groupby(
+            [
+                "afa_method",
+                "dataset",
+                "train_seed",
+                "eval_seed",
+                "eval_hard_budget",
+                "soft_budget_param",
+                "n_selections_performed",
+            ],
+            dropna=False,
+        )[["true_class", "predicted_class"]]
+        .apply(get_classification_metrics)
+        .reset_index()
     )
 
 
-def read_parquet(input_csv_path: Path) -> pl.DataFrame:
-    df = pl.read_parquet(input_csv_path)
+def cast_column(series: pd.Series, dtype: str) -> pd.Series:
+    """Cast a column, turning values that cannot be cast into nulls."""
+    if dtype in {"string", "boolean"}:
+        return series.astype(dtype)
+    return cast("pd.Series", pd.to_numeric(series, errors="coerce")).astype(
+        dtype
+    )
+
+
+def read_parquet(input_csv_path: Path) -> pd.DataFrame:
+    df = pd.read_parquet(input_csv_path, dtype_backend="numpy_nullable")
     dtypes = {
-        "action_performed": pl.UInt64,
-        "true_class": pl.UInt64,
-        "accumulated_cost": pl.Float64,
-        "forced_stop": pl.Boolean,
-        "eval_seed": pl.UInt64,
-        "eval_hard_budget": pl.Float64,
-        "n_selections_performed": pl.UInt64,
-        "predicted_class": pl.UInt64,
-        "afa_method": pl.String,
-        "dataset": pl.String,
-        "train_seed": pl.UInt64,
-        "train_hard_budget": pl.Float64,
-        "train_soft_budget_param": pl.Float64,
-        "eval_soft_budget_param": pl.Float64,
+        "action_performed": "UInt64",
+        "true_class": "UInt64",
+        "accumulated_cost": "Float64",
+        "forced_stop": "boolean",
+        "eval_seed": "UInt64",
+        "eval_hard_budget": "Float64",
+        "n_selections_performed": "UInt64",
+        "predicted_class": "UInt64",
+        "afa_method": "string",
+        "dataset": "string",
+        "train_seed": "UInt64",
+        "train_hard_budget": "Float64",
+        "train_soft_budget_param": "Float64",
+        "eval_soft_budget_param": "Float64",
     }
-    casts = [
-        pl.col(name).cast(dtype, strict=False)
-        for name, dtype in dtypes.items()
-        if name in df.columns
-    ]
-    if casts:
-        df = df.with_columns(casts)
+    for name, dtype in dtypes.items():
+        if name in df.columns:
+            df[name] = cast_column(df.loc[:, name], dtype)
     return df
 
 
-def get_variance_of_metrics_and_cost(df: pl.DataFrame) -> pl.DataFrame:
-    df = df.group_by(
-        "afa_method", "dataset", "eval_hard_budget", "soft_budget_param"
-    ).agg(
-        mean_accuracy=pl.col("accuracy").mean(),
-        std_accuracy=pl.col("accuracy").std(),
-        mean_f_score=pl.col("f_score").mean(),
-        std_f_score=pl.col("f_score").std(),
-        mean_avg_accumulated_cost=pl.col("avg_accumulated_cost").mean(),
-        std_avg_accumulated_cost=pl.col("avg_accumulated_cost").std(),
+def get_variance_of_metrics_and_cost(df: pd.DataFrame) -> pd.DataFrame:
+    return (
+        df.groupby(
+            ["afa_method", "dataset", "eval_hard_budget", "soft_budget_param"],
+            dropna=False,
+        )
+        .agg(
+            mean_accuracy=("accuracy", "mean"),
+            std_accuracy=("accuracy", "std"),
+            mean_f_score=("f_score", "mean"),
+            std_f_score=("f_score", "std"),
+            mean_avg_accumulated_cost=("avg_accumulated_cost", "mean"),
+            std_avg_accumulated_cost=("avg_accumulated_cost", "std"),
+        )
+        .reset_index()
     )
-    return df
 
 
-def get_variance_of_metrics(df: pl.DataFrame) -> pl.DataFrame:
-    df = df.group_by(
-        "afa_method",
-        "dataset",
-        "eval_hard_budget",
-        "soft_budget_param",
-        "n_selections_performed",
-    ).agg(
-        mean_accuracy=pl.col("accuracy").mean(),
-        std_accuracy=pl.col("accuracy").std(),
-        mean_f_score=pl.col("f_score").mean(),
-        std_f_score=pl.col("f_score").std(),
+def get_variance_of_metrics(df: pd.DataFrame) -> pd.DataFrame:
+    return (
+        df.groupby(
+            [
+                "afa_method",
+                "dataset",
+                "eval_hard_budget",
+                "soft_budget_param",
+                "n_selections_performed",
+            ],
+            dropna=False,
+        )
+        .agg(
+            mean_accuracy=("accuracy", "mean"),
+            std_accuracy=("accuracy", "std"),
+            mean_f_score=("f_score", "mean"),
+            std_f_score=("f_score", "std"),
+        )
+        .reset_index()
     )
-    return df
 
 
-def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
+def apply_exclusions(df: pd.DataFrame) -> pd.DataFrame:
     """
     Apply exclusion mappings to filter out methods under specific conditions.
 
@@ -352,22 +320,20 @@ def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
     """
     # Get unique combinations of method and dataset in the input
     method_dataset_pairs = (
-        df.select(["afa_method", "dataset"]).unique().to_dicts()
+        df[["afa_method", "dataset"]]
+        .drop_duplicates()
+        .itertuples(index=False, name=None)
     )
 
     # Check each (method, dataset) pair and filter if needed
-    for pair in method_dataset_pairs:
-        method = pair["afa_method"]
-        dataset = pair["dataset"]
+    for method, dataset in method_dataset_pairs:
         key = (method, dataset)
 
         # Check if this method-dataset pair has exclusion rules
         if key in EXCLUSION_MAPPING:
             # Get the set of methods present for this dataset
             methods_in_dataset = frozenset(
-                df.filter(pl.col("dataset") == dataset)["afa_method"]
-                .unique()
-                .to_list()
+                df.loc[df["dataset"] == dataset, "afa_method"].unique()
             )
 
             # Get the allowed method combinations for this exclusion rule
@@ -375,18 +341,18 @@ def apply_exclusions(df: pl.DataFrame) -> pl.DataFrame:
 
             # Only exclude if methods_in_dataset doesn't match any allowed combo
             if methods_in_dataset not in allowed_combinations:
-                df = df.filter(
+                df = df.loc[
                     ~(
-                        (pl.col("afa_method") == method)
-                        & (pl.col("dataset") == dataset)
+                        (df["afa_method"] == method)
+                        & (df["dataset"] == dataset)
                     )
-                )
+                ]
 
     return df
 
 
 def get_plot(
-    df: pl.DataFrame,
+    df: pd.DataFrame,
     x_col: str,
     x_label: str,
     plotting_config: PlottingDisplayConfig,
@@ -417,15 +383,26 @@ def get_plot(
         get_dataset_name_mapping_including_metric(plotting_config)
     )
 
+    # plotnine cannot handle the pd.NA nulls of pandas' nullable numeric
+    # dtypes, so plot with NaN-backed floats instead
+    df = df.astype(
+        {
+            column: "float64"
+            for column, dtype in df.dtypes.items()
+            if pd.api.types.is_extension_array_dtype(dtype)
+            and pd.api.types.is_numeric_dtype(dtype)
+        }
+    )
+
     # Apply name transforms
-    processed_df = df.with_columns(
-        dataset=pl.col("dataset").replace(
-            dataset_name_mapping_including_metric
+    processed_df = df.assign(
+        dataset=df["dataset"].replace(dataset_name_mapping_including_metric),
+        policy_type=np.where(
+            df["afa_method"].isin(list(NON_MYOPIC_METHODS)),
+            "Non-myopic",
+            "Myopic",
         ),
-        policy_type=pl.when(pl.col("afa_method").is_in(NON_MYOPIC_METHODS))
-        .then(pl.lit("Non-myopic"))
-        .otherwise(pl.lit("Myopic")),
-        afa_method=pl.col("afa_method").replace(
+        afa_method=df["afa_method"].replace(
             plotting_config.method_name_mapping
         ),
     )
@@ -435,7 +412,7 @@ def get_plot(
         method_order = list(plotting_config.method_name_mapping.keys())
 
     # Get display names in order, filtering to only methods in the data
-    available_methods = processed_df["afa_method"].unique().to_list()
+    available_methods = processed_df["afa_method"].unique().tolist()
     ordered_display_names = [
         plotting_config.method_name_mapping.get(orig, orig)
         for orig in method_order
@@ -519,7 +496,7 @@ def get_plot(
 
 
 def get_normal_hard_budget_plot(
-    df: pl.DataFrame,
+    df: pd.DataFrame,
     plotting_config: PlottingDisplayConfig,
     method_order: list[str] | None = None,
     figure_width: float | None = None,
@@ -538,7 +515,7 @@ def get_normal_hard_budget_plot(
 
 
 def get_traj_hard_budget_plot(
-    df: pl.DataFrame,
+    df: pd.DataFrame,
     plotting_config: PlottingDisplayConfig,
     method_order: list[str] | None = None,
     figure_width: float | None = None,
@@ -557,7 +534,7 @@ def get_traj_hard_budget_plot(
 
 
 def get_soft_budget_plot(
-    df: pl.DataFrame,
+    df: pd.DataFrame,
     mode: str,
     plotting_config: PlottingDisplayConfig,
     method_order: list[str] | None = None,
@@ -618,47 +595,41 @@ def calculate_figure_dimensions(
 
 
 def add_metric_column(
-    df: pl.DataFrame, plotting_config: PlottingDisplayConfig
-) -> pl.DataFrame:
-    return df.with_columns(
-        mean_metric=pl.when(
-            pl.col("dataset").is_in(plotting_config.datasets_with_f_score)
-        )
-        .then(pl.col("mean_f_score"))
-        .otherwise(pl.col("mean_accuracy")),
-        std_metric=pl.when(
-            pl.col("dataset").is_in(plotting_config.datasets_with_f_score)
-        )
-        .then(pl.col("std_f_score"))
-        .otherwise(pl.col("std_accuracy")),
+    df: pd.DataFrame, plotting_config: PlottingDisplayConfig
+) -> pd.DataFrame:
+    uses_f_score = df["dataset"].isin(plotting_config.datasets_with_f_score)
+    return df.assign(
+        mean_metric=df["mean_f_score"].where(
+            uses_f_score, df["mean_accuracy"]
+        ),
+        std_metric=df["std_f_score"].where(uses_f_score, df["std_accuracy"]),
     )
 
 
-def assert_only_one_soft_budget_param_type(df: pl.DataFrame) -> pl.DataFrame:
+def assert_only_one_soft_budget_param_type(df: pd.DataFrame) -> pd.DataFrame:
     assert (
-        df["train_soft_budget_param"].is_null()
-        | df["eval_soft_budget_param"].is_null()
+        df["train_soft_budget_param"].isna()
+        | df["eval_soft_budget_param"].isna()
     ).all(), (
         "Both train_soft_budget_param and eval_soft_budget_param cannot be set. Choose one."
     )
-    df = df.with_columns(
-        soft_budget_param=pl.coalesce(
-            "train_soft_budget_param", "eval_soft_budget_param"
+    return df.assign(
+        soft_budget_param=df["train_soft_budget_param"].fillna(
+            df["eval_soft_budget_param"]
         )
-    ).drop(["train_soft_budget_param", "eval_soft_budget_param"])
-    return df
+    ).drop(columns=["train_soft_budget_param", "eval_soft_budget_param"])
 
 
 def process_df_only_stop_action_and_valid_prediction(
-    df: pl.DataFrame,
+    df: pd.DataFrame,
     plotting_config: PlottingDisplayConfig,
-) -> pl.DataFrame | None:
-    df_only_stop_action = df.filter(
-        (pl.col("action_performed") == 0)
-        & pl.col("predicted_class").is_not_null()
-    )
+) -> pd.DataFrame | None:
+    df_only_stop_action = df.loc[
+        (df["action_performed"] == 0).fillna(False)
+        & df["predicted_class"].notna()
+    ]
 
-    if df_only_stop_action.is_empty():
+    if df_only_stop_action.empty:
         return None
 
     metric_df_only_stop_action = get_metrics_at_stop_action(
@@ -676,35 +647,33 @@ def process_df_only_stop_action_and_valid_prediction(
     )
 
     # Add "low" and "high" versions of metrics to enable plotting of ranges
-    var_metric_df_only_stop_action = (
-        var_metric_df_only_stop_action.with_columns(
-            low_metric=pl.col("mean_metric") - pl.col("std_metric"),
-            high_metric=pl.col("mean_metric") + pl.col("std_metric"),
-            low_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
-            - pl.col("std_avg_accumulated_cost"),
-            high_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
-            + pl.col("std_avg_accumulated_cost"),
-        )
+    var_metric_df_only_stop_action = var_metric_df_only_stop_action.assign(
+        low_metric=lambda d: d["mean_metric"] - d["std_metric"],
+        high_metric=lambda d: d["mean_metric"] + d["std_metric"],
+        low_avg_accumulated_cost=lambda d: (
+            d["mean_avg_accumulated_cost"] - d["std_avg_accumulated_cost"]
+        ),
+        high_avg_accumulated_cost=lambda d: (
+            d["mean_avg_accumulated_cost"] + d["std_avg_accumulated_cost"]
+        ),
     )
 
     return var_metric_df_only_stop_action
 
 
-def filter_only_largest_budget(df: pl.DataFrame) -> pl.DataFrame:
+def filter_only_largest_budget(df: pd.DataFrame) -> pd.DataFrame:
     """For each dataset, only keep the largest evaluation budget."""
-    return df.filter(
-        pl.col("eval_hard_budget")
-        == pl.col("eval_hard_budget").max().over("dataset")
-    )
+    largest_budget = df.groupby("dataset")["eval_hard_budget"].transform("max")
+    return df.loc[(df["eval_hard_budget"] == largest_budget).fillna(False)]
 
 
 def process_df_every_action(
-    df: pl.DataFrame, plotting_config: PlottingDisplayConfig
-) -> pl.DataFrame | None:
+    df: pd.DataFrame, plotting_config: PlottingDisplayConfig
+) -> pd.DataFrame | None:
     # Just like in process_df_only_stop_action, filter out null predictions
-    df = df.filter(pl.col("predicted_class").is_not_null())
+    df = df.loc[df["predicted_class"].notna()]
 
-    if df.is_empty():
+    if df.empty:
         return None
 
     # When considering performance up to some budget, we only look at the case when the largest budget is used
@@ -723,9 +692,9 @@ def process_df_every_action(
     )
 
     # Add "low" and "high" versions of metrics to enable plotting of ranges
-    var_metric_df_every_action = var_metric_df_every_action.with_columns(
-        low_metric=pl.col("mean_metric") - pl.col("std_metric"),
-        high_metric=pl.col("mean_metric") + pl.col("std_metric"),
+    var_metric_df_every_action = var_metric_df_every_action.assign(
+        low_metric=lambda d: d["mean_metric"] - d["std_metric"],
+        high_metric=lambda d: d["mean_metric"] + d["std_metric"],
     )
 
     return var_metric_df_every_action
@@ -738,9 +707,9 @@ class EvaluationPlotter:
     input_path: Path
     output_folder: Path
     plotting_config: PlottingDisplayConfig
-    df: pl.DataFrame
-    df_stop_action: pl.DataFrame | None
-    df_traj: pl.DataFrame | None
+    df: pd.DataFrame
+    df_stop_action: pd.DataFrame | None
+    df_traj: pd.DataFrame | None
 
     def __init__(
         self,
@@ -761,7 +730,7 @@ class EvaluationPlotter:
         self.output_folder = output_folder
         self.plotting_config = plotting_config
         self.formats = formats
-        self.df = pl.DataFrame()
+        self.df = pd.DataFrame()
         self.df_stop_action = None
         self.df_traj = None
 
@@ -775,77 +744,13 @@ class EvaluationPlotter:
 
     def prepare_stop_action_data(self) -> None:
         """Process dataframe for stop action analysis."""
-        df_only_stop_action = self.df.filter(
-            (pl.col("action_performed") == 0)
-            & pl.col("predicted_class").is_not_null()
+        self.df_stop_action = process_df_only_stop_action_and_valid_prediction(
+            self.df, self.plotting_config
         )
-
-        if df_only_stop_action.is_empty():
-            self.df_stop_action = None
-            return
-
-        metric_df_only_stop_action = get_metrics_at_stop_action(
-            df_only_stop_action
-        )
-
-        # Variance of metrics across seeds
-        var_metric_df_only_stop_action = get_variance_of_metrics_and_cost(
-            metric_df_only_stop_action
-        )
-
-        # Datasets use different metrics
-        var_metric_df_only_stop_action = add_metric_column(
-            var_metric_df_only_stop_action, self.plotting_config
-        )
-
-        # Add "low" and "high" versions of metrics
-        var_metric_df_only_stop_action = (
-            var_metric_df_only_stop_action.with_columns(
-                low_metric=pl.col("mean_metric") - pl.col("std_metric"),
-                high_metric=pl.col("mean_metric") + pl.col("std_metric"),
-                low_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
-                - pl.col("std_avg_accumulated_cost"),
-                high_avg_accumulated_cost=pl.col("mean_avg_accumulated_cost")
-                + pl.col("std_avg_accumulated_cost"),
-            )
-        )
-
-        self.df_stop_action = var_metric_df_only_stop_action
 
     def prepare_trajectory_data(self) -> None:
         """Process dataframe for trajectory analysis."""
-        # Filter out null predictions
-        df_filtered = self.df.filter(pl.col("predicted_class").is_not_null())
-
-        if df_filtered.is_empty():
-            self.df_traj = None
-            return
-
-        # Only look at largest budget per dataset
-        df_filtered = df_filtered.filter(
-            pl.col("eval_hard_budget")
-            == pl.col("eval_hard_budget").max().over("dataset")
-        )
-
-        metric_df_every_action = get_metrics_at_every_action(df_filtered)
-
-        # Variance of metrics across seeds
-        var_metric_df_every_action = get_variance_of_metrics(
-            metric_df_every_action
-        )
-
-        # Datasets use different metrics
-        var_metric_df_every_action = add_metric_column(
-            var_metric_df_every_action, self.plotting_config
-        )
-
-        # Add "low" and "high" versions of metrics
-        var_metric_df_every_action = var_metric_df_every_action.with_columns(
-            low_metric=pl.col("mean_metric") - pl.col("std_metric"),
-            high_metric=pl.col("mean_metric") + pl.col("std_metric"),
-        )
-
-        self.df_traj = var_metric_df_every_action
+        self.df_traj = process_df_every_action(self.df, self.plotting_config)
 
     def load_and_process(self) -> None:
         """Load input file and prepare all data for plotting."""
@@ -863,19 +768,21 @@ class EvaluationPlotter:
         if self.df_stop_action is None:
             return
 
-        df_stop_action_filtered = self.df_stop_action.filter(
-            pl.col("dataset").is_in(dataset_set)
-        )
+        df_stop_action_filtered = self.df_stop_action.loc[
+            self.df_stop_action["dataset"].isin(list(dataset_set))
+        ]
 
-        df_stop_action_hard_budget = df_stop_action_filtered.filter(
-            pl.col("eval_hard_budget").is_null().not_()
-        )
+        df_stop_action_hard_budget = df_stop_action_filtered.loc[
+            df_stop_action_filtered["eval_hard_budget"].notna()
+        ]
         df_stop_action_hard_budget = apply_exclusions(
             df_stop_action_hard_budget
         )
-        if not df_stop_action_hard_budget.is_empty():
+        if not df_stop_action_hard_budget.empty:
             # Calculate figure dimensions based on number of unique datasets
-            num_datasets = df_stop_action_hard_budget["dataset"].n_unique()
+            num_datasets = df_stop_action_hard_budget.loc[
+                :, "dataset"
+            ].nunique()
             fig_width, fig_height = calculate_figure_dimensions(
                 num_datasets,
                 plot_width=self.plotting_config.plot_width,
@@ -893,15 +800,17 @@ class EvaluationPlotter:
                     width=fig_width,
                     height=fig_height,
                 )
-        df_stop_action_soft_budget = df_stop_action_filtered.filter(
-            pl.col("soft_budget_param").is_null().not_()
-        )
+        df_stop_action_soft_budget = df_stop_action_filtered.loc[
+            df_stop_action_filtered["soft_budget_param"].notna()
+        ]
         df_stop_action_soft_budget = apply_exclusions(
             df_stop_action_soft_budget
         )
-        if not df_stop_action_soft_budget.is_empty():
+        if not df_stop_action_soft_budget.empty:
             # Calculate figure dimensions based on number of unique datasets
-            num_datasets = df_stop_action_soft_budget["dataset"].n_unique()
+            num_datasets = df_stop_action_soft_budget.loc[
+                :, "dataset"
+            ].nunique()
             fig_width, fig_height = calculate_figure_dimensions(
                 num_datasets,
                 plot_width=self.plotting_config.plot_width,
@@ -942,16 +851,16 @@ class EvaluationPlotter:
         if self.df_traj is None:
             return
 
-        df_traj_filtered = self.df_traj.filter(
-            pl.col("dataset").is_in(dataset_set)
-        )
-        df_traj_hard_budget = df_traj_filtered.filter(
-            pl.col("eval_hard_budget").is_null().not_()
-        )
+        df_traj_filtered = self.df_traj.loc[
+            self.df_traj["dataset"].isin(list(dataset_set))
+        ]
+        df_traj_hard_budget = df_traj_filtered.loc[
+            df_traj_filtered["eval_hard_budget"].notna()
+        ]
         df_traj_hard_budget = apply_exclusions(df_traj_hard_budget)
-        if not df_traj_hard_budget.is_empty():
+        if not df_traj_hard_budget.empty:
             # Calculate figure dimensions based on number of unique datasets
-            num_datasets = df_traj_hard_budget["dataset"].n_unique()
+            num_datasets = df_traj_hard_budget.loc[:, "dataset"].nunique()
             fig_width, fig_height = calculate_figure_dimensions(
                 num_datasets,
                 plot_width=self.plotting_config.plot_width,

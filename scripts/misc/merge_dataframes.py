@@ -3,12 +3,12 @@ import argparse
 from collections import OrderedDict
 from pathlib import Path
 
-import polars as pl
 import pyarrow as pa
 import pyarrow.compute as pc
 import pyarrow.parquet as pq
 
-# WARNING: LLM generated, supposedly fixes OOM errors compared to normal pl.concat
+# WARNING: LLM generated, supposedly fixes OOM errors compared to
+# concatenating all inputs in memory
 
 
 def parse_args() -> argparse.Namespace:
@@ -72,7 +72,7 @@ def get_schema_union(parquet_files: list[str]) -> pa.Schema:
     return pa.schema([(k, t) for k, t in zip(names, types, strict=True)])
 
 
-def _process_file(  # noqa: C901, PLR0912
+def _process_file(
     path: str, full_schema: pa.Schema, writer: pq.ParquetWriter
 ) -> None:
     """
@@ -87,54 +87,22 @@ def _process_file(  # noqa: C901, PLR0912
         msg = f"Input file is empty: {path}"
         raise ValueError(msg)
 
-    dataframe = pl.read_parquet(path)
+    table = pq.read_table(path)
 
-    if dataframe.height == 0 or dataframe.width == 0:
+    if table.num_rows == 0 or table.num_columns == 0:
         msg = f"DataFrame in {path} is empty"
         raise ValueError(msg)
 
-    # Align to union schema
-    for name in full_schema.names:
-        if name not in dataframe.columns:
-            typ = full_schema.field(name).type
-            if is_any_string_type(typ):
-                pltype = pl.Utf8
-            elif pa.types.is_integer(typ):
-                pltype = pl.Int64
-            elif pa.types.is_floating(typ):
-                pltype = pl.Float64
-            else:
-                pltype = pl.Object
-            dataframe = dataframe.with_columns(
-                pl.lit(None, dtype=pltype).alias(name)
-            )
-        # Ensure column promoted if type ambiguous: cast to Utf8 if stringy
-        elif is_any_string_type(full_schema.field(name).type):
-            dataframe = dataframe.with_columns(
-                dataframe[name].cast(pl.Utf8).alias(name)
-            )
-    # Strict col order
-    dataframe = dataframe.select(full_schema.names)
-    # Ensure all string types are normalized to pa.string() before conversion
-    for name in full_schema.names:
-        if is_any_string_type(full_schema.field(name).type):
-            dataframe = dataframe.with_columns(
-                dataframe[name].cast(pl.Utf8).alias(name)
-            )
-    table = dataframe.to_arrow()
+    # Align to union schema, in strict column order: fill missing columns
+    # with nulls and cast columns that were promoted (to string) in the union
+    columns = []
+    for field in full_schema:
+        if field.name not in table.column_names:
+            columns.append(pa.nulls(table.num_rows, type=field.type))
+        else:
+            columns.append(pc.cast(table[field.name], field.type))
 
-    # Cast any large_string columns to pa.string() to match unified schema
-    cast_fields = []
-    for field in table.schema:
-        col = table[field.name]
-        if pa.types.is_large_string(field.type):
-            col = pc.cast(col, pa.string())
-        cast_fields.append(col)
-
-    table = pa.table(
-        {field.name: cast_fields[i] for i, field in enumerate(table.schema)}
-    )
-    writer.write_table(table)
+    writer.write_table(pa.table(columns, schema=full_schema))
 
 
 def main() -> None:
