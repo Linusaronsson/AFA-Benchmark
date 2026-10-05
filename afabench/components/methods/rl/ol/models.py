@@ -12,6 +12,7 @@ from afabench.components.methods.rl.ol.config import OLPQModuleConfig
 from afabench.core.types import (
     AFAClassifier,
     AFAPredictFn,
+    ClassifierOutputKind,
     FeatureMask,
     Features,
     Label,
@@ -412,3 +413,8 @@ class OLAFAClassifier(AFAClassifier):
     @override
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"

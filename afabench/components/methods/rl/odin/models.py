@@ -12,6 +12,7 @@ from afabench.components.methods.rl.common.utils import mask_data
 from afabench.core.types import (
     AFAClassifier,
     AFAPredictFn,
+    ClassifierOutputKind,
     FeatureMask,
     Features,
     Label,
@@ -766,3 +767,8 @@ class ODINAFAClassifier(AFAClassifier):
     @override
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"

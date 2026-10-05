@@ -11,6 +11,7 @@ from afabench.components.classifiers.models import (
 )
 from afabench.core.types import (
     AFAClassifier,
+    ClassifierOutputKind,
     FeatureMask,
     Label,
     Logits,
@@ -67,6 +68,11 @@ class RandomDummyAFAClassifier(AFAClassifier):
     def device(self) -> torch.device:
         return self._device
 
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "logits"
+
 
 @final
 class UniformDummyAFAClassifier(AFAClassifier):
@@ -116,6 +122,11 @@ class UniformDummyAFAClassifier(AFAClassifier):
     @override
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "logits"
 
 
 @final
@@ -175,6 +186,11 @@ class NNClassifier(AFAClassifier):
     @override
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "logits"
 
 
 @final
@@ -242,6 +258,11 @@ class WrappedMaskedMLPClassifier(AFAClassifier):
     @override
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"
 
     @override
     def to(self, device: torch.device) -> Self:
@@ -330,6 +351,11 @@ class WrappedMaskedViTClassifier(AFAClassifier):
     @override
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"
 
     @override
     def to(self, device: torch.device) -> Self:

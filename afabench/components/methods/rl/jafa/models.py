@@ -21,6 +21,7 @@ from afabench.components.methods.rl.jafa.custom_types import (
 from afabench.core.types import (
     AFAClassifier,
     AFAPredictFn,
+    ClassifierOutputKind,
     FeatureMask,
     Features,
     Label,
@@ -431,3 +432,8 @@ class JAFAAFAClassifier(AFAClassifier):
     @override
     def device(self) -> torch.device:
         return self._device
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"

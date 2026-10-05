@@ -3,7 +3,7 @@ import logging
 from collections.abc import Sequence
 from math import prod
 from pathlib import Path
-from typing import Protocol, Self, runtime_checkable
+from typing import Literal, Protocol, Self, runtime_checkable
 
 import torch
 from jaxtyping import Bool, Float, Integer
@@ -18,6 +18,11 @@ type SelectionMask = Bool[torch.Tensor, "*batch n_selections"]
 # We allow arbitrary labels
 type Label = Float[torch.Tensor, "*batch *label_shape"]
 type Logits = Float[torch.Tensor, "*batch *n_classes"]
+
+# Explicit output contract for AFAClassifier.__call__: "logits" means
+# unnormalized scores that still need a softmax; "probabilities" means
+# already-normalized class probabilities that must not be softmaxed again.
+type ClassifierOutputKind = Literal["logits", "probabilities"]
 
 
 # Outputs of AFA methods, representing which feature group to acquire next, or to stop acquiring features (0)
@@ -278,6 +283,18 @@ class AFAClassifier(Protocol):
     @property
     def device(self) -> torch.device:
         """Return the current device the method is on."""
+        ...
+
+    @property
+    def output_kind(self) -> ClassifierOutputKind:
+        """
+        Declare whether `__call__` returns logits or probabilities.
+
+        Callers that turn this output into a probability distribution
+        (e.g. for a KL divergence) must branch on this instead of
+        guessing from the values, since unnormalized positive scores or
+        negative logits can otherwise silently produce invalid results.
+        """
         ...
 
 

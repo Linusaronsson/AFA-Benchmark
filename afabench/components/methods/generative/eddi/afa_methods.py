@@ -17,6 +17,8 @@ from afabench.core.types import (
 )
 from afabench.core.utils import flatten_afa_input
 
+_SUPPORTED_CLASSIFIER_OUTPUT_KINDS = ("logits", "probabilities")
+
 
 def _flat_feature_shape(n_features: int) -> torch.Size:
     return torch.Size([n_features])
@@ -152,6 +154,28 @@ class EDDIAFAMethod(AFAMethod):
         probs = logits.sigmoid().view(-1, 1)
         return torch.cat([1 - probs, probs], dim=1)
 
+    def _external_classifier_probs(self, output: torch.Tensor) -> torch.Tensor:
+        """
+        Convert an external classifier's output to probabilities.
+
+        Follows `AFAClassifier.output_kind` explicitly instead of
+        guessing from the values, since EDDI uses the result in a KL
+        divergence where negative logits or unnormalized positive
+        scores silently produce invalid (NaN or meaningless) scores.
+        """
+        assert self.classifier is not None
+        output_kind = getattr(self.classifier, "output_kind", None)
+        if output_kind not in _SUPPORTED_CLASSIFIER_OUTPUT_KINDS:
+            msg = (
+                "External classifier for EDDI must declare "
+                "output_kind as 'logits' or 'probabilities', got "
+                f"{output_kind!r}."
+            )
+            raise ValueError(msg)
+        if output_kind == "logits":
+            return output.softmax(dim=-1)
+        return output
+
     @override
     def predict(
         self,
@@ -248,10 +272,12 @@ class EDDIAFAMethod(AFAMethod):
                 )
                 base_probs = probs_base.mean(dim=0)
             else:
-                base_probs = self.classifier(
-                    masked_features=masked_features,
-                    feature_mask=feature_mask,
-                    feature_shape=_flat_feature_shape(n_features),
+                base_probs = self._external_classifier_probs(
+                    self.classifier(
+                        masked_features=masked_features,
+                        feature_mask=feature_mask,
+                        feature_shape=_flat_feature_shape(n_features),
+                    )
                 )
         x_full = x_full.view(n_mc_samples, batch_size, -1)[:, :, :n_features]
         missing = ~feature_mask.bool()
@@ -324,10 +350,12 @@ class EDDIAFAMethod(AFAMethod):
             else:
                 x_masks_raw = x_masks[:, :n_features]
                 mask_tests_raw = mask_tests_rep[:, :n_features]
-                preds_flat = self.classifier(
-                    masked_features=x_masks_raw,
-                    feature_mask=mask_tests_raw,
-                    feature_shape=_flat_feature_shape(n_features),
+                preds_flat = self._external_classifier_probs(
+                    self.classifier(
+                        masked_features=x_masks_raw,
+                        feature_mask=mask_tests_raw,
+                        feature_shape=_flat_feature_shape(n_features),
+                    )
                 )
                 preds_all = preds_flat.view(
                     n_mc_samples, batch_size * n_sel, -1
