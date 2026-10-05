@@ -12,6 +12,9 @@ from afabench.components.methods.discriminative.common.datasets import (
 from afabench.components.methods.generative.eddi.datasets import (
     prepare_datasets as prepare_eddi_datasets,
 )
+from afabench.components.methods.rl.common.dataset_utils import (
+    DataModuleFromDatasets,
+)
 from afabench.core.types import AFADataset
 from afabench.datasets.datasets import CubeDataset
 from afabench.training.tensor_batches import (
@@ -61,7 +64,10 @@ def _assert_same_batches(
             assert torch.equal(actual_tensor, expected_tensor)
 
 
-def test_tensor_batch_dataset_matches_per_instance_collation() -> None:
+@pytest.mark.parametrize("num_workers", [0, 2])
+def test_tensor_batch_dataset_matches_per_instance_collation(
+    num_workers: int,
+) -> None:
     features = torch.arange(70, dtype=torch.float32).reshape(10, 7)
     labels = torch.arange(10)
     per_instance = DataLoader(
@@ -78,6 +84,7 @@ def test_tensor_batch_dataset_matches_per_instance_collation() -> None:
         drop_last=True,
         generator=torch.Generator().manual_seed(4),
         collate_fn=passthrough_batch,
+        num_workers=num_workers,
     )
 
     _assert_same_batches(
@@ -136,3 +143,66 @@ def test_prepared_loaders_match_per_instance_loaders(
     )
     # Validation keeps the incomplete final batch.
     assert [len(batch[0]) for batch in val_batches] == [3, 3, 1]
+
+
+@pytest.mark.parametrize("persistent_workers", [False, True])
+def test_classifier_datamodule_multiple_workers_across_epochs(
+    persistent_workers: bool,
+) -> None:
+    """The classifier-training data module works with num_workers > 1."""
+    n_train, n_val, n_features = 20, 13, 7
+    train_features = torch.arange(
+        n_train * n_features, dtype=torch.float32
+    ).reshape(n_train, n_features)
+    train_labels = torch.arange(n_train)
+    val_features = torch.arange(
+        n_val * n_features, dtype=torch.float32
+    ).reshape(n_val, n_features)
+    val_labels = torch.arange(n_val)
+
+    datamodule = DataModuleFromDatasets(
+        train_dataset=TensorBatchDataset(train_features, train_labels),
+        val_dataset=TensorBatchDataset(val_features, val_labels),
+        batch_size=4,
+        num_workers=2,
+        persistent_workers=persistent_workers,
+        collate_fn=passthrough_batch,
+    )
+    train_loader = datamodule.train_dataloader()
+    val_loader = datamodule.val_dataloader()
+
+    for _ in range(3):
+        seen_train_labels = []
+        for batch_features, batch_labels in train_loader:
+            # Feature/label pairing survives worker dispatch.
+            assert torch.equal(batch_features, train_features[batch_labels])
+            seen_train_labels.append(batch_labels)
+        # Every training instance is seen exactly once per epoch.
+        assert torch.equal(
+            torch.sort(torch.cat(seen_train_labels)).values, train_labels
+        )
+
+        seen_val_labels = []
+        for batch_features, batch_labels in val_loader:
+            assert torch.equal(batch_features, val_features[batch_labels])
+            seen_val_labels.append(batch_labels)
+        # Every validation instance is seen exactly once per epoch.
+        assert torch.equal(
+            torch.sort(torch.cat(seen_val_labels)).values, val_labels
+        )
+
+
+def test_classifier_datamodule_rejects_persistent_workers_without_workers() -> (
+    None
+):
+    """persistent_workers=True with num_workers=0 must fail clearly."""
+    datamodule = DataModuleFromDatasets(
+        train_dataset=TensorBatchDataset(torch.zeros(4, 2), torch.zeros(4)),
+        val_dataset=TensorBatchDataset(torch.zeros(4, 2), torch.zeros(4)),
+        num_workers=0,
+        persistent_workers=True,
+        collate_fn=passthrough_batch,
+    )
+
+    with pytest.raises(ValueError, match="persistent_workers"):
+        datamodule.train_dataloader()
