@@ -174,7 +174,7 @@ class AFAMethod(Protocol):
         Args:
             masked_features: The features with unobserved features masked out (set to zero).
             feature_mask: A boolean mask indicating which features have been observed.
-            selection_mask: A boolean mask indicating which selections have already been performed.
+            selection_mask: A boolean mask indicating which selections have already been performed. Note that a selection is generally not the same as a feature: when one selection can reveal multiple features (e.g. a grouped/context selection), `feature_mask` cannot stand in for `selection_mask`, so methods that support such grouped selections require `selection_mask` to be provided and should raise an explicit error if it is missing or has an incompatible shape.
             label: The true label, if available (may be None during inference). We include this possibility to support "cheating" methods for benchmarking purposes.
             feature_shape: The shape of the features excluding the batch dimension, if needed.
         """

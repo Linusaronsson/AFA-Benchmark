@@ -534,15 +534,29 @@ class GDFSAFAMethod(AFAMethod):
             x_masked = _append_flat_mask(masked_features, feature_mask)
             logits = self.selector(x_masked).flatten(1)
             if selection_mask is not None:
-                assert logits.shape == selection_mask.shape, (
-                    f"selection_mask shape {selection_mask.shape} incompatible with logits {logits.shape}"
-                )
+                if logits.shape != selection_mask.shape:
+                    msg = (
+                        f"selection_mask shape {selection_mask.shape} is "
+                        "incompatible with the selector's logits shape "
+                        f"{logits.shape}."
+                    )
+                    raise ValueError(msg)
                 logits = logits - 1e6 * selection_mask.float()
-            else:
-                assert logits.shape == feature_mask.shape, (
-                    f"feature_mask shape {feature_mask.shape} incompatible with logits {logits.shape}"
-                )
+            elif logits.shape == feature_mask.shape:
+                # Selections map 1:1 onto features (e.g. DirectUnmasker),
+                # so the feature mask doubles as the already-selected
+                # mask.
                 logits = logits - 1e6 * feature_mask
+            else:
+                msg = (
+                    "GDFS requires a selection_mask when selections do "
+                    "not correspond 1:1 to features (e.g. grouped "
+                    "selections such as the Context Unmasker on "
+                    "cube_nm): logits shape "
+                    f"{logits.shape} does not match feature_mask shape "
+                    f"{feature_mask.shape}."
+                )
+                raise ValueError(msg)
         else:
             logits = self.selector(masked_features)
             assert logits.dim() == 2, (
