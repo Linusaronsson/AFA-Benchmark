@@ -533,8 +533,6 @@ class GDFSAFAMethod(AFAMethod):
         if self.modality == "tabular":
             x_masked = _append_flat_mask(masked_features, feature_mask)
             logits = self.selector(x_masked).flatten(1)
-            # TODO: currently assume that if we use CubeNMUnmasker, then we
-            # have a non-None selection mask
             if selection_mask is not None:
                 assert logits.shape == selection_mask.shape, (
                     f"selection_mask shape {selection_mask.shape} incompatible with logits {logits.shape}"

@@ -83,7 +83,6 @@ class DataModuleFromDatasets(pl.LightningDataModule):
         persistent_workers: bool = False,
         collate_fn: Callable | None = None,  # pyright: ignore[reportMissingTypeArgument]
     ):
-        # TODO: does not work with num_workers > 1
         super().__init__()
         self.train_dataset = train_dataset
         self.val_dataset = val_dataset

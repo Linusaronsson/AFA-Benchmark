@@ -2,7 +2,7 @@ import logging
 from dataclasses import asdict
 from enum import Enum, auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast, final
+from typing import TYPE_CHECKING, cast, final
 
 import hydra
 import torch
@@ -59,17 +59,13 @@ class AFAEvaluator:
         )
         self._wandb_run: Run | None = None
         self._method: AFAMethod | None = None
-        self._method_metadata: dict[str, Any] | None = None
         self._unmasker: AFAUnmasker | None = None
         self._initializer: AFAInitializer | None = None
         self._dataset: AFADataset | None = None
-        self._dataset_metadata: dict[str, Any] | None = None
         self._external_classifier: AFAClassifier | None = None
-        self._external_classifier_metadata: dict[str, Any] | None = None
         self._n_selection_choices: int | None = None
         self._selection_costs: torch.Tensor | None = None
         self._df_eval: pd.DataFrame | None = None
-        # TODO: remove unused metadata
 
     def run(self) -> None:
         self._init_wandb()
@@ -87,7 +83,7 @@ class AFAEvaluator:
     ) -> None:
         # Load method
         device = torch.device(self._cfg.device)
-        method, self._method_metadata = load_bundle(
+        method, _ = load_bundle(
             Path(self._cfg.method_bundle_path),
             device=device,
         )
@@ -105,15 +101,13 @@ class AFAEvaluator:
         log.info(f"Loaded {self._cfg.initializer.class_name} initializer")
 
         # Load dataset
-        dataset, self._dataset_metadata = load_bundle(
-            Path(self._cfg.dataset_bundle_path)
-        )
+        dataset, _ = load_bundle(Path(self._cfg.dataset_bundle_path))
         self._dataset = cast("AFADataset", cast("object", dataset))
         log.info(f"Loaded dataset from {self._cfg.dataset_bundle_path}")
 
         # Load external classifier if specified
         if self._cfg.classifier_bundle_path is not None:
-            classifier, classifier_manifest = load_bundle(
+            classifier, _ = load_bundle(
                 Path(self._cfg.classifier_bundle_path),
                 device=device,
             )
@@ -123,12 +117,8 @@ class AFAEvaluator:
             log.info(
                 f"Loaded external classifier from {self._cfg.classifier_bundle_path}."
             )
-            self._external_classifier_metadata = classifier_manifest[
-                "metadata"
-            ]
         else:
             self._external_classifier = None
-            self._external_classifier_metadata = None
             log.info(
                 "No external classifier provided; using builtin classifier."
             )

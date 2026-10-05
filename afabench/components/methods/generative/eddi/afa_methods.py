@@ -248,7 +248,6 @@ class EDDIAFAMethod(AFAMethod):
                 )
                 base_probs = probs_base.mean(dim=0)
             else:
-                # TODO: make sure classifier always returns probabilities
                 base_probs = self.classifier(
                     masked_features=masked_features,
                     feature_mask=feature_mask,

@@ -362,7 +362,6 @@ class AFAEnv(EnvBase):
 
     def get_batch_info(self, td: TensorDictBase) -> dict[str, Any]:
         """Return a wandb-loggable dictionary from a tensordict collected during training. Should only contain method-agnostic info."""
-        # TODO:
         return {
             "avg_reward": td["next", "reward"].mean().item(),
             # Average number of features selected when we stop

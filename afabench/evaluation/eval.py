@@ -263,7 +263,6 @@ def process_batch(
             - "idx" (int): Which sample the row corresponds to.
             - "forced_stop" (bool): Whether the episode terminated due to budget being exceeded.
     """
-    # TODO: remove cloning if necessary for speed up
     features = features.clone()
     feature_mask = initial_feature_mask.clone()
     masked_features = initial_masked_features.clone()
