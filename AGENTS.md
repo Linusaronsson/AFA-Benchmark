@@ -355,6 +355,8 @@ data/, outputs/, plots/    # Root-level local/generated artifacts; do not rely o
 
 ## Agent skills
 
+Development in this repo follows the `matt-pocock` skill set. Agents working in this repo are expected to use these skills where applicable rather than ad hoc approaches.
+
 ### Issue tracker
 
 Issues live in GitHub Issues for `Linusaronsson/AFA-Benchmark`, operated via the `gh` CLI. See `docs/agents/issue-tracker.md`.
