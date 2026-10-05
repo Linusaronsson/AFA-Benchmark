@@ -77,13 +77,13 @@ def test_save_writes_parquet(tmp_path: Path) -> None:
     evaluator = AFAEvaluator(cfg)
     evaluator._df_eval = pd.DataFrame(  # noqa: SLF001
         {
-            "prev_selections_performed": [[0], []],
-            "action_performed": [1, 0],
+            "episode_id": [0, 1],
+            "step": [0, 0],
+            "action_performed": [0, 0],
             "builtin_predicted_class": [None, None],
             "external_predicted_class": [1, 0],
             "true_class": [1, 0],
             "accumulated_cost": [1.0, 0.0],
-            "idx": [0, 1],
             "forced_stop": [False, False],
             "eval_seed": [1, 1],
             "eval_hard_budget": [None, None],
@@ -93,19 +93,9 @@ def test_save_writes_parquet(tmp_path: Path) -> None:
     evaluator._save()  # noqa: SLF001
 
     saved = pd.read_parquet(save_path)
-    saved_records = normalize_selection_records(saved)
-    expected_records = normalize_selection_records(evaluator._df_eval)  # noqa: SLF001
-    assert saved_records == expected_records
-
-
-def normalize_selection_records(
-    df: pd.DataFrame,
-) -> list[dict[str, object]]:
-    records = df.to_dict("records")
-    for record in records:
-        selections = record["prev_selections_performed"]
-        record["prev_selections_performed"] = list(selections)
-    return records
+    assert "prev_selections_performed" not in saved
+    assert "idx" not in saved
+    pd.testing.assert_frame_equal(saved, evaluator._df_eval)  # noqa: SLF001
 
 
 def eval_config(*, use_wandb: bool, smoke_test: bool = False) -> EvalConfig:

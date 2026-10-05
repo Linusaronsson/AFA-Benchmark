@@ -6,6 +6,8 @@ from afabench.core.types import (
     Label,
 )
 from afabench.evaluation.eval import process_batch
+from afabench.evaluation.history import reconstruct_selection_history
+from afabench.testing.eval.helpers import get_deterministic_afa_action_fn
 from afabench.testing.helpers import (
     get_deterministic_action_fn,
     get_deterministic_afa_predict_fn,
@@ -69,7 +71,7 @@ def process_batch_wrapper(
 
 
 def add_time_column(df: pd.DataFrame) -> pd.DataFrame:
-    return df.assign(time=df["prev_selections_performed"].map(len))
+    return df.assign(time=df["step"])
 
 
 def assert_predictions(
@@ -84,10 +86,41 @@ def assert_predictions(
         prediction_col = "builtin_predicted_class"
     else:
         raise ValueError
-    predictions = df[df["idx"] == idx].sort_values("time")[prediction_col]
+    predictions = df[df["episode_id"] == idx].sort_values("time")[
+        prediction_col
+    ]
     assert (predictions == expected_predictions).all(), (
         f"Expected {predictions.tolist()} and {expected_predictions} to be equal."
     )
+
+
+def test_compact_episode_rows() -> None:
+    df = process_batch_wrapper(actions=[[1, 2, 0], [0]])
+    assert "prev_selections_performed" not in df.columns
+    assert "idx" not in df.columns
+    assert df[
+        ["episode_id", "step", "action_performed"]
+    ].to_numpy().tolist() == [
+        [0, 0, 1],
+        [1, 0, 0],
+        [0, 1, 2],
+        [0, 2, 0],
+    ]
+
+
+def test_steps_count_repeated_selections_not_observed_features() -> None:
+    features = torch.tensor([[1.0, 2.0]])
+    result = process_batch(
+        afa_action_fn=get_deterministic_afa_action_fn([2, 2, 0]),
+        afa_unmask_fn=get_direct_unmask_fn(),
+        n_selection_choices=2,
+        features=features,
+        initial_feature_mask=torch.tensor([[True, False]]),
+        initial_masked_features=torch.tensor([[1.0, 0.0]]),
+        true_label=torch.tensor([[1.0, 0.0]]),
+    )
+    assert result["step"].tolist() == [0, 1, 2]
+    assert reconstruct_selection_history(result).tolist() == [[], [1], [1, 1]]
 
 
 def test_expected_length() -> None:
@@ -98,8 +131,8 @@ def test_expected_length() -> None:
     df = process_batch_wrapper(features=features, actions=actions)
 
     # With 3 features, we should have 4 rows for each sample. We make one prediction at 0 features, 1 feature, 2 features, and 3 features
-    assert len(df[df["idx"] == 0]) == 4
-    assert len(df[df["idx"] == 1]) == 4
+    assert len(df[df["episode_id"] == 0]) == 4
+    assert len(df[df["episode_id"] == 1]) == 4
     assert len(df) == 8
 
 
@@ -150,7 +183,7 @@ def test_budget_forces_a_stop_and_records_it() -> None:
     )
 
     for idx in (0, 1):
-        sample = df[df["idx"] == idx].sort_values("time")
+        sample = df[df["episode_id"] == idx].sort_values("time")
         assert sample["action_performed"].tolist() == [1, 2, 0]
         assert sample["accumulated_cost"].tolist() == [1.0, 2.0, 2.0]
         # Only the row whose action was overridden is a forced stop.
@@ -193,9 +226,8 @@ def test_samples_that_stop_at_different_times_keep_their_own_history() -> None:
     """
     Once a sample stops, the active set shifts under the ones still running.
 
-    `prev_selections_performed` is rebuilt after the loop from the flat action
-    sequence, so this is the assertion that the rebuild attributes each action
-    to the right sample rather than to whatever position it occupied.
+    On-demand reconstruction must attribute each action to the right episode,
+    not to whatever position it occupied in the shrinking active set.
     """
     features = torch.tensor([[1, 2, 3, 4], [5, 6, 7, 8]])
 
@@ -236,8 +268,9 @@ def test_samples_that_stop_at_different_times_keep_their_own_history() -> None:
         )
     )
 
-    first = df[df["idx"] == 0].sort_values("time")
-    second = df[df["idx"] == 1].sort_values("time")
+    df["prev_selections_performed"] = reconstruct_selection_history(df)
+    first = df[df["episode_id"] == 0].sort_values("time")
+    second = df[df["episode_id"] == 1].sort_values("time")
     assert first["action_performed"].tolist() == [1, 2, 0]
     assert second["action_performed"].tolist() == [3, 4, 2, 0]
     assert first["prev_selections_performed"].tolist() == [[], [0], [0, 1]]

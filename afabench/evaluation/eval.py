@@ -165,9 +165,7 @@ class _RowBuffers:
     builtin: list[torch.Tensor] = field(default_factory=list)
     external: list[torch.Tensor] = field(default_factory=list)
 
-    def to_frame(
-        self, true_label: Label, n_samples: int
-    ) -> DataFrame[EvaluationSchema]:
+    def to_frame(self, true_label: Label) -> DataFrame[EvaluationSchema]:
         idx = torch.cat(self.idx).cpu().tolist()
         action = torch.cat(self.action).cpu().tolist()
         n_rows = len(idx)
@@ -181,40 +179,21 @@ class _RowBuffers:
 
         frame = pd.DataFrame(
             {
-                "prev_selections_performed": _prev_selections(
-                    idx, action, n_samples
-                ),
+                "episode_id": idx,
+                "step": [
+                    time
+                    for time, indices in enumerate(self.idx)
+                    for _ in range(len(indices))
+                ],
                 "action_performed": action,
                 "builtin_predicted_class": classes(self.builtin),
                 "external_predicted_class": classes(self.external),
                 "true_class": true_label.argmax(-1).cpu()[idx].tolist(),
                 "accumulated_cost": torch.cat(self.cost).cpu().tolist(),
-                "idx": idx,
                 "forced_stop": torch.cat(self.forced).cpu().tolist(),
             }
         )
         return DataFrame[EvaluationSchema](frame)
-
-
-def _prev_selections(
-    row_idx: list[int], row_action: list[int], n_samples: int
-) -> list[list[int]]:
-    """
-    Rebuild, per row, the selections that sample had made before this timestep.
-
-    Rows arrive timestep-major and each sample appears at most once per
-    timestep, so one forward walk suffices: what a sample has accumulated when
-    its row is reached is exactly that row's history. Reconstructing this at the
-    end keeps the acquisition loop free of per-sample Python bookkeeping.
-    """
-    running: list[list[int]] = [[] for _ in range(n_samples)]
-    out: list[list[int]] = []
-    for global_idx, action in zip(row_idx, row_action, strict=True):
-        out.append(running[global_idx].copy())
-        # Stop actions append -1, which is never read back: a row's history
-        # covers strictly earlier timesteps, and a sample stops only once.
-        running[global_idx].append(action - 1)
-    return out
 
 
 def process_batch(
@@ -259,13 +238,13 @@ def process_batch(
 
     Returns:
         pd.DataFrame: DataFrame with one row per sample and timestep, containing columns:
-            - "prev_selections_performed" (list[int]): List of 0-based selection indices that the method had previously performed up to the given timestep. The length of this list gives the timestep of the current episode.
+            - "episode_id" (int): Episode identifier local to this batch.
+            - "step" (int): Zero-based time step within the episode.
             - "action_performed" (int): Which action the method chose.
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
             - "true_class" (int)
-            - "accumulated_cost" (float): Acculumulated cost from `prev_selections_performed` **and** the current action.
-            - "idx" (int): Which sample the row corresponds to.
+            - "accumulated_cost" (float): Cost including the current action.
             - "forced_stop" (bool): Whether the episode terminated due to budget being exceeded.
     """
     # `feature_mask`/`masked_features` are mutated in place below, so
@@ -380,7 +359,7 @@ def process_batch(
         # Filter out finished samples
         active_indices = active_indices[~finished_mask]
 
-    return rows.to_frame(true_label, n_samples)
+    return rows.to_frame(true_label)
 
 
 def eval_afa_method(
@@ -421,7 +400,8 @@ def eval_afa_method(
 
     Returns:
         pd.DataFrame: DataFrame containing columns:
-            - "prev_selections_performed" (list[int]): List of 0-based selection indices performed before this row
+            - "episode_id" (int): Episode identifier unique within this result.
+            - "step" (int): Zero-based time step within the episode.
             - "action_performed" (int): Which action the method chose.
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
@@ -454,6 +434,7 @@ def eval_afa_method(
         )
 
     batches_df: list[DataFrame[EvaluationSchema]] = []
+    episode_offset = 0
     # Nothing here is differentiated, but several methods build a graph anyway.
     # DIME's `act` and `predict` in particular carry no internal guard, so
     # without this every acquisition step allocates and discards one.
@@ -473,23 +454,24 @@ def eval_afa_method(
                 0.0  # Assuming zero masking
             )
 
-            batches_df.append(
-                process_batch(
-                    afa_action_fn=afa_action_fn,
-                    afa_unmask_fn=afa_unmask_fn,
-                    n_selection_choices=n_selection_choices,
-                    features=batch_features,
-                    initial_feature_mask=batch_initial_feature_mask,
-                    initial_masked_features=batch_initial_masked_features,
-                    true_label=batch_label,
-                    feature_shape=dataset.feature_shape,
-                    external_afa_predict_fn=external_afa_predict_fn,
-                    builtin_afa_predict_fn=builtin_afa_predict_fn,
-                    selection_budget=selection_budget,
-                    selection_costs=selection_costs,
-                    force_acquisition=force_acquisition,
-                )
+            batch_df = process_batch(
+                afa_action_fn=afa_action_fn,
+                afa_unmask_fn=afa_unmask_fn,
+                n_selection_choices=n_selection_choices,
+                features=batch_features,
+                initial_feature_mask=batch_initial_feature_mask,
+                initial_masked_features=batch_initial_masked_features,
+                true_label=batch_label,
+                feature_shape=dataset.feature_shape,
+                external_afa_predict_fn=external_afa_predict_fn,
+                builtin_afa_predict_fn=builtin_afa_predict_fn,
+                selection_budget=selection_budget,
+                selection_costs=selection_costs,
+                force_acquisition=force_acquisition,
             )
+            batch_df["episode_id"] += episode_offset
+            episode_offset += len(batch_features)
+            batches_df.append(batch_df)
     # Concatenate all batch DataFrames
     df_batches = pd.concat(batches_df, ignore_index=True)
     return DataFrame[EvaluationSchema](df_batches)

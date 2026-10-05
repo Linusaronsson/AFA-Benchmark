@@ -134,6 +134,12 @@ A zero-indexed choice of feature group handed to the Unmasker. Selections never
 include stop, so there is one fewer selection than action.
 _Avoid_: Feature index (not the same once groups exist), choice
 
+**Selection history**:
+The ordered sequence of selections performed before a time step in an episode,
+including repetitions but excluding stop and features revealed by the
+Initializer.
+_Avoid_: Action history (includes stop), acquired-feature set (loses order)
+
 **Selection mask**:
 A boolean indicator per selection of whether it has already been performed.
 _Avoid_: Action mask, availability mask

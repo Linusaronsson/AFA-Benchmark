@@ -3,14 +3,18 @@
 from numbers import Integral, Real
 from typing import Any, Literal
 
+import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import Series
 
+from afabench.evaluation.history import validate_episode_log
+
 
 class EvaluationSchema(pa.DataFrameModel):
-    """One row per sample and acquisition timestep (not a unique sample)."""
+    """One row per episode and zero-based time step."""
 
-    prev_selections_performed: Series[list[int]] = pa.Field()
+    episode_id: Series[int] = pa.Field(ge=0)
+    step: Series[int] = pa.Field(ge=0)
     action_performed: Series[int] = pa.Field(ge=0)
     # Predictions use int64 when supplied and object/None otherwise. Avoid
     # coercion so existing callers and Parquet artifacts keep their dtypes.
@@ -18,16 +22,16 @@ class EvaluationSchema(pa.DataFrameModel):
     external_predicted_class: Series[Any] = pa.Field(nullable=True)
     true_class: Series[int] = pa.Field(ge=0)
     accumulated_cost: Series[float] = pa.Field(ge=0)
-    idx: Series[int] = pa.Field(ge=0)
     forced_stop: Series[bool] = pa.Field()
 
-    @pa.check("prev_selections_performed", element_wise=True)
+    @pa.dataframe_check
     @classmethod
-    def nonnegative_selections(cls, value: list[int]) -> bool:
-        return all(
-            not isinstance(selection, bool) and selection >= 0
-            for selection in value
-        )
+    def complete_episodes(cls, frame: pd.DataFrame) -> bool:
+        try:
+            validate_episode_log(frame)
+        except ValueError:
+            return False
+        return True
 
     @pa.check(
         "builtin_predicted_class",

@@ -153,6 +153,19 @@ def run_eval_after_global_rng_perturbation(seed: int) -> pd.DataFrame:
     )
 
 
+def test_episode_identity_survives_batch_boundaries() -> None:
+    result = run_eval_after_global_rng_perturbation(seed=123)
+    assert result["episode_id"].nunique() == 8
+    assert not result.duplicated(["episode_id", "step"]).any()
+    assert (
+        result.groupby("episode_id")["step"].apply(list).tolist()
+        == [
+            [0, 1],
+        ]
+        * 8
+    )
+
+
 def test_eval_afa_method_is_reproducible_with_seed() -> None:
     first = run_eval_after_global_rng_perturbation(seed=123)
     torch.rand(1000)

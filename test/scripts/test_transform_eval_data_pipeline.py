@@ -40,9 +40,11 @@ def run_transform(
     main()
 
 
+@pytest.mark.parametrize("compact", [False, True])
 def test_transform_pivots_classifiers_and_attaches_run_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    compact: bool,
 ) -> None:
     input_path = tmp_path / "eval_data.parquet"
     output_path = tmp_path / "transformed.parquet"
@@ -50,7 +52,7 @@ def test_transform_pivots_classifiers_and_attaches_run_metadata(
     # then stops, instance 1 stops immediately. No external classifier was
     # supplied, and evaluation ran under a soft budget, so both are all-null
     # columns.
-    pd.DataFrame(
+    frame = pd.DataFrame(
         {
             "prev_selections_performed": [[], [0], []],
             "action_performed": [1, 0, 0],
@@ -63,7 +65,12 @@ def test_transform_pivots_classifiers_and_attaches_run_metadata(
             "eval_seed": [7, 7, 7],
             "eval_hard_budget": [None, None, None],
         }
-    ).to_parquet(input_path, index=False)
+    )
+    if compact:
+        frame = frame.drop(columns=["idx", "prev_selections_performed"])
+        frame["episode_id"] = [0, 0, 1]
+        frame["step"] = [0, 1, 0]
+    frame.to_parquet(input_path, index=False)
 
     run_transform(monkeypatch, input_path, output_path)
 

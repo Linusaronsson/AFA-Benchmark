@@ -6,7 +6,8 @@ required that the records it produces stay identical to the previous,
 host-side implementation. The golden records below were captured by running
 the `dev` implementation of `afabench/evaluation/eval.py` at commit e0e26a83
 on exactly the batch built here, so any drift in record content, row order or
-column dtype fails this test.
+column dtype fails this test. Compact output is expanded at the public
+history-reconstruction seam before comparison with those legacy records.
 
 Every function the loop calls is a pure function of the instance's observed
 state, never of its position in the shrinking active set, so the records are
@@ -30,6 +31,7 @@ from afabench.core.types import (
     SelectionMask,
 )
 from afabench.evaluation.eval import process_batch
+from afabench.evaluation.history import reconstruct_selection_history
 from afabench.testing.helpers import get_direct_unmask_fn
 
 FEATURES = torch.tensor(
@@ -253,5 +255,12 @@ def test_records_match_dev_implementation(scenario: str) -> None:
     expected = pd.DataFrame.from_records(
         GOLDEN_RECORDS[scenario], columns=COLUMNS
     )
-    actual = run_scenario(process_batch, scenario)
+    compact = run_scenario(process_batch, scenario)
+    assert compact["step"].tolist() == [
+        len(record[0]) for record in GOLDEN_RECORDS[scenario]
+    ]
+    actual = compact.assign(
+        prev_selections_performed=reconstruct_selection_history(compact)
+    ).rename(columns={"episode_id": "idx"})
+    actual = actual[COLUMNS]
     assert_frame_equal(actual, expected, check_exact=True, check_dtype=True)

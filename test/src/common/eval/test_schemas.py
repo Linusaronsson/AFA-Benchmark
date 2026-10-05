@@ -1,4 +1,4 @@
-"""Evaluation contracts validate without changing legacy dataframe dtypes."""
+"""Compact evaluation contracts validate without coercing dataframe dtypes."""
 
 from pathlib import Path
 
@@ -18,13 +18,13 @@ from afabench.evaluation.schemas import (
 def evaluation_frame() -> pd.DataFrame:
     return pd.DataFrame(
         {
-            "prev_selections_performed": [[], [0]],
+            "episode_id": [0, 0],
+            "step": [0, 1],
             "action_performed": [1, 0],
             "builtin_predicted_class": [None, None],
             "external_predicted_class": [1, 0],
             "true_class": [1, 1],
             "accumulated_cost": [1.0, 1.0],
-            "idx": [0, 0],
             "forced_stop": [False, True],
         }
     )
@@ -42,13 +42,13 @@ def test_evaluation_schema_preserves_dtypes(
     [
         ("action_performed", -1),
         ("true_class", -1),
-        ("idx", -1),
+        ("episode_id", -1),
+        ("step", -1),
         ("accumulated_cost", -0.5),
         ("forced_stop", "false"),
         ("builtin_predicted_class", "1"),
         ("builtin_predicted_class", -1),
-        ("prev_selections_performed", [-1]),
-        ("prev_selections_performed", ["0"]),
+        ("step", "0"),
     ],
 )
 def test_evaluation_schema_rejects_invalid_values(
@@ -65,6 +65,13 @@ def test_evaluation_schema_requires_all_columns(
 ) -> None:
     with pytest.raises(SchemaError):
         EvaluationSchema.validate(evaluation_frame.drop(columns=column))
+
+
+def test_evaluation_schema_rejects_incomplete_episodes(
+    evaluation_frame: pd.DataFrame,
+) -> None:
+    with pytest.raises(SchemaError):
+        EvaluationSchema.validate(evaluation_frame.iloc[1:])
 
 
 def test_evaluation_schema_rejects_extra_columns(
@@ -87,12 +94,7 @@ def test_saved_evaluation_schema_parquet_round_trip(
     assert_frame_equal(validated, frame)
     path = tmp_path / "eval.parquet"
     validated.to_parquet(path, index=False)
-    # PyArrow restores list cells as numpy arrays; normalize at the read
-    # boundary before applying the in-memory list[int] contract.
     loaded = pd.read_parquet(path)
-    loaded["prev_selections_performed"] = loaded[
-        "prev_selections_performed"
-    ].map(lambda selections: [int(value) for value in selections])
     SavedEvaluationSchema.validate(loaded)
 
 

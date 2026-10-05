@@ -8,6 +8,8 @@ if TYPE_CHECKING:
 
 import pandas as pd
 
+from afabench.evaluation.schemas import SavedEvaluationSchema
+
 
 def parse_nullable(s: str) -> str | None:
     if s == "null":
@@ -58,25 +60,32 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    df = pd.read_parquet(args.input_path).astype(
+    df = pd.read_parquet(args.input_path)
+    if "episode_id" in df or "step" in df:
+        # Validate before dtype conversion so malformed events are not coerced.
+        SavedEvaluationSchema.validate(df)
+        df["n_selections_performed"] = df["step"].astype("UInt64")
+    else:
+        # Legacy analyses can use stored lengths even for partial logs. Do not
+        # infer episode identity or implicitly migrate these artifacts.
+        df["n_selections_performed"] = (
+            df["prev_selections_performed"]
+            .map(count_selections)
+            .astype("UInt64")
+        )
+
+    df = df.astype(
         {
             "action_performed": "UInt64",
             "builtin_predicted_class": "UInt64",
             "external_predicted_class": "UInt64",
             "true_class": "UInt64",
             "accumulated_cost": "Float64",
-            "idx": "UInt64",
             "forced_stop": "boolean",
             "eval_seed": "UInt64",
             "eval_hard_budget": "Float64",
         }
     )
-
-    # Change prev_selections_performed (a history of selections) to instead just be the number of selections performed, which is the same as the time step
-    df["n_selections_performed"] = (
-        df["prev_selections_performed"].map(count_selections).astype("UInt64")
-    )
-    df = df.drop(columns="prev_selections_performed")
 
     # Pivot long on classifier type
     df = df.rename(

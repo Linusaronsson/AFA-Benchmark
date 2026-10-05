@@ -13,13 +13,15 @@ from afabench.core.types import (
     SelectionMask,
 )
 from afabench.evaluation.eval import process_batch
+from afabench.evaluation.history import reconstruct_selection_history
 
 
 def assert_where_selections_there_cost(
     df: pd.DataFrame, selections: Sequence[int], cost: float
 ) -> None:
-    """Assert that wherever "prev_selections_performed" in the dataframe is equal to `selections`, "accumulated_cost" has to be equal to `cost`."""
-    rows = df[df["prev_selections_performed"].apply(lambda x: x == selections)]
+    """Assert the cost at the specified pre-action selection history."""
+    histories = reconstruct_selection_history(df)
+    rows = df[histories.apply(lambda history: history == list(selections))]
     assert len(rows) == 1, (
         f"While evaluating dataframe \n{df}\n, expected exactly one row to contain prev_selections_performed={selections}, instead got \n{rows}\n"
     )
@@ -30,8 +32,9 @@ def assert_where_selections_there_cost(
 def assert_where_selections_there_action(
     df: pd.DataFrame, selections: Sequence[int], action: int
 ) -> None:
-    """Assert that wherever "prev_selections_performed" in the dataframe is equal to `selections`, "action_performed" has to be equal to `action`."""
-    rows = df[df["prev_selections_performed"].apply(lambda x: x == selections)]
+    """Assert the action at the specified pre-action selection history."""
+    histories = reconstruct_selection_history(df)
+    rows = df[histories.apply(lambda history: history == list(selections))]
     assert len(rows) == 1, (
         f"While evaluating dataframe \n{df}\n, expected exactly one row to contain prev_selections_performed={selections}, instead got \n{rows}\n"
     )
@@ -147,13 +150,13 @@ def assert_terminated_after_n_steps(
         n_steps: The number of actual selections
         forced: if set, checks that the "forced_stop" column is set to the specified value. Can be used to distinguish between cases where an episode stops due to a method voluntarily choosing to stop, or being forced to stop due to exceeding the budget.
     """
-    sample_rows = df[df["idx"] == idx]
+    sample_rows = df[df["episode_id"] == idx]
     assert len(sample_rows) == n_steps, (
         f"Expected {n_steps} rows for sample {idx}, but got {len(sample_rows)}. "
     )
     # There should be a single row where the action = 0 (stop action)
     for _, row in sample_rows.iterrows():
-        if len(row["prev_selections_performed"]) == n_steps - 1:
+        if row["step"] == n_steps - 1:
             assert row["action_performed"] == 0
             if forced is not None:
                 assert row["forced_stop"] == forced
