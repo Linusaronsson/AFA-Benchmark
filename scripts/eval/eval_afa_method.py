@@ -8,6 +8,7 @@ import hydra
 import torch
 import wandb
 from omegaconf import OmegaConf
+from pandera.typing import DataFrame
 
 from afabench.components.initializers.utils import (
     get_afa_initializer_from_config,
@@ -22,10 +23,10 @@ from afabench.core.utils import (
 )
 from afabench.evaluation.config import EvalConfig
 from afabench.evaluation.eval import eval_afa_method
+from afabench.evaluation.schemas import SavedEvaluationSchema
 from afabench.training.smoke_test import eval_settings
 
 if TYPE_CHECKING:
-    import pandas as pd
     from wandb.sdk.wandb_run import Run
 
     from afabench.core.types import (
@@ -65,7 +66,7 @@ class AFAEvaluator:
         self._external_classifier: AFAClassifier | None = None
         self._n_selection_choices: int | None = None
         self._selection_costs: torch.Tensor | None = None
-        self._df_eval: pd.DataFrame | None = None
+        self._df_eval: DataFrame[SavedEvaluationSchema] | None = None
 
     def run(self) -> None:
         self._init_wandb()
@@ -221,7 +222,7 @@ class AFAEvaluator:
             hard_budget_str,
         )
 
-        self._df_eval = eval_afa_method(
+        df_eval = eval_afa_method(
             afa_action_fn=self._method.act,
             afa_unmask_fn=self._unmasker.unmask,
             n_selection_choices=self._n_selection_choices,
@@ -243,14 +244,17 @@ class AFAEvaluator:
         )
 
         # Add eval_seed and eval_hard_budget to dataframe
-        self._df_eval["eval_seed"] = self._cfg.seed
-        self._df_eval["eval_hard_budget"] = self._cfg.hard_budget
+        df_eval["eval_seed"] = self._cfg.seed
+        df_eval["eval_hard_budget"] = self._cfg.hard_budget
+        self._df_eval = DataFrame[SavedEvaluationSchema](df_eval)
 
     def _save(self) -> None:
         assert self._df_eval is not None
         save_path = Path(self._cfg.save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        self._df_eval.to_parquet(save_path, index=False)
+        SavedEvaluationSchema.validate(self._df_eval).to_parquet(
+            save_path, index=False
+        )
         log.info(f"Saved evaluation data to Parquet at: {save_path}")
 
         log.info(f"Evaluation results saved to: {self._cfg.save_path}")

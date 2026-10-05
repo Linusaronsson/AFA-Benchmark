@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 import torch
+from pandera.typing import DataFrame
 from torch.utils.data import DataLoader
 from torch.utils.data.dataset import Dataset
 from torch.utils.data.sampler import SubsetRandomSampler
@@ -23,6 +24,7 @@ from afabench.core.types import (
     MaskedFeatures,
     SelectionMask,
 )
+from afabench.evaluation.schemas import EvaluationSchema
 
 log = logging.getLogger(__name__)
 
@@ -163,7 +165,9 @@ class _RowBuffers:
     builtin: list[torch.Tensor] = field(default_factory=list)
     external: list[torch.Tensor] = field(default_factory=list)
 
-    def to_frame(self, true_label: Label, n_samples: int) -> pd.DataFrame:
+    def to_frame(
+        self, true_label: Label, n_samples: int
+    ) -> DataFrame[EvaluationSchema]:
         idx = torch.cat(self.idx).cpu().tolist()
         action = torch.cat(self.action).cpu().tolist()
         n_rows = len(idx)
@@ -173,9 +177,9 @@ class _RowBuffers:
             # which is the object dtype callers already expect.
             if not buffer:
                 return [None] * n_rows
-            return torch.cat(buffer).cpu().tolist()
+            return torch.cat(buffer).reshape(n_rows).cpu().tolist()
 
-        return pd.DataFrame(
+        frame = pd.DataFrame(
             {
                 "prev_selections_performed": _prev_selections(
                     idx, action, n_samples
@@ -189,6 +193,7 @@ class _RowBuffers:
                 "forced_stop": torch.cat(self.forced).cpu().tolist(),
             }
         )
+        return DataFrame[EvaluationSchema](frame)
 
 
 def _prev_selections(
@@ -227,7 +232,7 @@ def process_batch(
     selection_costs: Sequence[float] | None = None,
     *,
     force_acquisition: bool = False,
-) -> pd.DataFrame:
+) -> DataFrame[EvaluationSchema]:
     """
     Evaluate a single batch.
 
@@ -390,7 +395,7 @@ def eval_afa_method(
     seed: int | None = None,
     *,
     force_acquisition: bool = False,
-) -> pd.DataFrame:
+) -> DataFrame[EvaluationSchema]:
     """
     Evaluate an AFA method with support for early stopping and batched processing.
 
@@ -444,7 +449,7 @@ def eval_afa_method(
             batch_size=batch_size,
         )
 
-    batches_df: list[pd.DataFrame] = []
+    batches_df: list[DataFrame[EvaluationSchema]] = []
     # Nothing here is differentiated, but several methods build a graph anyway.
     # DIME's `act` and `predict` in particular carry no internal guard, so
     # without this every acquisition step allocates and discards one.
@@ -483,16 +488,4 @@ def eval_afa_method(
             )
     # Concatenate all batch DataFrames
     df_batches = pd.concat(batches_df, ignore_index=True)
-    # Assert that all the columns described in docstring are present
-    expected_columns = {
-        "prev_selections_performed",
-        "action_performed",
-        "builtin_predicted_class",
-        "external_predicted_class",
-        "true_class",
-        "forced_stop",
-    }
-    assert expected_columns.issubset(set(df_batches.columns)), (
-        f"Expected columns {expected_columns}, but got {set(df_batches.columns)}"
-    )
-    return df_batches
+    return DataFrame[EvaluationSchema](df_batches)
