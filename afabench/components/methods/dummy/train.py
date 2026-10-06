@@ -1,6 +1,7 @@
 """Training logic for the dummy methods, called by their scripts."""
 
 import logging
+from collections.abc import Callable
 
 import torch
 
@@ -23,29 +24,35 @@ log = logging.getLogger(__name__)
 def train_random_dummy(
     contract: RandomDummyTrainConfig, inputs: TrainingInputs
 ) -> RandomWithoutClassifierAFAMethod:
-    train_dataset = inputs.train_dataset()
-    assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
-
-    afa_method = RandomWithoutClassifierAFAMethod(
-        device=torch.device("cpu"),
-        n_classes=train_dataset.label_shape.numel(),
-        prob_select_0=0.0
-        if contract.soft_budget_param is None
-        else contract.soft_budget_param,
+    return _train_dummy_method(
+        RandomWithoutClassifierAFAMethod, contract, inputs
     )
-    _check_dummy_method_works(contract, inputs, afa_method)
-    return afa_method
 
 
 def train_sequential_dummy(
     contract: SequentialDummyTrainConfig, inputs: TrainingInputs
 ) -> SequentialWithoutClassifierAFAMethod:
-    train_dataset = inputs.train_dataset()
-    assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
+    return _train_dummy_method(
+        SequentialWithoutClassifierAFAMethod, contract, inputs
+    )
 
-    afa_method = SequentialWithoutClassifierAFAMethod(
+
+def _train_dummy_method[M: AFAMethod](
+    method_class: Callable[..., M],
+    contract: RandomDummyTrainConfig | SequentialDummyTrainConfig,
+    inputs: TrainingInputs,
+) -> M:
+    train_dataset = inputs.train_dataset()
+    if len(train_dataset.label_shape) != 1:
+        msg = (
+            "Only 1D labels are supported, got "
+            f"label_shape={train_dataset.label_shape}"
+        )
+        raise ValueError(msg)
+
+    afa_method = method_class(
         device=torch.device("cpu"),
-        n_classes=train_dataset.label_shape[-1],
+        n_classes=train_dataset.label_shape.numel(),
         prob_select_0=0.0
         if contract.soft_budget_param is None
         else contract.soft_budget_param,
