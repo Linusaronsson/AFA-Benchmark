@@ -1,0 +1,576 @@
+"""Single-invocation full reproduction through the real orchestration."""
+
+import shutil
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
+
+import pytest
+
+from test.workflow.submission_harness import WorkflowHarness
+from test.workflow.test_cpu_processing_execution import processing_workflow
+
+# Membership of the retired extra/workflow/conf/methods/gpu.yaml, whose
+# methods were trained and evaluated in the separate GPU invocation.
+FORMER_GPU_METHODS = {
+    "jafa",
+    "odin_model_free",
+    "odin_model_based",
+    "gdfs",
+    "eddi_builtin",
+    "eddi_external",
+    "dime",
+}
+# Membership of the retired extra/workflow/conf/methods/cpu.yaml.
+FORMER_CPU_METHODS = {
+    "ol_without_mask",
+    "ol_with_mask",
+    "random_dummy",
+    "sequential_dummy",
+    "cae",
+    "permutation",
+    "aaco",
+    "aaco_nn",
+}
+KDD26_METHODS = {
+    "jafa",
+    "odin_model_based",
+    "ol_with_mask",
+    "gdfs",
+    "eddi_external",
+    "dime",
+    "cae",
+    "aaco",
+}
+
+
+def planned_jobs(output: str) -> list[dict[str, str]]:
+    jobs = []
+    for block in output.split("\nrule ")[1:]:
+        rule, _, body = block.partition(":")
+        job = {"rule": rule}
+        for line in body.splitlines():
+            key, _, value = line.strip().partition(": ")
+            if key in {"wildcards", "resources"}:
+                job[key] = value
+        shell = body.partition("Shell command:")[2]
+        for argument in shell.split():
+            if argument.startswith("device="):
+                job["device"] = argument.removeprefix("device=")
+        jobs.append(job)
+    return jobs
+
+
+CONF = "extra/workflow/conf"
+SCIENTIFIC_GROUPS = [
+    "eval_hard_budgets",
+    "methods",
+    "method_sets",
+    "method_options",
+    "pretrain_mappings",
+    "soft_budget_params",
+    "unmaskers",
+    "classifier_names",
+    "datasets",
+]
+# The documented cluster invocations of the two scientific presets.
+CLUSTER_PRESETS = {
+    "kdd26": ["--profile", "extra/workflow/profiles/config/kdd26"],
+    "all": [
+        "--snakefile",
+        "extra/workflow/snakefiles/orchestration/pipeline.smk",
+        "--configfile",
+        *[f"{CONF}/{group}/all.yaml" for group in SCIENTIFIC_GROUPS],
+        f"{CONF}/execution/all.yaml",
+    ],
+}
+SMALL_SELECTION = [
+    "datasets=[cube]",
+    "dataset_instance_indices=[0]",
+    "execution_site_file=extra/workflow/profiles/mixed-gres/site.yaml",
+]
+
+
+@pytest.mark.parametrize(
+    ("preset", "methods"),
+    [
+        ("all", FORMER_GPU_METHODS | FORMER_CPU_METHODS),
+        ("kdd26", KDD26_METHODS),
+    ],
+)
+def test_cluster_preset_declares_former_six_stage_hardware(
+    tmp_path: Path, preset: str, methods: set[str]
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    shutil.rmtree(tmp_path / "extra/output")
+
+    result = workflow.run_invocation(
+        CLUSTER_PRESETS[preset],
+        "--dry-run",
+        "--workflow-profile",
+        "extra/workflow/profiles/mixed-gres",
+        "--config",
+        *SMALL_SELECTION,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    assert "deprecated" not in output
+    devices: dict[tuple[str, str], set[str]] = {}
+    for job in planned_jobs(output):
+        gpu = "gres=gpu:T4:1" in job.get("resources", "")
+        if job["rule"] in {"train_method", "eval_method"}:
+            method = job["wildcards"].split(",")[0].removeprefix("method=")
+            devices.setdefault((job["rule"], method), set()).add(job["device"])
+            assert gpu is (job["device"] == "cuda"), job
+        elif job["rule"] in {"train_classifier", "pretrain_model"}:
+            assert job["device"] == "cuda", job
+            assert gpu, job
+        elif job["rule"] != "all":
+            assert "gpu=0" in job["resources"], job
+            assert "slurm_partition=cpu-queue" in job["resources"], job
+    for rule in ["train_method", "eval_method"]:
+        assert {
+            method for stage, method in devices if stage == rule
+        } == methods
+        for method in methods:
+            assert devices[rule, method] == (
+                {"cuda"} if method in FORMER_GPU_METHODS else {"cpu"}
+            )
+
+
+def test_local_all_preset_runs_every_job_on_cpu(tmp_path: Path) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    shutil.rmtree(tmp_path / "extra/output")
+
+    result = workflow.run_invocation(
+        ["--profile", "extra/workflow/profiles/config/all"],
+        "--dry-run",
+        "--config",
+        "datasets=[cube]",
+        "dataset_instance_indices=[0]",
+        "smoke_test=True",
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    assert "deprecated" not in output
+    jobs = [job for job in planned_jobs(output) if job["rule"] != "all"]
+    assert {job["rule"] for job in jobs} >= {
+        "dataset_generation",
+        "train_classifier",
+        "pretrain_model",
+        "train_method",
+        "eval_method",
+        "plot_eval_perf",
+    }
+    for job in jobs:
+        assert job.get("device", "cpu") == "cpu", job
+        assert "gpu=0" in job["resources"], job
+        assert "gres=," in job["resources"], job
+
+
+METHODS = ["alpha", "beta", "gamma", "delta"]
+
+
+def full_benchmark_workflow(root: Path) -> WorkflowHarness:
+    workflow = processing_workflow(root)
+    shutil.rmtree(root / "extra/output")
+    workflow.config.update(
+        {
+            "methods": METHODS,
+            "method_options": {
+                "alpha": {
+                    "train_script_name": "alpha",
+                    "pretrained_model_name": "shared",
+                    "eval_batch_size": 1,
+                    "classifier": {"script_name": "special"},
+                },
+                "beta": {
+                    "train_script_name": "beta",
+                    "pretrained_model_name": "shared",
+                    "eval_batch_size": 1,
+                },
+                "gamma": {
+                    "train_script_name": "gamma",
+                    "pretrained_model_name": "other",
+                    "eval_batch_size": 1,
+                },
+                "delta": {"train_script_name": "delta", "eval_batch_size": 1},
+            },
+            "soft_budget_params": {
+                method: {"default": []} for method in METHODS
+            },
+            "pretrain_mapping": {
+                "shared": {"pretrain_script_name": "shared"},
+                "other": {"pretrain_script_name": "other"},
+            },
+            "method_sets": {"heatmap_comparison": METHODS},
+            "execution": {
+                "defaults": {
+                    "classifier": "cuda",
+                    "pretraining": "cpu",
+                    "training": "cpu",
+                    "evaluation": "cpu",
+                },
+                "methods": {
+                    "alpha": {
+                        "classifier": "cpu",
+                        "training": "cuda",
+                        "evaluation": "cpu",
+                    },
+                    "beta": {"evaluation": "cuda"},
+                },
+                "pretrained_models": {"shared": "cuda"},
+            },
+        }
+    )
+    for script in [
+        "train_method/gamma.py",
+        "train_method/delta.py",
+        "train_classifier/special.py",
+        "pretrain_model/other.py",
+    ]:
+        shutil.copyfile(
+            root / "scripts/train_method/alpha.py", root / "scripts" / script
+        )
+    # Computational stubs fail unless their declared bundle inputs exist, so
+    # a job submitted before its prerequisites completed cannot pass.
+    for directory in [
+        "train_method",
+        "train_classifier",
+        "pretrain_model",
+        "eval",
+    ]:
+        for path in (root / "scripts" / directory).glob("*.py"):
+            path.write_text(
+                "import sys\n"
+                "from pathlib import Path\n"
+                "inputs = dict(arg.split('=', 1) for arg in sys.argv[1:])\n"
+                "for key, value in inputs.items():\n"
+                "    if key.endswith(('_bundle_path', '_dataset_path')) and value != 'null':\n"
+                "        assert Path(value).is_dir(), (key, value)\n"
+                + path.read_text()
+            )
+    return workflow
+
+
+# Jobs whose resolved execution choice is cuda in full_benchmark_workflow.
+GPU_JOBS = {
+    ("train_classifier", "cube"),
+    ("pretrain_model", "shared"),
+    ("train_method", "alpha"),
+    ("eval_method", "beta"),
+}
+# Every job of the tiny full graph, each submitted exactly once.
+FULL_GRAPH_JOBS = {
+    "dataset_generation": 1,
+    "train_classifier": 1,
+    "train_classifier_for_method": 1,
+    "pretrain_model": 2,
+    "train_method": 4,
+    "eval_method": 4,
+    "transform_eval_data": 4,
+    "time_df_with_pretrain": 3,
+    "time_df_without_pretrain": 1,
+    "merge_eval_perf": 1,
+    "split_by_classifier_type": 1,
+    "merge_time": 1,
+    "plot_eval_perf": 2,
+    "plot_eval_actions": 1,
+    "plot_time": 1,
+}
+
+
+def submitted_job(args: list[str]) -> tuple[str, str]:
+    """Return the rule and first wildcard value of a captured submission."""
+    comment = args[args.index("--comment") + 1].removeprefix("rule_")
+    rule, _, wildcards = comment.partition("_wildcards_")
+    return rule, wildcards.split("_")[0]
+
+
+@dataclass
+class FullGraphRun:
+    root: Path
+    jobs: list[tuple[str, str]]
+    submissions: list[list[str]]
+    calls: list[tuple[str, dict[str, str]]]
+
+    def position(self, rule: str, identity: str = "") -> int:
+        return next(
+            index
+            for index, (job_rule, job_identity) in enumerate(self.jobs)
+            if job_rule == rule and job_identity.startswith(identity)
+        )
+
+
+@pytest.fixture(scope="module")
+def full_graph_run(tmp_path_factory: pytest.TempPathFactory) -> FullGraphRun:
+    root = tmp_path_factory.mktemp("full-graph")
+    workflow = full_benchmark_workflow(root)
+    result = workflow.run(
+        "--workflow-profile",
+        str(root / "extra/workflow/profiles/mixed-gres"),
+        "--slurm-init-seconds-before-status-checks",
+        "0",
+        "--seconds-between-status-checks",
+        "1",
+        target="all",
+        timeout=900,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    submissions = workflow.submissions()
+    return FullGraphRun(
+        root,
+        [submitted_job(args) for args in submissions],
+        submissions,
+        workflow.script_arguments(),
+    )
+
+
+@pytest.mark.pipeline
+def test_full_graph_submits_every_job_once(
+    full_graph_run: FullGraphRun,
+) -> None:
+    comments = [
+        args[args.index("--comment") + 1]
+        for args in full_graph_run.submissions
+    ]
+    assert len(set(comments)) == len(comments)
+    assert Counter(rule for rule, _ in full_graph_run.jobs) == FULL_GRAPH_JOBS
+    assert len(full_graph_run.calls) == len(comments)
+    plots = (
+        full_graph_run.root
+        / "extra/output/plot_results/eval_split-test/initializer-cold"
+    )
+    assert len(list(plots.rglob("fixture.svg"))) == 4
+
+
+@pytest.mark.pipeline
+def test_full_graph_submissions_mix_cpu_and_gpu_allocations(
+    full_graph_run: FullGraphRun,
+) -> None:
+    for args, job in zip(
+        full_graph_run.submissions, full_graph_run.jobs, strict=True
+    ):
+        gpu = job in GPU_JOBS
+        assert args[args.index("-p") + 1] == (
+            "gpu-queue" if gpu else "cpu-queue"
+        )
+        assert args[args.index("-A") + 1] == (
+            "gpu-account" if gpu else "cpu-account"
+        )
+        gpu_requests = [
+            arg for arg in args if arg.startswith(("--gres", "--gpus"))
+        ]
+        assert gpu_requests == (["--gres=gpu:T4:1"] if gpu else [])
+        method_job = job[0] in {"train_method", "eval_method"}
+        assert args[args.index("-t") + 1] == ("600" if method_job else "120")
+        assert f"--cpus-per-task={8 if method_job else 1}" in args
+
+
+@pytest.mark.pipeline
+def test_full_graph_submits_jobs_after_their_dependencies(
+    full_graph_run: FullGraphRun,
+) -> None:
+    position = full_graph_run.position
+    assert full_graph_run.jobs[0] == ("dataset_generation", "cube")
+    for method, pretrained, classifier in [
+        ("alpha", "shared", ("train_classifier_for_method", "alpha")),
+        ("beta", "shared", ("train_classifier", "cube")),
+        ("gamma", "other", ("train_classifier", "cube")),
+        ("delta", None, ("train_classifier", "cube")),
+    ]:
+        training = position("train_method", method)
+        evaluation = position("eval_method", method)
+        assert position("train_classifier", "cube") < training
+        if pretrained is not None:
+            assert position("pretrain_model", pretrained) < training
+        assert training < evaluation
+        assert position(*classifier) < evaluation
+        assert evaluation < position("transform_eval_data", method)
+        assert position("transform_eval_data", method) < position(
+            "merge_eval_perf"
+        )
+    assert position("merge_eval_perf") < position("split_by_classifier_type")
+    assert position("split_by_classifier_type") < position("plot_eval_perf")
+    assert position("merge_time") < position("plot_time")
+
+
+@pytest.mark.pipeline
+def test_full_graph_scripts_receive_resolved_devices(
+    full_graph_run: FullGraphRun,
+) -> None:
+    devices = {
+        (script.removeprefix("scripts/"), args["save_path"]): args["device"]
+        for script, args in full_graph_run.calls
+        if "device" in args
+    }
+    assert {(script, device) for (script, _), device in devices.items()} == {
+        ("train_classifier/masked_mlp_classifier.py", "cuda"),
+        ("train_classifier/special.py", "cpu"),
+        ("pretrain_model/shared.py", "cuda"),
+        ("pretrain_model/other.py", "cpu"),
+        ("train_method/alpha.py", "cuda"),
+        ("train_method/beta.py", "cpu"),
+        ("train_method/gamma.py", "cpu"),
+        ("train_method/delta.py", "cpu"),
+        ("eval/eval_afa_method.py", "cuda"),
+        ("eval/eval_afa_method.py", "cpu"),
+    }
+    for (script, save_path), device in devices.items():
+        if script == "eval/eval_afa_method.py":
+            assert device == ("cuda" if "/beta/" in save_path else "cpu")
+
+
+@pytest.mark.pipeline
+def test_full_graph_preserves_contract_and_shared_prerequisites(
+    full_graph_run: FullGraphRun,
+) -> None:
+    shared = [
+        args["save_path"]
+        for script, args in full_graph_run.calls
+        if script.endswith("pretrain_model/shared.py")
+    ]
+    assert shared == [
+        "extra/output/pretrained_models/initializer-cold/shared/"
+        "dataset-cube+instance_idx-0/pretrain_seed-0/model.bundle"
+    ]
+    for script, args in full_graph_run.calls:
+        if "train_method/" in script:
+            assert args["seed"] == "0"
+            assert args["hard_budget"] == "1"
+            assert args["soft_budget_param"] == "null"
+            assert args["smoke_test"] == "True"
+            assert args["initializer"] == "cold"
+            assert args["unmasker"] == "direct"
+            assert args["dataset_key"] == "cube"
+        if script.endswith(("train_method/alpha.py", "train_method/beta.py")):
+            assert args["pretrained_model_bundle_path"] == shared[0]
+        if (
+            script.endswith("eval/eval_afa_method.py")
+            and "/alpha/" in (args["save_path"])
+        ):
+            assert args["classifier_bundle_path"] == (
+                "extra/output/trained_classifiers/initializer-cold/"
+                "method-alpha+dataset-cube.bundle"
+            )
+
+
+@pytest.mark.pipeline
+@pytest.mark.parametrize("repeat_site_file", [False, True])
+def test_cli_config_override_replaces_the_profile_site_file(
+    tmp_path: Path, *, repeat_site_file: bool
+) -> None:
+    # Snakemake replaces a workflow profile's whole `config` with the CLI one.
+    workflow = WorkflowHarness(tmp_path)
+    workflow.config["execution"] = {"methods": {"alpha": {"training": "cuda"}}}
+    site_file = (
+        "execution_site_file=extra/workflow/profiles/mixed-gres/site.yaml"
+    )
+
+    result = workflow.run(
+        "--workflow-profile",
+        "extra/workflow/profiles/mixed-gres",
+        "--slurm-init-seconds-before-status-checks",
+        "0",
+        "--seconds-between-status-checks",
+        "1",
+        "--config",
+        "smoke_test=True",
+        *([site_file] if repeat_site_file else []),
+        target="all_train_methods",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    gpu_job = next(
+        args
+        for args in workflow.submissions()
+        if submitted_job(args) == ("train_method", "alpha")
+    )
+    if repeat_site_file:
+        assert gpu_job[gpu_job.index("-p") + 1] == "gpu-queue"
+        assert gpu_job[gpu_job.index("-A") + 1] == "gpu-account"
+        assert "--gres=gpu:T4:1" in gpu_job
+    else:
+        # Known limitation: the GPU job silently loses its site mapping.
+        assert gpu_job[gpu_job.index("-p") + 1] == "general"
+        assert "-A" not in gpu_job
+        assert "--gpus=1" in gpu_job
+
+
+@pytest.mark.pipeline
+@pytest.mark.parametrize("preset", sorted(CLUSTER_PRESETS))
+def test_cluster_preset_submits_declared_hardware(
+    tmp_path: Path, preset: str
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    (tmp_path / "scripts/pretrain_model").mkdir()
+    for script in [
+        "pretrain_model/jafa.py",
+        "train_method/jafa.py",
+        "train_method/aaco.py",
+    ]:
+        shutil.copyfile(
+            tmp_path / "scripts/train_method/alpha.py",
+            tmp_path / "scripts" / script,
+        )
+
+    result = workflow.run_invocation(
+        CLUSTER_PRESETS[preset],
+        "--workflow-profile",
+        "extra/workflow/profiles/mixed-gres",
+        # Submit each dependency wave at once; the plugin waits per wave.
+        "--jobs",
+        "100",
+        "--slurm-init-seconds-before-status-checks",
+        "0",
+        "--seconds-between-status-checks",
+        "1",
+        "--config",
+        "methods=[jafa,aaco]",
+        "use_wandb=False",
+        "smoke_test=True",
+        *SMALL_SELECTION,
+        target="all_eval_methods",
+        timeout=600,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    submissions = workflow.submissions()
+    jobs = [submitted_job(args) for args in submissions]
+    assert {rule for rule, _ in jobs} == {
+        "pretrain_model",
+        "train_method",
+        "eval_method",
+    }
+    assert {identity for _, identity in jobs} == {"jafa", "aaco"}
+    for args, (rule, identity) in zip(submissions, jobs, strict=True):
+        gpu = rule == "pretrain_model" or identity == "jafa"
+        assert args[args.index("-p") + 1] == (
+            "gpu-queue" if gpu else "cpu-queue"
+        )
+        assert ("--gres=gpu:T4:1" in args) is gpu
+    for script, args in workflow.script_arguments():
+        gpu = "jafa" in args["save_path"]
+        assert args["device"] == ("cuda" if gpu else "cpu"), script
+
+
+def test_local_cpu_smoke_runs_the_same_full_graph(tmp_path: Path) -> None:
+    workflow = full_benchmark_workflow(tmp_path)
+    del workflow.config["execution"]
+
+    result = workflow.run("--executor", "local", target="all")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert workflow.submissions() == []
+    calls = workflow.script_arguments()
+    assert len(calls) == sum(FULL_GRAPH_JOBS.values())
+    for script, args in calls:
+        if "device" in args:
+            assert args["device"] == "cpu", script
+            assert args["smoke_test"] == "True", script
+    plots = (
+        tmp_path / "extra/output/plot_results/eval_split-test/initializer-cold"
+    )
+    assert len(list(plots.rglob("fixture.svg"))) == 4

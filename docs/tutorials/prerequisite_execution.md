@@ -35,8 +35,9 @@ execution:
   one pretrained model still depend on the same bundle, regardless of method
   order. The classifier input remains the external classifier, even if a
   downstream method uses a method-specific classifier.
-- Each unspecified stage defaults to `cpu`. Legacy-only global `device` still
-  applies with a deprecation warning; it cannot coexist with `execution`.
+- Each unspecified stage defaults to `cpu`. Without `execution`, the deprecated
+  global `device` still applies with a warning; it cannot coexist with
+  `execution`.
   Values are exactly `cpu` and `cuda`, with no hardware inference or fallback.
 
 The same resolved choice supplies the existing script's `device` argument and
@@ -69,8 +70,8 @@ access to both allocation types. The same graph schedules prerequisites accordin
 to their dependencies. Dataset instances, seeds, Initializers, Unmaskers, budget
 settings, method-owned scripts, plain pretraining/training contract, native
 bundle directories and `pretrain_time.txt` outputs are unchanged. Classifier
-scripts retain their existing Hydra arguments. Full final-target reproduction
-and processing documentation are completed by the separate integration slice.
+scripts retain their existing Hydra arguments. For the single full-benchmark
+command, see [Reproducing full results](reproduce_full_results.md).
 
 ## Boundary verification
 

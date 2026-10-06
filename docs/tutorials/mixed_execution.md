@@ -2,10 +2,10 @@
 
 The ordinary `pipeline.smk` invocation can train and evaluate different methods
 on CPU and GPU together, without changing scientific configuration, method-owned
-scripts, dependencies, or native output paths. This first slice converts method
-training and evaluation only. Classifier training, named pretrained models, and
-processing rules retain their previous behavior pending the following slices.
-Do not use these example profiles as a finished full-benchmark cluster setup yet.
+scripts, dependencies, or native output paths. This page covers method training
+and evaluation; see [classifiers and pretrained models](prerequisite_execution.md),
+[CPU-only processing](cpu_processing_execution.md), and the single full-benchmark
+command in [Reproducing full results](reproduce_full_results.md).
 
 ## Portable execution configuration
 
@@ -28,7 +28,7 @@ Precedence, independently for each selected method and stage:
 
 1. `execution.methods.<method name>.<stage>`
 2. `execution.defaults.<stage>`
-3. `cpu` (or the deprecated global `device` in legacy-only invocations)
+3. `cpu` (or the deprecated global `device` in invocations without `execution`)
 
 Values are exactly `cpu` and `cuda`. No hardware is inferred from method
 implementation, taxonomy, method-selection profile, or GPU availability.
@@ -79,7 +79,7 @@ whether the selected partition can provide GPUs; use a site map for mixed SLURM
 runs. CPU count, memory and runtime remain independent profile resource settings.
 The examples retain 4000 MB, 8 CPUs and 600 minutes for method jobs; adapt sizing
 as needed, rather than changing scientific settings. Existing Vera/Alvis sizing
-is not rewritten by this slice.
+is unchanged.
 
 Invalid selected-method choices, incompatible site allocations, duplicate device
 arguments in `method_specific_params`, and conflicting final rule allocation
@@ -109,13 +109,12 @@ trained bundles. Local CPU use needs no site profile: omit `--workflow-profile`,
 use CPU execution choices, and pass `--cores` and `--config smoke_test=True`.
 
 An explicit global `device` remains supported with a visible deprecation
-message in legacy-only invocations, including for unconverted activities.
-**Any** combination of global `device` and `execution` is rejected, even if
-values happen to agree. Remove `device` from CLI/config/selection profiles before
-using the new mapping. In a new execution invocation, unconverted activities
-still use their existing default CPU device. The old CPU/GPU method-selection
-profiles remain selection conveniences; they do not declare per-job hardware.
-Their existing global device must likewise be removed when adopting `execution`.
+message in invocations without `execution`. **Any** combination of global
+`device` and `execution` is rejected, even if values happen to agree. Remove
+`device` from your commands and config files. The former CPU/GPU
+method-selection profiles have been removed; their hardware split is declared
+in `extra/workflow/conf/execution/`. See
+[Reproducing full results](reproduce_full_results.md#migrating-from-the-six-invocation-workflow).
 
 ## Boundary verification
 
