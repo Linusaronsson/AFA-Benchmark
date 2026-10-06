@@ -1,0 +1,6 @@
+defaults:
+  - _tabular
+  - _self_
+
+min_masking_probability: 0.75
+max_masking_probability: 0.99

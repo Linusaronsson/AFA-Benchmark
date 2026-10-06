@@ -1,10 +1,8 @@
 defaults:
-  - /components/gdfs_architecture@architecture: image
-
+- /components/gdfs_architecture@architecture: image
 batch_size: 128
-lr: 0.00001
-min_lr: 0.00000001
-hard_budget: 15
+lr: 1.0e-05
+min_lr: 1.0e-08
 nepochs: 30
 patience: 3
 architecture:

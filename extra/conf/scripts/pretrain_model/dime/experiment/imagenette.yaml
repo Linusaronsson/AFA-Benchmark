@@ -1,11 +1,9 @@
 defaults:
-  - /components/dime_architecture@architecture: image
-
+- /components/dime_architecture@architecture: image
 batch_size: 128
-lr: 0.00001
+lr: 1.0e-05
 nepochs: 50
 patience: 2
-
 min_masking_probability: 0.0
 max_masking_probability: 0.9
 architecture:

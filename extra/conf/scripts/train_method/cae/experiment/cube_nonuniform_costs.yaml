@@ -1,17 +1,2 @@
 defaults:
-  - /components/cae_architecture@architecture: tabular
-
-batch_size: 128
-hard_budget: 20
-
-architecture:
-  selector:
-    lr: 0.001
-    nepochs: 250
-    num_cells: [128, 128]
-    patience: 5
-
-  classifier:
-    lr: 0.001
-    nepochs: 250
-    num_cells: [128, 128]
+  - _tabular
