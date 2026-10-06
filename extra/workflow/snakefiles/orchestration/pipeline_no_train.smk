@@ -10,11 +10,30 @@ Runtime filters (--config, select subsets to run):
     datasets (list[str], required): Subset of datasets to run
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of
         random seeds
-    device (str, default='cpu'): Device for evaluation
+    device (str, default='cpu'): Deprecated invocation-wide device; cannot
+        be combined with execution.
+    execution (mapping, default={}): CPU/cuda stage defaults and method/stage
+        overrides for training and evaluation. Overrides take precedence.
+    execution_site_file (str, optional): Profile-owned YAML allocation map.
+        Alternatively provide execution_site in a configuration file.
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy
     eval_dataset_split (str, default='test'): Dataset split for evaluation
+
+Execution configuration and required files:
+    Methods retain their independent scripts and native bundle/result paths.
+    Site profiles own CPU/GPU partition, account and GPU request syntax;
+    CPU counts, memory and runtime remain separate resource settings.
+    Invalid selected-method execution fails before submission.
+    See docs/tutorials/mixed_execution.md for the execution YAML format,
+    site.yaml requirements, migration policy and captured-submission tests.
+
+Usage (add existing scientific --configfile inputs):
+    snakemake -s extra/workflow/snakefiles/orchestration/pipeline_no_train.smk \
+        --workflow-profile extra/workflow/profiles/mixed-gres \
+        --configfile <scientific.yaml> <execution.yaml> -n -p all_eval_methods
+    Remove -n to submit from an authorized SLURM controller with shared files.
 
 Output namespacing:
     - All initializer-dependent artifacts are stored under
@@ -66,8 +85,11 @@ src_dir = os.path.join(workflow_dir, "src")
 sys.path.insert(0, src_dir)
 
 from config import load_config
+from execution import ExecutionPolicy
 
 _config = load_config(config)
+EXECUTION = ExecutionPolicy(config)
+DEFAULT_RESOURCES = workflow.resource_settings.default_resources.parsed if workflow.resource_settings.default_resources else {}
 
 NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
 DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]

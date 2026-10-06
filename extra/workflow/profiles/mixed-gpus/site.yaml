@@ -1,0 +1,9 @@
+execution_site:
+  cpu:
+    slurm_partition: standard
+    slurm_account: other-cpu
+  gpu:
+    slurm_partition: accelerated
+    slurm_account: other-gpu
+    gpu: 1
+    gpu_model: a100
