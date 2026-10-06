@@ -43,15 +43,10 @@ rule transform_eval_data:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_data.parquet",
     params:
-        execution_device=lambda wc, resources: EXECUTION.checked_device("transformation", "transform_eval_data", resources),
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("transformation", "transform_eval_data", resources),
     resources:
         shell_exec="bash",
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "transformation", "transform_eval_data")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "transformation", "transform_eval_data")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "transformation", "transform_eval_data"),
-        gres=lambda wc: EXECUTION.resource("gres", "transformation", "transform_eval_data"),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "transformation", "transform_eval_data"),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "transformation", "transform_eval_data"),
+        **EXECUTION.allocation_resources("transformation", lambda wc: "transform_eval_data"),
     shell:
         """
         python scripts/misc/transform_eval_data_pipeline.py \

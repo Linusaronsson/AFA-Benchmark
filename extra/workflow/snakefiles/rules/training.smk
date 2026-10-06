@@ -11,7 +11,7 @@ with a pretraining stage and `NO_PRETRAIN/` for the others, the same folder
 the evaluation rules use, so the two former training rules are one.
 """
 
-from prerequisite_execution import checked_prerequisite_params
+from execution import checked_script_params
 from training_contract import (
     render_pretraining_contract,
     render_training_contract,
@@ -127,15 +127,10 @@ rule pretrain_model:
     params:
         script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
         contract=_pretraining_contract,
-        pretrain_params=lambda wildcards: checked_prerequisite_params(PRETRAIN_PARAMS[wildcards.pretrained_model_name], f"pretrain_params for {wildcards.pretrained_model_name!r}"),
+        pretrain_params=lambda wildcards: checked_script_params(PRETRAIN_PARAMS[wildcards.pretrained_model_name], f"pretrain_params for {wildcards.pretrained_model_name!r}"),
     resources:
         shell_exec="bash",
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "pretraining", wc.pretrained_model_name)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "pretraining", wc.pretrained_model_name)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "pretraining", wc.pretrained_model_name),
-        gres=lambda wc: EXECUTION.resource("gres", "pretraining", wc.pretrained_model_name),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "pretraining", wc.pretrained_model_name),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "pretraining", wc.pretrained_model_name),
+        **EXECUTION.allocation_resources("pretraining", lambda wc: wc.pretrained_model_name),
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -187,12 +182,7 @@ rule train_method:
         method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method],
     resources:
         shell_exec="bash",
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "training", wc.method)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "training", wc.method)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "training", wc.method),
-        gres=lambda wc: EXECUTION.resource("gres", "training", wc.method),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "training", wc.method),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "training", wc.method),
+        **EXECUTION.allocation_resources("training", lambda wc: wc.method),
     shell:
         """
         START_TIME=$(date +%s.%N)

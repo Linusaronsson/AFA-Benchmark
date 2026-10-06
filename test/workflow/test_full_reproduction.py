@@ -61,28 +61,10 @@ def planned_jobs(output: str) -> list[dict[str, str]]:
     return jobs
 
 
-CONF = "extra/workflow/conf"
-SCIENTIFIC_GROUPS = [
-    "eval_hard_budgets",
-    "methods",
-    "method_sets",
-    "method_options",
-    "pretrain_mappings",
-    "soft_budget_params",
-    "unmaskers",
-    "classifier_names",
-    "datasets",
-]
 # The documented cluster invocations of the two scientific presets.
 CLUSTER_PRESETS = {
     "kdd26": ["--profile", "extra/workflow/profiles/config/kdd26"],
-    "all": [
-        "--snakefile",
-        "extra/workflow/snakefiles/orchestration/pipeline.smk",
-        "--configfile",
-        *[f"{CONF}/{group}/all.yaml" for group in SCIENTIFIC_GROUPS],
-        f"{CONF}/execution/all.yaml",
-    ],
+    "all": ["--profile", "extra/workflow/profiles/config/all_cluster"],
 }
 SMALL_SELECTION = [
     "datasets=[cube]",
@@ -168,6 +150,35 @@ def test_local_all_preset_runs_every_job_on_cpu(tmp_path: Path) -> None:
         assert job.get("device", "cpu") == "cpu", job
         assert "gpu=0" in job["resources"], job
         assert "gres=," in job["resources"], job
+
+
+def test_alvis_profile_plans_cuda_methods_and_cpu_processing(
+    tmp_path: Path,
+) -> None:
+    workflow = processing_workflow(tmp_path)
+
+    result = workflow.run(
+        "--dry-run",
+        "--workflow-profile",
+        str(tmp_path / "extra/workflow/profiles/alvis"),
+        target="all",
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    jobs = [job for job in planned_jobs(output) if job["rule"] != "all"]
+    assert "dataset_generation" in {job["rule"] for job in jobs}
+    for job in jobs:
+        cuda = job["rule"] in {"train_method", "eval_method"}
+        assert job.get("device", "cpu") == ("cuda" if cuda else "cpu"), job
+        resources = dict(
+            item.split("=", 1) for item in job["resources"].split(", ")
+        )
+        assert resources["slurm_partition"] == "alvis", job
+        assert resources["slurm_account"] == "NAISS2026-4-39", job
+        assert resources["gres"] == ("gpu:T4:1" if cuda else ""), job
+        assert resources["gpu"] == "0", job
+        assert resources["slurm_extra"] == "", job
 
 
 METHODS = ["alpha", "beta", "gamma", "delta"]
@@ -457,46 +468,57 @@ def test_full_graph_preserves_contract_and_shared_prerequisites(
             )
 
 
-@pytest.mark.pipeline
-@pytest.mark.parametrize("repeat_site_file", [False, True])
-def test_cli_config_override_replaces_the_profile_site_file(
-    tmp_path: Path, *, repeat_site_file: bool
+@pytest.mark.parametrize(
+    "execution", [{"methods": {"alpha": {"training": "cuda"}}}, {}]
+)
+def test_cli_config_without_site_file_fails_before_submission(
+    tmp_path: Path, execution: dict[str, object]
 ) -> None:
     # Snakemake replaces a workflow profile's whole `config` with the CLI one.
     workflow = WorkflowHarness(tmp_path)
-    workflow.config["execution"] = {"methods": {"alpha": {"training": "cuda"}}}
-    site_file = (
-        "execution_site_file=extra/workflow/profiles/mixed-gres/site.yaml"
-    )
+    workflow.config["execution"] = execution
 
     result = workflow.run(
         "--workflow-profile",
         "extra/workflow/profiles/mixed-gres",
-        "--slurm-init-seconds-before-status-checks",
-        "0",
-        "--seconds-between-status-checks",
-        "1",
         "--config",
         "smoke_test=True",
-        *([site_file] if repeat_site_file else []),
         target="all_train_methods",
     )
 
-    assert result.returncode == 0, result.stdout + result.stderr
-    gpu_job = next(
-        args
-        for args in workflow.submissions()
-        if submitted_job(args) == ("train_method", "alpha")
+    assert result.returncode != 0
+    assert "execution_site_file" in result.stdout + result.stderr
+    assert workflow.submissions() == []
+
+
+def test_cli_config_with_repeated_site_file_keeps_site_allocations(
+    tmp_path: Path,
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    workflow.config["execution"] = {"methods": {"alpha": {"training": "cuda"}}}
+
+    result = workflow.submit_first_wave(
+        2,
+        "--workflow-profile",
+        "extra/workflow/profiles/mixed-gres",
+        "--config",
+        "smoke_test=True",
+        "execution_site_file=extra/workflow/profiles/mixed-gres/site.yaml",
+        target="all_train_methods",
     )
-    if repeat_site_file:
-        assert gpu_job[gpu_job.index("-p") + 1] == "gpu-queue"
-        assert gpu_job[gpu_job.index("-A") + 1] == "gpu-account"
-        assert "--gres=gpu:T4:1" in gpu_job
-    else:
-        # Known limitation: the GPU job silently loses its site mapping.
-        assert gpu_job[gpu_job.index("-p") + 1] == "general"
-        assert "-A" not in gpu_job
-        assert "--gpus=1" in gpu_job
+
+    gpu_job = next(
+        (
+            args
+            for args in workflow.submissions()
+            if submitted_job(args) == ("train_method", "alpha")
+        ),
+        None,
+    )
+    assert gpu_job is not None, result.stdout
+    assert gpu_job[gpu_job.index("-p") + 1] == "gpu-queue"
+    assert gpu_job[gpu_job.index("-A") + 1] == "gpu-account"
+    assert "--gres=gpu:T4:1" in gpu_job
 
 
 @pytest.mark.pipeline
@@ -556,6 +578,7 @@ def test_cluster_preset_submits_declared_hardware(
         assert args["device"] == ("cuda" if gpu else "cpu"), script
 
 
+@pytest.mark.pipeline
 def test_local_cpu_smoke_runs_the_same_full_graph(tmp_path: Path) -> None:
     workflow = full_benchmark_workflow(tmp_path)
     del workflow.config["execution"]

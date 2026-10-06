@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from test.workflow.submission_harness import WorkflowHarness
+from test.workflow.submission_harness import SITE, WorkflowHarness
 
 
 def prerequisite_workflow(root: Path) -> WorkflowHarness:
@@ -197,6 +197,7 @@ def test_prerequisite_script_arguments_cannot_override_device_before_submission(
             },
             "other": {"pretrain_script_name": "other"},
         }
+    workflow.config["execution_site"] = SITE
 
     result = workflow.run("--executor", "slurm")
 
@@ -218,6 +219,11 @@ def test_prerequisite_script_arguments_cannot_override_device_before_submission(
         ({"methods": {"alpha": {"classifier": "tpu"}}}, "classifier/alpha"),
         ({"methods": {"alpha": {"pretraining": "cpu"}}}, "pretraining"),
         ({"defaults": {"pretraining": "cuda"}}, "GPU allocation"),
+        ({"pretrained_models": {"sharde": "cuda"}}, "sharde"),
+        (
+            {"methods": {"beta": {"classifier": "cuda"}}},
+            "execution.methods.beta.classifier",
+        ),
     ],
 )
 def test_invalid_selected_prerequisite_fails_before_any_submission(
@@ -250,6 +256,7 @@ def test_prerequisite_resource_conflict_is_rejected_before_upstream_submission(
 ) -> None:
     workflow = prerequisite_workflow(tmp_path)
     add_pretrained_models(workflow)
+    workflow.config["execution_site"] = SITE
 
     result = workflow.run(
         "--executor", "slurm", "--set-resources", f"{rule}:gpu=1"
@@ -292,7 +299,6 @@ def test_independent_prerequisites_submit_once_with_matching_script_devices(
         "gpu=4",
         "gres='gpu:wrong:4'",
         "gpu_model='wrong'",
-        "slurm_extra='--gres=gpu:wrong:4'",
         "--set-resources",
         "pretrain_model:runtime=6000",
         "pretrain_model:cpus_per_task=8",

@@ -60,15 +60,10 @@ rule merge_eval_perf:
             ) in BUDGET_PARAMS[method][dataset]
         ]
     params:
-        execution_device=lambda wc, resources: EXECUTION.checked_device("aggregation", "merge_eval_perf", resources),
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "merge_eval_perf", resources),
     resources:
         shell_exec="bash",
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "aggregation", "merge_eval_perf")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "aggregation", "merge_eval_perf")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "aggregation", "merge_eval_perf"),
-        gres=lambda wc: EXECUTION.resource("gres", "aggregation", "merge_eval_perf"),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "aggregation", "merge_eval_perf"),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "aggregation", "merge_eval_perf"),
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "merge_eval_perf"),
     output:
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet",
     shell:
@@ -83,15 +78,10 @@ rule split_by_classifier_type:
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
     params:
-        execution_device=lambda wc, resources: EXECUTION.checked_device("aggregation", "split_by_classifier_type", resources),
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "split_by_classifier_type", resources),
     resources:
         shell_exec="bash",
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "aggregation", "split_by_classifier_type")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "aggregation", "split_by_classifier_type")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "aggregation", "split_by_classifier_type"),
-        gres=lambda wc: EXECUTION.resource("gres", "aggregation", "split_by_classifier_type"),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "aggregation", "split_by_classifier_type"),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "aggregation", "split_by_classifier_type"),
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "split_by_classifier_type"),
     shell:
         """
             python scripts/misc/split_eval_perf_by_classifier.py \
@@ -143,15 +133,10 @@ rule time_df_with_pretrain:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "combined_time.parquet"
     params:
-        execution_device=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_with_pretrain", resources),
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_with_pretrain", resources),
     resources:
         shell_exec="bash",
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "aggregation", "time_df_with_pretrain")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "aggregation", "time_df_with_pretrain")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "aggregation", "time_df_with_pretrain"),
-        gres=lambda wc: EXECUTION.resource("gres", "aggregation", "time_df_with_pretrain"),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "aggregation", "time_df_with_pretrain"),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "aggregation", "time_df_with_pretrain"),
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "time_df_with_pretrain"),
     shell:
         """
         python scripts/misc/merge_time_results.py \
@@ -199,15 +184,10 @@ rule time_df_without_pretrain:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "combined_time.parquet"
     params:
-        execution_device=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_without_pretrain", resources),
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_without_pretrain", resources),
     resources:
         shell_exec="bash",
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "aggregation", "time_df_without_pretrain")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "aggregation", "time_df_without_pretrain")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "aggregation", "time_df_without_pretrain"),
-        gres=lambda wc: EXECUTION.resource("gres", "aggregation", "time_df_without_pretrain"),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "aggregation", "time_df_without_pretrain"),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "aggregation", "time_df_without_pretrain"),
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "time_df_without_pretrain"),
     shell:
         """
         python scripts/misc/merge_time_results.py \
@@ -273,15 +253,10 @@ rule merge_time:
     output:
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/all.parquet",
     params:
-        execution_device=lambda wc, resources: EXECUTION.checked_device("aggregation", "merge_time", resources),
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "merge_time", resources),
     resources:
         shell_exec="bash",
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "aggregation", "merge_time")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "aggregation", "merge_time")) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "aggregation", "merge_time"),
-        gres=lambda wc: EXECUTION.resource("gres", "aggregation", "merge_time"),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "aggregation", "merge_time"),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "aggregation", "merge_time"),
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "merge_time"),
     shell:
         """
         python scripts/misc/merge_dataframes.py {input} --output {output}

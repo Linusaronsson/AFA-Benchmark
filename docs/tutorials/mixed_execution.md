@@ -60,9 +60,9 @@ execution_site:
 Alternatively, GPU allocation can specify `gpu: 1` and optionally
 `gpu_model: a100`, producing `--gpus=a100:1` instead of `--gres=gpu:T4:1`.
 Use exactly one positive GPU request convention. CPU allocation may not request
-GPUs. `slurm_extra` must be empty: use the profile's ordinary executor options
-for additional scheduling settings rather than hiding allocation flags in it.
-The portable execution file must not contain partitions or accounts.
+GPUs. Either allocation may add other scheduler flags with `slurm_extra`, but no
+GPU requests; `slurm_extra` in `default-resources` is rejected. The portable
+execution file must not contain partitions or accounts.
 
 `execution_site` can also be supplied directly in a **config file**, but not
 alongside `execution_site_file`. Do not put nested mappings in a profile's
@@ -71,12 +71,11 @@ those mappings in the remote shell wrapper. The scalar file reference avoids
 that boundary issue without changing engine or plugin versions.
 
 Per-job resources distinguish methods within the same `train_method` and
-`eval_method` rules. CPU jobs explicitly clear `gpu`, `gpu_model`, `gres`, and
-`slurm_extra`, even if a legacy profile supplies GPU defaults. A site map routes
-partition and account too. Without a site map, existing profile partition/account
-defaults are retained and CUDA requests one generic GPU. This does not establish
-whether the selected partition can provide GPUs; use a site map for mixed SLURM
-runs. CPU count, memory and runtime remain independent profile resource settings.
+`eval_method` rules. CPU jobs explicitly clear `gpu`, `gpu_model` and `gres`,
+even if a profile supplies GPU defaults, and the site map routes partition,
+account and `slurm_extra` too. SLURM submission without a site map, or with a
+site map lacking the allocation a job resolves to, fails before any job is
+submitted; local runs need no site map. CPU count, memory and runtime remain independent profile resource settings.
 The examples retain 4000 MB, 8 CPUs and 600 minutes for method jobs; adapt sizing
 as needed, rather than changing scientific settings. Existing Vera/Alvis sizing
 is unchanged.
@@ -124,7 +123,9 @@ uv run pytest test/workflow/test_method_execution.py -m pipeline
 ```
 
 The fast tests inspect the real orchestration's planned commands and diagnostics,
-including downstream allocation conflicts before submission. The pipeline-marked
+including downstream allocation conflicts before submission, and capture the
+real executor's first CPU and GPU submissions for both illustrative profiles,
+stopping Snakemake before the plugin's first status check. The pipeline-marked
 tests run that same orchestration using tiny pre-existing dataset/classifier
 fixtures, script-boundary stubs, and fake `sbatch`/`srun`/`sacct` commands. They
 capture actual executor submissions for both illustrative profiles, execute real

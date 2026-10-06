@@ -26,10 +26,18 @@ extra/workflow/profiles/<site>/
 | --- | --- |
 | `mixed-gres/` | Illustrative mixed CPU/GPU site requesting GPUs as `--gres=gpu:T4:1` |
 | `mixed-gpus/` | Illustrative mixed CPU/GPU site requesting GPUs as `--gpus=a100:1` |
-| `vera/`, `alvis/` | Our team's single-allocation CPU and GPU clusters, without a site map |
+| `vera/` | Our team's CPU cluster; its site map has only a CPU allocation, so `cuda` jobs fail before submission |
+| `alvis/` | Our team's GPU cluster; `cuda` jobs request `--gres=gpu:T4:1` |
 
 None of these is verified against a live cluster, and they are unlikely to
 work for you unchanged.
+
+> **Unverified: whether Alvis accepts CPU-only jobs.** Every graph contains
+> CPU-only jobs (dataset generation, transformations, aggregation and
+> plotting), so `alvis/site.yaml` maps CPU jobs to the `alvis` partition
+> without a GPU request. If Alvis rejects jobs without a GPU, `sbatch` fails
+> when such a job is submitted; produce those outputs with a CPU profile
+> such as `vera` instead.
 
 ## Adapting a profile to your site
 
@@ -58,9 +66,12 @@ work for you unchanged.
        # or: gpu: 1 and optionally gpu_model: <type>   # --gpus=<type>:1
    ```
 
-   The CPU allocation may not request GPUs, and `slurm_extra` must stay empty
-   in both: put any other scheduler settings in the profile's ordinary
-   executor options. Invalid maps fail before submission.
+   Both allocations are needed as soon as any job resolves to them, and every
+   graph has CPU-only processing jobs, so every site needs a `cpu`
+   allocation. The CPU allocation may not request GPUs. Either allocation may
+   add other scheduler flags with `slurm_extra` (for example
+   `slurm_extra: --qos=short`), but not GPU requests (`--gres`, `--gpus*`,
+   `-G`). Invalid maps fail before submission.
 4. Size jobs in `<site>/config.yaml` with `default-resources` and
    `set-resources` (`runtime`, `mem_mb`, `cpus_per_task`). Rule names you can
    size: `dataset_generation`, `train_classifier`,
@@ -71,7 +82,9 @@ work for you unchanged.
    `plot_eval_actions` and `plot_time`. The `vera` profile shows sizes we have
    used. Do not set `slurm_partition`, `slurm_account`, `gpu`, `gres`,
    `gpu_model` or `slurm_extra` per rule; the site map owns them, and
-   conflicting rule settings are rejected before submission.
+   conflicting rule settings are rejected before submission. `slurm_extra`
+   in `default-resources` is rejected as well, since every job's allocation
+   would replace it.
 5. Check the result with a dry run and read the `resources:` lines:
 
    ```shell
@@ -87,18 +100,17 @@ profile's `config` section: this Snakemake/plugin version does not preserve
 nested profile config in the remote job wrapper.
 
 > **`--config` on the command line replaces the site profile's `config`.**
-> Any `--config` drops `execution_site_file` without an error: GPU jobs are
-> then submitted with a generic `--gpus=1` to the cluster's default partition
-> and account. Whenever you pass `--config`, also pass
+> Any `--config` drops `execution_site_file`, and the submission then fails
+> before any job is submitted. Whenever you pass `--config`, also pass
 > `execution_site_file=extra/workflow/profiles/<site>/site.yaml`.
 
-## Profiles without a site map
+## A site map is required for SLURM
 
-Without `execution_site_file`, every job keeps the profile's
-`default-resources` partition and account. CPU jobs clear inherited GPU
-requests; GPU jobs request one generic GPU (`--gpus=1`) and the profile's
-`slurm_extra` is cleared. Whether the partition provides GPUs is up to you,
-so use a site map for mixed CPU/GPU runs.
+Submitting to SLURM without a site map fails during planning, before any job
+is submitted. Local runs and dry runs need none. Without one, a dry run shows
+the profile's `default-resources` partition and account, and `cuda` jobs
+declare one generic GPU (`gpu=1`), which local runs can bound with
+`--resources gpu=<n>`.
 
 ## Related documentation
 

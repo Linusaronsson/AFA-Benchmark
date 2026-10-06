@@ -28,14 +28,17 @@ execution:
 - Method-specific classifiers use `methods.<method name>.classifier`, then
   `defaults.classifier`. The existing `method_options.<name>.classifier` script
   selection and parameters still decide which variant is trained, not hardware.
+  A `classifier` override for a selected method without a method-specific
+  classifier is rejected.
   A CPU policy does not imply that its classifier should run on CPU.
 - Pretraining uses `pretrained_models.<named model>`, then `defaults.pretraining`.
   The key is the name in `pretrain_mapping`, not the script name or requesting
-  method. A method-level `pretraining` override is rejected. Two methods sharing
+  method; a name missing from `pretrain_mapping` is rejected. A method-level
+  `pretraining` override is rejected. Two methods sharing
   one pretrained model still depend on the same bundle, regardless of method
   order. The classifier input remains the external classifier, even if a
   downstream method uses a method-specific classifier.
-- Each unspecified stage defaults to `cpu`. Without `execution`, the deprecated
+- Each unspecified execution activity defaults to `cpu`. Without `execution`, the deprecated
   global `device` still applies with a warning; it cannot coexist with
   `execution`.
   Values are exactly `cpu` and `cuda`, with no hardware inference or fallback.

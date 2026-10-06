@@ -269,6 +269,13 @@ One of **pretraining**, **training**, and **evaluation**. The first two are
 optional per method; evaluation is mandatory and shared by all methods.
 _Avoid_: Phase, step (reserved for time steps)
 
+**Execution activity**:
+A kind of pipeline job whose hardware the workflow resolves. Classifier
+training, pretraining, training and evaluation each take a declared `cpu` or
+`cuda` choice; dataset generation, transformation, aggregation and
+visualization always run on CPU.
+_Avoid_: Stage (for classifier training or processing jobs)
+
 **Pretrained model**:
 A named artifact produced in the pretraining stage and reusable across
 methods, for example a partial VAE shared by EDDI and ODIN.

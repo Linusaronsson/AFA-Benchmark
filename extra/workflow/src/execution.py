@@ -2,24 +2,37 @@
 
 import re
 import shlex
-import sys
-from collections.abc import Mapping
+import warnings
+from collections.abc import Callable, Collection, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Literal
 
 import yaml
 
-# Workflow YAML and Snakemake resources are heterogeneous mappings.
-# ruff: noqa: ANN401
+type Device = Literal["cpu", "cuda"]
+type Hardware = Literal["cpu", "gpu"]
+# Execution activities: the kinds of job whose hardware this policy resolves.
+type Activity = Literal[
+    "classifier",
+    "pretraining",
+    "training",
+    "evaluation",
+    "dataset_generation",
+    "transformation",
+    "aggregation",
+    "visualization",
+]
+type ResourceFunction = Callable[[object], int | str]
 
-METHOD_STAGES = {"training", "evaluation", "classifier"}
-CPU_ONLY_STAGES = {
+METHOD_ACTIVITIES = {"training", "evaluation", "classifier"}
+COMPUTATIONAL_ACTIVITIES = METHOD_ACTIVITIES | {"pretraining"}
+PROCESSING_ACTIVITIES = {
     "dataset_generation",
     "transformation",
     "aggregation",
     "visualization",
 }
-ALLOCATION_RESOURCES = {
+ALLOCATION_RESOURCES: dict[str, int | str] = {
     "slurm_partition": "",
     "slurm_account": "",
     "gpu": 0,
@@ -29,7 +42,7 @@ ALLOCATION_RESOURCES = {
 }
 
 
-def _mapping(value: Any, label: str) -> Mapping[str, Any]:
+def _mapping(value: object, label: str) -> Mapping[str, object]:
     if not isinstance(value, Mapping):
         message = f"Expected {label} mapping, got {value!r}"
         raise TypeError(message)
@@ -37,7 +50,7 @@ def _mapping(value: Any, label: str) -> Mapping[str, Any]:
 
 
 def _known_keys(
-    value: Mapping[str, Any], allowed: set[str], label: str
+    value: Mapping[str, object], allowed: set[str], label: str
 ) -> None:
     unknown = value.keys() - allowed
     if unknown:
@@ -45,8 +58,30 @@ def _known_keys(
         raise ValueError(message)
 
 
+def checked_script_params(params: str, label: str) -> str:
+    """Return script arguments, rejecting any that bypass the resolved device."""
+    for argument in shlex.split(params):
+        if argument.split("=", 1)[0].lstrip("+~") == "device":
+            message = f"{label} cannot set device; use execution"
+            raise ValueError(message)
+    return params
+
+
 class ExecutionPolicy:
-    def __init__(self, config: Mapping[str, Any]) -> None:
+    def __init__(
+        self,
+        config: Mapping[str, object],
+        *,
+        method_classifiers: Collection[str],
+        default_resources: Mapping[str, object],
+        submits_to_cluster: Callable[[], bool],
+    ) -> None:
+        if "slurm_extra" in default_resources:
+            # Every rule sets slurm_extra from its allocation, replacing it.
+            message = "default-resources slurm_extra would be replaced by every job's allocation; move scheduler flags to execution_site.<cpu|gpu>.slurm_extra"
+            raise ValueError(message)
+        # Called per job: the executor is unknown while the Snakefile parses.
+        self.submits_to_cluster = submits_to_cluster
         self.execution = _mapping(config.get("execution", {}), "execution")
         _known_keys(
             self.execution,
@@ -57,15 +92,22 @@ class ExecutionPolicy:
             self.execution.get("defaults", {}), "execution.defaults"
         )
         _known_keys(
-            self.defaults,
-            METHOD_STAGES | {"pretraining"},
-            "execution.defaults",
+            self.defaults, COMPUTATIONAL_ACTIVITIES, "execution.defaults"
         )
         self.methods = _mapping(
             self.execution.get("methods", {}), "execution.methods"
         )
         self.pretrained_models = _mapping(
             self.execution.get("pretrained_models", {}),
+            "execution.pretrained_models",
+        )
+        _known_keys(
+            self.pretrained_models,
+            set(
+                _mapping(
+                    config.get("pretrain_mapping", {}), "pretrain_mapping"
+                )
+            ),
             "execution.pretrained_models",
         )
         site_config = config
@@ -77,7 +119,7 @@ class ExecutionPolicy:
                 raise ValueError(message)
             site_config = _mapping(
                 yaml.safe_load(
-                    Path(config["execution_site_file"]).read_text()
+                    Path(str(config["execution_site_file"])).read_text()
                 ),
                 "execution_site_file",
             )
@@ -90,62 +132,78 @@ class ExecutionPolicy:
             if "execution" in config:
                 message = "Deprecated global device cannot be combined with execution"
                 raise ValueError(message)
-            print(
-                "Global device is deprecated; use execution stage defaults and overrides",
-                file=sys.stderr,
+            # Attributed to this module: Snakemake 9.12.0 drops warnings
+            # attributed to Snakefile frames, as stacklevel=2 would be.
+            warnings.warn(
+                "Global device is deprecated; use execution activity "
+                "defaults and overrides",
+                stacklevel=1,
             )
-        for method in config.get("methods", []):
-            overrides = _mapping(
-                self.methods.get(method, {}), f"execution.methods.{method}"
-            )
-            _known_keys(
-                overrides, METHOD_STAGES, f"execution.methods.{method}"
-            )
-            self._validate_method_parameters(config, method)
-
-    def _validate_method_parameters(
-        self, config: Mapping[str, Any], method: str
-    ) -> None:
-        params = (
-            config.get("method_options", {})
-            .get(method, {})
-            .get("method_specific_params", [])
+        method_options = _mapping(
+            config.get("method_options", {}), "method_options"
         )
-        for param in params:
-            for argument in shlex.split(param):
-                if argument.split("=", 1)[0].lstrip("+~") == "device":
-                    message = f"method_specific_params for {method!r} cannot set device; use execution"
-                    raise ValueError(message)
+        for method in config.get("methods", []):
+            overrides = self._method_overrides(method)
+            _known_keys(
+                overrides, METHOD_ACTIVITIES, f"execution.methods.{method}"
+            )
+            if "classifier" in overrides and method not in method_classifiers:
+                message = f"execution.methods.{method}.classifier is set, but {method!r} has no method-specific classifier; external classifiers use execution.defaults.classifier"
+                raise ValueError(message)
+            options = _mapping(
+                method_options.get(method, {}), f"method_options.{method}"
+            )
+            for param in options.get("method_specific_params", []):
+                checked_script_params(
+                    param, f"method_specific_params for {method!r}"
+                )
 
-    def device(self, stage: str, identity: str | None) -> str:
+    def _method_overrides(self, method: str) -> Mapping[str, object]:
+        return _mapping(
+            self.methods.get(method, {}), f"execution.methods.{method}"
+        )
+
+    def device(self, activity: Activity, identity: str | None) -> Device:
         # Processing never inherits GPU intent, including legacy global device.
-        if stage in CPU_ONLY_STAGES:
+        if activity in PROCESSING_ACTIVITIES:
             return "cpu"
-        choice = self.defaults.get(stage, self.legacy_device)
+        choice = self.defaults.get(activity, self.legacy_device)
         # Shared pretraining is named independently of its downstream methods.
-        # A None identity selects the external classifier stage default only.
-        if stage == "pretraining":
-            choice = self.pretrained_models.get(identity, choice)
+        # A None identity selects the external classifier default only.
+        if activity == "pretraining":
+            choice = self.pretrained_models.get(str(identity), choice)
         elif identity is not None:
-            choice = self.methods.get(identity, {}).get(stage, choice)
-        if choice not in ("cpu", "cuda"):
-            message = f"Invalid execution choice {choice!r} for {stage}/{identity}; expected cpu or cuda"
-            raise ValueError(message)
-        return choice
+            choice = self._method_overrides(identity).get(activity, choice)
+        if choice in ("cpu", "cuda"):
+            return choice
+        message = f"Invalid execution choice {choice!r} for {activity}/{identity}; expected cpu or cuda"
+        raise ValueError(message)
 
-    def _validate_allocation(self, hardware: str) -> None:
+    def _validate_allocation(
+        self, hardware: Hardware, activity: Activity, identity: str | None
+    ) -> None:
+        if hardware not in self.site:
+            message = f"execution_site has no {hardware} allocation for {activity}/{identity}"
+            raise ValueError(message)
         site = _mapping(
             self.site.get(hardware, {}), f"execution_site.{hardware}"
         )
         _known_keys(
             site, set(ALLOCATION_RESOURCES), f"execution_site.{hardware}"
         )
+        slurm_extra = site.get("slurm_extra", "")
+        if not isinstance(slurm_extra, str) or any(
+            re.match(r"--gres|--gpus|-G", argument)
+            for argument in shlex.split(slurm_extra)
+        ):
+            message = f"{hardware.upper()} allocation slurm_extra must not request GPUs; use gpu or gres: {dict(site)!r}"
+            raise ValueError(message)
         gpu = site.get("gpu", 0)
         gres = site.get("gres", "")
         gpu_model = site.get("gpu_model", "")
         if hardware == "cpu":
-            if gpu or gres or gpu_model or site.get("slurm_extra"):
-                message = f"CPU allocation cannot request GPUs or slurm_extra: {dict(site)!r}"
+            if gpu or gres or gpu_model:
+                message = f"CPU allocation cannot request GPUs: {dict(site)!r}"
                 raise ValueError(message)
             return
         valid_gpu = type(gpu) is int and gpu > 0 and not gres
@@ -155,34 +213,71 @@ class ExecutionPolicy:
             and not gpu
             and not gpu_model
         )
-        if not (valid_gpu or valid_gres) or site.get("slurm_extra"):
-            message = f"GPU allocation requires exactly one positive gpu count or GPU gres, not slurm_extra: {dict(site)!r}"
+        if not (valid_gpu or valid_gres):
+            message = f"GPU allocation requires exactly one positive gpu count or GPU gres: {dict(site)!r}"
             raise ValueError(message)
         if gpu_model and not re.fullmatch(r"[a-zA-Z0-9_]+", str(gpu_model)):
             message = f"Invalid GPU allocation gpu_model: {gpu_model!r}"
             raise ValueError(message)
 
     def resource(
-        self, name: str, stage: str, identity: str | None
+        self, name: str, activity: Activity, identity: str | None
     ) -> int | str:
-        hardware = "gpu" if self.device(stage, identity) == "cuda" else "cpu"
+        hardware: Hardware = (
+            "gpu" if self.device(activity, identity) == "cuda" else "cpu"
+        )
         if self.site:
-            self._validate_allocation(hardware)
-        site = self.site.get(hardware, {})
+            self._validate_allocation(hardware, activity, identity)
+        elif self.submits_to_cluster():
+            message = f"Cluster submission of {activity}/{identity} needs an execution_site allocation map; set execution_site_file in the site profile, and repeat it whenever passing --config, which replaces the profile's config"
+            raise ValueError(message)
+        site = _mapping(self.site.get(hardware, {}), "execution_site")
         default = ALLOCATION_RESOURCES[name]
         if not self.site and name == "gpu" and hardware == "gpu":
+            # Local runs: lets --resources gpu=<n> bound concurrent cuda jobs.
             default = 1
         return site.get(name, default)
 
+    def allocation_resources(
+        self,
+        activity: Activity,
+        identity: Callable[[object], str | None],
+    ) -> dict[str, ResourceFunction]:
+        """Return a rule's allocation resources, resolved per job."""
+        names = list(ALLOCATION_RESOURCES)
+        if not self.site:
+            # Without a site map, the profile's partition and account apply.
+            names.remove("slurm_partition")
+            names.remove("slurm_account")
+        return {
+            name: self._resource_function(name, activity, identity)
+            for name in names
+        }
+
+    def _resource_function(
+        self,
+        name: str,
+        activity: Activity,
+        identity: Callable[[object], str | None],
+    ) -> ResourceFunction:
+        def resolve(wildcards: object) -> int | str:
+            return self.resource(name, activity, identity(wildcards))
+
+        return resolve
+
     def checked_device(
-        self, stage: str, identity: str | None, resources: Mapping[str, Any]
-    ) -> str:
+        self,
+        activity: Activity,
+        identity: str | None,
+        resources: Mapping[str, object],
+    ) -> Device:
+        """Return the job's device after checking its final allocation."""
         for name, default in ALLOCATION_RESOURCES.items():
             if not self.site and name in {"slurm_partition", "slurm_account"}:
                 continue
-            expected = self.resource(name, stage, identity)
+            expected = self.resource(name, activity, identity)
             actual = resources.get(name, default)
             if actual != expected:
-                message = f"Conflicting allocation for {stage}/{identity}: {name}={actual!r}, expected {expected!r}; configure execution_site instead of rule overrides"
+                message = f"Conflicting allocation for {activity}/{identity}: {name}={actual!r}, expected {expected!r}; configure execution_site instead of rule overrides"
                 raise ValueError(message)
-        return self.device(stage, identity)
+        return self.device(activity, identity)

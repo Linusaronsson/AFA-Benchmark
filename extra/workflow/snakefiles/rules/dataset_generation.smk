@@ -7,7 +7,7 @@ rule dataset_generation:
         ]
     params:
         # Validate final resources during planning; this script has no device argument.
-        execution_device=lambda wc, resources: EXECUTION.checked_device("dataset_generation", wc.dataset, resources),
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("dataset_generation", wc.dataset, resources),
         save_path=lambda wc: f"extra/output/datasets/{wc.dataset}",
         instance_indices_str=lambda wildcards: "["
         + ",".join(str(i) for i in DATASET_INSTANCE_INDICES)
@@ -25,12 +25,7 @@ rule dataset_generation:
             else "generate_dataset.py"
         ),
     resources:
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "dataset_generation", wc.dataset)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "dataset_generation", wc.dataset)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "dataset_generation", wc.dataset),
-        gres=lambda wc: EXECUTION.resource("gres", "dataset_generation", wc.dataset),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "dataset_generation", wc.dataset),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "dataset_generation", wc.dataset),
+        **EXECUTION.allocation_resources("dataset_generation", lambda wc: wc.dataset),
     shell:
         """
         python scripts/dataset_generation/{params.dataset_generation_script} \

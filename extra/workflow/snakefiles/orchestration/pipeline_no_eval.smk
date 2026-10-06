@@ -12,9 +12,10 @@ Runtime filters (--config, select subsets to run):
         random seeds
     device (str, default='cpu'): Deprecated global option, ignored by CPU-only
         processing; cannot be combined with execution.
-    execution (mapping, default={}): Computational-stage policy; processing
-        stages are fixed CPU-only and cannot be overridden.
-    execution_site_file (str, optional): Profile-owned CPU/GPU allocation YAML.
+    execution (mapping, default={}): Computational execution activity policy;
+        processing activities are fixed CPU-only and cannot be overridden.
+    execution_site_file (str, required for SLURM submission): Profile-owned
+        YAML allocation map; submitting without one fails before any job.
         Alternatively provide execution_site in a configuration file. A CLI
         --config replaces the workflow profile's config, so repeat
         execution_site_file=<site>/site.yaml whenever passing --config.
@@ -37,8 +38,8 @@ CPU-only processing:
 
 Required files and usage:
     Existing evaluation parquet files and timing files at native output paths,
-    scientific YAML configuration, and the profile-owned site.yaml allocation
-    map (if using execution_site_file). No trained scripts are dispatched.
+    scientific YAML configuration, and, for SLURM submission, the
+    profile-owned site.yaml allocation map. No trained scripts are dispatched.
     snakemake -s extra/workflow/snakefiles/orchestration/pipeline_no_eval.smk \
         --workflow-profile extra/workflow/profiles/mixed-gres \
         --configfile <scientific.yaml> -n -p all
@@ -98,15 +99,22 @@ from config import load_config
 from execution import ExecutionPolicy
 
 _config = load_config(config)
-EXECUTION = ExecutionPolicy(config)
-DEFAULT_RESOURCES = workflow.resource_settings.default_resources.parsed if workflow.resource_settings.default_resources else {}
+EXECUTION = ExecutionPolicy(
+    config,
+    method_classifiers=_config["METHOD_CLASSIFIER_SCRIPT_NAMES"],
+    default_resources=(
+        workflow.resource_settings.default_resources.parsed
+        if workflow.resource_settings.default_resources
+        else {}
+    ),
+    submits_to_cluster=lambda: workflow.is_main_process and workflow.non_local_exec,
+)
 
 NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
 DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]
 INITIALIZER = _config["INITIALIZER"]
 INITIALIZER_TAG = f"initializer-{INITIALIZER}"
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
-DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]
 SMOKE_TEST = _config["SMOKE_TEST"]
 PRETRAIN_NAMES = _config["PRETRAIN_NAMES"]

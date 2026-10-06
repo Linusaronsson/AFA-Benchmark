@@ -3,7 +3,7 @@
 Dataset generation, evaluation-data transformation, aggregation (including
 classifier-type splitting and timing-data combination), and all visualization
 rules always resolve to CPU execution. They share the execution-policy/site
-allocation mechanism with computational jobs, but their stages
+allocation mechanism with computational jobs, but their execution activities
 `dataset_generation`, `transformation`, `aggregation`, and `visualization` are
 fixed: they cannot be configured in execution defaults or identity overrides.
 Even a deprecated global `device=cuda` cannot change them. Their existing
@@ -14,21 +14,23 @@ CPU-native scripts do not receive an invented `device` argument.
 For mixed-device SLURM runs, configure the profile-owned `execution_site.cpu`
 partition/account to an authorized CPU allocation, as illustrated by
 `extra/workflow/profiles/mixed-gres/site.yaml` and `mixed-gpus/site.yaml`.
-Processing rules explicitly clear `gpu`, `gpu_model`, `gres`, and `slurm_extra`,
-including GPU requests inherited from site-level default resources. A CPU site
-mapping that requests GPUs is invalid. Rule/profile `set-resources` overrides
-that conflict with the resolved allocation are rejected during planning, before
-any submission; configure allocation through the site map instead. These stages
-are CPU-only, not automatically local rules or login-node work.
+Processing rules explicitly clear `gpu`, `gpu_model` and `gres`, including GPU
+requests inherited from the profile's default resources, and take `slurm_extra`
+from the CPU allocation. A CPU site mapping that requests GPUs, also through its
+`slurm_extra`, is invalid, and so is any `slurm_extra` in default resources.
+Rule/profile `set-resources` overrides that conflict with the resolved
+allocation are rejected during planning, before any submission; configure
+allocation through the site map instead. These activities are CPU-only, not
+automatically local rules or login-node work.
 
 Threads, `cpus_per_task`, memory and runtime remain independent resource-sizing
 settings. Existing profile values and rule-specific sizing are preserved. For
 example, the Vera profile's ten CPUs for classifier-type splitting and plots
 remain valid; copying those sizing entries into an adapted mixed profile is
 appropriate. CPU intent alone does not determine suitable memory or CPU count
-for a large dataframe. Without a site map, existing profile partition/account
-defaults are retained, but GPU request defaults are still cleared; do not rely
-on a GPU partition default to select a CPU partition automatically.
+for a large dataframe. Every SLURM submission needs a site map with a CPU
+allocation, since every graph contains these jobs, even when only GPU methods
+are selected; a missing site map or CPU allocation fails before submission.
 
 ## One graph and native paths
 
@@ -60,7 +62,8 @@ uv run pytest test/workflow/test_cpu_processing_execution.py -m pipeline
 ```
 
 Fast checks inspect the real final-target plan and reject conflicting GPU
-resource overrides for every processing rule before submission. Pipeline checks
+resource overrides for every processing rule, and `slurm_extra` in default
+resources, before submission. Pipeline checks
 invoke that same graph with tiny script-boundary fixtures and the shared fake
 SLURM boundary, capture actual executor submissions under both GPU request
 conventions, and verify every processing rule has CPU partition/account, no GPU

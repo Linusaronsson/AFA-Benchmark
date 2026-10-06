@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from test.workflow.submission_harness import WorkflowHarness
+from test.workflow.submission_harness import SITE, WorkflowHarness
 
 
 @pytest.mark.parametrize(
@@ -34,7 +34,6 @@ def test_dataset_generation_clears_gpu_defaults(
         "gpu=2",
         "gres=gpu:T4:2",
         "gpu_model=T4",
-        "slurm_extra=--gpus=2",
         "slurm_partition=gpu-queue",
         target="all_generate_datasets",
     )
@@ -50,7 +49,6 @@ def test_dataset_generation_clears_gpu_defaults(
     assert "gpu=0" in commands
     assert "gpu=2" not in commands
     assert "gres=gpu:" not in commands
-    assert "--gpus=2" not in commands
     assert f"scripts/dataset_generation/{script}" in commands
     assert "instance_indices=[0]" in commands
     assert f"save_path=extra/output/datasets/{dataset}" in commands
@@ -157,7 +155,6 @@ def test_full_graph_processing_is_cpu_only(
         "gpu=2",
         "gres=gpu:T4:2",
         "gpu_model=T4",
-        "slurm_extra=--gpus=2",
         target="all",
     )
 
@@ -171,7 +168,6 @@ def test_full_graph_processing_is_cpu_only(
         assert "slurm_account=cpu-account" in block, block
         assert "gpu=0" in block, block
         assert "gres=gpu:" not in block, block
-        assert "--gpus=2" not in block, block
     assert commands.count("rule train_method:") == 2
     assert commands.count("rule eval_method:") == 2
     assert "device=cuda" in commands
@@ -182,6 +178,7 @@ def test_cpu_only_rule_rejects_gpu_override_before_submission(
     tmp_path: Path, rule: str
 ) -> None:
     workflow = processing_workflow(tmp_path)
+    workflow.config["execution_site"] = SITE
 
     result = workflow.run(
         "--executor",
@@ -193,6 +190,27 @@ def test_cpu_only_rule_rejects_gpu_override_before_submission(
 
     assert result.returncode != 0
     assert "Conflicting allocation" in result.stdout + result.stderr
+    assert workflow.submissions() == []
+
+
+@pytest.mark.parametrize("slurm_extra", ["--gpus=2", "--qos=short"])
+def test_profile_default_slurm_extra_is_rejected_before_submission(
+    tmp_path: Path, slurm_extra: str
+) -> None:
+    # Every job's allocation replaces it, so accepting it would drop it.
+    workflow = processing_workflow(tmp_path)
+    workflow.config["execution_site"] = SITE
+
+    result = workflow.run(
+        "--executor",
+        "slurm",
+        "--default-resources",
+        f"slurm_extra='{slurm_extra}'",
+        target="all",
+    )
+
+    assert result.returncode != 0
+    assert "default-resources slurm_extra" in result.stdout + result.stderr
     assert workflow.submissions() == []
 
 
@@ -215,7 +233,6 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
         "gpu=2",
         "gres=gpu:T4:2",
         "gpu_model=T4",
-        "slurm_extra=--gpus=2",
         "--set-resources",
         "plot_eval_perf:cpus_per_task=10",
         "split_by_classifier_type:cpus_per_task=10",
@@ -341,7 +358,6 @@ def test_processing_variants_use_cpu_site_mapping(
         str(tmp_path / "extra/workflow/profiles/mixed-gres"),
         "--default-resources",
         "gpu=1",
-        "slurm_extra=--gpus=1",
         target="all",
     )
 
@@ -353,7 +369,6 @@ def test_processing_variants_use_cpu_site_mapping(
         )[0]
         assert "slurm_partition=cpu-queue" in block, block
         assert "gpu=0" in block, block
-        assert "--gpus=1" not in block, block
     assert "rule train_method:" not in commands
     assert "rule dataset_generation:" not in commands
 

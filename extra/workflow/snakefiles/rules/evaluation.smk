@@ -63,12 +63,7 @@ rule eval_method:
         eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],
     resources:
         shell_exec="bash",
-        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "evaluation", wc.method)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
-        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "evaluation", wc.method)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
-        gpu=lambda wc: EXECUTION.resource("gpu", "evaluation", wc.method),
-        gres=lambda wc: EXECUTION.resource("gres", "evaluation", wc.method),
-        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "evaluation", wc.method),
-        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "evaluation", wc.method),
+        **EXECUTION.allocation_resources("evaluation", lambda wc: wc.method),
     shell:
         """
         START_TIME=$(date +%s.%N)

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from test.workflow.submission_harness import WorkflowHarness
+from test.workflow.submission_harness import SITE, WorkflowHarness
 
 
 def test_training_and_evaluation_have_independent_method_devices(
@@ -101,6 +101,78 @@ def test_mixed_submissions_map_to_site_allocations(
         assert args["device"] == expected
 
 
+# Expected sbatch allocation per site convention, from each profile's site.yaml.
+SITE_ALLOCATIONS = {
+    "mixed-gres": {
+        "cpu": ["-p", "cpu-queue", "-A", "cpu-account"],
+        "gpu": ["-p", "gpu-queue", "-A", "gpu-account", "--gres=gpu:T4:1"],
+    },
+    "mixed-gpus": {
+        "cpu": ["-p", "standard", "-A", "other-cpu"],
+        "gpu": ["-p", "accelerated", "-A", "other-gpu", "--gpus=a100:1"],
+    },
+}
+
+
+def allocation(args: list[str]) -> list[str]:
+    """Return the partition, account and GPU request of an sbatch call."""
+    requested = []
+    for flag in ["-p", "-A"]:
+        requested += [flag, args[args.index(flag) + 1]]
+    return requested + [
+        arg for arg in args if arg.startswith(("--gres", "--gpus"))
+    ]
+
+
+@pytest.mark.parametrize("profile", sorted(SITE_ALLOCATIONS))
+def test_first_submissions_of_one_rule_use_cpu_and_gpu_allocations(
+    tmp_path: Path, profile: str
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    workflow.config["execution"] = {"methods": {"alpha": {"training": "cuda"}}}
+
+    result = workflow.submit_first_wave(
+        2,
+        "--workflow-profile",
+        str(tmp_path / "extra/workflow/profiles" / profile),
+        target="all_train_methods",
+    )
+
+    submissions = workflow.submissions()
+    assert len(submissions) == 2, result.stdout
+    for args in submissions:
+        comment = args[args.index("--comment") + 1]
+        hardware = "gpu" if "alpha" in comment else "cpu"
+        assert allocation(args) == SITE_ALLOCATIONS[profile][hardware]
+        assert args[args.index("-t") + 1] == "600"
+        assert "--cpus-per-task=8" in args
+    devices = [args["device"] for _, args in workflow.script_arguments()]
+    assert sorted(devices) == ["cpu", "cuda"]
+
+
+def test_site_allocations_add_their_own_scheduler_flags(
+    tmp_path: Path,
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    workflow.config["execution"] = {"methods": {"alpha": {"training": "cuda"}}}
+    workflow.config["execution_site"] = {
+        "cpu": {**SITE["cpu"], "slurm_extra": "--qos=short"},
+        "gpu": {**SITE["gpu"], "slurm_extra": "--qos=long --exclusive"},
+    }
+
+    result = workflow.submit_first_wave(
+        2, "--executor", "slurm", target="all_train_methods"
+    )
+
+    submissions = workflow.submissions()
+    assert len(submissions) == 2, result.stdout
+    for args in submissions:
+        gpu = "alpha" in args[args.index("--comment") + 1]
+        assert ("--qos=long" in args) is gpu
+        assert ("--exclusive" in args) is gpu
+        assert ("--qos=short" in args) is not gpu
+
+
 @pytest.mark.parametrize(
     ("change", "diagnostic"),
     [
@@ -110,21 +182,27 @@ def test_mixed_submissions_map_to_site_allocations(
         (
             {
                 "execution": {"defaults": {"training": "cpu"}},
-                "execution_site": {"cpu": {"gpu": 1}},
+                "execution_site": {**SITE, "cpu": {"gpu": 1}},
             },
             "CPU allocation",
         ),
         (
             {
                 "execution": {"defaults": {"training": "cuda"}},
-                "execution_site": {"gpu": {"gpu": 1, "gres": "gpu:T4:1"}},
+                "execution_site": {
+                    **SITE,
+                    "gpu": {"gpu": 1, "gres": "gpu:T4:1"},
+                },
             },
             "GPU allocation",
         ),
         (
             {
                 "execution": {"defaults": {"training": "cuda"}},
-                "execution_site": {"gpu": {"slurm_partition": "gpu-queue"}},
+                "execution_site": {
+                    **SITE,
+                    "gpu": {"slurm_partition": "gpu-queue"},
+                },
             },
             "GPU allocation",
         ),
@@ -136,6 +214,37 @@ def test_mixed_submissions_map_to_site_allocations(
             },
             "slurm_partition",
         ),
+        (
+            {
+                "execution": {"defaults": {"training": "cuda"}},
+                "execution_site": {"cpu": SITE["cpu"]},
+            },
+            "no gpu allocation",
+        ),
+        (
+            {"execution": {}, "execution_site": {"gpu": SITE["gpu"]}},
+            "no cpu allocation",
+        ),
+        (
+            {
+                "execution": {},
+                "execution_site": {
+                    **SITE,
+                    "cpu": {**SITE["cpu"], "slurm_extra": "--gres=gpu:1"},
+                },
+            },
+            "slurm_extra",
+        ),
+        (
+            {
+                "execution": {"defaults": {"training": "cuda"}},
+                "execution_site": {
+                    **SITE,
+                    "gpu": {**SITE["gpu"], "slurm_extra": "-G 2"},
+                },
+            },
+            "slurm_extra",
+        ),
     ],
 )
 def test_invalid_execution_fails_before_submission(
@@ -144,6 +253,7 @@ def test_invalid_execution_fails_before_submission(
     diagnostic: str,
 ) -> None:
     workflow = WorkflowHarness(tmp_path)
+    workflow.config["execution_site"] = SITE
     workflow.config.update(change)
 
     result = workflow.run("--executor", "slurm")

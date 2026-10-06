@@ -12,12 +12,12 @@ running it on a workstation is possible but not recommended.
 | Preset | Hardware | Use it for |
 | --- | --- | --- |
 | `--profile extra/workflow/profiles/config/kdd26` | Bundles `extra/workflow/conf/execution/kdd26.yaml`: classifiers, pretrained models and five methods on GPU | Cluster reproduction of the KDD '26 results (the command below) |
-| `-s ... --configfile <all.yaml files> extra/workflow/conf/execution/all.yaml` | Opt-in declaration for all methods: classifiers, pretrained models and seven methods on GPU | Cluster runs of the full method set ([below](#full-method-set)) |
+| `--profile extra/workflow/profiles/config/all_cluster` | Bundles `extra/workflow/conf/execution/all.yaml`: classifiers, pretrained models and seven methods on GPU | Cluster runs of the full method set ([below](#full-method-set)) |
 | `--profile extra/workflow/profiles/config/all` | No execution file: every job runs on CPU | Local smoke tests and development, no GPU or SLURM needed |
 
 > **`config/all` never requests a GPU.** Do not use it for a mixed-device
-> cluster run; it would train every method on CPU. Use `config/kdd26`, or the
-> explicit `execution/all.yaml` form for all methods.
+> cluster run; it would train every method on CPU. Use `config/kdd26` or
+> `config/all_cluster`.
 
 ## One command
 
@@ -37,12 +37,10 @@ execution to your cluster's partitions, accounts and GPU request syntax; adapt
 it from `mixed-gres` or `mixed-gpus` as described in
 [SLURM integration](slurm_integration.md).
 
-> **Do not add `--config` to this command on its own.** Snakemake replaces the
+> **Repeat the site file whenever you add `--config`.** Snakemake replaces the
 > site profile's whole `config` section with the `--config` values, so its
-> `execution_site_file` silently disappears. Nothing fails: GPU jobs are
-> submitted with a generic `--gpus=1` to the cluster's default partition and
-> account, and CPU jobs also lose their partition and account. Whenever you pass
-> `--config`, repeat the site file:
+> `execution_site_file` disappears. Submitting without a site map fails before
+> any job is submitted, so pass the site file again:
 >
 > ```shell
 > uv run snakemake \
@@ -58,9 +56,19 @@ it from `mixed-gres` or `mixed-gpus` as described in
 > `resources:` lines before submitting.
 
 Likewise, `--configfile` on the command line replaces the preset's list of
-config files instead of adding to it. To change hardware, edit
-`extra/workflow/conf/execution/kdd26.yaml` (or a copy referenced from a copy
-of the preset) rather than passing an extra config file.
+config files instead of adding to it. To change hardware, for example to train
+one method on GPU, copy the preset and its execution file, and edit the copies:
+
+```shell
+cp -r extra/workflow/profiles/config/kdd26 extra/workflow/profiles/config/my_run
+cp extra/workflow/conf/execution/kdd26.yaml extra/workflow/conf/execution/my_run.yaml
+# In profiles/config/my_run/config.yaml, replace execution/kdd26.yaml with
+# execution/my_run.yaml; then edit execution/my_run.yaml.
+uv run snakemake \
+    --profile extra/workflow/profiles/config/my_run \
+    --workflow-profile extra/workflow/profiles/<your_site> \
+    -n -p all
+```
 
 ## Inspecting planned work
 
@@ -84,7 +92,7 @@ job runs. Values are exactly `cpu` and `cuda`:
 
 ```yaml
 execution:
-  defaults:            # per stage; unspecified stages default to cpu
+  defaults:            # per execution activity; unspecified ones default to cpu
     classifier: cuda   # external and method-specific classifiers
     pretraining: cuda  # named pretrained models
     training: cpu
@@ -101,7 +109,7 @@ Precedence, resolved independently for every job:
 
 1. `execution.methods.<method>.<training|evaluation|classifier>`, or
    `execution.pretrained_models.<named model>` for pretraining.
-2. `execution.defaults.<stage>`.
+2. `execution.defaults.<classifier|pretraining|training|evaluation>`.
 3. `cpu`.
 
 Training and evaluation are independent, so a method can train on GPU and
@@ -125,29 +133,17 @@ and accounts never belong in these files. Details:
 
 ## Full method set
 
-There is no profile bundling the full method set with GPU execution, because
-`config/all` is the CPU-only local preset. List its config files explicitly
-and add `execution/all.yaml`:
+`config/all_cluster` bundles the `config/all` scientific files with
+`execution/all.yaml`; `config/all` itself is the CPU-only local preset:
 
 ```shell
 uv run snakemake \
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    --profile extra/workflow/profiles/config/all_cluster \
     --workflow-profile extra/workflow/profiles/<your_site> \
-    --configfile \
-      extra/workflow/conf/eval_hard_budgets/all.yaml \
-      extra/workflow/conf/methods/all.yaml \
-      extra/workflow/conf/method_sets/all.yaml \
-      extra/workflow/conf/method_options/all.yaml \
-      extra/workflow/conf/pretrain_mappings/all.yaml \
-      extra/workflow/conf/soft_budget_params/all.yaml \
-      extra/workflow/conf/unmaskers/all.yaml \
-      extra/workflow/conf/classifier_names/all.yaml \
-      extra/workflow/conf/datasets/all.yaml \
-      extra/workflow/conf/execution/all.yaml \
     -n -p all
 ```
 
-The `--config` warning above applies here too.
+The `--config` note and the copy-a-preset override above apply here too.
 
 ## Where to run it
 
@@ -195,11 +191,12 @@ expressed is now declared in `execution/{kdd26,all}.yaml`, and the single
 invocation above replaces all six. The global `device` option is deprecated:
 alone, it still applies to computational jobs with a warning, and combining it
 with `execution` in any way is rejected before submission. Remove it from your
-commands and config files. Single-allocation site profiles without a site map,
-such as `vera` and `alvis`, submit every job to their one partition and
-account, and GPU jobs request one generic GPU (`--gpus=1`) instead of the
-profile's `slurm_extra` GPU request. For mixed runs, add a site map as
-described in [SLURM integration](slurm_integration.md).
+commands and config files. Every SLURM submission now needs a site map, and
+`slurm_extra` in a profile's `default-resources` is rejected: move partitions,
+accounts, GPU requests and other scheduler flags to the profile's `site.yaml`
+as described in [SLURM integration](slurm_integration.md). The `vera` (CPU
+only) and `alvis` profiles have been migrated this way; `alvis` now requests
+its T4 GPU only for `cuda` jobs.
 
 ## Verification
 
@@ -211,10 +208,12 @@ uv run pytest test/workflow/test_full_reproduction.py
 uv run pytest test/workflow/test_full_reproduction.py -m pipeline
 ```
 
-The fast tests plan both cluster presets and the local preset. The
-pipeline-marked tests submit the whole tiny graph in one invocation and check
-mixed CPU/GPU submissions, one submission per shared prerequisite, dependency
-order, script devices and contract arguments, the `--config` limitation above,
-and both presets. The pinned SLURM plugin waits 40 seconds after every
+The fast tests plan both cluster presets, the local preset and the `alvis`
+site map, check that a `--config` without the site file fails before
+submission, and capture the real first submissions when the site file is
+repeated. The pipeline-marked tests submit the whole tiny graph in one
+invocation and check mixed CPU/GPU submissions, one submission per shared
+prerequisite, dependency order, script devices and contract arguments, both
+presets, and the full local CPU run. The pinned SLURM plugin waits 40 seconds after every
 dependency wave, so they take about 15 minutes together. `just qa` remains the
 required quality gate.

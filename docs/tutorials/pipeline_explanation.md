@@ -60,9 +60,9 @@ transformations, aggregation and plotting always run on CPU regardless.
 ### `execution`
 
 A mapping, given in a config file, that declares per job whether it runs on
-`cpu` or `cuda`: stage defaults for `classifier`, `pretraining`, `training`
-and `evaluation`, overrides per method and stage, and overrides per named
-pretrained model. Unspecified stages run on CPU. The resolved choice is both
+`cpu` or `cuda`: execution activity defaults for `classifier`, `pretraining`,
+`training` and `evaluation`, overrides per method and activity, and overrides
+per named pretrained model. Unspecified activities run on CPU. The resolved choice is both
 the script's `device` argument and, under SLURM, the CPU or GPU allocation.
 See [Reproducing full results](reproduce_full_results.md#declaring-hardware)
 for the format and precedence, and `extra/workflow/conf/execution/` for the
