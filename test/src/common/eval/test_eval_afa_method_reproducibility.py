@@ -154,20 +154,25 @@ def run_eval_after_global_rng_perturbation(seed: int) -> pd.DataFrame:
     )
 
 
-@pytest.mark.parametrize("batch_size", [1, 3])
-def test_early_stop_method_reaches_hard_budget(batch_size: int) -> None:
+def evaluate_early_stop_method(
+    budget: float | None, batch_size: int = 3
+) -> pd.DataFrame:
     method = StochasticDummyMethod()
     method.set_seed(123)
-    result = eval_afa_method(
+    return eval_afa_method(
         afa_action_fn=method.act,
         afa_unmask_fn=unmask_directly,
         n_selection_choices=4,
         afa_initialize_fn=initialize_all_masked,
         dataset=DummyDataset(n_samples=5),
-        selection_budget=3,
+        selection_budget=budget,
         batch_size=batch_size,
     )
-    episodes = result.groupby("episode_id")
+
+
+@pytest.mark.parametrize("batch_size", [1, 3])
+def test_early_stop_method_reaches_hard_budget(batch_size: int) -> None:
+    episodes = evaluate_early_stop_method(3, batch_size).groupby("episode_id")
     assert episodes["accumulated_cost"].last().tolist() == [3.0] * 5
     assert (
         episodes["action_performed"]
@@ -197,18 +202,7 @@ def test_early_stop_respects_budget_regime(
     *,
     forced_stop: bool,
 ) -> None:
-    method = StochasticDummyMethod()
-    method.set_seed(123)
-    result = eval_afa_method(
-        afa_action_fn=method.act,
-        afa_unmask_fn=unmask_directly,
-        n_selection_choices=4,
-        afa_initialize_fn=initialize_all_masked,
-        dataset=DummyDataset(n_samples=5),
-        selection_budget=budget,
-        batch_size=3,
-    )
-    episodes = result.groupby("episode_id")
+    episodes = evaluate_early_stop_method(budget).groupby("episode_id")
     assert episodes["accumulated_cost"].last().tolist() == [expected_cost] * 5
     assert episodes.size().tolist() == [expected_actions] * 5
     assert episodes["action_performed"].last().tolist() == [0] * 5
