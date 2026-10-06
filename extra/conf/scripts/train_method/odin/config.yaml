@@ -17,10 +17,7 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-# The script copies the contract's hard_budget onto mdp.hard_budget.
-mdp:
-  hard_budget: ???
-# rl_training_loop set as component
+# mdp and rl_training_loop set as components
 
 agent:
     lmbda: 0.75 # not specified by odin, same as jafa

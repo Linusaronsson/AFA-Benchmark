@@ -14,6 +14,7 @@ class AFARLTrainingLoopConfig:
 
 @dataclass
 class AFAMDPConfig:
-    hard_budget: int | None = None
+    """The hard budget itself comes from the training contract."""
+
     force_hard_budget: bool = True
     n_agents: int = 1

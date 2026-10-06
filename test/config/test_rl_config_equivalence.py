@@ -5,7 +5,8 @@ Composes each root config of jafa, odin and ol (training and pretraining)
 for every dataset key, once from `extra/conf` at the commit before the port
 and once from the working tree, and compares the resolved configs. The port
 removes the `mdp.hard_budget` alias on purpose (the trainer reads the
-contract's `hard_budget`), so that key is dropped from the base config.
+contract's `hard_budget`), and the current `AFAMDPConfig` schema rejects
+that key, so the alias block is stripped from the base tree's root configs.
 """
 
 import subprocess
@@ -64,6 +65,11 @@ METHOD_CONFIGS = {
     "pretrain_model/jafa": PRETRAINING_OVERRIDES,
     "pretrain_model/ol": PRETRAINING_OVERRIDES,
 }
+HARD_BUDGET_ALIAS_BLOCK = (
+    "# The script copies the contract's hard_budget onto mdp.hard_budget.\n"
+    "mdp:\n"
+    "  hard_budget: ???\n"
+)
 
 
 @pytest.fixture(scope="module")
@@ -77,6 +83,15 @@ def base_tree(tmp_path_factory: pytest.TempPathFactory) -> Path:
     root = tmp_path_factory.mktemp("base_tree")
     with tarfile.open(fileobj=BytesIO(archive)) as tar:
         tar.extractall(root, filter="data")
+    for method_config_name in METHOD_CONFIGS:
+        if not method_config_name.startswith("train_method/"):
+            continue
+        root_config = (
+            root / "extra/conf/scripts" / method_config_name / "config.yaml"
+        )
+        content = root_config.read_text()
+        assert HARD_BUDGET_ALIAS_BLOCK in content, root_config
+        root_config.write_text(content.replace(HARD_BUDGET_ALIAS_BLOCK, ""))
     return root
 
 
@@ -118,10 +133,5 @@ def test_resolved_config_is_unchanged_by_the_port(
     ported_config = _resolved_config(
         REPO_ROOT, method_config_name, dataset_key
     )
-
-    if method_config_name.startswith("train_method/"):
-        mdp = base_config["mdp"]
-        assert isinstance(mdp, dict)
-        del mdp["hard_budget"]
 
     assert ported_config == base_config

@@ -1,8 +1,16 @@
-import gc
+"""
+Shared training loop of the RL methods (JAFA, ODIN, OL).
+
+`RLTrainer` builds the AFA environments from the training contract's inputs
+and runs the collector loop; subclasses supply the reward function, the
+agent and the resulting AFA method. The script that calls it owns seeding,
+the metric logger and saving (`afabench.training.run`).
+"""
+
 import logging
 from abc import ABC, abstractmethod
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from dataclasses import replace
+from typing import Any
 
 import torch
 import wandb
@@ -11,12 +19,7 @@ from tensordict import TensorDictBase
 from torchrl.collectors import SyncDataCollector
 from torchrl.envs import ExplorationType, set_exploration_type
 from tqdm import tqdm
-from wandb.sdk.wandb_run import Run
 
-from afabench.components.initializers.config import InitializerConfig
-from afabench.components.initializers.utils import (
-    get_afa_initializer_from_config,
-)
 from afabench.components.methods.rl.common.afa_env import AFAEnv
 from afabench.components.methods.rl.common.agent_interface import Agent
 from afabench.components.methods.rl.common.config import (
@@ -30,26 +33,30 @@ from afabench.components.methods.rl.common.dataset_utils import (
 from afabench.components.methods.rl.common.utils import (
     get_eval_metrics,
 )
-from afabench.components.unmaskers.config import UnmaskerConfig
-from afabench.components.unmaskers.utils import (
-    get_afa_unmasker_from_config,
-)
-
-# from afabench.components.methods.rl.reward_functions import get_range_based_reward_fn
-# from afabench.components.methods.rl.jafa.reward import get_jafa_reward_fn
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.types import (
     AFADataset,
     AFAInitializer,
     AFAMethod,
     AFAUnmasker,
 )
-from afabench.core.utils import get_class_frequencies, initialize_wandb_run
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from afabench.core.utils import get_class_frequencies
+from afabench.training.contract import TrainingContract
+from afabench.training.inputs import TrainingInputs
+from afabench.training.metric_logger import MetricLogger
+from afabench.training.smoke_test import SMOKE_TEST_N_BATCHES
 
 log = logging.getLogger(__name__)
+
+
+def limit_training_loop(
+    cfg: AFARLTrainingLoopConfig, *, smoke_test: bool
+) -> AFARLTrainingLoopConfig:
+    """Train for only a few batches during a smoke test."""
+    if not smoke_test:
+        return cfg
+
+    log.info("Smoke test detected.")
+    return replace(cfg, n_batches=SMOKE_TEST_N_BATCHES)
 
 
 def _should_disable_collector_cuda_sync(device: torch.device) -> bool:
@@ -58,16 +65,11 @@ def _should_disable_collector_cuda_sync(device: torch.device) -> bool:
 
 
 class RLTrainer(ABC):
-    train_dataset_bundle_path: Path
-    val_dataset_bundle_path: Path
-    initializer_cfg: InitializerConfig
-    unmasker_cfg: UnmaskerConfig
+    contract: TrainingContract
+    inputs: TrainingInputs
     mdp_cfg: AFAMDPConfig
-    n_agents: int
-    seed: int | None
+    metric_logger: MetricLogger
     device: torch.device
-    cfg: dict[str, Any]
-    use_wandb: bool
     train_dataset: AFADataset
     val_dataset: AFADataset
     class_weights: torch.Tensor
@@ -79,79 +81,45 @@ class RLTrainer(ABC):
     normalized_selection_costs: torch.Tensor
     train_env: AFAEnv
     eval_env: AFAEnv
-    run: Run | None
 
     def __init__(
         self,
-        train_dataset_bundle_path: Path,
-        val_dataset_bundle_path: Path,
-        initializer_cfg: InitializerConfig,
-        unmasker_cfg: UnmaskerConfig,
+        contract: TrainingContract,
+        inputs: TrainingInputs,
         mdp_cfg: AFAMDPConfig,
-        n_agents: int,
-        seed: int | None,
-        device: torch.device,
-        cfg: dict[str, Any],  # used only for logging
-        *,
-        use_wandb: bool = False,
+        metric_logger: MetricLogger,
     ):
-        self.train_dataset_bundle_path = train_dataset_bundle_path
-        self.val_dataset_bundle_path = val_dataset_bundle_path
-        self.initializer_cfg = initializer_cfg
-        self.unmasker_cfg = unmasker_cfg
+        self.contract = contract
+        self.inputs = inputs
         self.mdp_cfg = mdp_cfg
-        self.n_agents = n_agents
-        self.seed = seed
-        self.device = torch.device(device)
-        self.cfg = cfg
-        self.use_wandb = use_wandb
+        self.metric_logger = metric_logger
+        self.device = torch.device(contract.device)
 
-        if self.use_wandb:
-            self.run = initialize_wandb_run(
-                cfg=self.cfg, job_type="training", tags=self._get_tags()
-            )
-        else:
-            self.run = None
-        self._create_log_fn()
         self._create_datasets()
         self._calculate_class_weights()
-        self._create_unmasker()
-        self._create_initializer()
+        self.unmasker = self.inputs.unmasker()
+        self.initializer = self.inputs.initializer()
         self._create_selection_costs()
         self._setup_subclass_specific_state()
         self.reward_fn = self._get_reward_fn()
         self._create_envs()
         self.agent = self._get_agent()
 
-    def _create_log_fn(self) -> None:
-        if self.run is not None:
-            self.log_fn = self.run.log
-        else:
-            self.log_fn: Callable[[dict[str, Any]], None] = lambda _d: None
-
     def _setup_subclass_specific_state(self) -> None:
         return None
 
-    @abstractmethod
-    def _get_tags(self) -> list[str]: ...
-
     def _create_datasets(self) -> None:
-        self.train_dataset = self._load_dataset_from_bundle(
-            self.train_dataset_bundle_path
-        )
-        self.val_dataset = self._load_dataset_from_bundle(
-            self.val_dataset_bundle_path
-        )
+        self.train_dataset = self._with_1d_labels(self.inputs.train_dataset())
+        self.val_dataset = self._with_1d_labels(self.inputs.val_dataset())
 
     @staticmethod
-    def _load_dataset_from_bundle(dataset_bundle_path: Path) -> AFADataset:
-        dataset, _dataset_manifest = load_bundle(
-            dataset_bundle_path,
-        )
-        dataset = cast("AFADataset", cast("object", dataset))
-        assert len(dataset.label_shape) == 1, (
-            "Expected 1D label shape (n_classes). Instead got {train_dataset.label_shape}"
-        )
+    def _with_1d_labels(dataset: AFADataset) -> AFADataset:
+        if len(dataset.label_shape) != 1:
+            msg = (
+                "Expected a 1D label shape (n_classes), got "
+                f"label_shape={dataset.label_shape}"
+            )
+            raise ValueError(msg)
         return dataset
 
     def _calculate_class_weights(self) -> None:
@@ -160,14 +128,6 @@ class RLTrainer(ABC):
         class_weights = 1 / train_class_probabilities
         class_weights = class_weights / class_weights.sum()
         self.class_weights = class_weights.to(self.device)
-
-    def _create_unmasker(self) -> None:
-        self.unmasker = get_afa_unmasker_from_config(self.unmasker_cfg)
-
-    def _create_initializer(self) -> None:
-        self.initializer = get_afa_initializer_from_config(
-            self.initializer_cfg
-        )
 
     @abstractmethod
     def _get_reward_fn(self) -> AFARewardFn: ...
@@ -192,15 +152,15 @@ class RLTrainer(ABC):
             dataset_fn=dataset_fn,
             reward_fn=self.reward_fn,
             device=self.device,
-            batch_size=torch.Size((self.n_agents,)),
+            batch_size=torch.Size((self.mdp_cfg.n_agents,)),
             feature_shape=dataset.feature_shape,
             n_selections=self._n_selections,
             n_classes=self._n_classes,
-            hard_budget=self.mdp_cfg.hard_budget,
+            hard_budget=self.contract.hard_budget,
             initialize_fn=self.initializer.initialize,
             unmask_fn=self.unmasker.unmask,
             force_hard_budget=self.mdp_cfg.force_hard_budget,
-            seed=self.seed,
+            seed=self.contract.seed,
             selection_costs=self.unnormalized_selection_costs.tolist(),
         )
         return env
@@ -216,7 +176,8 @@ class RLTrainer(ABC):
     @abstractmethod
     def _get_agent(self) -> Agent: ...
 
-    def train(self, cfg: AFARLTrainingLoopConfig) -> None:
+    def train(self, cfg: AFARLTrainingLoopConfig) -> AFAMethod:
+        """Run the training loop and return the trained AFA method on the CPU."""
         collector = SyncDataCollector(
             self.train_env,
             self.agent.get_exploratory_policy(),
@@ -230,6 +191,8 @@ class RLTrainer(ABC):
             enumerate(collector), total=cfg.n_batches, desc="Training agent..."
         ):
             self._single_collector_step(collector, td, batch_idx, cfg)
+
+        return self._get_afa_method(device=torch.device("cpu"))
 
     def _single_collector_step(
         self,
@@ -254,7 +217,7 @@ class RLTrainer(ABC):
         else:
             eval_dict_to_log = {}
 
-        self.log_fn(train_dict_to_log | eval_dict_to_log)
+        self.metric_logger.log(train_dict_to_log | eval_dict_to_log)
 
     def _train_step(
         self, td: TensorDictBase, batch_idx: int
@@ -391,19 +354,3 @@ class RLTrainer(ABC):
     @property
     def _n_feature_dims(self) -> int:
         return len(self.train_dataset.feature_shape)
-
-    def save(self, save_path: Path) -> None:
-        save_bundle(
-            obj=self._get_afa_method(device=torch.device("cpu")),
-            path=Path(save_path),
-            metadata={"config": self.cfg},
-        )
-
-    def finish(self) -> None:
-        if self.run is not None:
-            self.run.finish()
-
-        gc.collect()
-        if self.device.type == "cuda":
-            torch.cuda.empty_cache()
-            torch.cuda.synchronize()

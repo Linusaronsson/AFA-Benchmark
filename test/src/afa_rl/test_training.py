@@ -2,19 +2,20 @@
 RLTrainer runs a short CPU training without touching CUDA.
 
 Builds the real JAFA trainer through its normal constructor from tiny
-on-disk bundles, then trains for two batches and calls `finish()`. CUDA is
-reported as available so that any device-availability gating (instead of
-device-type gating) would reach the recording CUDA stubs.
+on-disk bundles, trains for two batches and returns the trained AFA method.
+CUDA is reported as available so that any device-availability gating
+(instead of device-type gating) would reach the recording CUDA stubs.
 """
 
-from dataclasses import asdict
+from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
-from typing import Any
 
 import pytest
 import torch
 
 from afabench.components.initializers.config import InitializerConfig
+from afabench.components.methods.rl.common.afa_methods import RLAFAMethod
 from afabench.components.methods.rl.common.config import (
     AFAMDPConfig,
     AFARLTrainingLoopConfig,
@@ -29,16 +30,32 @@ from afabench.components.methods.rl.jafa.models import (
     LitJAFAEmbedderClassifier,
     ReadProcessEncoder,
 )
+from afabench.components.methods.rl.jafa.training import (
+    JAFARLTrainer,
+    train_jafa,
+)
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.core.utils import get_class_frequencies, set_seed
 from afabench.datasets.datasets import CubeDataset
-from scripts.train_method.jafa import JAFARLTrainer
+from afabench.training.inputs import load_inputs
+from afabench.training.smoke_test import SMOKE_TEST_N_BATCHES
 
 SEED = 0
 N_BATCHES = 2
 EMBEDDING_SIZE = 4
+
+
+class RecordingMetricLogger:
+    def __init__(self) -> None:
+        self.metrics: list[dict[str, object]] = []
+
+    def log(self, metrics: Mapping[str, object]) -> None:
+        self.metrics.append(dict(metrics))
+
+    def finish(self) -> None:
+        pass
 
 
 def _save_tiny_bundles(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -85,7 +102,7 @@ def _make_jafa_train_config(
         unmasker=UnmaskerConfig(class_name="DirectUnmasker", kwargs={}),
         dataset_key="cube",
         hard_budget=2,
-        mdp=AFAMDPConfig(hard_budget=2, force_hard_budget=True, n_agents=2),
+        mdp=AFAMDPConfig(force_hard_budget=True, n_agents=2),
         rl_training_loop=AFARLTrainingLoopConfig(
             frames_per_batch=4,
             n_batches=N_BATCHES,
@@ -123,21 +140,8 @@ def test_rl_trainer_trains_on_cpu_without_touching_cuda(
 ) -> None:
     set_seed(SEED)
     cfg = _make_jafa_train_config(*_save_tiny_bundles(tmp_path))
-    trainer = JAFARLTrainer(
-        train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-        val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-        initializer_cfg=cfg.initializer,
-        unmasker_cfg=cfg.unmasker,
-        mdp_cfg=cfg.mdp,
-        n_agents=cfg.mdp.n_agents,
-        seed=cfg.seed,
-        device=torch.device("cpu"),
-        cfg=asdict(cfg),
-        use_wandb=cfg.use_wandb,
-        typed_cfg=cfg,
-    )
-    logged: list[dict[str, Any]] = []
-    trainer.log_fn = logged.append
+    metric_logger = RecordingMetricLogger()
+    trainer = JAFARLTrainer(cfg, load_inputs(cfg), metric_logger)
     value_net_before = [
         p.detach().clone()
         for p in trainer.agent.action_value_module.net.parameters()  # pyright: ignore[reportAttributeAccessIssue]
@@ -156,10 +160,11 @@ def test_rl_trainer_trains_on_cpu_without_touching_cuda(
         torch.cuda, "empty_cache", lambda: cuda_calls.append("empty_cache")
     )
 
-    trainer.train(cfg=cfg.rl_training_loop)
-    trainer.finish()
+    afa_method = trainer.train(cfg=cfg.rl_training_loop)
 
     assert cuda_calls == []
+    assert isinstance(afa_method, RLAFAMethod)
+    logged = metric_logger.metrics
     assert len(logged) == N_BATCHES
     assert all("train/agent_process_batch_info.loss" in d for d in logged)
     assert "train/post_process_info.avg_class_loss" in logged[0]
@@ -173,3 +178,23 @@ def test_rl_trainer_trains_on_cpu_without_touching_cuda(
             value_net_before, value_net_after, strict=True
         )
     )
+
+
+def test_train_jafa_limits_a_smoke_test_to_a_few_batches(
+    tmp_path: Path,
+) -> None:
+    set_seed(SEED)
+    cfg = _make_jafa_train_config(*_save_tiny_bundles(tmp_path))
+    cfg = replace(
+        cfg,
+        smoke_test=True,
+        rl_training_loop=replace(
+            cfg.rl_training_loop, n_batches=50, eval_n_times=0
+        ),
+    )
+    metric_logger = RecordingMetricLogger()
+
+    afa_method = train_jafa(cfg, load_inputs(cfg), metric_logger)
+
+    assert isinstance(afa_method, RLAFAMethod)
+    assert len(metric_logger.metrics) == SMOKE_TEST_N_BATCHES
