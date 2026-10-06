@@ -126,7 +126,7 @@ uv sync
   from jaxtyping import Float
 
   from afabench.core.bundle_system.bundle import save_bundle
-  from afabench.core.registry import Registry
+  from afabench.core.registry import get_class
   ```
 
 ### Type Annotations
@@ -212,19 +212,26 @@ uv sync
 
 ### Code Organization
 
-- **Registry pattern:** Use `afabench.core.registry` for class lookup and extensible components
+- **Class registry:** `afabench.core.registry` maps the class names stored in
+  bundle manifests to import paths, so `load_bundle` can rebuild saved
+  objects. Any class saved as a bundle (AFA method, classifier, dataset,
+  Unmasker, Initializer) needs an entry in `REGISTERED_CLASSES`; look classes
+  up with `get_class`. There is no decorator-based registry.
 - **Bundle system:** Use `afabench.core.bundle_system` for `.bundle/` serialization
 - **Configuration:** Put script configs under `extra/conf/scripts/<script_group>/<script_name>/`
 - **Type definitions:** Define reusable type aliases at module level
 - Example:
   ```python
-  from afabench.core.registry import Registry
+  # afabench/core/registry.py
+  REGISTERED_CLASSES = {
+      ...,
+      "MyAFAMethod": "afabench.components.methods.my_family.my_method.MyAFAMethod",
+  }
 
-  my_registry: Registry[MyClass] = Registry()
+  # elsewhere
+  from afabench.core.registry import get_class
 
-  @my_registry.register("my_implementation")
-  class MyImplementation(MyClass):
-      ...
+  method_class = get_class("MyAFAMethod")
   ```
 
 ### Allowed Relaxations (from ruff.toml)
@@ -240,7 +247,7 @@ uv sync
 
 ```
 afabench/                   # Main source package
-├── core/                  # Registry, bundle system, shared types, naming, utilities
+├── core/                  # Class registry, bundle system, shared types, naming, utilities
 ├── components/            # Active implementation modules used by scripts and configs
 │   ├── classifiers/       # Classifier wrappers and dummy classifiers
 │   ├── initializers/      # Initial feature-mask initializers
@@ -353,4 +360,4 @@ Default five-role vocabulary: `needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context: the glossary is `CONTEXT.md` at the repo root (reconciles paper and code vocabulary; supersedes `docs/terminology.md`). `docs/adr/` is created on the first ADR. See `docs/agents/domain.md`.
+Single-context: the glossary is `CONTEXT.md` at the repo root (reconciles paper and code vocabulary; supersedes `docs/terminology.md`). Architecture decisions live in `docs/adr/`. See `docs/agents/domain.md`.
