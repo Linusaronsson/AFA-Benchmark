@@ -439,7 +439,7 @@ class AFAInitializeFn(Protocol):
     def __call__(
         self,
         features: Features,
-        label: Label,
+        label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> FeatureMask:
         """
@@ -455,6 +455,10 @@ class AFAInitializeFn(Protocol):
 
 @runtime_checkable
 class SupportsForcedAcquisition(Protocol):
-    """Used during evaluation to detect whether an AFAMethod supports forced acquisition. During hard budget evaluation, we want to ignore stop actions."""
+    """
+    Optional method optimisation for choosing acquisitions instead of stop.
+
+    Hard-budget evaluation overrides stop actions regardless of this capability.
+    """
 
     force_acquisition: bool

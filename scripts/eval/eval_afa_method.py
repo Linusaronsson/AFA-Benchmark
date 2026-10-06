@@ -1,6 +1,5 @@
 import logging
 from dataclasses import asdict
-from enum import Enum, auto
 from pathlib import Path
 from typing import TYPE_CHECKING, cast, final
 
@@ -40,24 +39,10 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-class ForcedAcquisitionMode(Enum):
-    """Different ways that features can be forcibly acquired, even though the AFAMethod may prefer the stop action."""
-
-    DISABLED = auto()  # no forced acquisition, allow stop action
-    METHOD_BASED = auto()  # assume that the AFAMethod implements its own logic for forcing acquisition, thus never returning the stop action
-    FALLBACK = auto()  # allow the AFAMethod to return a stop action, but override it using some dummy logic (see evaluation functions)
-
-
 @final
 class AFAEvaluator:
     def __init__(self, cfg: EvalConfig):
         self._cfg = cfg
-        self._fallback_force_acquisition: bool = (
-            False  # set to true during hard budget
-        )
-        self._forced_acquisition_mode: ForcedAcquisitionMode = (
-            ForcedAcquisitionMode.DISABLED
-        )
         self._wandb_run: Run | None = None
         self._method: AFAMethod | None = None
         self._unmasker: AFAUnmasker | None = None
@@ -171,19 +156,14 @@ class AFAEvaluator:
 
     def _set_hard_budget(self) -> None:
         if self._cfg.hard_budget is not None:
+            # Optional optimisation: preserve the method's preferred selection
+            # rather than falling back to the first available selection.
+            # Evaluation enforces acquisition even if the method still stops.
             if isinstance(self._method, SupportsForcedAcquisition):
                 self._method.force_acquisition = True
-                self._forced_acquisition_mode = (
-                    ForcedAcquisitionMode.METHOD_BASED
-                )
-                log.info(
-                    "Enabled method-backed forced acquisition for hard-budget evaluation."
-                )
-            else:
-                self._forced_acquisition_mode = ForcedAcquisitionMode.FALLBACK
-                log.info(
-                    "Enabled fallback forced acquisition for hard-budget evaluation."
-                )
+            log.info(
+                "Enabled evaluator-enforced acquisition for hard-budget evaluation."
+            )
 
     def _set_selection_info(self) -> None:
         assert self._unmasker is not None
@@ -240,7 +220,6 @@ class AFAEvaluator:
             batch_size=self._cfg.batch_size,
             selection_costs=self._selection_costs.tolist(),
             seed=self._cfg.seed,
-            force_acquisition=self._fallback_force_acquisition,
         )
 
         # Add eval_seed and eval_hard_budget to dataframe

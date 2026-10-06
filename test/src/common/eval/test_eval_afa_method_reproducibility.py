@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Self, override
 
 import pandas as pd
+import pytest
 import torch
 from torch.utils.data import Dataset
 
@@ -151,6 +152,67 @@ def run_eval_after_global_rng_perturbation(seed: int) -> pd.DataFrame:
         batch_size=3,
         seed=seed,
     )
+
+
+@pytest.mark.parametrize("batch_size", [1, 3])
+def test_early_stop_method_reaches_hard_budget(batch_size: int) -> None:
+    method = StochasticDummyMethod()
+    method.set_seed(123)
+    result = eval_afa_method(
+        afa_action_fn=method.act,
+        afa_unmask_fn=unmask_directly,
+        n_selection_choices=4,
+        afa_initialize_fn=initialize_all_masked,
+        dataset=DummyDataset(n_samples=5),
+        selection_budget=3,
+        batch_size=batch_size,
+    )
+    episodes = result.groupby("episode_id")
+    assert episodes["accumulated_cost"].last().tolist() == [3.0] * 5
+    assert (
+        episodes["action_performed"]
+        .apply(
+            lambda actions: (
+                (actions.iloc[:3] > 0).all() and actions.iloc[-1] == 0
+            )
+        )
+        .all()
+    )
+    assert episodes["forced_stop"].last().tolist() == [True] * 5
+
+
+@pytest.mark.parametrize(
+    ("budget", "expected_cost", "expected_actions", "forced_stop"),
+    [
+        (None, 1.0, 2, False),
+        (0.0, 0.0, 1, True),
+        (2.5, 2.0, 3, True),
+        (6.0, 6.0, 7, True),
+    ],
+)
+def test_early_stop_respects_budget_regime(
+    budget: float | None,
+    expected_cost: float,
+    expected_actions: int,
+    *,
+    forced_stop: bool,
+) -> None:
+    method = StochasticDummyMethod()
+    method.set_seed(123)
+    result = eval_afa_method(
+        afa_action_fn=method.act,
+        afa_unmask_fn=unmask_directly,
+        n_selection_choices=4,
+        afa_initialize_fn=initialize_all_masked,
+        dataset=DummyDataset(n_samples=5),
+        selection_budget=budget,
+        batch_size=3,
+    )
+    episodes = result.groupby("episode_id")
+    assert episodes["accumulated_cost"].last().tolist() == [expected_cost] * 5
+    assert episodes.size().tolist() == [expected_actions] * 5
+    assert episodes["action_performed"].last().tolist() == [0] * 5
+    assert episodes["forced_stop"].last().tolist() == [forced_stop] * 5
 
 
 def test_episode_identity_survives_batch_boundaries() -> None:
