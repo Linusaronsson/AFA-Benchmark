@@ -1,384 +1,324 @@
 # Adding a new method
 
-## Overview
+An AFA method (see [`CONTEXT.md`](../../CONTEXT.md)) is added to the
+benchmark as one or two plain scripts under `scripts/train_method/` and
+`scripts/pretrain_model/`, registered with the pipeline. There is exactly one
+hard rule for those scripts. Everything else — Hydra, the config
+dataclasses, the shared helpers — is there to save you work, not to
+constrain you.
 
-To add a new Active Feature Acquisition (AFA) method to the benchmark, you need to:
-1. Create a training script that implements your method
-2. (Optional) Create a pretraining script if your method requires pre-trained models
-3. Add configuration classes and YAML files for Hydra
-4. Register your method with the pipeline
+## 1. The training contract
 
-This tutorial assumes your method requires a pretraining stage. Our example method will be called `Example` and will output random actions. You can reference the `RandomWithoutClassifierAFAMethod` implementation in the codebase to understand the AFA method interface.
+The pipeline (Snakemake) invokes your training script as a subprocess with a
+fixed set of `key=value` command-line arguments, and your pretraining script
+(if you have one) with a subset of them. This is the **training contract**
+(glossary entry in [`CONTEXT.md`](../../CONTEXT.md)), and its design is
+recorded in
+[ADR-0001](../adr/0001-training-contract-as-library.md).
 
-## Step-by-step guide
+**The hard rule: accept the training contract's arguments on the command
+line, and write a loadable bundle to the `save_path` argument.** Nothing
+else about how your method trains, configures itself, or uses the dataset
+key is prescribed.
 
-### 1. Pretraining a model
+The contract's field names and types are not restated here; the source of
+truth is the `PretrainingContract` / `TrainingContract` dataclasses in
+`afabench/training/contract.py`. `TrainingContract` extends
+`PretrainingContract` with the fields a training script needs that a
+pretraining script doesn't (the pretrained-model path and the budgets).
+Read that file before writing a new method's config.
 
-Create a pretraining script at `scripts/pretrain_model/example.py`:
-```python
-import logging
-from pathlib import Path
-from typing import Any, cast
+## 2. Minimal method
 
-import hydra
-from omegaconf import OmegaConf
-from torch import nn
+The smallest way to satisfy the contract is a training script with no
+pretraining stage that inherits `TrainingContract` for its config and uses
+the optional library helpers. The ported dummy methods
+(`afabench/components/methods/dummy/`) are the worked example; this section
+walks through `random_dummy`.
 
-from afabench.components.methods.example.config import ExamplePretrainConfig
-from afabench.core.bundle_system.bundle import save_bundle
-from afabench.core.bundle_system.torch_bundle import TorchModelBundle
-from afabench.core.utils import (
-    initialize_wandb_run,
-)
-
-log = logging.getLogger(__name__)
-
-
-@hydra.main(
-    version_base=None,
-    config_path="../../extra/conf/scripts/pretrain_model/example",
-    config_name="config",
-)
-def main(cfg: ExamplePretrainConfig) -> None:
-    if cfg.use_wandb:
-        _run = initialize_wandb_run(
-            cfg=cast(
-                "dict[str,Any]", OmegaConf.to_container(cfg, resolve=True)
-            ),
-            job_type="pretraining",
-            tags=["example"],
-        )
-    # If smoke test, override some options
-    if cfg.smoke_test:
-        log.info("Smoke test detected.")
-
-    # This is where training should be done, but we just save a random linear layer
-    save_bundle(
-        TorchModelBundle(nn.Linear(1, 1)), Path(cfg.save_path), metadata={}
-    )
-
-
-if __name__ == "__main__":
-    main()
-```
-
-See the `pretrain_model` rule in `extra/workflow/snakefiles/rules/training.smk` for arguments that the script is required to support. Since the arguments are passed without dashes, you are encouraged to use Hydra for the script configuration. Place your pretrain configuration class in a component config module, such as `afabench/components/methods/example/config.py`:
+The config dataclass adds no fields of its own:
 
 ```python
+# afabench/components/methods/dummy/config.py
 from dataclasses import dataclass
 
-from hydra.core.config_store import ConfigStore
+from afabench.training.contract import TrainingContract, store_contract_config
 
 
-cs = ConfigStore.instance()
+@dataclass(frozen=True, kw_only=True)
+class RandomDummyTrainConfig(TrainingContract):
+    """The random dummy method has no hyperparameters beyond the contract."""
 
 
-@dataclass
-class ExamplePretrainConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    classifier_bundle_path: (
-        str | None
-    )  # not needed for this method, but pipeline passes it to us
-    save_path: str
-    device: str
-    seed: int | None = None
-    use_wandb: bool = False
-    smoke_test: bool = False
-
-cs.store(name="pretrain_example", node=ExamplePretrainConfig)
+store_contract_config(
+    name="train_random_dummy", config_class=RandomDummyTrainConfig
+)
 ```
 
-You also need to configure (optional) default values for the script, which you do in `extra/conf/scripts/pretrain_model/example/config.yaml`:
-```yaml
-hydra:
-  searchpath:
-    - file://extra/conf
-    - file://extra/conf/global
+`store_contract_config` registers the dataclass as a Hydra structured config
+under the given name; the next section covers how the YAML config pulls it
+in. The training logic is a plain function that takes the resolved config and
+a `TrainingInputs` and returns the trained method — it does not seed, log, or
+save anything itself:
 
-defaults:
-  - hydra: custom
-  - _self_
-  - optional /components/initializers@initializer: ???
-  - /components/unmaskers@unmasker: ???
-  - optional experiment@_global_: ???
-  - override hydra/job_logging: output_dir_colorlog
-  - override hydra/hydra_logging: colorlog
-  - override hydra/launcher: custom_slurm
-
-
-train_dataset_bundle_path: ???
-val_dataset_bundle_path: ???
-classifier_bundle_path: null # not needed for this method, but pipeline passes it to us
-save_path: ???
-device: cuda
-seed: null
-use_wandb: false
-smoke_test: false
-```
-
-The pipeline has its own concept of what a "pretrained model" is, so you should update the relevant file in `extra/workflow/conf/pretrain_mappings/` (e.g., `all.yaml`):
-```yaml
-pretrain_mapping:
-  example_model:
-    pretrain_script_name: "example"
-    pretrain_params: []
-  # other models...
-```
-
-This defines a pretrained model called `example_model`, which your method will later depend on. The `pretrain_script_name` refers to files in `scripts/pretrain_model/`.
-
-### 2. Training a method
-
-You cannot yet run the pretraining stage, since the pipeline works backwards from which *methods* need to be trained.
-
-Add a training script at `scripts/train_method/example.py`:
 ```python
-import logging
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
-
-import hydra
-import torch
-from omegaconf import OmegaConf
-
-from afabench.components.initializers.utils import get_afa_initializer_from_config
-from afabench.components.methods.dummy import RandomWithoutClassifierAFAMethod
-from afabench.components.methods.example.config import ExampleTrainConfig
-from afabench.components.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.utils import (
-    initialize_wandb_run,
-    set_seed,
-)
-from afabench.evaluation.eval import eval_afa_method
-
-if TYPE_CHECKING:
-    from afabench.core.types import AFADataset
-
-log = logging.getLogger(__name__)
-
-
-@hydra.main(
-    version_base=None,
-    config_path="../../extra/conf/scripts/train_method/example",
-    config_name="config",
-)
-def main(cfg: ExampleTrainConfig) -> None:
-    log.debug(cfg)
-    set_seed(cfg.seed)
-    torch.set_float32_matmul_precision("medium")
-
-    if cfg.use_wandb:
-        run = initialize_wandb_run(
-            cfg=cast(
-                "dict[str,Any]", OmegaConf.to_container(cfg, resolve=True)
-            ),
-            job_type="training",
-            tags=["example"],
-        )
-    else:
-        run = None
-
-    if cfg.smoke_test:
-        log.info("Smoke test detected.")
-        # Because this method does not train, smoke test is no different
-
-    train_dataset, dataset_manifest = load_bundle(
-        Path(cfg.train_dataset_bundle_path),
-    )
-    train_dataset = cast("AFADataset", cast("object", train_dataset))
-
-    assert len(train_dataset.label_shape) == 1, "Only 1D labels supported"
-
-    # Create initializer
-    initializer = get_afa_initializer_from_config(cfg.initializer)
-
-    # Create unmasker
-    unmasker = get_afa_unmasker_from_config(cfg.unmasker)
-
-    # Usually, this is where training would happen
-
+# afabench/components/methods/dummy/train.py (abridged)
+def train_random_dummy(
+    contract: RandomDummyTrainConfig, inputs: TrainingInputs
+) -> RandomWithoutClassifierAFAMethod:
+    train_dataset = inputs.train_dataset()
     afa_method = RandomWithoutClassifierAFAMethod(
-        device=torch.device(cfg.device),
+        device=torch.device("cpu"),
         n_classes=train_dataset.label_shape.numel(),
         prob_select_0=0.0
-        if cfg.soft_budget_param is None
-        else cfg.soft_budget_param,
+        if contract.soft_budget_param is None
+        else contract.soft_budget_param,
     )
-
-    # Check that everything works together by doing some evaluation
-    eval_afa_method(
-        afa_action_fn=afa_method.act,
-        afa_unmask_fn=unmasker.unmask,
-        n_selection_choices=unmasker.get_n_selections(
-            train_dataset.feature_shape
-        ),
-        afa_initialize_fn=initializer.initialize,
-        dataset=train_dataset,
-        external_afa_predict_fn=None,
-        builtin_afa_predict_fn=afa_method.predict,
-        only_n_samples=100,
-        batch_size=10,
-    )
-
-    # Save method as a bundle
-    save_bundle(
-        obj=afa_method,
-        path=Path(cfg.save_path),
-        metadata={
-            "dataset_class_name": dataset_manifest["class_name"],
-            "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
-            "seed": cfg.seed,
-            "soft_budget_param": cfg.soft_budget_param,
-            "hard_budget": cfg.hard_budget,
-            "initializer_class_name": cfg.initializer.class_name,
-            "unmasker_class_name": cfg.unmasker.class_name,
-        },
-    )
-
-    if run is not None:
-        run.finish()
-
-
-if __name__ == "__main__":
-    main()
+    ...  # evaluate it end to end as a smoke check; dummy methods don't train
+    return afa_method
 ```
 
-Note that this is almost identical to `scripts/train_method/random_dummy.py`. Had we used a different class than `RandomWithoutClassifierAFAMethod` to represent our method, we would also have to add it to the registry object `REGISTERED_CLASSES` in `afabench/core/registry.py`. However, there is already an entry for `"RandomWithoutClassifierAFAMethod": "afabench.components.methods.dummy.without_classifier.RandomWithoutClassifierAFAMethod"`.
+`inputs: TrainingInputs`, from `afabench.training.inputs.load_inputs`, lazily
+loads whatever the contract points to: `inputs.train_dataset()`,
+`inputs.val_dataset()`, `inputs.initializer()`, `inputs.unmasker()`,
+`inputs.classifier(expected_type)` and, for `TrainingContract`,
+`inputs.pretrained_model(expected_type)`.
 
-Similar to before, you have to configure a config dataclass in `afabench/components/methods/example/config.py`:
+The script itself owns the lifecycle — seeding, wandb, saving — using the
+other two helpers:
+
 ```python
-from dataclasses import dataclass
-
-from hydra.core.config_store import ConfigStore
-
-from afabench.components.initializers.config import InitializerConfig
-from afabench.components.unmaskers.config import UnmaskerConfig
-
-
-cs = ConfigStore.instance()
-
-
-@dataclass
-class ExampleTrainConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    pretrained_model_bundle_path: str
-    classifier_bundle_path: (
-        str | None
-    )  # not needed for this method, but pipeline passes it to us
-    save_path: str
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
-    hard_budget: int | None  # not used, but pretend that it is
-    soft_budget_param: float | None
-
-    device: str
-    seed: int | None
-    use_wandb: bool = False
-    smoke_test: bool = False
-
-
-cs.store(name="train_example", node=ExampleTrainConfig)
+# scripts/train_method/random_dummy.py
+@hydra.main(
+    version_base=None,
+    config_path="../../extra/conf/scripts/train_method/random_dummy",
+    config_name="config",
+)
+def main(cfg: RandomDummyTrainConfig) -> None:
+    cfg = cast("RandomDummyTrainConfig", OmegaConf.to_object(cfg))
+    inputs = load_inputs(cfg)
+    with training_run(cfg, "training", tags=["random_dummy"], config=cfg):
+        afa_method = train_random_dummy(cfg, inputs)
+        save_result(afa_method, cfg, cfg, stage="training")
 ```
-and also create an instance of it at `extra/conf/scripts/train_method/example/config.yaml`:
+
+`training_run` (from `afabench.training.run`) seeds with `contract.seed`,
+opens a `WandbMetricLogger` or a `NullMetricLogger` depending on
+`contract.use_wandb`, and cleans up CUDA state afterwards; use the yielded
+logger's `.log(...)` if your training loop reports metrics. `save_result`
+writes `obj` as a bundle to `contract.save_path`, with metadata recording the
+stage, the contract values and the config fields the contract doesn't cover.
+
+Nothing here is Hydra-specific except `@hydra.main` and `OmegaConf.to_object`;
+section 5 covers skipping both.
+
+The YAML config wires in the contract's Hydra groups. See
+`extra/conf/components/README.md` for how `initializer`, `unmasker` and
+`dataset_key` become plain top-level groups instead of Hydra's usual nested
+paths:
+
 ```yaml
+# extra/conf/scripts/train_method/random_dummy/config.yaml
 hydra:
   searchpath:
     - file://extra/conf
     - file://extra/conf/global
 
 defaults:
+  - train_random_dummy
   - hydra: custom
-  - /components/initializers@initializer: ???
-  - /components/unmaskers@unmasker: ???
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
   - _self_
-  - optional experiment@_global_: ???
+  - optional experiment@_global_: ${dataset_key}
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
-
-train_dataset_bundle_path: ???
-val_dataset_bundle_path: ???
-pretrained_model_bundle_path: ???
-classifier_bundle_path: null # not needed for this method, but pipeline passes it to us
-save_path: ???
-# initializer set as component
-# unmasker set as component
-hard_budget: null
-soft_budget_param: null
-
-device: cpu
-seed: null
-use_wandb: false
-smoke_test: false
 ```
 
-## Integrating the method into the pipeline
+`train_random_dummy` is the name `store_contract_config` registered; it fills
+in all the contract fields, leaving the config otherwise empty since
+`RandomDummyTrainConfig` adds none.
 
-So far, we have only created scripts that work individually, but these scripts will not yet run automatically when we execute the pipeline. The relevant file in `extra/workflow/conf/methods/` (e.g., `all.yaml`) contains a list of all methods that the pipeline will run. Let's call the new method `example_method`, so add it as a new list item:
+If your method class is new, register it in `REGISTERED_CLASSES` in
+`afabench/core/registry.py` ([`docs/bundle_format.md`](../bundle_format.md))
+so `load_bundle` can reconstruct it; `RandomWithoutClassifierAFAMethod` is
+already there as `"RandomWithoutClassifierAFAMethod"`.
+
+## 3. Adding a pretraining stage
+
+A method with a pretraining stage additionally gets a script under
+`scripts/pretrain_model/`, configured the same way but with a config
+dataclass inheriting `PretrainingContract` instead of `TrainingContract`
+(fewer fields: no pretrained-model path, no budgets — see
+`afabench/training/contract.py`). Structure it like the training script in
+section 2: a plain `pretrain_*` function taking the config and a
+`TrainingInputs`, called from a script that wraps it in `training_run` and
+`save_result`.
+
+A pretrained model is a separate pipeline-level concept from a method; one
+pretrained model can be shared by several method names. For example,
+`eddi_builtin` and `eddi_external` both depend on the `pvae` pretrained
+model:
 
 ```yaml
-methods:
-  # other methods...
-  - example_method
+# extra/workflow/conf/pretrain_mappings/all.yaml
+pretrain_mapping:
+  pvae:
+    pretrain_script_name: "odin"
+    pretrain_params: []
 ```
 
-Next, add your method options to the relevant file in `extra/workflow/conf/method_options/` (e.g., `all.yaml`).
 ```yaml
+# extra/workflow/conf/method_options/all.yaml
 method_options:
-  example_method:
-    pretrained_model_name: "example_model"
-    train_script_name: "example"
-    eval_batch_size:
-      default: 128
-    hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette]
+  eddi_builtin:
+    pretrained_model_name: "pvae"
+    train_script_name: "eddi_builtin"
+    ...
+  eddi_external:
+    pretrained_model_name: "pvae"
+    train_script_name: "eddi_external"
+    ...
 ```
 
-This assumes that the method supports training on all datasets except Imagenette (which uses image patches).
+Add an entry to `pretrain_mapping` naming your pretraining script, then point
+every method name that depends on it at that name via
+`pretrained_model_name` in `method_options` (section 6). The pipeline runs
+the pretraining stage once per `(pretrained_model_name, dataset, dataset
+instance, pretrain seed)` and passes the resulting bundle's path as
+`pretrained_model_bundle_path` to every training run that needs it.
 
-### 3. Configuring soft budgets
+## 4. Configuring hyperparameters
 
-We need to define reasonable soft-budget parameters for our method, which we do in the relevant file in `extra/workflow/conf/soft_budget_params/` (e.g., `all.yaml`). For this method, the soft-budget parameter corresponds to the probability of choosing the stop action. For simplicity, let us define values that are reused across all datasets:
-```yaml
-soft_budget_params:
-  example_method:
-    default:
-      - [0.1, null]
-      - [0.2, null]
-      - [0.3, null]
-  # more methods...
-```
+Hyperparameters beyond the contract are entirely the method author's choice
+— the contract says nothing about them. The repo's own methods follow one
+convention, recommended as the default: a Hydra experiment file per dataset
+key, selected automatically through `optional experiment@_global_:
+${dataset_key}` in the root config (already present in the YAML in section
+2), so `extra/conf/scripts/train_method/<method>/experiment/<dataset
+key>.yaml` only needs to exist for the dataset keys that need
+non-default values.
 
-Each pair is `[train_soft_budget_param, eval_soft_budget_param]`. The
-`null` in the second position means the parameter is only passed during
-training, not during evaluation. If your method needs the soft-budget
-parameter at evaluation time instead, swap the positions, for example
-`[null, 0.1]`.
+Two rules keep this convention from drifting back into the duplication
+`docs/training_contract_inventory.md` describes:
 
-### 4. Visualization options
+- **Experiment files may not set contract fields.** Snakemake always passes
+  `hard_budget`, `seed`, `device` and the rest on the command line, so a
+  value set in an experiment file is silently dead in the pipeline and only
+  misleads someone running the script by hand. `test/workflow/test_experiment_files_omit_contract_fields.py`
+  enforces this for every method; add your method's name there if you
+  intentionally leave this for later (see `NOT_YET_PORTED` in that file for
+  the pattern), but satisfy it before considering the method done.
+- **Deduplicate across dataset keys through shared family files**, pulled in
+  via the experiment file's own `defaults:` list, rather than copying the
+  same hyperparameters into every dataset key's file. Group by whatever the
+  hyperparameters actually vary with (for example tabular vs. image
+  datasets), not by listing every dataset key's file by hand.
 
-Choose how the method should be displayed in plots by adding an entry to `method_name_mapping` in `extra/conf/scripts/plotting/common/default.yaml`. For example:
-```yaml
-method_name_mapping:
-  # ... existing entries ...
-  example_method: Example
-```
+You are free to configure hyperparameters a different way (plain Python
+constants, a JSON file you load yourself, environment variables); the only
+constraint is the one in section 5.
 
-Also decide if you want to compare the method with any specific other methods. In this case, we decide to only add it to the main results plot, so we add it to the `main` method set in the relevant file in `extra/workflow/conf/method_sets/` (e.g., `all.yaml`).
-```yaml
-method_sets:
-  main:
-    # other methods...
+## 5. Not using the helpers or Hydra
+
+None of `TrainingContract`, `load_inputs`, `training_run`, `save_result` or
+Hydra is required. If you'd rather write a training script from scratch, it
+still has to:
+
+- Parse the training (or pretraining) contract's arguments off
+  `sys.argv`, in the plain `key=value` form Snakemake passes them
+  (`afabench/training/contract.py` lists the fields; nothing requires you to
+  use the dataclass to hold them).
+- Call `afabench.core.bundle_system.bundle.save_bundle` to write a loadable
+  bundle to the `save_path` argument, with your method's class registered in
+  `REGISTERED_CLASSES` (`afabench/core/registry.py`,
+  [`docs/bundle_format.md`](../bundle_format.md)).
+
+Everything else — seeding, logging, hyperparameter configuration, smoke-test
+handling — is on you, exactly as it would be for any other script.
+
+## 6. Registering with the pipeline
+
+The pipeline doesn't yet know your method exists even once its scripts work
+standalone. Four config groups under `extra/workflow/conf/` wire it in,
+keyed by a pipeline-level method name (distinct from your training script's
+file name):
+
+- **`methods/<variant>.yaml`**: list your method name so the pipeline trains
+  and evaluates it.
+
+  ```yaml
+  methods:
     - example_method
-    # more methods...
+  ```
+
+- **`method_options/<variant>.yaml`**: everything the pipeline needs to run
+  your method — which training script to call, which pretrained model (if
+  any) it depends on, evaluation batch size, and which datasets to skip for
+  hard- or soft-budget evaluation.
+
+  ```yaml
+  method_options:
+    example_method:
+      pretrained_model_name: "example_model"  # omit if there's no pretraining stage
+      train_script_name: "example"
+      eval_batch_size:
+        default: 128
+      hard_budget_ignored_datasets: [imagenette]
+      soft_budget_ignored_datasets: [imagenette]
+  ```
+
+- **`soft_budget_params/<variant>.yaml`**: the soft-budget parameter values
+  to train and evaluate at, as `[train_soft_budget_param,
+  eval_soft_budget_param]` pairs; `null` in either position means that stage
+  doesn't receive it.
+
+  ```yaml
+  soft_budget_params:
+    example_method:
+      default:
+        - [0.1, null]
+        - [0.2, null]
+  ```
+
+- **`method_sets/<variant>.yaml`**: add your method name to whichever named
+  plot groups it belongs in (for example `main`).
+
+If your method introduces a new `AFAMethod` or `AFAClassifier` class, add it
+to `REGISTERED_CLASSES` in `afabench/core/registry.py` — this is the same
+registration the bundle system needs (section 2 and
+[`docs/bundle_format.md`](../bundle_format.md)); there's no separate pipeline
+registry.
+
+To also show up in plots, add it to `method_name_mapping` in
+`extra/conf/scripts/plotting/common/default.yaml`.
+
+## 7. Testing
+
+`test/scripts/test_training_contract_conformance.py` is the contract
+conformance test: for every method name in `method_options`, it runs your
+training (and pretraining, if any) script as a subprocess on a generated
+smoke CUBE dataset with contract arguments, and asserts a loadable bundle
+ends up at `save_path`. It's marked `pipeline` (skipped by default) except
+for one always-run `random_dummy` case, so `just qa` exercises the contract
+without running every method on every commit.
+
+Once your method is registered in `method_options` (section 6), run its
+case directly:
+
+```shell
+uv run pytest test/scripts/test_training_contract_conformance.py -m pipeline -k example_method
 ```
 
-### 5. Running the pipeline
+This is the check that actually proves your script satisfies the hard rule
+in section 1, independent of whether you used the helpers, Hydra, or neither.
 
-Let us run the pipeline locally using 8 cores, with only the new method and two datasets:
+## Running the pipeline
+
+Run the pipeline locally with only your new method and a couple of datasets:
+
 ```shell
 uv run snakemake \
     --profile extra/workflow/profiles/config/all \
