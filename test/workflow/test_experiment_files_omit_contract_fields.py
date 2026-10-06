@@ -30,7 +30,7 @@ _STAGE_CONTRACT_FIELDS = {
 }
 
 NOT_YET_PORTED: dict[str, frozenset[str]] = {
-    "train_method": frozenset({"cae", "dime", "gdfs", "permutation"}),
+    "train_method": frozenset({"cae", "dime", "gdfs"}),
 }
 
 
