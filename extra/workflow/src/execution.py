@@ -12,7 +12,13 @@ import yaml
 # Workflow YAML and Snakemake resources are heterogeneous mappings.
 # ruff: noqa: ANN401
 
-STAGES = {"training", "evaluation"}
+METHOD_STAGES = {"training", "evaluation", "classifier"}
+CPU_ONLY_STAGES = {
+    "dataset_generation",
+    "transformation",
+    "aggregation",
+    "visualization",
+}
 ALLOCATION_RESOURCES = {
     "slurm_partition": "",
     "slurm_account": "",
@@ -42,13 +48,25 @@ def _known_keys(
 class ExecutionPolicy:
     def __init__(self, config: Mapping[str, Any]) -> None:
         self.execution = _mapping(config.get("execution", {}), "execution")
-        _known_keys(self.execution, {"defaults", "methods"}, "execution")
+        _known_keys(
+            self.execution,
+            {"defaults", "methods", "pretrained_models"},
+            "execution",
+        )
         self.defaults = _mapping(
             self.execution.get("defaults", {}), "execution.defaults"
         )
-        _known_keys(self.defaults, STAGES, "execution.defaults")
+        _known_keys(
+            self.defaults,
+            METHOD_STAGES | {"pretraining"},
+            "execution.defaults",
+        )
         self.methods = _mapping(
             self.execution.get("methods", {}), "execution.methods"
+        )
+        self.pretrained_models = _mapping(
+            self.execution.get("pretrained_models", {}),
+            "execution.pretrained_models",
         )
         site_config = config
         if "execution_site_file" in config:
@@ -80,7 +98,9 @@ class ExecutionPolicy:
             overrides = _mapping(
                 self.methods.get(method, {}), f"execution.methods.{method}"
             )
-            _known_keys(overrides, STAGES, f"execution.methods.{method}")
+            _known_keys(
+                overrides, METHOD_STAGES, f"execution.methods.{method}"
+            )
             self._validate_method_parameters(config, method)
 
     def _validate_method_parameters(
@@ -97,9 +117,17 @@ class ExecutionPolicy:
                     message = f"method_specific_params for {method!r} cannot set device; use execution"
                     raise ValueError(message)
 
-    def device(self, stage: str, identity: str) -> str:
+    def device(self, stage: str, identity: str | None) -> str:
+        # Processing never inherits GPU intent, including legacy global device.
+        if stage in CPU_ONLY_STAGES:
+            return "cpu"
         choice = self.defaults.get(stage, self.legacy_device)
-        choice = self.methods.get(identity, {}).get(stage, choice)
+        # Shared pretraining is named independently of its downstream methods.
+        # A None identity selects the external classifier stage default only.
+        if stage == "pretraining":
+            choice = self.pretrained_models.get(identity, choice)
+        elif identity is not None:
+            choice = self.methods.get(identity, {}).get(stage, choice)
         if choice not in ("cpu", "cuda"):
             message = f"Invalid execution choice {choice!r} for {stage}/{identity}; expected cpu or cuda"
             raise ValueError(message)
@@ -134,7 +162,9 @@ class ExecutionPolicy:
             message = f"Invalid GPU allocation gpu_model: {gpu_model!r}"
             raise ValueError(message)
 
-    def resource(self, name: str, stage: str, identity: str) -> int | str:
+    def resource(
+        self, name: str, stage: str, identity: str | None
+    ) -> int | str:
         hardware = "gpu" if self.device(stage, identity) == "cuda" else "cpu"
         if self.site:
             self._validate_allocation(hardware)
@@ -145,7 +175,7 @@ class ExecutionPolicy:
         return site.get(name, default)
 
     def checked_device(
-        self, stage: str, identity: str, resources: Mapping[str, Any]
+        self, stage: str, identity: str | None, resources: Mapping[str, Any]
     ) -> str:
         for name, default in ALLOCATION_RESOURCES.items():
             if not self.site and name in {"slurm_partition", "slurm_account"}:
