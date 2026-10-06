@@ -42,14 +42,14 @@ uv run snakemake \
       extra/workflow/conf/unmaskers/all.yaml \
       extra/workflow/conf/classifier_names/all.yaml \
       extra/workflow/conf/datasets/all.yaml \
-    --config \
-      device=cpu \
     --jobs 8
 ```
 
-To reproduce the full benchmark results, use SLURM instead. See the
+Without an execution file every job runs on CPU. To reproduce the full
+benchmark results, use SLURM instead: one command submits CPU and GPU jobs
+together. See the
 [reproducing full results](docs/tutorials/reproduce_full_results.md) tutorial
-for the exact commands.
+for the exact command.
 
 ## Features
 

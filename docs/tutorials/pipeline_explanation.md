@@ -19,11 +19,12 @@ Configuration files are organized into subdirectories under
 `extra/workflow/conf/`. Each subdirectory contains multiple named variants
 (e.g., `all.yaml`, `kdd26.yaml`). The command above uses the
 `extra/workflow/profiles/config/all` profile, which bundles the commonly used
-`all.yaml` config files and the pipeline Snakefile. Use
-`extra/workflow/profiles/config/cpu_methods`,
-`extra/workflow/profiles/config/gpu_methods`, or
-`extra/workflow/profiles/config/kdd26` when you want those preset config
-combinations instead. Below we discuss the meaning of each configuration group.
+`all.yaml` config files and the pipeline Snakefile, and runs every job on
+CPU. `extra/workflow/profiles/config/kdd26` bundles the `kdd26.yaml` files
+together with `extra/workflow/conf/execution/kdd26.yaml`, which runs
+classifiers, pretrained models and some methods on GPU; it is meant for the
+SLURM command in [Reproducing full results](reproduce_full_results.md).
+Below we discuss the meaning of each configuration group.
 
 ## Runtime configuration options
 
@@ -45,16 +46,27 @@ Specifies which random seed instances to run. This allows you to run a subset of
 - **Example:** `dataset_instance_indices=[0,1]` to run two different seeds
 - **Use case:** Use fewer instances for faster debugging, more instances for more robust results
 
-### `device`
+### `device` (deprecated)
 
-Specifies the compute device to use for training and evaluation.
+An invocation-wide device for all classifier, pretraining, training and
+evaluation jobs. It still works on its own with a deprecation warning, but
+cannot be combined with `execution` (see below), and dataset generation,
+transformations, aggregation and plotting always run on CPU regardless.
 
 - **Default:** `cpu`
-- **Valid values:**
-  - `cpu` - Use CPU only
-  - `cuda` - Use CUDA GPU (defaults to the first available GPU)
-  - `cuda:0`, `cuda:1`, etc. - Use a specific CUDA GPU device
-- **Example:** `device=cuda` to accelerate training with GPU
+- **Valid values:** `cpu`, `cuda`
+- **Instead:** declare `execution` choices in a config file
+
+### `execution`
+
+A mapping, given in a config file, that declares per job whether it runs on
+`cpu` or `cuda`: stage defaults for `classifier`, `pretraining`, `training`
+and `evaluation`, overrides per method and stage, and overrides per named
+pretrained model. Unspecified stages run on CPU. The resolved choice is both
+the script's `device` argument and, under SLURM, the CPU or GPU allocation.
+See [Reproducing full results](reproduce_full_results.md#declaring-hardware)
+for the format and precedence, and `extra/workflow/conf/execution/` for the
+shipped declarations.
 
 ### `--jobs` (Snakemake parameter)
 

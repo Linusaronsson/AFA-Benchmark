@@ -1,100 +1,220 @@
 # Reproducing full results
 
-This tutorial gives the Snakemake commands for reproducing the full benchmark
-results with SLURM. The full benchmark creates many jobs, so running it on a
-workstation is possible but not recommended.
+The full benchmark is one Snakemake dependency graph, from dataset generation
+through classifiers, pretrained models, method training and evaluation to
+the final plots. One ordinary invocation of its final target, `all`, submits
+CPU and GPU jobs to SLURM as their own dependencies complete. You do not
+coordinate stages or hardware by hand. The full benchmark creates many jobs, so
+running it on a workstation is possible but not recommended.
 
-Before running the commands, create SLURM workflow profiles for your cluster in
-`extra/workflow/profiles/`. See [SLURM integration](slurm_integration.md) for
-setup details.
+## Which preset to use
 
-The full pipeline mixes CPU-heavy and GPU-heavy stages. Running everything on
-GPU wastes GPU time on lightweight jobs such as dataset generation, merging,
-and plotting. Running everything on CPU makes neural-network training slow.
-Instead, run the pipeline in the six stages below.
+| Preset | Hardware | Use it for |
+| --- | --- | --- |
+| `--profile extra/workflow/profiles/config/kdd26` | Bundles `extra/workflow/conf/execution/kdd26.yaml`: classifiers, pretrained models and five methods on GPU | Cluster reproduction of the KDD '26 results (the command below) |
+| `-s ... --configfile <all.yaml files> extra/workflow/conf/execution/all.yaml` | Opt-in declaration for all methods: classifiers, pretrained models and seven methods on GPU | Cluster runs of the full method set ([below](#full-method-set)) |
+| `--profile extra/workflow/profiles/config/all` | No execution file: every job runs on CPU | Local smoke tests and development, no GPU or SLURM needed |
 
-<p align="center">
-  <img src="../images/pipeline_slurm_stages.svg" alt="Pipeline stages" width="800">
-</p>
+> **`config/all` never requests a GPU.** Do not use it for a mixed-device
+> cluster run; it would train every method on CPU. Use `config/kdd26`, or the
+> explicit `execution/all.yaml` form for all methods.
 
-Most stages use the `config/all` profile. The train/evaluate stages use
-`config/cpu_methods` and `config/gpu_methods` to split the full method set
-across CPU and GPU partitions. Set `device` manually to choose where each
-stage runs.
+## One command
 
-To quickly verify that the pipeline works, add `smoke_test=true` to the
-`--config` arguments. This keeps the same pipeline targets, but passes the
-smoke-test setting to the scripts so they use faster validation settings. The
-resulting metrics are only useful for checking execution and will not be
-meaningful benchmark results.
-
-## 1. Generate datasets (CPU)
+Run from the repository root on an authorized SLURM submit host (see
+[Where to run it](#where-to-run-it)). First inspect the planned work with a
+dry run (`-n`), which also prints every job's resources and script command:
 
 ```shell
 uv run snakemake \
-    --profile extra/workflow/profiles/config/all \
-    all_generate_datasets \
-    --workflow-profile extra/workflow/profiles/<your_cpu_cluster> \
-    --config device=cpu
+    --profile extra/workflow/profiles/config/kdd26 \
+    --workflow-profile extra/workflow/profiles/<your_site> \
+    -n -p all
 ```
 
-## 2. Train classifiers (GPU)
+Then remove `-n -p` to submit. The `<your_site>` profile maps CPU and GPU
+execution to your cluster's partitions, accounts and GPU request syntax; adapt
+it from `mixed-gres` or `mixed-gpus` as described in
+[SLURM integration](slurm_integration.md).
+
+> **Do not add `--config` to this command on its own.** Snakemake replaces the
+> site profile's whole `config` section with the `--config` values, so its
+> `execution_site_file` silently disappears. Nothing fails: GPU jobs are
+> submitted with a generic `--gpus=1` to the cluster's default partition and
+> account, and CPU jobs also lose their partition and account. Whenever you pass
+> `--config`, repeat the site file:
+>
+> ```shell
+> uv run snakemake \
+>     --profile extra/workflow/profiles/config/kdd26 \
+>     --workflow-profile extra/workflow/profiles/<your_site> \
+>     -n -p all \
+>     --config \
+>       "datasets=[cube]" \
+>       execution_site_file=extra/workflow/profiles/<your_site>/site.yaml
+> ```
+>
+> Check `slurm_partition`, `slurm_account` and the GPU request in the dry-run
+> `resources:` lines before submitting.
+
+Likewise, `--configfile` on the command line replaces the preset's list of
+config files instead of adding to it. To change hardware, edit
+`extra/workflow/conf/execution/kdd26.yaml` (or a copy referenced from a copy
+of the preset) rather than passing an extra config file.
+
+## Inspecting planned work
+
+- `-n -p all` lists every job with its `resources:` line (`slurm_partition`,
+  `slurm_account`, `gpu`, `gres`, `gpu_model`, runtime, CPUs, memory) and the
+  script command, including the `device=` argument passed to computational
+  scripts. The job counts at the end summarize the graph.
+- Use a narrower target such as `all_train_classifiers`, `all_pretrain_models`,
+  `all_train_methods` or `all_eval_methods` to inspect or run only part of the
+  graph. These are subsets of the same graph, not required stages.
+- Invalid execution choices, incompatible site maps, `device` arguments in
+  `method_specific_params`, classifier `script_params` or `pretrain_params`,
+  and `set-resources` overrides of allocation resources fail during planning,
+  before any job is submitted. Planning cannot prove that a partition is
+  available to your account or that a script supports a device.
+
+## Declaring hardware
+
+`extra/workflow/conf/execution/kdd26.yaml` declares where each computational
+job runs. Values are exactly `cpu` and `cuda`:
+
+```yaml
+execution:
+  defaults:            # per stage; unspecified stages default to cpu
+    classifier: cuda   # external and method-specific classifiers
+    pretraining: cuda  # named pretrained models
+    training: cpu
+    evaluation: cpu
+  methods:
+    jafa:              # per method: training, evaluation, classifier
+      training: cuda
+      evaluation: cuda
+  pretrained_models:   # per named model in pretrain_mapping (none here)
+    pvae: cuda
+```
+
+Precedence, resolved independently for every job:
+
+1. `execution.methods.<method>.<training|evaluation|classifier>`, or
+   `execution.pretrained_models.<named model>` for pretraining.
+2. `execution.defaults.<stage>`.
+3. `cpu`.
+
+Training and evaluation are independent, so a method can train on GPU and
+evaluate on CPU. Evaluation runs the classifier too, so declare its end-to-end
+needs. Shared external classifiers use only `defaults.classifier`; a pretrained
+model shared by several methods uses its own name, never a requesting method's
+choice. Dataset generation, transformations, aggregation and plotting always
+run on CPU and cannot be configured. Hardware is never inferred from a method's
+implementation, taxonomy or the selected method list, and a `cuda` job never
+falls back to CPU. `cuda` both passes `device=cuda` to the script and requests
+a GPU allocation; `cpu` passes `device=cpu` and requests none.
+
+The shipped files declare the same hardware the former six-invocation workflow
+used: classifiers and pretrained models on GPU, and the methods of the removed
+`methods/gpu.yaml` (`jafa`, `odin_model_free`, `odin_model_based`, `gdfs`,
+`eddi_builtin`, `eddi_external`, `dime`) trained and evaluated on GPU. Partitions
+and accounts never belong in these files. Details:
+[method training and evaluation](mixed_execution.md),
+[classifiers and pretrained models](prerequisite_execution.md),
+[CPU-only processing](cpu_processing_execution.md).
+
+## Full method set
+
+There is no profile bundling the full method set with GPU execution, because
+`config/all` is the CPU-only local preset. List its config files explicitly
+and add `execution/all.yaml`:
 
 ```shell
 uv run snakemake \
-    --profile extra/workflow/profiles/config/all \
-    all_train_classifiers \
-    --workflow-profile extra/workflow/profiles/<your_gpu_cluster> \
-    --config device=cuda
+    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    --workflow-profile extra/workflow/profiles/<your_site> \
+    --configfile \
+      extra/workflow/conf/eval_hard_budgets/all.yaml \
+      extra/workflow/conf/methods/all.yaml \
+      extra/workflow/conf/method_sets/all.yaml \
+      extra/workflow/conf/method_options/all.yaml \
+      extra/workflow/conf/pretrain_mappings/all.yaml \
+      extra/workflow/conf/soft_budget_params/all.yaml \
+      extra/workflow/conf/unmaskers/all.yaml \
+      extra/workflow/conf/classifier_names/all.yaml \
+      extra/workflow/conf/datasets/all.yaml \
+      extra/workflow/conf/execution/all.yaml \
+    -n -p all
 ```
 
-## 3. Pretrain models (GPU)
+The `--config` warning above applies here too.
 
-```shell
-uv run snakemake \
-    --profile extra/workflow/profiles/config/all \
-    all_pretrain_models \
-    --workflow-profile extra/workflow/profiles/<your_gpu_cluster> \
-    --config device=cuda
-```
+## Where to run it
 
-## 4. Train and evaluate CPU methods
+- Run Snakemake on one authorized submit host of a single SLURM cluster that
+  can reach both its CPU and GPU partitions. The controller process stays
+  alive for the whole run, so use a persistent session (for example `tmux`)
+  if your site allows it, or follow site policy for long-running controllers.
+  The controller only plans and submits; all jobs, including plotting, are
+  submitted to compute nodes.
+- The repository, the `uv` environment, inputs and `extra/output/` must be on
+  a filesystem shared by the submit host and all compute nodes.
+- Dispatching jobs across separate clusters is not supported. Nothing in the
+  workflow checks that the partitions, accounts or GPUs in your site profile
+  are available.
 
-This stage trains and evaluates the methods listed in
-`extra/workflow/conf/methods/cpu.yaml` on the CPU partition.
+## Local smoke test
 
-```shell
-uv run snakemake \
-    --profile extra/workflow/profiles/config/cpu_methods \
-    all_eval_methods \
-    --workflow-profile extra/workflow/profiles/<your_cpu_cluster> \
-    --config device=cpu
-```
-
-## 5. Train and evaluate GPU methods
-
-This stage trains and evaluates the methods listed in
-`extra/workflow/conf/methods/gpu.yaml` on the GPU partition.
-
-```shell
-uv run snakemake \
-    --profile extra/workflow/profiles/config/gpu_methods \
-    all_eval_methods \
-    --workflow-profile extra/workflow/profiles/<your_gpu_cluster> \
-    --config device=cuda
-```
-
-## 6. Merge results and plot (CPU)
-
-After both evaluation stages finish, merge the results and create the final
-plots.
+To check that the pipeline executes, without SLURM or a GPU, run the CPU-only
+preset locally with the smoke-test setting and a small selection:
 
 ```shell
 uv run snakemake \
     --profile extra/workflow/profiles/config/all \
     all \
-    --workflow-profile extra/workflow/profiles/<your_cpu_cluster> \
-    --config device=cpu
+    --jobs 8 \
+    --config \
+      "datasets=[cube]" \
+      "dataset_instance_indices=[0]" \
+      "methods=[random_dummy,gdfs]" \
+      smoke_test=true \
+      use_wandb=false
 ```
 
-The plotting step produces figures under `extra/output/plot_results/`.
+This uses the same graph and execution resolution as a cluster run, with every
+job resolved to CPU. Smoke-test settings make the scripts fast; the resulting
+metrics only show that the pipeline runs and are not meaningful benchmark
+results.
+
+## Migrating from the six-invocation workflow
+
+The former workflow ran six invocations with the `config/cpu_methods` and
+`config/gpu_methods` profiles and a global `--config device=...`. Those
+profiles and `methods/{cpu,gpu}.yaml` have been removed; the hardware they
+expressed is now declared in `execution/{kdd26,all}.yaml`, and the single
+invocation above replaces all six. The global `device` option is deprecated:
+alone, it still applies to computational jobs with a warning, and combining it
+with `execution` in any way is rejected before submission. Remove it from your
+commands and config files. Single-allocation site profiles without a site map,
+such as `vera` and `alvis`, submit every job to their one partition and
+account, and GPU jobs request one generic GPU (`--gpus=1`) instead of the
+profile's `slurm_extra` GPU request. For mixed runs, add a site map as
+described in [SLURM integration](slurm_integration.md).
+
+## Verification
+
+The workflow tests run the real orchestration with tiny fixtures, stub
+scripts and a fake SLURM `sbatch`, so no cluster, GPU or training is needed:
+
+```shell
+uv run pytest test/workflow/test_full_reproduction.py
+uv run pytest test/workflow/test_full_reproduction.py -m pipeline
+```
+
+The fast tests plan both cluster presets and the local preset. The
+pipeline-marked tests submit the whole tiny graph in one invocation and check
+mixed CPU/GPU submissions, one submission per shared prerequisite, dependency
+order, script devices and contract arguments, the `--config` limitation above,
+and both presets. The pinned SLURM plugin waits 40 seconds after every
+dependency wave, so they take about 15 minutes together. `just qa` remains the
+required quality gate.

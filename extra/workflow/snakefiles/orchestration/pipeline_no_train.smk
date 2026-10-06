@@ -10,12 +10,14 @@ Runtime filters (--config, select subsets to run):
     datasets (list[str], required): Subset of datasets to run
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of
         random seeds
-    device (str, default='cpu'): Deprecated invocation-wide device; cannot
-        be combined with execution.
+    device (str, default='cpu'): Deprecated invocation-wide device for
+        evaluation, with a warning; cannot be combined with execution.
     execution (mapping, default={}): CPU/cuda stage defaults and method/stage
         overrides for training and evaluation. Overrides take precedence.
     execution_site_file (str, optional): Profile-owned YAML allocation map.
-        Alternatively provide execution_site in a configuration file.
+        Alternatively provide execution_site in a configuration file. A CLI
+        --config replaces the workflow profile's config, so repeat
+        execution_site_file=<site>/site.yaml whenever passing --config.
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy

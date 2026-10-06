@@ -15,7 +15,9 @@ Runtime filters (--config, select subsets to run):
     execution (mapping, default={}): Computational-stage policy; processing
         stages are fixed CPU-only and cannot be overridden.
     execution_site_file (str, optional): Profile-owned CPU/GPU allocation YAML.
-        Alternatively provide execution_site in a configuration file.
+        Alternatively provide execution_site in a configuration file. A CLI
+        --config replaces the workflow profile's config, so repeat
+        execution_site_file=<site>/site.yaml whenever passing --config.
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy

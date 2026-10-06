@@ -7,15 +7,18 @@ Runtime filters (--config, select subsets to run):
     datasets (list[str], required): Subset of datasets to run. Every dataset
         key needs a file extra/conf/dataset_key/<key>.yaml.
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
-    device (str, default='cpu'): Deprecated invocation-wide device. Cannot
-        be combined with execution; retained for unconverted activities.
+    device (str, default='cpu'): Deprecated invocation-wide device for
+        computational jobs, with a warning. Cannot be combined with execution.
     execution (mapping, default={}): CPU/cuda defaults for classifier,
         pretraining, training and evaluation. methods.<name> overrides training,
         evaluation and method-specific classifier choices; pretrained_models
         overrides pretraining by named model. External classifiers use only
         the classifier default. Overrides take precedence over stage defaults.
+        Shipped declarations: extra/workflow/conf/execution/{kdd26,all}.yaml.
     execution_site_file (str, optional): Profile-owned YAML allocation map.
-        Alternatively provide execution_site in a configuration file.
+        Alternatively provide execution_site in a configuration file. A CLI
+        --config replaces the workflow profile's config, so repeat
+        execution_site_file=<site>/site.yaml whenever passing --config.
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy, a file in
@@ -41,11 +44,20 @@ Execution configuration and required files:
     See docs/tutorials/mixed_execution.md and prerequisite_execution.md for
     execution YAML, site.yaml, migration and captured-submission tests.
 
-Usage (add existing scientific --configfile inputs):
-    snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
-        --workflow-profile extra/workflow/profiles/mixed-gres \
-        --configfile <scientific.yaml> <execution.yaml> -n -p all_eval_methods
-    Remove -n to submit from an authorized SLURM controller with shared files.
+Usage:
+    Full benchmark, one invocation from an authorized SLURM submit host of a
+    single cluster, with the repository, environment and outputs on a shared
+    filesystem (config/kdd26 bundles execution/kdd26.yaml):
+        snakemake --profile extra/workflow/profiles/config/kdd26 \
+            --workflow-profile extra/workflow/profiles/<site> -n -p all
+    Inspect the planned resources and device arguments, then remove -n -p.
+    Full method set: list the all.yaml config files with --configfile and add
+    extra/workflow/conf/execution/all.yaml. Local CPU smoke test without SLURM
+    or GPUs (config/all has no execution file, so every job runs on CPU):
+        snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
+            --config "datasets=[cube]" "dataset_instance_indices=[0]" \
+            smoke_test=true use_wandb=false
+    See docs/tutorials/reproduce_full_results.md and slurm_integration.md.
 
 CPU-only processing:
     Dataset generation (full pipeline only), transformations, aggregation and
