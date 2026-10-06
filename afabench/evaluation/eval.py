@@ -395,7 +395,7 @@ def eval_afa_method(
         builtin_afa_predict_fn (AFAPredictFn): A builtin classifier, if such exists.
         only_n_samples (int|None, optional): If specified, only evaluate on this many samples from the dataset. Defaults to None.
         device (torch.device|None): Device to place data on. Defaults to "cpu".
-        selection_budget (float|None): Hard cap on accumulated selection cost. A hard budget always forces acquisition; None allows voluntary stopping.
+        selection_budget (float|None): Hard cap on accumulated selection cost. Independent of force_acquisition; methods may stop before reaching it.
         batch_size (int): Batch size for processing samples. Defaults to 1.
         selection_costs (Sequence[float]|None): How much each selection costs. If not provided, assume unit cost (1) for each selection.
         seed (int|None): Seed for evaluation-time sampling, such as `only_n_samples`.
@@ -412,8 +412,6 @@ def eval_afa_method(
             - "forced_stop" (bool): Whether stopping happened due to exceeding the budget.
     """
     assert isinstance(dataset, Dataset)
-    # Hard-budget semantics belong here, not in script adapter selection.
-    force_acquisition = selection_budget is not None or force_acquisition
     if device is None:
         device = torch.device("cpu")
 

@@ -220,6 +220,7 @@ class AFAEvaluator:
             batch_size=self._cfg.batch_size,
             selection_costs=self._selection_costs.tolist(),
             seed=self._cfg.seed,
+            force_acquisition=self._cfg.hard_budget is not None,
         )
 
         # Add eval_seed and eval_hard_budget to dataframe

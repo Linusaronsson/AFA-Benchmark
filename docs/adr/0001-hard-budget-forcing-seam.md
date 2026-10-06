@@ -1,10 +1,13 @@
 # Evaluation owns hard-budget forced acquisition
 
-`eval_afa_method` always forces acquisition when a hard budget is supplied,
-regardless of the method's capabilities or an explicit forcing flag. The shared
-evaluation module replaces stop with the first available selection and asserts
-that no stop remains before applying the budget cutoff. This prevents adapter
-configuration from silently allowing a method to under-spend its hard budget.
+The shared evaluation module owns forced acquisition, controlled solely by
+`force_acquisition`, independently of the hard cap on accumulated selection
+cost. With forcing enabled it replaces stop with the first available selection
+and asserts that no stop remains before applying the budget cutoff. The
+benchmark script explicitly enables forcing for every method in hard-budget
+comparisons; other evaluation callers may impose a cap while permitting early
+stop. This prevents method capability detection from deciding whether forcing
+is enforced.
 
 Method-internal forcing is an optional optimisation: the script may enable it
 for RL methods and AACO to retain their preferred selection rather than the
@@ -24,9 +27,10 @@ of keeping this narrow seam, not a second domain model.
 
 ## Consequences
 
-Soft-budget evaluation continues to allow voluntary stop. Lower-level
-`process_batch` and `single_afa_step` retain explicit forcing controls for
-step/batch callers. A budget is a cap on accumulated selection cost, not a
+Soft-budget benchmark evaluation continues to allow voluntary stop. At every
+evaluation level (`eval_afa_method`, `process_batch`, and `single_afa_step`),
+forcing is an explicit flag, not inferred from the budget. A budget is a cap
+on accumulated selection cost, not a
 promise to spend an unrepresentable amount: an action that would exceed it is
 still overridden to stop and recorded as a forced stop. Existing repeated
 selection semantics remain unchanged when every selection has been performed,

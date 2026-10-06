@@ -155,7 +155,10 @@ def run_eval_after_global_rng_perturbation(seed: int) -> pd.DataFrame:
 
 
 def evaluate_early_stop_method(
-    budget: float | None, batch_size: int = 3
+    budget: float | None,
+    batch_size: int = 3,
+    *,
+    force_acquisition: bool = False,
 ) -> pd.DataFrame:
     method = StochasticDummyMethod()
     method.set_seed(123)
@@ -167,12 +170,15 @@ def evaluate_early_stop_method(
         dataset=DummyDataset(n_samples=5),
         selection_budget=budget,
         batch_size=batch_size,
+        force_acquisition=force_acquisition,
     )
 
 
 @pytest.mark.parametrize("batch_size", [1, 3])
 def test_early_stop_method_reaches_hard_budget(batch_size: int) -> None:
-    episodes = evaluate_early_stop_method(3, batch_size).groupby("episode_id")
+    episodes = evaluate_early_stop_method(
+        3, batch_size, force_acquisition=True
+    ).groupby("episode_id")
     assert episodes["accumulated_cost"].last().tolist() == [3.0] * 5
     assert (
         episodes["action_performed"]
@@ -202,11 +208,21 @@ def test_early_stop_respects_budget_regime(
     *,
     forced_stop: bool,
 ) -> None:
-    episodes = evaluate_early_stop_method(budget).groupby("episode_id")
+    episodes = evaluate_early_stop_method(
+        budget, force_acquisition=budget is not None
+    ).groupby("episode_id")
     assert episodes["accumulated_cost"].last().tolist() == [expected_cost] * 5
     assert episodes.size().tolist() == [expected_actions] * 5
     assert episodes["action_performed"].last().tolist() == [0] * 5
     assert episodes["forced_stop"].last().tolist() == [forced_stop] * 5
+
+
+def test_hard_budget_allows_early_stop_without_forcing() -> None:
+    episodes = evaluate_early_stop_method(3).groupby("episode_id")
+    assert episodes["accumulated_cost"].last().tolist() == [1.0] * 5
+    assert episodes.size().tolist() == [2] * 5
+    assert episodes["action_performed"].last().tolist() == [0] * 5
+    assert episodes["forced_stop"].last().tolist() == [False] * 5
 
 
 def test_episode_identity_survives_batch_boundaries() -> None:
