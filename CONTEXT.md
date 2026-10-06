@@ -292,3 +292,9 @@ _Avoid_: Checkpoint, artifact (as the generic term), pickle
 A run mode where every stage executes as fast as possible to verify the
 pipeline works end to end.
 _Avoid_: Dry run, quick mode
+
+**Training contract**:
+The fixed set of inputs the pipeline gives a pretraining or training script,
+and the bundle it expects back at the save path. Pretraining receives a
+subset.
+_Avoid_: Script interface, pipeline arguments, CLI args

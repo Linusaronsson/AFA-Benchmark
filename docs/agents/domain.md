@@ -9,10 +9,9 @@ when exploring the codebase.
   the source of truth for naming. It reconciles the paper's vocabulary with
   the code's vocabulary and lists the synonyms to avoid.
 - **`docs/adr/`**: read ADRs that touch the area you're about to work in.
-  This directory does not exist yet; proceed silently until the first ADR is
-  written. Do not create it speculatively. The `/domain-modeling` skill
-  (reached via `/grill-with-docs` and `/improve-codebase-architecture`)
-  creates ADRs lazily when a decision actually gets resolved.
+  The `/domain-modeling` skill (reached via `/grill-with-docs` and
+  `/improve-codebase-architecture`) adds ADRs when a decision actually gets
+  resolved.
 
 Supporting background, in order of authority when they disagree:
 
@@ -36,7 +35,7 @@ Single-context repo:
 ```
 /
 ├── CONTEXT.md
-├── docs/adr/            ← not yet created; add on first ADR
+├── docs/adr/            ← architecture decision records
 ├── afabench/            ← library code
 ├── scripts/             ← pipeline entry points
 └── extra/               ← configs, workflows, data, outputs
@@ -77,7 +76,7 @@ silently overriding:
 
 ## Decisions worth an ADR if reopened
 
-No ADRs exist yet. The following are documented design choices from the paper
+Beyond the ADRs in `docs/adr/`, the following are documented design choices from the paper
 (Sections 3 and 4.4) that satisfy the hard-to-reverse, surprising, and
 trade-off criteria. Write an ADR before changing any of them:
 
