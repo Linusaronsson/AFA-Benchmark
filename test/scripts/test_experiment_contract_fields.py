@@ -23,7 +23,7 @@ TABULAR_KEYS = {
     "synthetic_mnist",
     "synthetic_mnist_without_noise",
 }
-# Existing exceptions only, removed as the remaining ports land (#50/#52).
+# Existing exceptions only, removed as the remaining ports land (#52/#53).
 LEGACY_FIELDS = {
     **{
         f"train_method/permutation/experiment/{key}.yaml": {"hard_budget"}
