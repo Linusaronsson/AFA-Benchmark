@@ -73,7 +73,10 @@ class WorkflowHarness:
             )
 
     def run(
-        self, *options: str, target: str = "all_eval_methods"
+        self,
+        *options: str,
+        target: str = "all_eval_methods",
+        timeout: int = 240,
     ) -> subprocess.CompletedProcess[str]:
         config_path = self.root / "config.yaml"
         config_path.write_text(yaml.safe_dump(self.config))
@@ -108,7 +111,7 @@ class WorkflowHarness:
             env=env,
             text=True,
             capture_output=True,
-            timeout=240,
+            timeout=timeout,
             check=False,
         )
 

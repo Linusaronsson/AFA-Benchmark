@@ -47,6 +47,17 @@ Usage (add existing scientific --configfile inputs):
         --configfile <scientific.yaml> <execution.yaml> -n -p all_eval_methods
     Remove -n to submit from an authorized SLURM controller with shared files.
 
+CPU-only processing:
+    Dataset generation (full pipeline only), transformations, aggregation and
+    visualization always resolve to CPU, including with legacy device=cuda.
+    These fixed activities have no execution defaults/overrides. The profile's
+    execution_site.cpu allocation maps their partition/account and clears GPU
+    requests; CPU counts, memory and runtime remain independently configurable.
+    Conflicting rule allocation overrides fail before any submission. Heavy
+    processing is submitted normally, not designated as login-node/local work.
+    See docs/tutorials/cpu_processing_execution.md for site requirements and
+    final-target command-boundary verification.
+
 Output namespacing:
     - All initializer-dependent artifacts are stored under
       `initializer-<initializer>` to allow side-by-side comparisons
