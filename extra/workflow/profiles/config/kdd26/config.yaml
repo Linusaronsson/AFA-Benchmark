@@ -10,6 +10,4 @@ configfile:
   - extra/workflow/conf/unmaskers/kdd26.yaml
   - extra/workflow/conf/classifier_names/kdd26.yaml
   - extra/workflow/conf/datasets/kdd26.yaml
-
-config:
-  device: cpu
+  - extra/workflow/conf/execution/kdd26.yaml

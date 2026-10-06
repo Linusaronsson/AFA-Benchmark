@@ -46,7 +46,14 @@ class WorkflowHarness:
         self.arguments = root / "arguments.jsonl"
         self.bin = root / "bin"
         self.bin.mkdir()
-        for name in ["sbatch", "sacct", "sacctmgr", "srun", "scancel"]:
+        for name in [
+            "sbatch",
+            "sacct",
+            "sacctmgr",
+            "srun",
+            "scancel",
+            "sinfo",
+        ]:
             path = self.bin / name
             path.write_text(
                 f"#!{sys.executable}\n"
@@ -80,6 +87,36 @@ class WorkflowHarness:
     ) -> subprocess.CompletedProcess[str]:
         config_path = self.root / "config.yaml"
         config_path.write_text(yaml.safe_dump(self.config))
+        return self._snakemake(
+            [
+                "--profile",
+                "none",
+                "--snakefile",
+                "extra/workflow/snakefiles/orchestration/pipeline.smk",
+                "--configfile",
+                str(config_path),
+            ],
+            target,
+            options,
+            timeout,
+        )
+
+    def run_invocation(
+        self,
+        invocation: list[str],
+        *options: str,
+        target: str = "all",
+        timeout: int = 240,
+    ) -> subprocess.CompletedProcess[str]:
+        return self._snakemake(invocation, target, options, timeout)
+
+    def _snakemake(
+        self,
+        profile_arguments: list[str],
+        target: str,
+        options: tuple[str, ...],
+        timeout: int,
+    ) -> subprocess.CompletedProcess[str]:
         env = {
             **os.environ,
             "XDG_CONFIG_HOME": str(self.root / "xdg-config"),
@@ -93,12 +130,7 @@ class WorkflowHarness:
                 sys.executable,
                 "-m",
                 "snakemake",
-                "--profile",
-                "none",
-                "--snakefile",
-                "extra/workflow/snakefiles/orchestration/pipeline.smk",
-                "--configfile",
-                str(config_path),
+                *profile_arguments,
                 "--cores",
                 "2",
                 "--jobs",

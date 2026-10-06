@@ -10,6 +10,3 @@ configfile:
   - extra/workflow/conf/unmaskers/all.yaml
   - extra/workflow/conf/classifier_names/all.yaml
   - extra/workflow/conf/datasets/all.yaml
-
-config:
-  device: cpu

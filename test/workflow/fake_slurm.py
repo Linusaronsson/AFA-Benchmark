@@ -30,6 +30,9 @@ if command == "sbatch":
     print(job_id)
 elif command == "sacctmgr":
     print("cpu-account\ngpu-account\nother-cpu\nother-gpu")
+elif command == "sinfo":
+    # The cluster's default partition is marked with an asterisk.
+    print("PARTITION\ncpu-queue\ngpu-queue\ngeneral*")
 elif command == "sacct":
     for status_file in sorted(capture.parent.glob("job-*.status")):
         job_id = status_file.stem.removeprefix("job-")
