@@ -29,9 +29,7 @@ _STAGE_CONTRACT_FIELDS = {
     "pretrain_model": frozenset(f.name for f in fields(PretrainingContract)),
 }
 
-NOT_YET_PORTED: dict[str, frozenset[str]] = {
-    "train_method": frozenset({"cae", "dime", "gdfs"}),
-}
+NOT_YET_PORTED: dict[str, frozenset[str]] = {}
 
 
 def _experiment_files() -> list[tuple[Path, frozenset[str], bool]]:
