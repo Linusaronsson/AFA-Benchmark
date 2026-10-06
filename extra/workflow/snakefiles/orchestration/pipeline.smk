@@ -1,13 +1,28 @@
 """
+Full orchestration pipeline: datasets, classifiers, pretraining, training,
+evaluation and plots.
+
 Runtime filters (--config, select subsets to run):
     methods (list[str], required): Subset of methods from method_options.yaml
-    datasets (list[str], required): Subset of datasets to run
+    datasets (list[str], required): Subset of datasets to run. Every dataset
+        key needs a file extra/conf/dataset_key/<key>.yaml.
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
     device (str, default='cpu'): Device for training
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
-    initializer (str, default='cold'): Initialization strategy
+    initializer (str, default='cold'): Initialization strategy, a file in
+        extra/conf/initializer/
     eval_dataset_split (str, default='test'): Dataset split for evaluation
+
+Training contract:
+    The pretrain_model and train_method rules (rules/training.smk) pass every
+    pretraining and training script the plain `key=value` training contract
+    rendered by extra/workflow/src/training_contract.py: dataset, classifier
+    and pretrained-model bundle paths, save_path, initializer, unmasker,
+    dataset_key, hard_budget, soft_budget_param, device, seed, use_wandb and
+    smoke_test (pretraining receives no pretrained model and no budgets).
+    Methods add their own arguments through method_specific_params and
+    pretrain_params. See docs/adr/0001-training-contract-as-library.md.
 
 Output namespacing:
     - All initializer-dependent artifacts are stored under
@@ -23,7 +38,7 @@ Config files (--configfile):
     Runtime params:
         eval_hard_budgets.yaml,
         soft_budget_params_*.yaml,
-        unmaskers.yaml
+        unmaskers.yaml (values are files in extra/conf/unmasker/)
 
     Note: method_options.yaml can include eval_to_train_hard_budget_mapping to
     specify different budgets for training vs evaluation per method/dataset.

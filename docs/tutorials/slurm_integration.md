@@ -34,8 +34,7 @@ Create a directory `extra/workflow/profiles/<your_cluster>/` containing a
 `--workflow-profile`. The pipeline rule names you can set resources for are:
 
 - `pretrain_model`
-- `train_method_with_pretrained_model`
-- `train_method_without_pretrained_model`
+- `train_method`
 - `eval_method`
 
 See the [Snakemake SLURM plugin documentation](https://snakemake.readthedocs.io/en/stable/executing/cluster.html) for all available configuration options.

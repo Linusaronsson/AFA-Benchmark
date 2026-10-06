@@ -14,10 +14,7 @@ set-resources:
   pretrain_model:
     runtime: 6000 # 100 hours
     cpus_per_task: 8
-  train_method_with_pretrained_model:
-    runtime: 6000 # 100 hours
-    cpus_per_task: 8
-  train_method_without_pretrained_model:
+  train_method:
     runtime: 6000 # 100 hours
     cpus_per_task: 8
   eval_method:
