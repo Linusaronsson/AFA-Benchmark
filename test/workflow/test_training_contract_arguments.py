@@ -1,0 +1,145 @@
+"""
+The Snakemake renderer and the contract dataclasses agree on field names.
+
+Snakemake cannot import `afabench`, so `extra/workflow/src/training_contract.py`
+keeps its own copy of the training contract's field names. These tests keep
+that copy equal to `afabench.training.contract`.
+"""
+
+import importlib.util
+from dataclasses import fields
+from pathlib import Path
+from types import ModuleType
+
+import pytest
+from omegaconf import OmegaConf
+
+from afabench.training.contract import PretrainingContract, TrainingContract
+
+REPO_ROOT = Path(__file__).parents[2]
+
+PRETRAINING_VALUES = {
+    "train_dataset_bundle_path": "train.bundle",
+    "val_dataset_bundle_path": "val.bundle",
+    "classifier_bundle_path": "classifier.bundle",
+    "save_path": "model.bundle",
+    "initializer": "cold",
+    "unmasker": "direct",
+    "dataset_key": "cube",
+    "device": "cpu",
+    "seed": 3,
+    "use_wandb": False,
+    "smoke_test": True,
+}
+
+TRAINING_VALUES = {
+    **PRETRAINING_VALUES,
+    "save_path": "method.bundle",
+    "pretrained_model_bundle_path": "model.bundle",
+    "hard_budget": 5,
+    "soft_budget_param": "null",
+}
+
+
+def _load_training_contract_module() -> ModuleType:
+    module_path = REPO_ROOT / "extra/workflow/src/training_contract.py"
+    spec = importlib.util.spec_from_file_location(
+        "workflow_training_contract", module_path
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _parse_arguments(rendered: str) -> dict[str, str]:
+    arguments = rendered.split()
+    parsed = dict(argument.split("=", maxsplit=1) for argument in arguments)
+    assert len(parsed) == len(arguments), "each key is rendered once"
+    return parsed
+
+
+@pytest.fixture(scope="module")
+def renderer() -> ModuleType:
+    return _load_training_contract_module()
+
+
+def test_renderer_fields_match_the_contract_dataclasses(
+    renderer: ModuleType,
+) -> None:
+    assert set(renderer.PRETRAINING_CONTRACT_FIELDS) == {
+        f.name for f in fields(PretrainingContract)
+    }
+    assert set(renderer.TRAINING_CONTRACT_FIELDS) == {
+        f.name for f in fields(TrainingContract)
+    }
+
+
+def test_training_contract_renders_one_argument_per_field(
+    renderer: ModuleType,
+) -> None:
+    rendered = renderer.render_training_contract(TRAINING_VALUES)
+
+    assert _parse_arguments(rendered) == {
+        name: str(value) for name, value in TRAINING_VALUES.items()
+    }
+
+
+def test_pretraining_contract_renders_one_argument_per_field(
+    renderer: ModuleType,
+) -> None:
+    rendered = renderer.render_pretraining_contract(PRETRAINING_VALUES)
+
+    assert _parse_arguments(rendered) == {
+        name: str(value) for name, value in PRETRAINING_VALUES.items()
+    }
+
+
+def test_training_contract_omits_pretrained_model_without_pretraining_stage(
+    renderer: ModuleType,
+) -> None:
+    values = {**TRAINING_VALUES, "pretrained_model_bundle_path": None}
+
+    rendered = renderer.render_training_contract(values)
+
+    assert "pretrained_model_bundle_path" not in _parse_arguments(rendered)
+
+
+def test_training_contract_rejects_a_missing_field(
+    renderer: ModuleType,
+) -> None:
+    values = {
+        name: value
+        for name, value in TRAINING_VALUES.items()
+        if name != "hard_budget"
+    }
+
+    with pytest.raises(ValueError, match="hard_budget"):
+        renderer.render_training_contract(values)
+
+
+def test_pretraining_contract_rejects_training_only_fields(
+    renderer: ModuleType,
+) -> None:
+    with pytest.raises(ValueError, match="hard_budget"):
+        renderer.render_pretraining_contract(TRAINING_VALUES)
+
+
+def test_every_workflow_dataset_has_a_dataset_key_config() -> None:
+    dataset_lists = (REPO_ROOT / "extra/workflow/conf/datasets").glob("*.yaml")
+    dataset_keys = {
+        dataset_key
+        for dataset_list in dataset_lists
+        for dataset_key in OmegaConf.load(dataset_list)["datasets"]
+    }
+
+    missing = {
+        dataset_key
+        for dataset_key in dataset_keys
+        if not (
+            REPO_ROOT / "extra/conf/dataset_key" / f"{dataset_key}.yaml"
+        ).is_file()
+    }
+
+    assert missing == set()
