@@ -58,10 +58,17 @@ rule eval_method:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_time.txt",
     params:
+        device=lambda wildcards, resources: EXECUTION.checked_device("evaluation", wildcards.method, resources),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "evaluation", wc.method)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
+        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "evaluation", wc.method)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
+        gpu=lambda wc: EXECUTION.resource("gpu", "evaluation", wc.method),
+        gres=lambda wc: EXECUTION.resource("gres", "evaluation", wc.method),
+        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "evaluation", wc.method),
+        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "evaluation", wc.method),
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -73,7 +80,7 @@ rule eval_method:
             save_path={output[0]} \
             classifier_bundle_path={input[2]} \
             seed={wildcards.eval_seed} \
-            device={DEVICE} \
+            device={params.device} \
             hard_budget={wildcards.eval_hard_budget} \
             soft_budget_param={wildcards.eval_soft_budget_param} \
             batch_size={params.eval_batch_size} \

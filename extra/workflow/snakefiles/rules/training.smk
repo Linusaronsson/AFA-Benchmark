@@ -77,7 +77,7 @@ def _pretraining_contract(wildcards, input, output) -> str:
     )
 
 
-def _training_contract(wildcards, input, output) -> str:
+def _training_contract(wildcards, input, output, resources) -> str:
     return render_training_contract(
         {
             "train_dataset_bundle_path": input.train_dataset,
@@ -92,7 +92,7 @@ def _training_contract(wildcards, input, output) -> str:
             "dataset_key": wildcards.dataset,
             "hard_budget": wildcards.train_hard_budget,
             "soft_budget_param": wildcards.train_soft_budget_param,
-            "device": DEVICE,
+            "device": EXECUTION.checked_device("training", wildcards.method, resources),
             "seed": wildcards.train_seed,
             "use_wandb": USE_WANDB,
             "smoke_test": SMOKE_TEST,
@@ -179,7 +179,13 @@ rule train_method:
         contract=_training_contract,
         method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method],
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "training", wc.method)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
+        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "training", wc.method)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
+        gpu=lambda wc: EXECUTION.resource("gpu", "training", wc.method),
+        gres=lambda wc: EXECUTION.resource("gres", "training", wc.method),
+        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "training", wc.method),
+        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "training", wc.method),
     shell:
         """
         START_TIME=$(date +%s.%N)
