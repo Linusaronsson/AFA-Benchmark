@@ -1,0 +1,15 @@
+# @package _global_
+# Shared by every dataset key permutation supports (pulled in through each
+# experiment/<key>.yaml's defaults list).
+batch_size: 128
+
+selector:
+  lr: 0.001
+  nepochs: 250
+  num_cells: [128, 128]
+  patience: 5
+
+classifier:
+  lr: 0.001
+  nepochs: 250
+  num_cells: [128, 128]
