@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Callable
-from dataclasses import asdict
-from pathlib import Path
+from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -16,14 +15,11 @@ from afabench.components.methods.rl.jafa.models import (
     LitJAFAEmbedderClassifier,
     ReadProcessEncoder,
 )
-from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.types import AFADataset
-from afabench.core.utils import (
-    get_class_frequencies,
-    initialize_wandb_run,
-    set_seed,
-)
+from afabench.core.utils import get_class_frequencies
 from afabench.training.inputs import load_inputs
+from afabench.training.run import save_result, training_run
+from afabench.training.smoke_test import limit_supervised_learning
 from afabench.training.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
@@ -72,44 +68,27 @@ def get_jafa_model_fn(
 def main(cfg: JAFAPretrainConfig) -> None:
     cfg = cast("JAFAPretrainConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
-    set_seed(cfg.seed)
-    torch.cuda.empty_cache()
     torch.set_float32_matmul_precision("medium")
+    cfg = replace(
+        cfg,
+        supervised_learning=limit_supervised_learning(
+            cfg.supervised_learning, smoke_test=cfg.smoke_test
+        ),
+    )
 
-    if cfg.use_wandb:
-        _run = initialize_wandb_run(
-            cfg=asdict(cfg),
-            job_type="pretraining",
-            tags=["jafa"],
+    with training_run(cfg, "pretraining", tags=["jafa"], config=cfg):
+        inputs = load_inputs(cfg)
+        model_bundle = supervised_learning(
+            train_dataset=inputs.train_dataset(),
+            val_dataset=inputs.val_dataset(),
+            cfg=cfg.supervised_learning,
+            model_fn=get_jafa_model_fn(cfg=cfg),
+            metric_to_monitor="val_loss_many_observations",
+            monitor_mode="min",
+            use_wandb=cfg.use_wandb,
+            device=cfg.device,
         )
-
-    # If smoke test, override some options
-    if cfg.smoke_test:
-        log.info("Smoke test detected.")
-        cfg.supervised_learning.max_epochs = 1
-        cfg.supervised_learning.limit_train_batches = 2
-        cfg.supervised_learning.limit_val_batches = 2
-
-    inputs = load_inputs(cfg)
-    model_bundle = supervised_learning(
-        train_dataset=inputs.train_dataset(),
-        val_dataset=inputs.val_dataset(),
-        cfg=cfg.supervised_learning,
-        model_fn=get_jafa_model_fn(cfg=cfg),
-        metric_to_monitor="val_loss_many_observations",
-        monitor_mode="min",
-        use_wandb=cfg.use_wandb,
-        device=cfg.device,
-    )
-    save_bundle(
-        model_bundle,
-        Path(cfg.save_path),
-        metadata={
-            "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
-            "seed": cfg.seed,
-            "config": asdict(cfg),
-        },
-    )
+        save_result(model_bundle, cfg, cfg, stage="pretraining")
 
 
 if __name__ == "__main__":

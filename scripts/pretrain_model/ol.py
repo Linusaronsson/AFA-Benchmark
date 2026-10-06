@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Callable
-from dataclasses import asdict
-from pathlib import Path
+from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -14,24 +13,18 @@ from afabench.components.methods.rl.ol.models import (
     LitOLPQModule,
     OLPQModule,
 )
-from afabench.components.unmaskers.utils import (
-    get_afa_unmasker_from_config,
-)
-from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.types import AFADataset
-from afabench.core.utils import (
-    get_class_frequencies,
-    initialize_wandb_run,
-    set_seed,
-)
-from afabench.training.inputs import load_inputs
+from afabench.core.utils import get_class_frequencies
+from afabench.training.inputs import TrainingInputs, load_inputs
+from afabench.training.run import save_result, training_run
+from afabench.training.smoke_test import limit_supervised_learning
 from afabench.training.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
 
 
 def get_ol_model_fn(
-    cfg: OLPretrainConfig,
+    cfg: OLPretrainConfig, inputs: TrainingInputs
 ) -> Callable[[AFADataset], pl.LightningModule]:
     def f(dataset: AFADataset) -> pl.LightningModule:
         n_features = dataset.feature_shape.numel()
@@ -39,9 +32,9 @@ def get_ol_model_fn(
         _features, labels = dataset.get_all_data()
         class_probabilities = get_class_frequencies(labels)
 
-        n_selections = get_afa_unmasker_from_config(
-            cfg.unmasker
-        ).get_n_selections(dataset.feature_shape)
+        n_selections = inputs.unmasker().get_n_selections(
+            dataset.feature_shape
+        )
         pq_module = OLPQModule(
             n_features=n_features,
             n_classes=n_classes,
@@ -68,44 +61,28 @@ def get_ol_model_fn(
 )
 def main(cfg: OLPretrainConfig) -> None:
     cfg = cast("OLPretrainConfig", OmegaConf.to_object(cfg))
-    set_seed(cfg.seed)
-    torch.cuda.empty_cache()
+    log.debug(cfg)
     torch.set_float32_matmul_precision("medium")
+    cfg = replace(
+        cfg,
+        supervised_learning=limit_supervised_learning(
+            cfg.supervised_learning, smoke_test=cfg.smoke_test
+        ),
+    )
 
-    if cfg.use_wandb:
-        _run = initialize_wandb_run(
-            cfg=asdict(cfg),
-            job_type="pretraining",
-            tags=["ol"],
+    with training_run(cfg, "pretraining", tags=["ol"], config=cfg):
+        inputs = load_inputs(cfg)
+        model_bundle = supervised_learning(
+            train_dataset=inputs.train_dataset(),
+            val_dataset=inputs.val_dataset(),
+            cfg=cfg.supervised_learning,
+            model_fn=get_ol_model_fn(cfg=cfg, inputs=inputs),
+            metric_to_monitor="val_loss_many_observations",
+            monitor_mode="min",
+            use_wandb=cfg.use_wandb,
+            device=cfg.device,
         )
-
-    # If smoke test, override some options
-    if cfg.smoke_test:
-        log.info("Smoke test detected.")
-        cfg.supervised_learning.max_epochs = 1
-        cfg.supervised_learning.limit_train_batches = 2
-        cfg.supervised_learning.limit_val_batches = 2
-
-    inputs = load_inputs(cfg)
-    model_bundle = supervised_learning(
-        train_dataset=inputs.train_dataset(),
-        val_dataset=inputs.val_dataset(),
-        cfg=cfg.supervised_learning,
-        model_fn=get_ol_model_fn(cfg=cfg),
-        metric_to_monitor="val_loss_many_observations",
-        monitor_mode="min",
-        use_wandb=cfg.use_wandb,
-        device=cfg.device,
-    )
-    save_bundle(
-        model_bundle,
-        Path(cfg.save_path),
-        metadata={
-            "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
-            "seed": cfg.seed,
-            "config": asdict(cfg),
-        },
-    )
+        save_result(model_bundle, cfg, cfg, stage="pretraining")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 import torch
 
+from afabench.training.config import SupervisedLearningConfig
 from afabench.training.smoke_test import (
     dataset_subset,
     eval_settings,
+    limit_supervised_learning,
     training_batch_size,
     training_subset,
 )
@@ -128,3 +130,39 @@ def test_dataset_subset_keeps_dataset_without_smoke_test() -> None:
     subset = dataset_subset(dataset, smoke_test=False)
 
     assert subset is dataset
+
+
+def _supervised_learning_config() -> SupervisedLearningConfig:
+    return SupervisedLearningConfig(
+        batch_size=128,
+        max_epochs=100,
+        checkpoint_earliest_batch=0,
+        early_stopping_min_batches=0,
+        early_stopping_patience=50,
+        early_stopping_min_delta=1e-3,
+        val_check_interval=10,
+        limit_train_batches=None,
+        limit_val_batches=None,
+    )
+
+
+def test_limit_supervised_learning_keeps_config_without_smoke_test() -> None:
+    cfg = _supervised_learning_config()
+
+    assert limit_supervised_learning(cfg, smoke_test=False) == cfg
+
+
+def test_limit_supervised_learning_trains_one_short_epoch_for_smoke_test() -> (
+    None
+):
+    cfg = _supervised_learning_config()
+
+    limited = limit_supervised_learning(cfg, smoke_test=True)
+
+    assert (
+        limited.max_epochs,
+        limited.limit_train_batches,
+        limited.limit_val_batches,
+    ) == (1, 2, 2)
+    assert limited.batch_size == cfg.batch_size
+    assert cfg.max_epochs == 100

@@ -1,8 +1,10 @@
 import logging
+from dataclasses import replace
 
 import torch
 
 from afabench.core.types import AFADataset
+from afabench.training.config import SupervisedLearningConfig
 
 log = logging.getLogger(__name__)
 
@@ -10,6 +12,7 @@ SMOKE_TEST_BATCH_SIZE = 2
 SMOKE_TEST_N_BATCHES = 2
 SMOKE_TEST_N_SAMPLES = SMOKE_TEST_BATCH_SIZE * SMOKE_TEST_N_BATCHES
 SMOKE_TEST_N_TRAINING_SAMPLES = 10
+SMOKE_TEST_N_EPOCHS = 1
 
 
 def eval_settings(
@@ -50,6 +53,22 @@ def training_subset(
     return (
         X_train[:SMOKE_TEST_N_TRAINING_SAMPLES],
         y_train[:SMOKE_TEST_N_TRAINING_SAMPLES],
+    )
+
+
+def limit_supervised_learning(
+    cfg: SupervisedLearningConfig, *, smoke_test: bool
+) -> SupervisedLearningConfig:
+    """Train one epoch of a few batches during a smoke test."""
+    if not smoke_test:
+        return cfg
+
+    log.info("Smoke test detected.")
+    return replace(
+        cfg,
+        max_epochs=SMOKE_TEST_N_EPOCHS,
+        limit_train_batches=SMOKE_TEST_N_BATCHES,
+        limit_val_batches=SMOKE_TEST_N_BATCHES,
     )
 
 

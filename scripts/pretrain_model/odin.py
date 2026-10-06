@@ -23,6 +23,7 @@ from afabench.core.types import AFADataset
 from afabench.core.utils import get_class_frequencies
 from afabench.training.inputs import load_inputs
 from afabench.training.run import save_result, training_run
+from afabench.training.smoke_test import limit_supervised_learning
 from afabench.training.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
@@ -118,18 +119,6 @@ def get_odin_model_fn(
     return f
 
 
-def _smoke_test_config(cfg: ODINPretrainConfig) -> ODINPretrainConfig:
-    return replace(
-        cfg,
-        supervised_learning=replace(
-            cfg.supervised_learning,
-            max_epochs=1,
-            limit_train_batches=2,
-            limit_val_batches=2,
-        ),
-    )
-
-
 @hydra.main(
     version_base=None,
     config_path="../../extra/conf/scripts/pretrain_model/odin",
@@ -139,9 +128,12 @@ def main(cfg: ODINPretrainConfig) -> None:
     cfg = cast("ODINPretrainConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     torch.set_float32_matmul_precision("medium")
-    if cfg.smoke_test:
-        log.info("Smoke test detected.")
-        cfg = _smoke_test_config(cfg)
+    cfg = replace(
+        cfg,
+        supervised_learning=limit_supervised_learning(
+            cfg.supervised_learning, smoke_test=cfg.smoke_test
+        ),
+    )
 
     with training_run(cfg, "pretraining", tags=["odin"], config=cfg):
         inputs = load_inputs(cfg)
