@@ -131,9 +131,7 @@ def test_cluster_preset_declares_former_six_stage_hardware(
             assert "slurm_partition=cpu-queue" in job["resources"], job
     for rule in ["train_method", "eval_method"]:
         assert {
-            method
-            for (stage, method), choices in devices.items()
-            if stage == rule
+            method for stage, method in devices if stage == rule
         } == methods
         for method in methods:
             assert devices[rule, method] == (

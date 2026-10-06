@@ -112,7 +112,7 @@ class WorkflowHarness:
 
     def _snakemake(
         self,
-        profile_arguments: list[str],
+        invocation: list[str],
         target: str,
         options: tuple[str, ...],
         timeout: int,
@@ -130,7 +130,7 @@ class WorkflowHarness:
                 sys.executable,
                 "-m",
                 "snakemake",
-                *profile_arguments,
+                *invocation,
                 "--cores",
                 "2",
                 "--jobs",
