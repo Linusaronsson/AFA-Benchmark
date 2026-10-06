@@ -1,16 +1,15 @@
 from dataclasses import dataclass
 
-from hydra.core.config_store import ConfigStore
-
-from afabench.components.initializers.config import InitializerConfig
 from afabench.components.methods.rl.common.config import (
     AFAMDPConfig,
     AFARLTrainingLoopConfig,
 )
-from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.training.config import SupervisedLearningConfig
-
-cs = ConfigStore.instance()
+from afabench.training.contract import (
+    PretrainingContract,
+    TrainingContract,
+    store_contract_config,
+)
 
 
 @dataclass
@@ -46,14 +45,8 @@ class ODINClassifierConfig:
     dropout: float
 
 
-@dataclass
-class ODINPretrainConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    classifier_bundle_path: str | None
-    save_path: str
-    device: str
-
+@dataclass(frozen=True, kw_only=True)
+class ODINPretrainConfig(PretrainingContract):
     supervised_learning: SupervisedLearningConfig
 
     min_masking_probability: float
@@ -67,14 +60,9 @@ class ODINPretrainConfig:
     encoder: ODINEncoderConfig
     partial_vae: ODINPartialVAEConfig
     classifier: ODINClassifierConfig
-    unmasker: UnmaskerConfig
-    seed: int | None = None
-    use_wandb: bool = False
-    smoke_test: bool = False
-    initializer: InitializerConfig | None = None
 
 
-cs.store(name="pretrain_odin", node=ODINPretrainConfig)
+store_contract_config(name="pretrain_odin", config_class=ODINPretrainConfig)
 
 
 @dataclass
@@ -98,27 +86,13 @@ class ODINAgentConfig:
     policy_dropout: float
 
 
-@dataclass
-class ODINTrainConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    pretrained_model_bundle_path: str
-    classifier_bundle_path: str | None
-    save_path: str
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
+@dataclass(frozen=True, kw_only=True)
+class ODINTrainConfig(TrainingContract):
     mdp: AFAMDPConfig
     rl_training_loop: AFARLTrainingLoopConfig
-    soft_budget_param: float | None
     agent: ODINAgentConfig
     additional_generation_fraction: float
     generation_batch_size: int
-    seed: int | None = None
-    use_wandb: bool = False
-    smoke_test: bool = False
-    device: str | None = None
-
-    hard_budget: int | None = None
 
 
-cs.store(name="train_odin", node=ODINTrainConfig)
+store_contract_config(name="train_odin", config_class=ODINTrainConfig)

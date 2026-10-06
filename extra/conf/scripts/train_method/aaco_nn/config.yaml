@@ -6,22 +6,17 @@ hydra:
 defaults:
   - train_aaco_nn
   - hydra: custom
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
   - _self_
-  - components/initializers@initializer: ???
-  - components/unmaskers@unmasker: ???
-  - optional experiment@_global_: ???
+  - optional experiment@_global_: ${dataset_key}
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-# ============================================================================
-# Required paths (must be provided)
-# ============================================================================
-pretrained_model_bundle_path: ???  # Trained AACO method to clone
-train_dataset_bundle_path: ???     # Training dataset for generating rollouts
-val_dataset_bundle_path: ???       # Unused, kept for common interface
-classifier_bundle_path: ???        # Pre-trained classifier for predictions
-save_path: ???
+# The contract's pretrained_model_bundle_path is the trained AACO method to
+# clone; its train_dataset_bundle_path is the dataset used for rollouts.
 
 # ============================================================================
 # Rollout generation
@@ -60,17 +55,5 @@ learning_rate: 0.001
 early_stopping_patience: 10
 val_split: 0.1
 
-# ============================================================================
-# Other settings
-# ============================================================================
-# hard_budget: If set, train policy in forced acquisition mode
-#   - null: Soft budget (policy learns when to stop)
-#   - integer: Hard budget (policy always acquires up to budget)
-
-hard_budget: null
-soft_budget_param: null
-
-seed: 42
-device: "cpu"
-use_wandb: false
-smoke_test: false
+# The contract's hard_budget, when set, trains the policy in forced
+# acquisition mode; null lets the policy learn when to stop.

@@ -2,8 +2,7 @@ from dataclasses import dataclass, field
 
 from hydra.core.config_store import ConfigStore
 
-from afabench.components.initializers.config import InitializerConfig
-from afabench.components.unmaskers.config import UnmaskerConfig
+from afabench.training.contract import TrainingContract, store_contract_config
 
 cs = ConfigStore.instance()
 
@@ -71,24 +70,9 @@ class EDDIPretrainingConfig:
 cs.store(name="pretrain_eddi", node=EDDIPretrainingConfig)
 
 
-@dataclass
-class EDDITrainingConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    pretrained_model_bundle_path: str
-    classifier_bundle_path: str
-    save_path: str
-
-    hard_budget: int | None
-    soft_budget_param: float | None
-    device: str | None
-    seed: int | None
-
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
-
-    use_wandb: bool
-    smoke_test: bool
+@dataclass(frozen=True, kw_only=True)
+class EDDITrainingConfig(TrainingContract):
+    """EDDI takes everything from its pretrained partial VAE."""
 
 
-cs.store(name="train_eddi", node=EDDITrainingConfig)
+store_contract_config(name="train_eddi", config_class=EDDITrainingConfig)

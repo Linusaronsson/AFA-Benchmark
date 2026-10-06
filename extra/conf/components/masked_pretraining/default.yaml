@@ -8,3 +8,8 @@ supervised_learning:
   val_check_interval: 100 # validate every n batches
   limit_train_batches: null  # only used for smoke tests
   limit_val_batches: null  # only used for smoke tests
+
+# Masking probabilities for tabular datasets. Experiment files of image
+# datasets include /components/masking_probabilities: complex instead.
+min_masking_probability: 0.0
+max_masking_probability: 0.9

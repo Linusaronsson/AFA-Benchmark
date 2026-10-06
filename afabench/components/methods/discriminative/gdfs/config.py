@@ -2,8 +2,11 @@ from dataclasses import dataclass
 
 from hydra.core.config_store import ConfigStore
 
-from afabench.components.initializers.config import InitializerConfig
-from afabench.components.unmaskers.config import UnmaskerConfig
+from afabench.training.contract import (
+    PretrainingContract,
+    TrainingContract,
+    store_contract_config,
+)
 
 cs = ConfigStore.instance()
 
@@ -39,16 +42,9 @@ cs.store(
 )
 
 
-@dataclass
-class GDFSPretrainingConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    classifier_bundle_path: str
-    save_path: str
-
+@dataclass(frozen=True, kw_only=True)
+class GDFSPretrainingConfig(PretrainingContract):
     batch_size: int
-    seed: int | None
-    device: str | None
     lr: float
     nepochs: int
     patience: int
@@ -57,42 +53,20 @@ class GDFSPretrainingConfig:
 
     architecture: GDFSArchitectureConfig
 
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
 
-    use_wandb: bool
-    smoke_test: bool
+store_contract_config(name="pretrain_gdfs", config_class=GDFSPretrainingConfig)
 
 
-cs.store(name="pretrain_gdfs", node=GDFSPretrainingConfig)
-
-
-@dataclass
-class GDFSTrainingConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    classifier_bundle_path: str
-    pretrained_model_bundle_path: str
-    save_path: str
-
+@dataclass(frozen=True, kw_only=True)
+class GDFSTrainingConfig(TrainingContract):
     batch_size: int
     lr: float
-    hard_budget: int | None
-    soft_budget_param: float | None
     nepochs: int
     patience: int
-    device: str | None
-    seed: int | None
 
     architecture: GDFSArchitectureConfig
-
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
-
-    use_wandb: bool
-    smoke_test: bool
 
     min_lr: float | None = None
 
 
-cs.store(name="train_gdfs", node=GDFSTrainingConfig)
+store_contract_config(name="train_gdfs", config_class=GDFSTrainingConfig)

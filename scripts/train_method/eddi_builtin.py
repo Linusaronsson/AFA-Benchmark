@@ -44,7 +44,9 @@ def main(cfg: EDDITrainingConfig) -> None:
             tags=["eddi_builtin"],
         )
 
-    assert cfg.device is not None, "device must be configured"
+    assert cfg.pretrained_model_bundle_path is not None, (
+        "pretrained_model_bundle_path must be configured"
+    )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     train_dataset, _, _, unmasker, class_weights = (

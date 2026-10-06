@@ -1,7 +1,7 @@
 import gc
 import logging
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -39,14 +39,12 @@ def pretrain_image(
     metric_logger: Callable[[dict[str, float]], None] | None = None,
 ) -> None:
     log.debug(cfg)
+    if cfg.smoke_test:
+        cfg = replace(cfg, nepochs=1, patience=1)
     assert isinstance(cfg.architecture, DIMEImageArchitectureConfig)
-    assert cfg.device is not None, "device must be configured"
     set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
-    if cfg.smoke_test:
-        cfg.nepochs = 1
-        cfg.patience = 1
     train_dataset, _ = load_bundle(Path(cfg.train_dataset_bundle_path))
     train_dataset = cast("AFADataset", cast("object", train_dataset))
     d_out = train_dataset.label_shape[0]

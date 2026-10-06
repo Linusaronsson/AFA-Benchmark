@@ -1,5 +1,5 @@
 defaults:
-  - override /components/dime_architecture@architecture: tabular
+  - /components/dime_architecture@architecture: tabular
 
 # train_dataset_path: "extra/data/datasets/cube/0/train.bundle"
 # val_dataset_path: "extra/data/datasets/cube/0/val.bundle"

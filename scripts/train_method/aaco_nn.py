@@ -7,7 +7,7 @@ Trains a neural network policy via behavioral cloning.
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -42,11 +42,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _configure_smoke_test(cfg: AACONNTrainConfig) -> None:
-    if cfg.smoke_test:
-        logger.info("Smoke test mode: reducing training samples and epochs")
-        cfg.max_epochs = 2
-        cfg.batch_size = min(cfg.batch_size, 32)
+def _configure_smoke_test(cfg: AACONNTrainConfig) -> AACONNTrainConfig:
+    if not cfg.smoke_test:
+        return cfg
+    logger.info("Smoke test mode: reducing training samples and epochs")
+    return replace(cfg, max_epochs=2, batch_size=min(cfg.batch_size, 32))
 
 
 def _resolve_aaco_bundle_path(cfg: AACONNTrainConfig) -> Path:
@@ -152,7 +152,7 @@ def main(cfg: AACONNTrainConfig) -> None:
             tags=["aaco_nn"],
         )
 
-    _configure_smoke_test(cfg)
+    cfg = _configure_smoke_test(cfg)
     aaco_method, force_acquisition = _load_aaco_method(cfg, device)
     if cfg.soft_budget_param is not None:
         aaco_method.set_cost_param(cfg.soft_budget_param)

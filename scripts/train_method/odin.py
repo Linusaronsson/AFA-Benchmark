@@ -105,6 +105,9 @@ class ODINRLTrainer(RLTrainer):
     @override
     def _setup_subclass_specific_state(self) -> None:
         """Load pretrained model and generate synthetic data if needed."""
+        assert self.typed_cfg.pretrained_model_bundle_path is not None, (
+            "pretrained_model_bundle_path must be configured"
+        )
         self.pretrained_model = self._get_pretrained_model(
             pretrained_model_bundle_path=Path(
                 self.typed_cfg.pretrained_model_bundle_path
@@ -220,7 +223,7 @@ def main(cfg: ODINTrainConfig) -> None:
         mdp_cfg=cfg.mdp,
         n_agents=cfg.mdp.n_agents,
         seed=cfg.seed,
-        device=cfg.device if cfg.device is not None else torch.device("cpu"),
+        device=torch.device(cfg.device),
         cfg=asdict(cfg),
         use_wandb=cfg.use_wandb,
         typed_cfg=cfg,

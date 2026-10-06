@@ -86,7 +86,7 @@ The `extra/workflow/conf/datasets/` directory contains dataset configuration fil
 
 ## Unmaskers
 
-`extra/workflow/conf/unmaskers/` contains files that map datasets to unmaskers. The values correspond to files in `extra/conf/components/unmaskers`.
+`extra/workflow/conf/unmaskers/` contains files that map datasets to unmaskers. The values correspond to files in `extra/conf/unmasker/`, which point at the definitions in `extra/conf/components/unmaskers/`.
 
 For example, if `extra/workflow/conf/unmaskers/all.yaml` contains
 ```yaml

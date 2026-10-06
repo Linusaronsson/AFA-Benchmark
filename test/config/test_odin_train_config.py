@@ -22,17 +22,21 @@ def test_odin_train_config_composes_for_workflow_overrides() -> None:
             overrides=[
                 "train_dataset_bundle_path=train.bundle",
                 "val_dataset_bundle_path=val.bundle",
+                "classifier_bundle_path=classifier.bundle",
                 "pretrained_model_bundle_path=model.bundle",
                 "save_path=method.bundle",
-                "components/initializers@initializer=cold",
-                "components/unmaskers@unmasker=direct",
+                "initializer=cold",
+                "unmasker=direct",
+                "dataset_key=cube_without_noise",
                 "hard_budget=null",
                 "soft_budget_param=0.15",
-                "experiment@_global_=cube_without_noise",
+                "device=cpu",
+                "seed=0",
                 "additional_generation_fraction=1.0",
             ],
         )
 
     train_cfg = cast("ODINTrainConfig", OmegaConf.to_object(cfg))
 
+    assert train_cfg.dataset_key == "cube_without_noise"
     assert not hasattr(train_cfg.agent, "replay_buffer_batch_size")

@@ -2,8 +2,11 @@ from dataclasses import dataclass
 
 from hydra.core.config_store import ConfigStore
 
-from afabench.components.initializers.config import InitializerConfig
-from afabench.components.unmaskers.config import UnmaskerConfig
+from afabench.training.contract import (
+    PretrainingContract,
+    TrainingContract,
+    store_contract_config,
+)
 
 cs = ConfigStore.instance()
 
@@ -39,16 +42,9 @@ cs.store(
 )
 
 
-@dataclass
-class DIMEPretrainingConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    classifier_bundle_path: str
-    save_path: str
-
+@dataclass(frozen=True, kw_only=True)
+class DIMEPretrainingConfig(PretrainingContract):
     batch_size: int
-    seed: int | None
-    device: str | None
     lr: float
     nepochs: int
     patience: int
@@ -57,45 +53,23 @@ class DIMEPretrainingConfig:
 
     architecture: DIMEArchitectureConfig
 
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
 
-    use_wandb: bool
-    smoke_test: bool
+store_contract_config(name="pretrain_dime", config_class=DIMEPretrainingConfig)
 
 
-cs.store(name="pretrain_dime", node=DIMEPretrainingConfig)
-
-
-@dataclass
-class DIMETrainingConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    classifier_bundle_path: str
-    pretrained_model_bundle_path: str
-    save_path: str
-
+@dataclass(frozen=True, kw_only=True)
+class DIMETrainingConfig(TrainingContract):
     batch_size: int
     lr: float
-    hard_budget: int | None
-    soft_budget_param: float | None
     nepochs: int
     patience: int
     eps: float
     eps_decay: float
     eps_steps: int
-    device: str | None
-    seed: int | None
 
     architecture: DIMEArchitectureConfig
-
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
-
-    use_wandb: bool
-    smoke_test: bool
 
     min_lr: float | None = None
 
 
-cs.store(name="train_dime", node=DIMETrainingConfig)
+store_contract_config(name="train_dime", config_class=DIMETrainingConfig)

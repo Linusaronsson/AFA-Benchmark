@@ -79,10 +79,12 @@ def _make_jafa_train_config(
         train_dataset_bundle_path=str(train_path),
         val_dataset_bundle_path=str(val_path),
         pretrained_model_bundle_path=str(pretrained_path),
-        classifier_bundle_path=None,
+        classifier_bundle_path="unused-classifier.bundle",
         save_path="unused.bundle",
         initializer=InitializerConfig(class_name="ZeroInitializer", kwargs={}),
         unmasker=UnmaskerConfig(class_name="DirectUnmasker", kwargs={}),
+        dataset_key="cube",
+        hard_budget=2,
         mdp=AFAMDPConfig(hard_budget=2, force_hard_budget=True, n_agents=2),
         rl_training_loop=AFARLTrainingLoopConfig(
             frames_per_batch=4,

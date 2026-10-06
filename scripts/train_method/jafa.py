@@ -77,6 +77,9 @@ class JAFARLTrainer(RLTrainer):
     @override
     def _setup_subclass_specific_state(self) -> None:
         self.replay_buffer_device = self.device
+        assert self.typed_cfg.pretrained_model_bundle_path is not None, (
+            "pretrained_model_bundle_path must be configured"
+        )
         self.pretrained_model, self.pretrained_model_optim = (
             self._get_pretrained_model_and_optim(
                 pretrained_model_bundle_path=Path(
@@ -226,7 +229,7 @@ def main(cfg: JAFATrainConfig) -> None:
         mdp_cfg=cfg.mdp,
         n_agents=cfg.mdp.n_agents,
         seed=cfg.seed,
-        device=cfg.device if cfg.device is not None else torch.device("cpu"),
+        device=torch.device(cfg.device),
         cfg=asdict(cfg),
         use_wandb=cfg.use_wandb,
         typed_cfg=cfg,

@@ -6,24 +6,18 @@ hydra:
 defaults:
   - pretrain_odin
   - hydra: custom
-  - optional /components/initializers@initializer: ???
-  - /components/unmaskers@unmasker: ???
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
   - /components/masked_pretraining@_global_: default
-  - /components/masking_probabilities@_global_: simple
   - _self_
-  - optional experiment@_global_: ???
+  - optional experiment@_global_: ${dataset_key}
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
 supervised_learning:
   early_stopping_min_delta: 1e-1
-
-train_dataset_bundle_path: ???
-val_dataset_bundle_path: ???
-classifier_bundle_path: null # not needed for this method, but pipeline passes it to us
-save_path: ???
-device: cuda
 
 # Although EDDI paper has batch_size 100, we use the default of 128 for consistency, should not matter too much
 
@@ -56,6 +50,3 @@ classifier:
   num_cells: [32, 32] # odin paper does not say what this should be, so we use the same num_cells as the "common" classifier
   activation_class: "ReLU"
   dropout: 0.0
-seed: null
-use_wandb: false
-smoke_test: false

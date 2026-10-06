@@ -1,5 +1,5 @@
 defaults:
-  - override /components/masking_probabilities@_global_: complex
+  - /components/masking_probabilities@_global_: complex
 # TEMP: check if pretrained model can achieve 100% accuracy with these params
 encoder:
   output_size: 64

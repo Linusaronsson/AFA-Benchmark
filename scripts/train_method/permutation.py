@@ -34,14 +34,6 @@ from afabench.core.utils import initialize_wandb_run, set_seed
 log = logging.getLogger(__name__)
 
 
-def _get_required_training_settings(
-    cfg: PermutationTrainingConfig,
-) -> tuple[str, int]:
-    assert cfg.device is not None, "device must be configured"
-    assert cfg.hard_budget is not None, "hard_budget must be configured"
-    return cfg.device, cfg.hard_budget
-
-
 @hydra.main(
     version_base=None,
     config_path="../../extra/conf/scripts/train_method/permutation",
@@ -58,9 +50,10 @@ def main(cfg: PermutationTrainingConfig) -> None:  # noqa: PLR0915
             tags=["permutation"],
         )
 
-    device_name, hard_budget = _get_required_training_settings(cfg)
+    assert cfg.hard_budget is not None, "hard_budget must be configured"
+    hard_budget = cfg.hard_budget
     set_seed(cfg.seed)
-    device = torch.device(device_name)
+    device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
     if cfg.smoke_test:
         cfg.selector.nepochs = 1

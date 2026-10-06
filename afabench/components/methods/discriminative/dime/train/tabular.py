@@ -1,7 +1,7 @@
 import gc
 import logging
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import cast
 
@@ -39,15 +39,16 @@ def train_tabular(
     metric_logger: Callable[[dict[str, float]], None] | None = None,
 ) -> None:
     log.debug(cfg)
+    if cfg.smoke_test:
+        cfg = replace(cfg, nepochs=1, patience=1)
     assert isinstance(cfg.architecture, DIMETabularArchitectureConfig)
-    assert cfg.device is not None, "device must be configured"
     assert cfg.hard_budget is not None, "hard_budget must be configured"
+    assert cfg.pretrained_model_bundle_path is not None, (
+        "pretrained_model_bundle_path must be configured"
+    )
     set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
-    if cfg.smoke_test:
-        cfg.nepochs = 1
-        cfg.patience = 1
     train_dataset, val_dataset, initializer, unmasker, class_weights = (
         afa_discriminative_training_prep(
             train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),

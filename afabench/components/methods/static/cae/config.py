@@ -2,12 +2,11 @@ from dataclasses import dataclass
 
 from hydra.core.config_store import ConfigStore
 
-from afabench.components.initializers.config import InitializerConfig
 from afabench.components.methods.static.common.config import (
     StaticClassifierConfig,
     StaticSelectorConfig,
 )
-from afabench.components.unmaskers.config import UnmaskerConfig
+from afabench.training.contract import TrainingContract, store_contract_config
 
 cs = ConfigStore.instance()
 
@@ -42,26 +41,11 @@ cs.store(
 )
 
 
-@dataclass
-class CAETrainingConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    classifier_bundle_path: str
-    save_path: str
-
+@dataclass(frozen=True, kw_only=True)
+class CAETrainingConfig(TrainingContract):
     batch_size: int
-    hard_budget: int | None
-    soft_budget_param: float | None
-    device: str | None
-    seed: int | None
 
     architecture: CAEArchitectureConfig
 
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
 
-    use_wandb: bool
-    smoke_test: bool
-
-
-cs.store(name="train_cae", node=CAETrainingConfig)
+store_contract_config(name="train_cae", config_class=CAETrainingConfig)

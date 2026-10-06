@@ -39,7 +39,6 @@ def train_tabular(
 ) -> None:
     log.debug(cfg)
     assert isinstance(cfg.architecture, CAETabularArchitectureConfig)
-    assert cfg.device is not None, "device must be configured"
     assert cfg.hard_budget is not None, "hard_budget must be configured"
     print(str(cfg))
     set_seed(cfg.seed)

@@ -6,10 +6,11 @@ hydra:
 defaults:
   - train_aaco
   - hydra: custom
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
   - _self_
-  - components/initializers@initializer: ???
-  - components/unmaskers@unmasker: ???
-  - optional experiment@_global_: ???
+  - optional experiment@_global_: ${dataset_key}
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
@@ -18,7 +19,8 @@ defaults:
 # AACO Oracle Parameters
 # ============================================================================
 # k_neighbors: Number of nearest neighbors for AACO oracle (default: 5)
-# acquisition_cost: Cost per feature acquisition (controls soft budget)
+# acquisition_cost: Cost per feature acquisition (controls soft budget).
+#   The contract's soft_budget_param overrides it when not null.
 #   - Higher cost = fewer features acquired
 #   - Typical range: 0.001 - 0.2 depending on dataset
 # hide_val: Value used for unobserved features (0.0 for consistency with MLP)
@@ -33,30 +35,5 @@ aco:
   evaluate_final_performance: true
   eval_only_n_samples: null
 
-# ============================================================================
-# Required paths (must be provided)
-# ============================================================================
-train_dataset_bundle_path: ???
-val_dataset_bundle_path: ???
-classifier_bundle_path: ???
-save_path: ???
-
-# ============================================================================
-# Budget settings
-# ============================================================================
-# soft_budget_param: Overrides aco.acquisition_cost if provided
-# hard_budget: If set, forces acquisition until budget is reached
-#   (null = soft budget)
-
-soft_budget_param: null
-hard_budget: null
-
-# ============================================================================
-# Other settings
-# ============================================================================
-seed: 42
-device: "cpu"
-use_wandb: false
 initializer_type: "aaco"
 unmasker_type: "one_based_index"
-smoke_test: false

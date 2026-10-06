@@ -6,27 +6,21 @@ hydra:
 defaults:
   - train_jafa
   - hydra: custom
-  - /components/initializers@initializer: ???
-  - /components/unmaskers@unmasker: ???
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
   - /components/mdps@mdp: default
   - /components/rl_training_loops@rl_training_loop: default
   - _self_
-  - optional experiment@_global_: ???
+  - optional experiment@_global_: ${dataset_key}
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-train_dataset_bundle_path: ???
-val_dataset_bundle_path: ???
-pretrained_model_bundle_path: ???
-classifier_bundle_path: null # not needed for this method, but pipeline passes it to us
-save_path: ???
-# initializer set as component
-# unmasker set as component
+# The script copies the contract's hard_budget onto mdp.hard_budget.
 mdp:
   hard_budget: ???
 # rl_training_loop set as component
-soft_budget_param: ???
 
 agent:
   eps_init: 1.0 # jafa paper
@@ -49,11 +43,3 @@ agent:
   lmbda: 0.75
 pretrained_model_lr: 1e-3
 activate_joint_training_after_fraction: 0.0
-
-seed: null
-use_wandb: false
-smoke_test: false
-device: null
-
-# Alias arguments, only to implement interface assumed by snakemake
-hard_budget: null

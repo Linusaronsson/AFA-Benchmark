@@ -1,5 +1,5 @@
 defaults:
-  - override /components/cae_architecture@architecture: tabular
+  - /components/cae_architecture@architecture: tabular
 
 batch_size: 128
 hard_budget: 20

@@ -1,16 +1,15 @@
 from dataclasses import dataclass
 
-from hydra.core.config_store import ConfigStore
-
-from afabench.components.initializers.config import InitializerConfig
 from afabench.components.methods.rl.common.config import (
     AFAMDPConfig,
     AFARLTrainingLoopConfig,
 )
-from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.training.config import SupervisedLearningConfig
-
-cs = ConfigStore.instance()
+from afabench.training.contract import (
+    PretrainingContract,
+    TrainingContract,
+    store_contract_config,
+)
 
 
 @dataclass
@@ -28,14 +27,8 @@ class JAFAClassifierConfig:
     num_cells: list[int]
 
 
-@dataclass
-class JAFAPretrainConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    classifier_bundle_path: str | None
-    save_path: str
-    device: str
-
+@dataclass(frozen=True, kw_only=True)
+class JAFAPretrainConfig(PretrainingContract):
     supervised_learning: SupervisedLearningConfig
 
     min_masking_probability: float
@@ -43,14 +36,9 @@ class JAFAPretrainConfig:
     lr: float
     encoder: JAFAEncoderConfig
     classifier: JAFAClassifierConfig
-    unmasker: UnmaskerConfig
-    seed: int | None = None
-    use_wandb: bool = False
-    smoke_test: bool = False
-    initializer: InitializerConfig | None = None
 
 
-cs.store(name="pretrain_jafa", node=JAFAPretrainConfig)
+store_contract_config(name="pretrain_jafa", config_class=JAFAPretrainConfig)
 
 
 @dataclass
@@ -75,27 +63,13 @@ class JAFAAgentConfig:
     lmbda: float
 
 
-@dataclass
-class JAFATrainConfig:
-    train_dataset_bundle_path: str
-    val_dataset_bundle_path: str
-    pretrained_model_bundle_path: str
-    classifier_bundle_path: str | None
-    save_path: str
-    initializer: InitializerConfig
-    unmasker: UnmaskerConfig
+@dataclass(frozen=True, kw_only=True)
+class JAFATrainConfig(TrainingContract):
     mdp: AFAMDPConfig
     rl_training_loop: AFARLTrainingLoopConfig
-    soft_budget_param: float | None
     agent: JAFAAgentConfig
     pretrained_model_lr: float
     activate_joint_training_after_fraction: float
-    seed: int | None = None
-    use_wandb: bool = False
-    smoke_test: bool = False
-    device: str | None = None
-
-    hard_budget: int | None = None
 
 
-cs.store(name="train_jafa", node=JAFATrainConfig)
+store_contract_config(name="train_jafa", config_class=JAFATrainConfig)

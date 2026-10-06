@@ -1,5 +1,5 @@
 defaults:
-  - override /components/gdfs_architecture@architecture: tabular
+  - /components/gdfs_architecture@architecture: tabular
 
 batch_size: 128
 lr: 0.001

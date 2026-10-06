@@ -7,11 +7,9 @@ from afabench.components.classifiers.config import (
     TrainMaskedViTClassifierConfig,
 )
 from afabench.components.methods.discriminative.dime.config import (
-    DIMEPretrainingConfig,
     DIMETrainingConfig,
 )
 from afabench.components.methods.discriminative.gdfs.config import (
-    GDFSPretrainingConfig,
     GDFSTrainingConfig,
 )
 from afabench.components.methods.generative.eddi.config import (
@@ -27,13 +25,11 @@ from afabench.components.methods.static.pt.config import (
     ("config_type", "nullable_fields"),
     [
         (TrainMaskedViTClassifierConfig, ["device", "seed"]),
-        (DIMEPretrainingConfig, ["device", "seed"]),
-        (DIMETrainingConfig, ["device", "seed", "hard_budget"]),
-        (GDFSPretrainingConfig, ["device", "seed"]),
-        (GDFSTrainingConfig, ["device", "seed", "hard_budget"]),
-        (EDDITrainingConfig, ["device", "seed", "hard_budget"]),
-        (CAETrainingConfig, ["device", "seed", "hard_budget"]),
-        (PermutationTrainingConfig, ["device", "seed", "hard_budget"]),
+        (DIMETrainingConfig, ["hard_budget", "soft_budget_param"]),
+        (GDFSTrainingConfig, ["hard_budget", "soft_budget_param"]),
+        (EDDITrainingConfig, ["hard_budget", "soft_budget_param"]),
+        (CAETrainingConfig, ["hard_budget", "soft_budget_param"]),
+        (PermutationTrainingConfig, ["hard_budget", "soft_budget_param"]),
     ],
 )
 def test_nullable_defaults_match_schema(

@@ -73,9 +73,6 @@ def run(cfg: AACOTrainConfig) -> None:
     )
     force_acquisition = cfg.hard_budget is not None
 
-    assert cfg.classifier_bundle_path is not None, (
-        "classifier_bundle_path must be provided. Train a classifier first."
-    )
     classifier_bundle_path = Path(cfg.classifier_bundle_path)
 
     assert classifier_bundle_path.exists(), (

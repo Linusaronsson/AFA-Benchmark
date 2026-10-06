@@ -6,10 +6,11 @@ hydra:
 defaults:
   - train_aaco
   - hydra: custom
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
   - _self_
-  - components/initializers@initializer: ???
-  - components/unmaskers@unmasker: ???
-  - optional experiment@_global_: ???
+  - optional experiment@_global_: ${dataset_key}
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
@@ -30,30 +31,11 @@ aco:
   evaluate_final_performance: true
   eval_only_n_samples: null
 
-# ============================================================================
-# Required paths (must be provided)
-# ============================================================================
-train_dataset_bundle_path: ???
-val_dataset_bundle_path: ???
-classifier_bundle_path: ???
-save_path: ???
-
-# ============================================================================
-# Budget settings
-# ============================================================================
-# soft_budget_param: Overrides aco.acquisition_cost if provided
-# hard_budget: If set, forces acquisition until budget is reached
-#   (null = soft budget)
-
+# AACO pretraining reuses the training config, but the pretraining stage of
+# the pipeline passes no budgets, so the training-only contract fields are
+# fixed here.
 soft_budget_param: null
 hard_budget: null
 
-# ============================================================================
-# Other settings
-# ============================================================================
-seed: 42
-device: "cpu"
-use_wandb: false
 initializer_type: "aaco"
 unmasker_type: "one_based_index"
-smoke_test: false
