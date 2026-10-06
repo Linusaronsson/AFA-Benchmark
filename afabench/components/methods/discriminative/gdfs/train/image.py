@@ -1,9 +1,5 @@
-import gc
 import logging
 from collections.abc import Callable
-from dataclasses import asdict, replace
-from pathlib import Path
-from typing import cast
 
 import torch
 from torch import nn
@@ -18,7 +14,6 @@ from afabench.components.methods.discriminative.common.models import (
 )
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer2d,
-    afa_discriminative_training_prep,
 )
 from afabench.components.methods.discriminative.gdfs.afa_methods import (
     GDFSAFAMethod,
@@ -28,8 +23,7 @@ from afabench.components.methods.discriminative.gdfs.config import (
     GDFSImageArchitectureConfig,
     GDFSTrainingConfig,
 )
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.utils import set_seed
+from afabench.training.inputs import TrainingInputs
 from afabench.training.smoke_test import dataset_subset, training_batch_size
 
 log = logging.getLogger(__name__)
@@ -49,27 +43,21 @@ def _load_backbone(backbone_type: str) -> tuple[torch.nn.Module, int]:
 def train_image(
     cfg: GDFSTrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
-) -> None:
+    *,
+    inputs: TrainingInputs,
+) -> GDFSAFAMethod:
     log.debug(cfg)
-    if cfg.smoke_test:
-        cfg = replace(cfg, nepochs=1, patience=1)
     assert isinstance(cfg.architecture, GDFSImageArchitectureConfig)
     assert cfg.hard_budget is not None, "hard_budget must be configured"
     assert cfg.pretrained_model_bundle_path is not None, (
         "pretrained_model_bundle_path must be configured"
     )
-    set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
-    train_dataset, val_dataset, initializer, unmasker, _ = (
-        afa_discriminative_training_prep(
-            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-            initializer_cfg=cfg.initializer,
-            unmasker_cfg=cfg.unmasker,
-            seed=cfg.seed,
-        )
-    )
+    train_dataset = inputs.train_dataset()
+    val_dataset = inputs.val_dataset()
+    initializer = inputs.initializer()
+    unmasker = inputs.unmasker()
     batch_size = training_batch_size(
         smoke_test=cfg.smoke_test,
         default_batch_size=cfg.batch_size,
@@ -89,14 +77,7 @@ def train_image(
     )
     d_out = train_dataset.label_shape[0]
     backbone, expansion = _load_backbone(cfg.architecture.backbone_type)
-    classifier_bundle, _ = load_bundle(
-        Path(cfg.pretrained_model_bundle_path),
-        map_location=device,
-    )
-    classifier_bundle = cast(
-        "GreedyAFAClassifier",
-        cast("object", classifier_bundle),
-    )
+    classifier_bundle = inputs.pretrained_model(GreedyAFAClassifier)
     predictor = classifier_bundle.predictor.to(device)
     arch = classifier_bundle.architecture
     image_size = arch["image_size"]
@@ -154,13 +135,4 @@ def train_image(
     afa_method.image_size = image_size
     afa_method.patch_size = patch_size
     afa_method.mask_width = mask_width
-    save_bundle(
-        obj=afa_method,
-        path=Path(cfg.save_path),
-        metadata={"config": asdict(cfg)},
-    )
-    log.info(f"GDFS method saved to: {cfg.save_path}")
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+    return afa_method

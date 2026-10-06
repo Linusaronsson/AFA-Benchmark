@@ -1,9 +1,5 @@
-import gc
 import logging
 from collections.abc import Callable
-from dataclasses import asdict
-from pathlib import Path
-from typing import cast
 
 import numpy as np
 import torch
@@ -29,9 +25,7 @@ from afabench.components.methods.static.common.static_methods import (
 from afabench.components.methods.static.common.utils import (
     make_masked_collate,
 )
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.types import AFADataset  # noqa: TC001
-from afabench.core.utils import set_seed
+from afabench.training.inputs import TrainingInputs
 
 log = logging.getLogger(__name__)
 
@@ -39,23 +33,18 @@ log = logging.getLogger(__name__)
 def train_image(  # noqa: PLR0915
     cfg: CAETrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
-) -> None:
+    *,
+    inputs: TrainingInputs,
+) -> StaticBaseMethod:
     log.debug(cfg)
     assert isinstance(cfg.architecture, CAEImageArchitectureConfig)
     assert cfg.hard_budget is not None, "hard_budget must be configured"
     print(str(cfg))
-    set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
-    if cfg.smoke_test:
-        cfg.architecture.selector.nepochs = 1
-        cfg.architecture.selector.patience = 1
-        cfg.architecture.classifier.nepochs = 1
-
-    train_dataset, _ = load_bundle(Path(cfg.train_dataset_bundle_path))
-    train_dataset = cast("AFADataset", cast("object", train_dataset))
+    train_dataset = inputs.train_dataset()
     d_out = train_dataset.label_shape[0]
-    val_dataset, _ = load_bundle(Path(cfg.val_dataset_bundle_path))
+    val_dataset = inputs.val_dataset()
 
     train_loader = DataLoader(
         train_dataset,  # pyright: ignore[reportArgumentType]
@@ -189,14 +178,4 @@ def train_image(  # noqa: PLR0915
         device=device,
     )
 
-    save_bundle(
-        obj=static_method,
-        path=Path(cfg.save_path),
-        metadata={"config": asdict(cfg)},
-    )
-    log.info(f"CAE method saved to: {cfg.save_path}")
-
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+    return static_method

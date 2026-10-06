@@ -1,4 +1,4 @@
-from dataclasses import asdict
+from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -12,7 +12,8 @@ from afabench.components.methods.static.cae.train.image import train_image
 from afabench.components.methods.static.cae.train.tabular import (
     train_tabular,
 )
-from afabench.core.utils import initialize_wandb_run
+from afabench.training.inputs import load_inputs
+from afabench.training.run import save_result, training_run
 
 
 @hydra.main(
@@ -22,24 +23,30 @@ from afabench.core.utils import initialize_wandb_run
 )
 def main(cfg: CAETrainingConfig) -> None:
     cfg = cast("CAETrainingConfig", OmegaConf.to_object(cfg))
-    wandb_run = None
-    if cfg.use_wandb:
-        wandb_run = initialize_wandb_run(
-            cfg=asdict(cfg),
-            job_type="training",
-            tags=["cae"],
-        )
-
-    if isinstance(cfg.architecture, CAEImageArchitectureConfig):
-        train_image(
+    if cfg.smoke_test:
+        cfg = replace(
             cfg,
-            metric_logger=wandb_run.log if wandb_run is not None else None,
+            architecture=replace(
+                cfg.architecture,
+                selector=replace(
+                    cfg.architecture.selector, nepochs=1, patience=1
+                ),
+                classifier=replace(cfg.architecture.classifier, nepochs=1),
+            ),
         )
-    else:
-        train_tabular(
-            cfg,
-            metric_logger=wandb_run.log if wandb_run is not None else None,
-        )
+    with training_run(
+        cfg, "training", tags=["cae"], config=cfg
+    ) as metric_logger:
+        inputs = load_inputs(cfg)
+        if isinstance(cfg.architecture, CAEImageArchitectureConfig):
+            result = train_image(
+                cfg, metric_logger=metric_logger.log, inputs=inputs
+            )
+        else:
+            result = train_tabular(
+                cfg, metric_logger=metric_logger.log, inputs=inputs
+            )
+        save_result(result, cfg, cfg, stage="training")
 
 
 if __name__ == "__main__":

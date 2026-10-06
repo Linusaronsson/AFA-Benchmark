@@ -617,10 +617,10 @@ class GreedyAFAClassifier:
     def load(
         cls,
         path: Path,
-        map_location: torch.device,
+        device: torch.device,
     ) -> Self:
         checkpoint = torch.load(
-            path / "model.pt", map_location=map_location, weights_only=False
+            path / "model.pt", map_location=device, weights_only=False
         )
         arch: dict[str, Any] = checkpoint["architecture"]
         state_dict = checkpoint["predictor_state_dict"]
@@ -636,4 +636,4 @@ class GreedyAFAClassifier:
         predictor.load_state_dict(state_dict)
         predictor.eval()
 
-        return cls(predictor=predictor, architecture=arch, device=map_location)
+        return cls(predictor=predictor, architecture=arch, device=device)

@@ -1,9 +1,6 @@
-import gc
 import logging
 from collections.abc import Callable
-from dataclasses import asdict, replace
-from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import torch
 from torch import nn
@@ -24,12 +21,7 @@ from afabench.components.methods.discriminative.gdfs.config import (
     GDFSImageArchitectureConfig,
     GDFSPretrainingConfig,
 )
-from afabench.core.bundle_system.bundle import (
-    load_bundle,
-    save_bundle,
-)
-from afabench.core.types import AFADataset  # noqa: TC001
-from afabench.core.utils import set_seed
+from afabench.training.inputs import TrainingInputs
 
 log = logging.getLogger(__name__)
 
@@ -37,18 +29,16 @@ log = logging.getLogger(__name__)
 def pretrain_image(
     cfg: GDFSPretrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
-) -> None:
+    *,
+    inputs: TrainingInputs,
+) -> GreedyAFAClassifier:
     log.debug(cfg)
-    if cfg.smoke_test:
-        cfg = replace(cfg, nepochs=1, patience=1)
     assert isinstance(cfg.architecture, GDFSImageArchitectureConfig)
-    set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
-    train_dataset, _ = load_bundle(Path(cfg.train_dataset_bundle_path))
-    train_dataset = cast("AFADataset", cast("object", train_dataset))
+    train_dataset = inputs.train_dataset()
     d_out = train_dataset.label_shape[0]
-    val_dataset, _ = load_bundle(Path(cfg.val_dataset_bundle_path))
+    val_dataset = inputs.val_dataset()
     train_loader = DataLoader(
         train_dataset,  # pyright: ignore[reportArgumentType]
         batch_size=cfg.batch_size,
@@ -103,22 +93,9 @@ def pretrain_image(
         metric_logger=metric_logger,
         metric_prefix="gdfs_pretrain",
     )
-    metadata = {
-        "model_type": "GDFSClassifier",
-        "pretrain_config": asdict(cfg),
-    }
     bundle_obj = GreedyAFAClassifier(
         predictor=predictor,
         architecture=architecture,
         device=torch.device("cpu"),
     )
-    save_bundle(
-        obj=bundle_obj,
-        path=Path(cfg.save_path),
-        metadata=metadata,
-    )
-    log.info(f"GDFS pretrained model saved to: {cfg.save_path}")
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+    return bundle_obj

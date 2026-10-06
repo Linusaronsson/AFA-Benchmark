@@ -1,8 +1,5 @@
-import gc
 import logging
 from collections.abc import Callable
-from dataclasses import asdict
-from pathlib import Path
 
 import numpy as np
 import torch
@@ -12,9 +9,6 @@ from torchrl.modules import MLP
 
 from afabench.components.methods.discriminative.common.datasets import (
     prepare_datasets,
-)
-from afabench.components.methods.discriminative.common.utils import (
-    afa_discriminative_training_prep,
 )
 from afabench.components.methods.static.cae.config import (
     CAETabularArchitectureConfig,
@@ -27,8 +21,8 @@ from afabench.components.methods.static.common.static_methods import (
     StaticBaseMethod,
 )
 from afabench.components.methods.static.common.utils import transform_dataset
-from afabench.core.bundle_system.bundle import save_bundle
-from afabench.core.utils import set_seed
+from afabench.core.utils import get_class_frequencies
+from afabench.training.inputs import TrainingInputs
 
 log = logging.getLogger(__name__)
 
@@ -36,29 +30,20 @@ log = logging.getLogger(__name__)
 def train_tabular(
     cfg: CAETrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
-) -> None:
+    *,
+    inputs: TrainingInputs,
+) -> StaticBaseMethod:
     log.debug(cfg)
     assert isinstance(cfg.architecture, CAETabularArchitectureConfig)
     assert cfg.hard_budget is not None, "hard_budget must be configured"
     print(str(cfg))
-    set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
-    if cfg.smoke_test:
-        cfg.architecture.selector.nepochs = 1
-        cfg.architecture.selector.patience = 1
-        cfg.architecture.classifier.nepochs = 1
-
-    train_dataset, val_dataset, _, _, class_weights = (
-        afa_discriminative_training_prep(
-            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-            initializer_cfg=cfg.initializer,
-            unmasker_cfg=cfg.unmasker,
-            seed=cfg.seed,
-        )
-    )
-    assert class_weights is not None
+    train_dataset = inputs.train_dataset()
+    val_dataset = inputs.val_dataset()
+    _, train_labels = train_dataset.get_all_data()
+    class_weights = 1 / get_class_frequencies(train_labels)
+    class_weights = class_weights / class_weights.sum()
     class_weights = class_weights.to(device)
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset, val_dataset, cfg.batch_size
@@ -148,14 +133,4 @@ def train_tabular(
 
     static_method = StaticBaseMethod(selected_history, predictors, device)
 
-    save_bundle(
-        obj=static_method,
-        path=Path(cfg.save_path),
-        metadata={"config": asdict(cfg)},
-    )
-    log.info(f"CAE method saved to: {cfg.save_path}")
-
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+    return static_method

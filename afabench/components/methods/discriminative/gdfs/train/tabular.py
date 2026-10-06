@@ -1,9 +1,5 @@
-import gc
 import logging
 from collections.abc import Callable
-from dataclasses import asdict, replace
-from pathlib import Path
-from typing import cast
 
 import torch
 from torch import nn
@@ -13,11 +9,10 @@ from afabench.components.methods.discriminative.common.datasets import (
     prepare_datasets,
 )
 from afabench.components.methods.discriminative.common.models import (
-    GreedyAFAClassifier,  # noqa: TC001
+    GreedyAFAClassifier,
 )
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer,
-    afa_discriminative_training_prep,
 )
 from afabench.components.methods.discriminative.gdfs.afa_methods import (
     GDFSAFAMethod,
@@ -27,8 +22,8 @@ from afabench.components.methods.discriminative.gdfs.config import (
     GDFSTabularArchitectureConfig,
     GDFSTrainingConfig,
 )
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.utils import set_seed
+from afabench.core.utils import get_class_frequencies
+from afabench.training.inputs import TrainingInputs
 
 log = logging.getLogger(__name__)
 
@@ -36,28 +31,24 @@ log = logging.getLogger(__name__)
 def train_tabular(
     cfg: GDFSTrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
-) -> None:
+    *,
+    inputs: TrainingInputs,
+) -> GDFSAFAMethod:
     log.debug(cfg)
-    if cfg.smoke_test:
-        cfg = replace(cfg, nepochs=1, patience=1)
     assert isinstance(cfg.architecture, GDFSTabularArchitectureConfig)
     assert cfg.hard_budget is not None, "hard_budget must be configured"
     assert cfg.pretrained_model_bundle_path is not None, (
         "pretrained_model_bundle_path must be configured"
     )
-    set_seed(cfg.seed)
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
-    train_dataset, val_dataset, initializer, unmasker, class_weights = (
-        afa_discriminative_training_prep(
-            train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-            val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-            initializer_cfg=cfg.initializer,
-            unmasker_cfg=cfg.unmasker,
-            seed=cfg.seed,
-        )
-    )
-    assert class_weights is not None
+    train_dataset = inputs.train_dataset()
+    val_dataset = inputs.val_dataset()
+    initializer = inputs.initializer()
+    unmasker = inputs.unmasker()
+    _, train_labels = train_dataset.get_all_data()
+    class_weights = 1 / get_class_frequencies(train_labels)
+    class_weights = class_weights / class_weights.sum()
     class_weights = class_weights.to(device)
     train_loader, val_loader, d_in, d_out = prepare_datasets(
         train_dataset,
@@ -65,14 +56,7 @@ def train_tabular(
         cfg.batch_size,
         smoke_test=cfg.smoke_test,
     )
-    predictor, _ = load_bundle(
-        Path(cfg.pretrained_model_bundle_path),
-        map_location=device,
-    )
-    classifier_bundle = cast(
-        "GreedyAFAClassifier",
-        cast("object", predictor),
-    )
+    classifier_bundle = inputs.pretrained_model(GreedyAFAClassifier)
     predictor = classifier_bundle.predictor.to(device)
     n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
     selector = MLP(
@@ -118,13 +102,4 @@ def train_tabular(
         selection_costs=unmasker.get_selection_costs(feature_costs),
         n_selections=n_selections,
     )
-    save_bundle(
-        obj=afa_method,
-        path=Path(cfg.save_path),
-        metadata={"config": asdict(cfg)},
-    )
-    log.info(f"GDFS method saved to: {cfg.save_path}")
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+    return afa_method

@@ -1,4 +1,4 @@
-from dataclasses import asdict
+from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -14,7 +14,8 @@ from afabench.components.methods.discriminative.dime.pretrain.image import (
 from afabench.components.methods.discriminative.dime.pretrain.tabular import (
     pretrain_tabular,
 )
-from afabench.core.utils import initialize_wandb_run
+from afabench.training.inputs import load_inputs
+from afabench.training.run import save_result, training_run
 
 
 @hydra.main(
@@ -24,24 +25,21 @@ from afabench.core.utils import initialize_wandb_run
 )
 def main(cfg: DIMEPretrainingConfig) -> None:
     cfg = cast("DIMEPretrainingConfig", OmegaConf.to_object(cfg))
-    wandb_run = None
-    if cfg.use_wandb:
-        wandb_run = initialize_wandb_run(
-            cfg=asdict(cfg),
-            job_type="pretraining",
-            tags=["dime"],
-        )
-
-    if isinstance(cfg.architecture, DIMEImageArchitectureConfig):
-        pretrain_image(
-            cfg,
-            metric_logger=wandb_run.log if wandb_run is not None else None,
-        )
-    else:
-        pretrain_tabular(
-            cfg,
-            metric_logger=wandb_run.log if wandb_run is not None else None,
-        )
+    if cfg.smoke_test:
+        cfg = replace(cfg, nepochs=1, patience=1)
+    with training_run(
+        cfg, "pretraining", tags=["dime"], config=cfg
+    ) as metric_logger:
+        inputs = load_inputs(cfg)
+        if isinstance(cfg.architecture, DIMEImageArchitectureConfig):
+            result = pretrain_image(
+                cfg, metric_logger=metric_logger.log, inputs=inputs
+            )
+        else:
+            result = pretrain_tabular(
+                cfg, metric_logger=metric_logger.log, inputs=inputs
+            )
+        save_result(result, cfg, cfg, stage="pretraining")
 
 
 if __name__ == "__main__":

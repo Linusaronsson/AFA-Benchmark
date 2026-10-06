@@ -1,8 +1,5 @@
-import gc
 import logging
 from collections.abc import Callable
-from dataclasses import asdict, replace
-from pathlib import Path
 from typing import Any
 
 import torch
@@ -21,15 +18,8 @@ from afabench.components.methods.discriminative.gdfs.config import (
     GDFSPretrainingConfig,
     GDFSTabularArchitectureConfig,
 )
-from afabench.core.bundle_system.bundle import (
-    load_bundle,
-    save_bundle,
-)
-from afabench.core.naming import infer_dataset_key_from_class_name
-from afabench.core.utils import (
-    get_class_frequencies,
-    set_seed,
-)
+from afabench.core.utils import get_class_frequencies
+from afabench.training.inputs import TrainingInputs
 
 log = logging.getLogger(__name__)
 
@@ -37,25 +27,17 @@ log = logging.getLogger(__name__)
 def pretrain_tabular(
     cfg: GDFSPretrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
-) -> None:
+    *,
+    inputs: TrainingInputs,
+) -> GreedyAFAClassifier:
     log.debug(cfg)
-    if cfg.smoke_test:
-        cfg = replace(cfg, nepochs=1, patience=1)
     assert isinstance(cfg.architecture, GDFSTabularArchitectureConfig)
-    set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
-    train_dataset, train_manifest = load_bundle(
-        Path(cfg.train_dataset_bundle_path)
-    )
-    val_dataset, _ = load_bundle(Path(cfg.val_dataset_bundle_path))
-
-    dataset_name = infer_dataset_key_from_class_name(
-        train_manifest["class_name"]
-    )
-    print(dataset_name)
-    _, train_labels = train_dataset.get_all_data()  # pyright: ignore[reportAttributeAccessIssue]
+    train_dataset = inputs.train_dataset()
+    val_dataset = inputs.val_dataset()
+    _, train_labels = train_dataset.get_all_data()
     train_class_probabilities = get_class_frequencies(train_labels)
     class_weights = len(train_class_probabilities) / (
         len(train_class_probabilities) * train_class_probabilities
@@ -105,26 +87,10 @@ def pretrain_tabular(
         metric_prefix="gdfs_pretrain",
     )
 
-    metadata = {
-        "model_type": "GDFSClassifier",
-        "dataset_name": dataset_name,
-        "pretrain_config": asdict(cfg),
-    }
     bundle_obj = GreedyAFAClassifier(
         predictor=predictor,
         architecture=architecture,
         device=torch.device("cpu"),
     )
 
-    save_bundle(
-        obj=bundle_obj,
-        path=Path(cfg.save_path),
-        metadata=metadata,
-    )
-
-    log.info(f"GDFS pretrained model saved to: {cfg.save_path}")
-
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+    return bundle_obj
