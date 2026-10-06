@@ -9,8 +9,11 @@ Runtime filters (--config, select subsets to run):
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
     device (str, default='cpu'): Deprecated invocation-wide device. Cannot
         be combined with execution; retained for unconverted activities.
-    execution (mapping, default={}): CPU/cuda stage defaults and method/stage
-        overrides for training and evaluation. Overrides take precedence.
+    execution (mapping, default={}): CPU/cuda defaults for classifier,
+        pretraining, training and evaluation. methods.<name> overrides training,
+        evaluation and method-specific classifier choices; pretrained_models
+        overrides pretraining by named model. External classifiers use only
+        the classifier default. Overrides take precedence over stage defaults.
     execution_site_file (str, optional): Profile-owned YAML allocation map.
         Alternatively provide execution_site in a configuration file.
     use_wandb (bool, default=True): Enable W&B logging
@@ -33,9 +36,10 @@ Execution configuration and required files:
     Methods retain their independent scripts and native bundle/result paths.
     Site profiles own CPU/GPU partition, account and GPU request syntax;
     CPU counts, memory and runtime remain separate resource settings.
-    Invalid selected-method execution fails before submission.
-    See docs/tutorials/mixed_execution.md for the execution YAML format,
-    site.yaml requirements, migration policy and captured-submission tests.
+    Invalid selected-method and prerequisite execution fails before submission,
+    including conflicting device arguments in classifier/pretraining params.
+    See docs/tutorials/mixed_execution.md and prerequisite_execution.md for
+    execution YAML, site.yaml, migration and captured-submission tests.
 
 Usage (add existing scientific --configfile inputs):
     snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \

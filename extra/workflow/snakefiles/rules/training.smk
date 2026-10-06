@@ -11,6 +11,7 @@ with a pretraining stage and `NO_PRETRAIN/` for the others, the same folder
 the evaluation rules use, so the two former training rules are one.
 """
 
+from prerequisite_execution import checked_prerequisite_params
 from training_contract import (
     render_pretraining_contract,
     render_training_contract,
@@ -59,7 +60,7 @@ def _pretrained_model_bundle(wildcards) -> list[str]:
     ]
 
 
-def _pretraining_contract(wildcards, input, output) -> str:
+def _pretraining_contract(wildcards, input, output, resources) -> str:
     return render_pretraining_contract(
         {
             "train_dataset_bundle_path": input.train_dataset,
@@ -69,7 +70,7 @@ def _pretraining_contract(wildcards, input, output) -> str:
             "initializer": INITIALIZER,
             "unmasker": UNMASKERS[wildcards.dataset],
             "dataset_key": wildcards.dataset,
-            "device": DEVICE,
+            "device": EXECUTION.checked_device("pretraining", wildcards.pretrained_model_name, resources),
             "seed": wildcards.pretrain_seed,
             "use_wandb": USE_WANDB,
             "smoke_test": SMOKE_TEST,
@@ -126,9 +127,15 @@ rule pretrain_model:
     params:
         script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
         contract=_pretraining_contract,
-        pretrain_params=lambda wildcards: PRETRAIN_PARAMS[wildcards.pretrained_model_name],
+        pretrain_params=lambda wildcards: checked_prerequisite_params(PRETRAIN_PARAMS[wildcards.pretrained_model_name], f"pretrain_params for {wildcards.pretrained_model_name!r}"),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        slurm_partition=(lambda wc: EXECUTION.resource("slurm_partition", "pretraining", wc.pretrained_model_name)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_partition", ""),
+        slurm_account=(lambda wc: EXECUTION.resource("slurm_account", "pretraining", wc.pretrained_model_name)) if EXECUTION.site else DEFAULT_RESOURCES.get("slurm_account", ""),
+        gpu=lambda wc: EXECUTION.resource("gpu", "pretraining", wc.pretrained_model_name),
+        gres=lambda wc: EXECUTION.resource("gres", "pretraining", wc.pretrained_model_name),
+        gpu_model=lambda wc: EXECUTION.resource("gpu_model", "pretraining", wc.pretrained_model_name),
+        slurm_extra=lambda wc: EXECUTION.resource("slurm_extra", "pretraining", wc.pretrained_model_name),
     shell:
         """
         START_TIME=$(date +%s.%N)
