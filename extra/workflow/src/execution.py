@@ -13,6 +13,12 @@ import yaml
 # ruff: noqa: ANN401
 
 METHOD_STAGES = {"training", "evaluation", "classifier"}
+CPU_ONLY_STAGES = {
+    "dataset_generation",
+    "transformation",
+    "aggregation",
+    "visualization",
+}
 ALLOCATION_RESOURCES = {
     "slurm_partition": "",
     "slurm_account": "",
@@ -112,6 +118,9 @@ class ExecutionPolicy:
                     raise ValueError(message)
 
     def device(self, stage: str, identity: str | None) -> str:
+        # Processing never inherits GPU intent, including legacy global device.
+        if stage in CPU_ONLY_STAGES:
+            return "cpu"
         choice = self.defaults.get(stage, self.legacy_device)
         # Shared pretraining is named independently of its downstream methods.
         # A None identity selects the external classifier stage default only.
