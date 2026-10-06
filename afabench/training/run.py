@@ -40,7 +40,9 @@ def training_run(
     """
     Seed, open a metric logger for `stage` and clean up afterwards.
 
-    `config` is the full method config, usually the contract itself.
+    `config` is the full method config, usually the contract itself. CUDA
+    memory is released only when the contract's device is a CUDA device, so
+    a CPU run never initialises a CUDA context.
     """
     set_seed(contract.seed)
     if contract.use_wandb:
@@ -59,7 +61,7 @@ def training_run(
     finally:
         metric_logger.finish()
         gc.collect()
-        if torch.cuda.is_available():
+        if torch.device(contract.device).type == "cuda":
             torch.cuda.empty_cache()
             torch.cuda.synchronize()
 

@@ -1,7 +1,6 @@
 """Train the ODIN AFA method from the `pvae` pretrained model."""
 
 import logging
-from dataclasses import replace
 from typing import Any, override
 
 import torch
@@ -10,10 +9,7 @@ from torch.nn import functional as F
 from afabench.components.methods.rl.common.afa_methods import RLAFAMethod
 from afabench.components.methods.rl.common.agent_interface import Agent
 from afabench.components.methods.rl.common.custom_types import AFARewardFn
-from afabench.components.methods.rl.common.training import (
-    RLTrainer,
-    limit_training_loop,
-)
+from afabench.components.methods.rl.common.training import RLTrainer
 from afabench.components.methods.rl.odin.agents import ODINAgent
 from afabench.components.methods.rl.odin.config import ODINTrainConfig
 from afabench.components.methods.rl.odin.models import (
@@ -33,12 +29,6 @@ log = logging.getLogger(__name__)
 def train_odin(
     cfg: ODINTrainConfig, inputs: TrainingInputs, metric_logger: MetricLogger
 ) -> AFAMethod:
-    cfg = replace(
-        cfg,
-        rl_training_loop=limit_training_loop(
-            cfg.rl_training_loop, smoke_test=cfg.smoke_test
-        ),
-    )
     trainer = ODINRLTrainer(cfg, inputs, metric_logger)
     return trainer.train(cfg=cfg.rl_training_loop)
 

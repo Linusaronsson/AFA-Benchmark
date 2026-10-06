@@ -2,13 +2,13 @@
 RLTrainer runs a short CPU training without touching CUDA.
 
 Builds the real JAFA trainer through its normal constructor from tiny
-on-disk bundles, trains for two batches and returns the trained AFA method.
-CUDA is reported as available so that any device-availability gating
-(instead of device-type gating) would reach the recording CUDA stubs.
+on-disk bundles inside a `training_run`, trains for two batches and returns
+the trained AFA method. CUDA is reported as available so that any
+device-availability gating (instead of device-type gating), in the trainer
+or in the run's cleanup, would reach the recording CUDA stubs.
 """
 
 from collections.abc import Mapping
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -20,6 +20,9 @@ from afabench.components.methods.rl.common.config import (
     AFAMDPConfig,
     AFARLTrainingLoopConfig,
 )
+from afabench.components.methods.rl.common.training import (
+    limit_training_loop,
+)
 from afabench.components.methods.rl.jafa.config import (
     JAFAAgentConfig,
     JAFATrainConfig,
@@ -30,16 +33,14 @@ from afabench.components.methods.rl.jafa.models import (
     LitJAFAEmbedderClassifier,
     ReadProcessEncoder,
 )
-from afabench.components.methods.rl.jafa.training import (
-    JAFARLTrainer,
-    train_jafa,
-)
+from afabench.components.methods.rl.jafa.training import JAFARLTrainer
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
-from afabench.core.utils import get_class_frequencies, set_seed
+from afabench.core.utils import get_class_frequencies
 from afabench.datasets.datasets import CubeDataset
 from afabench.training.inputs import load_inputs
+from afabench.training.run import training_run
 from afabench.training.smoke_test import SMOKE_TEST_N_BATCHES
 
 SEED = 0
@@ -138,29 +139,32 @@ def _make_jafa_train_config(
 def test_rl_trainer_trains_on_cpu_without_touching_cuda(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    set_seed(SEED)
     cfg = _make_jafa_train_config(*_save_tiny_bundles(tmp_path))
     metric_logger = RecordingMetricLogger()
-    trainer = JAFARLTrainer(cfg, load_inputs(cfg), metric_logger)
-    value_net_before = [
-        p.detach().clone()
-        for p in trainer.agent.action_value_module.net.parameters()  # pyright: ignore[reportAttributeAccessIssue]
-    ]
-
     cuda_calls: list[str] = []
-    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
-    # Queried by torch.optim once CUDA reports as available
-    monkeypatch.setattr(
-        torch.cuda, "is_current_stream_capturing", lambda: False
-    )
-    monkeypatch.setattr(
-        torch.cuda, "synchronize", lambda *_: cuda_calls.append("sync")
-    )
-    monkeypatch.setattr(
-        torch.cuda, "empty_cache", lambda: cuda_calls.append("empty_cache")
-    )
 
-    afa_method = trainer.train(cfg=cfg.rl_training_loop)
+    with training_run(cfg, "training", tags=["jafa"], config=cfg):
+        trainer = JAFARLTrainer(cfg, load_inputs(cfg), metric_logger)
+        value_net_before = [
+            p.detach().clone()
+            for p in trainer.agent.action_value_module.net.parameters()  # pyright: ignore[reportAttributeAccessIssue]
+        ]
+
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+        # Queried by torch.optim once CUDA reports as available
+        monkeypatch.setattr(
+            torch.cuda, "is_current_stream_capturing", lambda: False
+        )
+        monkeypatch.setattr(
+            torch.cuda, "synchronize", lambda *_: cuda_calls.append("sync")
+        )
+        monkeypatch.setattr(
+            torch.cuda,
+            "empty_cache",
+            lambda: cuda_calls.append("empty_cache"),
+        )
+
+        afa_method = trainer.train(cfg=cfg.rl_training_loop)
 
     assert cuda_calls == []
     assert isinstance(afa_method, RLAFAMethod)
@@ -180,21 +184,28 @@ def test_rl_trainer_trains_on_cpu_without_touching_cuda(
     )
 
 
-def test_train_jafa_limits_a_smoke_test_to_a_few_batches(
-    tmp_path: Path,
-) -> None:
-    set_seed(SEED)
-    cfg = _make_jafa_train_config(*_save_tiny_bundles(tmp_path))
-    cfg = replace(
-        cfg,
-        smoke_test=True,
-        rl_training_loop=replace(
-            cfg.rl_training_loop, n_batches=50, eval_n_times=0
-        ),
+def _training_loop_config() -> AFARLTrainingLoopConfig:
+    return AFARLTrainingLoopConfig(
+        frames_per_batch=64,
+        n_batches=500,
+        eval_max_steps=10,
+        n_eval_episodes=20,
+        eval_n_times=10,
     )
-    metric_logger = RecordingMetricLogger()
 
-    afa_method = train_jafa(cfg, load_inputs(cfg), metric_logger)
 
-    assert isinstance(afa_method, RLAFAMethod)
-    assert len(metric_logger.metrics) == SMOKE_TEST_N_BATCHES
+def test_limit_training_loop_keeps_config_without_smoke_test() -> None:
+    cfg = _training_loop_config()
+
+    assert limit_training_loop(cfg, smoke_test=False) == cfg
+
+
+def test_limit_training_loop_trains_a_few_batches_for_smoke_test() -> None:
+    cfg = _training_loop_config()
+
+    limited = limit_training_loop(cfg, smoke_test=True)
+
+    assert limited.n_batches == SMOKE_TEST_N_BATCHES
+    assert limited.frames_per_batch == cfg.frames_per_batch
+    assert limited.eval_n_times == cfg.eval_n_times
+    assert cfg.n_batches == 500

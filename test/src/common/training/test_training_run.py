@@ -56,6 +56,20 @@ class _FakeWandbRun:
 
 
 @pytest.fixture
+def cuda_calls(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Report CUDA as available and record the cleanup calls made to it."""
+    calls: list[str] = []
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(
+        torch.cuda, "synchronize", lambda *_: calls.append("synchronize")
+    )
+    monkeypatch.setattr(
+        torch.cuda, "empty_cache", lambda: calls.append("empty_cache")
+    )
+    return calls
+
+
+@pytest.fixture
 def fake_wandb_runs(monkeypatch: pytest.MonkeyPatch) -> list[_FakeWandbRun]:
     runs: list[_FakeWandbRun] = []
 
@@ -84,6 +98,28 @@ def test_training_run_seeds_from_the_contract() -> None:
 
     assert torch.equal(first, second)
     assert not torch.equal(first, other)
+
+
+def test_training_run_on_cpu_does_not_touch_cuda(
+    cuda_calls: list[str],
+) -> None:
+    config = _method_config(seed=0, use_wandb=False)
+
+    with training_run(config, "training", tags=["m"], config=config):
+        pass
+
+    assert cuda_calls == []
+
+
+def test_training_run_on_cuda_releases_cuda_memory_afterwards(
+    cuda_calls: list[str],
+) -> None:
+    config = replace(_method_config(seed=0, use_wandb=False), device="cuda")
+
+    with training_run(config, "training", tags=["m"], config=config):
+        assert cuda_calls == []
+
+    assert cuda_calls == ["empty_cache", "synchronize"]
 
 
 def test_training_run_without_wandb_logs_nowhere(
