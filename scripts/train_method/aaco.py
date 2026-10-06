@@ -1,4 +1,3 @@
-from dataclasses import asdict
 from typing import cast
 
 import hydra
@@ -6,7 +5,7 @@ from omegaconf import OmegaConf
 
 from afabench.components.methods.oracle.aaco.config import AACOTrainConfig
 from afabench.components.methods.oracle.aaco.train import run
-from afabench.core.utils import initialize_wandb_run
+from afabench.training.run import save_result, training_run
 
 
 @hydra.main(
@@ -16,14 +15,9 @@ from afabench.core.utils import initialize_wandb_run
 )
 def main(cfg: AACOTrainConfig) -> None:
     cfg = cast("AACOTrainConfig", OmegaConf.to_object(cfg))
-    if cfg.use_wandb:
-        _run = initialize_wandb_run(
-            cfg=asdict(cfg),
-            job_type="training",
-            tags=["aaco"],
-        )
-
-    run(cfg)
+    with training_run(cfg, "training", tags=["aaco"], config=cfg):
+        method = run(cfg)
+        save_result(method, cfg, cfg, stage="training")
 
 
 if __name__ == "__main__":

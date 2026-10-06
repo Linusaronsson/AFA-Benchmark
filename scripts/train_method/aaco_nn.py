@@ -7,18 +7,15 @@ Trains a neural network policy via behavioral cloning.
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict, replace
+from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 import hydra
 import torch
 from omegaconf import OmegaConf
 
 import afabench.components.methods.oracle.aaco.config  # noqa: F401  # pyright: ignore[reportUnusedImport]
-from afabench.components.initializers.utils import (
-    get_afa_initializer_from_config,
-)
 from afabench.components.methods.oracle import (
     AACOPolicyNetwork,
     create_aaco_nn_method,
@@ -27,17 +24,14 @@ from afabench.components.methods.oracle import (
     train_policy_network,
 )
 from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
-from afabench.components.unmaskers.utils import (
-    get_afa_unmasker_from_config,
-)
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.naming import infer_dataset_key_from_class_name
-from afabench.core.utils import initialize_wandb_run, set_seed
+from afabench.training.inputs import load_inputs
+from afabench.training.run import save_result, training_run
 
 if TYPE_CHECKING:
     from afabench.components.methods.oracle.aaco.config import (
         AACONNTrainConfig,
     )
+    from afabench.core.types import AFAClassifier
 
 logger = logging.getLogger(__name__)
 
@@ -49,57 +43,12 @@ def _configure_smoke_test(cfg: AACONNTrainConfig) -> AACONNTrainConfig:
     return replace(cfg, max_epochs=2, batch_size=min(cfg.batch_size, 32))
 
 
-def _resolve_aaco_bundle_path(cfg: AACONNTrainConfig) -> Path:
-    bundle_path = cfg.pretrained_model_bundle_path or cfg.aaco_bundle_path
-    assert bundle_path is not None, (
-        "Expected pretrained_model_bundle_path or aaco_bundle_path."
-    )
-    return Path(bundle_path)
-
-
-def _resolve_train_dataset_path(cfg: AACONNTrainConfig) -> Path:
-    dataset_path = cfg.train_dataset_bundle_path or cfg.dataset_artifact_name
-    assert dataset_path is not None, (
-        "Expected train_dataset_bundle_path or dataset_artifact_name."
-    )
-    return Path(dataset_path)
-
-
-def _load_aaco_method(
-    cfg: AACONNTrainConfig, device: torch.device
-) -> tuple[AACOAFAMethod, bool]:
-    aaco_bundle_path = _resolve_aaco_bundle_path(cfg)
-    logger.info(f"Loading AACO method from {aaco_bundle_path}...")
-    aaco_method, _aaco_manifest = load_bundle(aaco_bundle_path, device=device)
-    assert isinstance(aaco_method, AACOAFAMethod)
-    logger.info("Loaded AACO method")
-    force_acquisition = cfg.hard_budget is not None
-    aaco_method.force_acquisition = force_acquisition
-    return aaco_method, force_acquisition
-
-
-def _load_rollout_dataset(
-    cfg: AACONNTrainConfig,
-) -> tuple[torch.Tensor, torch.Tensor, torch.Size, str, int | None]:
-    dataset_bundle_path = _resolve_train_dataset_path(cfg)
-    logger.info(f"Loading dataset from {dataset_bundle_path}...")
-    dataset_obj, dataset_manifest = load_bundle(dataset_bundle_path)
-    dataset_name = infer_dataset_key_from_class_name(
-        dataset_manifest["class_name"]
-    )
-    split = dataset_manifest["metadata"].get("split_idx", None)
-    dataset: Any = dataset_obj
-    x_train, y_train = dataset.get_all_data()
-    return x_train, y_train, dataset.feature_shape, dataset_name, split
-
-
 def _prepare_rollout_data(
     cfg: AACONNTrainConfig,
     x_train: torch.Tensor,
     y_train: torch.Tensor,
     feature_shape: torch.Size,
-    _selection_size: int,
-) -> tuple[torch.Tensor, torch.Tensor, int, int]:
+) -> tuple[torch.Tensor, torch.Tensor, int]:
     if len(feature_shape) > 1:
         x_train = x_train.view(x_train.shape[0], -1)
         logger.info(
@@ -122,7 +71,7 @@ def _prepare_rollout_data(
         n_features,
         n_classes,
     )
-    return x_train, y_train, n_features, n_classes
+    return x_train, y_train, n_features
 
 
 def _resolve_rollout_max(cfg: AACONNTrainConfig) -> int | None:
@@ -141,125 +90,93 @@ def _resolve_rollout_max(cfg: AACONNTrainConfig) -> int | None:
 def main(cfg: AACONNTrainConfig) -> None:
     cfg = cast("AACONNTrainConfig", OmegaConf.to_object(cfg))
     logger.debug(cfg)
-    set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
-    wandb_run = None
-    if cfg.use_wandb:
-        wandb_run = initialize_wandb_run(
-            cfg=asdict(cfg),
-            job_type="training",
-            tags=["aaco_nn"],
+    with training_run(
+        cfg, "training", tags=["aaco_nn"], config=cfg
+    ) as metrics:
+        cfg = _configure_smoke_test(cfg)
+        inputs = load_inputs(cfg)
+        aaco_method = inputs.pretrained_model(AACOAFAMethod)
+        force_acquisition = cfg.hard_budget is not None
+        aaco_method.force_acquisition = force_acquisition
+        if cfg.soft_budget_param is not None:
+            aaco_method.set_cost_param(cfg.soft_budget_param)
+        dataset = inputs.train_dataset()
+        x_train, y_train = dataset.get_all_data()
+        feature_shape = dataset.feature_shape
+        initializer = inputs.initializer()
+        initializer.set_seed(cfg.seed)
+        unmasker = inputs.unmasker()
+        selection_size = unmasker.get_n_selections(feature_shape=feature_shape)
+        x_train, y_train, n_features = _prepare_rollout_data(
+            cfg, x_train, y_train, feature_shape
+        )
+        rollout_max_acquisitions = _resolve_rollout_max(cfg)
+
+        # Generate rollouts from AACO oracle
+        logger.info("Generating AACO rollouts...")
+        aaco_method.set_exclude_instance(True)
+        masked_features, feature_masks, actions = generate_aaco_rollouts(
+            aaco_method=aaco_method,
+            features=x_train,
+            labels=y_train,
+            feature_shape=feature_shape,
+            unmasker=unmasker,
+            initializer=initializer,
+            max_acquisitions=rollout_max_acquisitions,
+            device=device,
+        )
+        logger.info(f"Generated {len(actions)} state-action pairs")
+
+        # Create data loaders
+        train_loader, val_loader, n_train, n_val = create_rollout_data_loaders(
+            masked_features,
+            feature_masks,
+            actions,
+            cfg.batch_size,
+            cfg.val_split,
+            cfg.seed,
+        )
+        logger.info(f"Train: {n_train} samples, Val: {n_val} samples")
+
+        # Create policy network
+        n_actions = selection_size + 1  # selection_size + stop action
+        policy_network = AACOPolicyNetwork(
+            n_features=n_features,
+            n_actions=n_actions,
+            hidden_dims=cfg.hidden_dims,
+            dropout=cfg.dropout,
+        )
+        logger.info(f"Created policy network with {n_actions} actions")
+
+        # Train policy network
+        logger.info("Training policy network...")
+        policy_network = train_policy_network(
+            policy_network=policy_network,
+            train_loader=train_loader,
+            val_loader=val_loader,
+            max_epochs=cfg.max_epochs,
+            learning_rate=cfg.learning_rate,
+            patience=cfg.early_stopping_patience,
+            device=device,
+            metric_logger=metrics.log,
+        )
+        logger.info("Training complete")
+
+        classifier = cast("AFAClassifier", inputs.classifier(object))
+
+        # Create AACO+NN method
+        aaco_nn_method = create_aaco_nn_method(
+            policy_network=policy_network,
+            classifier=classifier,
+            dataset_name=cfg.dataset_key,
+            classifier_bundle_path=Path(cfg.classifier_bundle_path),
+            force_acquisition=force_acquisition,
+            device=device,
         )
 
-    cfg = _configure_smoke_test(cfg)
-    aaco_method, force_acquisition = _load_aaco_method(cfg, device)
-    if cfg.soft_budget_param is not None:
-        aaco_method.set_cost_param(cfg.soft_budget_param)
-    x_train, y_train, feature_shape, dataset_name, split = (
-        _load_rollout_dataset(cfg)
-    )
-    initializer = get_afa_initializer_from_config(cfg.initializer)
-    initializer.set_seed(cfg.seed)
-    unmasker = get_afa_unmasker_from_config(cfg.unmasker)
-    selection_size = unmasker.get_n_selections(feature_shape=feature_shape)
-    x_train, y_train, n_features, n_classes = _prepare_rollout_data(
-        cfg, x_train, y_train, feature_shape, selection_size
-    )
-    rollout_max_acquisitions = _resolve_rollout_max(cfg)
-
-    # Generate rollouts from AACO oracle
-    logger.info("Generating AACO rollouts...")
-    aaco_method.set_exclude_instance(True)
-    masked_features, feature_masks, actions = generate_aaco_rollouts(
-        aaco_method=aaco_method,
-        features=x_train,
-        labels=y_train,
-        feature_shape=feature_shape,
-        unmasker=unmasker,
-        initializer=initializer,
-        max_acquisitions=rollout_max_acquisitions,
-        device=device,
-    )
-    logger.info(f"Generated {len(actions)} state-action pairs")
-
-    # Create data loaders
-    train_loader, val_loader, n_train, n_val = create_rollout_data_loaders(
-        masked_features,
-        feature_masks,
-        actions,
-        cfg.batch_size,
-        cfg.val_split,
-        cfg.seed,
-    )
-    logger.info(f"Train: {n_train} samples, Val: {n_val} samples")
-
-    # Create policy network
-    n_actions = selection_size + 1  # selection_size + stop action
-    policy_network = AACOPolicyNetwork(
-        n_features=n_features,
-        n_actions=n_actions,
-        hidden_dims=cfg.hidden_dims,
-        dropout=cfg.dropout,
-    )
-    logger.info(f"Created policy network with {n_actions} actions")
-
-    # Train policy network
-    logger.info("Training policy network...")
-    policy_network = train_policy_network(
-        policy_network=policy_network,
-        train_loader=train_loader,
-        val_loader=val_loader,
-        max_epochs=cfg.max_epochs,
-        learning_rate=cfg.learning_rate,
-        patience=cfg.early_stopping_patience,
-        device=device,
-        metric_logger=wandb_run.log if wandb_run is not None else None,
-    )
-    logger.info("Training complete")
-
-    # Load classifier for the final method
-    logger.info(f"Loading classifier from {cfg.classifier_bundle_path}...")
-    classifier, _ = load_bundle(
-        Path(cfg.classifier_bundle_path), device=device
-    )
-    classifier = cast("Any", classifier)
-    logger.info("Loaded classifier")
-
-    # Create AACO+NN method
-    aaco_nn_method = create_aaco_nn_method(
-        policy_network=policy_network,
-        classifier=classifier,
-        dataset_name=dataset_name,
-        classifier_bundle_path=Path(cfg.classifier_bundle_path),
-        force_acquisition=force_acquisition,
-        device=device,
-    )
-
-    # Save
-    save_bundle(
-        obj=aaco_nn_method,
-        path=Path(cfg.save_path),
-        metadata={
-            "aaco_bundle_path": str(_resolve_aaco_bundle_path(cfg)),
-            "dataset_artifact": str(_resolve_train_dataset_path(cfg)),
-            "dataset_name": dataset_name,
-            "classifier_bundle_path": str(cfg.classifier_bundle_path),
-            "split_idx": split,
-            "seed": cfg.seed,
-            "hard_budget": cfg.hard_budget,
-            "soft_budget_param": cfg.soft_budget_param,
-            "force_acquisition": force_acquisition,
-            "max_acquisitions": rollout_max_acquisitions,
-            "hidden_dims": list(cfg.hidden_dims),
-            "dropout": cfg.dropout,
-            "n_features": n_features,
-            "n_classes": n_classes,
-            "selection_size": selection_size,
-            "n_rollout_samples": len(actions),
-        },
-    )
-    logger.info(f"Saved AACO+NN method to: {cfg.save_path}")
+        save_result(aaco_nn_method, cfg, cfg, stage="training")
 
 
 if __name__ == "__main__":

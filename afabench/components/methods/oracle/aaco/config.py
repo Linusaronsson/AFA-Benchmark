@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from afabench.training.contract import TrainingContract, store_contract_config
 
@@ -19,7 +18,6 @@ class AACOTrainConfig(TrainingContract):
     """Shared by the AACO pretraining and training stages."""
 
     aco: AACOConfig
-    dataset_artifact_name: Path | None = None
     experiment_id: str | None = None
     initializer_type: str = "aaco"
     unmasker_type: str = "one_based_index"
@@ -32,8 +30,6 @@ store_contract_config(name="train_aaco", config_class=AACOTrainConfig)
 class AACONNTrainConfig(TrainingContract):
     """Config for AACO+NN (behavioral cloning) training."""
 
-    aaco_bundle_path: Path | None = None
-    dataset_artifact_name: Path | None = None
     max_acquisitions: int | None = None
     hidden_dims: list[int] = field(default_factory=lambda: [256, 256])
     dropout: float = 0.1

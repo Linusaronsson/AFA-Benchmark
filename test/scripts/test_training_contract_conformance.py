@@ -237,3 +237,11 @@ def test_training_script_writes_a_loadable_bundle_at_save_path(
     afa_method = _load_bundle_on_cpu(save_path)
 
     assert afa_method is not None
+
+    if options["train_script_name"] in {"aaco", "aaco_nn"}:
+        metadata = json.loads((save_path / "manifest.json").read_text())[
+            "metadata"
+        ]
+        assert metadata["stage"] == "training"
+        assert metadata["contract"]["dataset_key"] == DATASET_KEY
+        assert metadata["contract"]["seed"] == SEED

@@ -1,46 +1,27 @@
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import torch
 from omegaconf import OmegaConf
 
 from afabench.components.methods.oracle import create_aaco_method
+from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
 from afabench.components.methods.oracle.aaco.config import AACOTrainConfig
-from afabench.components.unmaskers.utils import get_afa_unmasker_from_config
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.core.naming import infer_dataset_key_from_class_name
-from afabench.core.utils import set_seed
+from afabench.training.inputs import load_inputs
 from afabench.training.smoke_test import training_subset
-
-if TYPE_CHECKING:
-    from afabench.core.types import AFADataset
 
 logger = logging.getLogger(__name__)
 
 
-def run(cfg: AACOTrainConfig) -> None:
+def run(cfg: AACOTrainConfig) -> AACOAFAMethod:
     logger.debug(cfg)
-    set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
-    dataset_bundle_path = (
-        cfg.train_dataset_bundle_path or cfg.dataset_artifact_name
-    )
-    assert dataset_bundle_path is not None, (
-        "Expected train_dataset_bundle_path or dataset_artifact_name."
-    )
-
-    dataset_obj, dataset_manifest = load_bundle(Path(dataset_bundle_path))
-    dataset_name = infer_dataset_key_from_class_name(
-        dataset_manifest["class_name"]
-    )
-    split = dataset_manifest["metadata"].get("split_idx", None)
-    dataset = cast("AFADataset", cast("object", dataset_obj))
-
-    logger.info(f"Dataset: {dataset_manifest['class_name']}, Split: {split}")
-    logger.info(f"Training samples: {len(dataset)}")
+    inputs = load_inputs(cfg)
+    dataset = inputs.train_dataset()
+    logger.info(f"Training instances: {len(dataset)}")
 
     X_train, y_train = dataset.get_all_data()
     feature_shape = dataset.feature_shape
@@ -79,7 +60,7 @@ def run(cfg: AACOTrainConfig) -> None:
         f"Classifier bundle not found at: {classifier_bundle_path}"
     )
 
-    unmasker = get_afa_unmasker_from_config(cfg.unmasker)
+    unmasker = inputs.unmasker()
     selection_size = unmasker.get_n_selections(
         feature_shape=dataset.feature_shape
     )
@@ -95,7 +76,7 @@ def run(cfg: AACOTrainConfig) -> None:
         unmasker_kwargs = dict(cfg.unmasker.kwargs)
 
     aaco_method = create_aaco_method(
-        dataset_name=dataset_name,
+        dataset_name=cfg.dataset_key,
         k_neighbors=cfg.aco.k_neighbors,
         acquisition_cost=soft_budget_param,
         hide_val=cfg.aco.hide_val,
@@ -116,24 +97,4 @@ def run(cfg: AACOTrainConfig) -> None:
         classifier_bundle_path,
     )
 
-    save_bundle(
-        obj=aaco_method,
-        path=Path(cfg.save_path),
-        metadata={
-            "dataset_artifact": str(dataset_bundle_path),
-            "dataset_name": dataset_name,
-            "split_idx": split,
-            "seed": cfg.seed,
-            "soft_budget_param": soft_budget_param,
-            "hard_budget": cfg.hard_budget,
-            "force_acquisition": force_acquisition,
-            "selection_size": selection_size,
-            "k_neighbors": cfg.aco.k_neighbors,
-            "hide_val": cfg.aco.hide_val,
-            "mask_seed": cfg.aco.mask_seed,
-            "classifier_bundle_path": str(classifier_bundle_path),
-            "n_features": X_train.shape[1],
-            "n_train_samples": len(X_train),
-        },
-    )
-    logger.info(f"Saved AACO method to: {cfg.save_path}")
+    return aaco_method

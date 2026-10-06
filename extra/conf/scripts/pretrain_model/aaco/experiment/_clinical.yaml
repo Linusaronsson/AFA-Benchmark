@@ -1,0 +1,4 @@
+# @package _global_
+aco:
+  acquisition_cost: 0.02
+  eval_only_n_samples: 1000
