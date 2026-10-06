@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast, override
+from typing import TYPE_CHECKING, cast, override
 
 import lightning as pl
 import torch
@@ -11,7 +11,6 @@ from lightning.pytorch.loggers import WandbLogger
 from afabench.components.methods.rl.common.dataset_utils import (
     DataModuleFromDatasets,
 )
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 
 if TYPE_CHECKING:
@@ -98,9 +97,8 @@ def ensure_finite_module_state(module: torch.nn.Module) -> None:
 
 
 def supervised_learning(
-    train_dataset_bundle_path: Path,
-    val_dataset_bundle_path: Path,
-    save_path: Path,
+    train_dataset: AFADataset,
+    val_dataset: AFADataset,
     cfg: SupervisedLearningConfig,
     model_fn: Callable[[AFADataset], pl.LightningModule],
     metric_to_monitor: str,  # what we want to optimize
@@ -108,26 +106,15 @@ def supervised_learning(
     *,
     use_wandb: bool = False,
     device: str | None = None,
-    metadata_to_save_in_bundle: dict[str, Any] | None = None,
-) -> None:
+) -> TorchModelBundle:
     """
     Do supervised learning for a pytorch lightning model.
 
-    Currently assumes that the model expects 1D (flattened) features.
+    Returns the best model found, or the final one if no checkpoint was
+    kept. Currently assumes that the model expects 1D (flattened) features.
     """
     if device is None:
         device = "cpu"
-    if metadata_to_save_in_bundle is None:
-        metadata_to_save_in_bundle = {}
-    log.info("Loading datasets...")
-    train_dataset, train_dataset_manifest = load_bundle(
-        Path(train_dataset_bundle_path),
-    )
-    train_dataset = cast("AFADataset", cast("object", train_dataset))
-    val_dataset, _val_dataset_metadata = load_bundle(
-        Path(val_dataset_bundle_path),
-    )
-    val_dataset = cast("AFADataset", cast("object", val_dataset))
     datamodule = DataModuleFromDatasets(
         train_dataset=cast(
             "Dataset[tuple[Features, Label]]",
@@ -140,7 +127,6 @@ def supervised_learning(
         batch_size=cfg.batch_size,
         collate_fn=passthrough_batch,
     )
-    log.info("Loaded datasets.")
 
     log.info("Creating model...")
     lit_model = model_fn(train_dataset)
@@ -206,17 +192,4 @@ def supervised_learning(
 
         ensure_finite_module_state(lit_model)
 
-        log.info("Saving model...")
-
-        # Create general model bundle wrapper
-        model_bundle = TorchModelBundle(lit_model)
-
-        # Save using bundle format
-        bundle_path = Path(save_path)
-        if bundle_path.suffix != ".bundle":
-            bundle_path = bundle_path.with_suffix(".bundle")
-        metadata = {
-            "dataset_class_name": train_dataset_manifest["class_name"],
-        } | metadata_to_save_in_bundle
-        save_bundle(model_bundle, bundle_path, metadata)
-        log.info(f"Saved best model to {bundle_path}")
+    return TorchModelBundle(lit_model)

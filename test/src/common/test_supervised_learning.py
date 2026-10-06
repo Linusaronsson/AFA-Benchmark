@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from lightning import LightningModule
 from torch import nn
 
-from afabench.core.bundle_system.bundle import save_bundle
+from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.core.types import AFADataset
 from afabench.datasets.datasets import CubeDataset
 from afabench.training.config import SupervisedLearningConfig
@@ -72,20 +72,13 @@ def _make_model_fn(
     return model_fn
 
 
-def _run_supervised_learning(
-    tmp_path: Path, save_path: Path, *, nonfinite: bool
-) -> None:
-    train_bundle_path = tmp_path / "train.bundle"
-    val_bundle_path = tmp_path / "val.bundle"
-    save_bundle(CubeDataset(n_samples=10, seed=42), train_bundle_path, {})
-    save_bundle(CubeDataset(n_samples=10, seed=43), val_bundle_path, {})
-
+def _run_supervised_learning(*, nonfinite: bool) -> TorchModelBundle:
     cfg = SupervisedLearningConfig(
         batch_size=4,
         max_epochs=1,
         # Thresholds set above the single batch run below so that no
         # checkpoint is ever saved; the model's post-training state is
-        # what gets checked for non-finite values and saved.
+        # what gets checked for non-finite values and returned.
         checkpoint_earliest_batch=1000,
         early_stopping_min_batches=1000,
         early_stopping_patience=1,
@@ -95,10 +88,9 @@ def _run_supervised_learning(
         limit_val_batches=1,
     )
 
-    supervised_learning(
-        train_dataset_bundle_path=train_bundle_path,
-        val_dataset_bundle_path=val_bundle_path,
-        save_path=save_path,
+    return supervised_learning(
+        train_dataset=CubeDataset(n_samples=10, seed=42),
+        val_dataset=CubeDataset(n_samples=10, seed=43),
         cfg=cfg,
         model_fn=_make_model_fn(nonfinite=nonfinite),
         metric_to_monitor="val_loss",
@@ -111,21 +103,16 @@ def test_supervised_learning_rejects_nonfinite_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    save_path = tmp_path / "model.bundle"
 
     with pytest.raises(FloatingPointError):
-        _run_supervised_learning(tmp_path, save_path, nonfinite=True)
-
-    assert not save_path.exists()
+        _ = _run_supervised_learning(nonfinite=True)
 
 
-def test_supervised_learning_saves_finite_model(
+def test_supervised_learning_returns_the_trained_model(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.chdir(tmp_path)
-    save_path = tmp_path / "model.bundle"
 
-    _run_supervised_learning(tmp_path, save_path, nonfinite=False)
+    model_bundle = _run_supervised_learning(nonfinite=False)
 
-    assert save_path.exists()
-    assert (save_path / "manifest.json").exists()
+    assert isinstance(model_bundle.model, _TinyClassifier)

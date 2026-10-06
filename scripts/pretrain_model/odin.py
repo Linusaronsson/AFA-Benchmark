@@ -1,7 +1,6 @@
 import logging
 from collections.abc import Callable
-from dataclasses import asdict
-from pathlib import Path
+from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -21,11 +20,9 @@ from afabench.components.methods.rl.odin.models import (
     PointNetType,
 )
 from afabench.core.types import AFADataset
-from afabench.core.utils import (
-    get_class_frequencies,
-    initialize_wandb_run,
-    set_seed,
-)
+from afabench.core.utils import get_class_frequencies
+from afabench.training.inputs import load_inputs
+from afabench.training.run import save_result, training_run
 from afabench.training.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
@@ -121,6 +118,18 @@ def get_odin_model_fn(
     return f
 
 
+def _smoke_test_config(cfg: ODINPretrainConfig) -> ODINPretrainConfig:
+    return replace(
+        cfg,
+        supervised_learning=replace(
+            cfg.supervised_learning,
+            max_epochs=1,
+            limit_train_batches=2,
+            limit_val_batches=2,
+        ),
+    )
+
+
 @hydra.main(
     version_base=None,
     config_path="../../extra/conf/scripts/pretrain_model/odin",
@@ -129,40 +138,24 @@ def get_odin_model_fn(
 def main(cfg: ODINPretrainConfig) -> None:
     cfg = cast("ODINPretrainConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
-    set_seed(cfg.seed)
-    torch.cuda.empty_cache()
     torch.set_float32_matmul_precision("medium")
-
-    if cfg.use_wandb:
-        _run = initialize_wandb_run(
-            cfg=asdict(cfg),
-            job_type="pretraining",
-            tags=["odin"],
-        )
-
-    # If smoke test, override some options
     if cfg.smoke_test:
         log.info("Smoke test detected.")
-        cfg.supervised_learning.max_epochs = 1
-        cfg.supervised_learning.limit_train_batches = 2
-        cfg.supervised_learning.limit_val_batches = 2
+        cfg = _smoke_test_config(cfg)
 
-    supervised_learning(
-        train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-        val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-        save_path=Path(cfg.save_path),
-        cfg=cfg.supervised_learning,
-        model_fn=get_odin_model_fn(cfg=cfg),
-        metric_to_monitor="val_loss_many_observations",
-        monitor_mode="min",
-        use_wandb=cfg.use_wandb,
-        device=cfg.device,
-        metadata_to_save_in_bundle={
-            "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
-            "seed": cfg.seed,
-            "config": asdict(cfg),
-        },
-    )
+    with training_run(cfg, "pretraining", tags=["odin"], config=cfg):
+        inputs = load_inputs(cfg)
+        model_bundle = supervised_learning(
+            train_dataset=inputs.train_dataset(),
+            val_dataset=inputs.val_dataset(),
+            cfg=cfg.supervised_learning,
+            model_fn=get_odin_model_fn(cfg=cfg),
+            metric_to_monitor="val_loss_many_observations",
+            monitor_mode="min",
+            use_wandb=cfg.use_wandb,
+            device=cfg.device,
+        )
+        save_result(model_bundle, cfg, cfg, stage="pretraining")
 
 
 if __name__ == "__main__":

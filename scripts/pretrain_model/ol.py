@@ -17,12 +17,14 @@ from afabench.components.methods.rl.ol.models import (
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
+from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.types import AFADataset
 from afabench.core.utils import (
     get_class_frequencies,
     initialize_wandb_run,
     set_seed,
 )
+from afabench.training.inputs import load_inputs
 from afabench.training.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
@@ -84,17 +86,21 @@ def main(cfg: OLPretrainConfig) -> None:
         cfg.supervised_learning.limit_train_batches = 2
         cfg.supervised_learning.limit_val_batches = 2
 
-    supervised_learning(
-        train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
-        val_dataset_bundle_path=Path(cfg.val_dataset_bundle_path),
-        save_path=Path(cfg.save_path),
+    inputs = load_inputs(cfg)
+    model_bundle = supervised_learning(
+        train_dataset=inputs.train_dataset(),
+        val_dataset=inputs.val_dataset(),
         cfg=cfg.supervised_learning,
         model_fn=get_ol_model_fn(cfg=cfg),
         metric_to_monitor="val_loss_many_observations",
         monitor_mode="min",
         use_wandb=cfg.use_wandb,
         device=cfg.device,
-        metadata_to_save_in_bundle={
+    )
+    save_bundle(
+        model_bundle,
+        Path(cfg.save_path),
+        metadata={
             "train_dataset_bundle_path": cfg.train_dataset_bundle_path,
             "seed": cfg.seed,
             "config": asdict(cfg),
