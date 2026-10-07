@@ -1,11 +1,10 @@
 """
 Data transformation rules for evaluation results.
 
-Handles transformations on evaluation results:
-- Adding evaluation metadata (eval_soft_budget_param)
-- Removing unnecessary columns (prev_selections_performed)
-- Adding training metadata (method, dataset, seeds, budgets)
-- Pivoting classifier columns to tidy data format
+Handles transformations on evaluation results. Raw evaluation tables carry
+their own identity columns and provenance record (ADR 0002); transformation
+only derives plotting columns and pivots classifier columns to tidy data
+format.
 """
 
 import re
@@ -23,11 +22,12 @@ TRANSFORMED_METHOD_PATTERN = (
 rule transform_eval_data:
     """Transform raw evaluation data to final format for plotting.
 
-    Applies all transformations in sequence:
-    1. Add eval metadata (eval_soft_budget_param column)
-    2. Remove selections history column (saves space)
-    3. Add training metadata columns
-    4. Pivot classifier columns to tidy data format
+    Identity comes from the raw table's columns, and its provenance record
+    is copied into the output. The wildcards passed as arguments are checks:
+    one that disagrees with a non-null column fails the job, and a missing
+    or null column (a table written before ADR 0002) is filled from its
+    wildcard. The script derives n_selections_performed and pivots the
+    classifier columns to tidy data format.
     """
     input:
         f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"

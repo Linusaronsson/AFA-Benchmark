@@ -57,8 +57,9 @@ the run.
 
 One entry per evaluation the config schedules, present or not, enumerated
 from the resolved config the same way the workflow names its targets. The
-entry carries the identity that transformed tables do not hold in their
-columns, notably `dataset_realization_index` and `eval_split`.
+entry carries the identity that transformed tables written before the
+identity columns existed do not hold in their columns, notably
+`dataset_realization_index` and `eval_split`.
 
 | Field | Meaning |
 | --- | --- |
@@ -229,9 +230,14 @@ granularity:
   [evaluation dataframes](evaluation_dataframes.md): `episode_id`,
   `generation_index`, `split_index`, `step`, `action_performed`, `builtin_predicted_class`,
   `external_predicted_class`, `true_class`, `accumulated_cost`, `forced_stop`,
-  `eval_seed`, `eval_hard_budget`. They hold the full acquisition history;
-  selection histories can be reconstructed from `episode_id`, `step` and
-  `action_performed`.
+  and the identity columns `afa_method`, `dataset`,
+  `dataset_realization_index`, `eval_split`, `initializer`, `train_seed`,
+  `train_hard_budget`, `train_soft_budget_param`, `eval_seed`,
+  `eval_hard_budget` and `eval_soft_budget_param`, with their provenance
+  record in the Arrow schema metadata. Tables written before the identity
+  columns existed have only `eval_seed` and `eval_hard_budget` of them. They
+  hold the full acquisition history; selection histories can be
+  reconstructed from `episode_id`, `step` and `action_performed`.
 - **Plotting-ready tables** (`eval_results_transformed/.../eval_data.parquet`,
   `transformed_path`) are produced by
   `scripts/misc/transform_eval_data_pipeline.py`. Each raw row becomes two
@@ -239,10 +245,10 @@ granularity:
   `predicted_class`; `episode_id` and `step` are dropped in favour of
   `n_selections_performed`, so these are prediction/cost rows, not episode
   logs. They keep `generation_index` and `split_index` (null for tables
-  transformed from legacy logs). They gain `afa_method`, `dataset`, `initializer`, `train_seed`,
-  `train_hard_budget`, `train_soft_budget_param` and `eval_soft_budget_param`
-  columns, but **not** the dataset realization index or evaluation split: read
-  those from the table's `evaluation_tables` entry.
+  transformed from legacy logs), every identity column and the raw table's
+  provenance record. A table transformed from a raw table written before the
+  identity columns existed has null `dataset_realization_index` and
+  `eval_split`: read those from the table's `evaluation_tables` entry.
 - **Merged tables** (`merged_results/`) concatenate plotting-ready tables per
   method set and classifier type and carry no per-table identity beyond those
   columns.

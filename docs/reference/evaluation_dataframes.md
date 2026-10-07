@@ -2,15 +2,19 @@
 
 ## Contract
 
-`afabench.evaluation.schemas` defines three Pandera pandas contracts, each
-extending the previous one:
+`afabench.evaluation.schemas` defines Pandera pandas contracts, each
+extending `BatchEvaluationSchema` or `EvaluationSchema`:
 
 - `BatchEvaluationSchema`: one row per episode and zero-based `step`,
   returned by `process_batch`.
 - `EvaluationSchema`: the same columns plus `generation_index` and
   `split_index`, returned by `eval_afa_method`.
-- `SavedEvaluationSchema`: the same columns plus nullable `eval_seed` and
-  `eval_hard_budget`, added by `AFAEvaluator` before saving Parquet.
+- `SavedEvaluationSchema`: the `EvaluationSchema` columns plus the identity
+  columns below, added by `AFAEvaluator` before saving Parquet.
+- `PreProvenanceSavedEvaluationSchema`: the `EvaluationSchema` columns plus
+  nullable `eval_seed` and `eval_hard_budget`, as the evaluator saved them
+  before the identity columns existed. The transform step still accepts
+  these tables.
 
 `episode_id` identifies an episode, not a dataset position. It is batch-local
 for an individual `process_batch` call, but unique across all batches in one
@@ -48,9 +52,44 @@ have contiguous steps from zero, no duplicate steps, and exactly one stop at
 its final step. Row order is immaterial. Validation also runs after batch
 concatenation and before saving.
 
-Prediction and metadata fields use `Series[Any]` because pandas represents
-all-null columns differently from populated columns. Explicit element-wise
-checks enforce scalar integer class IDs and numeric metadata.
+Prediction fields use `Series[Any]` because pandas represents all-null
+columns differently from populated columns. Explicit element-wise checks
+enforce scalar integer class IDs.
+
+## Identity and provenance
+
+A raw evaluation table identifies itself
+(`docs/adr/0002-provenance-recorded-in-artifacts.md`), whether the pipeline
+or a hand run of `scripts/eval/eval_afa_method.py` wrote it. Its identity
+columns are constant per table and use pandas nullable dtypes, which
+`pandas.read_parquet` restores without `afabench`:
+
+| Column | dtype | Value |
+| --- | --- | --- |
+| `afa_method` | `string` | Method name, from the method bundle's record. |
+| `dataset` | `string` | Dataset key, from the eval dataset bundle's record. |
+| `dataset_realization_index` | `UInt64` | Dataset realization, from the eval dataset bundle's record. |
+| `eval_split` | `string` | `train`, `val` or `test`: the eval dataset bundle's own split. |
+| `initializer` | `string` | Name of the initializer config the evaluation selected, such as `cold`. Never null. |
+| `train_seed` | `UInt64` | Seed of the method bundle's record. |
+| `train_hard_budget` | `Float64` | `hard_budget` of the method's training contract. |
+| `train_soft_budget_param` | `Float64` | `soft_budget_param` of the method's training contract. |
+| `eval_seed` | `UInt64` | The seed the evaluation used. Never null: a null configured seed is drawn once and recorded. |
+| `eval_hard_budget` | `Float64` | The evaluation's hard budget, null in the soft-budget setting. |
+| `eval_soft_budget_param` | `Float64` | The evaluation's soft-budget parameter, null when not given. |
+
+A value whose source bundle was written without a provenance record is null,
+not guessed. The pretraining seed, the Unmasker, the classifier and the rest
+of the configuration are in the table's provenance record only. The record
+is stored as JSON under the Arrow schema metadata key `afabench.provenance`;
+pandas drops it on read, so read it with
+`afabench.evaluation.provenance.evaluation_table_provenance(path)`, which
+returns null for a table written without one.
+
+The evaluator owns the evaluation seed: it resolves a null seed once, seeds
+Python, NumPy and torch with it, and passes the resolved integer to the
+method, the Unmasker, the Initializer and the evaluation sampler. The same
+seed reproduces the table on CPU.
 
 ## On-demand histories
 
@@ -81,18 +120,41 @@ filtering rows: an individual row or incomplete episode is not self-contained.
 Neither histories nor actions alone recover initial masks or the Unmasker's
 mapping from selections to features.
 
+## Plotting-ready tables
+
+`scripts/misc/transform_eval_data_pipeline.py` turns one raw table into one
+plotting-ready table. It reads identity from the raw table's columns and only
+derives plotting columns: `n_selections_performed`, the melt of the
+prediction columns into `classifier` (`builtin` or `external`) and
+`predicted_class`, and nullable dtypes. The output keeps `generation_index`,
+`split_index` and every identity column, including
+`dataset_realization_index` and `eval_split`, and copies the raw table's
+provenance record into its own schema metadata. It discards episode
+identity when expanding rows by classifier, so these tables are not episode
+logs.
+
+Its identity arguments (`--method`, `--dataset`, `--initializer`,
+`--train_seed`, `--train_hard_budget`, `--train_soft_budget_param`,
+`--eval_soft_budget_param`) are optional checks. An argument that disagrees
+with a non-null column raises `IdentityArgumentMismatchError`; `null` is an
+explicit null value and disagrees with a non-null column. A column that is
+missing or null is filled from its argument, or left null when the argument
+is omitted. The Snakemake rule passes its wildcards, so a raw table written
+before the identity columns existed is identified from them, except for
+`dataset_realization_index` and `eval_split`, which no argument names and
+which stay null.
+
 ## Legacy reading and conversion
 
 Existing Parquet files remain untouched. The evaluation-data transform accepts
-both formats: it uses `step` for compact logs and stored history lengths for
-legacy logs, including partial legacy tables. Legacy histories can be lists,
-Parquet-restored NumPy arrays, or string lists. The plotting output
-contract retains `n_selections_performed`, `generation_index` and
-`split_index`, and discards episode identity when expanding rows by
-classifier. Those tables are not episode logs. Tables transformed from legacy
-logs have null `generation_index` and `split_index`. Compact tables written
-before those columns existed are rejected rather than backfilled; re-run
-their evaluation.
+compact tables with and without identity columns, each validated against the
+column set it was written with, and legacy logs: it uses `step` for compact
+logs and stored history lengths for legacy logs, including partial legacy
+tables. Legacy histories can be lists, Parquet-restored NumPy arrays, or
+string lists. Tables transformed from legacy logs have null
+`generation_index` and `split_index`. Compact tables written before those
+columns existed are rejected rather than backfilled; re-run their
+evaluation.
 
 For explicit conversion of a complete, original-order legacy artifact:
 
