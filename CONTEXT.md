@@ -314,7 +314,7 @@ visualization always run on CPU.
 _Avoid_: Stage (for classifier training or processing jobs)
 
 **Pretrained model**:
-A named artifact produced in the pretraining stage and reusable across
+A named bundle produced in the pretraining stage and reusable across
 methods, for example a partial VAE shared by EDDI and ODIN.
 _Avoid_: Base model, backbone, checkpoint
 
@@ -330,7 +330,14 @@ _Avoid_: Method group, plot group
 **Bundle**:
 The on-disk folder format in which datasets, classifiers, pretrained models,
 and AFA methods are saved and loaded.
-_Avoid_: Checkpoint, artifact (as the generic term), pickle
+_Avoid_: Checkpoint, artifact (the umbrella term for bundles and evaluation
+tables, not a synonym for bundle), pickle
+
+**Artifact**:
+Anything a pipeline job writes that can carry a provenance record: a bundle
+or an evaluation table. Use it only when both are meant; say bundle or
+evaluation table when only one is.
+_Avoid_: Bundle (only one kind of artifact), result, file
 
 **Provenance record**:
 The typed description of how one bundle or evaluation table was produced:

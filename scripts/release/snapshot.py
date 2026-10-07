@@ -201,10 +201,20 @@ def publish(
     *,
     repo_id: RepoIdOption,
     test_release: TestReleaseOption = False,
+    allow_redistribution: Annotated[
+        list[str] | None,
+        typer.Option(
+            help="Publish this unreviewed or restricted dataset key in an "
+            "official release anyway; recorded in the host's commit message."
+        ),
+    ] = None,
 ) -> None:
     transport = _transport(ctx, repo_id)
     manifest = publish_release(
-        snapshot_dir, transport, test_release=test_release
+        snapshot_dir,
+        transport,
+        test_release=test_release,
+        allow_redistribution=allow_redistribution or [],
     )
     folder = release_folder(manifest.release_id, test_release=test_release)
     _echo_manifest(manifest, snapshot_dir / RELEASE_MANIFEST_FILENAME)
