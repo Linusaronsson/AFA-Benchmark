@@ -17,6 +17,7 @@ from afabench.core.bundle_system.bundle import (
     save_bundle,
 )
 from afabench.core.provenance import (
+    DatasetIdentity,
     ProvenanceInput,
     ProvenanceRecord,
     capture_provenance,
@@ -58,8 +59,11 @@ def fit_run(
 
     `config` is the full method config, usually the contract itself. CUDA
     memory is released only when the contract's device is a CUDA device, so
-    a CPU run never initialises a CUDA context.
+    a CPU run never initialises a CUDA context. Dataset bundles whose
+    records disagree on the dataset identity raise
+    `DatasetIdentityMismatchError` on entry, before any training.
     """
+    _contract_dataset_identity(contract)
     set_seed(contract.seed)
     if contract.use_wandb:
         metric_logger = WandbMetricLogger(
@@ -123,6 +127,13 @@ def save_result(
     log.info(f"Saved {type(obj).__name__} to {contract.save_path}")
 
 
+def _contract_dataset_identity(contract: BaseContract) -> DatasetIdentity:
+    return shared_dataset_identity(
+        bundle_provenance(Path(contract.train_dataset_bundle_path)),
+        bundle_provenance(Path(contract.val_dataset_bundle_path)),
+    )
+
+
 def _fit_provenance(
     contract: BaseContract, *, resolved_config: dict[str, object]
 ) -> ProvenanceRecord:
@@ -140,10 +151,7 @@ def _fit_provenance(
                     "pretrained_model", contract.pretrained_model_bundle_path
                 )
             )
-    identity = shared_dataset_identity(
-        bundle_provenance(Path(contract.train_dataset_bundle_path)),
-        bundle_provenance(Path(contract.val_dataset_bundle_path)),
-    )
+    identity = _contract_dataset_identity(contract)
     return capture_provenance(
         stage=contract.stage,
         resolved_config=resolved_config,

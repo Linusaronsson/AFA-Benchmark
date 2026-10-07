@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from pathlib import Path
 
 import pytest
 import torch
@@ -7,14 +8,46 @@ import wandb
 
 from afabench.components.initializers.config import InitializerConfig
 from afabench.components.unmaskers.config import UnmaskerConfig
+from afabench.core.bundle_system.bundle import save_bundle
+from afabench.core.provenance import DatasetIdentityMismatchError, Split
+from afabench.datasets.datasets import CubeDataset
 from afabench.fit.contract import PretrainingContract, TrainingContract
 from afabench.fit.metric_logger import NullMetricLogger
 from afabench.fit.run import fit_run
+from afabench.testing.provenance import placeholder_provenance
 
 
 @dataclass(frozen=True)
 class _MethodTrainConfig(TrainingContract):
     learning_rate: float
+
+
+def _save_dataset_bundle(
+    path: Path, *, split: Split, dataset_realization_index: int
+) -> None:
+    save_bundle(
+        CubeDataset(n_samples=6, seed=dataset_realization_index),
+        path,
+        metadata={},
+        provenance=placeholder_provenance(
+            dataset_key="cube",
+            dataset_realization_index=dataset_realization_index,
+            split=split,
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
+def dataset_bundles(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Write the contracts' relative dataset bundles; fit_run reads them."""
+    monkeypatch.chdir(tmp_path)
+    _save_dataset_bundle(
+        Path("train.bundle"), split="train", dataset_realization_index=2
+    )
+    _save_dataset_bundle(
+        Path("val.bundle"), split="val", dataset_realization_index=2
+    )
+    return tmp_path
 
 
 def _method_config(*, seed: int, use_wandb: bool) -> _MethodTrainConfig:
@@ -224,3 +257,24 @@ def test_fit_run_finishes_wandb_when_training_fails(
 
     [run] = fake_wandb_runs
     assert run.finished
+
+
+def test_fit_run_rejects_datasets_of_different_realizations_before_training(
+    dataset_bundles: Path,
+) -> None:
+    _save_dataset_bundle(
+        dataset_bundles / "val.bundle",
+        split="val",
+        dataset_realization_index=3,
+    )
+    config = _method_config(seed=0, use_wandb=False)
+    trained = False
+
+    def train() -> None:
+        nonlocal trained
+        with fit_run(config, tags=["m"], config=config):
+            trained = True
+
+    with pytest.raises(DatasetIdentityMismatchError, match=r"2.*3"):
+        train()
+    assert not trained

@@ -102,7 +102,8 @@ def main(cfg: RandomDummyTrainConfig) -> None:
         save_result(afa_method, cfg, cfg)
 ```
 
-`fit_run` (from `afabench.fit.run`) seeds with `contract.seed`,
+`fit_run` (from `afabench.fit.run`) checks that the train and val dataset
+bundles share a dataset identity, seeds with `contract.seed`,
 opens a `WandbMetricLogger` or a `NullMetricLogger` depending on
 `contract.use_wandb`, and cleans up CUDA state afterwards; use the yielded
 logger's `.log(...)` if your training loop reports metrics. `save_result`
