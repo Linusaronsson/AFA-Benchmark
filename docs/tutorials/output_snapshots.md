@@ -5,8 +5,8 @@ under the pipeline's output root, saved outside the repository so it can be
 put back exactly where Snakemake expects it later. It is not curated; a
 benchmark release is built from one. Saved with `--release-id`, it also
 carries a release manifest recording its identity, provenance and coverage
-(see [`../release_manifest.md`](../release_manifest.md)). Snakemake
-execution metadata is separate (#64).
+(see [`../release_manifest.md`](../release_manifest.md)). It deliberately
+omits Snakemake execution metadata (#64).
 
 ## Save
 
@@ -65,20 +65,52 @@ consistent after being saved and restored.
 
 ## Verifying a restore
 
-After restoring, run a Snakemake dry run against the same targets. If the
-restore reproduced the tree correctly, the dry run reports nothing to do:
+After restoring, run a Snakemake dry run against the targets of interest:
 
 ```shell
 uv run snakemake --dry-run all
 ```
 
-If it instead schedules jobs, something in the restored tree is not
-byte-for-byte and mtime-for-mtime identical to what Snakemake last saw.
+If the restore reproduced the tree correctly *and* nothing relevant has
+changed since the snapshot was taken, the dry run reports nothing to do. If
+it instead schedules jobs, either the restored tree is not byte-for-byte and
+mtime-for-mtime identical to what Snakemake last saw, or the dry run caught
+a genuine change in a rule's code, params, inputs or software environment.
+
+Treat a "nothing to be done" result as advisory, not authoritative, when
+the restoring checkout's rule code or params may differ from the snapshot's
+producing checkout: see the next section.
 
 ## What a snapshot does not contain
 
 - No release manifest unless saved with `--release-id`.
-- No Snakemake execution metadata, i.e. `.snakemake/metadata` (#64).
 - No selection by dataset, method, or output category: the whole output root
   is copied verbatim, including stale files no current rule would produce
   (#39, #40).
+- No Snakemake execution metadata, i.e. `.snakemake/metadata`. This is a
+  deliberate decision (#64, `docs/adr/0003-snapshots-omit-snakemake-metadata.md`),
+  not a gap to fill later.
+
+  Snakemake's code, params, input-set and software-environment rerun
+  triggers rely on that metadata. Without it, a restored output is judged
+  by mtime only: Snakemake never notices that its rule's code or params
+  changed since the snapshot was taken. Capturing the metadata instead was
+  rejected: every pipeline rule is a `shell:` rule, so the code trigger
+  hashes the literal shell command written in the `.smk` file, not the
+  invoked script's content, and can change for reasons unrelated to the
+  restored output (an unrelated rule's refactor, a reformatted shell line).
+  Restoring metadata ties a restored output's fate to that Snakefile-text
+  match across checkouts, which risks scheduling reruns of published
+  baselines merely because a benchmark adopter's fork's `.smk` files have
+  moved on from the producing commit — exactly the automatic compatibility
+  enforcement #36 decided against, and exactly the retraining the adopter
+  workflow exists to avoid. See
+  `docs/adr/0003-snapshots-omit-snakemake-metadata.md` for the full
+  reasoning.
+
+  **Practical consequence:** after restoring a snapshot into a checkout
+  whose rule code or params have since changed, do not trust a Snakemake
+  dry run to detect it. Run `uv run snakemake --dry-run <target>` to catch
+  mtime inconsistencies, but if you know a relevant rule's code or params
+  changed, regenerate or delete those outputs explicitly instead of relying
+  on Snakemake to schedule the rerun for you.
