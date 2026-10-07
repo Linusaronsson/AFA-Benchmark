@@ -97,7 +97,7 @@ once.
 | `seed` | Dataset generation, classifier (always 0), pretraining or training seed. |
 | `train_hard_budget`, `train_soft_budget_param` | Training budget of an AFA-method bundle; null otherwise. |
 | `inputs` | The bundles the producing job read, as `{role, path}` with roles `train_dataset`, `val_dataset`, `classifier` and `pretrained_model`. Dataset bundles have none. |
-| `bundle_manifest` | The bundle's own `manifest.json`, verbatim; null when absent. Its `metadata` holds the dataset generation parameters, or the training contract (initializer, Unmasker, seed, budgets, smoke flag, input paths) and method configuration. Once ADR 0002 lands it also carries the provenance record. |
+| `bundle_manifest` | The bundle's own `manifest.json`, verbatim; null when absent. Its `metadata` holds the dataset generation parameters, or the training contract (initializer, Unmasker, seed, budgets, smoke flag, input paths) and method configuration; its `provenance` is the bundle's provenance record and `content_hash` its data hash ([bundle format](bundle_format.md)), both absent from bundles written before ADR 0002. |
 
 ### `coverage`
 

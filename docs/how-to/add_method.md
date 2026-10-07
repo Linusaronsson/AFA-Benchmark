@@ -107,7 +107,10 @@ opens a `WandbMetricLogger` or a `NullMetricLogger` depending on
 `contract.use_wandb`, and cleans up CUDA state afterwards; use the yielded
 logger's `.log(...)` if your training loop reports metrics. `save_result`
 writes `obj` as a bundle to `contract.save_path`, with metadata recording the
-stage, the contract values and the config fields the contract doesn't cover.
+stage, the contract values and the config fields the contract doesn't cover,
+and with the bundle's provenance record (seed, inputs, `method_name` and
+dataset identity; see
+[`docs/reference/bundle_format.md`](../reference/bundle_format.md)).
 
 Nothing here is Hydra-specific except `@hydra.main` and `OmegaConf.to_object`;
 section 5 covers skipping both.
@@ -235,6 +238,11 @@ still has to:
   bundle to the `save_path` argument, with your method's class registered in
   `REGISTERED_CLASSES` (`afabench/core/registry.py`,
   [`docs/reference/bundle_format.md`](../reference/bundle_format.md)).
+  `save_bundle` requires a provenance record; build it with
+  `afabench.core.provenance.capture_provenance` from the contract's seed,
+  `method_name` and input bundles (`bundle_input`), copying the dataset
+  identity from the dataset bundles' records (`bundle_provenance`,
+  `shared_dataset_identity`), as `save_result` does.
 
 Everything else — seeding, logging, hyperparameter configuration, smoke-test
 handling — is on you, exactly as it would be for any other script.
