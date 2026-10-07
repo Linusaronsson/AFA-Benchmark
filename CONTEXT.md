@@ -231,10 +231,24 @@ _Avoid_: Dataset name, dataset id
 One of the train, validation, or test partitions of a dataset.
 _Avoid_: Fold, subset
 
-**Dataset instance**:
+**Dataset realization**:
 One seeded generation and split of a dataset. Benchmark results average over
-several dataset instances.
-_Avoid_: Seed (the seed is the input, the instance is the output), run
+several dataset realizations.
+_Avoid_: Dataset instance (an instance is one data point), seed (the seed is
+the input, the realization is the output), run
+
+**Generation index**:
+The position of an instance in the dataset produced by dataset generation,
+before splitting. Together with the dataset realization it identifies the
+instance. For a real-world dataset, generation keeps the source's order, so
+the generation index also locates the instance in the source, in every
+realization.
+_Avoid_: Instance index, original index, row, sample id
+
+**Split index**:
+The position of an instance within one split of one dataset realization.
+_Avoid_: Instance index, episode id (an episode's order of evaluation need
+not follow the split)
 
 **CUBE**:
 The synthetic tabular AFA dataset where each class makes three class-specific

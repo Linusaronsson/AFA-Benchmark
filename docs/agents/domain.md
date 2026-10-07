@@ -60,8 +60,14 @@ Known traps in this repo:
   built-in classifier. Use built-in.
 - **Myopic vs greedy.** The paper and code say myopic; only the README table
   still says greedy. Use myopic.
-- **Dataset instance vs seed.** The seed is the input; the instance is the
-  generated, split dataset.
+- **Dataset realization vs seed.** The seed is the input; the realization is the
+  generated, split dataset. Code written before the rename still says
+  dataset instance (`instance_idx`, `dataset_instance_index`).
+- **Generation index vs split index.** The generation index is an
+  instance's position before splitting; the split index is its position in
+  one split. Neither is the episode id. Never write a bare "instance index".
+  For synthetic datasets a generation index means nothing without its
+  dataset realization.
 
 If the concept you need isn't in the glossary yet, that's a signal: either
 you're inventing language the project doesn't use (reconsider) or there's a

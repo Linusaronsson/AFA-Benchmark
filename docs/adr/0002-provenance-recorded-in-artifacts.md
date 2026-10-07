@@ -134,6 +134,9 @@ plotting are unchanged:
 - `eval_seed` (now never null), `eval_hard_budget`,
   `eval_soft_budget_param` (not written today).
 
+ADR 0004 adds two per-episode columns, `generation_index` and
+`split_index`, which unlike these vary between rows.
+
 `SavedEvaluationSchema` gains these columns. A column whose source bundle
 predates this ADR is null, not guessed. Pretraining seed, Unmasker,
 classifier identity and the rest stay in the record only; they can be
