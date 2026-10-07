@@ -1,6 +1,6 @@
 # Declared CPU/GPU execution for the full method set. Partitions, accounts and
 # GPU request syntax belong to the cluster profile's site.yaml, not here.
-# See docs/tutorials/reproduce_full_results.md.
+# See docs/how-to/reproduce_full_results.md.
 execution:
   defaults:
     classifier: cuda

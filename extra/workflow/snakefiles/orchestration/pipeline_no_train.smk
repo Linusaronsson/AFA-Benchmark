@@ -7,6 +7,9 @@ plotting rules for existing trained outputs.
 
 Runtime filters (--config, select subsets to run):
     methods (list[str], required): Subset of methods from method_options.yaml
+    reference_methods (list[str], default=[]): Methods whose plotting-ready
+        tables were restored from a benchmark release; aggregated with
+        `methods` but never produced. See pipeline.smk.
     datasets (list[str], required): Subset of datasets to run
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of
         random seeds
@@ -29,7 +32,7 @@ Execution configuration and required files:
     Site profiles own CPU/GPU partition, account and GPU request syntax;
     CPU counts, memory and runtime remain separate resource settings.
     Invalid selected-method execution fails before submission.
-    See docs/tutorials/mixed_execution.md for the execution YAML format,
+    See docs/how-to/mixed_execution.md for the execution YAML format,
     site.yaml requirements, migration policy and captured-submission tests.
 
 Usage (add existing scientific --configfile inputs):
@@ -41,12 +44,12 @@ Usage (add existing scientific --configfile inputs):
 CPU-only processing:
     Dataset generation (full pipeline only), transformations, aggregation and
     visualization always resolve to CPU, including with legacy device=cuda.
-    These fixed activities have no execution defaults/overrides. The profile's
+    These fixed stages have no execution defaults/overrides. The profile's
     execution_site.cpu allocation maps their partition/account and clears GPU
     requests; CPU counts, memory and runtime remain independently configurable.
     Conflicting rule allocation overrides fail before any submission. Heavy
     processing is submitted normally, not designated as login-node/local work.
-    See docs/tutorials/cpu_processing_execution.md for site requirements and
+    See docs/how-to/cpu_processing_execution.md for site requirements and
     final-target command-boundary verification.
 
 Output namespacing:
@@ -127,6 +130,9 @@ METHOD_OPTIONS = _config["METHOD_OPTIONS"]
 METHODS = _config["METHODS"]
 METHODS_WITH_PRETRAINING_STAGE = _config["METHODS_WITH_PRETRAINING_STAGE"]
 METHODS_WITHOUT_PRETRAINING_STAGE = _config["METHODS_WITHOUT_PRETRAINING_STAGE"]
+REFERENCE_METHODS = _config["REFERENCE_METHODS"]
+COMPARED_METHODS_WITH_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITH_PRETRAINING_STAGE"]
+COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE"]
 METHOD_TRAIN_SCRIPT_NAMES = _config["METHOD_TRAIN_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_NAMES = _config["METHOD_CLASSIFIER_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_PARAMS = _config["METHOD_CLASSIFIER_SCRIPT_PARAMS"]

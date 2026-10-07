@@ -4,13 +4,23 @@ evaluation and plots.
 
 Runtime filters (--config, select subsets to run):
     methods (list[str], required): Subset of methods from method_options.yaml
+    reference_methods (list[str], default=[]): Methods from
+        method_options.yaml whose plotting-ready tables were restored from a
+        benchmark release (scripts/release/snapshot.py download). They join
+        method sets and merge_eval_perf, but no rule produces anything for
+        them, so aggregating them never schedules their training or
+        evaluation; a missing reference table fails the plan with
+        MissingInputException. Their tables are expected at this config's
+        eval split, initializer, dataset instances and budgets. A method
+        cannot be in both lists, and method sets without any method from
+        `methods` are skipped. Time aggregation covers `methods` only.
     datasets (list[str], required): Subset of datasets to run. Every dataset
         key needs a file extra/conf/dataset_key/<key>.yaml.
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
     device (str, default='cpu'): Deprecated invocation-wide device for
         computational jobs, with a warning. Cannot be combined with execution.
-    execution (mapping, default={}): CPU/cuda defaults for the execution
-        activities classifier, pretraining, training and evaluation. methods.<name> overrides training,
+    execution (mapping, default={}): CPU/cuda defaults for the pipeline
+        stages classifier, pretraining, training and evaluation. methods.<name> overrides training,
         evaluation and method-specific classifier choices; pretrained_models
         overrides pretraining by named model. External classifiers use only
         the classifier default. Overrides take precedence over defaults.
@@ -43,7 +53,7 @@ Execution configuration and required files:
     Invalid selected-method and prerequisite execution fails before submission,
     including conflicting device arguments in classifier/pretraining params,
     unknown pretrained_models names and default-resources slurm_extra.
-    See docs/tutorials/mixed_execution.md and prerequisite_execution.md for
+    See docs/how-to/mixed_execution.md and prerequisite_execution.md for
     execution YAML, site.yaml, migration and captured-submission tests.
 
 Usage:
@@ -59,17 +69,25 @@ Usage:
         snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
             --config "datasets=[cube]" "dataset_instance_indices=[0]" \
             smoke_test=true use_wandb=false
-    See docs/tutorials/reproduce_full_results.md and slurm_integration.md.
+    See docs/how-to/reproduce_full_results.md and slurm_integration.md.
+    Add a method to published baselines: download the baselines'
+    transformed tables and the shared prerequisites into extra/output, then
+    run only the new method's missing work and the comparison plots:
+        snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
+            --config "methods=[my_method]" \
+                "reference_methods=[random_dummy, gdfs]" \
+                "datasets=[cube]" "dataset_instance_indices=[0]"
+    See docs/how-to/compare_your_method_with_published_results.md.
 
 CPU-only processing:
     Dataset generation (full pipeline only), transformations, aggregation and
     visualization always resolve to CPU, including with legacy device=cuda.
-    These fixed activities have no execution defaults/overrides. The profile's
+    These fixed stages have no execution defaults/overrides. The profile's
     execution_site.cpu allocation maps their partition/account and clears GPU
     requests; CPU counts, memory and runtime remain independently configurable.
     Conflicting rule allocation overrides fail before any submission. Heavy
     processing is submitted normally, not designated as login-node/local work.
-    See docs/tutorials/cpu_processing_execution.md for site requirements and
+    See docs/how-to/cpu_processing_execution.md for site requirements and
     final-target command-boundary verification.
 
 Output namespacing:
@@ -150,6 +168,9 @@ METHOD_OPTIONS = _config["METHOD_OPTIONS"]
 METHODS = _config["METHODS"]
 METHODS_WITH_PRETRAINING_STAGE = _config["METHODS_WITH_PRETRAINING_STAGE"]
 METHODS_WITHOUT_PRETRAINING_STAGE = _config["METHODS_WITHOUT_PRETRAINING_STAGE"]
+REFERENCE_METHODS = _config["REFERENCE_METHODS"]
+COMPARED_METHODS_WITH_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITH_PRETRAINING_STAGE"]
+COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE"]
 METHOD_TRAIN_SCRIPT_NAMES = _config["METHOD_TRAIN_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_NAMES = _config["METHOD_CLASSIFIER_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_PARAMS = _config["METHOD_CLASSIFIER_SCRIPT_PARAMS"]

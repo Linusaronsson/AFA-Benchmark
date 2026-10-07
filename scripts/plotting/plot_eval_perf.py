@@ -468,6 +468,9 @@ def get_plot(
         )
     )
 
+    if plotting_config.caption is not None:
+        plot += labs(caption=plotting_config.caption)
+
     if use_line:
         plot += geom_point()
         plot += geom_ribbon(

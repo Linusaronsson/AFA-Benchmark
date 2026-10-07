@@ -7,13 +7,16 @@ for existing evaluation outputs.
 
 Runtime filters (--config, select subsets to run):
     methods (list[str], required): Subset of methods from method_options.yaml
+    reference_methods (list[str], default=[]): Methods whose plotting-ready
+        tables were restored from a benchmark release; aggregated with
+        `methods` but never produced. See pipeline.smk.
     datasets (list[str], required): Subset of datasets to run
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of
         random seeds
     device (str, default='cpu'): Deprecated global option, ignored by CPU-only
         processing; cannot be combined with execution.
-    execution (mapping, default={}): Computational execution activity policy;
-        processing activities are fixed CPU-only and cannot be overridden.
+    execution (mapping, default={}): Per-stage CPU/cuda policy for computational jobs;
+        processing stages are fixed CPU-only and cannot be overridden.
     execution_site_file (str, required for SLURM submission): Profile-owned
         YAML allocation map; submitting without one fails before any job.
         Alternatively provide execution_site in a configuration file. A CLI
@@ -28,12 +31,12 @@ Runtime filters (--config, select subsets to run):
 CPU-only processing:
     Dataset generation (full pipeline only), transformations, aggregation and
     visualization always resolve to CPU, including with legacy device=cuda.
-    These fixed activities have no execution defaults/overrides. The profile's
+    These fixed stages have no execution defaults/overrides. The profile's
     execution_site.cpu allocation maps their partition/account and clears GPU
     requests; CPU counts, memory and runtime remain independently configurable.
     Conflicting rule allocation overrides fail before any submission. Heavy
     processing is submitted normally, not designated as login-node/local work.
-    See docs/tutorials/cpu_processing_execution.md for site requirements and
+    See docs/how-to/cpu_processing_execution.md for site requirements and
     final-target command-boundary verification.
 
 Required files and usage:
@@ -124,6 +127,9 @@ METHOD_OPTIONS = _config["METHOD_OPTIONS"]
 METHODS = _config["METHODS"]
 METHODS_WITH_PRETRAINING_STAGE = _config["METHODS_WITH_PRETRAINING_STAGE"]
 METHODS_WITHOUT_PRETRAINING_STAGE = _config["METHODS_WITHOUT_PRETRAINING_STAGE"]
+REFERENCE_METHODS = _config["REFERENCE_METHODS"]
+COMPARED_METHODS_WITH_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITH_PRETRAINING_STAGE"]
+COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE"]
 METHOD_TRAIN_SCRIPT_NAMES = _config["METHOD_TRAIN_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_NAMES = _config["METHOD_CLASSIFIER_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_PARAMS = _config["METHOD_CLASSIFIER_SCRIPT_PARAMS"]

@@ -3,7 +3,7 @@
 Dataset generation, evaluation-data transformation, aggregation (including
 classifier-type splitting and timing-data combination), and all visualization
 rules always resolve to CPU execution. They share the execution-policy/site
-allocation mechanism with computational jobs, but their execution activities
+allocation mechanism with computational jobs, but their pipeline stages
 `dataset_generation`, `transformation`, `aggregation`, and `visualization` are
 fixed: they cannot be configured in execution defaults or identity overrides.
 Even a deprecated global `device=cuda` cannot change them. Their existing
@@ -20,7 +20,7 @@ from the CPU allocation. A CPU site mapping that requests GPUs, also through its
 `slurm_extra`, is invalid, and so is any `slurm_extra` in default resources.
 Rule/profile `set-resources` overrides that conflict with the resolved
 allocation are rejected during planning, before any submission; configure
-allocation through the site map instead. These activities are CPU-only, not
+allocation through the site map instead. These stages are CPU-only, not
 automatically local rules or login-node work.
 
 Threads, `cpus_per_task`, memory and runtime remain independent resource-sizing

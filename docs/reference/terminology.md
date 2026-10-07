@@ -1,6 +1,6 @@
 # Terminology
 
-> The canonical glossary is [`CONTEXT.md`](../CONTEXT.md) at the repo root.
+> The canonical glossary is [`CONTEXT.md`](../../CONTEXT.md) at the repo root.
 > This page keeps the original worked example of patch-based unmasking.
 
 Descriptions are given in the context of patch-based image unmasking. A 28x28 image reduced to 7x7 patches, each patch having size 4x4.

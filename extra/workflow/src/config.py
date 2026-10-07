@@ -85,15 +85,23 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         message = "Expected methods to be provided."
         raise ValueError(message)
 
+    # Methods whose plotting-ready tables are restored from a benchmark
+    # release: they join method sets and aggregation, but the workflow never
+    # produces anything for them.
+    reference_methods = config.get("reference_methods", [])
+    _check_reference_methods(reference_methods, methods, method_options)
+    compared_methods = [*methods, *reference_methods]
+
     method_sets = config.get("method_sets", {})
-    # Filter out methods that have not been enabled by the "methods" option
-    # and remove empty method_sets
+    # Filter out methods that are neither enabled by the "methods" option nor
+    # reference methods, and remove method_sets without an enabled method:
+    # a set of reference methods only is already plotted in its release.
     filtered_method_sets = {}
     for key in method_sets:
         filtered_methods = [
-            method for method in method_sets[key] if method in methods
+            method for method in method_sets[key] if method in compared_methods
         ]
-        if filtered_methods:
+        if any(method in methods for method in filtered_methods):
             filtered_method_sets[key] = filtered_methods
     method_sets = filtered_method_sets
 
@@ -109,6 +117,20 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         method
         for method, options in method_options.items()
         if "pretrained_model_name" not in options and method in methods
+    ]
+
+    # Reference tables live under the same pretraining folder as they would
+    # if the method were produced here.
+    compared_methods_with_pretraining_stage = [
+        method
+        for method, options in method_options.items()
+        if "pretrained_model_name" in options and method in compared_methods
+    ]
+    compared_methods_without_pretraining_stage = [
+        method
+        for method, options in method_options.items()
+        if "pretrained_model_name" not in options
+        and method in compared_methods
     ]
 
     # Build method option mappings for training scripts
@@ -164,7 +186,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
             "use_max_hard_budget_when_training_soft_budget", False
         )
         for method, options in method_options.items()
-        if method in methods
+        if method in compared_methods
     }
 
     # Extract hard_budget_ignored_datasets from method_options
@@ -172,7 +194,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     hard_budget_ignored_datasets = {
         method: options.get("hard_budget_ignored_datasets", [])
         for method, options in method_options.items()
-        if method in methods
+        if method in compared_methods
     }
 
     # Extract soft_budget_ignored_datasets from method_options
@@ -180,7 +202,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     soft_budget_ignored_datasets = {
         method: options.get("soft_budget_ignored_datasets", [])
         for method, options in method_options.items()
-        if method in methods
+        if method in compared_methods
     }
 
     # ========================================================================
@@ -261,7 +283,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     eval_to_train_hard_budget_mapping = {
         method: options.get("eval_to_train_hard_budget_mapping", {})
         for method, options in method_options.items()
-        if method in methods
+        if method in compared_methods
     }
 
     # ========================================================================
@@ -292,7 +314,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
             )
             for dataset in datasets
         }
-        for method in methods
+        for method in compared_methods
     }
 
     # Compute which datasets are actually used for each method
@@ -323,6 +345,13 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         "METHODS": methods,
         "METHODS_WITH_PRETRAINING_STAGE": methods_with_pretraining_stage,
         "METHODS_WITHOUT_PRETRAINING_STAGE": methods_without_pretraining_stage,
+        "REFERENCE_METHODS": reference_methods,
+        "COMPARED_METHODS_WITH_PRETRAINING_STAGE": (
+            compared_methods_with_pretraining_stage
+        ),
+        "COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE": (
+            compared_methods_without_pretraining_stage
+        ),
         "METHOD_TRAIN_SCRIPT_NAMES": method_train_script_names,
         "METHOD_CLASSIFIER_SCRIPT_NAMES": method_classifier_script_names,
         "METHOD_CLASSIFIER_SCRIPT_PARAMS": method_classifier_script_params,
@@ -344,6 +373,32 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
 # ============================================================================
 # Helper Functions
 # ============================================================================
+
+
+def _check_reference_methods(
+    reference_methods: Any, methods: Sequence[str], method_options: ConfigDict
+) -> None:
+    if not isinstance(reference_methods, list):
+        message = (
+            "Expected reference_methods to be a list, got "
+            f"{reference_methods!r}."
+        )
+        raise TypeError(message)
+    unknown = [
+        method for method in reference_methods if method not in method_options
+    ]
+    if unknown:
+        message = f"Reference methods {unknown} are not in method_options."
+        raise ValueError(message)
+    # Producing a reference method too would compare its restored and its
+    # local tables as one method, duplicating its rows.
+    produced = [method for method in reference_methods if method in methods]
+    if produced:
+        message = (
+            f"Methods {produced} are both in methods and in "
+            "reference_methods; name each method in one of them."
+        )
+        raise ValueError(message)
 
 
 def _required_config(config: ConfigDict, key: str) -> Any:

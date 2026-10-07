@@ -260,31 +260,78 @@ _Avoid_: Clean variant, deterministic variant
 ### Pipeline
 
 **Benchmark release**:
-A curated, versioned collection of benchmark results and reusable outputs
-produced with an identified code revision and pipeline configuration.
+A versioned collection of benchmark results and reusable outputs, produced
+with an identified code revision and pipeline configuration and published
+by a maintainer under a release id. It is published from one output
+snapshot and declares full or partial scope.
 _Avoid_: Latest results, pipeline run (a run need not be published)
 
 **Output snapshot**:
 A verbatim copy of everything the pipeline has written under its output
 root, taken so it can later be put back exactly where the workflow expects
-it. It is not curated and carries no provenance of its own; a benchmark
-release is built from one.
+it. It holds every file, with no selection; a benchmark release is
+published from one. Its only provenance is an optional release manifest
+beside it.
 _Avoid_: Backup, archive, export, package
 
-**Pipeline stage**:
-One of **pretraining**, **training**, and **evaluation**. The first two are
-optional per method; evaluation is mandatory and shared by all methods.
-_Avoid_: Phase, step (reserved for time steps)
+**Release manifest**:
+The JSON file beside an output snapshot's output tree that identifies its
+benchmark release, declares full, partial or smoke scope, and records
+the producing commit, workflow configuration, resolved settings, per-table
+identity and coverage (see `docs/reference/release_manifest.md`).
+Smoke-test outputs always have smoke scope.
+_Avoid_: Metadata, release info, provenance record (that is per artifact)
 
-**Execution activity**:
-A kind of pipeline job whose hardware the workflow resolves. Classifier
-training, pretraining, training and evaluation each take a declared `cpu` or
-`cuda` choice; dataset generation, transformation, aggregation and
-visualization always run on CPU.
-_Avoid_: Stage (for classifier training or processing jobs)
+**Payload category**:
+One kind of reusable output a release manifest lists: raw or transformed
+evaluation tables, or dataset, classifier, pretrained-model or AFA-method
+bundles. AFA-method bundles are optional, never needed to plot against
+published results.
+_Avoid_: Artifact type, output kind
+
+**Shared prerequisite**:
+A bundle that training or evaluating any method on a dataset needs and
+that belongs to no single method: the dataset bundles, the external
+classifier and the pretrained models.
+_Avoid_: Shared input, common artifact
+
+**Smoke release**:
+An output snapshot with smoke scope, published apart from benchmark
+releases to check the publish/download round trip. It is never a benchmark
+release and is downloaded only by asking for a smoke release.
+_Avoid_: Test release (test is an evaluation split), staging release
+
+**Repository adopter**:
+A user who forks the repository, adds their own method, and trains and
+evaluates only that method, comparing it with a benchmark release's
+published methods (see `docs/explanation/user_types.md`).
+_Avoid_: Benchmark adopter, adopter
+
+**Results-only user**:
+A user who downloads a benchmark release's tables or plots without
+installing AFABench (see `docs/explanation/user_types.md`).
+_Avoid_: Results-only researcher, results-only journey
+
+**Reference method**:
+A method name whose plotting-ready evaluation tables are restored from a
+benchmark release and compared with locally produced methods, without the
+workflow ever training, evaluating or transforming it.
+_Avoid_: Baseline method (any compared method can be a baseline),
+downloaded method
+
+**Pipeline stage**:
+One kind of pipeline job: **dataset generation**, **classifier training**,
+**pretraining**, **training**, **evaluation**, **transformation**,
+**aggregation** or **plotting**. Pretraining and training are optional per
+method; evaluation is mandatory and shared by all methods. Classifier
+training, pretraining, training and evaluation take a declared `cpu` or
+`cuda` choice, where the execution config calls classifier training
+`classifier`; the others always run on CPU, and the code calls plotting
+`visualization`.
+_Avoid_: Execution activity, activity, phase, step (reserved for time steps)
 
 **Pretrained model**:
-A named artifact produced in the pretraining stage and reusable across
+A named bundle produced in the pretraining stage and reusable across
 methods, for example a partial VAE shared by EDDI and ODIN.
 _Avoid_: Base model, backbone, checkpoint
 
@@ -300,7 +347,21 @@ _Avoid_: Method group, plot group
 **Bundle**:
 The on-disk folder format in which datasets, classifiers, pretrained models,
 and AFA methods are saved and loaded.
-_Avoid_: Checkpoint, artifact (as the generic term), pickle
+_Avoid_: Checkpoint, artifact (the umbrella term for bundles and evaluation
+tables, not a synonym for bundle), pickle
+
+**Artifact**:
+Anything a pipeline job writes that can carry a provenance record: a bundle
+or an evaluation table. Use it only when both are meant; say bundle or
+evaluation table when only one is.
+_Avoid_: Bundle (only one kind of artifact), result, file
+
+**Provenance record**:
+The typed description of how one bundle or evaluation table was produced:
+code commit, resolved configuration, seed actually used, input bundles and
+their content hashes, environment, and dataset identity. It is embedded in
+the artifact itself (see `docs/adr/0002-provenance-recorded-in-artifacts.md`).
+_Avoid_: Metadata (the free-form manifest field), lineage, run info
 
 **Smoke test**:
 A run mode where every stage executes as fast as possible to verify the

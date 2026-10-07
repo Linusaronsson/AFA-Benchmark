@@ -142,7 +142,7 @@ in all the contract fields, leaving the config otherwise empty since
 `RandomDummyTrainConfig` adds none.
 
 If your method class is new, register it in `REGISTERED_CLASSES` in
-`afabench/core/registry.py` ([`docs/bundle_format.md`](../bundle_format.md))
+`afabench/core/registry.py` ([`docs/reference/bundle_format.md`](../reference/bundle_format.md))
 so `load_bundle` can reconstruct it; `RandomWithoutClassifierAFAMethod` is
 already there as `"RandomWithoutClassifierAFAMethod"`.
 
@@ -202,7 +202,7 @@ key>.yaml` only needs to exist for the dataset keys that need
 non-default values.
 
 Two rules keep this convention from drifting back into the duplication
-`docs/training_contract_inventory.md` describes:
+`docs/explanation/training_contract_inventory.md` describes:
 
 - **Experiment files may not set contract fields.** Snakemake always passes
   `hard_budget`, `seed`, `device` and the rest on the command line, so a
@@ -234,7 +234,7 @@ still has to:
 - Call `afabench.core.bundle_system.bundle.save_bundle` to write a loadable
   bundle to the `save_path` argument, with your method's class registered in
   `REGISTERED_CLASSES` (`afabench/core/registry.py`,
-  [`docs/bundle_format.md`](../bundle_format.md)).
+  [`docs/reference/bundle_format.md`](../reference/bundle_format.md)).
 
 Everything else — seeding, logging, hyperparameter configuration, smoke-test
 handling — is on you, exactly as it would be for any other script.
@@ -289,7 +289,7 @@ file name):
 If your method introduces a new `AFAMethod` or `AFAClassifier` class, add it
 to `REGISTERED_CLASSES` in `afabench/core/registry.py` — this is the same
 registration the bundle system needs (section 2 and
-[`docs/bundle_format.md`](../bundle_format.md)); there's no separate pipeline
+[`docs/reference/bundle_format.md`](../reference/bundle_format.md)); there's no separate pipeline
 registry.
 
 To also show up in plots, add it to `method_name_mapping` in

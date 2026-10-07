@@ -48,7 +48,7 @@ uv run snakemake \
 Without an execution file every job runs on CPU. To reproduce the full
 benchmark results, use SLURM instead: one command submits CPU and GPU jobs
 together. See the
-[reproducing full results](docs/tutorials/reproduce_full_results.md) tutorial
+[reproduce the full results](docs/how-to/reproduce_full_results.md) guide
 for the exact command.
 
 ## Features
@@ -116,17 +116,19 @@ for accurate diagnosis with minimal cost. See the following survey for details: 
   - `src`: Tests related to library code in `afabench`.
   - `scripts`: Tests related to specific scripts in `scripts`.
 
-## Tutorials
+## Documentation
 
-Learn more in our tutorials:
-  - [Reproducing full results](docs/tutorials/reproduce_full_results.md)
-  - [Pipeline explanation](docs/tutorials/pipeline_explanation.md)
-  - [Adding a new dataset](docs/tutorials/add_dataset.md)
-  - [Adding a new method](docs/tutorials/add_method.md)
+The full index is [`docs/README.md`](docs/README.md). To get started:
+  - [Reproduce the full results](docs/how-to/reproduce_full_results.md)
+  - [Pipeline configuration](docs/reference/pipeline_configuration.md)
+  - [Add a dataset](docs/how-to/add_dataset.md)
+  - [Add a method](docs/how-to/add_method.md)
+  - [Compare your method with published results](docs/how-to/compare_your_method_with_published_results.md)
+  - [Download published results](docs/how-to/download_published_results.md)
 
 ## Development
 
-We encourage researchers to fork this repository and implement their own methods. Take a look at the [tutorials](#tutorials) to get started.
+We encourage researchers to fork this repository and implement their own methods. Take a look at the [documentation](#documentation) to get started.
 
 To follow repo conventions, run
 ```shell

@@ -8,6 +8,17 @@ Handles transformations on evaluation results:
 - Pivoting classifier columns to tidy data format
 """
 
+import re
+
+# Reference methods' plotting-ready tables are restored from a benchmark
+# release. Not matching them here leaves those tables as plain input files,
+# so aggregating them never schedules their evaluation or training.
+TRANSFORMED_METHOD_PATTERN = (
+    "(?!(?:" + "|".join(map(re.escape, REFERENCE_METHODS)) + ")/).+"
+    if REFERENCE_METHODS
+    else ".+"
+)
+
 
 rule transform_eval_data:
     """Transform raw evaluation data to final format for plotting.
@@ -42,6 +53,8 @@ rule transform_eval_data:
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_data.parquet",
+    wildcard_constraints:
+        method=TRANSFORMED_METHOD_PATTERN,
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("transformation", "transform_eval_data", resources),
     resources:
