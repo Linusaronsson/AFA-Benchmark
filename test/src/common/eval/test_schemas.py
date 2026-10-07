@@ -10,6 +10,7 @@ from pandera.typing import DataFrame
 
 from afabench.evaluation.schemas import (
     EvaluationSchema,
+    PreProvenanceSavedEvaluationSchema,
     SavedEvaluationSchema,
 )
 
@@ -96,29 +97,88 @@ def test_evaluation_schema_rejects_extra_columns(
 
 @pytest.mark.parametrize("seed", [None, 42])
 @pytest.mark.parametrize("budget", [None, 2, 2.5])
-def test_saved_evaluation_schema_parquet_round_trip(
+def test_pre_provenance_saved_schema_parquet_round_trip(
     evaluation_frame: pd.DataFrame,
     tmp_path: Path,
     seed: int | None,
     budget: float | None,
 ) -> None:
     frame = evaluation_frame.assign(eval_seed=seed, eval_hard_budget=budget)
-    validated = DataFrame[SavedEvaluationSchema](frame)
+    validated = DataFrame[PreProvenanceSavedEvaluationSchema](frame)
     assert_frame_equal(validated, frame)
     path = tmp_path / "eval.parquet"
     validated.to_parquet(path, index=False)
     loaded = pd.read_parquet(path)
-    SavedEvaluationSchema.validate(loaded)
+    PreProvenanceSavedEvaluationSchema.validate(loaded)
 
 
 @pytest.mark.parametrize(
     ("column", "value"),
     [("eval_seed", "42"), ("eval_hard_budget", -1)],
 )
-def test_saved_schema_rejects_invalid_metadata(
+def test_pre_provenance_saved_schema_rejects_invalid_metadata(
     evaluation_frame: pd.DataFrame, column: str, value: object
 ) -> None:
     frame = evaluation_frame.assign(eval_seed=None, eval_hard_budget=None)
     frame[column] = value
+    with pytest.raises(SchemaError):
+        PreProvenanceSavedEvaluationSchema.validate(frame)
+
+
+def identified(frame: pd.DataFrame) -> pd.DataFrame:
+    """Add identity columns as the evaluator writes them."""
+    identity = {
+        "afa_method": ("gdfs", "string"),
+        "dataset": ("cube", "string"),
+        "dataset_realization_index": (2, "UInt64"),
+        "eval_split": ("test", "string"),
+        "initializer": ("cold", "string"),
+        "train_seed": (None, "UInt64"),
+        "train_hard_budget": (3, "Float64"),
+        "train_soft_budget_param": (None, "Float64"),
+        "eval_seed": (8, "UInt64"),
+        "eval_hard_budget": (None, "Float64"),
+        "eval_soft_budget_param": (0.5, "Float64"),
+    }
+    return frame.assign(
+        **{
+            name: pd.Series([value] * len(frame), dtype=object).astype(dtype)
+            for name, (value, dtype) in identity.items()
+        }
+    )
+
+
+def test_saved_schema_round_trips_identity_dtypes_through_parquet(
+    evaluation_frame: pd.DataFrame, tmp_path: Path
+) -> None:
+    frame = identified(evaluation_frame)
+    path = tmp_path / "eval.parquet"
+    SavedEvaluationSchema.validate(frame).to_parquet(path, index=False)
+
+    loaded = pd.read_parquet(path)
+
+    assert_frame_equal(loaded, frame)
+    SavedEvaluationSchema.validate(loaded)
+
+
+@pytest.mark.parametrize(
+    ("column", "values"),
+    [
+        # Plain NumPy dtypes do not hold the nulls an identity can have
+        ("dataset_realization_index", pd.Series([2, 2])),
+        ("eval_seed", pd.Series([None, None], dtype="UInt64")),
+        ("initializer", pd.Series([None, None], dtype="string")),
+        ("eval_split", pd.Series(["validation"] * 2, dtype="string")),
+        ("eval_hard_budget", pd.Series([-1.0, -1.0], dtype="Float64")),
+        # Identity is constant per table
+        ("dataset", pd.Series(["cube", "mnist"], dtype="string")),
+        ("train_seed", pd.Series([1, None], dtype="UInt64")),
+    ],
+)
+def test_saved_schema_rejects_invalid_identity(
+    evaluation_frame: pd.DataFrame, column: str, values: pd.Series
+) -> None:
+    frame = identified(evaluation_frame)
+    frame[column] = values
     with pytest.raises(SchemaError):
         SavedEvaluationSchema.validate(frame)

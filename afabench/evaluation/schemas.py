@@ -71,8 +71,13 @@ class EvaluationSchema(BatchEvaluationSchema):
         return bool((per_episode <= 1).all().all())
 
 
-class SavedEvaluationSchema(EvaluationSchema):
-    """Evaluation rows with the run metadata added by the evaluator."""
+class PreProvenanceSavedEvaluationSchema(EvaluationSchema):
+    """
+    Evaluation rows as the evaluator saved them before ADR 0002.
+
+    Such tables have no identity columns beyond `eval_seed` and
+    `eval_hard_budget`; the transform step still accepts them.
+    """
 
     eval_seed: Series[Any] = pa.Field(nullable=True)
     eval_hard_budget: Series[Any] = pa.Field(nullable=True)
@@ -90,3 +95,48 @@ class SavedEvaluationSchema(EvaluationSchema):
             and isinstance(value, Real)
             and float(value) >= 0
         )
+
+
+# The identity columns of a saved evaluation table, with their pandas dtypes
+IDENTITY_DTYPES = {
+    "afa_method": "string",
+    "dataset": "string",
+    "dataset_realization_index": "UInt64",
+    "eval_split": "string",
+    "initializer": "string",
+    "train_seed": "UInt64",
+    "train_hard_budget": "Float64",
+    "train_soft_budget_param": "Float64",
+    "eval_seed": "UInt64",
+    "eval_hard_budget": "Float64",
+    "eval_soft_budget_param": "Float64",
+}
+
+
+class SavedEvaluationSchema(EvaluationSchema):
+    """
+    Evaluation rows with the identity columns the evaluator adds (ADR 0002).
+
+    Identity columns are constant per table and use pandas nullable dtypes,
+    which Parquet round-trips. A null value is unknown: its source bundle
+    predates provenance, or the setting (a budget) was not given.
+    """
+
+    afa_method: Series[pd.StringDtype] = pa.Field(nullable=True)
+    dataset: Series[pd.StringDtype] = pa.Field(nullable=True)
+    dataset_realization_index: Series[pd.UInt64Dtype] = pa.Field(nullable=True)
+    eval_split: Series[pd.StringDtype] = pa.Field(
+        nullable=True, isin=["train", "val", "test"]
+    )
+    initializer: Series[pd.StringDtype] = pa.Field()
+    train_seed: Series[pd.UInt64Dtype] = pa.Field(nullable=True)
+    train_hard_budget: Series[pd.Float64Dtype] = pa.Field(nullable=True, ge=0)
+    train_soft_budget_param: Series[pd.Float64Dtype] = pa.Field(nullable=True)
+    eval_seed: Series[pd.UInt64Dtype] = pa.Field()
+    eval_hard_budget: Series[pd.Float64Dtype] = pa.Field(nullable=True, ge=0)
+    eval_soft_budget_param: Series[pd.Float64Dtype] = pa.Field(nullable=True)
+
+    @pa.dataframe_check
+    @classmethod
+    def constant_identity(cls, frame: pd.DataFrame) -> bool:
+        return len(frame[list(IDENTITY_DTYPES)].drop_duplicates()) <= 1

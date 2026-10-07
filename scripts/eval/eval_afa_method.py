@@ -4,8 +4,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast, final
 
 import hydra
+import pandas as pd
 import torch
 import wandb
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
 from pandera.typing import DataFrame
 
@@ -15,14 +17,23 @@ from afabench.components.initializers.utils import (
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
-from afabench.core.bundle_system.bundle import load_bundle
+from afabench.core.bundle_system.bundle import (
+    bundle_input,
+    bundle_provenance,
+    load_bundle,
+)
+from afabench.core.provenance import ProvenanceRecord, capture_provenance
 from afabench.core.types import SupportsForcedAcquisition
 from afabench.core.utils import (
     set_seed,
 )
 from afabench.evaluation.config import EvalConfig
 from afabench.evaluation.eval import eval_afa_method
-from afabench.evaluation.schemas import SavedEvaluationSchema
+from afabench.evaluation.provenance import save_evaluation_table
+from afabench.evaluation.schemas import (
+    IDENTITY_DTYPES,
+    SavedEvaluationSchema,
+)
 from afabench.fit.smoke_test import eval_settings
 
 if TYPE_CHECKING:
@@ -41,8 +52,19 @@ log = logging.getLogger(__name__)
 
 @final
 class AFAEvaluator:
-    def __init__(self, cfg: EvalConfig):
+    """
+    Evaluate a method bundle and save an identified evaluation table.
+
+    `initializer_name` is the name of the initializer config the evaluation
+    selected, written as the table's `initializer` column; the config itself
+    holds only the class and its arguments.
+    """
+
+    def __init__(self, cfg: EvalConfig, *, initializer_name: str):
         self._cfg = cfg
+        self._initializer_name = initializer_name
+        self._seed: int | None = None
+        self._provenance: ProvenanceRecord | None = None
         self._wandb_run: Run | None = None
         self._method: AFAMethod | None = None
         self._unmasker: AFAUnmasker | None = None
@@ -54,6 +76,9 @@ class AFAEvaluator:
         self._df_eval: DataFrame[SavedEvaluationSchema] | None = None
 
     def run(self) -> None:
+        # The evaluator owns the seed (ADR 0002): a null seed is drawn once
+        # and the drawn integer is what every component receives
+        self._seed = set_seed(self._cfg.seed)
         self._init_wandb()
         self._smoke_test_override()
         self._load()
@@ -139,13 +164,13 @@ class AFAEvaluator:
             )
 
     def _set_seeds(self) -> None:
-        # Set the seed of everything
+        assert self._seed is not None
         assert self._method is not None
-        self._method.set_seed(self._cfg.seed)
+        self._method.set_seed(self._seed)
         assert self._unmasker is not None
-        self._unmasker.set_seed(self._cfg.seed)
+        self._unmasker.set_seed(self._seed)
         assert self._initializer is not None
-        self._initializer.set_seed(self._cfg.seed)
+        self._initializer.set_seed(self._seed)
 
     def _set_soft_budget(self) -> None:
         assert self._method is not None
@@ -219,21 +244,68 @@ class AFAEvaluator:
             selection_budget=self._cfg.hard_budget,
             batch_size=self._cfg.batch_size,
             selection_costs=self._selection_costs.tolist(),
-            seed=self._cfg.seed,
+            seed=self._seed,
             force_acquisition=self._cfg.hard_budget is not None,
         )
 
-        # Add eval_seed and eval_hard_budget to dataframe
-        df_eval["eval_seed"] = self._cfg.seed
-        df_eval["eval_hard_budget"] = self._cfg.hard_budget
+        method_record = bundle_provenance(Path(self._cfg.method_bundle_path))
+        self._provenance = self._capture_provenance(method_record)
+        identity = _identity_columns(
+            self._provenance,
+            method_record,
+            initializer_name=self._initializer_name,
+            cfg=self._cfg,
+        )
+        for name, value in identity.items():
+            df_eval[name] = pd.Series(
+                value, index=df_eval.index, dtype=object
+            ).astype(IDENTITY_DTYPES[name])
         self._df_eval = DataFrame[SavedEvaluationSchema](df_eval)
+
+    def _capture_provenance(
+        self, method_record: ProvenanceRecord | None
+    ) -> ProvenanceRecord:
+        """Capture the record after smoke-test overrides, with the seed used."""
+        assert self._seed is not None
+        inputs = [
+            bundle_input("method", self._cfg.method_bundle_path),
+            bundle_input("eval_dataset", self._cfg.dataset_bundle_path),
+        ]
+        if self._cfg.classifier_bundle_path is not None:
+            inputs.append(
+                bundle_input("classifier", self._cfg.classifier_bundle_path)
+            )
+        dataset_record = bundle_provenance(Path(self._cfg.dataset_bundle_path))
+        return capture_provenance(
+            stage="evaluation",
+            resolved_config=asdict(self._cfg),
+            seed=self._seed,
+            smoke_test=self._cfg.smoke_test,
+            device=self._cfg.device,
+            inputs=inputs,
+            method_name=(
+                None if method_record is None else method_record.method_name
+            ),
+            dataset_key=(
+                None if dataset_record is None else dataset_record.dataset_key
+            ),
+            dataset_realization_index=(
+                None
+                if dataset_record is None
+                else dataset_record.dataset_realization_index
+            ),
+            split=None if dataset_record is None else dataset_record.split,
+        )
 
     def _save(self) -> None:
         assert self._df_eval is not None
         save_path = Path(self._cfg.save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        SavedEvaluationSchema.validate(self._df_eval).to_parquet(
-            save_path, index=False
+        assert self._provenance is not None
+        save_evaluation_table(
+            SavedEvaluationSchema.validate(self._df_eval),
+            save_path,
+            provenance=self._provenance,
         )
         log.info(f"Saved evaluation data to Parquet at: {save_path}")
 
@@ -251,11 +323,59 @@ class AFAEvaluator:
 def main(cfg: EvalConfig) -> None:
     cfg = cast("EvalConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
-    set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
 
-    evaluator = AFAEvaluator(cfg)
+    evaluator = AFAEvaluator(
+        cfg,
+        initializer_name=HydraConfig.get().runtime.choices["initializer"],
+    )
     evaluator.run()
+
+
+def _identity_columns(
+    record: ProvenanceRecord,
+    method_record: ProvenanceRecord | None,
+    *,
+    initializer_name: str,
+    cfg: EvalConfig,
+) -> dict[str, object]:
+    """
+    Return the constant-per-table identity columns of ADR 0002.
+
+    Dataset identity and the method name come from the evaluation's own
+    record; training identity from the method bundle's record, null for a
+    method bundle written without one.
+    """
+    return {
+        "afa_method": record.method_name,
+        "dataset": record.dataset_key,
+        "dataset_realization_index": record.dataset_realization_index,
+        "eval_split": record.split,
+        "initializer": initializer_name,
+        "train_seed": None if method_record is None else method_record.seed,
+        "train_hard_budget": _training_setting(method_record, "hard_budget"),
+        "train_soft_budget_param": _training_setting(
+            method_record, "soft_budget_param"
+        ),
+        "eval_seed": record.seed,
+        "eval_hard_budget": cfg.hard_budget,
+        "eval_soft_budget_param": cfg.soft_budget_param,
+    }
+
+
+def _training_setting(
+    method: ProvenanceRecord | None, name: str
+) -> object | None:
+    """Read a training contract setting from the method bundle's record."""
+    if method is None:
+        return None
+    if method.stage != "training":
+        msg = (
+            f"Method bundle has a {method.stage!r} provenance record; "
+            "expected a 'training' record."
+        )
+        raise ValueError(msg)
+    return method.resolved_config[name]
 
 
 if __name__ == "__main__":

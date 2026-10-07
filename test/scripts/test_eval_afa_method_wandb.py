@@ -1,6 +1,3 @@
-from pathlib import Path
-
-import pandas as pd
 import pytest
 
 from afabench.components.initializers.config import InitializerConfig
@@ -38,7 +35,9 @@ def test_init_wandb_accepts_dataclass_config(
     init_spy = WandbInitSpy()
     monkeypatch.setattr("scripts.eval.eval_afa_method.wandb.init", init_spy)
 
-    evaluator = AFAEvaluator(eval_config(use_wandb=True))
+    evaluator = AFAEvaluator(
+        eval_config(use_wandb=True), initializer_name="cold"
+    )
 
     evaluator._init_wandb()  # noqa: SLF001
 
@@ -62,42 +61,12 @@ def test_init_wandb_accepts_dataclass_config(
 
 def test_smoke_test_override_uses_two_batches() -> None:
     cfg = eval_config(use_wandb=False, smoke_test=True)
-    evaluator = AFAEvaluator(cfg)
+    evaluator = AFAEvaluator(cfg, initializer_name="cold")
 
     evaluator._smoke_test_override()  # noqa: SLF001
 
     assert cfg.eval_only_n_samples == 4
     assert cfg.batch_size == 2
-
-
-def test_save_writes_parquet(tmp_path: Path) -> None:
-    save_path = tmp_path / "eval.parquet"
-    cfg = eval_config(use_wandb=False)
-    cfg.save_path = str(save_path)
-    evaluator = AFAEvaluator(cfg)
-    evaluator._df_eval = pd.DataFrame(  # noqa: SLF001
-        {
-            "episode_id": [0, 1],
-            "generation_index": [7, 3],
-            "split_index": [0, 1],
-            "step": [0, 0],
-            "action_performed": [0, 0],
-            "builtin_predicted_class": [None, None],
-            "external_predicted_class": [1, 0],
-            "true_class": [1, 0],
-            "accumulated_cost": [1.0, 0.0],
-            "forced_stop": [False, False],
-            "eval_seed": [1, 1],
-            "eval_hard_budget": [None, None],
-        }
-    )
-
-    evaluator._save()  # noqa: SLF001
-
-    saved = pd.read_parquet(save_path)
-    assert "prev_selections_performed" not in saved
-    assert "idx" not in saved
-    pd.testing.assert_frame_equal(saved, evaluator._df_eval)  # noqa: SLF001
 
 
 def eval_config(*, use_wandb: bool, smoke_test: bool = False) -> EvalConfig:
