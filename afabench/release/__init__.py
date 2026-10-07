@@ -1,1 +1,1 @@
-"""Release tooling: output snapshots and (later) publishing/downloading."""
+"""Release tooling: output snapshots, release manifests, publishing."""

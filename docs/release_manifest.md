@@ -4,8 +4,9 @@ A **release manifest** is the JSON file `release_manifest.json` written beside
 an output snapshot's `output/` tree. It identifies a benchmark release and
 records what produced the tree, so the snapshot stays reviewable and its
 tables stay interpretable without knowing the path layout. The schema is
-`afabench.release.manifest.ReleaseManifest`, version 1; publishing (#38) and
-selective download (#40) read it. Design background:
+`afabench.release.manifest.ReleaseManifest`, version 1; publishing
+([`release_publishing.md`](release_publishing.md)) and selective download
+(#40) read it. Design background:
 [`artifact_publishing.md`](artifact_publishing.md) and
 [ADR 0002](adr/0002-provenance-recorded-in-artifacts.md).
 
@@ -58,7 +59,7 @@ keys are strings. `null` means unknown or not applicable, never a default.
 | --- | --- |
 | `manifest_version` | Schema version, 1. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
-| `scope` | `full`, `partial` or `test_only`, as declared. Only `full` and `partial` are publishable; `test_only` is never promoted. |
+| `scope` | `full`, `partial` or `test_only`, as declared. Only `full` and `partial` are published as official releases; `test_only` is never promoted and can only be published as a test release ([`release_publishing.md`](release_publishing.md)). |
 | `execution_mode` | `smoke` or `production`, from the merged config's `smoke_test`. `smoke` implies `test_only`. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
 | `code.commit` | `git rev-parse HEAD` of the checkout; null outside a git work tree. |

@@ -44,7 +44,9 @@ prints the workflow configuration it recorded. Pass the same profile,
 config files and overrides the pipeline ran with. Smoke outputs can only be
 saved with `--scope test_only`. `restore` puts the manifest beside the
 destination root (`extra/release_manifest.json` by default). Fields and
-rules: [`../release_manifest.md`](../release_manifest.md).
+rules: [`../release_manifest.md`](../release_manifest.md). Publishing such a
+snapshot as a benchmark release and downloading it again:
+[`../release_publishing.md`](../release_publishing.md).
 
 ## The overwrite rule
 

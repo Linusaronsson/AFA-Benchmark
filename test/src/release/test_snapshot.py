@@ -62,6 +62,7 @@ def test_round_trip_preserves_directory_mtimes_including_empty_directories(
     os.utime(
         source_root / "datasets/cube/0/train.bundle", (backdated, backdated)
     )
+    os.utime(source_root / "datasets/cube/0", (backdated, backdated))
     snapshot_dir = tmp_path / "snapshot"
     destination_root = tmp_path / "destination"
 
@@ -76,6 +77,10 @@ def test_round_trip_preserves_directory_mtimes_including_empty_directories(
         destination_root / "datasets/cube/0/train.bundle"
     ).stat().st_mtime == (
         source_root / "datasets/cube/0/train.bundle"
+    ).stat().st_mtime
+    # Creating the empty bundle must not bump its parent's restored mtime.
+    assert (destination_root / "datasets/cube/0").stat().st_mtime == (
+        source_root / "datasets/cube/0"
     ).stat().st_mtime
 
 
