@@ -264,6 +264,13 @@ A curated, versioned collection of benchmark results and reusable outputs
 produced with an identified code revision and pipeline configuration.
 _Avoid_: Latest results, pipeline run (a run need not be published)
 
+**Output snapshot**:
+A verbatim copy of everything the pipeline has written under its output
+root, taken so it can later be put back exactly where the workflow expects
+it. It is not curated and carries no provenance of its own; a benchmark
+release is built from one.
+_Avoid_: Backup, archive, export, package
+
 **Pipeline stage**:
 One of **pretraining**, **training**, and **evaluation**. The first two are
 optional per method; evaluation is mandatory and shared by all methods.

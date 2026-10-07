@@ -19,6 +19,9 @@ allowed lint relaxations are enforced by `just qa` (`ruff.toml`,
   soft-budget parameter, dataset instance).
 - **ADRs**: a change that contradicts a decision in `docs/adr/` must say so
   and justify reopening it.
+- **Command-line parsing**: new scripts that are not Hydra-configured use
+  `typer`, not `argparse`. Existing `argparse` scripts are left alone until
+  they are otherwise rewritten.
 
 ## Tests
 
