@@ -1,4 +1,5 @@
 import importlib
+import multiprocessing
 from collections.abc import Callable, Iterable
 from typing import final, override
 
@@ -196,6 +197,7 @@ def test_classifier_datamodule_multiple_workers_across_epochs(
 def test_classifier_datamodule_workers_fork_after_torchrl_import() -> None:
     """Workers fork even though importing torchrl makes spawn the default."""
     _ = importlib.import_module("torchrl")
+    assert multiprocessing.get_start_method() == "spawn"
 
     datamodule = DataModuleFromDatasets(
         train_dataset=TensorBatchDataset(torch.zeros(4, 2), torch.zeros(4)),

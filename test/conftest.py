@@ -107,9 +107,10 @@ def datasets(request: pytest.FixtureRequest) -> list[str] | None:
     return None
 
 
-@pytest.fixture(scope="session", autouse=True)
-def unlock_snakemake() -> None:
-    """Unlock Snakemake directory at the start of the test session."""
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Unlock the Snakemake directory once, on the xdist controller."""
+    if hasattr(session.config, "workerinput"):
+        return
     subprocess.run(
         ["rm", "-rf", ".snakemake/locks"],  # noqa: S607
         check=False,

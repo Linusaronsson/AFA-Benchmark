@@ -1,12 +1,15 @@
 # Format, lint, and type-check
-check: fix
-    uv run basedpyright --warnings
+check: fix types
 
-# Format and lint, rewriting files
+# Format, lint and sync the type checker's excludes, rewriting files
 fix:
     uv run ruff format .
     uv run ruff check . --fix
     uv run python scripts/dev/sync_excludes.py
+
+# Type-check
+types:
+    uv run basedpyright --warnings
 
 # Fast tests
 test:
@@ -21,13 +24,16 @@ qa: fix
     #!/usr/bin/env bash
     set -uo pipefail
     logs=$(mktemp -d)
-    trap 'rm -rf "$logs"' EXIT
-    uv run basedpyright --warnings > "$logs/types" 2>&1 &
+    trap 'kill $(jobs -p) 2>/dev/null; rm -rf "$logs"' EXIT
+    trap 'exit 130' INT TERM
+    just types > "$logs/types" 2>&1 &
     types=$!
-    uv run pytest . > "$logs/tests" 2>&1 &
+    just test > "$logs/tests" 2>&1 &
     tests=$!
     wait "$types"; types_status=$?
     wait "$tests"; tests_status=$?
-    cat "$logs/types" "$logs/tests"
-    echo "basedpyright exit $types_status, pytest exit $tests_status"
+    echo "=== just types (exit $types_status) ==="
+    cat "$logs/types"
+    echo "=== just test (exit $tests_status) ==="
+    cat "$logs/tests"
     exit $(( types_status || tests_status ))
