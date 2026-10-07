@@ -124,6 +124,8 @@ def allocation(args: list[str]) -> list[str]:
     ]
 
 
+# Each job starts a nested Snakemake in the fake sbatch, so this takes ~10 s.
+@pytest.mark.optional
 @pytest.mark.parametrize("profile", sorted(SITE_ALLOCATIONS))
 def test_first_submissions_of_one_rule_use_cpu_and_gpu_allocations(
     tmp_path: Path, profile: str
@@ -150,6 +152,8 @@ def test_first_submissions_of_one_rule_use_cpu_and_gpu_allocations(
     assert sorted(devices) == ["cpu", "cuda"]
 
 
+# Each job starts a nested Snakemake in the fake sbatch, so this takes ~10 s.
+@pytest.mark.optional
 def test_site_allocations_add_their_own_scheduler_flags(
     tmp_path: Path,
 ) -> None:

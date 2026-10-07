@@ -1,3 +1,4 @@
+import importlib
 from collections.abc import Callable, Iterable
 from typing import final, override
 
@@ -190,6 +191,23 @@ def test_classifier_datamodule_multiple_workers_across_epochs(
         assert torch.equal(
             torch.sort(torch.cat(seen_val_labels)).values, val_labels
         )
+
+
+def test_classifier_datamodule_workers_fork_after_torchrl_import() -> None:
+    """Workers fork even though importing torchrl makes spawn the default."""
+    _ = importlib.import_module("torchrl")
+
+    datamodule = DataModuleFromDatasets(
+        train_dataset=TensorBatchDataset(torch.zeros(4, 2), torch.zeros(4)),
+        val_dataset=TensorBatchDataset(torch.zeros(4, 2), torch.zeros(4)),
+        num_workers=2,
+        collate_fn=passthrough_batch,
+    )
+
+    for loader in [datamodule.train_dataloader(), datamodule.val_dataloader()]:
+        context = loader.multiprocessing_context
+        assert context is not None
+        assert context.get_start_method() == "fork"
 
 
 def test_classifier_datamodule_rejects_persistent_workers_without_workers() -> (

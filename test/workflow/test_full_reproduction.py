@@ -491,6 +491,8 @@ def test_cli_config_without_site_file_fails_before_submission(
     assert workflow.submissions() == []
 
 
+# Each job starts a nested Snakemake in the fake sbatch, so this takes ~10 s.
+@pytest.mark.optional
 def test_cli_config_with_repeated_site_file_keeps_site_allocations(
     tmp_path: Path,
 ) -> None:

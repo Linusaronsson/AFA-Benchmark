@@ -1,4 +1,6 @@
+import multiprocessing
 from collections.abc import Callable
+from multiprocessing.context import BaseContext
 from typing import final, override
 
 import lightning as pl
@@ -91,6 +93,14 @@ class DataModuleFromDatasets(pl.LightningDataModule):
         self.persistent_workers = persistent_workers
         self.collate_fn = collate_fn
 
+    @property
+    def _worker_context(self) -> BaseContext | None:
+        # Importing torchrl sets spawn as the global start method, which makes
+        # every worker re-import torch; fork starts workers in milliseconds.
+        if self.num_workers == 0:
+            return None
+        return multiprocessing.get_context("fork")
+
     @override
     def prepare_data(self) -> None:
         pass
@@ -108,6 +118,7 @@ class DataModuleFromDatasets(pl.LightningDataModule):
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
             collate_fn=self.collate_fn,
+            multiprocessing_context=self._worker_context,
         )
 
     @override
@@ -118,6 +129,7 @@ class DataModuleFromDatasets(pl.LightningDataModule):
             num_workers=self.num_workers,
             persistent_workers=self.persistent_workers,
             collate_fn=self.collate_fn,
+            multiprocessing_context=self._worker_context,
         )
 
     # def __getitem__(self, index: int):
