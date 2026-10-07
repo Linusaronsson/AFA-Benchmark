@@ -279,6 +279,13 @@ identity and coverage (see `docs/release_manifest.md`). Smoke-test outputs
 are always test-only.
 _Avoid_: Metadata, release info, provenance record (that is per artifact)
 
+**Test release**:
+A test-only output snapshot published apart from benchmark releases, to
+check the publish/download round trip. It is never a benchmark release and
+is downloaded only by asking for a test release (see
+`docs/release_publishing.md`).
+_Avoid_: Smoke release, staging release
+
 **Pipeline stage**:
 One of **pretraining**, **training**, and **evaluation**. The first two are
 optional per method; evaluation is mandatory and shared by all methods.

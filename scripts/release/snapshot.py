@@ -4,19 +4,31 @@ Save and restore an output snapshot (see `afabench.release.snapshot`).
 `save --release-id` also writes a release manifest from the checkout and the
 workflow configuration given by `--profile`, `--configfile` and `--config`
 (see `docs/release_manifest.md`).
+
+`publish` uploads such a snapshot to the release host and `download`
+retrieves one release from it (see `afabench.release.publishing` and
+`docs/release_publishing.md`). Nothing else here touches the host.
 """
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Final
 
 import typer
 
+from afabench.release.huggingface import HuggingFaceTransport
 from afabench.release.manifest import (
     RELEASE_MANIFEST_FILENAME,
     ReleaseManifest,
     ReleaseScope,
     build_release_manifest,
     read_release_manifest,
+)
+from afabench.release.publishing import (
+    ReleaseTransport,
+    download_release,
+    publish_release,
+    release_folder,
 )
 from afabench.release.snapshot import (
     restore_snapshot,
@@ -28,6 +40,22 @@ from afabench.release.workflow_config import resolve_workflow_config
 app = typer.Typer()
 DEFAULT_OUTPUT_ROOT: Final[Path] = Path("extra/output")
 DEFAULT_CHECKOUT: Final[Path] = Path()
+
+type TransportFactory = Callable[[str], ReleaseTransport]
+
+RepoIdOption = Annotated[
+    str,
+    typer.Option(
+        envvar="AFABENCH_RELEASE_REPO",
+        help="Hugging Face dataset repository holding the releases.",
+    ),
+]
+TestReleaseOption = Annotated[
+    bool,
+    typer.Option(
+        help="A test_only package, kept apart from official releases."
+    ),
+]
 
 
 @app.command()
@@ -116,6 +144,49 @@ def restore(
     restore_snapshot(snapshot_dir, destination_root, overwrite=overwrite)
     if manifest is not None:
         _echo_manifest(manifest, restored_manifest_location(destination_root))
+
+
+@app.command()
+def publish(
+    ctx: typer.Context,
+    snapshot_dir: Path,
+    *,
+    repo_id: RepoIdOption,
+    test_release: TestReleaseOption = False,
+) -> None:
+    transport = _transport(ctx, repo_id)
+    manifest = publish_release(
+        snapshot_dir, transport, test_release=test_release
+    )
+    folder = release_folder(manifest.release_id, test_release=test_release)
+    _echo_manifest(manifest, snapshot_dir / RELEASE_MANIFEST_FILENAME)
+    typer.echo(f"Published to {transport.folder_url(folder)}")
+
+
+@app.command()
+def download(
+    ctx: typer.Context,
+    release_id: str,
+    destination_root: Path = DEFAULT_OUTPUT_ROOT,
+    *,
+    repo_id: RepoIdOption,
+    overwrite: bool = False,
+    test_release: TestReleaseOption = False,
+) -> None:
+    manifest = download_release(
+        release_id,
+        _transport(ctx, repo_id),
+        destination_root,
+        overwrite=overwrite,
+        test_release=test_release,
+    )
+    _echo_manifest(manifest, restored_manifest_location(destination_root))
+
+
+def _transport(ctx: typer.Context, repo_id: str) -> ReleaseTransport:
+    # Tests pass a fake transport factory as the context object.
+    factory: TransportFactory = ctx.obj or HuggingFaceTransport
+    return factory(repo_id)
 
 
 def _echo_manifest(manifest: ReleaseManifest, path: Path) -> None:

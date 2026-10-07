@@ -94,7 +94,16 @@ def _verbatim_copy(
 
     # Snakemake falls back to a directory's own mtime for directory outputs
     # with no `.snakemake_timestamp`, so that mtime must round-trip too.
-    for source_dir in [source, *(p for p in source.rglob("*") if p.is_dir())]:
-        target_dir = destination / source_dir.relative_to(source)
+    # Every directory exists before any mtime is set, since creating an
+    # empty one would update its parent's mtime.
+    directories = [
+        (source_dir, destination / source_dir.relative_to(source))
+        for source_dir in [
+            source,
+            *(p for p in source.rglob("*") if p.is_dir()),
+        ]
+    ]
+    for _, target_dir in directories:
         target_dir.mkdir(parents=True, exist_ok=True)
+    for source_dir, target_dir in directories:
         shutil.copystat(source_dir, target_dir)
