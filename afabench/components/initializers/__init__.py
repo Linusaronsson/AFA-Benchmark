@@ -1,15 +1,7 @@
-from .fixed_random_initializer import FixedRandomInitializer
-from .least_informative_initializer import LeastInformativeInitializer
-from .manual_initializer import ManualInitializer
-from .mutual_information_initializer import MutualInformationInitializer
-from .random_initializer import RandomInitializer
-from .zero_initializer import ZeroInitializer
+"""
+Initializers. Import each from its own module.
 
-__all__ = [
-    "FixedRandomInitializer",
-    "LeastInformativeInitializer",
-    "ManualInitializer",
-    "MutualInformationInitializer",
-    "RandomInitializer",
-    "ZeroInitializer",
-]
+The package re-exports nothing, so importing
+`afabench.components.initializers.config`, as the training contract and through it
+Snakemake do, does not load torch or scikit-learn.
+"""

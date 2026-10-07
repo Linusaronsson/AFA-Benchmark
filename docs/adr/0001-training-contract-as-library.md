@@ -43,9 +43,14 @@ dataset key is the method's business.
   Unmasker, classifier and pretrained model; a `training_run(...)` context
   manager for seeding, metric logger (wandb or null) and cleanup; and
   `save_result(...)` for one bundle-metadata shape.
-- **Two copies of the contract's field names:** the Python dataclasses and
-  the Snakemake argument renderer, which cannot import `afabench`. A unit test
-  compares them, and the conformance test checks the result end to end.
+- **One copy of the contract's field names:** the Python dataclasses. The
+  Snakemake argument renderer reads them with `dataclasses.fields`, and a
+  field that defaults to null may be left off the command line. This first
+  kept a second copy in the renderer on the mistaken premise that Snakemake
+  could not import `afabench`; it can, since it runs in the project's
+  environment. Importing the contract must not load torch, because Snakemake
+  does it on every parse; a unit test enforces this, and the conformance test
+  checks the rendered arguments end to end.
 - **Per-dataset hyperparameters stay with each method.** The repo's own
   methods keep Hydra experiment-per-dataset files, deduplicated through shared
   family files. Experiment files may not set contract fields, and a test

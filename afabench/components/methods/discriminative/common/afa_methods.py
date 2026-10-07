@@ -28,7 +28,7 @@ from afabench.components.methods.discriminative.common.utils import (
     restore_parameters,
     selection_soft_to_feature_soft,
 )
-from afabench.components.unmaskers import CubeNMUnmasker
+from afabench.components.unmaskers.cube_nm_unmasker import CubeNMUnmasker
 from afabench.core.types import (
     AFAAction,
     AFAInitializer,

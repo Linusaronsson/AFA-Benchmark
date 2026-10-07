@@ -1,20 +1,19 @@
 """
-The Snakemake renderer and the contract dataclasses agree on field names.
+The Snakemake renderer turns the training contract into command-line arguments.
 
-Snakemake cannot import `afabench`, so `extra/workflow/src/training_contract.py`
-keeps its own copy of the training contract's field names. These tests keep
-that copy equal to `afabench.training.contract`.
+`extra/workflow/src/training_contract.py` reads the field names from the
+contract dataclasses in `afabench.training.contract`, which the Snakefile
+imports at parse time.
 """
 
 import importlib.util
-from dataclasses import fields
+import subprocess
+import sys
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 from omegaconf import OmegaConf
-
-from afabench.training.contract import PretrainingContract, TrainingContract
 
 REPO_ROOT = Path(__file__).parents[2]
 
@@ -65,15 +64,22 @@ def renderer() -> ModuleType:
     return _load_training_contract_module()
 
 
-def test_renderer_fields_match_the_contract_dataclasses(
-    renderer: ModuleType,
-) -> None:
-    assert set(renderer.PRETRAINING_CONTRACT_FIELDS) == {
-        f.name for f in fields(PretrainingContract)
-    }
-    assert set(renderer.TRAINING_CONTRACT_FIELDS) == {
-        f.name for f in fields(TrainingContract)
-    }
+def test_contract_import_does_not_load_torch_or_sklearn() -> None:
+    # Snakemake imports the contract on every parse, including dry runs.
+    probe = (
+        "import sys\n"
+        "import afabench.training.contract\n"
+        "print(sorted({'torch', 'sklearn'} & set(sys.modules)))"
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-c", probe],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert completed.stdout.strip() == "[]"
 
 
 def test_training_contract_renders_one_argument_per_field(

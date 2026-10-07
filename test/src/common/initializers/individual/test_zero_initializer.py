@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from afabench.components.initializers import ZeroInitializer
+from afabench.components.initializers.zero_initializer import ZeroInitializer
 from afabench.core.types import Features
 
 

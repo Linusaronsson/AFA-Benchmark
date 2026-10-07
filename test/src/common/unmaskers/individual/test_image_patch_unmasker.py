@@ -3,7 +3,9 @@ from typing import Any
 import pytest
 import torch
 
-from afabench.components.unmaskers import ImagePatchUnmasker
+from afabench.components.unmaskers.image_patch_unmasker import (
+    ImagePatchUnmasker,
+)
 from afabench.core.types import (
     AFAAction,
     FeatureMask,

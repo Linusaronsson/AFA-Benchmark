@@ -1,7 +1,9 @@
 import pytest
 import torch
 
-from afabench.components.initializers import ManualInitializer
+from afabench.components.initializers.manual_initializer import (
+    ManualInitializer,
+)
 
 
 def test_manual_initializer_basic_functionality() -> None:

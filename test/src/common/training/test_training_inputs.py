@@ -6,10 +6,12 @@ from torch import nn
 
 from afabench.components.classifiers import WrappedMaskedMLPClassifier
 from afabench.components.classifiers.models import MaskedMLPClassifier
-from afabench.components.initializers import RandomInitializer
 from afabench.components.initializers.config import InitializerConfig
-from afabench.components.unmaskers import DirectUnmasker
+from afabench.components.initializers.random_initializer import (
+    RandomInitializer,
+)
 from afabench.components.unmaskers.config import UnmaskerConfig
+from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.datasets.datasets import CubeDataset

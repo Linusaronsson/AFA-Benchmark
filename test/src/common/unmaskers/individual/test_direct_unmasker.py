@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from afabench.components.unmaskers import DirectUnmasker
+from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.core.types import (
     AFAAction,
     FeatureMask,

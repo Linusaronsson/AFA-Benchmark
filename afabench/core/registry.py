@@ -49,16 +49,16 @@ REGISTERED_CLASSES = {
     "OLAFAClassifier": "afabench.components.methods.rl.ol.models.OLAFAClassifier",
     "GreedyAFAClassifier": "afabench.components.methods.discriminative.common.models.GreedyAFAClassifier",
     # AFA Unmasker Classes
-    "DirectUnmasker": "afabench.components.unmaskers.DirectUnmasker",
-    "ImagePatchUnmasker": "afabench.components.unmaskers.ImagePatchUnmasker",
-    "CubeNMUnmasker": "afabench.components.unmaskers.CubeNMUnmasker",
+    "DirectUnmasker": "afabench.components.unmaskers.direct_unmasker.DirectUnmasker",
+    "ImagePatchUnmasker": "afabench.components.unmaskers.image_patch_unmasker.ImagePatchUnmasker",
+    "CubeNMUnmasker": "afabench.components.unmaskers.cube_nm_unmasker.CubeNMUnmasker",
     # AFA Initializer Classes
-    "ZeroInitializer": "afabench.components.initializers.ZeroInitializer",
-    "FixedRandomInitializer": "afabench.components.initializers.FixedRandomInitializer",
-    "ManualInitializer": "afabench.components.initializers.ManualInitializer",
-    "MutualInformationInitializer": "afabench.components.initializers.MutualInformationInitializer",
-    "LeastInformativeInitializer": "afabench.components.initializers.LeastInformativeInitializer",
-    "RandomInitializer": "afabench.components.initializers.RandomInitializer",
+    "ZeroInitializer": "afabench.components.initializers.zero_initializer.ZeroInitializer",
+    "FixedRandomInitializer": "afabench.components.initializers.fixed_random_initializer.FixedRandomInitializer",
+    "ManualInitializer": "afabench.components.initializers.manual_initializer.ManualInitializer",
+    "MutualInformationInitializer": "afabench.components.initializers.mutual_information_initializer.MutualInformationInitializer",
+    "LeastInformativeInitializer": "afabench.components.initializers.least_informative_initializer.LeastInformativeInitializer",
+    "RandomInitializer": "afabench.components.initializers.random_initializer.RandomInitializer",
     # General PyTorch Model Bundle
     "TorchModelBundle": "afabench.core.bundle_system.torch_bundle.TorchModelBundle",
 }

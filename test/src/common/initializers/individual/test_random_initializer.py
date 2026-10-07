@@ -1,7 +1,9 @@
 import pytest
 import torch
 
-from afabench.components.initializers import RandomInitializer
+from afabench.components.initializers.random_initializer import (
+    RandomInitializer,
+)
 from afabench.core.types import Features
 
 

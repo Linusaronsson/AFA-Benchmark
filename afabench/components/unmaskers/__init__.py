@@ -1,5 +1,7 @@
-from .cube_nm_unmasker import CubeNMUnmasker
-from .direct_unmasker import DirectUnmasker
-from .image_patch_unmasker import ImagePatchUnmasker
+"""
+Unmaskers. Import each from its own module.
 
-__all__ = ["CubeNMUnmasker", "DirectUnmasker", "ImagePatchUnmasker"]
+The package re-exports nothing, so importing
+`afabench.components.unmaskers.config`, as the training contract and through it
+Snakemake do, does not load torch or scikit-learn.
+"""

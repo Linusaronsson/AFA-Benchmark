@@ -15,8 +15,10 @@ from afabench.components.methods.rl.common.dataset_utils import (
 from afabench.components.methods.rl.common.reward_functions import (
     get_fixed_reward_reward_fn,
 )
-from afabench.components.unmaskers import ImagePatchUnmasker
 from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
+from afabench.components.unmaskers.image_patch_unmasker import (
+    ImagePatchUnmasker,
+)
 
 
 def test_initializer_and_unmasker_integration() -> None:
