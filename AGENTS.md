@@ -10,15 +10,20 @@ Snakemake workflows and outputs in `extra/`, tests in `test/`.
 before any code change is reported complete or committed. Focused commands
 are for iterating only. If it fails, fix it or report the failure verbatim.
 
-Budget: `just qa` finishes within 1 minute. When adding tests, check
+`just qa` adds the Snakemake `workflow` test tier (`test/workflow/`) only when
+uncommitted changes touch the paths in the `justfile`'s `workflow_paths`;
+when a workflow test starts depending on another path, add it there.
+`just qa-full` always runs that tier and must pass before opening a PR.
+
+Budget: `just qa` without the workflow tier finishes within 1 minute. When adding tests, check
 `uv run pytest --durations=20` and keep the gate inside the budget; tests
 that spawn processes (Snakemake, scripts, DataLoader workers) or train
 models are usually the slow ones. If the gate exceeds the budget, say so
 when reporting.
 
 Environment: Python 3.12.10 exactly, managed by uv (`uv sync`). Pytest
-markers `optional` and `pipeline` are deselected by default (`pytest.ini`);
-select them with `-m`.
+markers `optional`, `pipeline` and `workflow` are deselected by default
+(`pytest.ini`); select them with `-m`.
 
 ## Where to look
 

@@ -139,7 +139,8 @@ which will
 - format code with `ruff format`
 - do linting and formatting with `ruff check --fix`
 - type checking with `basedpyright --warnings`
-- run tests with `pytest`
+- run tests with `pytest`, adding the Snakemake workflow tests when your
+  changes touch the workflow (`uv run just qa-full` always runs them)
 
 ## Citation
 If you use this benchmark in your research, please cite,

@@ -15,10 +15,12 @@ uv sync
 Run the full quality gate and make sure it passes:
 
 ```bash
-just qa
+just qa-full
 ```
 
-This runs formatting, linting, type checking, and tests together. See
+This runs formatting, linting, type checking, and tests together, including
+the Snakemake workflow tests. Before each commit, `just qa` is enough: it runs
+the workflow tests only when your changes touch the workflow. See
 `AGENTS.md` for the individual commands (`ruff format`, `ruff check`,
 `basedpyright`, `pytest`) if you need to debug a specific failure.
 
