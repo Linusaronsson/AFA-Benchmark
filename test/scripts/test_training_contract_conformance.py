@@ -24,7 +24,11 @@ from omegaconf import OmegaConf
 
 from afabench.components.classifiers import WrappedMaskedMLPClassifier
 from afabench.components.classifiers.models import MaskedMLPClassifier
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import (
+    bundle_provenance,
+    load_bundle,
+    save_bundle,
+)
 from afabench.core.registry import get_class
 from afabench.datasets.datasets import CubeDataset
 from afabench.testing.provenance import placeholder_provenance
@@ -139,13 +143,21 @@ class SmokeInputs:
             train_dataset,
             self.train_dataset_bundle_path,
             metadata={},
-            provenance=placeholder_provenance(),
+            provenance=placeholder_provenance(
+                dataset_key=DATASET_KEY,
+                dataset_realization_index=0,
+                split="train",
+            ),
         )
         save_bundle(
             CubeDataset(n_samples=64, seed=SEED + 1),
             self.val_dataset_bundle_path,
             metadata={},
-            provenance=placeholder_provenance(),
+            provenance=placeholder_provenance(
+                dataset_key=DATASET_KEY,
+                dataset_realization_index=0,
+                split="val",
+            ),
         )
         save_bundle(
             WrappedMaskedMLPClassifier(
@@ -158,7 +170,7 @@ class SmokeInputs:
             ),
             self.classifier_bundle_path,
             metadata={},
-            provenance=placeholder_provenance(),
+            provenance=placeholder_provenance("classifier_training"),
         )
 
     def pretraining_values(self, save_path: Path) -> dict[str, object]:
@@ -249,6 +261,28 @@ def test_training_script_writes_a_loadable_bundle_at_save_path(
     afa_method = _load_bundle_on_cpu(save_path)
 
     assert afa_method is not None
+    # The bundle's provenance record matches what the contract passed; the
+    # dataset identity is copied from the smoke datasets' own records.
+    record = bundle_provenance(save_path)
+    assert record is not None
+    assert record.stage == "training"
+    assert record.method_name == method_name
+    assert record.seed == SEED
+    assert record.smoke_test is True
+    assert (record.dataset_key, record.dataset_realization_index) == (
+        DATASET_KEY,
+        0,
+    )
+    assert {(entry.role, entry.path) for entry in record.inputs} == {
+        ("train_dataset", str(smoke_inputs.train_dataset_bundle_path)),
+        ("val_dataset", str(smoke_inputs.val_dataset_bundle_path)),
+        ("classifier", str(smoke_inputs.classifier_bundle_path)),
+        *(
+            [("pretrained_model", str(pretrained_model_bundle_path))]
+            if pretrained_model_bundle_path is not None
+            else []
+        ),
+    }
 
     if options["train_script_name"] in {"aaco", "aaco_nn"}:
         metadata = json.loads((save_path / "manifest.json").read_text())[

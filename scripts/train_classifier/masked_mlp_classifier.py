@@ -18,8 +18,17 @@ from afabench.components.classifiers.models import LitMaskedMLPClassifier
 from afabench.components.methods.rl.common.dataset_utils import (
     DataModuleFromDatasets,
 )
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import (
+    bundle_input,
+    bundle_provenance,
+    load_bundle,
+    save_bundle,
+)
 from afabench.core.naming import infer_dataset_key_from_class_name
+from afabench.core.provenance import (
+    capture_provenance,
+    shared_dataset_identity,
+)
 from afabench.core.utils import (
     get_class_frequencies,
     initialize_wandb_run,
@@ -51,7 +60,8 @@ def _lightning_log_dir(save_path: str) -> Path:
 def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     cfg = cast("TrainMaskedMLPClassifierConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
-    set_seed(cfg.seed)
+    # The seed actually used goes into the bundle's provenance
+    seed = set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
@@ -67,6 +77,11 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         log.info("Smoke test mode: reducing epochs and batch size")
         cfg.epochs = 2
         cfg.batch_size = min(cfg.batch_size, 32)
+
+    dataset_identity = shared_dataset_identity(
+        bundle_provenance(Path(cfg.train_dataset_path)),
+        bundle_provenance(Path(cfg.val_dataset_path)),
+    )
 
     # Load datasets via bundle system
     train_dataset, train_manifest = load_bundle(Path(cfg.train_dataset_path))
@@ -187,6 +202,21 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
             "min_masking_probability": cfg.min_masking_probability,
             "max_masking_probability": cfg.max_masking_probability,
         },
+        provenance=capture_provenance(
+            stage="classifier_training",
+            resolved_config=asdict(cfg),
+            seed=seed,
+            smoke_test=cfg.smoke_test,
+            device=cfg.device,
+            inputs=[
+                bundle_input("train_dataset", cfg.train_dataset_path),
+                bundle_input("val_dataset", cfg.val_dataset_path),
+            ],
+            dataset_key=dataset_identity.dataset_key,
+            dataset_realization_index=(
+                dataset_identity.dataset_realization_index
+            ),
+        ),
     )
     log.info(f"Saved classifier to: {cfg.save_path}")
 

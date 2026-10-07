@@ -23,7 +23,15 @@ from afabench.components.methods.discriminative.common.utils import (
     MaskLayer2d,
     afa_discriminative_training_prep,
 )
-from afabench.core.bundle_system.bundle import save_bundle
+from afabench.core.bundle_system.bundle import (
+    bundle_input,
+    bundle_provenance,
+    save_bundle,
+)
+from afabench.core.provenance import (
+    capture_provenance,
+    shared_dataset_identity,
+)
 from afabench.core.utils import initialize_wandb_run, set_seed
 
 log = logging.getLogger(__name__)
@@ -38,7 +46,8 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
     cfg = cast("TrainMaskedViTClassifierConfig", OmegaConf.to_object(cfg))
     log.info(OmegaConf.to_yaml(cfg))
     assert cfg.device is not None, "device must be configured"
-    set_seed(cfg.seed)
+    # A null configured seed is drawn here; the drawn seed is recorded
+    seed = set_seed(cfg.seed)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
@@ -54,6 +63,10 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         cfg.epochs = 1
         cfg.patience = 1
 
+    dataset_identity = shared_dataset_identity(
+        bundle_provenance(Path(cfg.train_dataset_path)),
+        bundle_provenance(Path(cfg.val_dataset_path)),
+    )
     train_dataset, val_dataset, _, _, _ = afa_discriminative_training_prep(
         train_dataset_bundle_path=Path(cfg.train_dataset_path),
         val_dataset_bundle_path=Path(cfg.val_dataset_path),
@@ -111,6 +124,21 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         obj=wrapped_classifier,
         path=Path(cfg.save_path),
         metadata={"config": asdict(cfg)},
+        provenance=capture_provenance(
+            stage="classifier_training",
+            resolved_config=asdict(cfg),
+            seed=seed,
+            smoke_test=cfg.smoke_test,
+            device=cfg.device,
+            inputs=[
+                bundle_input("train_dataset", cfg.train_dataset_path),
+                bundle_input("val_dataset", cfg.val_dataset_path),
+            ],
+            dataset_key=dataset_identity.dataset_key,
+            dataset_realization_index=(
+                dataset_identity.dataset_realization_index
+            ),
+        ),
     )
 
     log.info(f"Masked ViT classifier saved to: {cfg.save_path}")
