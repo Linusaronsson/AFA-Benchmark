@@ -78,6 +78,8 @@ def test_save_writes_parquet(tmp_path: Path) -> None:
     evaluator._df_eval = pd.DataFrame(  # noqa: SLF001
         {
             "episode_id": [0, 1],
+            "generation_index": [7, 3],
+            "split_index": [0, 1],
             "step": [0, 0],
             "action_performed": [0, 0],
             "builtin_predicted_class": [None, None],

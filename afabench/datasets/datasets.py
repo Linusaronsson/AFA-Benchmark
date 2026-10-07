@@ -17,7 +17,10 @@ from torchvision.datasets import ImageFolder
 from ucimlrepo import fetch_ucirepo
 
 from afabench.core.types import AFADataset
-from afabench.datasets.utils import default_create_subset
+from afabench.datasets.utils import (
+    default_create_subset,
+    load_generation_indices,
+)
 
 
 def _z_normalize(
@@ -142,6 +145,11 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             self.labels, num_classes=self.label_shape[0]
         ).float()
         assert self.labels.shape[1] == self.label_shape[0]
+        self.generation_indices = torch.arange(len(self.features))
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -161,6 +169,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -192,6 +201,9 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.rng = torch.Generator()
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         return obj
 
 
@@ -317,6 +329,11 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             self.labels, num_classes=self.label_shape[0]
         ).float()
         assert self.labels.shape[1] == self.label_shape[0]
+        self.generation_indices = torch.arange(len(self.features))
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -336,6 +353,7 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -369,6 +387,9 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.rng = torch.Generator()
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         return obj
 
     @override
@@ -533,6 +554,11 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.labels = torch.nn.functional.one_hot(
             y_int, num_classes=self.label_shape[0]
         ).float()
+        self.generation_indices = torch.arange(len(self.features))
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -552,6 +578,7 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -589,6 +616,9 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.rng = torch.Generator()
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         return obj
 
     @override
@@ -661,6 +691,11 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             self.labels, num_classes=self.label_shape[0]
         ).float()
         assert self.labels.shape[1] == self.label_shape[0]
+        self.generation_indices = torch.arange(len(self.features))
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -680,6 +715,7 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "config": {
                     "train": self.train,
                     "root": self.root,
@@ -701,6 +737,9 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.dataset = None
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         return obj
 
 
@@ -758,6 +797,11 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             self.labels, num_classes=self.label_shape[0]
         ).float()
         assert self.labels.shape[1] == self.label_shape[0]
+        self.generation_indices = torch.arange(len(self.features))
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -777,6 +821,7 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "config": {
                     "train": self.train,
                     "root": self.root,
@@ -798,6 +843,9 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.dataset = None
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         return obj
 
 
@@ -863,6 +911,11 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
         # Store feature names
         self.feature_names = features_df.columns.tolist()
+        self.generation_indices = torch.arange(len(self.features))
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -886,6 +939,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "feature_names": self.feature_names,
                 "config": {
                     "root": self.root,
@@ -904,6 +958,9 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.root = data["config"]["root"]
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         obj.feature_names = data["feature_names"]
         return obj
 
@@ -966,6 +1023,11 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         assert self.labels.shape[1] == self.label_shape[0]
 
         self.feature_names = features_df.columns.tolist()
+        self.generation_indices = torch.arange(len(self.features))
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -985,6 +1047,7 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "feature_names": self.feature_names,
                 "config": {
                     "root": self.root,
@@ -1002,6 +1065,9 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.root = data["config"]["root"]
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         obj.feature_names = data["feature_names"]
         return obj
 
@@ -1074,6 +1140,11 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         assert self.labels.shape[1] == self.label_shape[0]
 
         self.feature_names = features_df.columns.tolist()
+        self.generation_indices = torch.arange(len(self.features))
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -1093,6 +1164,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "feature_names": self.feature_names,
                 "config": {
                     "root": self.root,
@@ -1110,6 +1182,9 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.root = data["config"]["root"]
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         obj.feature_names = data["feature_names"]
         return obj
 
@@ -1166,6 +1241,7 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         ).float()
         self.n_features = self.features.shape[1]
         self.feature_names = features_df.columns.tolist()
+        self.generation_indices = torch.arange(len(self.features))
 
     def _fetch_and_save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
@@ -1177,6 +1253,10 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             axis=1,
         )
         df_data.to_csv(self.path, sep=";", index=False)
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int):
@@ -1196,6 +1276,7 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
@@ -1210,6 +1291,9 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.path = data["config"]["path"]
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         obj.feature_names = data["feature_names"]
         obj.n_features = obj.features.shape[1]
         return obj
@@ -1267,6 +1351,7 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         ).float()
         self.n_features = self.features.shape[1]
         self.feature_names = features_df.columns.tolist()
+        self.generation_indices = torch.arange(len(self.features))
 
     def _fetch_and_save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
@@ -1282,6 +1367,10 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         df_data = features_df.copy()
         df_data["target"] = target_series.to_numpy()
         df_data.to_csv(self.path, index=False)
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int):
@@ -1301,6 +1390,7 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
@@ -1315,6 +1405,9 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.path = data["config"]["path"]
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         obj.feature_names = data["feature_names"]
         obj.n_features = obj.features.shape[1]
         return obj
@@ -1372,6 +1465,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         ).float()
         self.n_features = self.features.shape[1]
         self.feature_names = features_df.columns.tolist()
+        self.generation_indices = torch.arange(len(self.features))
 
     def _fetch_and_save(self) -> None:
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
@@ -1384,6 +1478,10 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         df_data = features_df.copy()
         df_data["target"] = target_series.to_numpy()
         df_data.to_csv(self.path, index=False)
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int):
@@ -1403,6 +1501,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
@@ -1417,6 +1516,9 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.path = data["config"]["path"]
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         obj.feature_names = data["feature_names"]
         obj.n_features = obj.features.shape[1]
         return obj
@@ -1428,6 +1530,10 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     Imagenette dataset from the FastAI image classification benchmark.
 
     A subset of 10 easily classified classes from Imagenet.
+
+    Only file lists are kept in memory. The generation indices double as
+    positions in `samples`, which lists the `load_subdirs` folders in order,
+    so dataset generation loads `train/` then `val/` for every split.
     """
 
     IMAGENETTE_URL: ClassVar[str] = (
@@ -1437,8 +1543,14 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def create_subset(self, indices: Sequence[int]) -> Self:
         subset = copy.deepcopy(self)
-        subset.indices = self.indices[list(indices)].clone()
+        subset.generation_indices = self.generation_indices[
+            list(indices)
+        ].clone()
         return subset
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @property
     @override
@@ -1493,16 +1605,15 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             [y for ds in sub_datasets for (_, y) in ds.samples],
             dtype=torch.long,
         )
-        self.indices = torch.arange(len(self.samples), dtype=torch.long)
+        self.generation_indices = torch.arange(
+            len(self.samples), dtype=torch.long
+        )
 
     def _resolve_index(self, i: int) -> int:
-        if self.indices.ndim != 1:
-            msg = f"indices must be 1D, got shape {tuple(self.indices.shape)}"
-            raise ValueError(msg)
-        if i < 0 or i >= int(self.indices.numel()):
+        if i < 0 or i >= int(self.generation_indices.numel()):
             msg = f"Index {i} out of range for dataset of length {len(self)}"
             raise IndexError(msg)
-        return int(self.indices[i].item())
+        return int(self.generation_indices[i].item())
 
     def _train_transform(self) -> transforms.Compose:
         return transforms.Compose(
@@ -1590,7 +1701,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     @override
     def __len__(self) -> int:
-        return int(self.indices.numel())
+        return int(self.generation_indices.numel())
 
     @override
     def get_all_data(self) -> tuple[Tensor, Tensor]:
@@ -1605,10 +1716,10 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     @override
     def save(self, path: Path) -> None:
-        """Save only the split indices and the dataset config reconstruct later from raw files on load."""
+        """Save only the generation indices and the dataset config, to reconstruct later from raw files on load."""
         torch.save(
             {
-                "indices": self.indices,
+                "generation_indices": self.generation_indices,
                 "config": {
                     "data_root": self.data_root,
                     "variant_dir": self.variant_dir,
@@ -1625,10 +1736,9 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def load(cls, path: Path) -> Self:
         data = torch.load(path / "dataset.pt")
         cfg = data["config"]
-        idx = data["indices"]
-        if not isinstance(idx, Tensor):
-            idx = torch.tensor(idx, dtype=torch.long)
-        idx = idx.to(dtype=torch.long)
+        generation_indices = load_generation_indices(
+            data, path / "dataset.pt", None
+        )
         if "split_role" not in cfg or cfg["split_role"] is None:
             msg = "Split role not initialized!"
             raise ValueError(msg)
@@ -1664,13 +1774,15 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         # Apply subset filtering
         obj.samples = all_samples
         obj.targets = all_targets
-        obj.indices = idx
+        obj.generation_indices = generation_indices
         n = len(obj.samples)
-        if int(obj.indices.numel()) > 0 and (
-            int(obj.indices.min().item()) < 0
-            or int(obj.indices.max().item()) >= n
+        if int(generation_indices.numel()) > 0 and (
+            int(generation_indices.min().item()) < 0
+            or int(generation_indices.max().item()) >= n
         ):
-            msg = f"Loaded indices out of bounds: valid [0, {n - 1}]"
+            msg = (
+                f"Loaded generation indices out of bounds: valid [0, {n - 1}]"
+            )
             raise ValueError(msg)
 
         return obj
@@ -1864,6 +1976,11 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             y_int, num_classes=self.label_shape[0]
         ).float()
         assert self.labels.shape[1] == self.label_shape[0]
+        self.generation_indices = torch.arange(len(self.features))
+
+    @override
+    def get_generation_indices(self) -> Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -1883,6 +2000,7 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -1906,4 +2024,7 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.rng = torch.Generator()
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         return obj

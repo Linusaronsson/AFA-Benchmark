@@ -2,10 +2,13 @@
 
 ## Contract
 
-`afabench.evaluation.schemas` defines two Pandera pandas contracts:
+`afabench.evaluation.schemas` defines three Pandera pandas contracts, each
+extending the previous one:
 
-- `EvaluationSchema`: one row per episode and zero-based `step`, returned by
-  `process_batch` and `eval_afa_method`.
+- `BatchEvaluationSchema`: one row per episode and zero-based `step`,
+  returned by `process_batch`.
+- `EvaluationSchema`: the same columns plus `generation_index` and
+  `split_index`, returned by `eval_afa_method`.
 - `SavedEvaluationSchema`: the same columns plus nullable `eval_seed` and
   `eval_hard_budget`, added by `AFAEvaluator` before saving Parquet.
 
@@ -14,6 +17,16 @@ for an individual `process_batch` call, but unique across all batches in one
 `eval_afa_method` result. IDs are local to an evaluation artifact: independently
 produced results must remain in separate namespaces when reconstructing
 histories. `idx` is no longer emitted.
+
+`generation_index` and `split_index` identify the instance an episode
+evaluated, and are the same on every row of an episode
+(`docs/adr/0004-instances-carry-their-generation-index.md`). `split_index` is
+the instance's position in the evaluated dataset, the eval split's dataset
+bundle; `generation_index` is its position in the dataset produced by dataset
+generation, before splitting. Both are correct whether or not
+`eval_only_n_samples` samples a subset. With the dataset key and dataset
+realization, `generation_index` identifies the instance across methods and
+splits; for a real-world dataset it is also the instance's row in the source.
 
 `step` starts at zero and counts selections performed before the row's action.
 An episode with three selections has steps 0, 1, 2, 3; the last row is stop.
@@ -73,19 +86,29 @@ mapping from selections to features.
 Existing Parquet files remain untouched. The evaluation-data transform accepts
 both formats: it uses `step` for compact logs and stored history lengths for
 legacy logs, including partial legacy tables. Legacy histories can be lists,
-Parquet-restored NumPy arrays, or string lists. The plotting output contract
-is unchanged: it retains `n_selections_performed` and discards episode identity
-when expanding rows by classifier. Those tables are not episode logs.
+Parquet-restored NumPy arrays, or string lists. The plotting output
+contract retains `n_selections_performed`, `generation_index` and
+`split_index`, and discards episode identity when expanding rows by
+classifier. Those tables are not episode logs. Tables transformed from legacy
+logs have null `generation_index` and `split_index`. Compact tables written
+before those columns existed are rejected rather than backfilled; re-run
+their evaluation.
 
 For explicit conversion of a complete, original-order legacy artifact:
 
 ```python
-from afabench.evaluation.history import convert_legacy_episode_log
+from afabench.evaluation.history import (
+    convert_legacy_episode_log,
+    reconstruct_selection_history,
+)
 
 legacy = pd.read_parquet(legacy_path)
 compact = convert_legacy_episode_log(legacy, original_order=True)
-results = DataFrame[SavedEvaluationSchema](compact)
+histories = reconstruct_selection_history(compact)
 ```
+
+Converted logs have no `generation_index` or `split_index`, which legacy
+artifacts never recorded, so they do not satisfy `SavedEvaluationSchema`.
 
 The caller must attest to original producer ordering. Legacy `idx` resets in
 each batch; conversion starts a new episode when an index first appears or

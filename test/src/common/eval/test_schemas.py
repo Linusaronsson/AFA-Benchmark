@@ -19,6 +19,8 @@ def evaluation_frame() -> pd.DataFrame:
     return pd.DataFrame(
         {
             "episode_id": [0, 0],
+            "generation_index": [5, 5],
+            "split_index": [2, 2],
             "step": [0, 1],
             "action_performed": [1, 0],
             "builtin_predicted_class": [None, None],
@@ -43,6 +45,8 @@ def test_evaluation_schema_preserves_dtypes(
         ("action_performed", -1),
         ("true_class", -1),
         ("episode_id", -1),
+        ("generation_index", -1),
+        ("split_index", -1),
         ("step", -1),
         ("accumulated_cost", -0.5),
         ("forced_stop", "false"),
@@ -72,6 +76,15 @@ def test_evaluation_schema_rejects_incomplete_episodes(
 ) -> None:
     with pytest.raises(SchemaError):
         EvaluationSchema.validate(evaluation_frame.iloc[1:])
+
+
+@pytest.mark.parametrize("column", ["generation_index", "split_index"])
+def test_evaluation_schema_rejects_episode_spanning_instances(
+    evaluation_frame: pd.DataFrame, column: str
+) -> None:
+    evaluation_frame[column] = [0, 1]
+    with pytest.raises(SchemaError):
+        EvaluationSchema.validate(evaluation_frame)
 
 
 def test_evaluation_schema_rejects_extra_columns(

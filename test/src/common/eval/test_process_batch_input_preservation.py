@@ -57,6 +57,9 @@ class _Dataset(TensorDataset):
         super().__init__(features, labels)
         self.feature_shape = torch.Size((features.shape[-1],))
 
+    def get_generation_indices(self) -> torch.Tensor:
+        return torch.arange(len(self))
+
 
 def initialize_half_masked(
     features: torch.Tensor,

@@ -16,7 +16,7 @@ def make_imagenette_dataset(indices: list[int]) -> ImagenetteDataset:
     dataset.transform = None
     dataset.samples = [Path(f"image_{i}.JPEG") for i in range(5)]
     dataset.targets = torch.arange(5, dtype=torch.long)
-    dataset.indices = torch.tensor(indices, dtype=torch.long)
+    dataset.generation_indices = torch.tensor(indices, dtype=torch.long)
     return cast("ImagenetteDataset", dataset)
 
 
@@ -27,5 +27,5 @@ def test_imagenette_create_subset_reduces_visible_indices() -> None:
 
     assert subset.samples == dataset.samples
     assert torch.equal(subset.targets, dataset.targets)
-    assert torch.equal(subset.indices, torch.tensor([4, 0]))
+    assert torch.equal(subset.generation_indices, torch.tensor([4, 0]))
     assert len(subset) == 2

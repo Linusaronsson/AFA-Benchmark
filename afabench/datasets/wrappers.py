@@ -4,7 +4,12 @@ from typing import Self, override
 
 import torch
 
-from afabench.core.types import AFADataset, Features, Label
+from afabench.core.types import (
+    AFADataset,
+    Features,
+    GenerationIndices,
+    Label,
+)
 
 
 class ExtendedAFADataset(AFADataset):
@@ -43,6 +48,11 @@ class ExtendedAFADataset(AFADataset):
 
     @override
     def create_subset(self, indices: Sequence[int]) -> Self:
+        raise NotImplementedError
+
+    @override
+    def get_generation_indices(self) -> GenerationIndices:
+        # The additional instances were not produced by dataset generation
         raise NotImplementedError
 
     @override

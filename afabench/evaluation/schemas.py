@@ -10,8 +10,8 @@ from pandera.typing import Series
 from afabench.evaluation.history import validate_episode_log
 
 
-class EvaluationSchema(pa.DataFrameModel):
-    """One row per episode and zero-based time step."""
+class BatchEvaluationSchema(pa.DataFrameModel):
+    """One row per episode and zero-based time step of one evaluated batch."""
 
     episode_id: Series[int] = pa.Field(ge=0)
     step: Series[int] = pa.Field(ge=0)
@@ -49,6 +49,26 @@ class EvaluationSchema(pa.DataFrameModel):
     class Config(pa.DataFrameModel.Config):
         strict: bool | Literal["filter"] = True
         unique_column_names: bool = True
+
+
+class EvaluationSchema(BatchEvaluationSchema):
+    """
+    Evaluation rows that also identify each episode's instance.
+
+    `split_index` is the instance's position in the evaluated split and
+    `generation_index` its position in the generated dataset (ADR 0004).
+    """
+
+    generation_index: Series[int] = pa.Field(ge=0)
+    split_index: Series[int] = pa.Field(ge=0)
+
+    @pa.dataframe_check
+    @classmethod
+    def one_instance_per_episode(cls, frame: pd.DataFrame) -> bool:
+        per_episode = frame.groupby("episode_id")[
+            ["generation_index", "split_index"]
+        ].nunique()
+        return bool((per_episode <= 1).all().all())
 
 
 class SavedEvaluationSchema(EvaluationSchema):

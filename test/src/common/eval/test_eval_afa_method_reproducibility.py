@@ -27,6 +27,7 @@ class DummyDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         self.labels = torch.nn.functional.one_hot(
             torch.arange(n_samples) % 3, num_classes=3
         ).float()
+        self.generation_indices = torch.arange(n_samples)
 
     @property
     def feature_shape(self) -> torch.Size:
@@ -44,7 +45,11 @@ class DummyDataset(Dataset[tuple[torch.Tensor, torch.Tensor]]):
         subset = self.__class__.__new__(self.__class__)
         subset.features = self.features[list(indices)]
         subset.labels = self.labels[list(indices)]
+        subset.generation_indices = self.generation_indices[list(indices)]
         return subset
+
+    def get_generation_indices(self) -> torch.Tensor:
+        return self.generation_indices
 
     @override
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:

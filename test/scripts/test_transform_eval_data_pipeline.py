@@ -69,6 +69,8 @@ def test_transform_pivots_classifiers_and_attaches_run_metadata(
     if compact:
         frame = frame.drop(columns=["idx", "prev_selections_performed"])
         frame["episode_id"] = [0, 0, 1]
+        frame["generation_index"] = [4, 4, 9]
+        frame["split_index"] = [1, 1, 0]
         frame["step"] = [0, 1, 0]
     frame.to_parquet(input_path, index=False)
 
@@ -112,6 +114,17 @@ def test_transform_pivots_classifiers_and_attaches_run_metadata(
             "n_selections_performed": 0,
         },
     ]
+    # Legacy logs have no instance identity, compact logs carry it through
+    identities = (
+        [(4, 1), (4, 1), (9, 0)] if compact else [(None, None)] * len(steps)
+    )
+    steps = [
+        {"generation_index": generation_index, "split_index": split_index}
+        | step
+        for (generation_index, split_index), step in zip(
+            identities, steps, strict=True
+        )
+    ]
     expected_rows = [
         step
         | {"classifier": "builtin", "predicted_class": prediction}
@@ -123,6 +136,8 @@ def test_transform_pivots_classifiers_and_attaches_run_metadata(
     ]
     assert pq.read_table(output_path).to_pylist() == expected_rows
     assert parquet_schema(output_path) == {
+        "generation_index": pa.uint64(),
+        "split_index": pa.uint64(),
         "action_performed": pa.uint64(),
         "true_class": pa.uint64(),
         "accumulated_cost": pa.float64(),

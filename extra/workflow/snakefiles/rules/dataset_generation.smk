@@ -13,9 +13,9 @@ rule dataset_generation:
         + ",".join(str(i) for i in DATASET_REALIZATION_INDICES)
         + "]",
         # Image datasets use a separate generation script because they are
-        # defined by external files + transforms. We save only split indices
-        # and config (not image tensors) to avoid large artifacts and freezing
-        # augmentation behaviour.
+        # defined by external files + transforms. We save only generation
+        # indices and config (not image tensors) to avoid large artifacts and
+        # freezing augmentation behaviour.
         dataset_generation_script=lambda wildcards: (
             "generate_image_dataset.py"
             if wildcards.dataset

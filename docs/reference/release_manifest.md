@@ -175,7 +175,7 @@ What a dataset bundle holds decides what the review covers:
   marketing from the UCI repository. Their bundles hold the preprocessed
   data itself.
 - MNIST and Fashion-MNIST bundles hold the downloaded data; Imagenette
-  bundles hold only split indices and configuration, so the images must be
+  bundles hold only generation indices and configuration, so the images must be
   obtained from the source by each user.
 
 A review entry records:
@@ -227,7 +227,7 @@ granularity:
 - **Raw evaluation tables** (`eval_results/.../eval_data.parquet`,
   `raw_path`) have one row per episode and time step, as described in
   [evaluation dataframes](evaluation_dataframes.md): `episode_id`,
-  `step`, `action_performed`, `builtin_predicted_class`,
+  `generation_index`, `split_index`, `step`, `action_performed`, `builtin_predicted_class`,
   `external_predicted_class`, `true_class`, `accumulated_cost`, `forced_stop`,
   `eval_seed`, `eval_hard_budget`. They hold the full acquisition history;
   selection histories can be reconstructed from `episode_id`, `step` and
@@ -238,7 +238,8 @@ granularity:
   rows, one per `classifier` (`builtin` or `external`) with its
   `predicted_class`; `episode_id` and `step` are dropped in favour of
   `n_selections_performed`, so these are prediction/cost rows, not episode
-  logs. They gain `afa_method`, `dataset`, `initializer`, `train_seed`,
+  logs. They keep `generation_index` and `split_index` (null for tables
+  transformed from legacy logs). They gain `afa_method`, `dataset`, `initializer`, `train_seed`,
   `train_hard_budget`, `train_soft_budget_param` and `eval_soft_budget_param`
   columns, but **not** the dataset realization index or evaluation split: read
   those from the table's `evaluation_tables` entry.
@@ -252,7 +253,9 @@ survive (`test/scripts/test_release_native_payloads.py`).
 
 Raw `episode_id` values are local to one evaluation table: the evaluator
 numbers episodes within each batch and offsets them by batch, so they say
-where in that run's sampled evaluation an episode came, not which dataset
-instance row it was. They do not identify the same instance across runs, so
-they do not support paired instance-level comparisons between methods or
-releases.
+where in that run's sampled evaluation an episode came, not which instance
+it evaluated. Use `generation_index` for that: together with the dataset key
+and dataset realization it identifies the instance, so it supports paired
+instance-level comparisons between methods. `split_index` is the instance's
+position in the evaluated split's dataset bundle
+([ADR 0004](../adr/0004-instances-carry-their-generation-index.md)).

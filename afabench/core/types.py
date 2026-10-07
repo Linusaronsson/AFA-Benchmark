@@ -22,6 +22,9 @@ type SelectionMask = Bool[torch.Tensor, "*batch n_selections"]
 # We allow arbitrary labels
 type Label = Float[torch.Tensor, "*batch *label_shape"]
 type Logits = Float[torch.Tensor, "*batch *n_classes"]
+# Position of each instance in the dataset produced by dataset generation,
+# before splitting (see "Generation index" in CONTEXT.md and ADR 0004)
+type GenerationIndices = Integer[torch.Tensor, "n_instances"]  # noqa: F821
 
 # Explicit output contract for AFAClassifier.__call__: "logits" means
 # unnormalized scores that still need a softmax; "probabilities" means
@@ -53,6 +56,11 @@ class AFADataset(Protocol):
     use the load() class method which bypasses __init__ using __new__.
 
     If the dataset is synthetic, accepts_seed() should return True. In that case, the constructor should also accept a `seed` argument.
+
+    Every instance carries its generation index: a freshly constructed
+    dataset numbers its instances 0..n-1 in generation order, which for a
+    real-world dataset must be the source's order. `create_subset` composes
+    the indices, and `save`/`load` persist them.
     """
 
     feature_costs: torch.Tensor | None
@@ -77,8 +85,16 @@ class AFADataset(Protocol):
         Return a new dataset containing only the specified indices.
 
         Implementers must provide this method. For in-memory datasets with
-        `features` and `labels` attributes, you may use the `default_create_subset` function.
+        `features`, `labels` and `generation_indices` attributes, you may use
+        the `default_create_subset` function.
+
+        The subset's generation indices are this dataset's generation
+        indices at `indices`.
         """
+        ...
+
+    def get_generation_indices(self) -> GenerationIndices:
+        """Return the generation index of each instance, in dataset order."""
         ...
 
     def __getitem__(self, idx: int) -> tuple[Features, Label]:
@@ -94,12 +110,12 @@ class AFADataset(Protocol):
         ...
 
     def save(self, path: Path) -> None:
-        """Save the dataset to a file or folder. The file/folder should be in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""
+        """Save the dataset to a file or folder. The file/folder should be in a format that can be loaded by the dataset. This enables deterministic loading of datasets. The saved data must include the generation indices."""
         ...
 
     @classmethod
     def load(cls, path: Path) -> Self:
-        """Load the dataset from a file/folder. The file/folder should contain the dataset in a format that can be loaded by the dataset. This enables deterministic loading of datasets."""
+        """Load the dataset from a file/folder. The file/folder should contain the dataset in a format that can be loaded by the dataset. This enables deterministic loading of datasets. Raises `MissingGenerationIndicesError` if the saved data has no generation indices."""
         ...
 
     def get_feature_acquisition_costs(self) -> torch.Tensor:

@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import Any, cast
 
 import hydra
-import torch
 from omegaconf import OmegaConf
 
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.registry import get_class
 from afabench.core.types import AFADataset
 from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
+from afabench.datasets.utils import require_generation_order
 
 log = logging.getLogger(__name__)
 
@@ -24,52 +24,53 @@ def generate_and_save_image_split(
     dataset_kwargs: dict[str, Any],
     metadata_to_save: dict[str, Any],
 ) -> None:
-    """Generate and save a single train/val/test split for a dataset with a specific seed."""
-    # Create TRAIN pool dataset with the specific seed
-    train_kwargs = dict(dataset_kwargs)
-    train_kwargs["load_subdirs"] = ("train",)
-    train_kwargs["split_role"] = "train"
+    """
+    Generate and save a single train/val/test split for a dataset with a specific seed.
 
-    val_kwargs = dict(dataset_kwargs)
-    val_kwargs["load_subdirs"] = ("train",)
-    val_kwargs["split_role"] = "val"
+    The official `train/` folder is shuffled into the train and val splits;
+    the official `val/` folder is the fixed test split. Every split loads
+    `train/` then `val/`, so generation indices run over both folders in
+    that order and are unique across splits.
+    """
 
-    test_kwargs = dict(dataset_kwargs)
-    test_kwargs["load_subdirs"] = ("val",)
-    test_kwargs["split_role"] = "test"
+    def pool_size(subdir: str) -> int:
+        return len(
+            dataset_class(
+                **dataset_kwargs
+                | {"load_subdirs": (subdir,), "split_role": "val"}
+            )
+        )
 
-    train_pool = dataset_class(**val_kwargs)
+    n_train_pool = pool_size("train")
+    n_test_pool = pool_size("val")
 
-    # Calculate split sizes
     # Split ONLY into train/val from the official train pool
-    total_size = len(train_pool)
-    train_size = int(split_ratio.train * total_size)
-    val_size = total_size - train_size
+    train_size = int(split_ratio.train * n_train_pool)
 
-    all_indices = list(range(total_size))
+    all_indices = list(range(n_train_pool))
     rnd = random.Random(seed_for_split)
     rnd.shuffle(all_indices)
 
-    train_indices = all_indices[:train_size]
-    val_indices = all_indices[train_size : train_size + val_size]
-
-    train_indices_t = torch.tensor(train_indices, dtype=torch.long)
-    val_indices_t = torch.tensor(val_indices, dtype=torch.long)
-
-    # Create subset datasets using the original dataset
-    train_dataset = dataset_class(**train_kwargs)
-    train_dataset.indices = train_indices_t  # pyright: ignore[reportAttributeAccessIssue]
-    val_dataset = dataset_class(**val_kwargs)
-    val_dataset.indices = val_indices_t  # pyright: ignore[reportAttributeAccessIssue]
-
-    # Load official val/ as the fixed test set
-    test_dataset = dataset_class(**test_kwargs)
+    generation_indices_per_split = {
+        "train": all_indices[:train_size],
+        "val": all_indices[train_size:],
+        # Official val/ follows train/ in generation order
+        "test": list(range(n_train_pool, n_train_pool + n_test_pool)),
+    }
+    effective_kwargs: dict[str, dict[str, Any]] = {}
+    splits: dict[str, AFADataset] = {}
+    for split, generation_indices in generation_indices_per_split.items():
+        # The split role selects the transform: augmentation only for train
+        effective_kwargs[split] = dataset_kwargs | {
+            "load_subdirs": ("train", "val"),
+            "split_role": split,
+        }
+        dataset = dataset_class(**effective_kwargs[split])
+        require_generation_order(dataset)
+        splits[split] = dataset.create_subset(generation_indices)
 
     # Create dataset directory
     save_path.mkdir(parents=True, exist_ok=True)
-    train_path = save_path / "train.bundle"
-    val_path = save_path / "val.bundle"
-    test_path = save_path / "test.bundle"
 
     # Prepare metadata
     base_metadata = metadata_to_save | {
@@ -78,24 +79,16 @@ def generate_and_save_image_split(
         "dataset_kwargs": dataset_kwargs,
     }
     # Save splits and metadata
-    save_bundle(
-        obj=train_dataset,
-        path=train_path,
-        metadata=base_metadata
-        | {"split": "train", "effective_dataset_kwargs": train_kwargs},
-    )
-    save_bundle(
-        obj=val_dataset,
-        path=val_path,
-        metadata=base_metadata
-        | {"split": "val", "effective_dataset_kwargs": val_kwargs},
-    )
-    save_bundle(
-        obj=test_dataset,
-        path=test_path,
-        metadata=base_metadata
-        | {"split": "test", "effective_dataset_kwargs": test_kwargs},
-    )
+    for split, dataset in splits.items():
+        save_bundle(
+            obj=dataset,
+            path=save_path / f"{split}.bundle",
+            metadata=base_metadata
+            | {
+                "split": split,
+                "effective_dataset_kwargs": effective_kwargs[split],
+            },
+        )
 
 
 @hydra.main(

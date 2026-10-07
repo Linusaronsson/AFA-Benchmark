@@ -13,6 +13,7 @@ from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.registry import get_class
 from afabench.core.types import AFADataset
 from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
+from afabench.datasets.utils import require_generation_order
 
 log = logging.getLogger(__name__)
 
@@ -36,8 +37,10 @@ def generate_and_save_split(
         dataset_kwargs: Keyword arguments to pass to the dataset class constructor.
         metadata_to_save: Additional metadata to save alongside the dataset.
     """
-    # Generate full dataset
+    # Generate full dataset. Splitting by position below makes each split's
+    # generation indices positions in this dataset.
     dataset = dataset_class(**dataset_kwargs)
+    require_generation_order(dataset)
 
     # Split into train/val/test
     total_size = len(dataset)

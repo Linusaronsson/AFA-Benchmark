@@ -23,8 +23,11 @@ import torch.nn.functional as F
 from torch import Tensor
 from torch.utils.data import Dataset
 
-from afabench.core.types import AFADataset
-from afabench.datasets.utils import default_create_subset
+from afabench.core.types import AFADataset, GenerationIndices
+from afabench.datasets.utils import (
+    default_create_subset,
+    load_generation_indices,
+)
 
 
 class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
@@ -47,6 +50,10 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def create_subset(self, indices: Sequence[int]) -> Self:
         return default_create_subset(self, indices)
 
+    @override
+    def get_generation_indices(self) -> GenerationIndices:
+        return self.generation_indices
+
     def __init__(self, n_samples: int):
         super().__init__()
         self.n_samples = n_samples
@@ -56,6 +63,7 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             torch.randint(low=0, high=3, size=(self.n_samples,)),
             num_classes=3,
         ).float()
+        self.generation_indices = torch.arange(n_samples)
 
     @override
     def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
@@ -75,6 +83,7 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             {
                 "features": self.features,
                 "labels": self.labels,
+                "generation_indices": self.generation_indices,
                 "config": {
                     "n_samples": self.n_samples,
                 },
@@ -91,8 +100,36 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.n_samples = data["config"]["n_samples"]
         obj.features = data["features"]
         obj.labels = data["labels"]
+        obj.generation_indices = load_generation_indices(
+            data, path / "dataset.pt", len(obj.features)
+        )
         return obj
 ```
+
+Every instance carries its **generation index**, its position in the
+dataset your constructor produces, before dataset generation splits it
+(`docs/adr/0004-instances-carry-their-generation-index.md`). Evaluation
+tables record it per episode, so an odd result can be traced back to the
+instance. Your class must:
+
+- **Number its instances in generation order.** The constructor sets
+  `generation_indices` to `0..n-1`; the generation script checks this before
+  splitting.
+- **Keep the source order for real-world data.** Do not drop, sort or shuffle
+  the rows you read, so that generation index `i` is row `i` of the source in
+  every dataset realization. If a source must be filtered or reordered, keep
+  the mapping to the source yourself.
+- **Compose them in `create_subset`.** A subset's generation indices are the
+  parent's at the selected positions. `default_create_subset` does this for
+  in-memory datasets with `features`, `labels` and `generation_indices`.
+- **Persist them.** `save` writes them and `load` reads them with
+  `load_generation_indices`, which raises `MissingGenerationIndicesError`
+  for a bundle saved without them.
+
+`test/src/common/datasets/test_generation_indices.py` checks all of this for
+every registered dataset class. Tell its `dataset_kwargs` how to build a
+small instance of yours; if it reads a CSV, add it to `TABULAR_SOURCES` so
+the source-order test covers it too.
 
 If your dataset is synthetic and should vary by dataset realization, make `accepts_seed()` return `True` and add a `seed` argument to `__init__`. The dataset generation script will pass one seed per dataset realization automatically.
 

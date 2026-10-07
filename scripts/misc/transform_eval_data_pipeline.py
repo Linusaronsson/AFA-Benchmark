@@ -73,6 +73,9 @@ def main() -> None:
             .map(count_selections)
             .astype("UInt64")
         )
+        # Legacy logs predate per-episode instance identity (ADR 0004)
+        df["generation_index"] = pd.NA
+        df["split_index"] = pd.NA
 
     df = df.astype(
         {
@@ -84,6 +87,8 @@ def main() -> None:
             "forced_stop": "boolean",
             "eval_seed": "UInt64",
             "eval_hard_budget": "Float64",
+            "generation_index": "UInt64",
+            "split_index": "UInt64",
         }
     )
 
@@ -96,6 +101,8 @@ def main() -> None:
     ).melt(
         # Index is everything else except stuff we don't care about for plotting
         id_vars=[
+            "generation_index",
+            "split_index",
             "action_performed",
             "true_class",
             "accumulated_cost",

@@ -1,6 +1,7 @@
 import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import final, override
 
 import pandas as pd
 import torch
@@ -24,7 +25,10 @@ from afabench.core.types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.evaluation.schemas import EvaluationSchema
+from afabench.evaluation.schemas import (
+    BatchEvaluationSchema,
+    EvaluationSchema,
+)
 
 log = logging.getLogger(__name__)
 
@@ -168,7 +172,7 @@ class _RowBuffers:
     builtin: list[torch.Tensor] = field(default_factory=list)
     external: list[torch.Tensor] = field(default_factory=list)
 
-    def to_frame(self, true_label: Label) -> DataFrame[EvaluationSchema]:
+    def to_frame(self, true_label: Label) -> DataFrame[BatchEvaluationSchema]:
         idx = torch.cat(self.idx).cpu().tolist()
         action = torch.cat(self.action).cpu().tolist()
         n_rows = len(idx)
@@ -196,7 +200,7 @@ class _RowBuffers:
                 "forced_stop": torch.cat(self.forced).cpu().tolist(),
             }
         )
-        return DataFrame[EvaluationSchema](frame)
+        return DataFrame[BatchEvaluationSchema](frame)
 
 
 def process_batch(
@@ -214,7 +218,7 @@ def process_batch(
     selection_costs: Sequence[float] | None = None,
     *,
     force_acquisition: bool = False,
-) -> DataFrame[EvaluationSchema]:
+) -> DataFrame[BatchEvaluationSchema]:
     """
     Evaluate a single batch.
 
@@ -365,6 +369,22 @@ def process_batch(
     return rows.to_frame(true_label)
 
 
+@final
+class _WithSplitIndex(Dataset[tuple[Features, Label, int]]):
+    """Yield each instance's split index with it, whatever the sampler order."""
+
+    def __init__(self, dataset: AFADataset):
+        self.dataset = dataset
+
+    @override
+    def __getitem__(self, idx: int) -> tuple[Features, Label, int]:
+        features, label = self.dataset[idx]
+        return features, label, idx
+
+    def __len__(self) -> int:
+        return len(self.dataset)
+
+
 def eval_afa_method(
     afa_action_fn: AFAActionFn,
     afa_unmask_fn: AFAUnmaskFn,
@@ -404,6 +424,8 @@ def eval_afa_method(
     Returns:
         pd.DataFrame: DataFrame containing columns:
             - "episode_id" (int): Episode identifier unique within this result.
+            - "generation_index" (int): The episode's instance's generation index.
+            - "split_index" (int): The episode's instance's position in `dataset`.
             - "step" (int): Zero-based time step within the episode.
             - "action_performed" (int): Which action the method chose.
             - "builtin_predicted_class" (int|None)
@@ -412,6 +434,8 @@ def eval_afa_method(
             - "forced_stop" (bool): Whether stopping happened due to exceeding the budget.
     """
     assert isinstance(dataset, Dataset)
+    generation_indices = dataset.get_generation_indices().cpu()
+    indexed_dataset = _WithSplitIndex(dataset)
     if device is None:
         device = torch.device("cpu")
 
@@ -424,7 +448,7 @@ def eval_afa_method(
             len(dataset), generator=sampler_generator
         )[:only_n_samples].tolist()
         dataloader = DataLoader(
-            dataset,
+            indexed_dataset,
             batch_size=batch_size,
             sampler=SubsetRandomSampler(
                 sample_indices, generator=sampler_generator
@@ -432,7 +456,7 @@ def eval_afa_method(
         )
     else:
         dataloader = DataLoader(
-            dataset,
+            indexed_dataset,
             batch_size=batch_size,
         )
 
@@ -442,7 +466,9 @@ def eval_afa_method(
     # DIME's `act` and `predict` in particular carry no internal guard, so
     # without this every acquisition step allocates and discards one.
     with torch.inference_mode():
-        for _batch_features, _batch_label in tqdm(dataloader):
+        for _batch_features, _batch_label, batch_split_index in tqdm(
+            dataloader
+        ):
             batch_features = _batch_features.to(device)
             batch_label = _batch_label.to(device)
 
@@ -472,9 +498,15 @@ def eval_afa_method(
                 selection_costs=selection_costs,
                 force_acquisition=force_acquisition,
             )
+            # Batch-local episode IDs are positions in the batch
+            split_index = batch_split_index[batch_df["episode_id"].to_numpy()]
+            batch_df.insert(
+                1, "generation_index", generation_indices[split_index].numpy()
+            )
+            batch_df.insert(2, "split_index", split_index.numpy())
             batch_df["episode_id"] += episode_offset
             episode_offset += len(batch_features)
-            batches_df.append(batch_df)
+            batches_df.append(DataFrame[EvaluationSchema](batch_df))
     # Concatenate all batch DataFrames
     df_batches = pd.concat(batches_df, ignore_index=True)
     return DataFrame[EvaluationSchema](df_batches)
