@@ -5,11 +5,18 @@ The release host is reached only through a `ReleaseTransport`, a plain file
 store addressed by POSIX repository paths; `afabench.release.huggingface`
 adapts Hugging Face to it. A published release is the snapshot directory
 uploaded file by file under `releases/<release_id>/`, so its Parquet tables
-and plots stay ordinary downloadable files. Downloading fetches one release
-into a staging directory and restores it with `restore_snapshot`. The host
-keeps file bytes only, so publishing adds `output_mtimes.json`, the mtime of
-every file and directory under `output/`, which downloading puts back
-before restoring: Snakemake judges restored outputs by mtime.
+and plots stay ordinary downloadable files.
+
+A download first resolves one release, by id or as the latest `full` one
+(by manifest `created_at`; partial releases are never the latest), and
+keeps its manifest. Everything it then fetches comes from that release's
+folder, so a release published meanwhile cannot be mixed in. It fetches
+either the whole release or the payloads `afabench.release.selection`
+chose, into a staging directory, and restores them with
+`restore_snapshot`. The host keeps file bytes only, so publishing adds
+`output_mtimes.json`, the mtime of every file and directory under
+`output/`, which downloading puts back before restoring: Snakemake judges
+restored outputs by mtime.
 
 Test-only packages (smoke outputs, see `ReleaseScope`) are only ever
 published under `test_releases/<release_id>/`, so a maintainer can check
@@ -21,7 +28,8 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
@@ -31,6 +39,7 @@ from afabench.release.manifest import (
     ReleaseScope,
     read_release_manifest,
 )
+from afabench.release.selection import SelectedPayloads
 from afabench.release.snapshot import SNAPSHOT_OUTPUT_SUBDIR, restore_snapshot
 
 RELEASES_FOLDER = "releases"
@@ -39,6 +48,8 @@ OUTPUT_MTIMES_FILENAME = "output_mtimes.json"
 # One path segment without glob characters, so a release cannot address
 # another release's files or match more than its own folder on download.
 RELEASE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
+# Selects the latest full release, so no release can be named this.
+LATEST_RELEASE = "latest"
 
 
 class ReleaseTransport(Protocol):
@@ -50,6 +61,14 @@ class ReleaseTransport(Protocol):
         self, files: Mapping[str, Path | bytes], message: str
     ) -> None:
         """Upload every `{repository path: content}` in one commit."""
+        ...
+
+    def list_folders(self, folder: str) -> list[str]:
+        """Return the names of the folders directly under `folder`."""
+        ...
+
+    def download_files(self, paths: Sequence[str], local_dir: Path) -> None:
+        """Write each file in `paths` to `local_dir/<repository path>`."""
         ...
 
     def download_folder(self, folder: str, local_dir: Path) -> None:
@@ -90,37 +109,149 @@ def publish_release(
     return manifest
 
 
+@dataclass(frozen=True, kw_only=True)
+class ResolvedRelease:
+    """
+    One published release, fixed before anything is downloaded from it.
+
+    `manifest_bytes` is the manifest as published; the download restores
+    these bytes instead of fetching the manifest again.
+    """
+
+    folder: str
+    manifest: ReleaseManifest
+    manifest_bytes: bytes
+
+
+def resolve_release(
+    release: str, transport: ReleaseTransport, *, test_release: bool = False
+) -> ResolvedRelease:
+    """Fix the release `release` names: a release id or `LATEST_RELEASE`."""
+    if release == LATEST_RELEASE:
+        if test_release:
+            msg = (
+                f"{LATEST_RELEASE!r} selects the latest {ReleaseScope.FULL} "
+                "release; name a test release by its release id."
+            )
+            raise ValueError(msg)
+        return _latest_full_release(transport)
+    folder = release_folder(release, test_release=test_release)
+    if not transport.file_exists(f"{folder}/{RELEASE_MANIFEST_FILENAME}"):
+        kind = "test release" if test_release else "official release"
+        msg = f"No {kind} {release!r} is published."
+        raise FileNotFoundError(msg)
+    resolved = _fetch_manifest(transport, folder, release)
+    _check_scope(resolved.manifest, test_release=test_release)
+    return resolved
+
+
 def download_release(
-    release_id: str,
+    release: ResolvedRelease,
     transport: ReleaseTransport,
     destination_root: Path,
     *,
     overwrite: bool = False,
-    test_release: bool = False,
-) -> ReleaseManifest:
-    """Fetch one release and restore it into `destination_root`."""
-    folder = release_folder(release_id, test_release=test_release)
-    if not transport.file_exists(f"{folder}/{RELEASE_MANIFEST_FILENAME}"):
-        kind = "test release" if test_release else "official release"
-        msg = f"No {kind} {release_id!r} is published."
-        raise FileNotFoundError(msg)
+) -> None:
+    """Fetch every file of `release` and restore it."""
     with tempfile.TemporaryDirectory() as staging:
-        transport.download_folder(folder, Path(staging))
-        package_dir = Path(staging) / folder
-        manifest = read_release_manifest(
-            package_dir / RELEASE_MANIFEST_FILENAME
-        )
-        # Guards against a release edited on the host by other means.
-        if manifest.release_id != release_id:
+        transport.download_folder(release.folder, Path(staging))
+        package_dir = Path(staging) / release.folder
+        # A published release is never replaced, so this guards against a
+        # release edited on the host by other means.
+        manifest_path = package_dir / RELEASE_MANIFEST_FILENAME
+        if manifest_path.read_bytes() != release.manifest_bytes:
             msg = (
-                f"Release {release_id!r} holds a manifest for release "
-                f"{manifest.release_id!r}."
+                f"The manifest of release {release.manifest.release_id!r} "
+                "changed on the host during the download."
             )
             raise ValueError(msg)
-        _check_scope(manifest, test_release=test_release)
         _set_output_mtimes(package_dir)
         restore_snapshot(package_dir, destination_root, overwrite=overwrite)
-    return manifest
+
+
+def download_selection(
+    release: ResolvedRelease,
+    payloads: SelectedPayloads,
+    transport: ReleaseTransport,
+    destination_root: Path,
+    *,
+    overwrite: bool = False,
+) -> None:
+    """Fetch only the selected files and folders of `release`; restore them."""
+    if not payloads.files and not payloads.folders:
+        msg = (
+            "Nothing selected is in release "
+            f"{release.manifest.release_id!r}:\n" + "\n".join(payloads.missing)
+        )
+        raise LookupError(msg)
+    output = f"{release.folder}/{SNAPSHOT_OUTPUT_SUBDIR}"
+    with tempfile.TemporaryDirectory() as staging:
+        transport.download_files(
+            [
+                f"{release.folder}/{OUTPUT_MTIMES_FILENAME}",
+                *(f"{output}/{path}" for path in payloads.files),
+            ],
+            Path(staging),
+        )
+        for folder in payloads.folders:
+            transport.download_folder(f"{output}/{folder}", Path(staging))
+        package_dir = Path(staging) / release.folder
+        (package_dir / RELEASE_MANIFEST_FILENAME).write_bytes(
+            release.manifest_bytes
+        )
+        _set_output_mtimes(package_dir, selected_only=True)
+        restore_snapshot(package_dir, destination_root, overwrite=overwrite)
+
+
+def _latest_full_release(transport: ReleaseTransport) -> ResolvedRelease:
+    releases = [
+        _fetch_manifest(transport, release_folder(release_id), release_id)
+        for release_id in transport.list_folders(RELEASES_FOLDER)
+    ]
+    full = [
+        release
+        for release in releases
+        if release.manifest.scope is ReleaseScope.FULL
+    ]
+    if not full:
+        others = ", ".join(
+            f"{release.manifest.release_id} ({release.manifest.scope})"
+            for release in releases
+        )
+        msg = (
+            f"No {ReleaseScope.FULL} release is published, so there is no "
+            "latest one; name a release id to download it. Published: "
+            f"{others or 'none'}."
+        )
+        raise LookupError(msg)
+    return max(
+        full,
+        key=lambda release: (
+            release.manifest.created_at,
+            release.manifest.release_id,
+        ),
+    )
+
+
+def _fetch_manifest(
+    transport: ReleaseTransport, folder: str, release_id: str
+) -> ResolvedRelease:
+    path = f"{folder}/{RELEASE_MANIFEST_FILENAME}"
+    with tempfile.TemporaryDirectory() as staging:
+        transport.download_files([path], Path(staging))
+        manifest_path = Path(staging) / path
+        manifest = read_release_manifest(manifest_path)
+        manifest_bytes = manifest_path.read_bytes()
+    # Guards against a release edited on the host by other means.
+    if manifest.release_id != release_id:
+        msg = (
+            f"Release {release_id!r} holds a manifest for release "
+            f"{manifest.release_id!r}."
+        )
+        raise ValueError(msg)
+    return ResolvedRelease(
+        folder=folder, manifest=manifest, manifest_bytes=manifest_bytes
+    )
 
 
 def release_folder(release_id: str, *, test_release: bool = False) -> str:
@@ -129,6 +260,9 @@ def release_folder(release_id: str, *, test_release: bool = False) -> str:
             f"Release id {release_id!r} must be letters, digits, '.', '_' "
             "or '-', starting with a letter or digit."
         )
+        raise ValueError(msg)
+    if release_id == LATEST_RELEASE:
+        msg = f"Release id {release_id!r} is reserved for the latest release."
         raise ValueError(msg)
     parent = TEST_RELEASES_FOLDER if test_release else RELEASES_FOLDER
     return f"{parent}/{release_id}"
@@ -155,9 +289,24 @@ def _output_mtimes(output_root: Path) -> bytes:
     return json.dumps(mtimes, indent=2).encode()
 
 
-def _set_output_mtimes(package_dir: Path) -> None:
+def _set_output_mtimes(
+    package_dir: Path, *, selected_only: bool = False
+) -> None:
     output_root = package_dir / SNAPSHOT_OUTPUT_SUBDIR
-    mtimes = json.loads((package_dir / OUTPUT_MTIMES_FILENAME).read_text())
+    mtimes: dict[str, dict[str, int]] = json.loads(
+        (package_dir / OUTPUT_MTIMES_FILENAME).read_text()
+    )
+    if selected_only:
+        # Only what was downloaded is restored; no other directory of the
+        # release is created.
+        mtimes = {
+            kind: {
+                relative: mtime_ns
+                for relative, mtime_ns in entries.items()
+                if (output_root / relative).exists()
+            }
+            for kind, entries in mtimes.items()
+        }
     # The host drops empty directories. Create them all before setting any
     # mtime, since creating one updates its parent's mtime.
     for relative in mtimes["directories"]:

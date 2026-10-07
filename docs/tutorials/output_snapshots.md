@@ -99,7 +99,8 @@ producing checkout: see the next section.
 - No release manifest unless saved with `--release-id`.
 - No selection by dataset, method, or output category: the whole output root
   is copied verbatim, including stale files no current rule would produce
-  (#39, #40).
+  (#39). Selection happens when downloading a published release
+  ([`release_publishing.md`](../release_publishing.md#selecting-what-to-download)).
 - No Snakemake execution metadata, i.e. `.snakemake/metadata`. This is a
   deliberate decision (#64, `docs/adr/0003-snapshots-omit-snakemake-metadata.md`),
   not a gap to fill later.
