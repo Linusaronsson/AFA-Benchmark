@@ -36,6 +36,7 @@ dependencies = [
     { name = "torchrl" },
     { name = "torchvision" },
     { name = "tornado" },
+    { name = "typer" },
     { name = "ucimlrepo" },
     { name = "wandb" },
 ]
@@ -81,6 +82,7 @@ requires-dist = [
     { name = "torchrl", specifier = ">=0.8.0" },
     { name = "torchvision", specifier = ">=0.22.0" },
     { name = "tornado", specifier = ">=6.5.1" },
+    { name = "typer", specifier = ">=0.21.1" },
     { name = "ucimlrepo", specifier = ">=0.0.7" },
     { name = "wandb", specifier = ">=0.19.10" },
 ]
