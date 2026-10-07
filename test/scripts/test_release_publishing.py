@@ -150,6 +150,7 @@ def download(
         transport,
         "download",
         release_id,
+        "--all",
         "--destination-root",
         str(destination_root),
         *extra,

@@ -123,6 +123,9 @@ Reconnaissance identified the following implementation considerations:
    release; see [`release_publishing.md`](release_publishing.md).
 4. Implement release selection and selective downloading into native pipeline
    locations, including existing-file handling and missing-output reporting.
+   #40 resolves the latest full or a pinned release once per download and
+   selects payloads by category and coverage; see
+   [`release_publishing.md`](release_publishing.md#downloading-a-release-into-a-checkout).
 5. Verify both main journeys: independent Parquet/plot downloads, and a fork
    adding one method without retraining or reevaluating published baselines.
    No real benchmark results are currently available: use small smoke runs,

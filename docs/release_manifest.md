@@ -4,9 +4,10 @@ A **release manifest** is the JSON file `release_manifest.json` written beside
 an output snapshot's `output/` tree. It identifies a benchmark release and
 records what produced the tree, so the snapshot stays reviewable and its
 tables stay interpretable without knowing the path layout. The schema is
-`afabench.release.manifest.ReleaseManifest`, version 1; publishing
-([`release_publishing.md`](release_publishing.md)) and selective download
-(#40) read it. Design background:
+`afabench.release.manifest.ReleaseManifest`, version 1; publishing and
+selective download
+([`release_publishing.md`](release_publishing.md#selecting-what-to-download))
+read it. Design background:
 [`artifact_publishing.md`](artifact_publishing.md) and
 [ADR 0002](adr/0002-provenance-recorded-in-artifacts.md).
 

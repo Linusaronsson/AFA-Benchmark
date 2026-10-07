@@ -567,7 +567,8 @@ def test_release_transport_carries_bundles_and_redistribution_warnings(
     downloaded = runner.invoke(
         app,
         ["download", "smoke-native", "--repo-id", "fake/repo"]
-        + ["--destination-root", str(destination_root), "--test-release"],
+        + ["--destination-root", str(destination_root), "--test-release"]
+        + ["--all"],
         obj=lambda _repo_id: transport,
     )
 
