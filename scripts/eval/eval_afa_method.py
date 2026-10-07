@@ -366,7 +366,11 @@ def _identity_columns(
 def _training_setting(
     method: ProvenanceRecord | None, name: str
 ) -> object | None:
-    """Read a training contract setting from the method bundle's record."""
+    """
+    Read a training contract setting from the method bundle's record.
+
+    A record built without the setting leaves it unknown, so null.
+    """
     if method is None:
         return None
     if method.stage != "training":
@@ -375,7 +379,7 @@ def _training_setting(
             "expected a 'training' record."
         )
         raise ValueError(msg)
-    return method.resolved_config[name]
+    return method.resolved_config.get(name)
 
 
 if __name__ == "__main__":

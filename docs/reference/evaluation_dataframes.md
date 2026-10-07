@@ -78,8 +78,8 @@ columns are constant per table and use pandas nullable dtypes, which
 | `eval_hard_budget` | `Float64` | The evaluation's hard budget, null in the soft-budget setting. |
 | `eval_soft_budget_param` | `Float64` | The evaluation's soft-budget parameter, null when not given. |
 
-A value whose source bundle was written without a provenance record is null,
-not guessed. The pretraining seed, the Unmasker, the classifier and the rest
+A value whose source bundle was written without a provenance record, or
+whose record lacks it, is null, not guessed. The pretraining seed, the Unmasker, the classifier and the rest
 of the configuration are in the table's provenance record only. The record
 is stored as JSON under the Arrow schema metadata key `afabench.provenance`;
 pandas drops it on read, so read it with

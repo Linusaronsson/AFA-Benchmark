@@ -289,6 +289,31 @@ def test_evaluation_table_drops_internal_bookkeeping_columns(
     assert "idx" not in saved
 
 
+def test_training_settings_missing_from_the_method_record_are_null(
+    eval_inputs: EvalInputs, tmp_path: Path
+) -> None:
+    # A record built by hand, as `docs/how-to/add_method.md` allows, need
+    # not carry the training contract's budgets
+    save_bundle(
+        RandomWithoutClassifierAFAMethod(n_classes=8),
+        eval_inputs.method,
+        metadata={},
+        provenance=placeholder_provenance(
+            "training", seed=TRAIN_SEED, method_name="random_dummy"
+        ),
+    )
+    save_path = tmp_path / "eval_data.parquet"
+
+    AFAEvaluator(
+        eval_config(eval_inputs, save_path, seed=5), initializer_name="warm"
+    ).run()
+
+    table = pd.read_parquet(save_path)
+    assert table["train_seed"].unique().tolist() == [TRAIN_SEED]
+    assert table["train_hard_budget"].isna().all()
+    assert table["train_soft_budget_param"].isna().all()
+
+
 def test_null_seed_is_resolved_once_and_reproduces_the_table(
     eval_inputs: EvalInputs, tmp_path: Path
 ) -> None:
