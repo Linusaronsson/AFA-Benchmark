@@ -302,6 +302,13 @@ The on-disk folder format in which datasets, classifiers, pretrained models,
 and AFA methods are saved and loaded.
 _Avoid_: Checkpoint, artifact (as the generic term), pickle
 
+**Provenance record**:
+The typed description of how one bundle or evaluation table was produced:
+code commit, resolved configuration, seed actually used, input bundles and
+their content hashes, environment, and dataset identity. It is embedded in
+the artifact itself (see `docs/adr/0002-provenance-recorded-in-artifacts.md`).
+_Avoid_: Metadata (the free-form manifest field), lineage, run info
+
 **Smoke test**:
 A run mode where every stage executes as fast as possible to verify the
 pipeline works end to end.

@@ -90,6 +90,9 @@ Reconnaissance identified the following implementation considerations:
 - Some provenance, including dataset-instance index and evaluation split, is
   not preserved explicitly in transformed tables. Release metadata must retain
   this information rather than relying on table columns alone.
+  `docs/adr/0002-provenance-recorded-in-artifacts.md` decides how bundles and
+  evaluation tables will carry their own provenance record and identity
+  columns, which the release manifest reads instead of parsing paths.
 - Raw evaluation `idx` is batch-local, not a stable cross-run instance identity.
   Do not promise paired instance-level comparisons using that field.
 - Default workflow aggregation enumerates baseline inputs and can cause
