@@ -27,6 +27,8 @@ import torch.version
 
 PROVENANCE_VERSION = 1
 AFABENCH_DISTRIBUTION = "afa-benchmark"
+# The work tree holding the running afabench package, wherever it runs from
+AFABENCH_CHECKOUT = Path(__file__).resolve().parents[2]
 
 type Stage = Literal[
     "dataset_generation",
@@ -158,11 +160,11 @@ def capture_provenance(
 
     `resolved_config` is the script's full configuration as it actually used
     it; a value that is not JSON-serialisable raises `TypeError` naming it.
-    `checkout` is the git work tree whose code runs, by default the current
-    directory; outside a work tree the code identity is unknown.
+    `checkout` is the git work tree whose code runs, by default the one
+    holding this package; outside a work tree the code identity is unknown.
     """
     _require_json(resolved_config, path="resolved_config")
-    checkout = Path.cwd() if checkout is None else checkout
+    checkout = AFABENCH_CHECKOUT if checkout is None else checkout
     code_commit, code_dirty = _code_identity(checkout)
     return ProvenanceRecord(
         provenance_version=PROVENANCE_VERSION,

@@ -134,6 +134,24 @@ def test_capture_outside_a_git_work_tree_records_unknown_code(
     assert record.code_dirty is None
 
 
+def test_capture_run_from_outside_the_checkout_records_afabench_code(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repository = Path(__file__).parents[4]
+    commit = subprocess.run(
+        ["git", "-C", str(repository), "rev-parse", "HEAD"],  # noqa: S607
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    monkeypatch.chdir(tmp_path)
+
+    record = _capture()
+
+    assert record.code_commit == commit
+    assert record.environment.lockfile_sha256 is not None
+
+
 def test_capture_in_a_repository_records_commit_and_dirty_flag(
     tmp_path: Path,
 ) -> None:

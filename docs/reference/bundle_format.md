@@ -78,7 +78,7 @@ The provenance record (`CONTEXT.md`) describes how the bundle was produced. It i
 | `provenance_version` | int | Schema version, currently `1`. |
 | `stage` | string | The pipeline stage that produced the bundle: `dataset_generation`, `classifier_training`, `pretraining`, `training` or `evaluation`. |
 | `created_at` | string | UTC ISO-8601 time of capture. |
-| `code_commit` | string or null | `git rev-parse HEAD` of the checkout the script ran in; null outside a git work tree. |
+| `code_commit` | string or null | `git rev-parse HEAD` of the checkout holding the `afabench` package that ran, whatever the working directory; null outside a git work tree. |
 | `code_dirty` | bool or null | Whether tracked files differed from `code_commit`. Untracked files are ignored. |
 | `resolved_config` | object | The script's full configuration as it actually used it, after interpolation and smoke-test overrides. |
 | `seed` | int | The seed actually used, never null: a null configured seed is recorded as the integer `set_seed` drew. |
@@ -88,7 +88,7 @@ The provenance record (`CONTEXT.md`) describes how the bundle was produced. It i
 | `dataset_realization_index` | int or null | The dataset realization index, with the same sources. |
 | `split` | string or null | `train`, `val` or `test` for a dataset bundle (its own split); null otherwise. |
 | `inputs` | list | One entry per input bundle: `role` (`train_dataset`, `val_dataset`, `eval_dataset`, `classifier`, `pretrained_model` or `method`), `path` as given to the script, `class_name` and `content_hash` copied from the input's manifest (null for an input written before version 1.1.0). |
-| `environment` | object | `python_version`, `afabench_version`, `torch_version`, `numpy_version`, `pandas_version`, `lockfile_sha256` (SHA-256 of `uv.lock`, null if absent) and `platform`. |
+| `environment` | object | `python_version`, `afabench_version`, `torch_version`, `numpy_version`, `pandas_version`, `lockfile_sha256` (SHA-256 of that checkout's `uv.lock`, null if absent) and `platform`. |
 | `compute` | object | `device` as configured, `accelerator_name` (CUDA device name, null on CPU), `cuda_version`, `cudnn_version`, `float32_matmul_precision`, `cudnn_deterministic`, `cudnn_benchmark` and `deterministic_algorithms`. |
 
 `capture_provenance()` collects the code, environment and compute facts itself; the caller passes the stage, resolved config, seed, smoke flag, device, inputs and identity. It raises `TypeError` for a config value that is not JSON-serialisable, naming the value. `shared_dataset_identity()` copies the dataset identity from several input records and raises `DatasetIdentityMismatchError` naming both values when they disagree; records that are null (inputs written before version 1.1.0) are unknown and cannot disagree.
