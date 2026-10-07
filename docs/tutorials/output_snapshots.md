@@ -48,6 +48,17 @@ rules: [`../release_manifest.md`](../release_manifest.md). Publishing such a
 snapshot as a benchmark release and downloading it again:
 [`../release_publishing.md`](../release_publishing.md).
 
+To see what a snapshot would hold before taking one, run `inventory` with
+the same configuration options; it prints each payload category's count and
+size and copies nothing:
+
+```shell
+uv run python scripts/release/snapshot.py inventory \
+    --profile extra/workflow/profiles/config/all \
+    --config "datasets=[cube]" --config "dataset_instance_indices=[0]" \
+    --config smoke_test=true --config use_wandb=false
+```
+
 ## The overwrite rule
 
 Both commands check every destination path before writing anything. If any

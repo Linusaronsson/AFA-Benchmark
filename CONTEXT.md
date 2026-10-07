@@ -279,6 +279,14 @@ identity and coverage (see `docs/release_manifest.md`). Smoke-test outputs
 are always test-only.
 _Avoid_: Metadata, release info, provenance record (that is per artifact)
 
+**Payload category**:
+One kind of reusable output a release manifest lists: raw or transformed
+evaluation tables, or dataset, classifier, pretrained-model or AFA-method
+bundles. Dataset bundles, external classifiers and pretrained models are
+**shared prerequisites** of any method; AFA-method bundles are optional
+baselines, never needed to plot against published results.
+_Avoid_: Artifact type, output kind
+
 **Test release**:
 A test-only output snapshot published apart from benchmark releases, to
 check the publish/download round trip. It is never a benchmark release and

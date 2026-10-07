@@ -99,16 +99,22 @@ Reconnaissance identified the following implementation considerations:
   missing upstream work to run. Verify that the download-and-reuse journey
   satisfies the relevant dependencies without retraining published baselines.
 - Actual publication sizes and dataset redistribution rights still need an
-  inventory; neither is established by this design.
+  inventory; neither is established by this design. The release manifest
+  records every dataset as unreviewed until a maintainer reviews it
+  ([`release_manifest.md`](release_manifest.md#dataset-redistribution)).
 
 ## Implementation checklist
 
 1. Inventory the official pipeline's outputs, dependencies, sizes, and
-   redistribution constraints.
+   redistribution constraints. #39 adds the `inventory` command, smoke-scale
+   measurements and the dataset redistribution review; production sizes
+   and every dataset's review remain open. See
+   [`release_manifest.md`](release_manifest.md#smoke-scale-inventory).
 2. Define a release manifest that maps each downloadable file to its producing
    run/configuration and records coverage and provenance. #63 defines it
    for release identity, workflow configuration, resolved settings,
-   evaluation tables and coverage; see
+   evaluation tables and coverage; #39 adds native bundles, payload
+   categories and their dependencies; see
    [`release_manifest.md`](release_manifest.md). Bundles are identified by
    their own provenance records once ADR 0002 lands.
 3. Implement local package preparation and validation, followed by explicit

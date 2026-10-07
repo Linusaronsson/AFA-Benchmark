@@ -164,10 +164,14 @@ Before publishing, read the package's `release_manifest.json` and check:
   false, so `code.commit` describes the code that ran.
 - **Permission to redistribute.** Every dataset, dataset bundle and other
   payload in `output/` may be redistributed publicly under its licence.
-  Generating a bundle does not grant that right. Remove, or publish
-  elsewhere, anything whose permission is unresolved before publishing.
-  The pipeline outputs, sizes and redistribution constraints still need an
-  inventory before the first real release (#39).
+  Generating a bundle does not grant that right. Every dataset key in
+  `settings.dataset_redistribution` must be `permitted`; `save` and
+  `publish` print the unreviewed and restricted ones. Remove, or publish
+  elsewhere, anything whose permission is unresolved before publishing
+  ([`release_manifest.md`](release_manifest.md#dataset-redistribution)).
+  `coverage.payloads` and the `bundles` entries show what each payload
+  category holds and its size; production sizes are still unknown until
+  `snapshot.py inventory` is run on the real outputs.
 
 Also record any change since the previous release that can affect results
 (data, splits, preprocessing, classifiers, acquisition semantics, metrics),
@@ -177,7 +181,9 @@ even if existing files still load.
 
 - Downloads fetch a whole release; there is no default latest release and
   no selection by dataset, method or output category (#40).
-- The release contents are whatever the snapshot holds. Native bundle
-  categories and their redistribution review are #39.
+- The release contents are whatever the snapshot holds; the manifest
+  lists its native bundles and payload categories
+  ([`release_manifest.md`](release_manifest.md#payload-categories)), but
+  `publish` does not exclude payloads by category or redistribution review.
 - Empty directories are restored from `output_mtimes.json`; nothing else
   about a file but its bytes and mtime is kept.
