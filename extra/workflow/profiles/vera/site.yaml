@@ -1,0 +1,5 @@
+# CPU-only cluster: jobs resolved to cuda fail before submission.
+execution_site:
+  cpu:
+    slurm_partition: vera
+    slurm_account: C3SE2026-1-12

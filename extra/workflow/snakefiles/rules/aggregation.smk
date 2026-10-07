@@ -59,8 +59,11 @@ rule merge_eval_perf:
                 eval_soft_budget_param,
             ) in BUDGET_PARAMS[method][dataset]
         ]
+    params:
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "merge_eval_perf", resources),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "merge_eval_perf"),
     output:
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet",
     shell:
@@ -74,8 +77,11 @@ rule split_by_classifier_type:
     output:
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
+    params:
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "split_by_classifier_type", resources),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "split_by_classifier_type"),
     shell:
         """
             python scripts/misc/split_eval_perf_by_classifier.py \
@@ -126,8 +132,11 @@ rule time_df_with_pretrain:
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "combined_time.parquet"
+    params:
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_with_pretrain", resources),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "time_df_with_pretrain"),
     shell:
         """
         python scripts/misc/merge_time_results.py \
@@ -174,8 +183,11 @@ rule time_df_without_pretrain:
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "combined_time.parquet"
+    params:
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_without_pretrain", resources),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "time_df_without_pretrain"),
     shell:
         """
         python scripts/misc/merge_time_results.py \
@@ -240,8 +252,11 @@ rule merge_time:
         ]
     output:
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/all.parquet",
+    params:
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "merge_time", resources),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "merge_time"),
     shell:
         """
         python scripts/misc/merge_dataframes.py {input} --output {output}

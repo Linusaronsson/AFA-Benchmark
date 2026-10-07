@@ -11,6 +11,7 @@ with a pretraining stage and `NO_PRETRAIN/` for the others, the same folder
 the evaluation rules use, so the two former training rules are one.
 """
 
+from execution import checked_script_params
 from training_contract import (
     render_pretraining_contract,
     render_training_contract,
@@ -59,7 +60,7 @@ def _pretrained_model_bundle(wildcards) -> list[str]:
     ]
 
 
-def _pretraining_contract(wildcards, input, output) -> str:
+def _pretraining_contract(wildcards, input, output, resources) -> str:
     return render_pretraining_contract(
         {
             "train_dataset_bundle_path": input.train_dataset,
@@ -69,7 +70,7 @@ def _pretraining_contract(wildcards, input, output) -> str:
             "initializer": INITIALIZER,
             "unmasker": UNMASKERS[wildcards.dataset],
             "dataset_key": wildcards.dataset,
-            "device": DEVICE,
+            "device": EXECUTION.checked_device("pretraining", wildcards.pretrained_model_name, resources),
             "seed": wildcards.pretrain_seed,
             "use_wandb": USE_WANDB,
             "smoke_test": SMOKE_TEST,
@@ -77,7 +78,7 @@ def _pretraining_contract(wildcards, input, output) -> str:
     )
 
 
-def _training_contract(wildcards, input, output) -> str:
+def _training_contract(wildcards, input, output, resources) -> str:
     return render_training_contract(
         {
             "train_dataset_bundle_path": input.train_dataset,
@@ -92,7 +93,7 @@ def _training_contract(wildcards, input, output) -> str:
             "dataset_key": wildcards.dataset,
             "hard_budget": wildcards.train_hard_budget,
             "soft_budget_param": wildcards.train_soft_budget_param,
-            "device": DEVICE,
+            "device": EXECUTION.checked_device("training", wildcards.method, resources),
             "seed": wildcards.train_seed,
             "use_wandb": USE_WANDB,
             "smoke_test": SMOKE_TEST,
@@ -126,9 +127,10 @@ rule pretrain_model:
     params:
         script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
         contract=_pretraining_contract,
-        pretrain_params=lambda wildcards: PRETRAIN_PARAMS[wildcards.pretrained_model_name],
+        pretrain_params=lambda wildcards: checked_script_params(PRETRAIN_PARAMS[wildcards.pretrained_model_name], f"pretrain_params for {wildcards.pretrained_model_name!r}"),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("pretraining", lambda wc: wc.pretrained_model_name),
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -179,7 +181,8 @@ rule train_method:
         contract=_training_contract,
         method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method],
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("training", lambda wc: wc.method),
     shell:
         """
         START_TIME=$(date +%s.%N)

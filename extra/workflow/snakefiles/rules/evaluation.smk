@@ -58,10 +58,12 @@ rule eval_method:
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_time.txt",
     params:
+        device=lambda wildcards, resources: EXECUTION.checked_device("evaluation", wildcards.method, resources),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("evaluation", lambda wc: wc.method),
     shell:
         """
         START_TIME=$(date +%s.%N)
@@ -73,7 +75,7 @@ rule eval_method:
             save_path={output[0]} \
             classifier_bundle_path={input[2]} \
             seed={wildcards.eval_seed} \
-            device={DEVICE} \
+            device={params.device} \
             hard_budget={wildcards.eval_hard_budget} \
             soft_budget_param={wildcards.eval_soft_budget_param} \
             batch_size={params.eval_batch_size} \

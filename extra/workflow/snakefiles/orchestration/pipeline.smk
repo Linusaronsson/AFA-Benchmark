@@ -7,7 +7,19 @@ Runtime filters (--config, select subsets to run):
     datasets (list[str], required): Subset of datasets to run. Every dataset
         key needs a file extra/conf/dataset_key/<key>.yaml.
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
-    device (str, default='cpu'): Device for training
+    device (str, default='cpu'): Deprecated invocation-wide device for
+        computational jobs, with a warning. Cannot be combined with execution.
+    execution (mapping, default={}): CPU/cuda defaults for the execution
+        activities classifier, pretraining, training and evaluation. methods.<name> overrides training,
+        evaluation and method-specific classifier choices; pretrained_models
+        overrides pretraining by named model. External classifiers use only
+        the classifier default. Overrides take precedence over defaults.
+        Shipped declarations: extra/workflow/conf/execution/{kdd26,all}.yaml.
+    execution_site_file (str, required for SLURM submission): Profile-owned
+        YAML allocation map; submitting without one fails before any job.
+        Alternatively provide execution_site in a configuration file. A CLI
+        --config replaces the workflow profile's config, so repeat
+        execution_site_file=<site>/site.yaml whenever passing --config.
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy, a file in
@@ -23,6 +35,42 @@ Training contract:
     smoke_test (pretraining receives no pretrained model and no budgets).
     Methods add their own arguments through method_specific_params and
     pretrain_params. See docs/adr/0001-training-contract-as-library.md.
+
+Execution configuration and required files:
+    Methods retain their independent scripts and native bundle/result paths.
+    Site profiles own CPU/GPU partition, account and GPU request syntax;
+    CPU counts, memory and runtime remain separate resource settings.
+    Invalid selected-method and prerequisite execution fails before submission,
+    including conflicting device arguments in classifier/pretraining params,
+    unknown pretrained_models names and default-resources slurm_extra.
+    See docs/tutorials/mixed_execution.md and prerequisite_execution.md for
+    execution YAML, site.yaml, migration and captured-submission tests.
+
+Usage:
+    Full benchmark, one invocation from an authorized SLURM submit host of a
+    single cluster, with the repository, environment and outputs on a shared
+    filesystem (config/kdd26 bundles execution/kdd26.yaml):
+        snakemake --profile extra/workflow/profiles/config/kdd26 \
+            --workflow-profile extra/workflow/profiles/<site> -n -p all
+    Inspect the planned resources and device arguments, then remove -n -p.
+    Full method set: use --profile extra/workflow/profiles/config/all_cluster
+    (bundles execution/all.yaml) instead. Local CPU smoke test without SLURM
+    or GPUs (config/all has no execution file, so every job runs on CPU):
+        snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
+            --config "datasets=[cube]" "dataset_instance_indices=[0]" \
+            smoke_test=true use_wandb=false
+    See docs/tutorials/reproduce_full_results.md and slurm_integration.md.
+
+CPU-only processing:
+    Dataset generation (full pipeline only), transformations, aggregation and
+    visualization always resolve to CPU, including with legacy device=cuda.
+    These fixed activities have no execution defaults/overrides. The profile's
+    execution_site.cpu allocation maps their partition/account and clears GPU
+    requests; CPU counts, memory and runtime remain independently configurable.
+    Conflicting rule allocation overrides fail before any submission. Heavy
+    processing is submitted normally, not designated as login-node/local work.
+    See docs/tutorials/cpu_processing_execution.md for site requirements and
+    final-target command-boundary verification.
 
 Output namespacing:
     - All initializer-dependent artifacts are stored under
@@ -74,15 +122,25 @@ src_dir = os.path.join(workflow_dir, "src")
 sys.path.insert(0, src_dir)
 
 from config import load_config
+from execution import ExecutionPolicy
 
 _config = load_config(config)
+EXECUTION = ExecutionPolicy(
+    config,
+    method_classifiers=_config["METHOD_CLASSIFIER_SCRIPT_NAMES"],
+    default_resources=(
+        workflow.resource_settings.default_resources.parsed
+        if workflow.resource_settings.default_resources
+        else {}
+    ),
+    submits_to_cluster=lambda: workflow.is_main_process and workflow.non_local_exec,
+)
 
 NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
 DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]
 INITIALIZER = _config["INITIALIZER"]
 INITIALIZER_TAG = f"initializer-{INITIALIZER}"
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
-DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]
 SMOKE_TEST = _config["SMOKE_TEST"]
 PRETRAIN_NAMES = _config["PRETRAIN_NAMES"]

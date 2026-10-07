@@ -2,7 +2,7 @@ snakefile: extra/workflow/snakefiles/orchestration/pipeline.smk
 
 configfile:
   - extra/workflow/conf/eval_hard_budgets/all.yaml
-  - extra/workflow/conf/methods/cpu.yaml
+  - extra/workflow/conf/methods/all.yaml
   - extra/workflow/conf/method_sets/all.yaml
   - extra/workflow/conf/method_options/all.yaml
   - extra/workflow/conf/pretrain_mappings/all.yaml
@@ -10,6 +10,4 @@ configfile:
   - extra/workflow/conf/unmaskers/all.yaml
   - extra/workflow/conf/classifier_names/all.yaml
   - extra/workflow/conf/datasets/all.yaml
-
-config:
-  device: cpu
+  - extra/workflow/conf/execution/all.yaml

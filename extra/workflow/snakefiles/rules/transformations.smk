@@ -42,8 +42,11 @@ rule transform_eval_data:
                         "eval_hard_budget-{eval_hard_budget}+"
                         "eval_soft_budget_param-{eval_soft_budget_param}/"
                             "eval_data.parquet",
+    params:
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("transformation", "transform_eval_data", resources),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("transformation", lambda wc: "transform_eval_data"),
     shell:
         """
         python scripts/misc/transform_eval_data_pipeline.py \

@@ -10,12 +10,41 @@ Runtime filters (--config, select subsets to run):
     datasets (list[str], required): Subset of datasets to run
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of
         random seeds
-    device (str, default='cpu'): Device for configured downstream rules
+    device (str, default='cpu'): Deprecated global option, ignored by CPU-only
+        processing; cannot be combined with execution.
+    execution (mapping, default={}): Computational execution activity policy;
+        processing activities are fixed CPU-only and cannot be overridden.
+    execution_site_file (str, required for SLURM submission): Profile-owned
+        YAML allocation map; submitting without one fails before any job.
+        Alternatively provide execution_site in a configuration file. A CLI
+        --config replaces the workflow profile's config, so repeat
+        execution_site_file=<site>/site.yaml whenever passing --config.
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy
     eval_dataset_split (str, default='test'): Dataset split for existing
         evaluation outputs
+
+CPU-only processing:
+    Dataset generation (full pipeline only), transformations, aggregation and
+    visualization always resolve to CPU, including with legacy device=cuda.
+    These fixed activities have no execution defaults/overrides. The profile's
+    execution_site.cpu allocation maps their partition/account and clears GPU
+    requests; CPU counts, memory and runtime remain independently configurable.
+    Conflicting rule allocation overrides fail before any submission. Heavy
+    processing is submitted normally, not designated as login-node/local work.
+    See docs/tutorials/cpu_processing_execution.md for site requirements and
+    final-target command-boundary verification.
+
+Required files and usage:
+    Existing evaluation parquet files and timing files at native output paths,
+    scientific YAML configuration, and, for SLURM submission, the
+    profile-owned site.yaml allocation map. No trained scripts are dispatched.
+    snakemake -s extra/workflow/snakefiles/orchestration/pipeline_no_eval.smk \
+        --workflow-profile extra/workflow/profiles/mixed-gres \
+        --configfile <scientific.yaml> -n -p all
+    Remove -n to submit processing jobs from an authorized shared-filesystem
+    SLURM controller. Omit the cluster profile for ordinary local CPU use.
 
 Output namespacing:
     - All initializer-dependent artifacts are stored under
@@ -67,15 +96,25 @@ src_dir = os.path.join(workflow_dir, "src")
 sys.path.insert(0, src_dir)
 
 from config import load_config
+from execution import ExecutionPolicy
 
 _config = load_config(config)
+EXECUTION = ExecutionPolicy(
+    config,
+    method_classifiers=_config["METHOD_CLASSIFIER_SCRIPT_NAMES"],
+    default_resources=(
+        workflow.resource_settings.default_resources.parsed
+        if workflow.resource_settings.default_resources
+        else {}
+    ),
+    submits_to_cluster=lambda: workflow.is_main_process and workflow.non_local_exec,
+)
 
 NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
 DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]
 INITIALIZER = _config["INITIALIZER"]
 INITIALIZER_TAG = f"initializer-{INITIALIZER}"
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
-DEVICE = _config["DEVICE"]
 USE_WANDB = _config["USE_WANDB"]
 SMOKE_TEST = _config["SMOKE_TEST"]
 PRETRAIN_NAMES = _config["PRETRAIN_NAMES"]

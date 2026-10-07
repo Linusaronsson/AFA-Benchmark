@@ -1,0 +1,12 @@
+# UNVERIFIED: whether Alvis accepts CPU-only jobs (no GPU request) has not
+# been checked. If it does not, sbatch rejects them at submission. A CPU
+# allocation is still required, because dataset generation, transformations,
+# aggregation and visualization always resolve to CPU.
+execution_site:
+  cpu:
+    slurm_partition: alvis
+    slurm_account: NAISS2026-4-39
+  gpu:
+    slurm_partition: alvis
+    slurm_account: NAISS2026-4-39
+    gres: gpu:T4:1

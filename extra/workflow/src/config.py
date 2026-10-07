@@ -30,7 +30,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     Load and validate configuration variables from the Snakemake config.
 
     Processes and validates:
-    - Basic configuration (device, seeds, etc.)
+    - Basic configuration (seeds, initializer, etc.)
     - Pretrained model configurations
     - Method options and filtering
     - Dataset configuration
@@ -54,7 +54,6 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     eval_dataset_split = config.get(
         "eval_dataset_split", "test"
     )  # switch to val while developing, and train if debugging
-    device = config.get("device", "cpu")
     use_wandb = config.get("use_wandb", True)
     smoke_test = config.get("smoke_test", False)
 
@@ -315,7 +314,6 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         "DATASET_INSTANCE_INDICES": dataset_instance_indices,
         "INITIALIZER": initializer,
         "EVAL_DATASET_SPLIT": eval_dataset_split,
-        "DEVICE": device,
         "USE_WANDB": use_wandb,
         "SMOKE_TEST": smoke_test,
         "PRETRAIN_NAMES": pretrain_names,

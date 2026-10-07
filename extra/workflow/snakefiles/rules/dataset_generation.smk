@@ -6,6 +6,8 @@ rule dataset_generation:
             directory(f"extra/output/datasets/{{dataset}}/{dataset_instance_idx}/{split}.bundle") for dataset_instance_idx in DATASET_INSTANCE_INDICES for split in ["train", "val", "test"]
         ]
     params:
+        # Validate final resources during planning; this script has no device argument.
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("dataset_generation", wc.dataset, resources),
         save_path=lambda wc: f"extra/output/datasets/{wc.dataset}",
         instance_indices_str=lambda wildcards: "["
         + ",".join(str(i) for i in DATASET_INSTANCE_INDICES)
@@ -22,6 +24,8 @@ rule dataset_generation:
             ]
             else "generate_dataset.py"
         ),
+    resources:
+        **EXECUTION.allocation_resources("dataset_generation", lambda wc: wc.dataset),
     shell:
         """
         python scripts/dataset_generation/{params.dataset_generation_script} \

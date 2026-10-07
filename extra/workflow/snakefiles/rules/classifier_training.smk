@@ -1,5 +1,7 @@
 # We only train the classifier once per dataset (on the first instance)
 
+from execution import checked_script_params
+
 
 def _classifier_script_name(dataset: str) -> str:
     classifier_cfg = CLASSIFIER_NAMES[dataset]
@@ -11,7 +13,10 @@ def _classifier_script_name(dataset: str) -> str:
 def _classifier_script_params(dataset: str) -> str:
     classifier_cfg = CLASSIFIER_NAMES[dataset]
     if isinstance(classifier_cfg, dict):
-        return " ".join(classifier_cfg.get("script_params", []))
+        return checked_script_params(
+            " ".join(classifier_cfg.get("script_params", [])),
+            f"classifier script_params for {dataset!r}",
+        )
     return ""
 
 
@@ -25,7 +30,9 @@ def _method_classifier_script_name(method: str, dataset: str) -> str:
 def _method_classifier_script_params(method: str, dataset: str) -> str:
     script_params = METHOD_CLASSIFIER_SCRIPT_PARAMS.get(method)
     if script_params is not None:
-        return script_params
+        return checked_script_params(
+            script_params, f"classifier script_params for method {method!r}"
+        )
     return _classifier_script_params(dataset)
 
 
@@ -39,6 +46,7 @@ rule train_classifier:
                 "dataset-{dataset}.bundle"
         )
     params:
+        device=lambda wc, resources: EXECUTION.checked_device("classifier", None, resources),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         script_name=lambda wildcards: _classifier_script_name(
             wildcards.dataset
@@ -47,7 +55,8 @@ rule train_classifier:
             wildcards.dataset
         ),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("classifier", lambda wc: None),
     shell:
         """
         python scripts/train_classifier/{params.script_name}.py \
@@ -56,7 +65,7 @@ rule train_classifier:
             save_path={output} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={DEVICE} \
+            device={params.device} \
             seed=0 \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
@@ -75,6 +84,7 @@ rule train_classifier_for_method:
             "method-{method}+dataset-{dataset}.bundle"
         )
     params:
+        device=lambda wc, resources: EXECUTION.checked_device("classifier", wc.method, resources),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         script_name=lambda wildcards: _method_classifier_script_name(
             wildcards.method, wildcards.dataset
@@ -83,7 +93,8 @@ rule train_classifier_for_method:
             wildcards.method, wildcards.dataset
         ),
     resources:
-        shell_exec="bash"
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("classifier", lambda wc: wc.method),
     shell:
         """
         python scripts/train_classifier/{params.script_name}.py \
@@ -92,7 +103,7 @@ rule train_classifier_for_method:
             save_path={output} \
             components/initializers@initializer={INITIALIZER} \
             components/unmaskers@unmasker={params.unmasker} \
-            device={DEVICE} \
+            device={params.device} \
             seed=0 \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \

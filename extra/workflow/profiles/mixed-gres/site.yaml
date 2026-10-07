@@ -1,0 +1,8 @@
+execution_site:
+  cpu:
+    slurm_partition: cpu-queue
+    slurm_account: cpu-account
+  gpu:
+    slurm_partition: gpu-queue
+    slurm_account: gpu-account
+    gres: gpu:T4:1

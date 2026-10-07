@@ -3,8 +3,6 @@ jobs: 9001
 latency-wait: 30 # seconds
 
 default-resources:
-  slurm_partition: vera
-  slurm_account: C3SE2026-1-12
   # slurm_constraint: ICELAKE
   runtime: 120 # minutes
   cpus_per_task: 1
@@ -28,3 +26,6 @@ set-resources:
     cpus_per_task: 10
   plot_eval_actions:
     cpus_per_task: 10
+
+config:
+  execution_site_file: extra/workflow/profiles/vera/site.yaml
