@@ -2,14 +2,17 @@
 
 import logging
 import random
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
 import hydra
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
 
 from afabench.core.bundle_system.bundle import save_bundle
+from afabench.core.provenance import Split, capture_provenance
 from afabench.core.registry import get_class
 from afabench.core.types import AFADataset
 from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
@@ -25,6 +28,9 @@ def generate_and_save_split(
     save_path: Path,
     dataset_kwargs: dict[str, Any],
     metadata_to_save: dict[str, Any],
+    dataset_key: str,
+    dataset_realization_index: int,
+    resolved_config: dict[str, Any],
 ) -> None:
     """
     Generate and save a single train/val/test split.
@@ -36,6 +42,9 @@ def generate_and_save_split(
         save_path: Path to save the generated dataset splits. Will create a separate folder for each dataset realization.
         dataset_kwargs: Keyword arguments to pass to the dataset class constructor.
         metadata_to_save: Additional metadata to save alongside the dataset.
+        dataset_key: The dataset key, recorded in each bundle's provenance.
+        dataset_realization_index: The realization's index, recorded in each bundle's provenance.
+        resolved_config: The script's full configuration, recorded in each bundle's provenance.
     """
     # Generate full dataset. Splitting by position below makes each split's
     # generation indices positions in this dataset.
@@ -65,9 +74,11 @@ def generate_and_save_split(
     val_path = save_path / "val.bundle"
     test_path = save_path / "test.bundle"
 
-    for obj, path in zip(
+    splits: list[Split] = ["train", "val", "test"]
+    for obj, path, split in zip(
         [train_dataset, val_dataset, test_dataset],
         [train_path, val_path, test_path],
+        splits,
         strict=True,
     ):
         save_bundle(
@@ -79,6 +90,16 @@ def generate_and_save_split(
                 "generated_at": datetime.now(UTC).isoformat(),
                 "kwargs": dataset_kwargs,
             },
+            provenance=capture_provenance(
+                stage="dataset_generation",
+                resolved_config=resolved_config,
+                seed=seed_for_split,
+                smoke_test=False,
+                device="cpu",
+                dataset_key=dataset_key,
+                dataset_realization_index=dataset_realization_index,
+                split=split,
+            ),
         )
 
     # # Prepare metadata
@@ -101,6 +122,9 @@ def generate_and_save_split(
 )
 def main(cfg: DatasetGenerationConfig) -> None:
     cfg = cast("DatasetGenerationConfig", OmegaConf.to_object(cfg))
+    # The dataset key is the selected `dataset` config, not the class name:
+    # several keys (cube, cube_without_noise) share one class.
+    dataset_key = HydraConfig.get().runtime.choices["dataset"]
     log.info(f"Generating {cfg.dataset.class_name} to {cfg.save_path}")
     for dataset_realization_index, seed in zip(
         cfg.dataset_realization_indices, cfg.seeds, strict=True
@@ -122,6 +146,9 @@ def main(cfg: DatasetGenerationConfig) -> None:
             metadata_to_save={
                 "dataset_realization_index": dataset_realization_index,
             },
+            dataset_key=dataset_key,
+            dataset_realization_index=dataset_realization_index,
+            resolved_config=asdict(cfg),
         )
     log.info(
         f"Generated {

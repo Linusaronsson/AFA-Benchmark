@@ -17,6 +17,7 @@ from afabench.core.types import AFADataset
 from afabench.datasets.config import SplitRatioConfig
 from afabench.datasets.datasets import CubeDataset, ImagenetteDataset
 from afabench.datasets.utils import MissingGenerationIndicesError
+from afabench.testing.provenance import placeholder_provenance
 from scripts.dataset_generation.generate_dataset import generate_and_save_split
 from scripts.dataset_generation.generate_image_dataset import (
     generate_and_save_image_split,
@@ -115,6 +116,9 @@ def generate_splits(
         save_path=save_path,
         dataset_kwargs=kwargs,
         metadata_to_save={},
+        dataset_key="test_dataset",
+        dataset_realization_index=0,
+        resolved_config={"dataset": {"class_name": class_name}},
     )
     return {
         split: cast(
@@ -220,7 +224,12 @@ def test_loading_a_bundle_without_generation_indices_names_it(
     make_dataset: Callable[[Path], AFADataset], tmp_path: Path
 ) -> None:
     bundle_path = tmp_path / "old_split.bundle"
-    save_bundle(make_dataset(tmp_path), bundle_path, metadata={})
+    save_bundle(
+        make_dataset(tmp_path),
+        bundle_path,
+        metadata={},
+        provenance=placeholder_provenance(),
+    )
     data_path = bundle_path / "data" / "dataset.pt"
     data = torch.load(data_path)
     del data["generation_indices"]
@@ -235,7 +244,9 @@ def test_loading_a_bundle_without_generation_indices_names_it(
 def test_bundle_round_trip_keeps_generation_indices(tmp_path: Path) -> None:
     subset = CubeDataset(n_samples=N_ROWS, seed=1).create_subset([5, 1, 3])
     bundle_path = tmp_path / "split.bundle"
-    save_bundle(subset, bundle_path, metadata={})
+    save_bundle(
+        subset, bundle_path, metadata={}, provenance=placeholder_provenance()
+    )
 
     loaded = cast("AFADataset", load_bundle(bundle_path)[0])
 

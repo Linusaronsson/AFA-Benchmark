@@ -1,13 +1,16 @@
 import logging
 import random
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
 import hydra
+from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
 
 from afabench.core.bundle_system.bundle import save_bundle
+from afabench.core.provenance import Split, capture_provenance
 from afabench.core.registry import get_class
 from afabench.core.types import AFADataset
 from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
@@ -23,6 +26,9 @@ def generate_and_save_image_split(
     save_path: Path,
     dataset_kwargs: dict[str, Any],
     metadata_to_save: dict[str, Any],
+    dataset_key: str,
+    dataset_realization_index: int,
+    resolved_config: dict[str, Any],
 ) -> None:
     """
     Generate and save a single train/val/test split for a dataset with a specific seed.
@@ -30,7 +36,9 @@ def generate_and_save_image_split(
     The official `train/` folder is shuffled into the train and val splits;
     the official `val/` folder is the fixed test split. Every split loads
     `train/` then `val/`, so generation indices run over both folders in
-    that order and are unique across splits.
+    that order and are unique across splits. `dataset_key`,
+    `dataset_realization_index` and `resolved_config` go into each bundle's
+    provenance record.
     """
 
     def pool_size(subdir: str) -> int:
@@ -51,14 +59,14 @@ def generate_and_save_image_split(
     rnd = random.Random(seed_for_split)
     rnd.shuffle(all_indices)
 
-    generation_indices_per_split = {
+    generation_indices_per_split: dict[Split, list[int]] = {
         "train": all_indices[:train_size],
         "val": all_indices[train_size:],
         # Official val/ follows train/ in generation order
         "test": list(range(n_train_pool, n_train_pool + n_test_pool)),
     }
     effective_kwargs: dict[str, dict[str, Any]] = {}
-    splits: dict[str, AFADataset] = {}
+    splits: dict[Split, AFADataset] = {}
     for split, generation_indices in generation_indices_per_split.items():
         # The split role selects the transform: augmentation only for train
         effective_kwargs[split] = dataset_kwargs | {
@@ -88,6 +96,16 @@ def generate_and_save_image_split(
                 "split": split,
                 "effective_dataset_kwargs": effective_kwargs[split],
             },
+            provenance=capture_provenance(
+                stage="dataset_generation",
+                resolved_config=resolved_config,
+                seed=seed_for_split,
+                smoke_test=False,
+                device="cpu",
+                dataset_key=dataset_key,
+                dataset_realization_index=dataset_realization_index,
+                split=split,
+            ),
         )
 
 
@@ -99,6 +117,8 @@ def generate_and_save_image_split(
 def main(cfg: DatasetGenerationConfig) -> None:
     cfg = cast("DatasetGenerationConfig", OmegaConf.to_object(cfg))
     dataset_class = get_class(cfg.dataset.class_name)
+    # The dataset key is the selected `dataset` config, not the class name
+    dataset_key = HydraConfig.get().runtime.choices["dataset"]
 
     for dataset_realization_index, seed in zip(
         cfg.dataset_realization_indices, cfg.seeds, strict=True
@@ -118,6 +138,9 @@ def main(cfg: DatasetGenerationConfig) -> None:
                 "dataset_realization_index": dataset_realization_index,
                 "class_name": cfg.dataset.class_name,
             },
+            dataset_key=dataset_key,
+            dataset_realization_index=dataset_realization_index,
+            resolved_config=asdict(cfg),
         )
 
 
