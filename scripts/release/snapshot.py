@@ -1,14 +1,33 @@
-"""Save and restore an output snapshot (see `afabench.release.snapshot`)."""
+"""
+Save and restore an output snapshot (see `afabench.release.snapshot`).
+
+`save --release-id` also writes a release manifest from the checkout and the
+workflow configuration given by `--profile`, `--configfile` and `--config`
+(see `docs/release_manifest.md`).
+"""
 
 from pathlib import Path
-from typing import Final
+from typing import Annotated, Final
 
 import typer
 
-from afabench.release.snapshot import restore_snapshot, save_snapshot
+from afabench.release.manifest import (
+    RELEASE_MANIFEST_FILENAME,
+    ReleaseManifest,
+    ReleaseScope,
+    build_release_manifest,
+    read_release_manifest,
+)
+from afabench.release.snapshot import (
+    restore_snapshot,
+    restored_manifest_location,
+    save_snapshot,
+)
+from afabench.release.workflow_config import resolve_workflow_config
 
 app = typer.Typer()
 DEFAULT_OUTPUT_ROOT: Final[Path] = Path("extra/output")
+DEFAULT_CHECKOUT: Final[Path] = Path()
 
 
 @app.command()
@@ -17,8 +36,67 @@ def save(
     source_root: Path = DEFAULT_OUTPUT_ROOT,
     *,
     overwrite: bool = False,
+    release_id: Annotated[
+        str | None,
+        typer.Option(help="Write a release manifest with this identity."),
+    ] = None,
+    scope: Annotated[
+        ReleaseScope | None,
+        typer.Option(help="Declared coverage; smoke outputs are test_only."),
+    ] = None,
+    profile: Annotated[
+        Path | None,
+        typer.Option(help="Snakemake profile the run used."),
+    ] = None,
+    configfile: Annotated[
+        list[Path] | None,
+        typer.Option(help="Workflow config file; replaces the profile's."),
+    ] = None,
+    config: Annotated[
+        list[str] | None,
+        typer.Option(help="KEY=VALUE override; replaces the profile's."),
+    ] = None,
+    checkout: Annotated[
+        Path,
+        typer.Option(help="Git checkout whose commit produced the outputs."),
+    ] = DEFAULT_CHECKOUT,
 ) -> None:
-    save_snapshot(source_root, snapshot_dir, overwrite=overwrite)
+    manifest = None
+    if release_id is None:
+        given = [
+            name
+            for name, value in [
+                ("--scope", scope),
+                ("--profile", profile),
+                ("--configfile", configfile),
+                ("--config", config),
+            ]
+            if value
+        ]
+        if given:
+            msg = f"{', '.join(given)} only apply with --release-id."
+            raise typer.BadParameter(msg)
+    else:
+        if scope is None:
+            msg = "--release-id needs --scope (full, partial or test_only)."
+            raise typer.BadParameter(msg)
+        workflow_config = resolve_workflow_config(
+            profile=profile,
+            configfiles=configfile or [],
+            overrides=config or [],
+        )
+        manifest = build_release_manifest(
+            release_id=release_id,
+            scope=scope,
+            workflow_config=workflow_config,
+            output_root=source_root,
+            checkout=checkout,
+        )
+    save_snapshot(
+        source_root, snapshot_dir, overwrite=overwrite, manifest=manifest
+    )
+    if manifest is not None:
+        _echo_manifest(manifest, snapshot_dir / RELEASE_MANIFEST_FILENAME)
 
 
 @app.command()
@@ -28,7 +106,33 @@ def restore(
     *,
     overwrite: bool = False,
 ) -> None:
+    manifest_path = snapshot_dir / RELEASE_MANIFEST_FILENAME
+    # Read before restoring so an unreadable manifest restores nothing.
+    manifest = (
+        read_release_manifest(manifest_path)
+        if manifest_path.is_file()
+        else None
+    )
     restore_snapshot(snapshot_dir, destination_root, overwrite=overwrite)
+    if manifest is not None:
+        _echo_manifest(manifest, restored_manifest_location(destination_root))
+
+
+def _echo_manifest(manifest: ReleaseManifest, path: Path) -> None:
+    workflow_config = manifest.workflow_config
+    configfiles = ", ".join(
+        record.path for record in workflow_config.configfiles
+    )
+    dirty = " (dirty)" if manifest.code.dirty else ""
+    typer.echo(
+        f"Release {manifest.release_id}: scope {manifest.scope}, "
+        f"execution {manifest.execution_mode}, "
+        f"commit {manifest.code.commit}{dirty}\n"
+        f"Workflow profile: {workflow_config.profile}\n"
+        f"Workflow config files: {configfiles}\n"
+        f"Workflow config overrides: {workflow_config.overrides}\n"
+        f"Release manifest: {path}"
+    )
 
 
 if __name__ == "__main__":

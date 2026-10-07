@@ -267,9 +267,17 @@ _Avoid_: Latest results, pipeline run (a run need not be published)
 **Output snapshot**:
 A verbatim copy of everything the pipeline has written under its output
 root, taken so it can later be put back exactly where the workflow expects
-it. It is not curated and carries no provenance of its own; a benchmark
-release is built from one.
+it. It is not curated; a benchmark release is built from one. Its only
+provenance is an optional release manifest beside it.
 _Avoid_: Backup, archive, export, package
+
+**Release manifest**:
+The JSON file beside an output snapshot's output tree that identifies its
+benchmark release, declares full, partial or test-only scope, and records
+the producing commit, workflow configuration, resolved settings, per-table
+identity and coverage (see `docs/release_manifest.md`). Smoke-test outputs
+are always test-only.
+_Avoid_: Metadata, release info, provenance record (that is per artifact)
 
 **Pipeline stage**:
 One of **pretraining**, **training**, and **evaluation**. The first two are

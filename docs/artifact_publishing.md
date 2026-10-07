@@ -106,7 +106,11 @@ Reconnaissance identified the following implementation considerations:
 1. Inventory the official pipeline's outputs, dependencies, sizes, and
    redistribution constraints.
 2. Define a release manifest that maps each downloadable file to its producing
-   run/configuration and records coverage and provenance.
+   run/configuration and records coverage and provenance. #63 defines it
+   for release identity, workflow configuration, resolved settings,
+   evaluation tables and coverage; see
+   [`release_manifest.md`](release_manifest.md). Bundles are identified by
+   their own provenance records once ADR 0002 lands.
 3. Implement local package preparation and validation, followed by explicit
    HF publication. Preserve native formats; add HF conversions where useful.
 4. Implement release selection and selective downloading into native pipeline
