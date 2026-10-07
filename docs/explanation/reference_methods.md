@@ -50,7 +50,7 @@ are skipped and stay as downloaded.
 ## Limits
 
 - The comparison covers only evaluations the release has. Datasets,
-  dataset instances, budgets or splits the release lacks fail the plan
+  dataset realizations, budgets or splits the release lacks fail the plan
   until they are removed from the configuration.
 - The time plot covers local methods only: published methods' time
   records are not downloaded with their tables.

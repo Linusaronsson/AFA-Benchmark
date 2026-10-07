@@ -19,11 +19,11 @@ def _classifier_bundle_for_method(method: str, dataset: str) -> str:
 
 rule eval_method:
     input:
-        f"extra/output/datasets/{{dataset}}/{{dataset_instance_idx}}/{EVAL_DATASET_SPLIT}.bundle",
+        f"extra/output/datasets/{{dataset}}/{{dataset_realization_index}}/{EVAL_DATASET_SPLIT}.bundle",
 
         f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
@@ -37,7 +37,7 @@ rule eval_method:
     output:
         f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
@@ -48,7 +48,7 @@ rule eval_method:
                             "eval_data.parquet",
         f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"

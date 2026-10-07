@@ -36,10 +36,10 @@ MANIFEST_VERSION = 1
 RELEASE_MANIFEST_FILENAME = "release_manifest.json"
 # The dataset generation rule always writes these three split bundles.
 DATASET_SPLITS = ("train", "val", "test")
-# Pretrained models, trained methods and evaluations of a dataset instance
+# Pretrained models, trained methods and evaluations of a dataset realization
 # are all seeded with its index, as are the dataset generators. Every
-# classifier is trained on instance 0 with seed 0.
-CLASSIFIER_DATASET_INSTANCE_INDEX = 0
+# classifier is trained on dataset realization 0 with seed 0.
+CLASSIFIER_DATASET_REALIZATION_INDEX = 0
 CLASSIFIER_SEED = 0
 FORCING_POLICY = "forced_acquisition_when_eval_hard_budget_is_set"
 # Maintainers' redistribution reviews, relative to the checkout. A dataset
@@ -139,7 +139,7 @@ class ClassifierRecord:
     script_params: str
     dataset_key: str
     method_name: str | None
-    dataset_instance_index: int
+    dataset_realization_index: int
     seed: int
 
 
@@ -147,7 +147,7 @@ class ClassifierRecord:
 class ResolvedSettings:
     initializer: str
     eval_split: str
-    dataset_instance_indices: list[int]
+    dataset_realization_indices: list[int]
     dataset_splits: list[str]
     unmaskers: dict[str, str]
     feature_costs: dict[str, FeatureCostRecord]
@@ -173,7 +173,7 @@ class EvaluationTableRecord:
     transformed_size_bytes: int | None
     method_name: str
     dataset_key: str
-    dataset_instance_index: int
+    dataset_realization_index: int
     dataset_generation_seed: int
     eval_split: str
     initializer: str
@@ -209,7 +209,7 @@ class BundleRecord:
     present: bool
     size_bytes: int | None
     dataset_key: str
-    dataset_instance_index: int
+    dataset_realization_index: int
     split: str | None
     method_name: str | None
     pretrained_model_name: str | None
@@ -239,7 +239,7 @@ class PayloadCoverage:
 @dataclass(frozen=True, kw_only=True)
 class Coverage:
     datasets: list[str]
-    dataset_instance_indices: list[int]
+    dataset_realization_indices: list[int]
     methods: list[str]
     eval_splits: list[str]
     budget_settings: list[BudgetSetting]
@@ -390,7 +390,9 @@ def _settings(resolved: Mapping[str, Any], checkout: Path) -> ResolvedSettings:
     return ResolvedSettings(
         initializer=resolved["INITIALIZER"],
         eval_split=resolved["EVAL_DATASET_SPLIT"],
-        dataset_instance_indices=list(resolved["DATASET_INSTANCE_INDICES"]),
+        dataset_realization_indices=list(
+            resolved["DATASET_REALIZATION_INDICES"]
+        ),
         dataset_splits=list(DATASET_SPLITS),
         unmaskers={
             dataset: resolved["UNMASKERS"][dataset] for dataset in datasets
@@ -465,7 +467,7 @@ def _classifiers(resolved: Mapping[str, Any]) -> list[ClassifierRecord]:
                 script_params=script_params,
                 dataset_key=dataset,
                 method_name=None,
-                dataset_instance_index=CLASSIFIER_DATASET_INSTANCE_INDEX,
+                dataset_realization_index=CLASSIFIER_DATASET_REALIZATION_INDEX,
                 seed=CLASSIFIER_SEED,
             )
         )
@@ -481,7 +483,7 @@ def _classifiers(resolved: Mapping[str, Any]) -> list[ClassifierRecord]:
                 ],
                 dataset_key=dataset,
                 method_name=method,
-                dataset_instance_index=CLASSIFIER_DATASET_INSTANCE_INDEX,
+                dataset_realization_index=CLASSIFIER_DATASET_REALIZATION_INDEX,
                 seed=CLASSIFIER_SEED,
             )
             for dataset in resolved["DATASETS"]
@@ -518,7 +520,7 @@ def _evaluation_tables(
             classifier_bundle_path = _classifier_bundle_path(
                 resolved, method, dataset
             )
-            for index in resolved["DATASET_INSTANCE_INDICES"]:
+            for index in resolved["DATASET_REALIZATION_INDICES"]:
                 for (
                     train_hard_budget,
                     eval_hard_budget,
@@ -527,7 +529,7 @@ def _evaluation_tables(
                 ) in resolved["BUDGET_PARAMS"][method][dataset]:
                     relative = (
                         f"eval_split-{split}/{tag}/{method}/"
-                        f"dataset-{dataset}+instance_idx-{index}/"
+                        f"dataset-{dataset}+realization_index-{index}/"
                         f"{_pretrain_folder(resolved, method, index)}"
                         f"train_seed-{index}+"
                         f"train_hard_budget-{train_hard_budget}+"
@@ -554,7 +556,7 @@ def _evaluation_tables(
                             ),
                             method_name=method,
                             dataset_key=dataset,
-                            dataset_instance_index=index,
+                            dataset_realization_index=index,
                             dataset_generation_seed=index,
                             eval_split=split,
                             initializer=resolved["INITIALIZER"],
@@ -652,8 +654,8 @@ def _coverage(
     ]
     return Coverage(
         datasets=sorted({table.dataset_key for table in present}),
-        dataset_instance_indices=sorted(
-            {table.dataset_instance_index for table in present}
+        dataset_realization_indices=sorted(
+            {table.dataset_realization_index for table in present}
         ),
         methods=sorted({table.method_name for table in present}),
         eval_splits=sorted({table.eval_split for table in present}),
@@ -732,7 +734,7 @@ def _bundles(
     # the inputs of the rules producing them; the workflow test
     # `test_release_manifest_bundles_match_workflow_targets` pins the two.
     datasets: list[str] = list(resolved["DATASETS"])
-    indices: list[int] = list(resolved["DATASET_INSTANCE_INDICES"])
+    indices: list[int] = list(resolved["DATASET_REALIZATION_INDICES"])
     records = [
         _bundle_record(
             output_root,
@@ -740,7 +742,7 @@ def _bundles(
             category=PayloadCategory.DATASET_BUNDLE,
             inputs=[],
             dataset_key=dataset,
-            dataset_instance_index=index,
+            dataset_realization_index=index,
             split=split,
             seed=index,
         )
@@ -762,10 +764,10 @@ def _bundles(
             path=_classifier_bundle_path(resolved, method, dataset),
             category=PayloadCategory.CLASSIFIER_BUNDLE,
             inputs=_training_inputs(
-                dataset, CLASSIFIER_DATASET_INSTANCE_INDEX
+                dataset, CLASSIFIER_DATASET_REALIZATION_INDEX
             ),
             dataset_key=dataset,
-            dataset_instance_index=CLASSIFIER_DATASET_INSTANCE_INDEX,
+            dataset_realization_index=CLASSIFIER_DATASET_REALIZATION_INDEX,
             method_name=method,
             seed=CLASSIFIER_SEED,
         )
@@ -786,7 +788,7 @@ def _bundles(
                 ),
             ],
             dataset_key=dataset,
-            dataset_instance_index=index,
+            dataset_realization_index=index,
             pretrained_model_name=name,
             seed=index,
         )
@@ -840,7 +842,7 @@ def _bundles(
                         category=PayloadCategory.AFA_METHOD_BUNDLE,
                         inputs=inputs,
                         dataset_key=dataset,
-                        dataset_instance_index=index,
+                        dataset_realization_index=index,
                         method_name=method,
                         pretrained_model_name=pretrained_model,
                         seed=index,
@@ -863,7 +865,7 @@ def _bundle_record(
     category: PayloadCategory,
     inputs: list[BundleInput],
     dataset_key: str,
-    dataset_instance_index: int,
+    dataset_realization_index: int,
     seed: int,
     split: str | None = None,
     method_name: str | None = None,
@@ -887,7 +889,7 @@ def _bundle_record(
             else None
         ),
         dataset_key=dataset_key,
-        dataset_instance_index=dataset_instance_index,
+        dataset_realization_index=dataset_realization_index,
         split=split,
         method_name=method_name,
         pretrained_model_name=pretrained_model_name,
@@ -925,7 +927,7 @@ def _pretrained_model_bundle_path(
 ) -> str:
     return (
         f"pretrained_models/{_initializer_tag(resolved)}/{name}/"
-        f"dataset-{dataset}+instance_idx-{index}/"
+        f"dataset-{dataset}+realization_index-{index}/"
         f"pretrain_seed-{index}/model.bundle"
     )
 
@@ -940,7 +942,7 @@ def _method_bundle_path(
 ) -> str:
     return (
         f"trained_methods/{_initializer_tag(resolved)}/{method}/"
-        f"dataset-{dataset}+instance_idx-{index}/"
+        f"dataset-{dataset}+realization_index-{index}/"
         f"{_pretrain_folder(resolved, method, index)}"
         f"train_seed-{index}+"
         f"train_hard_budget-{train_hard_budget}+"

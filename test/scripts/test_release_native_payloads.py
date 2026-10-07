@@ -30,16 +30,16 @@ TEST = "datasets/cube/0/test.bundle"
 EXTERNAL_CLASSIFIER = f"trained_classifiers/{TAG}/dataset-cube.bundle"
 BETA_CLASSIFIER = f"trained_classifiers/{TAG}/method-beta+dataset-cube.bundle"
 PRETRAINED_MODEL = (
-    f"pretrained_models/{TAG}/shared/dataset-cube+instance_idx-0/"
+    f"pretrained_models/{TAG}/shared/dataset-cube+realization_index-0/"
     "pretrain_seed-0/model.bundle"
 )
 ALPHA_METHOD = (
-    f"trained_methods/{TAG}/alpha/dataset-cube+instance_idx-0/NO_PRETRAIN/"
+    f"trained_methods/{TAG}/alpha/dataset-cube+realization_index-0/NO_PRETRAIN/"
     "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
     "method.bundle"
 )
 BETA_METHOD = (
-    f"trained_methods/{TAG}/beta/dataset-cube+instance_idx-0/"
+    f"trained_methods/{TAG}/beta/dataset-cube+realization_index-0/"
     "pretrain_seed-0/"
     "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
     "method.bundle"
@@ -61,7 +61,7 @@ def workflow_config() -> dict[str, Any]:
         },
         "methods": ["alpha", "beta"],
         "datasets": ["cube"],
-        "dataset_instance_indices": [0],
+        "dataset_realization_indices": [0],
         "unmaskers": {"default": "direct"},
         "eval_hard_budgets": {"default": [3]},
         "soft_budget_params": {
@@ -204,7 +204,7 @@ def test_manifest_lists_every_configured_bundle_with_category_and_inputs(
 
 IDENTITY_FIELDS = [
     "dataset_key",
-    "dataset_instance_index",
+    "dataset_realization_index",
     "split",
     "method_name",
     "pretrained_model_name",
@@ -227,16 +227,16 @@ def test_bundle_records_carry_identity_seeds_and_budgets(
 
     shared = {"method_name": None, "pretrained_model_name": None}
     untrained = {"train_hard_budget": None, "train_soft_budget_param": None}
-    instance_0 = {"dataset_key": "cube", "dataset_instance_index": 0}
+    realization_0 = {"dataset_key": "cube", "dataset_realization_index": 0}
     assert bundles[TEST] == {
-        **instance_0,
+        **realization_0,
         **shared,
         **untrained,
         "split": "test",
         "seed": 0,
     }
     assert bundles[EXTERNAL_CLASSIFIER] == {
-        **instance_0,
+        **realization_0,
         **shared,
         **untrained,
         "split": None,
@@ -244,7 +244,7 @@ def test_bundle_records_carry_identity_seeds_and_budgets(
     }
     assert bundles[BETA_CLASSIFIER]["method_name"] == "beta"
     assert bundles[PRETRAINED_MODEL] == {
-        **instance_0,
+        **realization_0,
         **untrained,
         "split": None,
         "method_name": None,
@@ -252,7 +252,7 @@ def test_bundle_records_carry_identity_seeds_and_budgets(
         "seed": 0,
     }
     assert bundles[ALPHA_METHOD] == {
-        **instance_0,
+        **realization_0,
         "split": None,
         "method_name": "alpha",
         "pretrained_model_name": None,
@@ -288,7 +288,7 @@ def test_present_bundles_record_size_and_their_own_manifest(
 
 
 ALPHA_RAW_TABLE = (
-    f"eval_results/eval_split-test/{TAG}/alpha/dataset-cube+instance_idx-0/"
+    f"eval_results/eval_split-test/{TAG}/alpha/dataset-cube+realization_index-0/"
     "NO_PRETRAIN/"
     "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
     "eval_seed-0+eval_hard_budget-3+eval_soft_budget_param-null/"

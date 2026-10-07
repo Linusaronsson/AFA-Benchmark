@@ -171,7 +171,7 @@ uv run snakemake \
     --jobs 8 \
     --config \
       "datasets=[cube]" \
-      "dataset_instance_indices=[0]" \
+      "dataset_realization_indices=[0]" \
       "methods=[random_dummy,gdfs]" \
       smoke_test=true \
       use_wandb=false

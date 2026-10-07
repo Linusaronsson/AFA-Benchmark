@@ -19,14 +19,14 @@ from test.workflow.submission_harness import WorkflowHarness
 TAG = "initializer-cold"
 ALPHA_HARD_BUDGET_TABLE = (
     f"extra/output/eval_results_transformed/eval_split-test/{TAG}/alpha/"
-    "dataset-cube+instance_idx-0/NO_PRETRAIN/"
+    "dataset-cube+realization_index-0/NO_PRETRAIN/"
     "train_seed-0+train_hard_budget-1+train_soft_budget_param-null/"
     "eval_seed-0+eval_hard_budget-1+eval_soft_budget_param-null/"
     "eval_data.parquet"
 )
 ALPHA_SOFT_BUDGET_TABLE = (
     f"extra/output/eval_results_transformed/eval_split-test/{TAG}/alpha/"
-    "dataset-cube+instance_idx-0/NO_PRETRAIN/"
+    "dataset-cube+realization_index-0/NO_PRETRAIN/"
     "train_seed-0+train_hard_budget-null+train_soft_budget_param-0.5/"
     "eval_seed-0+eval_hard_budget-null+eval_soft_budget_param-null/"
     "eval_data.parquet"

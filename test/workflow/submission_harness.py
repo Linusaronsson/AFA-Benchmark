@@ -34,7 +34,7 @@ class WorkflowHarness:
             },
             "methods": ["alpha", "beta"],
             "datasets": ["cube"],
-            "dataset_instance_indices": [0],
+            "dataset_realization_indices": [0],
             "unmaskers": {"default": "direct"},
             "eval_hard_budgets": {"default": [1]},
             "soft_budget_params": {

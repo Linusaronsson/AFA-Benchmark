@@ -54,7 +54,7 @@ def _pretrained_model_bundle(wildcards) -> list[str]:
         f"extra/output/pretrained_models/{INITIALIZER_TAG}/"
         f"{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
         f"dataset-{wildcards.dataset}+"
-        f"instance_idx-{wildcards.dataset_instance_idx}/"
+        f"realization_index-{wildcards.dataset_realization_index}/"
         f"pretrain_seed-{pretrain_seed}/"
         "model.bundle"
     ]
@@ -103,8 +103,8 @@ def _training_contract(wildcards, input, output, resources) -> str:
 
 rule pretrain_model:
     input:
-        train_dataset="extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
-        val_dataset="extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
+        train_dataset="extra/output/datasets/{dataset}/{dataset_realization_index}/train.bundle",
+        val_dataset="extra/output/datasets/{dataset}/{dataset_realization_index}/val.bundle",
         classifier=ancient(
             f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
             "dataset-{dataset}.bundle"
@@ -113,14 +113,14 @@ rule pretrain_model:
         model_bundle=directory(
             f"extra/output/pretrained_models/{INITIALIZER_TAG}/{{pretrained_model_name}}/"
                 "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
+                "realization_index-{dataset_realization_index}/"
                     "pretrain_seed-{pretrain_seed}/"
                         "model.bundle"
         ),
         pretrain_time=(
             f"extra/output/pretrained_models/{INITIALIZER_TAG}/{{pretrained_model_name}}/"
                 "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
+                "realization_index-{dataset_realization_index}/"
                     "pretrain_seed-{pretrain_seed}/"
                         "pretrain_time.txt"
         ),
@@ -145,8 +145,8 @@ rule pretrain_model:
 
 rule train_method:
     input:
-        train_dataset="extra/output/datasets/{dataset}/{dataset_instance_idx}/train.bundle",
-        val_dataset="extra/output/datasets/{dataset}/{dataset_instance_idx}/val.bundle",
+        train_dataset="extra/output/datasets/{dataset}/{dataset_realization_index}/train.bundle",
+        val_dataset="extra/output/datasets/{dataset}/{dataset_realization_index}/val.bundle",
         pretrained_model=_pretrained_model_bundle,
         classifier=ancient(
             lambda wildcards: _classifier_bundle_for_method(
@@ -157,7 +157,7 @@ rule train_method:
         method_bundle=directory(
             f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
                 "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
+                "realization_index-{dataset_realization_index}/"
                     "{pretrain_folder}"
                         "train_seed-{train_seed}+"
                         "train_hard_budget-{train_hard_budget}+"
@@ -167,7 +167,7 @@ rule train_method:
         train_time=(
             f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
                 "dataset-{dataset}+"
-                "instance_idx-{dataset_instance_idx}/"
+                "realization_index-{dataset_realization_index}/"
                     "{pretrain_folder}"
                         "train_seed-{train_seed}+"
                         "train_hard_budget-{train_hard_budget}+"

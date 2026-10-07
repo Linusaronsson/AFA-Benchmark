@@ -56,7 +56,7 @@ def workflow_config(*, smoke_test: bool = False) -> dict[str, Any]:
         },
         "methods": ["alpha", "beta"],
         "datasets": ["cube", "diabetes"],
-        "dataset_instance_indices": [0, 1],
+        "dataset_realization_indices": [0, 1],
         "unmaskers": {"default": "direct"},
         "eval_hard_budgets": {"default": [3]},
         "soft_budget_params": {
@@ -382,7 +382,7 @@ def alpha_table(
     index: int, *, hard_budget: str = "3", soft_budget: str = "null"
 ) -> str:
     return (
-        f"eval_split-test/{TAG}/alpha/dataset-cube+instance_idx-{index}/"
+        f"eval_split-test/{TAG}/alpha/dataset-cube+realization_index-{index}/"
         f"NO_PRETRAIN/train_seed-{index}+train_hard_budget-{hard_budget}+"
         f"train_soft_budget_param-{soft_budget}/"
         f"eval_seed-{index}+eval_hard_budget-{hard_budget}+"
@@ -452,13 +452,13 @@ def test_shared_prerequisites_download_without_afa_method_bundles(
         "alpha",
         "--dataset",
         "cube",
-        "--dataset-instance",
+        "--dataset-realization",
         "1",
     )
 
     assert result.exit_code == 0, result.output
     bundles = restored_bundles(destination_root)
-    # The external classifier was trained on instance 0, so its training
+    # The external classifier was trained on dataset realization 0, so its training
     # splits come too: without them the workflow would regenerate them and
     # retrain the classifier.
     assert bundles == {
@@ -490,7 +490,7 @@ def test_method_bundles_follow_the_selected_budget_setting(
         "pretrained_model_bundle",
         "--dataset",
         "cube",
-        "--dataset-instance",
+        "--dataset-realization",
         "0",
         "--budget-setting",
         "soft_budget",
@@ -500,7 +500,7 @@ def test_method_bundles_follow_the_selected_budget_setting(
     bundles = restored_bundles(destination_root)
     # Only alpha has soft-budget evaluations, and it pretrains nothing.
     assert bundles == {
-        f"trained_methods/{TAG}/alpha/dataset-cube+instance_idx-0/"
+        f"trained_methods/{TAG}/alpha/dataset-cube+realization_index-0/"
         "NO_PRETRAIN/"
         "train_seed-0+train_hard_budget-null+train_soft_budget_param-0.5/"
         "method.bundle"
@@ -527,7 +527,7 @@ def test_model_bundles_come_with_the_time_records_of_their_jobs(
         "beta",
         "--dataset",
         "cube",
-        "--dataset-instance",
+        "--dataset-realization",
         "0",
     )
 
@@ -537,9 +537,9 @@ def test_model_bundles_come_with_the_time_records_of_their_jobs(
         for path in restored_files(destination_root)
         if ".bundle/" not in path
     } == {
-        f"pretrained_models/{TAG}/shared/dataset-cube+instance_idx-0/"
+        f"pretrained_models/{TAG}/shared/dataset-cube+realization_index-0/"
         "pretrain_seed-0/pretrain_time.txt",
-        f"trained_methods/{TAG}/beta/dataset-cube+instance_idx-0/"
+        f"trained_methods/{TAG}/beta/dataset-cube+realization_index-0/"
         "pretrain_seed-0/"
         "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
         "train_time.txt",
@@ -549,7 +549,7 @@ def test_model_bundles_come_with_the_time_records_of_their_jobs(
 
 def beta_table(index: int) -> str:
     return (
-        f"eval_split-test/{TAG}/beta/dataset-cube+instance_idx-{index}/"
+        f"eval_split-test/{TAG}/beta/dataset-cube+realization_index-{index}/"
         f"pretrain_seed-{index}/"
         f"train_seed-{index}+train_hard_budget-3+train_soft_budget_param-null/"
         f"eval_seed-{index}+eval_hard_budget-3+eval_soft_budget_param-null/"
@@ -794,7 +794,7 @@ def test_selected_outputs_keep_their_published_mtimes(tmp_path: Path) -> None:
         "dataset_bundle",
         "--method",
         "alpha",
-        "--dataset-instance",
+        "--dataset-realization",
         "0",
     )
 

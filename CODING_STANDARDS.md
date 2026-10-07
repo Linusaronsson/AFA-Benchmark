@@ -16,7 +16,7 @@ allowed lint relaxations are enforced by `just qa` (`ruff.toml`,
   logic, not what the code does.
 - **Vocabulary**: names, messages and docs use `CONTEXT.md` terms (selection
   vs action, classifier, built-in classifier, myopic, hard budget,
-  soft-budget parameter, dataset instance).
+  soft-budget parameter, dataset realization).
 - **ADRs**: a change that contradicts a decision in `docs/adr/` must say so
   and justify reopening it.
 - **Command-line parsing**: new scripts that are not Hydra-configured use

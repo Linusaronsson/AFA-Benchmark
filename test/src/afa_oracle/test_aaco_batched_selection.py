@@ -81,12 +81,12 @@ def test_batched_matches_one_instance_at_a_time(
 ) -> None:
     oracle, _ = _fitted_oracle(acquisition_cost=0.05)
     x, mask = _queries()
-    instance_idx = torch.arange(N_INSTANCES)
+    split_index = torch.arange(N_INSTANCES)
 
     batched = oracle.select_next_features_batched(
         x,
         mask,
-        instance_idx=instance_idx,
+        split_index=split_index,
         force_acquisition=force_acquisition,
         exclude_instance=False,
     )
@@ -94,7 +94,7 @@ def test_batched_matches_one_instance_at_a_time(
         oracle.select_next_features_batched(
             x[i : i + 1],
             mask[i : i + 1],
-            instance_idx=instance_idx[i : i + 1],
+            split_index=split_index[i : i + 1],
             force_acquisition=force_acquisition,
             exclude_instance=False,
         )[0]
@@ -300,7 +300,7 @@ def test_selection_path_matches_the_greedy_one_step_spec(
         observed,
         taken,
         _selection_to_feature(),
-        instance_idx=torch.arange(N_INSTANCES),
+        split_index=torch.arange(N_INSTANCES),
         force_acquisition=force_acquisition,
         exclude_instance=False,
     )
@@ -317,14 +317,14 @@ def test_selection_batching_matches_one_instance_at_a_time(
     oracle, _ = _fitted_oracle(acquisition_cost=0.05)
     x, observed, taken = _selection_queries()
     table = _selection_to_feature()
-    instance_idx = torch.arange(N_INSTANCES)
+    split_index = torch.arange(N_INSTANCES)
 
     batched = oracle.select_next_selections_batched(
         x,
         observed,
         taken,
         table,
-        instance_idx=instance_idx,
+        split_index=split_index,
         force_acquisition=force_acquisition,
         exclude_instance=False,
     )
@@ -334,7 +334,7 @@ def test_selection_batching_matches_one_instance_at_a_time(
             observed[i : i + 1],
             taken[i : i + 1],
             table,
-            instance_idx=instance_idx[i : i + 1],
+            split_index=split_index[i : i + 1],
             force_acquisition=force_acquisition,
             exclude_instance=False,
         )[0]

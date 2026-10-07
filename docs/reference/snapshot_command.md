@@ -140,7 +140,7 @@ and optionally narrow the evaluations with coverage options:
 | --- | --- |
 | `--dataset` | this dataset key |
 | `--method` | this method name |
-| `--dataset-instance` | this dataset instance index |
+| `--dataset-realization` | this dataset realization index |
 | `--eval-split` | this evaluation split |
 | `--initializer` | this initializer |
 | `--budget-setting` | `hard_budget` or `soft_budget` |
@@ -155,7 +155,7 @@ For the selected evaluations, payload categories download:
 - the bundles they were produced from, found by following the `inputs` of
   the tables and, in turn, of the bundles, if the bundle's category is
   named. For example, the external classifier was trained on dataset
-  instance 0, so selecting it also selects that instance's `train` and
+  realization 0, so selecting it also selects that realization's `train` and
   `val` dataset bundles.
 - with each pretrained-model and AFA-method bundle, the folder of the job
   that wrote it, including its `pretrain_time.txt` or `train_time.txt`.

@@ -11,7 +11,7 @@ Runtime filters (--config, select subsets to run):
         tables were restored from a benchmark release; aggregated with
         `methods` but never produced. See pipeline.smk.
     datasets (list[str], required): Subset of datasets to run
-    dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of
+    dataset_realization_indices (list[int], default=[0,1,2,3,4]): Subset of
         random seeds
     device (str, default='cpu'): Deprecated invocation-wide device for
         evaluation, with a warning; cannot be combined with execution.
@@ -117,7 +117,7 @@ EXECUTION = ExecutionPolicy(
 )
 
 NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
-DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]
+DATASET_REALIZATION_INDICES = _config["DATASET_REALIZATION_INDICES"]
 INITIALIZER = _config["INITIALIZER"]
 INITIALIZER_TAG = f"initializer-{INITIALIZER}"
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]

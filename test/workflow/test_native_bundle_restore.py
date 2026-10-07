@@ -2,7 +2,7 @@
 Restore a real smoke run's native bundles and use them again.
 
 Unlike `submission_harness`, which stubs every script, this runs the real
-pipeline on CUBE with one dataset instance, `random_dummy` (no pretraining
+pipeline on CUBE with one dataset realization, `random_dummy` (no pretraining
 stage) and `gdfs` (a pretrained model and the external classifier), saves
 a smoke snapshot and restores it into a fresh workspace through the
 public `scripts/release/snapshot.py` commands.
@@ -45,7 +45,7 @@ PROFILE_CONFIGFILES = [
 ]
 SMOKE_SELECTION: dict[str, Any] = {
     "datasets": ["cube"],
-    "dataset_instance_indices": [0],
+    "dataset_realization_indices": [0],
     "methods": ["random_dummy", "gdfs"],
     "eval_hard_budgets": {"cube": [2]},
     "soft_budget_params": {
@@ -57,13 +57,13 @@ SMOKE_SELECTION: dict[str, Any] = {
 }
 TAG = "initializer-cold"
 GDFS_METHOD = (
-    f"trained_methods/{TAG}/gdfs/dataset-cube+instance_idx-0/"
+    f"trained_methods/{TAG}/gdfs/dataset-cube+realization_index-0/"
     "pretrain_seed-0/"
     "train_seed-0+train_hard_budget-2+train_soft_budget_param-null/"
     "method.bundle"
 )
 GDFS_RAW_TABLE = (
-    f"eval_results/eval_split-test/{TAG}/gdfs/dataset-cube+instance_idx-0/"
+    f"eval_results/eval_split-test/{TAG}/gdfs/dataset-cube+realization_index-0/"
     "pretrain_seed-0/"
     "train_seed-0+train_hard_budget-2+train_soft_budget_param-null/"
     "eval_seed-0+eval_hard_budget-2+eval_soft_budget_param-null/"
@@ -214,7 +214,7 @@ def test_smoke_release_retains_the_provenance_of_its_bundles(
     dataset = bundles["datasets/cube/0/test.bundle"]
     assert dataset.bundle_manifest is not None
     generation = dataset.bundle_manifest["metadata"]
-    assert generation["instance_idx"] == 0
+    assert generation["dataset_realization_index"] == 0
     assert generation["kwargs"]["seed"] == 0
     classifier = bundles[f"trained_classifiers/{TAG}/dataset-cube.bundle"]
     assert classifier.method_name is None
@@ -237,7 +237,7 @@ def test_smoke_release_retains_the_provenance_of_its_bundles(
         ("classifier", classifier.path),
         (
             "pretrained_model",
-            f"pretrained_models/{TAG}/gdfs/dataset-cube+instance_idx-0/"
+            f"pretrained_models/{TAG}/gdfs/dataset-cube+realization_index-0/"
             "pretrain_seed-0/model.bundle",
         ),
     }

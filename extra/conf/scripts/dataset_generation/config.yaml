@@ -12,7 +12,7 @@ defaults:
   - _self_
 
 save_path: ???
-instance_indices: [0, 1, 2, 3, 4]
+dataset_realization_indices: [0, 1, 2, 3, 4]
 seeds: [42, 43, 44, 45, 46]
 split_ratio:
   train: 0.6

@@ -74,7 +74,7 @@ class AFADataset(Protocol):
 
     def create_subset(self, indices: Sequence[int]) -> Self:
         """
-        Return a new dataset instance containing only the specified indices.
+        Return a new dataset containing only the specified indices.
 
         Implementers must provide this method. For in-memory datasets with
         `features` and `labels` attributes, you may use the `default_create_subset` function.

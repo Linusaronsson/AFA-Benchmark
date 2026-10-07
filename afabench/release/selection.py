@@ -45,7 +45,7 @@ class ReleaseSelection:
     output_categories: list[str] = field(default_factory=list)
     datasets: list[str] = field(default_factory=list)
     methods: list[str] = field(default_factory=list)
-    dataset_instance_indices: list[int] = field(default_factory=list)
+    dataset_realization_indices: list[int] = field(default_factory=list)
     eval_splits: list[str] = field(default_factory=list)
     initializers: list[str] = field(default_factory=list)
     budget_settings: list[BudgetSetting] = field(default_factory=list)
@@ -71,9 +71,9 @@ def select_payloads(
         ("dataset", selection.datasets, lambda t: [t.dataset_key]),
         ("method", selection.methods, lambda t: [t.method_name]),
         (
-            "dataset instance",
-            selection.dataset_instance_indices,
-            lambda t: [t.dataset_instance_index],
+            "dataset realization",
+            selection.dataset_realization_indices,
+            lambda t: [t.dataset_realization_index],
         ),
         ("eval split", selection.eval_splits, lambda t: [t.eval_split]),
         ("initializer", selection.initializers, lambda t: [t.initializer]),

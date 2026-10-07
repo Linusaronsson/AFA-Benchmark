@@ -59,7 +59,7 @@ categories decide what of those evaluations is downloaded:
 | Payload category | Needed? |
 | --- | --- |
 | `transformed_evaluation_table` | Required: the published methods' tables the comparison plots. |
-| `dataset_bundle` | Required: your method uses exactly the published dataset instances and splits. |
+| `dataset_bundle` | Required: your method uses exactly the published dataset realizations and splits. |
 | `classifier_bundle` | Required: your method's external-classifier predictions come from the published external classifier. |
 | `pretrained_model_bundle` | Required if your method uses a pretrained model the release has; saves repeating pretraining. |
 
@@ -88,7 +88,7 @@ jq .workflow_config.merged extra/release_manifest.json \
 
 `release.json` is the release's own workflow configuration, so the
 workflow looks for the published tables at exactly the release's
-evaluation split, initializer, dataset instances and budgets. Remove
+evaluation split, initializer, dataset realizations and budgets. Remove
 cluster-specific keys such as `execution_site_file` from it if you run
 elsewhere.
 
@@ -142,7 +142,7 @@ workflow produce a different one.
 
 If it fails with a `MissingInputException`, the named published table is
 not in `extra/output`. Either you did not download it, or the release does
-not have it: a dataset, dataset instance, budget or evaluation split your
+not have it: a dataset, dataset realization, budget or evaluation split your
 configuration asks for but the release lacks. Download it, or remove that
 setting from `comparison.yaml`.
 

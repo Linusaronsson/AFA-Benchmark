@@ -68,7 +68,7 @@ CLUSTER_PRESETS = {
 }
 SMALL_SELECTION = [
     "datasets=[cube]",
-    "dataset_instance_indices=[0]",
+    "dataset_realization_indices=[0]",
     "execution_site_file=extra/workflow/profiles/mixed-gres/site.yaml",
 ]
 
@@ -130,7 +130,7 @@ def test_local_all_preset_runs_every_job_on_cpu(tmp_path: Path) -> None:
         "--dry-run",
         "--config",
         "datasets=[cube]",
-        "dataset_instance_indices=[0]",
+        "dataset_realization_indices=[0]",
         "smoke_test=True",
     )
 
@@ -445,7 +445,7 @@ def test_full_graph_preserves_contract_and_shared_prerequisites(
     ]
     assert shared == [
         "extra/output/pretrained_models/initializer-cold/shared/"
-        "dataset-cube+instance_idx-0/pretrain_seed-0/model.bundle"
+        "dataset-cube+realization_index-0/pretrain_seed-0/model.bundle"
     ]
     for script, args in full_graph_run.calls:
         if "train_method/" in script:

@@ -44,12 +44,12 @@ the run.
 | --- | --- |
 | `initializer` | Initializer config name. |
 | `eval_split` | The split every evaluation in this config used. |
-| `dataset_instance_indices` | Configured dataset instances. |
-| `dataset_splits` | Splits generated per dataset instance: `train`, `val`, `test`. |
+| `dataset_realization_indices` | Configured dataset realizations. |
+| `dataset_splits` | Splits generated per dataset realization: `train`, `val`, `test`. |
 | `unmaskers` | Unmasker config name per dataset key. |
 | `feature_costs` | Per dataset key, `{path, sha256}` of `extra/data/misc/feature_costs/<key>.csv` in the checkout; both null means unit feature costs. |
 | `dataset_redistribution` | Per dataset key, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
-| `classifiers` | One entry per classifier bundle the config trains: `bundle_path`, `script_name`, `script_params`, `dataset_key`, `method_name` (null for the external classifier shared by every method on a dataset; set for a classifier trained for one method by `method_options.<method>.classifier`), `dataset_instance_index` and `seed` (always instance 0, seed 0). |
+| `classifiers` | One entry per classifier bundle the config trains: `bundle_path`, `script_name`, `script_params`, `dataset_key`, `method_name` (null for the external classifier shared by every method on a dataset; set for a classifier trained for one method by `method_options.<method>.classifier`), `dataset_realization_index` and `seed` (always instance 0, seed 0). |
 | `eval_batch_sizes` | Evaluation batch size per method and dataset key. It can affect results (see ADR 0002). |
 | `forcing_policy` | `forced_acquisition_when_eval_hard_budget_is_set`: hard-budget evaluation uses forced acquisition; soft-budget evaluation lets the policy stop. |
 
@@ -58,15 +58,15 @@ the run.
 One entry per evaluation the config schedules, present or not, enumerated
 from the resolved config the same way the workflow names its targets. The
 entry carries the identity that transformed tables do not hold in their
-columns, notably `dataset_instance_index` and `eval_split`.
+columns, notably `dataset_realization_index` and `eval_split`.
 
 | Field | Meaning |
 | --- | --- |
 | `raw_path`, `transformed_path` | The raw and plotting-ready Parquet tables. |
 | `raw_present`, `transformed_present` | Whether each file is in the snapshot. |
 | `raw_size_bytes`, `transformed_size_bytes` | File sizes; null when absent. |
-| `method_name`, `dataset_key`, `dataset_instance_index`, `eval_split`, `initializer`, `unmasker` | Identity of the evaluation. |
-| `dataset_generation_seed` | Seed of the dataset instance (its index). |
+| `method_name`, `dataset_key`, `dataset_realization_index`, `eval_split`, `initializer`, `unmasker` | Identity of the evaluation. |
+| `dataset_generation_seed` | Seed of the dataset realization (its index). |
 | `budget_setting` | `hard_budget` or `soft_budget` (no evaluation hard budget). |
 | `pretrained_model_name`, `pretrain_seed` | Null for methods without a pretraining stage. |
 | `train_seed`, `train_hard_budget`, `train_soft_budget_param` | Training run of the evaluated method bundle. |
@@ -90,7 +90,7 @@ once.
 | `path` | The bundle folder. |
 | `category` | `dataset_bundle`, `classifier_bundle`, `pretrained_model_bundle` or `afa_method_bundle`. |
 | `present`, `size_bytes` | Whether the bundle is in the snapshot, and the bytes of all files in it (null when absent). |
-| `dataset_key`, `dataset_instance_index` | The dataset instance the bundle was generated or trained from. Classifiers are always trained on instance 0. |
+| `dataset_key`, `dataset_realization_index` | The dataset realization the bundle was generated or trained from. Classifiers are always trained on dataset realization 0. |
 | `split` | `train`, `val` or `test` for a dataset bundle; null otherwise. |
 | `method_name` | The method an AFA-method bundle or a method's own classifier belongs to; null for shared prerequisites. |
 | `pretrained_model_name` | The pretrained model of a pretrained-model bundle, or the one an AFA-method bundle was trained from. |
@@ -103,7 +103,7 @@ once.
 
 Computed from the evaluation tables actually present (raw or transformed),
 not from the config, so a partial run is not described as complete:
-`datasets`, `dataset_instance_indices`, `methods`, `eval_splits`,
+`datasets`, `dataset_realization_indices`, `methods`, `eval_splits`,
 `budget_settings`, `classifier_variants`, and `output_categories` (top-level
 directories of the output root that contain files, such as `datasets`,
 `trained_methods`, `eval_results`, `eval_results_transformed`,
@@ -129,7 +129,7 @@ later conversion is added beside the native files, never instead of them.
 | --- | --- | --- | --- |
 | `raw_evaluation_table` | `eval_results/` | Acquisition-history analysis with any Parquet reader. Restoring it skips that evaluation. | Results |
 | `transformed_evaluation_table` | `eval_results_transformed/` | Aggregation and plotting without the raw tables. | Results |
-| `dataset_bundle` | `datasets/<key>/<instance>/<split>.bundle` | Training and evaluating any method on exactly the published dataset instance and split, without regenerating it. | Shared prerequisite |
+| `dataset_bundle` | `datasets/<key>/<realization>/<split>.bundle` | Training and evaluating any method on exactly the published dataset realization and split, without regenerating it. | Shared prerequisite |
 | `classifier_bundle` | `trained_classifiers/` | External-classifier predictions for any method's evaluation (`dataset-<key>.bundle`), without retraining it. `method-<name>+dataset-<key>.bundle` is a classifier one method trains with and is needed only to retrain that method. | Shared prerequisite (external); method-specific otherwise |
 | `pretrained_model_bundle` | `pretrained_models/` | Training any method that names the same pretrained model, without repeating pretraining. | Shared prerequisite |
 | `afa_method_bundle` | `trained_methods/` | Re-evaluating a published method (other seeds, budgets, splits) or inspecting its policy, without retraining it. | Optional baseline |
@@ -196,10 +196,10 @@ of its review.
 
 Measured with `inventory` on the smoke run of
 `test/workflow/test_native_bundle_restore.py`: the `all` profile with
-`datasets=[cube]`, `dataset_instance_indices=[0]`,
+`datasets=[cube]`, `dataset_realization_indices=[0]`,
 `methods=[random_dummy, gdfs]`, `eval_hard_budgets={cube: [2]}`, a soft
 budget only for `random_dummy`, and `smoke_test=true`. These are
-**smoke-scale measurements of one CUBE instance, not production sizes**,
+**smoke-scale measurements of one CUBE dataset realization, not production sizes**,
 which are unknown until `inventory` is run on a full production output
 root.
 
@@ -215,7 +215,7 @@ root.
 The rest of that output root was `plot_results/` (5.1 MB, 134 files),
 `merged_results/` (83 kB), `combined_time_results/` (10 kB) and
 `eval_time_results/` (30 B). A production run multiplies the counts by
-datasets, dataset instances, methods and budgets, and per-payload sizes
+datasets, dataset realizations, methods and budgets, and per-payload sizes
 change with dataset size, architecture and smoke settings, so these numbers
 do not extrapolate.
 
@@ -240,7 +240,7 @@ granularity:
   `n_selections_performed`, so these are prediction/cost rows, not episode
   logs. They gain `afa_method`, `dataset`, `initializer`, `train_seed`,
   `train_hard_budget`, `train_soft_budget_param` and `eval_soft_budget_param`
-  columns, but **not** the dataset instance index or evaluation split: read
+  columns, but **not** the dataset realization index or evaluation split: read
   those from the table's `evaluation_tables` entry.
 - **Merged tables** (`merged_results/`) concatenate plotting-ready tables per
   method set and classifier type and carry no per-table identity beyond those

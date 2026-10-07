@@ -46,7 +46,7 @@ uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
 Inspect the plan, then remove `-n` to submit from an authorized controller with
 CPU/GPU allocation access and shared input, output and software filesystems.
 CPU processing and GPU method jobs belong to the same invocation and retain
-all dependencies, native bundle/parquet/plot locations, dataset instance indices,
+all dependencies, native bundle/parquet/plot locations, dataset realization indices,
 seeds and plotting formats. No scientific settings are changed. The example
 profiles are illustrative, not verified allocations on a live cluster.
 

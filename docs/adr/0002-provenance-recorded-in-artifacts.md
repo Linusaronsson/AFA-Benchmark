@@ -4,6 +4,9 @@ status: accepted
 
 # Artifacts record their own provenance
 
+> Note (#71): "dataset instance" was renamed to **dataset realization**;
+> `dataset_instance_index` below is now `dataset_realization_index`.
+
 Today an artifact's identity lives in its Snakemake path. An artifact is a
 bundle or an evaluation table (see **Artifact** in `CONTEXT.md`). Nothing inside a
 bundle or an evaluation Parquet file records the producing code commit, the

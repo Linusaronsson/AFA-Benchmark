@@ -187,7 +187,7 @@ Add an entry to `pretrain_mapping` naming your pretraining script, then point
 every method name that depends on it at that name via
 `pretrained_model_name` in `method_options` (section 6). The pipeline runs
 the pretraining stage once per `(pretrained_model_name, dataset, dataset
-instance, pretrain seed)` and passes the resulting bundle's path as
+realization, pretrain seed)` and passes the resulting bundle's path as
 `pretrained_model_bundle_path` to every training run that needs it.
 
 ## 4. Configuring hyperparameters

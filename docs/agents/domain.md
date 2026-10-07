@@ -61,8 +61,9 @@ Known traps in this repo:
 - **Myopic vs greedy.** The paper and code say myopic; only the README table
   still says greedy. Use myopic.
 - **Dataset realization vs seed.** The seed is the input; the realization is the
-  generated, split dataset. Code written before the rename still says
-  dataset instance (`instance_idx`, `dataset_instance_index`).
+  generated, split dataset. ADRs written before the rename say dataset
+  instance (`dataset_instance_index`); the code says
+  `dataset_realization_index`.
 - **Generation index vs split index.** The generation index is an
   instance's position before splitting; the split index is its position in
   one split. Neither is the episode id. Never write a bare "instance index".

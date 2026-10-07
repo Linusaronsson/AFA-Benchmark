@@ -62,14 +62,14 @@ ADOPTER_CONFIG: dict[str, Any] = {
     "soft_budget_params": {"gdfs_adopter": {"cube": []}},
 }
 # The shared prerequisites a new method on CUBE needs, as the fork has them
-# after downloading: the dataset instance's splits, the external classifier
+# after downloading: the dataset realization's splits, the external classifier
 # and the pretrained model GDFS variants train from.
 SHARED_PREREQUISITES = [
     "datasets/cube/0/train.bundle",
     "datasets/cube/0/val.bundle",
     "datasets/cube/0/test.bundle",
     f"trained_classifiers/{TAG}/dataset-cube.bundle",
-    f"pretrained_models/{TAG}/gdfs/dataset-cube+instance_idx-0/"
+    f"pretrained_models/{TAG}/gdfs/dataset-cube+realization_index-0/"
     "pretrain_seed-0/model.bundle",
 ]
 EVAL_PERF = f"eval_split-test/{TAG}/eval_perf"

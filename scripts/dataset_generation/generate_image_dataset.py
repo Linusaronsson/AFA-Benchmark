@@ -107,8 +107,8 @@ def main(cfg: DatasetGenerationConfig) -> None:
     cfg = cast("DatasetGenerationConfig", OmegaConf.to_object(cfg))
     dataset_class = get_class(cfg.dataset.class_name)
 
-    for instance_idx, seed in zip(
-        cfg.instance_indices, cfg.seeds, strict=True
+    for dataset_realization_index, seed in zip(
+        cfg.dataset_realization_indices, cfg.seeds, strict=True
     ):
         base_kwargs = cfg.dataset.kwargs
         if dataset_class.accepts_seed():
@@ -119,10 +119,10 @@ def main(cfg: DatasetGenerationConfig) -> None:
             dataset_class=dataset_class,
             split_ratio=cfg.split_ratio,
             seed_for_split=seed,
-            save_path=Path(cfg.save_path) / str(instance_idx),
+            save_path=Path(cfg.save_path) / str(dataset_realization_index),
             dataset_kwargs=dataset_kwargs,
             metadata_to_save={
-                "instance_idx": instance_idx,
+                "dataset_realization_index": dataset_realization_index,
                 "class_name": cfg.dataset.class_name,
             },
         )

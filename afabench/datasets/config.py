@@ -22,7 +22,7 @@ class DatasetConfig:
 @dataclass
 class DatasetGenerationConfig:
     save_path: str
-    instance_indices: list[int]
+    dataset_realization_indices: list[int]
     seeds: list[int]
     split_ratio: SplitRatioConfig
     dataset: DatasetConfig

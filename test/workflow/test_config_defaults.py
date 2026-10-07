@@ -11,7 +11,7 @@ def test_load_config_uses_pipeline_defaults() -> None:
     loaded_config = config_module.load_config(_minimal_config())
 
     assert loaded_config["EVAL_DATASET_SPLIT"] == "test"
-    assert loaded_config["DATASET_INSTANCE_INDICES"] == (0, 1, 2, 3, 4)
+    assert loaded_config["DATASET_REALIZATION_INDICES"] == (0, 1, 2, 3, 4)
     assert loaded_config["SMOKE_TEST"] is False
     assert loaded_config["USE_WANDB"] is True
 

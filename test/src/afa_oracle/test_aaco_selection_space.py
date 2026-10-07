@@ -29,7 +29,7 @@ class DummyOracle:
         selection_to_feature_mask: torch.Tensor,
         selection_costs: torch.Tensor | None = None,
         *,
-        instance_idx: torch.Tensor | None = None,  # noqa: ARG002
+        split_index: torch.Tensor | None = None,  # noqa: ARG002
         force_acquisition: bool = False,  # noqa: ARG002
         exclude_instance: bool = True,  # noqa: ARG002
     ) -> list[int | None]:
@@ -45,7 +45,7 @@ class DummyOracle:
         x_observed: torch.Tensor,  # noqa: ARG002
         observed_mask: torch.Tensor,  # noqa: ARG002
         *,
-        instance_idx: torch.Tensor | None = None,  # noqa: ARG002
+        split_index: torch.Tensor | None = None,  # noqa: ARG002
         force_acquisition: bool = False,  # noqa: ARG002
         exclude_instance: bool = True,  # noqa: ARG002
         feature_shape: torch.Size | None = None,  # noqa: ARG002

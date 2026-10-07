@@ -1,4 +1,4 @@
-# We only train the classifier once per dataset (on the first instance)
+# We only train the classifier once per dataset (on dataset realization 0)
 
 from execution import checked_script_params
 

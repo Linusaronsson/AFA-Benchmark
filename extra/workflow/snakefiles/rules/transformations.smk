@@ -32,7 +32,7 @@ rule transform_eval_data:
     input:
         f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
@@ -44,7 +44,7 @@ rule transform_eval_data:
     output:
         f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 "{pretrain_folder}"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"

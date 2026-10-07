@@ -256,8 +256,8 @@ def download(
     method: Annotated[
         list[str] | None, typer.Option(help="Only this method.")
     ] = None,
-    dataset_instance: Annotated[
-        list[int] | None, typer.Option(help="Only this dataset instance.")
+    dataset_realization: Annotated[
+        list[int] | None, typer.Option(help="Only this dataset realization.")
     ] = None,
     eval_split: Annotated[
         list[str] | None, typer.Option(help="Only this evaluation split.")
@@ -287,7 +287,7 @@ def download(
         output_categories=output_category or [],
         datasets=dataset or [],
         methods=method or [],
-        dataset_instance_indices=dataset_instance or [],
+        dataset_realization_indices=dataset_realization or [],
         eval_splits=eval_split or [],
         initializers=initializer or [],
         budget_settings=budget_setting or [],

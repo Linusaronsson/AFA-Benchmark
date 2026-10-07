@@ -38,13 +38,13 @@ Specifies which dataset split to use during evaluation.
 - **Valid values:** `train`, `val`, `test`
 - **Example:** `eval_dataset_split=val` to evaluate on the validation set instead of the test set
 
-### `dataset_instance_indices`
+### `dataset_realization_indices`
 
-Specifies which random seed instances to run. This allows you to run a subset of the experiments. Each index corresponds to a different random seed for dataset generation, model initialization, and training.
+Specifies which dataset realizations to run. This allows you to run a subset of the experiments. Each index corresponds to a different random seed for dataset generation, model initialization, and training.
 
 - **Default:** `[0,1,2,3,4]`
-- **Example:** `dataset_instance_indices=[0,1]` to run two different seeds
-- **Use case:** Use fewer instances for faster debugging, more instances for more robust results
+- **Example:** `dataset_realization_indices=[0,1]` to run two different seeds
+- **Use case:** Use fewer dataset realizations for faster debugging, more for more robust results
 
 ### `device` (deprecated)
 

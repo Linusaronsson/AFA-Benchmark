@@ -23,7 +23,7 @@ runner = CliRunner()
 REPO_ID = "afabench-test/releases"
 TABLE = (
     "eval_split-test/initializer-cold/alpha/"
-    "dataset-cube+instance_idx-0/NO_PRETRAIN/"
+    "dataset-cube+realization_index-0/NO_PRETRAIN/"
     "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
     "eval_seed-0+eval_hard_budget-3+eval_soft_budget_param-null/"
     "eval_data.parquet"
@@ -43,7 +43,7 @@ def workflow_config(
         },
         "methods": ["alpha"],
         "datasets": list(datasets),
-        "dataset_instance_indices": [0],
+        "dataset_realization_indices": [0],
         "unmaskers": {"default": "direct"},
         "eval_hard_budgets": {"default": [3]},
         "soft_budget_params": {"alpha": {"default": []}},

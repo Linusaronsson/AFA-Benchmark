@@ -19,19 +19,19 @@ rule merge_eval_perf:
             (
                 f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
+                    f"realization_index-{dataset_realization_index}/"
                         f"{NO_PRETRAIN_STR}/"
-                            f"train_seed-{dataset_instance_idx}+"
+                            f"train_seed-{dataset_realization_index}+"
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
+                                f"eval_seed-{dataset_realization_index}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"eval_data.parquet"
             )
             for method in METHOD_SETS[wc.method_set] if method in COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for dataset_realization_index in DATASET_REALIZATION_INDICES
             for (
                 train_hard_budget,
                 eval_hard_budget,
@@ -43,19 +43,19 @@ rule merge_eval_perf:
             (
                 f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"pretrain_seed-{dataset_instance_idx}/"
-                            f"train_seed-{dataset_instance_idx}+"
+                    f"realization_index-{dataset_realization_index}/"
+                        f"pretrain_seed-{dataset_realization_index}/"
+                            f"train_seed-{dataset_realization_index}+"
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
+                                f"eval_seed-{dataset_realization_index}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"eval_data.parquet"
             )
             for method in METHOD_SETS[wc.method_set] if method in COMPARED_METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for dataset_realization_index in DATASET_REALIZATION_INDICES
             for (
                 train_hard_budget,
                 eval_hard_budget,
@@ -101,13 +101,13 @@ rule time_df_with_pretrain:
         lambda wildcards: (
             f"extra/output/pretrained_models/{INITIALIZER_TAG}/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
                 f"dataset-{wildcards.dataset}+"
-                f"instance_idx-{wildcards.dataset_instance_idx}/"
+                f"realization_index-{wildcards.dataset_realization_index}/"
                     f"pretrain_seed-{wildcards.pretrain_seed}/"
                         "pretrain_time.txt"
         ),
         f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 "pretrain_seed-{pretrain_seed}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
@@ -115,7 +115,7 @@ rule time_df_with_pretrain:
                         "train_time.txt",
         f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 "pretrain_seed-{pretrain_seed}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
@@ -127,7 +127,7 @@ rule time_df_with_pretrain:
     output:
         f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 "pretrain_seed-{pretrain_seed}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
@@ -158,7 +158,7 @@ rule time_df_without_pretrain:
     input:
         f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 f"{NO_PRETRAIN_STR}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
@@ -166,7 +166,7 @@ rule time_df_without_pretrain:
                         "train_time.txt",
         f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 f"{NO_PRETRAIN_STR}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
@@ -178,7 +178,7 @@ rule time_df_without_pretrain:
     output:
         f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
             "dataset-{dataset}+"
-            "instance_idx-{dataset_instance_idx}/"
+            "realization_index-{dataset_realization_index}/"
                 f"{NO_PRETRAIN_STR}/"
                     "train_seed-{train_seed}+"
                     "train_hard_budget-{train_hard_budget}+"
@@ -210,19 +210,19 @@ rule merge_time:
             (
                 f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
+                    f"realization_index-{dataset_realization_index}/"
                         f"{NO_PRETRAIN_STR}/"
-                            f"train_seed-{dataset_instance_idx}+"
+                            f"train_seed-{dataset_realization_index}+"
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
+                                f"eval_seed-{dataset_realization_index}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"combined_time.parquet"
             )
             for method in METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for dataset_realization_index in DATASET_REALIZATION_INDICES
             for (
                 train_hard_budget,
                 eval_hard_budget,
@@ -234,19 +234,19 @@ rule merge_time:
             (
                 f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
                     f"dataset-{dataset}+"
-                    f"instance_idx-{dataset_instance_idx}/"
-                        f"pretrain_seed-{dataset_instance_idx}/"
-                            f"train_seed-{dataset_instance_idx}+"
+                    f"realization_index-{dataset_realization_index}/"
+                        f"pretrain_seed-{dataset_realization_index}/"
+                            f"train_seed-{dataset_realization_index}+"
                             f"train_hard_budget-{train_hard_budget}+"
                             f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_instance_idx}+"
+                                f"eval_seed-{dataset_realization_index}+"
                                 f"eval_hard_budget-{eval_hard_budget}+"
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"combined_time.parquet"
             )
             for method in METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
-            for dataset_instance_idx in DATASET_INSTANCE_INDICES
+            for dataset_realization_index in DATASET_REALIZATION_INDICES
             for (
                 train_hard_budget,
                 eval_hard_budget,

@@ -94,20 +94,18 @@ def test_excluded_query_never_appears_in_its_own_neighbors() -> None:
     masks = (torch.rand(n_features, n_queries, generator=g) > 0.5).float()
     masks[0] = 1.0
     # Query b *is* train row b, so without exclusion it is its own neighbor.
-    instance_idx = torch.arange(n_queries)
+    split_index = torch.arange(n_queries)
     x_query = x_train[:n_queries]
 
-    kept = get_knn_batched(
-        x_train, x_query, masks, k, instance_idx=instance_idx
-    )
+    kept = get_knn_batched(x_train, x_query, masks, k, split_index=split_index)
     dropped = get_knn_batched(
         x_train,
         x_query,
         masks,
         k,
-        instance_idx=instance_idx,
+        split_index=split_index,
         exclude_instance=True,
     )
-    assert (kept == instance_idx.reshape(1, -1)).any()
-    assert not (dropped == instance_idx.reshape(1, -1)).any()
+    assert (kept == split_index.reshape(1, -1)).any()
+    assert not (dropped == split_index.reshape(1, -1)).any()
     assert dropped.shape == (k, n_queries)

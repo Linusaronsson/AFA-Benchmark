@@ -1,16 +1,16 @@
-# Generate instances for a single type of dataset
-# Use same seeds as instance indices
+# Generate dataset realizations for a single type of dataset
+# Use the dataset realization indices as seeds
 rule dataset_generation:
     output:
         [
-            directory(f"extra/output/datasets/{{dataset}}/{dataset_instance_idx}/{split}.bundle") for dataset_instance_idx in DATASET_INSTANCE_INDICES for split in ["train", "val", "test"]
+            directory(f"extra/output/datasets/{{dataset}}/{dataset_realization_index}/{split}.bundle") for dataset_realization_index in DATASET_REALIZATION_INDICES for split in ["train", "val", "test"]
         ]
     params:
         # Validate final resources during planning; this script has no device argument.
         allocation_check=lambda wc, resources: EXECUTION.checked_device("dataset_generation", wc.dataset, resources),
         save_path=lambda wc: f"extra/output/datasets/{wc.dataset}",
-        instance_indices_str=lambda wildcards: "["
-        + ",".join(str(i) for i in DATASET_INSTANCE_INDICES)
+        dataset_realization_indices_str=lambda wildcards: "["
+        + ",".join(str(i) for i in DATASET_REALIZATION_INDICES)
         + "]",
         # Image datasets use a separate generation script because they are
         # defined by external files + transforms. We save only split indices
@@ -30,7 +30,7 @@ rule dataset_generation:
         """
         python scripts/dataset_generation/{params.dataset_generation_script} \
             dataset={wildcards.dataset} \
-            instance_indices={params.instance_indices_str} \
-            seeds={params.instance_indices_str} \
+            dataset_realization_indices={params.dataset_realization_indices_str} \
+            seeds={params.dataset_realization_indices_str} \
             save_path={params.save_path}
         """

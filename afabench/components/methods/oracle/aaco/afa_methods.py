@@ -156,12 +156,12 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
         selection_mask: SelectionMask | None = None,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-        instance_indices: torch.Tensor | None = None,
+        split_indices: torch.Tensor | None = None,
     ) -> AFAAction:
         """
         AACO action selection with optional global training-set indices.
 
-        `instance_indices` is used when excluding self-neighbors in KNN. This
+        `split_indices` is used when excluding self-neighbors in KNN. This
         is mainly needed for episode generation on the training set.
 
         The whole batch is scored by the oracle in one neighbour search and
@@ -180,10 +180,10 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             n_features = masked_features.shape[-1]
 
             batch_size = masked_features.shape[0]
-            if instance_indices is not None:
-                instance_indices = instance_indices.view(-1).to(self._device)
-                assert len(instance_indices) == batch_size, (
-                    "instance_indices must match batch size."
+            if split_indices is not None:
+                split_indices = split_indices.view(-1).to(self._device)
+                assert len(split_indices) == batch_size, (
+                    "split_indices must match batch size."
                 )
 
             selection_size = (
@@ -228,9 +228,9 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             ):
                 oracle_selection_costs = self._selection_costs
 
-            instance_idx = (
-                instance_indices
-                if instance_indices is not None
+            split_index = (
+                split_indices
+                if split_indices is not None
                 else torch.arange(batch_size, device=self._device)
             )
 
@@ -245,7 +245,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
                     selection_mask_flat,
                     selection_to_feature_mask,
                     oracle_selection_costs,
-                    instance_idx=instance_idx,
+                    split_index=split_index,
                     force_acquisition=self.force_acquisition,
                     exclude_instance=self._exclude_instance,
                 )
@@ -254,7 +254,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
                 chosen = self.aaco_oracle.select_next_features_batched(
                     masked_features,
                     feature_mask.view(batch_size, -1).bool(),
-                    instance_idx=instance_idx,
+                    split_index=split_index,
                     force_acquisition=self.force_acquisition,
                     exclude_instance=self._exclude_instance,
                     feature_shape=feature_shape,
@@ -302,7 +302,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             selection_mask=selection_mask,
             label=label,
             feature_shape=feature_shape,
-            instance_indices=None,
+            split_indices=None,
         )
 
     @override

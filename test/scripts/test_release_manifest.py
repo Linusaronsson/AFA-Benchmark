@@ -18,7 +18,7 @@ runner = CliRunner()
 
 RAW_HARD_BUDGET_TABLE = (
     "eval_results/eval_split-test/initializer-cold/alpha/"
-    "dataset-cube+instance_idx-0/NO_PRETRAIN/"
+    "dataset-cube+realization_index-0/NO_PRETRAIN/"
     "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
     "eval_seed-0+eval_hard_budget-3+eval_soft_budget_param-null/"
     "eval_data.parquet"
@@ -33,7 +33,7 @@ def workflow_config(*, smoke_test: bool) -> dict[str, Any]:
         },
         "methods": ["alpha"],
         "datasets": ["cube"],
-        "dataset_instance_indices": [0, 1],
+        "dataset_realization_indices": [0, 1],
         "unmaskers": {"default": "direct"},
         "eval_hard_budgets": {"default": [3]},
         "soft_budget_params": {"alpha": {"default": [[0.5, None]]}},
@@ -321,7 +321,7 @@ def test_manifest_records_resolved_settings(tmp_path: Path) -> None:
     settings = read_manifest(snapshot_dir)["settings"]
     assert settings["initializer"] == "cold"
     assert settings["eval_split"] == "test"
-    assert settings["dataset_instance_indices"] == [0, 1]
+    assert settings["dataset_realization_indices"] == [0, 1]
     assert settings["dataset_splits"] == ["train", "val", "test"]
     assert settings["unmaskers"] == {"cube": "direct"}
     assert settings["feature_costs"] == {
@@ -337,7 +337,7 @@ def test_manifest_records_resolved_settings(tmp_path: Path) -> None:
             "script_params": "",
             "dataset_key": "cube",
             "method_name": None,
-            "dataset_instance_index": 0,
+            "dataset_realization_index": 0,
             "seed": 0,
         }
     ]
@@ -372,7 +372,9 @@ def test_manifest_lists_every_configured_table_with_its_identity(
     snapshot_dir, _ = save_release(tmp_path, "--scope", "partial")
 
     tables = read_manifest(snapshot_dir)["evaluation_tables"]
-    assert len(tables) == 4  # two instances, one hard and one soft budget
+    assert (
+        len(tables) == 4
+    )  # two dataset realizations, one hard and one soft budget
     hard = next(t for t in tables if t["raw_path"] == RAW_HARD_BUDGET_TABLE)
     assert hard == {
         "raw_path": RAW_HARD_BUDGET_TABLE,
@@ -387,7 +389,7 @@ def test_manifest_lists_every_configured_table_with_its_identity(
         "transformed_size_bytes": None,
         "method_name": "alpha",
         "dataset_key": "cube",
-        "dataset_instance_index": 0,
+        "dataset_realization_index": 0,
         "dataset_generation_seed": 0,
         "eval_split": "test",
         "initializer": "cold",
@@ -413,7 +415,7 @@ def test_manifest_lists_every_configured_table_with_its_identity(
                 "role": "method",
                 "path": (
                     "trained_methods/initializer-cold/alpha/"
-                    "dataset-cube+instance_idx-0/NO_PRETRAIN/"
+                    "dataset-cube+realization_index-0/NO_PRETRAIN/"
                     "train_seed-0+train_hard_budget-3+"
                     "train_soft_budget_param-null/method.bundle"
                 ),
@@ -429,7 +431,7 @@ def test_manifest_lists_every_configured_table_with_its_identity(
     soft = next(
         t
         for t in tables
-        if t["dataset_instance_index"] == 1
+        if t["dataset_realization_index"] == 1
         and t["budget_setting"] == "soft_budget"
     )
     assert soft["raw_present"] is False
@@ -447,7 +449,7 @@ def test_coverage_describes_only_the_outputs_present(tmp_path: Path) -> None:
     del coverage["payloads"]
     assert coverage == {
         "datasets": ["cube"],
-        "dataset_instance_indices": [0],
+        "dataset_realization_indices": [0],
         "methods": ["alpha"],
         "eval_splits": ["test"],
         "budget_settings": ["hard_budget"],

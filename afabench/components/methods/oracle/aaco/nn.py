@@ -221,7 +221,7 @@ def generate_aaco_rollouts(
                 feature_mask=feature_mask_flat.float().unsqueeze(0),
                 selection_mask=selection_mask.unsqueeze(0),
                 feature_shape=feature_shape,
-                instance_indices=torch.tensor([i], device=device),
+                split_indices=torch.tensor([i], device=device),
             )
             action_val = action.item()
 

@@ -49,7 +49,7 @@ another commit. Whether that is valid has two separate parts:
 - **Comparability**: whether results produced now would have been produced
   the same way as the release's. Many changes break it silently, with every
   file still loading:
-  - dataset generation or preprocessing, dataset instances or splits;
+  - dataset generation or preprocessing, dataset realizations or splits;
   - feature costs;
   - Unmaskers, initializers and acquisition semantics, such as stop
     handling, forced acquisition or budget accounting;

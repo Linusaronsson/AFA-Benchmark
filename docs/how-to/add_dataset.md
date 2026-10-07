@@ -94,7 +94,7 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return obj
 ```
 
-If your dataset is synthetic and should vary by dataset instance, make `accepts_seed()` return `True` and add a `seed` argument to `__init__`. The dataset generation script will pass one seed per instance automatically.
+If your dataset is synthetic and should vary by dataset realization, make `accepts_seed()` return `True` and add a `seed` argument to `__init__`. The dataset generation script will pass one seed per dataset realization automatically.
 
 ### 2. Create an entry in dataset generation config
 
@@ -132,7 +132,7 @@ datasets:
   # ... other datasets ...
 ```
 
-The pipeline will generate `train.bundle`, `val.bundle`, and `test.bundle` under `extra/output/datasets/my_dataset/{instance_idx}/` for each selected dataset instance.
+The pipeline will generate `train.bundle`, `val.bundle`, and `test.bundle` under `extra/output/datasets/my_dataset/{dataset_realization_index}/` for each selected dataset realization.
 
 ### 5. Add a readable name
 

@@ -11,12 +11,12 @@ Runtime filters (--config, select subsets to run):
         them, so aggregating them never schedules their training or
         evaluation; a missing reference table fails the plan with
         MissingInputException. Their tables are expected at this config's
-        eval split, initializer, dataset instances and budgets. A method
+        eval split, initializer, dataset realizations and budgets. A method
         cannot be in both lists, and method sets without any method from
         `methods` are skipped. Time aggregation covers `methods` only.
     datasets (list[str], required): Subset of datasets to run. Every dataset
         key needs a file extra/conf/components/dataset_key/<key>.yaml.
-    dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
+    dataset_realization_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
     device (str, default='cpu'): Deprecated invocation-wide device for
         computational jobs, with a warning. Cannot be combined with execution.
     execution (mapping, default={}): CPU/cuda defaults for the pipeline
@@ -67,7 +67,7 @@ Usage:
     (bundles execution/all.yaml) instead. Local CPU smoke test without SLURM
     or GPUs (config/all has no execution file, so every job runs on CPU):
         snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
-            --config "datasets=[cube]" "dataset_instance_indices=[0]" \
+            --config "datasets=[cube]" "dataset_realization_indices=[0]" \
             smoke_test=true use_wandb=false
     See docs/how-to/reproduce_full_results.md and slurm_integration.md.
     Add a method to published baselines: download the baselines'
@@ -76,7 +76,7 @@ Usage:
         snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
             --config "methods=[my_method]" \
                 "reference_methods=[random_dummy, gdfs]" \
-                "datasets=[cube]" "dataset_instance_indices=[0]"
+                "datasets=[cube]" "dataset_realization_indices=[0]"
     See docs/how-to/compare_your_method_with_published_results.md.
 
 CPU-only processing:
@@ -155,7 +155,7 @@ EXECUTION = ExecutionPolicy(
 )
 
 NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
-DATASET_INSTANCE_INDICES = _config["DATASET_INSTANCE_INDICES"]
+DATASET_REALIZATION_INDICES = _config["DATASET_REALIZATION_INDICES"]
 INITIALIZER = _config["INITIALIZER"]
 INITIALIZER_TAG = f"initializer-{INITIALIZER}"
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]

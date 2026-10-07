@@ -1,4 +1,4 @@
-"""Generate multiple instances of a dataset, see dataset_generation.md."""
+"""Generate multiple dataset realizations of a dataset, see dataset_generation.md."""
 
 import logging
 import random
@@ -32,7 +32,7 @@ def generate_and_save_split(
         dataset_class: The dataset class to instantiate.
         split_ratio: The ratio for splitting the dataset into train/val/test.
         seed_for_split: Seed used during splitting.
-        save_path: Path to save the generated dataset splits. Will create separate folders for each split instance.
+        save_path: Path to save the generated dataset splits. Will create a separate folder for each dataset realization.
         dataset_kwargs: Keyword arguments to pass to the dataset class constructor.
         metadata_to_save: Additional metadata to save alongside the dataset.
     """
@@ -99,8 +99,8 @@ def generate_and_save_split(
 def main(cfg: DatasetGenerationConfig) -> None:
     cfg = cast("DatasetGenerationConfig", OmegaConf.to_object(cfg))
     log.info(f"Generating {cfg.dataset.class_name} to {cfg.save_path}")
-    for instance_idx, seed in zip(
-        cfg.instance_indices, cfg.seeds, strict=True
+    for dataset_realization_index, seed in zip(
+        cfg.dataset_realization_indices, cfg.seeds, strict=True
     ):
         dataset_class = cast(
             "type[AFADataset]", get_class(cfg.dataset.class_name)
@@ -114,16 +114,16 @@ def main(cfg: DatasetGenerationConfig) -> None:
             split_ratio=cfg.split_ratio,
             # use same instance for splitting as for data generation
             seed_for_split=seed,
-            save_path=Path(cfg.save_path) / str(instance_idx),
+            save_path=Path(cfg.save_path) / str(dataset_realization_index),
             dataset_kwargs=dataset_kwargs,
             metadata_to_save={
-                "instance_idx": instance_idx,
+                "dataset_realization_index": dataset_realization_index,
             },
         )
     log.info(
-        f"Generated {len(cfg.instance_indices)} dataset instances to {
-            cfg.save_path
-        }"
+        f"Generated {
+            len(cfg.dataset_realization_indices)
+        } dataset realizations to {cfg.save_path}"
     )
 
 

@@ -58,7 +58,7 @@ Read `/path/to/2026-10-kdd26/release_manifest.json`
 - [ ] `execution_mode` is `production`.
 - [ ] `code.dirty` is `false`, so `code.commit` is the code that ran.
 - [ ] `workflow_config` is the configuration of the intended run.
-- [ ] `coverage` lists the datasets, dataset instances, methods,
+- [ ] `coverage` lists the datasets, dataset realizations, methods,
       evaluation splits, budget settings, classifier variants and output
       categories you mean to publish.
 - [ ] Every entry of `evaluation_tables` has `raw_present` and

@@ -24,7 +24,7 @@ execution:
 
 - External classifiers shared across methods use `defaults.classifier`, never a
   downstream method's training/evaluation choice. They retain one native bundle
-  per dataset and initializer, trained on dataset instance 0 with seed 0.
+  per dataset and initializer, trained on dataset realization 0 with seed 0.
 - Method-specific classifiers use `methods.<method name>.classifier`, then
   `defaults.classifier`. The existing `method_options.<name>.classifier` script
   selection and parameters still decide which variant is trained, not hardware.
@@ -70,7 +70,7 @@ uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
 
 Remove `-n` to submit from one authorized environment with shared filesystem and
 access to both allocation types. The same graph schedules prerequisites according
-to their dependencies. Dataset instances, seeds, Initializers, Unmaskers, budget
+to their dependencies. Dataset realizations, seeds, Initializers, Unmaskers, budget
 settings, method-owned scripts, plain pretraining/training contract, native
 bundle directories and `pretrain_time.txt` outputs are unchanged. Classifier
 scripts retain their existing Hydra arguments. For the single full-benchmark

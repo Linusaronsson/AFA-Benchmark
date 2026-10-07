@@ -63,7 +63,7 @@ def get_knn_batched(
     X_query: torch.Tensor,  # noqa: N803
     masks: torch.Tensor,
     num_neighbors: int,
-    instance_idx: torch.Tensor | None = None,
+    split_index: torch.Tensor | None = None,
     exclude_instance: bool = False,  # noqa: FBT002
     batch_size: int = 1000,
 ) -> torch.Tensor:
@@ -83,7 +83,7 @@ def get_knn_batched(
         X_query: B x d query instances
         masks: d x B binary masks, column b belonging to query b
         num_neighbors: number of neighbors (k)
-        instance_idx: B-element indices of the query instances, for exclusion
+        split_index: B-element indices of the query instances, for exclusion
         exclude_instance: whether to exclude each query from its own results
         batch_size: rows of X_train per chunk (memory bound)
 
@@ -110,11 +110,11 @@ def get_knn_batched(
     idx_topk = torch.topk(dist_squared, k, dim=0, largest=False)[1]  # (k, B)
     if not exclude_instance:
         return idx_topk
-    assert instance_idx is not None
+    assert split_index is not None
     # At most one entry per column is the query itself. A stable sort on the
     # "should drop" flag sinks it to the bottom while preserving topk order
     # among the rest, so slicing the top num_neighbors drops exactly it.
-    drop = idx_topk == instance_idx.to(idx_topk.device).reshape(1, -1)
+    drop = idx_topk == split_index.to(idx_topk.device).reshape(1, -1)
     order = torch.argsort(drop.int(), dim=0, stable=True)
     return idx_topk.gather(0, order)[:num_neighbors]
 
@@ -306,7 +306,7 @@ class AACOOracle:
         x_observed: torch.Tensor,
         observed_mask: torch.Tensor,
         *,
-        instance_idx: torch.Tensor | None = None,
+        split_index: torch.Tensor | None = None,
         force_acquisition: bool = False,
         exclude_instance: bool = True,
         feature_shape: torch.Size | None = None,
@@ -333,7 +333,7 @@ class AACOOracle:
         Args:
             x_observed: masked features, unobserved entries equal to hide_val
             observed_mask: feature mask per instance
-            instance_idx: training-set index of each instance, for exclusion
+            split_index: training-set index of each instance, for exclusion
             force_acquisition: if True, never stop while a selection is left
             exclude_instance: whether to drop each instance from its own
                 neighbours
@@ -364,10 +364,10 @@ class AACOOracle:
             x_observed,
             observed_feature_mask.float().T,
             self.k_neighbors,
-            instance_idx=(
+            split_index=(
                 torch.arange(batch_size, device=device)
-                if instance_idx is None
-                else instance_idx.to(device)
+                if split_index is None
+                else split_index.to(device)
             ),
             exclude_instance=exclude_instance,
         ).T
@@ -471,7 +471,7 @@ class AACOOracle:
         selection_to_feature_mask: torch.Tensor,
         selection_costs: torch.Tensor | None = None,
         *,
-        instance_idx: torch.Tensor | None = None,
+        split_index: torch.Tensor | None = None,
         force_acquisition: bool = False,
         exclude_instance: bool = True,
     ) -> list[int | None]:
@@ -525,10 +525,10 @@ class AACOOracle:
             x_observed,
             observed_feature_mask.float().T,
             self.k_neighbors,
-            instance_idx=(
+            split_index=(
                 torch.arange(batch_size, device=device)
-                if instance_idx is None
-                else instance_idx.to(device)
+                if split_index is None
+                else split_index.to(device)
             ),
             exclude_instance=exclude_instance,
         ).T

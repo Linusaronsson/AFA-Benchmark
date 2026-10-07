@@ -47,8 +47,8 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     # Basic Configuration
     # ========================================================================
 
-    dataset_instance_indices = config.get(
-        "dataset_instance_indices", (0, 1, 2, 3, 4)
+    dataset_realization_indices = config.get(
+        "dataset_realization_indices", (0, 1, 2, 3, 4)
     )
     initializer = config.get("initializer", "cold")
     eval_dataset_split = config.get(
@@ -333,7 +333,7 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
 
     return {
         "NO_PRETRAIN_STR": NO_PRETRAIN_STR,
-        "DATASET_INSTANCE_INDICES": dataset_instance_indices,
+        "DATASET_REALIZATION_INDICES": dataset_realization_indices,
         "INITIALIZER": initializer,
         "EVAL_DATASET_SPLIT": eval_dataset_split,
         "USE_WANDB": use_wandb,

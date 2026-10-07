@@ -50,7 +50,7 @@ def test_dataset_generation_clears_gpu_defaults(
     assert "gpu=2" not in commands
     assert "gres=gpu:" not in commands
     assert f"scripts/dataset_generation/{script}" in commands
-    assert "instance_indices=[0]" in commands
+    assert "dataset_realization_indices=[0]" in commands
     assert f"save_path=extra/output/datasets/{dataset}" in commands
 
 
@@ -90,7 +90,7 @@ def processing_workflow(root: Path) -> WorkflowHarness:
     )
     pretrained = (
         root / "extra/output/pretrained_models/initializer-cold/shared/"
-        "dataset-cube+instance_idx-0/pretrain_seed-0"
+        "dataset-cube+realization_index-0/pretrain_seed-0"
     )
     (pretrained / "model.bundle").mkdir(parents=True)
     (pretrained / "pretrain_time.txt").write_text("0.125")
@@ -294,7 +294,7 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
         if "train_method" in script or "eval/" in script:
             assert args["device"] == "cuda"
         elif "dataset_generation" in script:
-            assert args["instance_indices"] == "[0]"
+            assert args["dataset_realization_indices"] == "[0]"
             assert args["seeds"] == "[0]"
             assert args["save_path"] == "extra/output/datasets/cube"
         elif "plotting" in script:
@@ -325,7 +325,7 @@ def test_processing_variants_use_cpu_site_mapping(
         ("beta", "NO_PRETRAIN"),
     ]:
         training = (
-            f"{method}/dataset-cube+instance_idx-0/{pretrain}/"
+            f"{method}/dataset-cube+realization_index-0/{pretrain}/"
             "train_seed-0+train_hard_budget-1+train_soft_budget_param-null"
         )
         evaluation = (

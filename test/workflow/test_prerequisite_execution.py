@@ -147,7 +147,7 @@ def test_named_pretraining_is_deduplicated_and_independent_of_method_order(
         assert "unmasker=direct" in shared
         assert "classifier_bundle_path=" in shared
         assert (
-            "shared/dataset-cube+instance_idx-0/pretrain_seed-0/model.bundle"
+            "shared/dataset-cube+realization_index-0/pretrain_seed-0/model.bundle"
             in shared
         )
         for method in ["alpha", "beta"]:
@@ -155,7 +155,7 @@ def test_named_pretraining_is_deduplicated_and_independent_of_method_order(
                 f"python scripts/train_method/{method}.py", 1
             )[1].split("END_TIME", 1)[0]
             assert (
-                "shared/dataset-cube+instance_idx-0/pretrain_seed-0/model.bundle"
+                "shared/dataset-cube+realization_index-0/pretrain_seed-0/model.bundle"
                 in training
             )
             assert "hard_budget=1" in training
