@@ -119,6 +119,8 @@ Reconnaissance identified the following implementation considerations:
    their own provenance records once ADR 0002 lands.
 3. Implement local package preparation and validation, followed by explicit
    HF publication. Preserve native formats; add HF conversions where useful.
+   #38 publishes a snapshot with its manifest and downloads one named
+   release; see [`release_publishing.md`](release_publishing.md).
 4. Implement release selection and selective downloading into native pipeline
    locations, including existing-file handling and missing-output reporting.
 5. Verify both main journeys: independent Parquet/plot downloads, and a fork

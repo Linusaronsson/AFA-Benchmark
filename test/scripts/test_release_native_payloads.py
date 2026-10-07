@@ -17,7 +17,9 @@ import pyarrow.parquet as pq
 import yaml
 from typer.testing import CliRunner
 
+from afabench.release.manifest import read_release_manifest
 from scripts.release.snapshot import app
+from test.scripts.fake_release_transport import FakeReleaseTransport
 
 runner = CliRunner()
 
@@ -544,3 +546,45 @@ def test_inventory_reports_payload_categories_without_copying(
     ) in lines
     assert "afa_method_bundle: 0/2 present, 0 bytes, classes: none" in lines
     assert "raw_evaluation_table: 0/2 present, 0 bytes, classes: none" in lines
+
+
+def test_release_transport_carries_bundles_and_redistribution_warnings(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "source"
+    write_bundle(source_root, TRAIN, "CubeDataset")
+    write_bundle(source_root, ALPHA_METHOD, "RandomWithoutClassifierAFAMethod")
+    save_test_only(tmp_path, source_root)
+    transport = FakeReleaseTransport()
+    destination_root = tmp_path / "checkout/extra/output"
+
+    published = runner.invoke(
+        app,
+        ["publish", str(tmp_path / "snapshot"), "--repo-id", "fake/repo"]
+        + ["--test-release"],
+        obj=lambda _repo_id: transport,
+    )
+    downloaded = runner.invoke(
+        app,
+        ["download", "smoke-native", "--repo-id", "fake/repo"]
+        + ["--destination-root", str(destination_root), "--test-release"],
+        obj=lambda _repo_id: transport,
+    )
+
+    assert published.exit_code == 0, published.output
+    assert downloaded.exit_code == 0, downloaded.output
+    for result in [published, downloaded]:
+        assert "Unreviewed dataset redistribution: cube" in result.output
+    for path in [TRAIN, ALPHA_METHOD]:
+        for file in (source_root / path).rglob("*"):
+            restored = destination_root / file.relative_to(source_root)
+            assert restored.is_dir() == file.is_dir()
+            if file.is_file():
+                assert restored.read_bytes() == file.read_bytes()
+    manifest = read_release_manifest(
+        tmp_path / "checkout/extra/release_manifest.json"
+    )
+    assert {bundle.path for bundle in manifest.bundles if bundle.present} == {
+        TRAIN,
+        ALPHA_METHOD,
+    }
