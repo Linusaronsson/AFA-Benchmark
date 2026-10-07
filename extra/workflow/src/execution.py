@@ -13,7 +13,7 @@ type Device = Literal["cpu", "cuda"]
 type Hardware = Literal["cpu", "gpu"]
 # Pipeline stages: the kinds of job whose hardware this policy resolves.
 type Stage = Literal[
-    "classifier",
+    "classifier_training",
     "pretraining",
     "training",
     "evaluation",
@@ -24,7 +24,7 @@ type Stage = Literal[
 ]
 type ResourceFunction = Callable[[object], int | str]
 
-METHOD_STAGES = {"training", "evaluation", "classifier"}
+METHOD_STAGES = {"training", "evaluation", "classifier_training"}
 COMPUTATIONAL_STAGES = METHOD_STAGES | {"pretraining"}
 PROCESSING_STAGES = {
     "dataset_generation",
@@ -145,8 +145,11 @@ class ExecutionPolicy:
             _known_keys(
                 overrides, METHOD_STAGES, f"execution.methods.{method}"
             )
-            if "classifier" in overrides and method not in method_classifiers:
-                message = f"execution.methods.{method}.classifier is set, but {method!r} has no method-specific classifier; external classifiers use execution.defaults.classifier"
+            if (
+                "classifier_training" in overrides
+                and method not in method_classifiers
+            ):
+                message = f"execution.methods.{method}.classifier_training is set, but {method!r} has no method-specific classifier; external classifiers use execution.defaults.classifier_training"
                 raise ValueError(message)
             options = _mapping(
                 method_options.get(method, {}), f"method_options.{method}"

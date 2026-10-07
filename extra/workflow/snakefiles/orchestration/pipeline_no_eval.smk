@@ -2,7 +2,7 @@
 No-eval orchestration pipeline.
 
 This variant skips dataset generation, classifier training, method training, and
-evaluation rules. It only runs transformation, aggregation, and plotting rules
+evaluation rules. It only runs transformation, aggregation, and visualization rules
 for existing evaluation outputs.
 
 Runtime filters (--config, select subsets to run):

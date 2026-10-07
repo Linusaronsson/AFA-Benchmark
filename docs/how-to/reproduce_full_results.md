@@ -92,13 +92,13 @@ job runs. Values are exactly `cpu` and `cuda`:
 
 ```yaml
 execution:
-  defaults:            # per pipeline stage; unspecified ones default to cpu
-    classifier: cuda   # external and method-specific classifiers
-    pretraining: cuda  # named pretrained models
+  defaults:                     # per pipeline stage; unspecified ones default to cpu
+    classifier_training: cuda   # external and method-specific classifiers
+    pretraining: cuda           # named pretrained models
     training: cpu
     evaluation: cpu
   methods:
-    jafa:              # per method: training, evaluation, classifier
+    jafa:                       # per method: training, evaluation, classifier_training
       training: cuda
       evaluation: cuda
   pretrained_models:   # per named model in pretrain_mapping (none here)
@@ -107,17 +107,17 @@ execution:
 
 Precedence, resolved independently for every job:
 
-1. `execution.methods.<method>.<training|evaluation|classifier>`, or
+1. `execution.methods.<method>.<training|evaluation|classifier_training>`, or
    `execution.pretrained_models.<named model>` for pretraining.
-2. `execution.defaults.<classifier|pretraining|training|evaluation>`.
+2. `execution.defaults.<classifier_training|pretraining|training|evaluation>`.
 3. `cpu`.
 
 Training and evaluation are independent, so a method can train on GPU and
 evaluate on CPU. Evaluation runs the classifier too, so declare its end-to-end
-needs. Shared external classifiers use only `defaults.classifier`; a pretrained
+needs. Shared external classifiers use only `defaults.classifier_training`; a pretrained
 model shared by several methods uses its own name, never a requesting method's
-choice. Dataset generation, transformations, aggregation and plotting always
-run on CPU and cannot be configured. Hardware is never inferred from a method's
+choice. Dataset generation, transformations, aggregation and visualization
+always run on CPU and cannot be configured. Hardware is never inferred from a method's
 implementation, taxonomy or the selected method list, and a `cuda` job never
 falls back to CPU. `cuda` both passes `device=cuda` to the script and requests
 a GPU allocation; `cpu` passes `device=cpu` and requests none.
@@ -151,7 +151,7 @@ The `--config` note and the copy-a-preset override above apply here too.
   can reach both its CPU and GPU partitions. The controller process stays
   alive for the whole run, so use a persistent session (for example `tmux`)
   if your site allows it, or follow site policy for long-running controllers.
-  The controller only plans and submits; all jobs, including plotting, are
+  The controller only plans and submits; all jobs, including visualization, are
   submitted to compute nodes.
 - The repository, the `uv` environment, inputs and `extra/output/` must be on
   a filesystem shared by the submit host and all compute nodes.

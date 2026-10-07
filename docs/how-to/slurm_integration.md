@@ -34,7 +34,7 @@ work for you unchanged.
 
 > **Unverified: whether Alvis accepts CPU-only jobs.** Every graph contains
 > CPU-only jobs (dataset generation, transformations, aggregation and
-> plotting), so `alvis/site.yaml` maps CPU jobs to the `alvis` partition
+> visualization), so `alvis/site.yaml` maps CPU jobs to the `alvis` partition
 > without a GPU request. If Alvis rejects jobs without a GPU, `sbatch` fails
 > when such a job is submitted; produce those outputs with a CPU profile
 > such as `vera` instead.

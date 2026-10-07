@@ -20,10 +20,10 @@ Runtime filters (--config, select subsets to run):
     device (str, default='cpu'): Deprecated invocation-wide device for
         computational jobs, with a warning. Cannot be combined with execution.
     execution (mapping, default={}): CPU/cuda defaults for the pipeline
-        stages classifier, pretraining, training and evaluation. methods.<name> overrides training,
-        evaluation and method-specific classifier choices; pretrained_models
-        overrides pretraining by named model. External classifiers use only
-        the classifier default. Overrides take precedence over defaults.
+        stages classifier_training, pretraining, training and evaluation.
+        methods.<name> overrides training, evaluation and method-specific
+        classifier_training; pretrained_models overrides pretraining by named
+        model. External classifiers use only the classifier_training default. Overrides take precedence over defaults.
         Shipped declarations: extra/workflow/conf/execution/{kdd26,all}.yaml.
     execution_site_file (str, required for SLURM submission): Profile-owned
         YAML allocation map; submitting without one fails before any job.

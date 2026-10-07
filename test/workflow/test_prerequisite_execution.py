@@ -51,8 +51,10 @@ def test_external_and_method_classifiers_are_independent_of_policy_training(
 ) -> None:
     workflow = prerequisite_workflow(tmp_path)
     workflow.config["execution"] = {
-        "defaults": {"classifier": "cuda", "training": "cpu"},
-        "methods": {"alpha": {"classifier": "cpu", "training": "cuda"}},
+        "defaults": {"classifier_training": "cuda", "training": "cpu"},
+        "methods": {
+            "alpha": {"classifier_training": "cpu", "training": "cuda"}
+        },
     }
 
     result = workflow.run("--dry-run")
@@ -209,20 +211,23 @@ def test_prerequisite_script_arguments_cannot_override_device_before_submission(
 @pytest.mark.parametrize(
     ("execution", "diagnostic"),
     [
-        ({"defaults": {"classifier": "tpu"}}, "classifier/"),
+        ({"defaults": {"classifier_training": "tpu"}}, "classifier_training/"),
         ({"defaults": {"pretraining": "tpu"}}, "pretraining/"),
         ({"pretrained_models": {"shared": "tpu"}}, "pretraining/shared"),
         (
             {"pretrained_models": {"shared": {"device": "cpu"}}},
             "pretraining/shared",
         ),
-        ({"methods": {"alpha": {"classifier": "tpu"}}}, "classifier/alpha"),
+        (
+            {"methods": {"alpha": {"classifier_training": "tpu"}}},
+            "classifier_training/alpha",
+        ),
         ({"methods": {"alpha": {"pretraining": "cpu"}}}, "pretraining"),
         ({"defaults": {"pretraining": "cuda"}}, "GPU allocation"),
         ({"pretrained_models": {"sharde": "cuda"}}, "sharde"),
         (
-            {"methods": {"beta": {"classifier": "cuda"}}},
-            "execution.methods.beta.classifier",
+            {"methods": {"beta": {"classifier_training": "cuda"}}},
+            "execution.methods.beta.classifier_training",
         ),
     ],
 )
@@ -276,12 +281,12 @@ def test_independent_prerequisites_submit_once_with_matching_script_devices(
     add_pretrained_models(workflow)
     workflow.config["execution"] = {
         "defaults": {
-            "classifier": "cuda",
+            "classifier_training": "cuda",
             "pretraining": "cpu",
             "training": "cpu",
             "evaluation": "cpu",
         },
-        "methods": {"alpha": {"classifier": "cpu"}},
+        "methods": {"alpha": {"classifier_training": "cpu"}},
         "pretrained_models": {"shared": "cuda"},
     }
 
@@ -385,7 +390,7 @@ def test_classifier_only_invocation_does_not_resolve_unselected_pretraining(
     workflow = prerequisite_workflow(tmp_path)
     add_pretrained_models(workflow)
     workflow.config["execution"] = {
-        "defaults": {"classifier": "cpu", "pretraining": "cuda"},
+        "defaults": {"classifier_training": "cpu", "pretraining": "cuda"},
         "pretrained_models": {"shared": "tpu"},
     }
     workflow.config["execution_site"] = {

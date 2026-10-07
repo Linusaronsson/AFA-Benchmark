@@ -336,13 +336,13 @@ downloaded method
 **Pipeline stage**:
 One kind of pipeline job: **dataset generation**, **classifier training**,
 **pretraining**, **training**, **evaluation**, **transformation**,
-**aggregation** or **plotting**. Pretraining and training are optional per
-method; evaluation is mandatory and shared by all methods. Classifier
+**aggregation** or **visualization**. Pretraining and training are optional
+per method; evaluation is mandatory and shared by all methods. Classifier
 training, pretraining, training and evaluation take a declared `cpu` or
-`cuda` choice, where the execution config calls classifier training
-`classifier`; the others always run on CPU, and the code calls plotting
-`visualization`.
-_Avoid_: Execution activity, activity, phase, step (reserved for time steps)
+`cuda` choice; the others always run on CPU. Code and execution configs name
+each stage in snake case, e.g. `classifier_training`.
+_Avoid_: Execution activity, activity, phase, step (reserved for time steps);
+plotting (visualization covers every figure and view, not only plots)
 
 **Fit stage**:
 Either of the two pipeline stages that fit a model from a contract's inputs

@@ -9,26 +9,26 @@ Keep existing scientific configuration files and add an execution YAML file:
 ```yaml
 execution:
   defaults:
-    classifier: cuda
+    classifier_training: cuda
     pretraining: cpu
     training: cpu
     evaluation: cpu
   methods:
     jafa:
-      classifier: cpu
+      classifier_training: cpu
       training: cuda
       evaluation: cpu
   pretrained_models:
     pvae: cuda
 ```
 
-- External classifiers shared across methods use `defaults.classifier`, never a
+- External classifiers shared across methods use `defaults.classifier_training`, never a
   downstream method's training/evaluation choice. They retain one native bundle
   per dataset and initializer, trained on dataset realization 0 with seed 0.
-- Method-specific classifiers use `methods.<method name>.classifier`, then
-  `defaults.classifier`. The existing `method_options.<name>.classifier` script
+- Method-specific classifiers use `methods.<method name>.classifier_training`,
+  then `defaults.classifier_training`. The existing `method_options.<name>.classifier` script
   selection and parameters still decide which variant is trained, not hardware.
-  A `classifier` override for a selected method without a method-specific
+  A `classifier_training` override for a selected method without a method-specific
   classifier is rejected.
   A CPU policy does not imply that its classifier should run on CPU.
 - Pretraining uses `pretrained_models.<named model>`, then `defaults.pretraining`.

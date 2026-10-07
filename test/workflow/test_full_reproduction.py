@@ -219,14 +219,14 @@ def full_benchmark_workflow(root: Path) -> WorkflowHarness:
             "method_sets": {"heatmap_comparison": METHODS},
             "execution": {
                 "defaults": {
-                    "classifier": "cuda",
+                    "classifier_training": "cuda",
                     "pretraining": "cpu",
                     "training": "cpu",
                     "evaluation": "cpu",
                 },
                 "methods": {
                     "alpha": {
-                        "classifier": "cpu",
+                        "classifier_training": "cpu",
                         "training": "cuda",
                         "evaluation": "cpu",
                     },

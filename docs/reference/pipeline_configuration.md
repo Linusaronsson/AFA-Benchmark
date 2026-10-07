@@ -51,7 +51,7 @@ Specifies which dataset realizations to run. This allows you to run a subset of 
 An invocation-wide device for all classifier, pretraining, training and
 evaluation jobs. It still works on its own with a deprecation warning, but
 cannot be combined with `execution` (see below), and dataset generation,
-transformations, aggregation and plotting always run on CPU regardless.
+transformations, aggregation and visualization always run on CPU regardless.
 
 - **Default:** `cpu`
 - **Valid values:** `cpu`, `cuda`
@@ -60,7 +60,7 @@ transformations, aggregation and plotting always run on CPU regardless.
 ### `execution`
 
 A mapping, given in a config file, that declares per job whether it runs on
-`cpu` or `cuda`: pipeline stage defaults for `classifier`, `pretraining`,
+`cpu` or `cuda`: pipeline stage defaults for `classifier_training`, `pretraining`,
 `training` and `evaluation`, overrides per method and stage, and overrides
 per named pretrained model. Unspecified stages run on CPU. The resolved choice is both
 the script's `device` argument and, under SLURM, the CPU or GPU allocation.

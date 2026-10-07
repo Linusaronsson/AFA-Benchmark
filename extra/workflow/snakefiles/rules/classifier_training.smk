@@ -46,7 +46,7 @@ rule train_classifier:
                 "dataset-{dataset}.bundle"
         )
     params:
-        device=lambda wc, resources: EXECUTION.checked_device("classifier", None, resources),
+        device=lambda wc, resources: EXECUTION.checked_device("classifier_training", None, resources),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         script_name=lambda wildcards: _classifier_script_name(
             wildcards.dataset
@@ -56,7 +56,7 @@ rule train_classifier:
         ),
     resources:
         shell_exec="bash",
-        **EXECUTION.allocation_resources("classifier", lambda wc: None),
+        **EXECUTION.allocation_resources("classifier_training", lambda wc: None),
     shell:
         """
         python scripts/train_classifier/{params.script_name}.py \
@@ -84,7 +84,7 @@ rule train_classifier_for_method:
             "method-{method}+dataset-{dataset}.bundle"
         )
     params:
-        device=lambda wc, resources: EXECUTION.checked_device("classifier", wc.method, resources),
+        device=lambda wc, resources: EXECUTION.checked_device("classifier_training", wc.method, resources),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         script_name=lambda wildcards: _method_classifier_script_name(
             wildcards.method, wildcards.dataset
@@ -94,7 +94,7 @@ rule train_classifier_for_method:
         ),
     resources:
         shell_exec="bash",
-        **EXECUTION.allocation_resources("classifier", lambda wc: wc.method),
+        **EXECUTION.allocation_resources("classifier_training", lambda wc: wc.method),
     shell:
         """
         python scripts/train_classifier/{params.script_name}.py \

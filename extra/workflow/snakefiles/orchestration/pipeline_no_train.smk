@@ -3,7 +3,7 @@ No-train orchestration pipeline.
 
 This variant skips dataset generation, classifier training, method training, and
 pretraining rules. It keeps evaluation, transformation, aggregation, and
-plotting rules for existing trained outputs.
+visualization rules for existing trained outputs.
 
 Runtime filters (--config, select subsets to run):
     methods (list[str], required): Subset of methods from method_options.yaml

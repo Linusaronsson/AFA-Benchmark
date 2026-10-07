@@ -3,7 +3,7 @@
 # See docs/how-to/reproduce_full_results.md.
 execution:
   defaults:
-    classifier: cuda
+    classifier_training: cuda
     pretraining: cuda
     training: cpu
     evaluation: cpu
