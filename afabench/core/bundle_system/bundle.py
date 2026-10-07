@@ -6,11 +6,13 @@ from pathlib import Path
 from typing import Any, Protocol, Self
 
 from afabench.core.provenance import (
+    DatasetIdentity,
     InputRole,
     ProvenanceInput,
     ProvenanceRecord,
     input_from_manifest,
     provenance_from_manifest,
+    shared_dataset_identity,
 )
 from afabench.core.registry import get_class
 
@@ -184,6 +186,17 @@ def read_manifest(path: Path) -> dict[str, Any]:
 def bundle_provenance(path: Path) -> ProvenanceRecord | None:
     """Read a bundle's provenance record; null for a bundle written without one."""
     return provenance_from_manifest(read_manifest(path))
+
+
+def shared_bundle_dataset_identity(*paths: str) -> DatasetIdentity:
+    """
+    Return the dataset identity that the bundles at `paths` agree on.
+
+    Reads each bundle's record; see `shared_dataset_identity`.
+    """
+    return shared_dataset_identity(
+        *(bundle_provenance(Path(path)) for path in paths)
+    )
 
 
 def bundle_input(role: InputRole, path: str) -> ProvenanceInput:

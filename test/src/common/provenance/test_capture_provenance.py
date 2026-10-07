@@ -34,7 +34,12 @@ def _git(repository: Path, *args: str) -> None:
     )
 
 
-def _capture(**overrides: object) -> ProvenanceRecord:
+def _capture(
+    *,
+    dataset_key: str | None = "cube",
+    dataset_realization_index: int | None = 0,
+    **overrides: object,
+) -> ProvenanceRecord:
     arguments: dict[str, object] = {
         "stage": "classifier_training",
         "resolved_config": {"lr": 0.1, "layers": [8, 8], "nested": {"a": 1}},
@@ -55,8 +60,10 @@ def _capture(**overrides: object) -> ProvenanceRecord:
                 content_hash=None,
             ),
         ],
-        "dataset_key": "cube",
-        "dataset_realization_index": 0,
+        "dataset_identity": DatasetIdentity(
+            dataset_key=dataset_key,
+            dataset_realization_index=dataset_realization_index,
+        ),
     }
     arguments.update(overrides)
     return capture_provenance(**arguments)  # pyright: ignore[reportArgumentType]

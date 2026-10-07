@@ -6,7 +6,7 @@ Every object that needs to be saved/loaded follows the same format.
 
 ## Usage
 
-Use `afabench.core.bundle_system.bundle.save_bundle()` to save bundles and `afabench.core.bundle_system.bundle.load_bundle()` to load bundles. `save_bundle` requires the bundle's [provenance record](#provenance) as a keyword-only argument; `read_manifest()` reads a manifest without loading the object, `bundle_provenance()` reads a bundle's record, and `bundle_input()` describes a bundle as an input of another artifact.
+Use `afabench.core.bundle_system.bundle.save_bundle()` to save bundles and `afabench.core.bundle_system.bundle.load_bundle()` to load bundles. `save_bundle` requires the bundle's [provenance record](#provenance) as a keyword-only argument; `read_manifest()` reads a manifest without loading the object, `bundle_provenance()` reads a bundle's record, `shared_bundle_dataset_identity()` returns the dataset identity several bundles' records agree on, and `bundle_input()` describes a bundle as an input of another artifact.
 
 ## Format specification
 
@@ -91,7 +91,7 @@ The provenance record (`CONTEXT.md`) describes how the bundle was produced. It i
 | `environment` | object | `python_version`, `afabench_version`, `torch_version`, `numpy_version`, `pandas_version`, `lockfile_sha256` (SHA-256 of that checkout's `uv.lock`, null if absent) and `platform`. |
 | `compute` | object | `device` as configured, `accelerator_name` (CUDA device name, null on CPU), `cuda_version`, `cudnn_version`, `float32_matmul_precision`, `cudnn_deterministic`, `cudnn_benchmark` and `deterministic_algorithms`. |
 
-`capture_provenance()` collects the code, environment and compute facts itself; the caller passes the stage, resolved config, seed, smoke flag, device, inputs and identity. It raises `TypeError` for a config value that is not JSON-serialisable, naming the value. `shared_dataset_identity()` copies the dataset identity from several input records and raises `DatasetIdentityMismatchError` naming both values when they disagree; records that are null (inputs written before version 1.1.0) are unknown and cannot disagree.
+`capture_provenance()` collects the code, environment and compute facts itself; the caller passes the stage, resolved config, seed, smoke flag, device, inputs and identity (a `DatasetIdentity`, plus the method name and split). It raises `TypeError` for a config value that is not JSON-serialisable, naming the value. `shared_dataset_identity()` copies the dataset identity from several input records and raises `DatasetIdentityMismatchError` naming both values when they disagree; records that are null (inputs written before version 1.1.0) are unknown and cannot disagree.
 
 Which script captures what:
 

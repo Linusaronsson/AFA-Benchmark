@@ -242,8 +242,8 @@ still has to:
   `save_bundle` requires a provenance record; build it with
   `afabench.core.provenance.capture_provenance` from the contract's seed,
   `method_name` and input bundles (`bundle_input`), copying the dataset
-  identity from the dataset bundles' records (`bundle_provenance`,
-  `shared_dataset_identity`), as `save_result` does.
+  identity from the dataset bundles' records
+  (`shared_bundle_dataset_identity`), as `save_result` does.
 
 Everything else — seeding, logging, hyperparameter configuration, smoke-test
 handling — is on you, exactly as it would be for any other script.

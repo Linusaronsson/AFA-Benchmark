@@ -24,6 +24,7 @@ from afabench.core.bundle_system.bundle import (
     save_bundle,
 )
 from afabench.core.provenance import (
+    DatasetIdentity,
     ProvenanceInput,
     Split,
     capture_provenance,
@@ -161,9 +162,10 @@ def test_evaluation_table_round_trips_its_provenance_record(
                 content_hash=None,
             ),
         ],
+        dataset_identity=DatasetIdentity(
+            dataset_key="cube", dataset_realization_index=None
+        ),
         method_name="random_dummy",
-        dataset_key="cube",
-        dataset_realization_index=None,
         split="test",
     )
     path = tmp_path / "eval_data.parquet"

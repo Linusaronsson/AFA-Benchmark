@@ -27,6 +27,7 @@ from afabench.evaluation.schemas import (
     IDENTITY_DTYPES,
     PreProvenanceSavedEvaluationSchema,
     SavedEvaluationSchema,
+    identity_column,
 )
 
 # Command-line argument checked against each identity column
@@ -66,14 +67,11 @@ def check_or_fill_identity(
     An omitted argument (`None`) checks nothing; the string `null` is an
     explicit null value.
     """
-    dtype = IDENTITY_DTYPES[column]
     if argument is None:
         if column not in df:
-            df[column] = pd.Series(pd.NA, index=df.index, dtype=dtype)
+            df[column] = identity_column(column, None, df.index)
         return
-    expected = pd.Series(
-        parse_nullable(argument), index=df.index, dtype=object
-    ).astype(dtype)
+    expected = identity_column(column, parse_nullable(argument), df.index)
     if column not in df or bool(df[column].isna().all()):
         df[column] = expected
         return

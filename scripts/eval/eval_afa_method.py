@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast, final
 
 import hydra
-import pandas as pd
 import torch
 import wandb
 from hydra.core.hydra_config import HydraConfig
@@ -22,7 +21,11 @@ from afabench.core.bundle_system.bundle import (
     bundle_provenance,
     load_bundle,
 )
-from afabench.core.provenance import ProvenanceRecord, capture_provenance
+from afabench.core.provenance import (
+    ProvenanceRecord,
+    capture_provenance,
+    shared_dataset_identity,
+)
 from afabench.core.types import SupportsForcedAcquisition
 from afabench.core.utils import (
     set_seed,
@@ -31,8 +34,8 @@ from afabench.evaluation.config import EvalConfig
 from afabench.evaluation.eval import eval_afa_method
 from afabench.evaluation.provenance import save_evaluation_table
 from afabench.evaluation.schemas import (
-    IDENTITY_DTYPES,
     SavedEvaluationSchema,
+    identity_column,
 )
 from afabench.fit.smoke_test import eval_settings
 
@@ -261,9 +264,7 @@ class AFAEvaluator:
             cfg=self._cfg,
         )
         for name, value in identity.items():
-            df_eval[name] = pd.Series(
-                value, index=df_eval.index, dtype=object
-            ).astype(IDENTITY_DTYPES[name])
+            df_eval[name] = identity_column(name, value, df_eval.index)
         self._df_eval = DataFrame[SavedEvaluationSchema](df_eval)
 
     def _capture_provenance(
@@ -287,16 +288,9 @@ class AFAEvaluator:
             smoke_test=self._cfg.smoke_test,
             device=self._cfg.device,
             inputs=inputs,
+            dataset_identity=shared_dataset_identity(dataset_record),
             method_name=(
                 None if method_record is None else method_record.method_name
-            ),
-            dataset_key=(
-                None if dataset_record is None else dataset_record.dataset_key
-            ),
-            dataset_realization_index=(
-                None
-                if dataset_record is None
-                else dataset_record.dataset_realization_index
             ),
             split=None if dataset_record is None else dataset_record.split,
         )

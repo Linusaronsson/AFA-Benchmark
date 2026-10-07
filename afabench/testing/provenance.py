@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 
 from afabench.core.provenance import (
+    DatasetIdentity,
     ProvenanceInput,
     ProvenanceRecord,
     Split,
@@ -34,8 +35,10 @@ def placeholder_provenance(
         smoke_test=True,
         device="cpu",
         inputs=inputs,
+        dataset_identity=DatasetIdentity(
+            dataset_key=dataset_key,
+            dataset_realization_index=dataset_realization_index,
+        ),
         method_name=method_name,
-        dataset_key=dataset_key,
-        dataset_realization_index=dataset_realization_index,
         split=split,
     )

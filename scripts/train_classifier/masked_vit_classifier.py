@@ -25,13 +25,10 @@ from afabench.components.methods.discriminative.common.utils import (
 )
 from afabench.core.bundle_system.bundle import (
     bundle_input,
-    bundle_provenance,
     save_bundle,
+    shared_bundle_dataset_identity,
 )
-from afabench.core.provenance import (
-    capture_provenance,
-    shared_dataset_identity,
-)
+from afabench.core.provenance import capture_provenance
 from afabench.core.utils import initialize_wandb_run, set_seed
 
 log = logging.getLogger(__name__)
@@ -63,9 +60,8 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
         cfg.epochs = 1
         cfg.patience = 1
 
-    dataset_identity = shared_dataset_identity(
-        bundle_provenance(Path(cfg.train_dataset_path)),
-        bundle_provenance(Path(cfg.val_dataset_path)),
+    dataset_identity = shared_bundle_dataset_identity(
+        cfg.train_dataset_path, cfg.val_dataset_path
     )
     train_dataset, val_dataset, _, _, _ = afa_discriminative_training_prep(
         train_dataset_bundle_path=Path(cfg.train_dataset_path),
@@ -134,10 +130,7 @@ def main(cfg: TrainMaskedViTClassifierConfig) -> None:
                 bundle_input("train_dataset", cfg.train_dataset_path),
                 bundle_input("val_dataset", cfg.val_dataset_path),
             ],
-            dataset_key=dataset_identity.dataset_key,
-            dataset_realization_index=(
-                dataset_identity.dataset_realization_index
-            ),
+            dataset_identity=dataset_identity,
         ),
     )
 

@@ -20,15 +20,12 @@ from afabench.components.methods.rl.common.dataset_utils import (
 )
 from afabench.core.bundle_system.bundle import (
     bundle_input,
-    bundle_provenance,
     load_bundle,
     save_bundle,
+    shared_bundle_dataset_identity,
 )
 from afabench.core.naming import infer_dataset_key_from_class_name
-from afabench.core.provenance import (
-    capture_provenance,
-    shared_dataset_identity,
-)
+from afabench.core.provenance import capture_provenance
 from afabench.core.utils import (
     get_class_frequencies,
     initialize_wandb_run,
@@ -78,9 +75,8 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
         cfg.epochs = 2
         cfg.batch_size = min(cfg.batch_size, 32)
 
-    dataset_identity = shared_dataset_identity(
-        bundle_provenance(Path(cfg.train_dataset_path)),
-        bundle_provenance(Path(cfg.val_dataset_path)),
+    dataset_identity = shared_bundle_dataset_identity(
+        cfg.train_dataset_path, cfg.val_dataset_path
     )
 
     # Load datasets via bundle system
@@ -212,10 +208,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
                 bundle_input("train_dataset", cfg.train_dataset_path),
                 bundle_input("val_dataset", cfg.val_dataset_path),
             ],
-            dataset_key=dataset_identity.dataset_key,
-            dataset_realization_index=(
-                dataset_identity.dataset_realization_index
-            ),
+            dataset_identity=dataset_identity,
         ),
     )
     log.info(f"Saved classifier to: {cfg.save_path}")

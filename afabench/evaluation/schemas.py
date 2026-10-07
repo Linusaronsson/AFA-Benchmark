@@ -113,6 +113,14 @@ IDENTITY_DTYPES = {
 }
 
 
+def identity_column(name: str, value: object, index: pd.Index) -> pd.Series:
+    """Return identity column `name` holding `value`, null for `None`."""
+    # Built as object first so that None becomes the nullable dtype's NA
+    return pd.Series(value, index=index, dtype=object).astype(
+        IDENTITY_DTYPES[name]
+    )
+
+
 class SavedEvaluationSchema(EvaluationSchema):
     """
     Evaluation rows with the identity columns the evaluator adds (ADR 0002).

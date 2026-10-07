@@ -16,6 +16,7 @@ from afabench.core.bundle_system.bundle import (
 )
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.core.provenance import (
+    DatasetIdentity,
     ProvenanceInput,
     ProvenanceRecord,
     capture_provenance,
@@ -56,9 +57,10 @@ def _full_record() -> ProvenanceRecord:
                 content_hash="sha256:" + "b" * 64,
             ),
         ],
+        dataset_identity=DatasetIdentity(
+            dataset_key="cube", dataset_realization_index=0
+        ),
         method_name="gdfs",
-        dataset_key="cube",
-        dataset_realization_index=0,
         split=None,
     )
 
@@ -70,8 +72,9 @@ def _dataset_record(split: str = "train") -> ProvenanceRecord:
         seed=1,
         smoke_test=False,
         device="cpu",
-        dataset_key="cube",
-        dataset_realization_index=0,
+        dataset_identity=DatasetIdentity(
+            dataset_key="cube", dataset_realization_index=0
+        ),
         split=split,  # pyright: ignore[reportArgumentType]
     )
 

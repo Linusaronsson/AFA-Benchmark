@@ -10,7 +10,11 @@ from hydra.core.hydra_config import HydraConfig
 from omegaconf import OmegaConf
 
 from afabench.core.bundle_system.bundle import save_bundle
-from afabench.core.provenance import Split, capture_provenance
+from afabench.core.provenance import (
+    DatasetIdentity,
+    Split,
+    capture_provenance,
+)
 from afabench.core.registry import get_class
 from afabench.core.types import AFADataset
 from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
@@ -102,8 +106,10 @@ def generate_and_save_image_split(
                 seed=seed_for_split,
                 smoke_test=False,
                 device="cpu",
-                dataset_key=dataset_key,
-                dataset_realization_index=dataset_realization_index,
+                dataset_identity=DatasetIdentity(
+                    dataset_key=dataset_key,
+                    dataset_realization_index=dataset_realization_index,
+                ),
                 split=split,
             ),
         )

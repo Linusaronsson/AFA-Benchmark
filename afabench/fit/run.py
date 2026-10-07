@@ -13,15 +13,14 @@ import torch
 from afabench.core.bundle_system.bundle import (
     Saveable,
     bundle_input,
-    bundle_provenance,
     save_bundle,
+    shared_bundle_dataset_identity,
 )
 from afabench.core.provenance import (
     DatasetIdentity,
     ProvenanceInput,
     ProvenanceRecord,
     capture_provenance,
-    shared_dataset_identity,
 )
 from afabench.core.utils import initialize_wandb_run, set_seed
 from afabench.fit.contract import (
@@ -128,9 +127,8 @@ def save_result(
 
 
 def _contract_dataset_identity(contract: BaseContract) -> DatasetIdentity:
-    return shared_dataset_identity(
-        bundle_provenance(Path(contract.train_dataset_bundle_path)),
-        bundle_provenance(Path(contract.val_dataset_bundle_path)),
+    return shared_bundle_dataset_identity(
+        contract.train_dataset_bundle_path, contract.val_dataset_bundle_path
     )
 
 
@@ -151,7 +149,6 @@ def _fit_provenance(
                     "pretrained_model", contract.pretrained_model_bundle_path
                 )
             )
-    identity = _contract_dataset_identity(contract)
     return capture_provenance(
         stage=contract.stage,
         resolved_config=resolved_config,
@@ -159,7 +156,6 @@ def _fit_provenance(
         smoke_test=contract.smoke_test,
         device=contract.device,
         inputs=inputs,
+        dataset_identity=_contract_dataset_identity(contract),
         method_name=method_name,
-        dataset_key=identity.dataset_key,
-        dataset_realization_index=identity.dataset_realization_index,
     )
