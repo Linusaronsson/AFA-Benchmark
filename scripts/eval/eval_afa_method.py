@@ -50,6 +50,10 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
+class MethodRecordStageError(ValueError):
+    """Raised when a method bundle's provenance record is not from training."""
+
+
 @final
 class AFAEvaluator:
     """
@@ -364,22 +368,22 @@ def _identity_columns(
 
 
 def _training_setting(
-    method: ProvenanceRecord | None, name: str
+    method_record: ProvenanceRecord | None, name: str
 ) -> object | None:
     """
     Read a training contract setting from the method bundle's record.
 
     A record built without the setting leaves it unknown, so null.
     """
-    if method is None:
+    if method_record is None:
         return None
-    if method.stage != "training":
+    if method_record.stage != "training":
         msg = (
-            f"Method bundle has a {method.stage!r} provenance record; "
+            f"Method bundle has a {method_record.stage!r} provenance record; "
             "expected a 'training' record."
         )
-        raise ValueError(msg)
-    return method.resolved_config.get(name)
+        raise MethodRecordStageError(msg)
+    return method_record.resolved_config.get(name)
 
 
 if __name__ == "__main__":

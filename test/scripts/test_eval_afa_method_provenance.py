@@ -37,7 +37,7 @@ from afabench.evaluation.provenance import (
 from afabench.evaluation.schemas import SavedEvaluationSchema
 from afabench.fit.run import save_result
 from afabench.testing.provenance import placeholder_provenance
-from scripts.eval.eval_afa_method import AFAEvaluator
+from scripts.eval.eval_afa_method import AFAEvaluator, MethodRecordStageError
 
 REPO_ROOT = Path(__file__).parents[2]
 TRAIN_SEED = 11
@@ -312,6 +312,21 @@ def test_training_settings_missing_from_the_method_record_are_null(
     assert table["train_seed"].unique().tolist() == [TRAIN_SEED]
     assert table["train_hard_budget"].isna().all()
     assert table["train_soft_budget_param"].isna().all()
+
+
+def test_method_bundle_with_a_record_of_another_stage_is_rejected(
+    eval_inputs: EvalInputs, tmp_path: Path
+) -> None:
+    save_bundle(
+        RandomWithoutClassifierAFAMethod(n_classes=8),
+        eval_inputs.method,
+        metadata={},
+        provenance=placeholder_provenance("pretraining"),
+    )
+    cfg = eval_config(eval_inputs, tmp_path / "eval_data.parquet", seed=5)
+
+    with pytest.raises(MethodRecordStageError, match="'pretraining'"):
+        AFAEvaluator(cfg, initializer_name="warm").run()
 
 
 def test_null_seed_is_resolved_once_and_reproduces_the_table(
