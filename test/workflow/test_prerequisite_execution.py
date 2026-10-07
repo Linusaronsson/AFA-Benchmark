@@ -12,7 +12,7 @@ def prerequisite_workflow(root: Path) -> WorkflowHarness:
     workflow = WorkflowHarness(root)
     shutil.rmtree(
         root
-        / "extra/output/trained_classifiers/initializer-cold/dataset-cube.bundle"
+        / "extra/output/trained_classifiers/initializer-cold/dataset-cube+realization_index-0.bundle"
     )
     workflow.config["method_options"] = {
         "alpha": {
@@ -69,8 +69,8 @@ def test_external_and_method_classifiers_are_independent_of_policy_training(
     ].split("experiment@_global_=cube", 1)[0]
     assert "device=cuda" in external
     assert "device=cpu" in specific
-    assert "dataset-cube.bundle" in external
-    assert "method-alpha+dataset-cube.bundle" in specific
+    assert "dataset-cube+realization_index-0.bundle" in external
+    assert "method-alpha+dataset-cube+realization_index-0.bundle" in specific
     assert "seed=0" in external
     assert "seed=0" in specific
     assert commands.count("rule train_classifier:") == 1

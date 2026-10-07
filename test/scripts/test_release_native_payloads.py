@@ -27,8 +27,13 @@ TAG = "initializer-cold"
 TRAIN = "datasets/cube/0/train.bundle"
 VAL = "datasets/cube/0/val.bundle"
 TEST = "datasets/cube/0/test.bundle"
-EXTERNAL_CLASSIFIER = f"trained_classifiers/{TAG}/dataset-cube.bundle"
-BETA_CLASSIFIER = f"trained_classifiers/{TAG}/method-beta+dataset-cube.bundle"
+EXTERNAL_CLASSIFIER = (
+    f"trained_classifiers/{TAG}/dataset-cube+realization_index-0.bundle"
+)
+BETA_CLASSIFIER = (
+    f"trained_classifiers/{TAG}/"
+    "method-beta+dataset-cube+realization_index-0.bundle"
+)
 PRETRAINED_MODEL = (
     f"pretrained_models/{TAG}/shared/dataset-cube+realization_index-0/"
     "pretrain_seed-0/model.bundle"

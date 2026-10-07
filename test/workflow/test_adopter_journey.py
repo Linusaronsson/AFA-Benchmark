@@ -68,7 +68,7 @@ SHARED_PREREQUISITES = [
     "datasets/cube/0/train.bundle",
     "datasets/cube/0/val.bundle",
     "datasets/cube/0/test.bundle",
-    f"trained_classifiers/{TAG}/dataset-cube.bundle",
+    f"trained_classifiers/{TAG}/dataset-cube+realization_index-0.bundle",
     f"pretrained_models/{TAG}/gdfs/dataset-cube+realization_index-0/"
     "pretrain_seed-0/model.bundle",
 ]

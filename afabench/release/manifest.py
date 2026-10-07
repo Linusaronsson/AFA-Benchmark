@@ -36,11 +36,6 @@ MANIFEST_VERSION = 1
 RELEASE_MANIFEST_FILENAME = "release_manifest.json"
 # The dataset generation rule always writes these three split bundles.
 DATASET_SPLITS = ("train", "val", "test")
-# Pretrained models, trained methods and evaluations of a dataset realization
-# are all seeded with its index, as are the dataset generators. Every
-# classifier is trained on dataset realization 0 with seed 0.
-CLASSIFIER_DATASET_REALIZATION_INDEX = 0
-CLASSIFIER_SEED = 0
 FORCING_POLICY = "forced_acquisition_when_eval_hard_budget_is_set"
 # Maintainers' redistribution reviews, relative to the checkout. A dataset
 # key it does not list is unreviewed.
@@ -450,6 +445,9 @@ def _dataset_redistribution(
 
 
 def _classifiers(resolved: Mapping[str, Any]) -> list[ClassifierRecord]:
+    # Each dataset realization has its own classifiers, seeded with its
+    # index like everything else trained on it (ADR 0005).
+    indices: list[int] = list(resolved["DATASET_REALIZATION_INDICES"])
     records: list[ClassifierRecord] = []
     for dataset in resolved["DATASETS"]:
         classifier_config = resolved["CLASSIFIER_NAMES"][dataset]
@@ -460,45 +458,54 @@ def _classifiers(resolved: Mapping[str, Any]) -> list[ClassifierRecord]:
             )
         else:
             script_name, script_params = classifier_config, ""
-        records.append(
+        records.extend(
             ClassifierRecord(
-                bundle_path=_classifier_bundle_path(resolved, None, dataset),
+                bundle_path=_classifier_bundle_path(
+                    resolved, None, dataset, index
+                ),
                 script_name=script_name,
                 script_params=script_params,
                 dataset_key=dataset,
                 method_name=None,
-                dataset_realization_index=CLASSIFIER_DATASET_REALIZATION_INDEX,
-                seed=CLASSIFIER_SEED,
+                dataset_realization_index=index,
+                seed=index,
             )
+            for index in indices
         )
     for method, script_name in resolved[
         "METHOD_CLASSIFIER_SCRIPT_NAMES"
     ].items():
         records.extend(
             ClassifierRecord(
-                bundle_path=_classifier_bundle_path(resolved, method, dataset),
+                bundle_path=_classifier_bundle_path(
+                    resolved, method, dataset, index
+                ),
                 script_name=script_name,
                 script_params=resolved["METHOD_CLASSIFIER_SCRIPT_PARAMS"][
                     method
                 ],
                 dataset_key=dataset,
                 method_name=method,
-                dataset_realization_index=CLASSIFIER_DATASET_REALIZATION_INDEX,
-                seed=CLASSIFIER_SEED,
+                dataset_realization_index=index,
+                seed=index,
             )
             for dataset in resolved["DATASETS"]
+            for index in indices
         )
     return records
 
 
 def _classifier_bundle_path(
-    resolved: Mapping[str, Any], method: str | None, dataset: str
+    resolved: Mapping[str, Any], method: str | None, dataset: str, index: int
 ) -> str:
-    # Method `None` names the external classifier of `dataset`. Mirrors `_classifier_bundle_for_method` in rules/evaluation.smk.
+    # Method `None` names the external classifier of the dataset realization. Mirrors `_classifier_bundle_for_method` in rules/evaluation.smk.
     tag = _initializer_tag(resolved)
+    realization = f"dataset-{dataset}+realization_index-{index}"
     if method in resolved["METHOD_CLASSIFIER_SCRIPT_NAMES"]:
-        return f"trained_classifiers/{tag}/method-{method}+dataset-{dataset}.bundle"
-    return f"trained_classifiers/{tag}/dataset-{dataset}.bundle"
+        return (
+            f"trained_classifiers/{tag}/method-{method}+{realization}.bundle"
+        )
+    return f"trained_classifiers/{tag}/{realization}.bundle"
 
 
 def _initializer_tag(resolved: Mapping[str, Any]) -> str:
@@ -517,10 +524,10 @@ def _evaluation_tables(
     for method in resolved["METHODS"]:
         pretrained_model = resolved["METHOD_TO_PRETRAINED_MODEL"].get(method)
         for dataset in resolved["DATASETS"]:
-            classifier_bundle_path = _classifier_bundle_path(
-                resolved, method, dataset
-            )
             for index in resolved["DATASET_REALIZATION_INDICES"]:
+                classifier_bundle_path = _classifier_bundle_path(
+                    resolved, method, dataset, index
+                )
                 for (
                     train_hard_budget,
                     eval_hard_budget,
@@ -761,18 +768,17 @@ def _bundles(
     records.extend(
         _bundle_record(
             output_root,
-            path=_classifier_bundle_path(resolved, method, dataset),
+            path=_classifier_bundle_path(resolved, method, dataset, index),
             category=PayloadCategory.CLASSIFIER_BUNDLE,
-            inputs=_training_inputs(
-                dataset, CLASSIFIER_DATASET_REALIZATION_INDEX
-            ),
+            inputs=_training_inputs(dataset, index),
             dataset_key=dataset,
-            dataset_realization_index=CLASSIFIER_DATASET_REALIZATION_INDEX,
+            dataset_realization_index=index,
             method_name=method,
-            seed=CLASSIFIER_SEED,
+            seed=index,
         )
         for method in classifier_owners
         for dataset in datasets
+        for index in indices
     )
     records.extend(
         _bundle_record(
@@ -784,7 +790,9 @@ def _bundles(
                 *_training_inputs(dataset, index),
                 BundleInput(
                     role=InputRole.CLASSIFIER,
-                    path=_classifier_bundle_path(resolved, None, dataset),
+                    path=_classifier_bundle_path(
+                        resolved, None, dataset, index
+                    ),
                 ),
             ],
             dataset_key=dataset,
@@ -815,7 +823,7 @@ def _bundles(
                     BundleInput(
                         role=InputRole.CLASSIFIER,
                         path=_classifier_bundle_path(
-                            resolved, method, dataset
+                            resolved, method, dataset, index
                         ),
                     ),
                 ]

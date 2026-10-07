@@ -104,7 +104,7 @@ _Avoid_: Predictor (paper term), model (ambiguous)
 
 **External classifier**:
 A classifier pretrained independently of any method and shared by all methods
-on a dataset during evaluation. Headline results use it.
+on a dataset realization during evaluation. Headline results use it.
 _Avoid_: Shared classifier, common classifier
 
 **Built-in classifier**:

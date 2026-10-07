@@ -5,15 +5,20 @@ Handles evaluation of trained methods on test/validation datasets.
 """
 
 
-def _classifier_bundle_for_method(method: str, dataset: str) -> str:
+def _classifier_bundle_for_method(
+    method: str, dataset: str, dataset_realization_index: str
+) -> str:
+    realization = (
+        f"dataset-{dataset}+realization_index-{dataset_realization_index}"
+    )
     if method in METHOD_CLASSIFIER_SCRIPT_NAMES:
         return (
             f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            f"method-{method}+dataset-{dataset}.bundle"
+            f"method-{method}+{realization}.bundle"
         )
     return (
         f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-        f"dataset-{dataset}.bundle"
+        f"{realization}.bundle"
     )
 
 
@@ -31,7 +36,9 @@ rule eval_method:
                         "method.bundle",
 
         lambda wildcards: _classifier_bundle_for_method(
-            wildcards.method, wildcards.dataset
+            wildcards.method,
+            wildcards.dataset,
+            wildcards.dataset_realization_index,
         )
 
     output:

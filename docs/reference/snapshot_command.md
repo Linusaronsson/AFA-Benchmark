@@ -154,9 +154,9 @@ For the selected evaluations, payload categories download:
 - their raw or plotting-ready evaluation tables;
 - the bundles they were produced from, found by following the `inputs` of
   the tables and, in turn, of the bundles, if the bundle's category is
-  named. For example, the external classifier was trained on dataset
-  realization 0, so selecting it also selects that realization's `train` and
-  `val` dataset bundles.
+  named. For example, the external classifier of a dataset realization was
+  trained on that realization's `train` and `val` dataset bundles, so
+  selecting it also selects them.
 - with each pretrained-model and AFA-method bundle, the folder of the job
   that wrote it, including its `pretrain_time.txt` or `train_time.txt`.
 

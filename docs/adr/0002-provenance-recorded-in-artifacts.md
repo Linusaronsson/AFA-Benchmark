@@ -258,4 +258,6 @@ marked `pipeline`.
   reshuffles of the same data (`accepts_seed()` is false), the test split of
   instance k overlaps instance 0's training split. The records make the
   classifier's instance index visible next to the evaluated one, but this
-  ADR makes no claim about whether results are affected.
+  ADR makes no claim about whether results are affected. ADR 0005 resolves
+  it: each dataset realization has its own classifiers, seeded with its
+  index rather than 0.

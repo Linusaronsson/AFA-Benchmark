@@ -60,7 +60,7 @@ categories decide what of those evaluations is downloaded:
 | --- | --- |
 | `transformed_evaluation_table` | Required: the published methods' tables the comparison plots. |
 | `dataset_bundle` | Required: your method uses exactly the published dataset realizations and splits. |
-| `classifier_bundle` | Required: your method's external-classifier predictions come from the published external classifier. |
+| `classifier_bundle` | Required: your method's external-classifier predictions come from the published external classifiers, one per dataset realization, each trained on that realization's train and val splits only. |
 | `pretrained_model_bundle` | Required if your method uses a pretrained model the release has; saves repeating pretraining. |
 
 The command prints what the release lacks of your selection. All options:

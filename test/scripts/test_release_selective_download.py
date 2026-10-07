@@ -33,7 +33,10 @@ runner = CliRunner()
 REPO_ID = "afabench-test/releases"
 TAG = "initializer-cold"
 PLOT = f"plot_results/eval_split-test/{TAG}/cube/eval_perf.pdf"
-EXTERNAL_CLASSIFIER = f"trained_classifiers/{TAG}/dataset-cube.bundle"
+# The external classifier of dataset realization 1 of cube.
+EXTERNAL_CLASSIFIER = (
+    f"trained_classifiers/{TAG}/dataset-cube+realization_index-1.bundle"
+)
 # What the pretraining and training jobs write beside their bundle.
 TIME_RECORDS = {
     PayloadCategory.PRETRAINED_MODEL_BUNDLE: "pretrain_time.txt",
@@ -458,12 +461,9 @@ def test_shared_prerequisites_download_without_afa_method_bundles(
 
     assert result.exit_code == 0, result.output
     bundles = restored_bundles(destination_root)
-    # The external classifier was trained on dataset realization 0, so its training
-    # splits come too: without them the workflow would regenerate them and
-    # retrain the classifier.
+    # Each dataset realization has its own external classifier, so nothing
+    # of dataset realization 0 comes along.
     assert bundles == {
-        "datasets/cube/0/train.bundle",
-        "datasets/cube/0/val.bundle",
         "datasets/cube/1/train.bundle",
         "datasets/cube/1/val.bundle",
         "datasets/cube/1/test.bundle",

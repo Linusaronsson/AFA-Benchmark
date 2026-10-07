@@ -37,18 +37,22 @@ rule all_train_classifiers:
         [
             (
                 f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-                    f"dataset-{dataset}.bundle"
+                    f"dataset-{dataset}+"
+                    f"realization_index-{dataset_realization_index}.bundle"
             )
             for dataset in DATASETS
+            for dataset_realization_index in DATASET_REALIZATION_INDICES
         ] +
         [
             (
                 f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-                    f"method-{method}+dataset-{dataset}.bundle"
+                    f"method-{method}+dataset-{dataset}+"
+                    f"realization_index-{dataset_realization_index}.bundle"
             )
             for method in METHODS
             if method in METHOD_CLASSIFIER_SCRIPT_NAMES
             for dataset in DATASETS
+            for dataset_realization_index in DATASET_REALIZATION_INDICES
         ]
 
 

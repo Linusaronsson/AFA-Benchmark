@@ -50,7 +50,7 @@ class WorkflowHarness:
             )
         (
             root
-            / "extra/output/trained_classifiers/initializer-cold/dataset-cube.bundle"
+            / "extra/output/trained_classifiers/initializer-cold/dataset-cube+realization_index-0.bundle"
         ).mkdir(parents=True)
         self.capture = root / "submissions.jsonl"
         self.arguments = root / "arguments.jsonl"

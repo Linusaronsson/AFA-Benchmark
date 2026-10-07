@@ -331,15 +331,17 @@ def test_manifest_records_resolved_settings(tmp_path: Path) -> None:
     assert settings["classifiers"] == [
         {
             "bundle_path": (
-                "trained_classifiers/initializer-cold/dataset-cube.bundle"
+                "trained_classifiers/initializer-cold/"
+                f"dataset-cube+realization_index-{index}.bundle"
             ),
             "script_name": "masked_mlp_classifier",
             "script_params": "",
             "dataset_key": "cube",
             "method_name": None,
-            "dataset_realization_index": 0,
-            "seed": 0,
+            "dataset_realization_index": index,
+            "seed": index,
         }
+        for index in [0, 1]
     ]
 
 
@@ -405,7 +407,8 @@ def test_manifest_lists_every_configured_table_with_its_identity(
         "eval_soft_budget_param": None,
         "forced_acquisition": True,
         "classifier_bundle_path": (
-            "trained_classifiers/initializer-cold/dataset-cube.bundle"
+            "trained_classifiers/initializer-cold/"
+            "dataset-cube+realization_index-0.bundle"
         ),
         "eval_batch_size": 4,
         "classifier_variants": ["external"],
@@ -423,7 +426,8 @@ def test_manifest_lists_every_configured_table_with_its_identity(
             {
                 "role": "classifier",
                 "path": (
-                    "trained_classifiers/initializer-cold/dataset-cube.bundle"
+                    "trained_classifiers/initializer-cold/"
+                    "dataset-cube+realization_index-0.bundle"
                 ),
             },
         ],
@@ -439,6 +443,12 @@ def test_manifest_lists_every_configured_table_with_its_identity(
     assert soft["eval_hard_budget"] is None
     assert soft["forced_acquisition"] is False
     assert soft["classifier_variants"] is None
+    classifier = (
+        "trained_classifiers/initializer-cold/"
+        "dataset-cube+realization_index-1.bundle"
+    )
+    assert soft["classifier_bundle_path"] == classifier
+    assert {"role": "classifier", "path": classifier} in soft["inputs"]
 
 
 def test_coverage_describes_only_the_outputs_present(tmp_path: Path) -> None:

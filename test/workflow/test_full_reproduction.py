@@ -1,5 +1,6 @@
 """Single-invocation full reproduction through the real orchestration."""
 
+import re
 import shutil
 from collections import Counter
 from dataclasses import dataclass
@@ -182,6 +183,9 @@ def test_alvis_profile_plans_cuda_methods_and_cpu_processing(
 
 
 METHODS = ["alpha", "beta", "gamma", "delta"]
+# Two dataset realizations, so per-realization wiring cannot pass by
+# accident.
+REALIZATIONS = ["0", "1"]
 
 
 def full_benchmark_workflow(root: Path) -> WorkflowHarness:
@@ -190,6 +194,7 @@ def full_benchmark_workflow(root: Path) -> WorkflowHarness:
     workflow.config.update(
         {
             "methods": METHODS,
+            "dataset_realization_indices": [int(k) for k in REALIZATIONS],
             "method_options": {
                 "alpha": {
                     "train_script_name": "alpha",
@@ -276,14 +281,14 @@ GPU_JOBS = {
 # Every job of the tiny full graph, each submitted exactly once.
 FULL_GRAPH_JOBS = {
     "dataset_generation": 1,
-    "train_classifier": 1,
-    "train_classifier_for_method": 1,
-    "pretrain_model": 2,
-    "train_method": 4,
-    "eval_method": 4,
-    "transform_eval_data": 4,
-    "time_df_with_pretrain": 3,
-    "time_df_without_pretrain": 1,
+    "train_classifier": 2,
+    "train_classifier_for_method": 2,
+    "pretrain_model": 4,
+    "train_method": 8,
+    "eval_method": 8,
+    "transform_eval_data": 8,
+    "time_df_with_pretrain": 6,
+    "time_df_without_pretrain": 2,
     "merge_eval_perf": 1,
     "split_by_classifier_type": 1,
     "merge_time": 1,
@@ -434,22 +439,30 @@ def test_full_graph_scripts_receive_resolved_devices(
             assert device == ("cuda" if "/beta/" in save_path else "cpu")
 
 
+def realization_of(args: dict[str, str]) -> str:
+    """Return the dataset realization a script call's save path belongs to."""
+    match = re.search(r"realization_index-(\d+)", args["save_path"])
+    assert match is not None, args["save_path"]
+    return match.group(1)
+
+
 @pytest.mark.pipeline
 def test_full_graph_preserves_contract_and_shared_prerequisites(
     full_graph_run: FullGraphRun,
 ) -> None:
-    shared = [
-        args["save_path"]
+    shared = {
+        realization_of(args): args["save_path"]
         for script, args in full_graph_run.calls
         if script.endswith("pretrain_model/shared.py")
-    ]
-    assert shared == [
-        "extra/output/pretrained_models/initializer-cold/shared/"
-        "dataset-cube+realization_index-0/pretrain_seed-0/model.bundle"
-    ]
+    }
+    assert shared == {
+        k: "extra/output/pretrained_models/initializer-cold/shared/"
+        f"dataset-cube+realization_index-{k}/pretrain_seed-{k}/model.bundle"
+        for k in REALIZATIONS
+    }
     for script, args in full_graph_run.calls:
         if "train_method/" in script:
-            assert args["seed"] == "0"
+            assert args["seed"] == realization_of(args)
             assert args["hard_budget"] == "1"
             assert args["soft_budget_param"] == "null"
             assert args["smoke_test"] == "True"
@@ -457,15 +470,69 @@ def test_full_graph_preserves_contract_and_shared_prerequisites(
             assert args["unmasker"] == "direct"
             assert args["dataset_key"] == "cube"
         if script.endswith(("train_method/alpha.py", "train_method/beta.py")):
-            assert args["pretrained_model_bundle_path"] == shared[0]
-        if (
-            script.endswith("eval/eval_afa_method.py")
-            and "/alpha/" in (args["save_path"])
-        ):
-            assert args["classifier_bundle_path"] == (
-                "extra/output/trained_classifiers/initializer-cold/"
-                "method-alpha+dataset-cube.bundle"
+            assert (
+                args["pretrained_model_bundle_path"]
+                == (shared[realization_of(args)])
             )
+
+
+@pytest.mark.pipeline
+def test_full_graph_trains_classifiers_per_dataset_realization(
+    full_graph_run: FullGraphRun,
+) -> None:
+    classifiers = {
+        (script.removeprefix("scripts/"), args["save_path"]): args
+        for script, args in full_graph_run.calls
+        if "train_classifier/" in script
+    }
+    assert set(classifiers) == {
+        (
+            f"train_classifier/{script}.py",
+            "extra/output/trained_classifiers/initializer-cold/"
+            f"{owner}dataset-cube+realization_index-{k}.bundle",
+        )
+        for script, owner in [
+            ("masked_mlp_classifier", ""),
+            ("special", "method-alpha+"),
+        ]
+        for k in REALIZATIONS
+    }
+    for args in classifiers.values():
+        k = realization_of(args)
+        assert args["train_dataset_path"] == (
+            f"extra/output/datasets/cube/{k}/train.bundle"
+        )
+        assert args["val_dataset_path"] == (
+            f"extra/output/datasets/cube/{k}/val.bundle"
+        )
+        assert args["seed"] == k
+
+
+@pytest.mark.pipeline
+def test_full_graph_hands_each_stage_its_realizations_classifier(
+    full_graph_run: FullGraphRun,
+) -> None:
+    stages = ("pretrain_model/", "train_method/", "eval/eval_afa_method.py")
+    calls = [
+        (script, args)
+        for script, args in full_graph_run.calls
+        if any(stage in script for stage in stages)
+    ]
+    # Two pretrained models, four methods trained and evaluated, per
+    # dataset realization.
+    assert len(calls) == 10 * len(REALIZATIONS)
+    for script, args in calls:
+        k = realization_of(args)
+        owner = (
+            "method-alpha+"
+            if "train_method/alpha.py" in script
+            or "/alpha/" in args["save_path"]
+            else ""
+        )
+        assert args["classifier_bundle_path"] == (
+            "extra/output/trained_classifiers/initializer-cold/"
+            f"{owner}dataset-cube+realization_index-{k}.bundle"
+        ), (script, args["save_path"])
 
 
 @pytest.mark.parametrize(

@@ -216,7 +216,9 @@ def test_smoke_release_retains_the_provenance_of_its_bundles(
     generation = dataset.bundle_manifest["metadata"]
     assert generation["dataset_realization_index"] == 0
     assert generation["kwargs"]["seed"] == 0
-    classifier = bundles[f"trained_classifiers/{TAG}/dataset-cube.bundle"]
+    classifier = bundles[
+        f"trained_classifiers/{TAG}/dataset-cube+realization_index-0.bundle"
+    ]
     assert classifier.method_name is None
     assert classifier.seed == 0
     method = bundles[GDFS_METHOD]
@@ -295,7 +297,7 @@ def test_restored_bundles_reproduce_a_smoke_evaluation(
             f"dataset_bundle_path={output}/datasets/cube/0/test.bundle",
             f"save_path={save_path}",
             f"classifier_bundle_path={output}/trained_classifiers/{TAG}/"
-            "dataset-cube.bundle",
+            "dataset-cube+realization_index-0.bundle",
             "seed=0",
             "device=cpu",
             "hard_budget=2",

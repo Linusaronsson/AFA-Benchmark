@@ -49,7 +49,7 @@ the run.
 | `unmaskers` | Unmasker config name per dataset key. |
 | `feature_costs` | Per dataset key, `{path, sha256}` of `extra/data/misc/feature_costs/<key>.csv` in the checkout; both null means unit feature costs. |
 | `dataset_redistribution` | Per dataset key, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
-| `classifiers` | One entry per classifier bundle the config trains: `bundle_path`, `script_name`, `script_params`, `dataset_key`, `method_name` (null for the external classifier shared by every method on a dataset; set for a classifier trained for one method by `method_options.<method>.classifier`), `dataset_realization_index` and `seed` (always instance 0, seed 0). |
+| `classifiers` | One entry per classifier bundle the config trains, one per dataset realization: `bundle_path`, `script_name`, `script_params`, `dataset_key`, `method_name` (null for the external classifier shared by every method on a dataset realization; set for a classifier trained for one method by `method_options.<method>.classifier`), `dataset_realization_index` (the realization whose train and val splits it was trained on) and `seed` (equal to `dataset_realization_index`). |
 | `eval_batch_sizes` | Evaluation batch size per method and dataset key. It can affect results (see ADR 0002). |
 | `forcing_policy` | `forced_acquisition_when_eval_hard_budget_is_set`: hard-budget evaluation uses forced acquisition; soft-budget evaluation lets the policy stop. |
 
@@ -73,7 +73,7 @@ identity columns existed do not hold in their columns, notably
 | `train_seed`, `train_hard_budget`, `train_soft_budget_param` | Training run of the evaluated method bundle. |
 | `eval_seed`, `eval_hard_budget`, `eval_soft_budget_param` | Evaluation settings. |
 | `forced_acquisition` | Whether the evaluation forced acquisition. |
-| `classifier_bundle_path` | The classifier bundle in `settings.classifiers` that produced the `external` predictions. |
+| `classifier_bundle_path` | The classifier bundle in `settings.classifiers` that produced the `external` predictions, trained on the same dataset realization. |
 | `eval_batch_size` | Evaluation batch size. |
 | `classifier_variants` | Which of `builtin` and `external` predictions the raw table holds (non-null prediction column); null if the raw table is absent. |
 | `inputs` | The bundles the evaluation loaded, as `{role, path}`: `eval_dataset`, `method` and `classifier`. |
@@ -91,11 +91,11 @@ once.
 | `path` | The bundle folder. |
 | `category` | `dataset_bundle`, `classifier_bundle`, `pretrained_model_bundle` or `afa_method_bundle`. |
 | `present`, `size_bytes` | Whether the bundle is in the snapshot, and the bytes of all files in it (null when absent). |
-| `dataset_key`, `dataset_realization_index` | The dataset realization the bundle was generated or trained from. Classifiers are always trained on dataset realization 0. |
+| `dataset_key`, `dataset_realization_index` | The dataset realization the bundle was generated or trained from. |
 | `split` | `train`, `val` or `test` for a dataset bundle; null otherwise. |
 | `method_name` | The method an AFA-method bundle or a method's own classifier belongs to; null for shared prerequisites. |
 | `pretrained_model_name` | The pretrained model of a pretrained-model bundle, or the one an AFA-method bundle was trained from. |
-| `seed` | Dataset generation, classifier (always 0), pretraining or training seed. |
+| `seed` | Dataset generation, classifier, pretraining or training seed; always the dataset realization index. |
 | `train_hard_budget`, `train_soft_budget_param` | Training budget of an AFA-method bundle; null otherwise. |
 | `inputs` | The bundles the producing job read, as `{role, path}` with roles `train_dataset`, `val_dataset`, `classifier` and `pretrained_model`. Dataset bundles have none. |
 | `bundle_manifest` | The bundle's own `manifest.json`, verbatim; null when absent. Its `metadata` holds the dataset generation parameters, or the training contract (initializer, Unmasker, seed, budgets, smoke flag, input paths) and method configuration; its `provenance` is the bundle's provenance record and `content_hash` its data hash ([bundle format](bundle_format.md)), both absent from bundles written before ADR 0002. |
@@ -131,14 +131,14 @@ later conversion is added beside the native files, never instead of them.
 | `raw_evaluation_table` | `eval_results/` | Acquisition-history analysis with any Parquet reader. Restoring it skips that evaluation. | Results |
 | `transformed_evaluation_table` | `eval_results_transformed/` | Aggregation and plotting without the raw tables. | Results |
 | `dataset_bundle` | `datasets/<key>/<realization>/<split>.bundle` | Training and evaluating any method on exactly the published dataset realization and split, without regenerating it. | Shared prerequisite |
-| `classifier_bundle` | `trained_classifiers/` | External-classifier predictions for any method's evaluation (`dataset-<key>.bundle`), without retraining it. `method-<name>+dataset-<key>.bundle` is a classifier one method trains with and is needed only to retrain that method. | Shared prerequisite (external); method-specific otherwise |
+| `classifier_bundle` | `trained_classifiers/` | External-classifier predictions for any method's evaluation on a dataset realization (`dataset-<key>+realization_index-<realization>.bundle`, one per dataset realization), without retraining it. `method-<name>+dataset-<key>+realization_index-<realization>.bundle` is a classifier one method trains with and is needed only to retrain that method. | Shared prerequisite (external); method-specific otherwise |
 | `pretrained_model_bundle` | `pretrained_models/` | Training any method that names the same pretrained model, without repeating pretraining. | Shared prerequisite |
 | `afa_method_bundle` | `trained_methods/` | Re-evaluating a published method (other seeds, budgets, splits) or inspecting its policy, without retraining it. | Optional baseline |
 
 A bundle is a shared prerequisite when its `method_name` is null. Plotting a
 new method against published baselines needs only the evaluation tables of
 those baselines; evaluating a new method needs the dataset bundles and the
-external classifier of its datasets, and the pretrained model it trains
+external classifier of each dataset realization, and the pretrained model it trains
 from, if the release has it. AFA-method bundles are never needed for
 comparison plots. Follow `inputs` to find what a bundle or table was
 produced from.

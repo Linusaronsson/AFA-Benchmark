@@ -1,4 +1,7 @@
-# We only train the classifier once per dataset (on dataset realization 0)
+# Every dataset realization gets its own classifiers, trained on its train and
+# val splits with its index as seed, so no classifier sees the test split of
+# the realization it is used on. See
+# docs/adr/0005-classifiers-trained-per-dataset-realization.md.
 
 from execution import checked_script_params
 
@@ -38,12 +41,13 @@ def _method_classifier_script_params(method: str, dataset: str) -> str:
 
 rule train_classifier:
     input:
-        "extra/output/datasets/{dataset}/0/train.bundle",
-        "extra/output/datasets/{dataset}/0/val.bundle"
+        "extra/output/datasets/{dataset}/{dataset_realization_index}/train.bundle",
+        "extra/output/datasets/{dataset}/{dataset_realization_index}/val.bundle"
     output:
         directory(
             f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-                "dataset-{dataset}.bundle"
+                "dataset-{dataset}+"
+                "realization_index-{dataset_realization_index}.bundle"
         )
     params:
         device=lambda wc, resources: EXECUTION.checked_device("classifier_training", None, resources),
@@ -66,7 +70,7 @@ rule train_classifier:
             initializer={INITIALIZER} \
             unmasker={params.unmasker} \
             device={params.device} \
-            seed=0 \
+            seed={wildcards.dataset_realization_index} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
             experiment@_global_={wildcards.dataset} \
@@ -76,12 +80,13 @@ rule train_classifier:
 
 rule train_classifier_for_method:
     input:
-        "extra/output/datasets/{dataset}/0/train.bundle",
-        "extra/output/datasets/{dataset}/0/val.bundle"
+        "extra/output/datasets/{dataset}/{dataset_realization_index}/train.bundle",
+        "extra/output/datasets/{dataset}/{dataset_realization_index}/val.bundle"
     output:
         directory(
             f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            "method-{method}+dataset-{dataset}.bundle"
+            "method-{method}+dataset-{dataset}+"
+            "realization_index-{dataset_realization_index}.bundle"
         )
     params:
         device=lambda wc, resources: EXECUTION.checked_device("classifier_training", wc.method, resources),
@@ -104,7 +109,7 @@ rule train_classifier_for_method:
             initializer={INITIALIZER} \
             unmasker={params.unmasker} \
             device={params.device} \
-            seed=0 \
+            seed={wildcards.dataset_realization_index} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
             experiment@_global_={wildcards.dataset} \
