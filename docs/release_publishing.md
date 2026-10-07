@@ -130,6 +130,11 @@ then decide what of those evaluations is fetched:
   on dataset instance 0, so selecting it also selects that instance's
   `train` and `val` dataset bundles. Without them the workflow would
   regenerate those splits and retrain the classifier.
+- with each pretrained-model and AFA-method bundle, the time record its
+  pretraining or training job wrote beside it (`pretrain_time.txt`,
+  `train_time.txt`): the folder holding that one job's outputs is fetched.
+  The workflow's time aggregation reads these records, so without them it
+  would rerun the job and replace the restored bundle.
 
 Bundles are never fetched unless their category is named. So a
 results-only download fetches no bundle, and naming `dataset_bundle` and
@@ -160,6 +165,10 @@ uv run python scripts/release/snapshot.py download 2026-04-kdd26 \
 Add `--payload-category afa_method_bundle` (and `pretrained_model_bundle`)
 with `--method <name>` to fetch the bundles needed to re-evaluate a
 published method.
+
+To add your own method to the published comparison without reproducing
+the baselines, follow
+[`tutorials/compare_with_published_baselines.md`](tutorials/compare_with_published_baselines.md).
 
 ### Coverage reports
 
@@ -277,9 +286,53 @@ Before publishing, read the package's `release_manifest.json` and check:
   category holds and its size; production sizes are still unknown until
   `snapshot.py inventory` is run on the real outputs.
 
-Also record any change since the previous release that can affect results
-(data, splits, preprocessing, classifiers, acquisition semantics, metrics),
-even if existing files still load.
+Also record the changes since the previous release in the release notes
+(next section).
+
+## Recording result-affecting changes between releases
+
+Users compare their own results, produced with their checkout, against a
+release produced with another commit. Two questions decide whether that is
+valid, and a release answers both separately:
+
+- **File/API compatibility**: whether the release's files still load and
+  fit the checkout's pipeline. Examples are manifest and bundle versions,
+  table schemas, output paths and registered class names. A mismatch shows
+  up as an error, such as an unknown `manifest_version`, a bundle class
+  missing from the registry, or a `MissingInputException` for a table at
+  an unexpected path.
+- **Scientific comparability**: whether results produced now would have
+  been produced the same way as the release's. Many changes break it
+  silently, with every file still loading:
+  - dataset generation or preprocessing, and dataset instances or splits;
+  - feature costs;
+  - Unmaskers, initializers and acquisition semantics, such as stop
+    handling, forced acquisition or budget accounting;
+  - the external classifier's architecture or training;
+  - method defaults and hyperparameters;
+  - evaluation batch sizes, seeds and metrics.
+
+Compatibility of a checkout is not checked automatically. Maintainers
+record both kinds of change in [`release_notes.md`](release_notes.md), one
+entry per release, newest first, written while reviewing the package and
+before publishing it. Each entry has:
+
+- the release id, scope and producing commit;
+- the previous release it is compared with, if any;
+- **compatibility changes**: format, schema, path or API changes since that
+  release, and what an older checkout or release needs to work with them;
+- **result-affecting changes**: every change to data, splits,
+  preprocessing, feature costs, acquisition semantics, classifiers, method
+  configuration or metrics since that release. Name the commits and the
+  affected datasets, methods and settings, and say whether results of the
+  previous release remain comparable with this one. "None" is an entry
+  too: say so explicitly.
+
+To find candidates, review `git log <previous commit>..<new commit>` and
+the difference between the two manifests' `workflow_config.merged` and
+`settings`. Pay attention to `extra/conf/`, `extra/workflow/`,
+`afabench/` and `scripts/`. A corrected release is published under a new
+id, with an entry saying what it corrects.
 
 ## Limits of this version
 

@@ -294,6 +294,13 @@ is downloaded only by asking for a test release (see
 `docs/release_publishing.md`).
 _Avoid_: Smoke release, staging release
 
+**Reference method**:
+A method name whose plotting-ready evaluation tables are restored from a
+benchmark release and compared with locally produced methods, without the
+workflow ever training, evaluating or transforming it.
+_Avoid_: Baseline method (any compared method can be a baseline),
+downloaded method
+
 **Pipeline stage**:
 One of **pretraining**, **training**, and **evaluation**. The first two are
 optional per method; evaluation is mandatory and shared by all methods.

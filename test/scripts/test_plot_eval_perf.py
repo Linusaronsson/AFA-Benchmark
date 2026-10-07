@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pyarrow as pa
@@ -270,3 +271,30 @@ def test_all_plots_are_written_for_each_dataset_set(
         "soft_budget_2d_errors.png",
         "soft_budget_lines.png",
     ]
+
+
+@pytest.mark.filterwarnings(
+    "ignore::sklearn.exceptions.UndefinedMetricWarning"
+)
+def test_caption_labels_every_plot(
+    eval_perf_path: Path,
+    tmp_path: Path,
+    plotting_config: PlottingDisplayConfig,
+) -> None:
+    output_folder = tmp_path / "plots"
+    caption = "Workflow demonstration, not scientific results"
+    plotter = EvaluationPlotter(
+        eval_perf_path,
+        output_folder,
+        replace(plotting_config, caption=caption),
+        formats=("svg",),
+    )
+
+    plotter.load_and_process()
+    plotter.generate_all_plots()
+
+    plots = sorted((output_folder / "all").iterdir())
+    assert len(plots) == 4
+    # Matplotlib keeps each text of an SVG as a comment beside its glyphs.
+    for plot in plots:
+        assert f"<!-- {caption} -->" in plot.read_text(), plot.name

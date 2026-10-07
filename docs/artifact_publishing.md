@@ -96,8 +96,10 @@ Reconnaissance identified the following implementation considerations:
 - Raw evaluation `idx` is batch-local, not a stable cross-run instance identity.
   Do not promise paired instance-level comparisons using that field.
 - Default workflow aggregation enumerates baseline inputs and can cause
-  missing upstream work to run. Verify that the download-and-reuse journey
-  satisfies the relevant dependencies without retraining published baselines.
+  missing upstream work to run. #41 resolves this with `reference_methods`:
+  published methods whose restored plotting-ready tables are aggregated
+  but never produced (see
+  [`tutorials/compare_with_published_baselines.md`](tutorials/compare_with_published_baselines.md#why-reference-methods)).
 - Actual publication sizes and dataset redistribution rights still need an
   inventory; neither is established by this design. The release manifest
   records every dataset as unreviewed until a maintainer reviews it
@@ -131,8 +133,13 @@ Reconnaissance identified the following implementation considerations:
    No real benchmark results are currently available: use small smoke runs,
    synthetic fixtures, and fake HF transport. Preserve smoke provenance and
    keep test packages distinct from official scientific releases.
+   #41 verifies both on a smoke run (`test/workflow/test_adopter_journey.py`).
 6. Document release provenance, download examples, raw versus plotting-ready
-   tables, and result-affecting changes between releases.
+   tables, and result-affecting changes between releases. #41 adds the
+   adopter tutorial
+   ([`tutorials/compare_with_published_baselines.md`](tutorials/compare_with_published_baselines.md))
+   and the release notes
+   ([`release_publishing.md`](release_publishing.md#recording-result-affecting-changes-between-releases)).
 7. Run `just qa` for implementation changes.
 
 HF repository layout, namespace, manifest schema, command syntax, and specific

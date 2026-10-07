@@ -123,6 +123,7 @@ Learn more in our tutorials:
   - [Pipeline explanation](docs/tutorials/pipeline_explanation.md)
   - [Adding a new dataset](docs/tutorials/add_dataset.md)
   - [Adding a new method](docs/tutorials/add_method.md)
+  - [Comparing a new method with published baselines](docs/tutorials/compare_with_published_baselines.md)
 
 ## Development
 
