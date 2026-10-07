@@ -22,7 +22,7 @@ def test_direct_unmasker_kwargs_are_empty_mapping() -> None:
         / "extra"
         / "conf"
         / "components"
-        / "unmaskers"
+        / "unmasker"
         / "direct.yaml"
     )
 

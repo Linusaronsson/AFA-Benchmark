@@ -138,7 +138,9 @@ def test_every_workflow_dataset_has_a_dataset_key_config() -> None:
         dataset_key
         for dataset_key in dataset_keys
         if not (
-            REPO_ROOT / "extra/conf/dataset_key" / f"{dataset_key}.yaml"
+            REPO_ROOT
+            / "extra/conf/components/dataset_key"
+            / f"{dataset_key}.yaml"
         ).is_file()
     }
 

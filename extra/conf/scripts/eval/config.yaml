@@ -1,13 +1,14 @@
 hydra:
   searchpath:
     - file://extra/conf
+    - file://extra/conf/components
     - file://extra/conf/global
 
 defaults:
   - eval
   - hydra: custom
-  - components/initializers@initializer: ???
-  - components/unmaskers@unmasker: ???
+  - initializer: ???
+  - unmasker: ???
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm

@@ -15,7 +15,7 @@ Runtime filters (--config, select subsets to run):
         cannot be in both lists, and method sets without any method from
         `methods` are skipped. Time aggregation covers `methods` only.
     datasets (list[str], required): Subset of datasets to run. Every dataset
-        key needs a file extra/conf/dataset_key/<key>.yaml.
+        key needs a file extra/conf/components/dataset_key/<key>.yaml.
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
     device (str, default='cpu'): Deprecated invocation-wide device for
         computational jobs, with a warning. Cannot be combined with execution.
@@ -33,7 +33,7 @@ Runtime filters (--config, select subsets to run):
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests
     initializer (str, default='cold'): Initialization strategy, a file in
-        extra/conf/initializer/
+        extra/conf/components/initializer/
     eval_dataset_split (str, default='test'): Dataset split for evaluation
 
 Training contract:
@@ -104,7 +104,7 @@ Config files (--configfile):
     Runtime params:
         eval_hard_budgets.yaml,
         soft_budget_params_*.yaml,
-        unmaskers.yaml (values are files in extra/conf/unmasker/)
+        unmaskers.yaml (values are files in extra/conf/components/unmasker/)
 
     Note: method_options.yaml can include eval_to_train_hard_budget_mapping to
     specify different budgets for training vs evaluation per method/dataset.

@@ -69,8 +69,8 @@ rule eval_method:
         START_TIME=$(date +%s.%N)
         python scripts/eval/eval_afa_method.py \
             method_bundle_path={input[1]} \
-            components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={params.unmasker} \
+            initializer={INITIALIZER} \
+            unmasker={params.unmasker} \
             dataset_bundle_path={input[0]} \
             save_path={output[0]} \
             classifier_bundle_path={input[2]} \

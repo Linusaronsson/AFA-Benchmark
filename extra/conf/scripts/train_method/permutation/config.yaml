@@ -1,6 +1,7 @@
 hydra:
   searchpath:
     - file://extra/conf
+    - file://extra/conf/components
     - file://extra/conf/global
 
 defaults:

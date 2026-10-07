@@ -63,8 +63,8 @@ rule train_classifier:
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
             save_path={output} \
-            components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={params.unmasker} \
+            initializer={INITIALIZER} \
+            unmasker={params.unmasker} \
             device={params.device} \
             seed=0 \
             use_wandb={USE_WANDB} \
@@ -101,8 +101,8 @@ rule train_classifier_for_method:
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
             save_path={output} \
-            components/initializers@initializer={INITIALIZER} \
-            components/unmaskers@unmasker={params.unmasker} \
+            initializer={INITIALIZER} \
+            unmasker={params.unmasker} \
             device={params.device} \
             seed=0 \
             use_wandb={USE_WANDB} \

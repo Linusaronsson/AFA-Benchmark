@@ -98,7 +98,7 @@ The `extra/workflow/conf/datasets/` directory contains dataset configuration fil
 
 ## Unmaskers
 
-`extra/workflow/conf/unmaskers/` contains files that map datasets to unmaskers. The values correspond to files in `extra/conf/unmasker/`, which point at the definitions in `extra/conf/components/unmaskers/`.
+`extra/workflow/conf/unmaskers/` contains files that map datasets to unmaskers. The values correspond to files in `extra/conf/components/unmasker/`.
 
 For example, if `extra/workflow/conf/unmaskers/all.yaml` contains
 ```yaml
@@ -108,7 +108,7 @@ unmaskers:
 ```
 then `imagenette` will use a patch-based unmasker while all other datasets will have the "normal" unmasker that maps actions directly to features.
 
-`extra/conf/components/unmaskers/224x224_to_14x14.yaml` contains the details about this specific unmasker:
+`extra/conf/components/unmasker/224x224_to_14x14.yaml` contains the details about this specific unmasker:
 ```yaml
 class_name: "ImagePatchUnmasker"
 kwargs:

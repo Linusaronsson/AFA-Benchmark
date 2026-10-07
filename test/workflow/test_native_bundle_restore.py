@@ -290,8 +290,8 @@ def test_restored_bundles_reproduce_a_smoke_evaluation(
             sys.executable,
             "scripts/eval/eval_afa_method.py",
             f"method_bundle_path={output}/{GDFS_METHOD}",
-            "components/initializers@initializer=cold",
-            "components/unmaskers@unmasker=direct",
+            "initializer=cold",
+            "unmasker=direct",
             f"dataset_bundle_path={output}/datasets/cube/0/test.bundle",
             f"save_path={save_path}",
             f"classifier_bundle_path={output}/trained_classifiers/{TAG}/"

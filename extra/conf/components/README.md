@@ -1,18 +1,28 @@
 This directory contains reusable hydra components that can be used in multiple different scenarios.
 
-## Training contract groups
+## Layout
 
-Pretraining and training scripts receive the plain training contract
-(`docs/adr/0001-training-contract-as-library.md`): `initializer=<name>`,
-`unmasker=<name>` and `dataset_key=<key>` instead of Hydra group paths. The
-top-level groups next to this directory implement that:
+`extra/conf` has three tiers:
 
-- `extra/conf/initializer/<name>.yaml` and `extra/conf/unmasker/<name>.yaml`
-  point at `components/initializers/<name>.yaml` and
-  `components/unmaskers/<name>.yaml` with `@_here_`, so the definitions stay
-  shared with the evaluation and classifier scripts, which still select
-  `components/initializers@initializer` and `components/unmaskers@unmasker`.
-- `extra/conf/dataset_key/<key>.yaml` sets the `dataset_key` config value.
+- `components/` holds configs shared between scripts, as one flat set of
+  groups.
+- `scripts/<script_group>/<script_name>/` holds the configs of a single
+  script.
+- `global/` and `release/` hold Hydra and release settings.
+
+Every script config lists `file://extra/conf/components` in
+`hydra.searchpath`, so each group directory in `components/` is also a
+top-level group. That is how scripts select `initializer=<name>`,
+`unmasker=<name>` and `dataset_key=<key>` (the plain training contract of
+`docs/adr/0001-training-contract-as-library.md`) while the files stay here.
+
+| Group | Used by |
+| --- | --- |
+| `initializer`, `unmasker`, `dataset_key` | pretraining, training, classifier and evaluation scripts |
+| `masked_pretraining`, `masking_probabilities` | `pretrain_model` of JAFA, ODIN and OL |
+| `mdps`, `rl_training_loops` | `train_method` of JAFA, ODIN and OL |
+
+- `components/dataset_key/<key>.yaml` sets the `dataset_key` config value.
   Every dataset key in `extra/workflow/conf/datasets/` needs one.
 - Each method's root config ends with
   `optional experiment@_global_: ${dataset_key}`, which loads the method's
@@ -23,11 +33,10 @@ top-level groups next to this directory implement that:
 All were verified against the Hydra version in `uv.lock`.
 
 - **A group override must use the exact key the defaults list declares.** A
-  config with `- /components/initializers@initializer: ???` only accepts
-  `components/initializers@initializer=cold`; `initializer=cold` fails with
-  "You must specify 'components/initializers@initializer'". To accept the
-  short form, make `initializer` a top-level group
-  directory instead of packaging another group into it.
+  config with `- /components/initializer@initializer: ???` would only accept
+  `components/initializer@initializer=...`. Select the group by its search-path
+  name (`- initializer: ???`) so that `initializer=cold` works. The group
+  directory name is the CLI key, so it is singular.
 - **A defaults-list interpolation only sees other defaults-list choices, not
   config values.** `- optional experiment@_global_: ${dataset_key}` fails
   when `dataset_key` is a plain value set on the command line. It works when
