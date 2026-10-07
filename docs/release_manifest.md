@@ -223,9 +223,9 @@ the checkout. That file ships empty, so every dataset is `unreviewed`, and
 `save`, `restore`, `publish` and `download` print the unreviewed and
 restricted keys. Only a `permitted` dataset's bundles may be published;
 unreviewed and restricted ones stay out of any public release until
-reviewed. `publish` does not refuse them by itself: excluding them is part
-of the maintainer review in
-[`release_publishing.md`](release_publishing.md#maintainer-review-checks).
+reviewed. `publish` refuses an official release holding any of them
+unless the maintainer allows each by its dataset key; see
+[`release_publishing.md`](release_publishing.md#dataset-redistribution).
 
 What a dataset bundle holds decides what the review covers:
 

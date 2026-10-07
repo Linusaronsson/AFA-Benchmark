@@ -238,6 +238,28 @@ overrides) and decide whether the outputs suit your code; see
 this checkout does not read, a release id already published, and a
 `test_only` package.
 
+### Dataset redistribution
+
+`publish` also refuses an official release while any dataset key in the
+manifest's `settings.dataset_redistribution` is `unreviewed` or
+`restricted`, and names each of them. Record the review in
+`extra/conf/release/dataset_redistribution.yaml` and save the package again
+([`release_manifest.md`](release_manifest.md#dataset-redistribution)), or
+remove the dataset from the run. To publish such a dataset anyway, allow it
+by its dataset key; the option repeats, once per dataset:
+
+```shell
+uv run python scripts/release/snapshot.py publish /path/to/2026-10-kdd26 \
+    --repo-id <repo_id> --allow-redistribution cube
+```
+
+There is no option that allows every dataset at once. Allowing a dataset
+that is not unreviewed or restricted in the manifest is an error. The
+published manifest keeps the dataset's status, so it stays visible to
+everyone who reads the release, and the host commit names the allowed
+datasets. Test releases are not checked and take no allowance, since they
+are never public benchmark releases.
+
 ### Test releases
 
 Smoke-test outputs are always `test_only` and never become official
@@ -278,9 +300,11 @@ Before publishing, read the package's `release_manifest.json` and check:
 - **Permission to redistribute.** Every dataset, dataset bundle and other
   payload in `output/` may be redistributed publicly under its licence.
   Generating a bundle does not grant that right. Every dataset key in
-  `settings.dataset_redistribution` must be `permitted`; `save` and
-  `publish` print the unreviewed and restricted ones. Remove, or publish
-  elsewhere, anything whose permission is unresolved before publishing
+  `settings.dataset_redistribution` must be `permitted`; `save` prints the
+  unreviewed and restricted ones, and `publish` refuses them unless each is
+  allowed by name (see [Dataset redistribution](#dataset-redistribution)).
+  Review, remove, or publish elsewhere anything whose permission is
+  unresolved before publishing
   ([`release_manifest.md`](release_manifest.md#dataset-redistribution)).
   `coverage.payloads` and the `bundles` entries show what each payload
   category holds and its size; production sizes are still unknown until
@@ -342,7 +366,9 @@ id, with an entry saying what it corrects.
   `merged_results`, ...) are fetched whole, not by dataset or method.
 - The release contents are whatever the snapshot holds; the manifest
   lists its native bundles and payload categories
-  ([`release_manifest.md`](release_manifest.md#payload-categories)), but
-  `publish` does not exclude payloads by category or redistribution review.
+  ([`release_manifest.md`](release_manifest.md#payload-categories)).
+  `publish` refuses a release with an unreviewed or restricted dataset
+  rather than leaving that dataset's payloads out, and does not exclude
+  payloads by category.
 - Empty directories are restored from `output_mtimes.json`; nothing else
   about a file but its bytes and mtime is kept.

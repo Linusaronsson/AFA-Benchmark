@@ -20,8 +20,11 @@ restored outputs by mtime.
 
 Test-only packages (smoke outputs, see `ReleaseScope`) are only ever
 published under `test_releases/<release_id>/`, so a maintainer can check
-the host round trip without promoting them to official releases. The scope
-check lives here rather than in a transport, so no transport can skip it.
+the host round trip without promoting them to official releases. An
+official release is refused while any dataset in its manifest's
+`settings.dataset_redistribution` is not `permitted`, unless the maintainer
+allows that dataset by name. The scope and redistribution checks live here
+rather than in a transport, so no transport can skip them.
 """
 
 import json
@@ -34,7 +37,9 @@ from pathlib import Path
 from typing import Protocol
 
 from afabench.release.manifest import (
+    DATASET_REDISTRIBUTION_FILE,
     RELEASE_MANIFEST_FILENAME,
+    RedistributionStatus,
     ReleaseManifest,
     ReleaseScope,
     read_release_manifest,
@@ -85,11 +90,34 @@ def publish_release(
     transport: ReleaseTransport,
     *,
     test_release: bool = False,
+    allow_redistribution: Sequence[str] = (),
 ) -> ReleaseManifest:
-    """Upload the snapshot in `package_dir` as its manifest's release."""
+    """
+    Upload the snapshot in `package_dir` as its manifest's release.
+
+    `allow_redistribution` names the unreviewed or restricted dataset keys
+    a maintainer publishes in an official release anyway.
+    """
     manifest = read_release_manifest(package_dir / RELEASE_MANIFEST_FILENAME)
     _check_scope(manifest, test_release=test_release)
     folder = release_folder(manifest.release_id, test_release=test_release)
+    message = f"Publish benchmark release {manifest.release_id}"
+    if test_release:
+        if allow_redistribution:
+            msg = (
+                "Dataset redistribution is reviewed only for official "
+                "releases; a test release needs no allowance."
+            )
+            raise ValueError(msg)
+    else:
+        _check_redistribution(manifest, allow_redistribution)
+        if allow_redistribution:
+            # The host's history records which datasets were allowed through.
+            message += (
+                "; redistribution allowed by the maintainer for unreviewed "
+                "or restricted datasets: "
+                + ", ".join(sorted(allow_redistribution))
+            )
     # A published release is never replaced, so its identity keeps naming
     # the same outputs.
     if transport.file_exists(f"{folder}/{RELEASE_MANIFEST_FILENAME}"):
@@ -103,9 +131,7 @@ def publish_release(
     files[f"{folder}/{OUTPUT_MTIMES_FILENAME}"] = _output_mtimes(
         package_dir / SNAPSHOT_OUTPUT_SUBDIR
     )
-    transport.upload_files(
-        files, message=f"Publish benchmark release {manifest.release_id}"
-    )
+    transport.upload_files(files, message=message)
     return manifest
 
 
@@ -329,5 +355,41 @@ def _check_scope(manifest: ReleaseManifest, *, test_release: bool) -> None:
         msg = (
             f"Release {manifest.release_id!r} has scope {manifest.scope}; "
             f"only {ReleaseScope.TEST_ONLY} packages are test releases."
+        )
+        raise ValueError(msg)
+
+
+def _check_redistribution(
+    manifest: ReleaseManifest, allow_redistribution: Sequence[str]
+) -> None:
+    unresolved = {
+        dataset: review.status
+        for dataset, review in manifest.settings.dataset_redistribution.items()
+        if review.status is not RedistributionStatus.PERMITTED
+    }
+    needless = [
+        dataset
+        for dataset in allow_redistribution
+        if dataset not in unresolved
+    ]
+    if needless:
+        msg = (
+            f"Release {manifest.release_id!r} has no unreviewed or "
+            f"restricted dataset {', '.join(needless)}; only those can be "
+            "allowed."
+        )
+        raise ValueError(msg)
+    refused = [
+        f"{dataset} ({status})"
+        for dataset, status in unresolved.items()
+        if dataset not in allow_redistribution
+    ]
+    if refused:
+        msg = (
+            f"Release {manifest.release_id!r} holds datasets whose "
+            f"redistribution is not {RedistributionStatus.PERMITTED}: "
+            f"{', '.join(refused)}. Review them in "
+            f"{DATASET_REDISTRIBUTION_FILE} and save the snapshot again, or "
+            "allow each by name."
         )
         raise ValueError(msg)
