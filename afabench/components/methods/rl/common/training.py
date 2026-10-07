@@ -4,7 +4,7 @@ Shared training loop of the RL methods (JAFA, ODIN, OL).
 `RLTrainer` builds the AFA environments from the training contract's inputs
 and runs the collector loop; subclasses supply the reward function, the
 agent and the resulting AFA method. The script that calls it owns seeding,
-the metric logger and saving (`afabench.training.run`).
+the metric logger and saving (`afabench.fit.run`).
 """
 
 import logging
@@ -40,10 +40,10 @@ from afabench.core.types import (
     AFAUnmasker,
 )
 from afabench.core.utils import get_class_frequencies
-from afabench.training.contract import TrainingContract
-from afabench.training.inputs import TrainingInputs
-from afabench.training.metric_logger import MetricLogger
-from afabench.training.smoke_test import SMOKE_TEST_N_BATCHES
+from afabench.fit.contract import TrainingContract
+from afabench.fit.inputs import FitInputs
+from afabench.fit.metric_logger import MetricLogger
+from afabench.fit.smoke_test import SMOKE_TEST_N_BATCHES
 
 log = logging.getLogger(__name__)
 
@@ -66,7 +66,7 @@ def _should_disable_collector_cuda_sync(device: torch.device) -> bool:
 
 class RLTrainer(ABC):
     contract: TrainingContract
-    inputs: TrainingInputs
+    inputs: FitInputs
     mdp_cfg: AFAMDPConfig
     metric_logger: MetricLogger
     device: torch.device
@@ -85,7 +85,7 @@ class RLTrainer(ABC):
     def __init__(
         self,
         contract: TrainingContract,
-        inputs: TrainingInputs,
+        inputs: FitInputs,
         mdp_cfg: AFAMDPConfig,
         metric_logger: MetricLogger,
     ):

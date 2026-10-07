@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from afabench.training.contract import TrainingContract, store_contract_config
+from afabench.fit.contract import TrainingContract, store_contract_config
 
 
 @dataclass

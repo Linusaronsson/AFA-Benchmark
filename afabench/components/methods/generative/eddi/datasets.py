@@ -2,7 +2,7 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 
 from afabench.core.types import AFADataset
-from afabench.training.tensor_batches import (
+from afabench.fit.tensor_batches import (
     TensorBatchDataset,
     passthrough_batch,
 )

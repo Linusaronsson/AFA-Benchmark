@@ -7,7 +7,8 @@ commands in the appendix and can be re-run.
 ## The contract
 
 The pipeline passes the same arguments to every pretraining and training
-script. They are the **training contract** (pretraining uses a subset).
+script. They are the **training contract** and the **pretraining contract**, which
+currently overlap but are independent.
 
 | Field                          | Training | Pretraining | Source in Snakemake      |
 | ------------------------------ | -------- | ----------- | ------------------------ |
@@ -156,7 +157,7 @@ Experiment files also override contract fields, which hides bugs:
   `AGENTS.md` described one (since corrected). Any "resolve the trainer through the registry"
   design needs to add that mechanism or extend the table.
 - The only training-adjacent tests are `test/scripts/test_train_method_smoke_test.py`
-  (helpers in `afabench.training.smoke_test`) and
+  (helpers in `afabench.fit.smoke_test`) and
   `test/src/afa_rl/test_training.py`. No test trains a method end to end.
   `pytest.ini` declares a `pipeline` marker that no test uses.
 

@@ -1,17 +1,21 @@
 """
-Render the training contract as command-line arguments.
+Render the stage contracts as command-line arguments.
 
 The pipeline passes every pretraining and training script the same plain
 `key=value` arguments (`docs/adr/0001-training-contract-as-library.md`).
 The field names come from the contract dataclasses in
-`afabench.training.contract`, which stay cheap to import (no torch) so the
+`afabench.fit.contract`, which stay cheap to import (no torch) so the
 Snakefile can import them at parse time.
 """
 
 from collections.abc import Mapping
 from dataclasses import fields
 
-from afabench.training.contract import PretrainingContract, TrainingContract
+from afabench.fit.contract import (
+    BaseContract,
+    PretrainingContract,
+    TrainingContract,
+)
 
 
 def render_pretraining_contract(values: Mapping[str, object]) -> str:
@@ -24,13 +28,11 @@ def render_training_contract(values: Mapping[str, object]) -> str:
     return _render(TrainingContract, values)
 
 
-def _render(
-    contract: type[PretrainingContract], values: Mapping[str, object]
-) -> str:
+def _render(contract: type[BaseContract], values: Mapping[str, object]) -> str:
     contract_fields = fields(contract)
     unknown = sorted(set(values) - {field.name for field in contract_fields})
     if unknown:
-        message = f"Not fields of this training contract: {unknown}"
+        message = f"Not fields of this contract: {unknown}"
         raise ValueError(message)
 
     arguments: list[str] = []
@@ -42,7 +44,7 @@ def _render(
             # line and keeps its default.
             if field.default is None:
                 continue
-            message = f"Training contract field {field.name!r} has no value."
+            message = f"Contract field {field.name!r} has no value."
             raise ValueError(message)
         arguments.append(f"{field.name}={value}")
     return " ".join(arguments)

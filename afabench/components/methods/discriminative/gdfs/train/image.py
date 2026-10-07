@@ -23,8 +23,8 @@ from afabench.components.methods.discriminative.gdfs.config import (
     GDFSImageArchitectureConfig,
     GDFSTrainingConfig,
 )
-from afabench.training.inputs import TrainingInputs
-from afabench.training.smoke_test import dataset_subset, training_batch_size
+from afabench.fit.inputs import FitInputs
+from afabench.fit.smoke_test import dataset_subset, training_batch_size
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ def train_image(
     cfg: GDFSTrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
     *,
-    inputs: TrainingInputs,
+    inputs: FitInputs,
 ) -> GDFSAFAMethod:
     log.debug(cfg)
     assert isinstance(cfg.architecture, GDFSImageArchitectureConfig)

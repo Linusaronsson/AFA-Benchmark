@@ -11,8 +11,8 @@ from torch import nn
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.core.types import AFADataset
 from afabench.datasets.datasets import CubeDataset
-from afabench.training.config import SupervisedLearningConfig
-from afabench.training.supervised_learning import (
+from afabench.fit.config import SupervisedLearningConfig
+from afabench.fit.supervised_learning import (
     ensure_finite_module_state,
     supervised_learning,
 )

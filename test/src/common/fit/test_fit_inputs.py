@@ -15,9 +15,9 @@ from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.datasets.datasets import CubeDataset
-from afabench.training.contract import PretrainingContract, TrainingContract
-from afabench.training.inputs import (
-    UnavailableTrainingInputError,
+from afabench.fit.contract import PretrainingContract, TrainingContract
+from afabench.fit.inputs import (
+    UnavailableFitInputError,
     load_inputs,
 )
 
@@ -170,7 +170,7 @@ def test_pretrained_model_is_unavailable_without_a_bundle_path(
     )
 
     with pytest.raises(
-        UnavailableTrainingInputError, match="pretrained_model_bundle_path"
+        UnavailableFitInputError, match="pretrained_model_bundle_path"
     ):
         inputs.pretrained_model(TorchModelBundle)
 
@@ -194,5 +194,5 @@ def test_pretraining_stage_provides_no_pretrained_model(
     )
     inputs = load_inputs(contract)
 
-    with pytest.raises(UnavailableTrainingInputError, match="pretraining"):
+    with pytest.raises(UnavailableFitInputError, match="pretraining"):
         inputs.pretrained_model(TorchModelBundle)

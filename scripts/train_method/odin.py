@@ -9,8 +9,8 @@ from omegaconf.omegaconf import OmegaConf
 from afabench.components.methods.rl.common.training import limit_training_loop
 from afabench.components.methods.rl.odin.config import ODINTrainConfig
 from afabench.components.methods.rl.odin.training import train_odin
-from afabench.training.inputs import load_inputs
-from afabench.training.run import save_result, training_run
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run, save_result
 
 log = logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ def main(cfg: ODINTrainConfig) -> None:
         ),
     )
 
-    with training_run(cfg, "training", tags=["odin"], config=cfg) as logger:
+    with fit_run(cfg, tags=["odin"], config=cfg) as logger:
         afa_method = train_odin(cfg, load_inputs(cfg), logger)
-        save_result(afa_method, cfg, cfg, stage="training")
+        save_result(afa_method, cfg, cfg)
 
 
 if __name__ == "__main__":

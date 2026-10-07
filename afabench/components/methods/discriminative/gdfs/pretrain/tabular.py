@@ -19,7 +19,7 @@ from afabench.components.methods.discriminative.gdfs.config import (
     GDFSTabularArchitectureConfig,
 )
 from afabench.core.utils import get_class_frequencies
-from afabench.training.inputs import TrainingInputs
+from afabench.fit.inputs import FitInputs
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ def pretrain_tabular(
     cfg: GDFSPretrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
     *,
-    inputs: TrainingInputs,
+    inputs: FitInputs,
 ) -> GreedyAFAClassifier:
     log.debug(cfg)
     assert isinstance(cfg.architecture, GDFSTabularArchitectureConfig)

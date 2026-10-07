@@ -1,8 +1,8 @@
 """
 The Snakemake renderer turns the training contract into command-line arguments.
 
-`extra/workflow/src/training_contract.py` reads the field names from the
-contract dataclasses in `afabench.training.contract`, which the Snakefile
+`extra/workflow/src/contract_arguments.py` reads the field names from the
+contract dataclasses in `afabench.fit.contract`, which the Snakefile
 imports at parse time.
 """
 
@@ -40,10 +40,10 @@ TRAINING_VALUES = {
 }
 
 
-def _load_training_contract_module() -> ModuleType:
-    module_path = REPO_ROOT / "extra/workflow/src/training_contract.py"
+def _load_contract_arguments_module() -> ModuleType:
+    module_path = REPO_ROOT / "extra/workflow/src/contract_arguments.py"
     spec = importlib.util.spec_from_file_location(
-        "workflow_training_contract", module_path
+        "workflow_contract_arguments", module_path
     )
     assert spec is not None
     assert spec.loader is not None
@@ -61,14 +61,14 @@ def _parse_arguments(rendered: str) -> dict[str, str]:
 
 @pytest.fixture(scope="module")
 def renderer() -> ModuleType:
-    return _load_training_contract_module()
+    return _load_contract_arguments_module()
 
 
 def test_contract_import_does_not_load_torch_or_sklearn() -> None:
     # Snakemake imports the contract on every parse, including dry runs.
     probe = (
         "import sys\n"
-        "import afabench.training.contract\n"
+        "import afabench.fit.contract\n"
         "print(sorted({'torch', 'sklearn'} & set(sys.modules)))"
     )
 

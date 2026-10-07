@@ -8,8 +8,8 @@ from omegaconf import OmegaConf
 from afabench.components.methods.oracle import create_aaco_method
 from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
 from afabench.components.methods.oracle.aaco.config import AACOTrainConfig
-from afabench.training.inputs import load_inputs
-from afabench.training.smoke_test import training_subset
+from afabench.fit.inputs import load_inputs
+from afabench.fit.smoke_test import training_subset
 
 logger = logging.getLogger(__name__)
 

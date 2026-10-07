@@ -3,8 +3,8 @@ from typing import Any
 from torch.utils.data import DataLoader
 
 from afabench.core.types import AFADataset
-from afabench.training.smoke_test import dataset_subset, training_batch_size
-from afabench.training.tensor_batches import (
+from afabench.fit.smoke_test import dataset_subset, training_batch_size
+from afabench.fit.tensor_batches import (
     TensorBatchDataset,
     passthrough_batch,
 )

@@ -1,4 +1,4 @@
-"""Lifecycle helpers around a pretraining or training run."""
+"""Lifecycle helpers around a fit-stage (pretraining or training) run."""
 
 import gc
 import logging
@@ -12,12 +12,13 @@ import torch
 
 from afabench.core.bundle_system.bundle import Saveable, save_bundle
 from afabench.core.utils import initialize_wandb_run, set_seed
-from afabench.training.contract import (
+from afabench.fit.contract import (
+    BaseContract,
+    FitStage,
     PretrainingContract,
     TrainingContract,
-    TrainingStage,
 )
-from afabench.training.metric_logger import (
+from afabench.fit.metric_logger import (
     MetricLogger,
     NullMetricLogger,
     WandbMetricLogger,
@@ -28,17 +29,21 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
+_CONTRACT_CLASSES: dict[FitStage, type[BaseContract]] = {
+    "pretraining": PretrainingContract,
+    "training": TrainingContract,
+}
+
 
 @contextmanager
-def training_run(
-    contract: PretrainingContract,
-    stage: TrainingStage,
+def fit_run(
+    contract: BaseContract,
     *,
     tags: list[str],
     config: "DataclassInstance",
 ) -> Generator[MetricLogger]:
     """
-    Seed, open a metric logger for `stage` and clean up afterwards.
+    Seed, open a metric logger for the contract's stage and clean up afterwards.
 
     `config` is the full method config, usually the contract itself. CUDA
     memory is released only when the contract's device is a CUDA device, so
@@ -49,7 +54,7 @@ def training_run(
         metric_logger = WandbMetricLogger(
             initialize_wandb_run(
                 cfg={**asdict(contract), **asdict(config)},
-                job_type=stage,
+                job_type=contract.stage,
                 tags=tags,
             )
         )
@@ -68,10 +73,8 @@ def training_run(
 
 def save_result(
     obj: Saveable,
-    contract: PretrainingContract,
+    contract: BaseContract,
     config: "DataclassInstance",
-    *,
-    stage: TrainingStage,
 ) -> None:
     """
     Save `obj` as a bundle at the contract's `save_path`.
@@ -79,11 +82,7 @@ def save_result(
     The bundle metadata records the stage, the contract fields and the
     remaining fields of `config`.
     """
-    contract_class = (
-        TrainingContract
-        if isinstance(contract, TrainingContract)
-        else PretrainingContract
-    )
+    contract_class = _CONTRACT_CLASSES[contract.stage]
     contract_field_names = {f.name for f in fields(contract_class)}
     contract_dict = {
         name: value
@@ -99,7 +98,7 @@ def save_result(
         obj=obj,
         path=Path(contract.save_path),
         metadata={
-            "stage": stage,
+            "stage": contract.stage,
             "contract": contract_dict,
             "method_config": method_config_dict,
         },

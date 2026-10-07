@@ -20,8 +20,8 @@ if TYPE_CHECKING:
 
 
 from afabench.core.types import AFADataset
-from afabench.training.config import SupervisedLearningConfig
-from afabench.training.tensor_batches import (
+from afabench.fit.config import SupervisedLearningConfig
+from afabench.fit.tensor_batches import (
     TensorBatchDataset,
     passthrough_batch,
 )

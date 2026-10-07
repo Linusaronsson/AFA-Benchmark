@@ -9,8 +9,8 @@ from omegaconf.omegaconf import OmegaConf
 from afabench.components.methods.rl.common.training import limit_training_loop
 from afabench.components.methods.rl.jafa.config import JAFATrainConfig
 from afabench.components.methods.rl.jafa.training import train_jafa
-from afabench.training.inputs import load_inputs
-from afabench.training.run import save_result, training_run
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run, save_result
 
 log = logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ def main(cfg: JAFATrainConfig) -> None:
         ),
     )
 
-    with training_run(cfg, "training", tags=["jafa"], config=cfg) as logger:
+    with fit_run(cfg, tags=["jafa"], config=cfg) as logger:
         afa_method = train_jafa(cfg, load_inputs(cfg), logger)
-        save_result(afa_method, cfg, cfg, stage="training")
+        save_result(afa_method, cfg, cfg)
 
 
 if __name__ == "__main__":

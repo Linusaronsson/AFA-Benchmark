@@ -15,14 +15,14 @@ from afabench.components.methods.dummy.without_classifier import (
 )
 from afabench.core.types import AFAMethod
 from afabench.evaluation.eval import eval_afa_method
-from afabench.training.inputs import TrainingInputs
-from afabench.training.smoke_test import eval_settings
+from afabench.fit.inputs import FitInputs
+from afabench.fit.smoke_test import eval_settings
 
 log = logging.getLogger(__name__)
 
 
 def train_random_dummy(
-    contract: RandomDummyTrainConfig, inputs: TrainingInputs
+    contract: RandomDummyTrainConfig, inputs: FitInputs
 ) -> RandomWithoutClassifierAFAMethod:
     return _train_dummy_method(
         RandomWithoutClassifierAFAMethod, contract, inputs
@@ -30,7 +30,7 @@ def train_random_dummy(
 
 
 def train_sequential_dummy(
-    contract: SequentialDummyTrainConfig, inputs: TrainingInputs
+    contract: SequentialDummyTrainConfig, inputs: FitInputs
 ) -> SequentialWithoutClassifierAFAMethod:
     return _train_dummy_method(
         SequentialWithoutClassifierAFAMethod, contract, inputs
@@ -40,7 +40,7 @@ def train_sequential_dummy(
 def _train_dummy_method[M: AFAMethod](
     method_class: Callable[..., M],
     contract: RandomDummyTrainConfig | SequentialDummyTrainConfig,
-    inputs: TrainingInputs,
+    inputs: FitInputs,
 ) -> M:
     train_dataset = inputs.train_dataset()
     if len(train_dataset.label_shape) != 1:
@@ -63,7 +63,7 @@ def _train_dummy_method[M: AFAMethod](
 
 def _check_dummy_method_works(
     contract: RandomDummyTrainConfig | SequentialDummyTrainConfig,
-    inputs: TrainingInputs,
+    inputs: FitInputs,
     afa_method: AFAMethod,
 ) -> None:
     """Check the method works end to end; dummy methods have no real training."""

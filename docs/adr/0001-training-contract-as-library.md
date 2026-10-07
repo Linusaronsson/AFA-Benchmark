@@ -35,14 +35,17 @@ dataset key is the method's business.
   pretrained-model bundle paths, `save_path`, `initializer`, `unmasker`,
   `dataset_key`, `hard_budget`, `soft_budget_param`, `device`, `seed`,
   `use_wandb`, `smoke_test`. Hydra-specific forms (`components/...@initializer`,
-  `experiment@_global_`) are no longer part of the contract. Pretraining
-  receives the subset without the pretrained-model path and budgets.
-- **Helpers, all optional:** `TrainingContract` / `PretrainingContract`
-  dataclasses that method configs inherit (keyword-only, so the command line
+  `experiment@_global_`) are no longer part of the contract. The
+  pretraining contract is a sibling of the training contract under a shared
+  base, not a subset of it: it currently omits the pretrained-model path and
+  budgets, but the two may diverge further.
+- **Helpers, all optional:** `PretrainingContract` / `TrainingContract`
+  dataclasses (siblings under `BaseContract`) that method configs inherit (keyword-only, so the command line
   stays flat); `load_inputs(contract)` for lazily loaded datasets, Initializer,
-  Unmasker, classifier and pretrained model; a `training_run(...)` context
+  Unmasker, classifier and pretrained model; a `fit_run(...)` context
   manager for seeding, metric logger (wandb or null) and cleanup; and
-  `save_result(...)` for one bundle-metadata shape.
+  `save_result(...)` for one bundle-metadata shape. The stage is a property
+  of the contract class, not an argument to these helpers.
 - **One copy of the contract's field names:** the Python dataclasses. The
   Snakemake argument renderer reads them with `dataclasses.fields`, and a
   field that defaults to null may be left off the command line. This first

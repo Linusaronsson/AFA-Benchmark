@@ -25,8 +25,8 @@ from afabench.components.methods.discriminative.dime.config import (
     DIMEImageArchitectureConfig,
     DIMETrainingConfig,
 )
-from afabench.training.inputs import TrainingInputs
-from afabench.training.smoke_test import dataset_subset, training_batch_size
+from afabench.fit.inputs import FitInputs
+from afabench.fit.smoke_test import dataset_subset, training_batch_size
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def train_image(
     cfg: DIMETrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
     *,
-    inputs: TrainingInputs,
+    inputs: FitInputs,
 ) -> DIMEAFAMethod:
     log.debug(cfg)
     assert isinstance(cfg.architecture, DIMEImageArchitectureConfig)

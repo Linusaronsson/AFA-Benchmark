@@ -25,7 +25,7 @@ from afabench.core.utils import (
     initialize_wandb_run,
     set_seed,
 )
-from afabench.training.tensor_batches import (
+from afabench.fit.tensor_batches import (
     TensorBatchDataset,
     passthrough_batch,
 )

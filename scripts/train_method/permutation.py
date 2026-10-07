@@ -26,7 +26,7 @@ from afabench.components.methods.static.pt.static_methods import (
     StaticBaseMethod,
 )
 from afabench.components.methods.static.pt.utils import transform_dataset
-from afabench.training.run import save_result, training_run
+from afabench.fit.run import fit_run, save_result
 
 log = logging.getLogger(__name__)
 
@@ -49,9 +49,7 @@ def main(cfg: PermutationTrainingConfig) -> None:
         cfg.selector.patience = 1
         cfg.classifier.nepochs = 1
 
-    with training_run(
-        cfg, "training", tags=["permutation"], config=cfg
-    ) as metric_logger:
+    with fit_run(cfg, tags=["permutation"], config=cfg) as metric_logger:
         train_dataset, val_dataset, _, _, class_weights = (
             afa_discriminative_training_prep(
                 train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
@@ -150,7 +148,7 @@ def main(cfg: PermutationTrainingConfig) -> None:
 
         static_method = StaticBaseMethod(selected_history, predictors, device)
 
-    save_result(static_method, cfg, cfg, stage="training")
+    save_result(static_method, cfg, cfg)
 
 
 if __name__ == "__main__":

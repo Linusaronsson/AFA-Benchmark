@@ -1,7 +1,7 @@
 import torch
 
-from afabench.training.config import SupervisedLearningConfig
-from afabench.training.smoke_test import (
+from afabench.fit.config import SupervisedLearningConfig
+from afabench.fit.smoke_test import (
     dataset_subset,
     eval_settings,
     limit_supervised_learning,

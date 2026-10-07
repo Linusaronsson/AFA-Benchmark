@@ -4,8 +4,8 @@ from afabench.components.methods.rl.common.config import (
     AFAMDPConfig,
     AFARLTrainingLoopConfig,
 )
-from afabench.training.config import SupervisedLearningConfig
-from afabench.training.contract import (
+from afabench.fit.config import SupervisedLearningConfig
+from afabench.fit.contract import (
     PretrainingContract,
     TrainingContract,
     store_contract_config,

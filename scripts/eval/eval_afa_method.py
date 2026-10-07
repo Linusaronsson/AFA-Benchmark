@@ -23,7 +23,7 @@ from afabench.core.utils import (
 from afabench.evaluation.config import EvalConfig
 from afabench.evaluation.eval import eval_afa_method
 from afabench.evaluation.schemas import SavedEvaluationSchema
-from afabench.training.smoke_test import eval_settings
+from afabench.fit.smoke_test import eval_settings
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run

@@ -11,8 +11,8 @@ constrain you.
 
 The pipeline (Snakemake) invokes your training script as a subprocess with a
 fixed set of `key=value` command-line arguments, and your pretraining script
-(if you have one) with a subset of them. This is the **training contract**
-(glossary entry in [`CONTEXT.md`](../../CONTEXT.md)), and its design is
+(if you have one) with its own set. These are the **training contract** and
+the **pretraining contract** (glossary entries in [`CONTEXT.md`](../../CONTEXT.md)), and its design is
 recorded in
 [ADR-0001](../adr/0001-training-contract-as-library.md).
 
@@ -23,10 +23,10 @@ key is prescribed.
 
 The contract's field names and types are not restated here; the source of
 truth is the `PretrainingContract` / `TrainingContract` dataclasses in
-`afabench/training/contract.py`. `TrainingContract` extends
-`PretrainingContract` with the fields a training script needs that a
-pretraining script doesn't (the pretrained-model path and the budgets).
-Read that file before writing a new method's config.
+`afabench/fit/contract.py`. Both extend `BaseContract` and are
+independent of each other: `TrainingContract` has the pretrained-model path
+and the budgets, which `PretrainingContract` doesn't, but the two stages are
+free to diverge further. Read that file before writing a new method's config.
 
 ## 2. Minimal method
 
@@ -42,7 +42,7 @@ The config dataclass adds no fields of its own:
 # afabench/components/methods/dummy/config.py
 from dataclasses import dataclass
 
-from afabench.training.contract import TrainingContract, store_contract_config
+from afabench.fit.contract import TrainingContract, store_contract_config
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -58,13 +58,13 @@ store_contract_config(
 `store_contract_config` registers the dataclass as a Hydra structured config
 under the given name; the next section covers how the YAML config pulls it
 in. The training logic is a plain function that takes the resolved config and
-a `TrainingInputs` and returns the trained method — it does not seed, log, or
+a `FitInputs` and returns the trained method — it does not seed, log, or
 save anything itself:
 
 ```python
 # afabench/components/methods/dummy/train.py (abridged)
 def train_random_dummy(
-    contract: RandomDummyTrainConfig, inputs: TrainingInputs
+    contract: RandomDummyTrainConfig, inputs: FitInputs
 ) -> RandomWithoutClassifierAFAMethod:
     train_dataset = inputs.train_dataset()
     afa_method = RandomWithoutClassifierAFAMethod(
@@ -78,7 +78,7 @@ def train_random_dummy(
     return afa_method
 ```
 
-`inputs: TrainingInputs`, from `afabench.training.inputs.load_inputs`, lazily
+`inputs: FitInputs`, from `afabench.fit.inputs.load_inputs`, lazily
 loads whatever the contract points to: `inputs.train_dataset()`,
 `inputs.val_dataset()`, `inputs.initializer()`, `inputs.unmasker()`,
 `inputs.classifier(expected_type)` and, for `TrainingContract`,
@@ -97,12 +97,12 @@ other two helpers:
 def main(cfg: RandomDummyTrainConfig) -> None:
     cfg = cast("RandomDummyTrainConfig", OmegaConf.to_object(cfg))
     inputs = load_inputs(cfg)
-    with training_run(cfg, "training", tags=["random_dummy"], config=cfg):
+    with fit_run(cfg, tags=["random_dummy"], config=cfg):
         afa_method = train_random_dummy(cfg, inputs)
-        save_result(afa_method, cfg, cfg, stage="training")
+        save_result(afa_method, cfg, cfg)
 ```
 
-`training_run` (from `afabench.training.run`) seeds with `contract.seed`,
+`fit_run` (from `afabench.fit.run`) seeds with `contract.seed`,
 opens a `WandbMetricLogger` or a `NullMetricLogger` depending on
 `contract.use_wandb`, and cleans up CUDA state afterwards; use the yielded
 logger's `.log(...)` if your training loop reports metrics. `save_result`
@@ -151,10 +151,10 @@ already there as `"RandomWithoutClassifierAFAMethod"`.
 A method with a pretraining stage additionally gets a script under
 `scripts/pretrain_model/`, configured the same way but with a config
 dataclass inheriting `PretrainingContract` instead of `TrainingContract`
-(fewer fields: no pretrained-model path, no budgets — see
-`afabench/training/contract.py`). Structure it like the training script in
+(a separate contract, currently without the pretrained-model path and
+the budgets — see `afabench/fit/contract.py`). Structure it like the training script in
 section 2: a plain `pretrain_*` function taking the config and a
-`TrainingInputs`, called from a script that wraps it in `training_run` and
+`FitInputs`, called from a script that wraps it in `fit_run` and
 `save_result`.
 
 A pretrained model is a separate pipeline-level concept from a method; one
@@ -223,13 +223,13 @@ constraint is the one in section 5.
 
 ## 5. Not using the helpers or Hydra
 
-None of `TrainingContract`, `load_inputs`, `training_run`, `save_result` or
+None of `TrainingContract`, `load_inputs`, `fit_run`, `save_result` or
 Hydra is required. If you'd rather write a training script from scratch, it
 still has to:
 
 - Parse the training (or pretraining) contract's arguments off
   `sys.argv`, in the plain `key=value` form Snakemake passes them
-  (`afabench/training/contract.py` lists the fields; nothing requires you to
+  (`afabench/fit/contract.py` lists the fields; nothing requires you to
   use the dataclass to hold them).
 - Call `afabench.core.bundle_system.bundle.save_bundle` to write a loadable
   bundle to the `save_path` argument, with your method's class registered in

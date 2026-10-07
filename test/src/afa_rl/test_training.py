@@ -2,7 +2,7 @@
 RLTrainer runs a short CPU training without touching CUDA.
 
 Builds the real JAFA trainer through its normal constructor from tiny
-on-disk bundles inside a `training_run`, trains for two batches and returns
+on-disk bundles inside a `fit_run`, trains for two batches and returns
 the trained AFA method. CUDA is reported as available so that any
 device-availability gating (instead of device-type gating), in the trainer
 or in the run's cleanup, would reach the recording CUDA stubs.
@@ -39,9 +39,9 @@ from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.core.utils import get_class_frequencies
 from afabench.datasets.datasets import CubeDataset
-from afabench.training.inputs import load_inputs
-from afabench.training.run import training_run
-from afabench.training.smoke_test import SMOKE_TEST_N_BATCHES
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run
+from afabench.fit.smoke_test import SMOKE_TEST_N_BATCHES
 
 SEED = 0
 N_BATCHES = 2
@@ -143,7 +143,7 @@ def test_rl_trainer_trains_on_cpu_without_touching_cuda(
     metric_logger = RecordingMetricLogger()
     cuda_calls: list[str] = []
 
-    with training_run(cfg, "training", tags=["jafa"], config=cfg):
+    with fit_run(cfg, tags=["jafa"], config=cfg):
         trainer = JAFARLTrainer(cfg, load_inputs(cfg), metric_logger)
         value_net_before = [
             p.detach().clone()

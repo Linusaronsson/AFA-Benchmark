@@ -7,8 +7,8 @@ from afabench.components.initializers.config import InitializerConfig
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
-from afabench.training.contract import PretrainingContract, TrainingContract
-from afabench.training.run import save_result
+from afabench.fit.contract import PretrainingContract, TrainingContract
+from afabench.fit.run import save_result
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,6 @@ def test_save_result_writes_a_loadable_bundle_to_save_path(
         TorchModelBundle(nn.Linear(2, 2)),
         config,
         config,
-        stage="training",
     )
 
     loaded, manifest = load_bundle(tmp_path / "method.bundle")
@@ -100,7 +99,6 @@ def test_save_result_records_a_separate_method_config(
         TorchModelBundle(nn.Linear(2, 2)),
         contract,
         _PretrainHyperparameters(n_epochs=4),
-        stage="pretraining",
     )
 
     _, manifest = load_bundle(tmp_path / "model.bundle")

@@ -11,8 +11,8 @@ from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.datasets.datasets import CubeDataset
-from afabench.training.contract import TrainingContract
-from afabench.training.inputs import load_inputs
+from afabench.fit.contract import TrainingContract
+from afabench.fit.inputs import load_inputs
 
 
 def test_eddi_rejects_a_pretrained_model_that_is_not_a_partial_vae(

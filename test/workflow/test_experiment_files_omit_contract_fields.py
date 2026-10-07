@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 from omegaconf import OmegaConf
 
-from afabench.training.contract import PretrainingContract, TrainingContract
+from afabench.fit.contract import PretrainingContract, TrainingContract
 
 REPO_ROOT = Path(__file__).parents[2]
 SCRIPTS_CONF = REPO_ROOT / "extra/conf/scripts"

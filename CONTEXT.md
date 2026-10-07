@@ -344,6 +344,12 @@ training, pretraining, training and evaluation take a declared `cpu` or
 `visualization`.
 _Avoid_: Execution activity, activity, phase, step (reserved for time steps)
 
+**Fit stage**:
+Either of the two pipeline stages that fit a model from a contract's inputs
+and save it as a bundle: pretraining or training. Not classifier training,
+which has no contract.
+_Avoid_: Learning stage, training stage (reads as training only)
+
 **Pretrained model**:
 A named bundle produced in the pretraining stage and reusable across
 methods, for example a partial VAE shared by EDDI and ODIN.
@@ -382,8 +388,15 @@ A run mode where every stage executes as fast as possible to verify the
 pipeline works end to end.
 _Avoid_: Dry run, quick mode
 
-**Training contract**:
+**Contract**:
 The fixed set of inputs the pipeline gives a pretraining or training script,
-and the bundle it expects back at the save path. Pretraining receives a
-subset.
+and the bundle it expects back at the save path. Each stage has its own
+contract, and the two are independent: they take the same inputs today, but
+neither is a subset of the other.
 _Avoid_: Script interface, pipeline arguments, CLI args
+
+**Pretraining contract**:
+The contract for a pretraining script.
+
+**Training contract**:
+The contract for a training script.

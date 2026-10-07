@@ -15,16 +15,16 @@ from afabench.components.methods.rl.ol.models import (
 )
 from afabench.core.types import AFADataset
 from afabench.core.utils import get_class_frequencies
-from afabench.training.inputs import TrainingInputs, load_inputs
-from afabench.training.run import save_result, training_run
-from afabench.training.smoke_test import limit_supervised_learning
-from afabench.training.supervised_learning import supervised_learning
+from afabench.fit.inputs import FitInputs, load_inputs
+from afabench.fit.run import fit_run, save_result
+from afabench.fit.smoke_test import limit_supervised_learning
+from afabench.fit.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
 
 
 def get_ol_model_fn(
-    cfg: OLPretrainConfig, inputs: TrainingInputs
+    cfg: OLPretrainConfig, inputs: FitInputs
 ) -> Callable[[AFADataset], pl.LightningModule]:
     def f(dataset: AFADataset) -> pl.LightningModule:
         n_features = dataset.feature_shape.numel()
@@ -70,7 +70,7 @@ def main(cfg: OLPretrainConfig) -> None:
         ),
     )
 
-    with training_run(cfg, "pretraining", tags=["ol"], config=cfg):
+    with fit_run(cfg, tags=["ol"], config=cfg):
         inputs = load_inputs(cfg)
         model_bundle = supervised_learning(
             train_dataset=inputs.train_dataset(),
@@ -82,7 +82,7 @@ def main(cfg: OLPretrainConfig) -> None:
             use_wandb=cfg.use_wandb,
             device=cfg.device,
         )
-        save_result(model_bundle, cfg, cfg, stage="pretraining")
+        save_result(model_bundle, cfg, cfg)
 
 
 if __name__ == "__main__":

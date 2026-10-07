@@ -1,4 +1,4 @@
-"""Lazy access to the inputs that the training contract points to."""
+"""Lazy access to the inputs that a contract points to."""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -12,23 +12,23 @@ from afabench.components.initializers.utils import (
 from afabench.components.unmaskers.utils import get_afa_unmasker_from_config
 from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.types import AFADataset, AFAInitializer, AFAUnmasker
-from afabench.training.contract import PretrainingContract, TrainingContract
+from afabench.fit.contract import BaseContract, TrainingContract
 
 
-class UnavailableTrainingInputError(LookupError):
+class UnavailableFitInputError(LookupError):
     """Raised when the contract does not provide the requested input."""
 
 
-class TrainingInputs:
+class FitInputs:
     """
-    Inputs of a training contract, each loaded on first request.
+    Inputs of a contract, each loaded on first request.
 
     Classifier and pretrained model are loaded onto the contract's device and
     checked against the class the caller expects.
     """
 
-    def __init__(self, contract: PretrainingContract) -> None:
-        self._contract: PretrainingContract = contract
+    def __init__(self, contract: BaseContract) -> None:
+        self._contract: BaseContract = contract
         self._loaded: dict[str, object] = {}
 
     def train_dataset(self) -> AFADataset:
@@ -61,11 +61,11 @@ class TrainingInputs:
     def pretrained_model[T](self, expected_type: type[T]) -> T:
         if not isinstance(self._contract, TrainingContract):
             msg = "The pretraining stage provides no pretrained model."
-            raise UnavailableTrainingInputError(msg)
+            raise UnavailableFitInputError(msg)
         path = self._contract.pretrained_model_bundle_path
         if path is None:
             msg = "No pretrained model: pretrained_model_bundle_path is null."
-            raise UnavailableTrainingInputError(msg)
+            raise UnavailableFitInputError(msg)
         return self._load_on_device(path, expected_type)
 
     def _load_dataset(self, bundle_path: str) -> AFADataset:
@@ -96,5 +96,5 @@ class TrainingInputs:
         return self._loaded[key]
 
 
-def load_inputs(contract: PretrainingContract) -> TrainingInputs:
-    return TrainingInputs(contract)
+def load_inputs(contract: BaseContract) -> FitInputs:
+    return FitInputs(contract)

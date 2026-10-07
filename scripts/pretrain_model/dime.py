@@ -14,8 +14,8 @@ from afabench.components.methods.discriminative.dime.pretrain.image import (
 from afabench.components.methods.discriminative.dime.pretrain.tabular import (
     pretrain_tabular,
 )
-from afabench.training.inputs import load_inputs
-from afabench.training.run import save_result, training_run
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run, save_result
 
 
 @hydra.main(
@@ -27,9 +27,7 @@ def main(cfg: DIMEPretrainingConfig) -> None:
     cfg = cast("DIMEPretrainingConfig", OmegaConf.to_object(cfg))
     if cfg.smoke_test:
         cfg = replace(cfg, nepochs=1, patience=1)
-    with training_run(
-        cfg, "pretraining", tags=["dime"], config=cfg
-    ) as metric_logger:
+    with fit_run(cfg, tags=["dime"], config=cfg) as metric_logger:
         inputs = load_inputs(cfg)
         if isinstance(cfg.architecture, DIMEImageArchitectureConfig):
             result = pretrain_image(
@@ -39,7 +37,7 @@ def main(cfg: DIMEPretrainingConfig) -> None:
             result = pretrain_tabular(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
             )
-        save_result(result, cfg, cfg, stage="pretraining")
+        save_result(result, cfg, cfg)
 
 
 if __name__ == "__main__":

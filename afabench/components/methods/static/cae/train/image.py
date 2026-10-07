@@ -25,7 +25,7 @@ from afabench.components.methods.static.common.static_methods import (
 from afabench.components.methods.static.common.utils import (
     make_masked_collate,
 )
-from afabench.training.inputs import TrainingInputs
+from afabench.fit.inputs import FitInputs
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def train_image(  # noqa: PLR0915
     cfg: CAETrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
     *,
-    inputs: TrainingInputs,
+    inputs: FitInputs,
 ) -> StaticBaseMethod:
     log.debug(cfg)
     assert isinstance(cfg.architecture, CAEImageArchitectureConfig)

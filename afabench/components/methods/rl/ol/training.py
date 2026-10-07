@@ -21,14 +21,14 @@ from afabench.components.methods.rl.ol.models import (
 from afabench.components.methods.rl.ol.reward import get_ol_reward_fn
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.core.types import AFAMethod
-from afabench.training.inputs import TrainingInputs
-from afabench.training.metric_logger import MetricLogger
+from afabench.fit.inputs import FitInputs
+from afabench.fit.metric_logger import MetricLogger
 
 log = logging.getLogger(__name__)
 
 
 def train_ol(
-    cfg: OLTrainConfig, inputs: TrainingInputs, metric_logger: MetricLogger
+    cfg: OLTrainConfig, inputs: FitInputs, metric_logger: MetricLogger
 ) -> AFAMethod:
     trainer = OLRLTrainer(cfg, inputs, metric_logger)
     return trainer.train(cfg=cfg.rl_training_loop)
@@ -44,7 +44,7 @@ class OLRLTrainer(RLTrainer):
     def __init__(
         self,
         cfg: OLTrainConfig,
-        inputs: TrainingInputs,
+        inputs: FitInputs,
         metric_logger: MetricLogger,
     ) -> None:
         self.typed_cfg = cfg

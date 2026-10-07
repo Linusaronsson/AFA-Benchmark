@@ -12,8 +12,8 @@ from afabench.components.methods.static.cae.train.image import train_image
 from afabench.components.methods.static.cae.train.tabular import (
     train_tabular,
 )
-from afabench.training.inputs import load_inputs
-from afabench.training.run import save_result, training_run
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run, save_result
 
 
 @hydra.main(
@@ -34,9 +34,7 @@ def main(cfg: CAETrainingConfig) -> None:
                 classifier=replace(cfg.architecture.classifier, nepochs=1),
             ),
         )
-    with training_run(
-        cfg, "training", tags=["cae"], config=cfg
-    ) as metric_logger:
+    with fit_run(cfg, tags=["cae"], config=cfg) as metric_logger:
         inputs = load_inputs(cfg)
         if isinstance(cfg.architecture, CAEImageArchitectureConfig):
             result = train_image(
@@ -46,7 +44,7 @@ def main(cfg: CAETrainingConfig) -> None:
             result = train_tabular(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
             )
-        save_result(result, cfg, cfg, stage="training")
+        save_result(result, cfg, cfg)
 
 
 if __name__ == "__main__":

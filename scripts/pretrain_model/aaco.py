@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 
 from afabench.components.methods.oracle.aaco.config import AACOTrainConfig
 from afabench.components.methods.oracle.aaco.train import run
-from afabench.training.run import save_result, training_run
+from afabench.fit.run import fit_run, save_result
 
 
 @hydra.main(
@@ -15,9 +15,9 @@ from afabench.training.run import save_result, training_run
 )
 def main(cfg: AACOTrainConfig) -> None:
     cfg = cast("AACOTrainConfig", OmegaConf.to_object(cfg))
-    with training_run(cfg, "pretraining", tags=["aaco"], config=cfg):
+    with fit_run(cfg, tags=["aaco"], config=cfg):
         method = run(cfg)
-        save_result(method, cfg, cfg, stage="pretraining")
+        save_result(method, cfg, cfg)
 
 
 if __name__ == "__main__":

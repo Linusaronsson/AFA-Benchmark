@@ -24,7 +24,7 @@ from afabench.components.methods.discriminative.dime.config import (
     DIMETrainingConfig,
 )
 from afabench.core.utils import get_class_frequencies
-from afabench.training.inputs import TrainingInputs
+from afabench.fit.inputs import FitInputs
 
 log = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def train_tabular(
     cfg: DIMETrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
     *,
-    inputs: TrainingInputs,
+    inputs: FitInputs,
 ) -> DIMEAFAMethod:
     log.debug(cfg)
     assert isinstance(cfg.architecture, DIMETabularArchitectureConfig)

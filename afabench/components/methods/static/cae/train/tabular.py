@@ -22,7 +22,7 @@ from afabench.components.methods.static.common.static_methods import (
 )
 from afabench.components.methods.static.common.utils import transform_dataset
 from afabench.core.utils import get_class_frequencies
-from afabench.training.inputs import TrainingInputs
+from afabench.fit.inputs import FitInputs
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def train_tabular(
     cfg: CAETrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
     *,
-    inputs: TrainingInputs,
+    inputs: FitInputs,
 ) -> StaticBaseMethod:
     log.debug(cfg)
     assert isinstance(cfg.architecture, CAETabularArchitectureConfig)

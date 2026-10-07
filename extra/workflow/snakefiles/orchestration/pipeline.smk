@@ -39,7 +39,7 @@ Runtime filters (--config, select subsets to run):
 Training contract:
     The pretrain_model and train_method rules (rules/training.smk) pass every
     pretraining and training script the plain `key=value` training contract
-    rendered by extra/workflow/src/training_contract.py: dataset, classifier
+    rendered by extra/workflow/src/contract_arguments.py: dataset, classifier
     and pretrained-model bundle paths, save_path, initializer, unmasker,
     dataset_key, hard_budget, soft_budget_param, device, seed, use_wandb and
     smoke_test (pretraining receives no pretrained model and no budgets).

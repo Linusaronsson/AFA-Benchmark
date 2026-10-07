@@ -11,8 +11,8 @@ from afabench.components.methods.generative.eddi.config import (
 from afabench.components.methods.generative.eddi.training import (
     build_eddi_afa_method,
 )
-from afabench.training.inputs import load_inputs
-from afabench.training.run import save_result, training_run
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run, save_result
 
 log = logging.getLogger(__name__)
 
@@ -25,12 +25,12 @@ log = logging.getLogger(__name__)
 def main(cfg: EDDITrainingConfig) -> None:
     cfg = cast("EDDITrainingConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
-    with training_run(cfg, "training", tags=["eddi_external"], config=cfg):
+    with fit_run(cfg, tags=["eddi_external"], config=cfg):
         afa_method = build_eddi_afa_method(
             load_inputs(cfg),
             classifier_bundle_path=Path(cfg.classifier_bundle_path),
         )
-        save_result(afa_method, cfg, cfg, stage="training")
+        save_result(afa_method, cfg, cfg)
 
 
 if __name__ == "__main__":

@@ -61,9 +61,9 @@ def _method_cases() -> list[ParameterSet]:
 
 
 def _load_renderer() -> ModuleType:
-    module_path = REPO_ROOT / "extra/workflow/src/training_contract.py"
+    module_path = REPO_ROOT / "extra/workflow/src/contract_arguments.py"
     spec = importlib.util.spec_from_file_location(
-        "workflow_training_contract", module_path
+        "workflow_contract_arguments", module_path
     )
     assert spec is not None
     assert spec.loader is not None

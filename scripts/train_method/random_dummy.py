@@ -7,8 +7,8 @@ from omegaconf import OmegaConf
 
 from afabench.components.methods.dummy.config import RandomDummyTrainConfig
 from afabench.components.methods.dummy.train import train_random_dummy
-from afabench.training.inputs import load_inputs
-from afabench.training.run import save_result, training_run
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run, save_result
 
 log = logging.getLogger(__name__)
 
@@ -24,9 +24,9 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     torch.set_float32_matmul_precision("medium")
 
     inputs = load_inputs(cfg)
-    with training_run(cfg, "training", tags=["random_dummy"], config=cfg):
+    with fit_run(cfg, tags=["random_dummy"], config=cfg):
         afa_method = train_random_dummy(cfg, inputs)
-        save_result(afa_method, cfg, cfg, stage="training")
+        save_result(afa_method, cfg, cfg)
 
 
 if __name__ == "__main__":

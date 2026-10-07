@@ -24,8 +24,8 @@ from afabench.components.methods.oracle import (
     train_policy_network,
 )
 from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
-from afabench.training.inputs import load_inputs
-from afabench.training.run import save_result, training_run
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run, save_result
 
 if TYPE_CHECKING:
     from afabench.components.methods.oracle.aaco.config import (
@@ -92,9 +92,7 @@ def main(cfg: AACONNTrainConfig) -> None:
     logger.debug(cfg)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
-    with training_run(
-        cfg, "training", tags=["aaco_nn"], config=cfg
-    ) as metrics:
+    with fit_run(cfg, tags=["aaco_nn"], config=cfg) as metrics:
         cfg = _configure_smoke_test(cfg)
         inputs = load_inputs(cfg)
         aaco_method = inputs.pretrained_model(AACOAFAMethod)
@@ -176,7 +174,7 @@ def main(cfg: AACONNTrainConfig) -> None:
             device=device,
         )
 
-        save_result(aaco_nn_method, cfg, cfg, stage="training")
+        save_result(aaco_nn_method, cfg, cfg)
 
 
 if __name__ == "__main__":

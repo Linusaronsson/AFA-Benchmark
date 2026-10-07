@@ -101,7 +101,7 @@ only reads these records.
 | --- | --- | --- | --- | --- |
 | Dataset generation | both generation scripts, per split bundle | the instance's generation seed | none | dataset key from the selected dataset config, instance index, own split |
 | Classifier training | both classifier scripts | resolved from the config | train and val datasets | copied from the train dataset's record |
-| Pretraining, training | `training_run` / `save_result` in `afabench.training.run` | the contract seed | datasets, classifier, pretrained model | copied from the train dataset's record; `method_name` from the contract |
+| Pretraining, training | `fit_run` / `save_result` in `afabench.fit.run` | the contract seed | datasets, classifier, pretrained model | copied from the train dataset's record; `method_name` from the contract |
 | Evaluation | `AFAEvaluator` | resolved from the config | method, eval dataset, classifier | copied from the eval dataset's record; `method_name` from the method bundle's record |
 | Transformation | transform script | not applicable | not applicable | propagated, see below |
 | Aggregation, plotting | nothing | | | |
@@ -156,7 +156,7 @@ They are validated against the column set they were written with.
 ## Reproducibility policy
 
 **RNG ownership.** The stage's entry point owns the seed: the
-`training_run` helper, the evaluator, the classifier scripts and the dataset
+`fit_run` helper, the evaluator, the classifier scripts and the dataset
 generators. It resolves a null seed once by drawing one, seeds Python,
 NumPy and torch (CPU and CUDA), passes that resolved seed, never `None`, to
 every component's `set_seed` and to the evaluation sampler, and records it.

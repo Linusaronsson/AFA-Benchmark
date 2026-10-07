@@ -1,4 +1,4 @@
-"""Where training scripts send their metrics: wandb or nowhere."""
+"""Where fit-stage scripts send their metrics: wandb or nowhere."""
 
 from collections.abc import Mapping
 from typing import Protocol, override

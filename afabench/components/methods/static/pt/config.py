@@ -4,7 +4,7 @@ from afabench.components.methods.static.common.config import (
     StaticClassifierConfig,
     StaticSelectorConfig,
 )
-from afabench.training.contract import TrainingContract, store_contract_config
+from afabench.fit.contract import TrainingContract, store_contract_config
 
 
 @dataclass(frozen=True, kw_only=True)

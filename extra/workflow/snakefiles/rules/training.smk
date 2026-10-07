@@ -2,7 +2,7 @@
 Training rules: the pretraining and training stages.
 
 Both rules pass their script the training contract, rendered by
-`extra/workflow/src/training_contract.py` as plain `key=value` arguments
+`extra/workflow/src/contract_arguments.py` as plain `key=value` arguments
 (`docs/adr/0001-training-contract-as-library.md`), followed by the pretrained
 model's `pretrain_params` or the method's `method_specific_params`.
 
@@ -12,7 +12,7 @@ the evaluation rules use, so the two former training rules are one.
 """
 
 from execution import checked_script_params
-from training_contract import (
+from contract_arguments import (
     render_pretraining_contract,
     render_training_contract,
 )

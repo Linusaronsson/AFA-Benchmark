@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from hydra.core.config_store import ConfigStore
 
-from afabench.training.contract import (
+from afabench.fit.contract import (
     PretrainingContract,
     TrainingContract,
     store_contract_config,

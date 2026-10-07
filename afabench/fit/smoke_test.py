@@ -4,7 +4,7 @@ from dataclasses import replace
 import torch
 
 from afabench.core.types import AFADataset
-from afabench.training.config import SupervisedLearningConfig
+from afabench.fit.config import SupervisedLearningConfig
 
 log = logging.getLogger(__name__)
 

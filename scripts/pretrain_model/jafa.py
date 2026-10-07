@@ -17,10 +17,10 @@ from afabench.components.methods.rl.jafa.models import (
 )
 from afabench.core.types import AFADataset
 from afabench.core.utils import get_class_frequencies
-from afabench.training.inputs import load_inputs
-from afabench.training.run import save_result, training_run
-from afabench.training.smoke_test import limit_supervised_learning
-from afabench.training.supervised_learning import supervised_learning
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run, save_result
+from afabench.fit.smoke_test import limit_supervised_learning
+from afabench.fit.supervised_learning import supervised_learning
 
 log = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def main(cfg: JAFAPretrainConfig) -> None:
         ),
     )
 
-    with training_run(cfg, "pretraining", tags=["jafa"], config=cfg):
+    with fit_run(cfg, tags=["jafa"], config=cfg):
         inputs = load_inputs(cfg)
         model_bundle = supervised_learning(
             train_dataset=inputs.train_dataset(),
@@ -88,7 +88,7 @@ def main(cfg: JAFAPretrainConfig) -> None:
             use_wandb=cfg.use_wandb,
             device=cfg.device,
         )
-        save_result(model_bundle, cfg, cfg, stage="pretraining")
+        save_result(model_bundle, cfg, cfg)
 
 
 if __name__ == "__main__":

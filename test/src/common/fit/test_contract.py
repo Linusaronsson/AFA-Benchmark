@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 from omegaconf.errors import MissingMandatoryValue
 
 from afabench.components.initializers.config import InitializerConfig
-from afabench.training.contract import (
+from afabench.fit.contract import (
     PretrainingContract,
     TrainingContract,
     store_contract_config,
@@ -28,7 +28,8 @@ PRETRAINING_CONTRACT_FIELDS = {
     "smoke_test",
 }
 
-TRAINING_CONTRACT_FIELDS = PRETRAINING_CONTRACT_FIELDS | {
+TRAINING_CONTRACT_FIELDS = {
+    *PRETRAINING_CONTRACT_FIELDS,
     "pretrained_model_bundle_path",
     "hard_budget",
     "soft_budget_param",
@@ -85,9 +86,7 @@ def _compose_method_config(
     return cast("_MethodTrainConfig", OmegaConf.to_object(cfg))
 
 
-def test_pretraining_contract_is_training_contract_without_pretrained_model_and_budgets() -> (
-    None
-):
+def test_stage_contracts_have_their_expected_fields() -> None:
     assert {f.name for f in fields(PretrainingContract)} == (
         PRETRAINING_CONTRACT_FIELDS
     )

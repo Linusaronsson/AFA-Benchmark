@@ -7,11 +7,11 @@ from afabench.components.methods.generative.eddi.afa_methods import (
 )
 from afabench.components.methods.rl.odin.models import ODINPretrainingModel
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
-from afabench.training.inputs import TrainingInputs
+from afabench.fit.inputs import FitInputs
 
 
 def build_eddi_afa_method(
-    inputs: TrainingInputs, *, classifier_bundle_path: Path | None
+    inputs: FitInputs, *, classifier_bundle_path: Path | None
 ) -> EDDIAFAMethod:
     """
     EDDI needs no training of its own beyond the pretrained partial VAE.

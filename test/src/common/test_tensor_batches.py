@@ -19,7 +19,7 @@ from afabench.components.methods.rl.common.dataset_utils import (
 )
 from afabench.core.types import AFADataset
 from afabench.datasets.datasets import CubeDataset
-from afabench.training.tensor_batches import (
+from afabench.fit.tensor_batches import (
     TensorBatchDataset,
     passthrough_batch,
 )
