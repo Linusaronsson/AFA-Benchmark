@@ -276,6 +276,19 @@ def test_evaluation_table_columns_identify_it_without_afabench(
     SavedEvaluationSchema.validate(pd.read_parquet(save_path))
 
 
+def test_evaluation_table_drops_internal_bookkeeping_columns(
+    eval_inputs: EvalInputs, tmp_path: Path
+) -> None:
+    save_path = tmp_path / "eval_data.parquet"
+    AFAEvaluator(
+        eval_config(eval_inputs, save_path, seed=5), initializer_name="warm"
+    ).run()
+
+    saved = pd.read_parquet(save_path)
+    assert "prev_selections_performed" not in saved
+    assert "idx" not in saved
+
+
 def test_null_seed_is_resolved_once_and_reproduces_the_table(
     eval_inputs: EvalInputs, tmp_path: Path
 ) -> None:
