@@ -3,7 +3,9 @@ Save and restore an output snapshot (see `afabench.release.snapshot`).
 
 `save --release-id` also writes a release manifest from the checkout and the
 workflow configuration given by `--profile`, `--configfile` and `--config`
-(see `docs/release_manifest.md`).
+(see `docs/release_manifest.md`). `inventory` reports, for the same
+configuration, how many payloads of each category an output root holds and
+their size, without copying anything.
 """
 
 from pathlib import Path
@@ -13,9 +15,11 @@ import typer
 
 from afabench.release.manifest import (
     RELEASE_MANIFEST_FILENAME,
+    RedistributionStatus,
     ReleaseManifest,
     ReleaseScope,
     build_release_manifest,
+    inventory_payloads,
     read_release_manifest,
 )
 from afabench.release.snapshot import (
@@ -118,6 +122,41 @@ def restore(
         _echo_manifest(manifest, restored_manifest_location(destination_root))
 
 
+@app.command()
+def inventory(
+    source_root: Path = DEFAULT_OUTPUT_ROOT,
+    *,
+    profile: Annotated[
+        Path | None,
+        typer.Option(help="Snakemake profile the run used."),
+    ] = None,
+    configfile: Annotated[
+        list[Path] | None,
+        typer.Option(help="Workflow config file; replaces the profile's."),
+    ] = None,
+    config: Annotated[
+        list[str] | None,
+        typer.Option(help="KEY=VALUE override; replaces the profile's."),
+    ] = None,
+) -> None:
+    """Report each payload category's count and size; copies nothing."""
+    payload_inventory = inventory_payloads(
+        workflow_config=resolve_workflow_config(
+            profile=profile,
+            configfiles=configfile or [],
+            overrides=config or [],
+        ),
+        output_root=source_root,
+    )
+    typer.echo(f"Execution: {payload_inventory.execution_mode}")
+    for payload in payload_inventory.payloads:
+        typer.echo(
+            f"{payload.category}: {payload.present}/{payload.scheduled} "
+            f"present, {payload.size_bytes} bytes, "
+            f"classes: {', '.join(payload.class_names) or 'none'}"
+        )
+
+
 def _echo_manifest(manifest: ReleaseManifest, path: Path) -> None:
     workflow_config = manifest.workflow_config
     configfiles = ", ".join(
@@ -133,6 +172,22 @@ def _echo_manifest(manifest: ReleaseManifest, path: Path) -> None:
         f"Workflow config overrides: {workflow_config.overrides}\n"
         f"Release manifest: {path}"
     )
+    for status in [
+        RedistributionStatus.UNREVIEWED,
+        RedistributionStatus.RESTRICTED,
+    ]:
+        datasets = [
+            dataset
+            for dataset, review in (
+                manifest.settings.dataset_redistribution.items()
+            )
+            if review.status is status
+        ]
+        if datasets:
+            typer.echo(
+                f"{status.capitalize()} dataset redistribution: "
+                f"{', '.join(datasets)}"
+            )
 
 
 if __name__ == "__main__":

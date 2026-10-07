@@ -1,0 +1,18 @@
+# Maintainers' reviews of whether a dataset's bundles may be published.
+#
+# Read by the release manifest (`docs/release_manifest.md`, "Dataset
+# redistribution"). A dataset key not listed here is recorded as
+# `unreviewed`, and unreviewed or restricted datasets are not publishable.
+# Being able to generate a dataset bundle grants no right to redistribute
+# it: add an entry only after reviewing the source's terms.
+#
+# Entry format:
+#
+#   datasets:
+#     <dataset key>:
+#       status: permitted  # or restricted
+#       license: <licence or terms the review relied on>
+#       source: <where the data comes from>
+#       reviewed_by: <who reviewed it, and when>
+#       notes: <conditions, attribution, or null>
+datasets: {}

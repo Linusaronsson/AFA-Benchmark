@@ -3,11 +3,11 @@ The release manifest: identity, provenance and coverage of a snapshot.
 
 A release manifest is a JSON file written beside an output snapshot's
 `output/` tree. It is filled from the workflow configuration and the git
-state of the checkout. Per-table identity is enumerated forward from the
-resolved workflow configuration, the same way the workflow's
-`all_eval_methods` rule names its targets, rather than parsed back out of
-paths. Once evaluation tables carry their own identity columns and
-provenance record (`docs/adr/0002-provenance-recorded-in-artifacts.md`),
+state of the checkout. Per-table and per-bundle identity is enumerated
+forward from the resolved workflow configuration, the same way the
+workflow's `all_*` rules name their targets, rather than parsed back out of
+paths. Once evaluation tables and bundles carry their own identity columns
+and provenance record (`docs/adr/0002-provenance-recorded-in-artifacts.md`),
 that enumeration should read them instead. The field list is documented in
 `docs/release_manifest.md`.
 """
@@ -24,6 +24,7 @@ from typing import Any
 
 import dacite
 import pyarrow.parquet as pq
+import yaml
 
 from afabench.core.types import FEATURE_COSTS_DIR
 from afabench.release.workflow_config import (
@@ -41,6 +42,11 @@ DATASET_SPLITS = ("train", "val", "test")
 CLASSIFIER_DATASET_INSTANCE_INDEX = 0
 CLASSIFIER_SEED = 0
 FORCING_POLICY = "forced_acquisition_when_eval_hard_budget_is_set"
+# Maintainers' redistribution reviews, relative to the checkout. A dataset
+# key it does not list is unreviewed.
+DATASET_REDISTRIBUTION_FILE = Path(
+    "extra/conf/release/dataset_redistribution.yaml"
+)
 
 
 class ReleaseScope(StrEnum):
@@ -66,6 +72,32 @@ class ClassifierVariant(StrEnum):
     EXTERNAL = "external"
 
 
+class RedistributionStatus(StrEnum):
+    UNREVIEWED = "unreviewed"
+    PERMITTED = "permitted"
+    RESTRICTED = "restricted"
+
+
+class PayloadCategory(StrEnum):
+    RAW_EVALUATION_TABLE = "raw_evaluation_table"
+    TRANSFORMED_EVALUATION_TABLE = "transformed_evaluation_table"
+    DATASET_BUNDLE = "dataset_bundle"
+    CLASSIFIER_BUNDLE = "classifier_bundle"
+    PRETRAINED_MODEL_BUNDLE = "pretrained_model_bundle"
+    AFA_METHOD_BUNDLE = "afa_method_bundle"
+
+
+class InputRole(StrEnum):
+    """The role names of ADR 0002's provenance `inputs`."""
+
+    TRAIN_DATASET = "train_dataset"
+    VAL_DATASET = "val_dataset"
+    EVAL_DATASET = "eval_dataset"
+    CLASSIFIER = "classifier"
+    PRETRAINED_MODEL = "pretrained_model"
+    METHOD = "method"
+
+
 @dataclass(frozen=True, kw_only=True)
 class CodeIdentity:
     commit: str | None
@@ -78,6 +110,26 @@ class FeatureCostRecord:
 
     path: str | None
     sha256: str | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class DatasetRedistribution:
+    """A maintainer's review of whether a dataset's bundles may be public."""
+
+    status: RedistributionStatus
+    license: str | None
+    source: str | None
+    reviewed_by: str | None
+    notes: str | None
+
+
+UNREVIEWED_REDISTRIBUTION = DatasetRedistribution(
+    status=RedistributionStatus.UNREVIEWED,
+    license=None,
+    source=None,
+    reviewed_by=None,
+    notes=None,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -99,9 +151,16 @@ class ResolvedSettings:
     dataset_splits: list[str]
     unmaskers: dict[str, str]
     feature_costs: dict[str, FeatureCostRecord]
+    dataset_redistribution: dict[str, DatasetRedistribution]
     classifiers: list[ClassifierRecord]
     eval_batch_sizes: dict[str, dict[str, int]]
     forcing_policy: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class BundleInput:
+    role: InputRole
+    path: str
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -110,6 +169,8 @@ class EvaluationTableRecord:
     transformed_path: str
     raw_present: bool
     transformed_present: bool
+    raw_size_bytes: int | None
+    transformed_size_bytes: int | None
     method_name: str
     dataset_key: str
     dataset_instance_index: int
@@ -130,6 +191,49 @@ class EvaluationTableRecord:
     classifier_bundle_path: str
     eval_batch_size: int
     classifier_variants: list[ClassifierVariant] | None
+    inputs: list[BundleInput]
+
+
+@dataclass(frozen=True, kw_only=True)
+class BundleRecord:
+    """
+    One bundle the workflow config schedules, present or not.
+
+    `method_name` is null for shared prerequisites: dataset splits, the
+    external classifier and pretrained models. `bundle_manifest` is the
+    bundle's own `manifest.json`, null if the bundle is absent or has none.
+    """
+
+    path: str
+    category: PayloadCategory
+    present: bool
+    size_bytes: int | None
+    dataset_key: str
+    dataset_instance_index: int
+    split: str | None
+    method_name: str | None
+    pretrained_model_name: str | None
+    seed: int
+    train_hard_budget: int | float | None
+    train_soft_budget_param: int | float | None
+    inputs: list[BundleInput]
+    bundle_manifest: dict[str, Any] | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class PayloadCoverage:
+    """
+    How many payloads of one category the config schedules and has.
+
+    `class_names` are the bundle classes present, so the loaders a restored
+    category needs; empty for evaluation tables.
+    """
+
+    category: PayloadCategory
+    scheduled: int
+    present: int
+    size_bytes: int
+    class_names: list[str]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -141,6 +245,7 @@ class Coverage:
     budget_settings: list[BudgetSetting]
     classifier_variants: list[ClassifierVariant]
     output_categories: list[str]
+    payloads: list[PayloadCoverage]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -155,6 +260,7 @@ class ReleaseManifest:
     settings: ResolvedSettings
     coverage: Coverage
     evaluation_tables: list[EvaluationTableRecord]
+    bundles: list[BundleRecord]
 
     def __post_init__(self) -> None:
         if not self.release_id:
@@ -182,12 +288,9 @@ def build_release_manifest(
 ) -> ReleaseManifest:
     """Describe `output_root` as produced by `workflow_config`."""
     resolved = load_workflow_settings(workflow_config.merged)
-    execution_mode = (
-        ExecutionMode.SMOKE
-        if resolved["SMOKE_TEST"]
-        else ExecutionMode.PRODUCTION
-    )
+    execution_mode = _execution_mode(resolved)
     tables = _evaluation_tables(resolved, output_root)
+    bundles = _bundles(resolved, output_root)
     return ReleaseManifest(
         manifest_version=MANIFEST_VERSION,
         release_id=release_id,
@@ -197,9 +300,36 @@ def build_release_manifest(
         code=capture_code_identity(checkout),
         workflow_config=workflow_config,
         settings=_settings(resolved, checkout),
-        coverage=_coverage(tables, output_root),
+        coverage=_coverage(tables, bundles, output_root),
         evaluation_tables=tables,
+        bundles=bundles,
     )
+
+
+@dataclass(frozen=True, kw_only=True)
+class PayloadInventory:
+    execution_mode: ExecutionMode
+    payloads: list[PayloadCoverage]
+
+
+def inventory_payloads(
+    *, workflow_config: WorkflowConfigRecord, output_root: Path
+) -> PayloadInventory:
+    """Count and size the payloads of `output_root`, as a manifest would."""
+    resolved = load_workflow_settings(workflow_config.merged)
+    return PayloadInventory(
+        execution_mode=_execution_mode(resolved),
+        payloads=_payload_coverage(
+            _evaluation_tables(resolved, output_root),
+            _bundles(resolved, output_root),
+        ),
+    )
+
+
+def _execution_mode(resolved: Mapping[str, Any]) -> ExecutionMode:
+    if resolved["SMOKE_TEST"]:
+        return ExecutionMode.SMOKE
+    return ExecutionMode.PRODUCTION
 
 
 def write_release_manifest(manifest: ReleaseManifest, path: Path) -> None:
@@ -224,6 +354,9 @@ def read_release_manifest(path: Path) -> ReleaseManifest:
                 ExecutionMode,
                 BudgetSetting,
                 ClassifierVariant,
+                PayloadCategory,
+                InputRole,
+                RedistributionStatus,
             ],
             strict=True,
         ),
@@ -266,6 +399,7 @@ def _settings(resolved: Mapping[str, Any], checkout: Path) -> ResolvedSettings:
             dataset: _feature_cost_record(checkout, dataset)
             for dataset in datasets
         },
+        dataset_redistribution=_dataset_redistribution(checkout, datasets),
         classifiers=_classifiers(resolved),
         eval_batch_sizes={
             method: {dataset: batch_sizes[dataset] for dataset in datasets}
@@ -286,8 +420,34 @@ def _feature_cost_record(checkout: Path, dataset: str) -> FeatureCostRecord:
     )
 
 
+def _dataset_redistribution(
+    checkout: Path, datasets: list[str]
+) -> dict[str, DatasetRedistribution]:
+    path = checkout / DATASET_REDISTRIBUTION_FILE
+    content = yaml.safe_load(path.read_text()) if path.is_file() else None
+    reviews: dict[str, Any] = (content or {}).get("datasets") or {}
+    records: dict[str, DatasetRedistribution] = {}
+    for dataset in datasets:
+        if dataset not in reviews:
+            records[dataset] = UNREVIEWED_REDISTRIBUTION
+            continue
+        review = dacite.from_dict(
+            DatasetRedistribution,
+            reviews[dataset],
+            config=dacite.Config(cast=[RedistributionStatus], strict=True),
+        )
+        if review.status is RedistributionStatus.UNREVIEWED:
+            msg = (
+                f"{path} lists dataset {dataset!r} as {review.status}; "
+                "a review is permitted or restricted, an unreviewed "
+                "dataset is left out."
+            )
+            raise ValueError(msg)
+        records[dataset] = review
+    return records
+
+
 def _classifiers(resolved: Mapping[str, Any]) -> list[ClassifierRecord]:
-    tag = _initializer_tag(resolved)
     records: list[ClassifierRecord] = []
     for dataset in resolved["DATASETS"]:
         classifier_config = resolved["CLASSIFIER_NAMES"][dataset]
@@ -300,7 +460,7 @@ def _classifiers(resolved: Mapping[str, Any]) -> list[ClassifierRecord]:
             script_name, script_params = classifier_config, ""
         records.append(
             ClassifierRecord(
-                bundle_path=f"trained_classifiers/{tag}/dataset-{dataset}.bundle",
+                bundle_path=_classifier_bundle_path(resolved, None, dataset),
                 script_name=script_name,
                 script_params=script_params,
                 dataset_key=dataset,
@@ -330,9 +490,9 @@ def _classifiers(resolved: Mapping[str, Any]) -> list[ClassifierRecord]:
 
 
 def _classifier_bundle_path(
-    resolved: Mapping[str, Any], method: str, dataset: str
+    resolved: Mapping[str, Any], method: str | None, dataset: str
 ) -> str:
-    # Mirrors `_classifier_bundle_for_method` in rules/evaluation.smk.
+    # Method `None` names the external classifier of `dataset`. Mirrors `_classifier_bundle_for_method` in rules/evaluation.smk.
     tag = _initializer_tag(resolved)
     if method in resolved["METHOD_CLASSIFIER_SCRIPT_NAMES"]:
         return f"trained_classifiers/{tag}/method-{method}+dataset-{dataset}.bundle"
@@ -355,12 +515,10 @@ def _evaluation_tables(
     for method in resolved["METHODS"]:
         pretrained_model = resolved["METHOD_TO_PRETRAINED_MODEL"].get(method)
         for dataset in resolved["DATASETS"]:
+            classifier_bundle_path = _classifier_bundle_path(
+                resolved, method, dataset
+            )
             for index in resolved["DATASET_INSTANCE_INDICES"]:
-                pretrain_folder = (
-                    f"{resolved['NO_PRETRAIN_STR']}/"
-                    if pretrained_model is None
-                    else f"pretrain_seed-{index}/"
-                )
                 for (
                     train_hard_budget,
                     eval_hard_budget,
@@ -370,7 +528,7 @@ def _evaluation_tables(
                     relative = (
                         f"eval_split-{split}/{tag}/{method}/"
                         f"dataset-{dataset}+instance_idx-{index}/"
-                        f"{pretrain_folder}"
+                        f"{_pretrain_folder(resolved, method, index)}"
                         f"train_seed-{index}+"
                         f"train_hard_budget-{train_hard_budget}+"
                         f"train_soft_budget_param-{train_soft_budget_param}/"
@@ -381,15 +539,19 @@ def _evaluation_tables(
                     )
                     raw_path = f"eval_results/{relative}"
                     transformed_path = f"eval_results_transformed/{relative}"
+                    raw_file = output_root / raw_path
+                    transformed_file = output_root / transformed_path
                     eval_hard = _nullable(eval_hard_budget)
                     records.append(
                         EvaluationTableRecord(
                             raw_path=raw_path,
                             transformed_path=transformed_path,
-                            raw_present=(output_root / raw_path).is_file(),
-                            transformed_present=(
-                                output_root / transformed_path
-                            ).is_file(),
+                            raw_present=raw_file.is_file(),
+                            transformed_present=transformed_file.is_file(),
+                            raw_size_bytes=_file_size(raw_file),
+                            transformed_size_bytes=_file_size(
+                                transformed_file
+                            ),
                             method_name=method,
                             dataset_key=dataset,
                             dataset_instance_index=index,
@@ -417,18 +579,41 @@ def _evaluation_tables(
                                 eval_soft_budget_param
                             ),
                             forced_acquisition=eval_hard is not None,
-                            classifier_bundle_path=_classifier_bundle_path(
-                                resolved, method, dataset
-                            ),
+                            classifier_bundle_path=classifier_bundle_path,
                             eval_batch_size=resolved["EVAL_BATCH_SIZES"][
                                 method
                             ][dataset],
-                            classifier_variants=_classifier_variants(
-                                output_root / raw_path
-                            ),
+                            classifier_variants=_classifier_variants(raw_file),
+                            inputs=[
+                                BundleInput(
+                                    role=InputRole.EVAL_DATASET,
+                                    path=_dataset_bundle_path(
+                                        dataset, index, split
+                                    ),
+                                ),
+                                BundleInput(
+                                    role=InputRole.METHOD,
+                                    path=_method_bundle_path(
+                                        resolved,
+                                        method,
+                                        dataset,
+                                        index,
+                                        train_hard_budget,
+                                        train_soft_budget_param,
+                                    ),
+                                ),
+                                BundleInput(
+                                    role=InputRole.CLASSIFIER,
+                                    path=classifier_bundle_path,
+                                ),
+                            ],
                         )
                     )
     return records
+
+
+def _file_size(path: Path) -> int | None:
+    return path.stat().st_size if path.is_file() else None
 
 
 def _nullable(value: float | str) -> int | float | None:
@@ -456,7 +641,9 @@ def _classifier_variants(raw_table: Path) -> list[ClassifierVariant] | None:
 
 
 def _coverage(
-    tables: list[EvaluationTableRecord], output_root: Path
+    tables: list[EvaluationTableRecord],
+    bundles: list[BundleRecord],
+    output_root: Path,
 ) -> Coverage:
     present = [
         table
@@ -486,4 +673,285 @@ def _coverage(
         )
         if output_root.is_dir()
         else [],
+        payloads=_payload_coverage(tables, bundles),
     )
+
+
+def _payload_coverage(
+    tables: list[EvaluationTableRecord], bundles: list[BundleRecord]
+) -> list[PayloadCoverage]:
+    payloads = [
+        PayloadCoverage(
+            category=PayloadCategory.RAW_EVALUATION_TABLE,
+            scheduled=len(tables),
+            present=sum(table.raw_present for table in tables),
+            size_bytes=sum(table.raw_size_bytes or 0 for table in tables),
+            class_names=[],
+        ),
+        PayloadCoverage(
+            category=PayloadCategory.TRANSFORMED_EVALUATION_TABLE,
+            scheduled=len(tables),
+            present=sum(table.transformed_present for table in tables),
+            size_bytes=sum(
+                table.transformed_size_bytes or 0 for table in tables
+            ),
+            class_names=[],
+        ),
+    ]
+    for category in [
+        PayloadCategory.DATASET_BUNDLE,
+        PayloadCategory.CLASSIFIER_BUNDLE,
+        PayloadCategory.PRETRAINED_MODEL_BUNDLE,
+        PayloadCategory.AFA_METHOD_BUNDLE,
+    ]:
+        records = [bundle for bundle in bundles if bundle.category is category]
+        payloads.append(
+            PayloadCoverage(
+                category=category,
+                scheduled=len(records),
+                present=sum(bundle.present for bundle in records),
+                size_bytes=sum(bundle.size_bytes or 0 for bundle in records),
+                class_names=sorted(
+                    {
+                        bundle.bundle_manifest["class_name"]
+                        for bundle in records
+                        if bundle.bundle_manifest is not None
+                        and "class_name" in bundle.bundle_manifest
+                    }
+                ),
+            )
+        )
+    return payloads
+
+
+def _bundles(
+    resolved: Mapping[str, Any], output_root: Path
+) -> list[BundleRecord]:
+    # Mirrors the targets of `all_generate_datasets`, `all_train_classifiers`,
+    # `all_pretrain_models` and `all_train_methods` in rules/helpers.smk, and
+    # the inputs of the rules producing them; the workflow test
+    # `test_release_manifest_bundles_match_workflow_targets` pins the two.
+    datasets: list[str] = list(resolved["DATASETS"])
+    indices: list[int] = list(resolved["DATASET_INSTANCE_INDICES"])
+    records = [
+        _bundle_record(
+            output_root,
+            path=_dataset_bundle_path(dataset, index, split),
+            category=PayloadCategory.DATASET_BUNDLE,
+            inputs=[],
+            dataset_key=dataset,
+            dataset_instance_index=index,
+            split=split,
+            seed=index,
+        )
+        for dataset in datasets
+        for index in indices
+        for split in DATASET_SPLITS
+    ]
+    classifier_owners = [
+        None,
+        *(
+            method
+            for method in resolved["METHODS"]
+            if method in resolved["METHOD_CLASSIFIER_SCRIPT_NAMES"]
+        ),
+    ]
+    records.extend(
+        _bundle_record(
+            output_root,
+            path=_classifier_bundle_path(resolved, method, dataset),
+            category=PayloadCategory.CLASSIFIER_BUNDLE,
+            inputs=_training_inputs(
+                dataset, CLASSIFIER_DATASET_INSTANCE_INDEX
+            ),
+            dataset_key=dataset,
+            dataset_instance_index=CLASSIFIER_DATASET_INSTANCE_INDEX,
+            method_name=method,
+            seed=CLASSIFIER_SEED,
+        )
+        for method in classifier_owners
+        for dataset in datasets
+    )
+    records.extend(
+        _bundle_record(
+            output_root,
+            path=_pretrained_model_bundle_path(resolved, name, dataset, index),
+            category=PayloadCategory.PRETRAINED_MODEL_BUNDLE,
+            # Pretraining always reads the external classifier.
+            inputs=[
+                *_training_inputs(dataset, index),
+                BundleInput(
+                    role=InputRole.CLASSIFIER,
+                    path=_classifier_bundle_path(resolved, None, dataset),
+                ),
+            ],
+            dataset_key=dataset,
+            dataset_instance_index=index,
+            pretrained_model_name=name,
+            seed=index,
+        )
+        for name in resolved["PRETRAIN_NAMES"]
+        for dataset in resolved["DATASETS_USED_PER_PRETRAIN_NAME"][name]
+        for index in indices
+    )
+    for method in resolved["METHODS"]:
+        pretrained_model = resolved["METHOD_TO_PRETRAINED_MODEL"].get(method)
+        for dataset in datasets:
+            # Several evaluations can share one trained method bundle.
+            train_budgets = dict.fromkeys(
+                (train_hard_budget, train_soft_budget_param)
+                for (
+                    train_hard_budget,
+                    _eval_hard_budget,
+                    train_soft_budget_param,
+                    _eval_soft_budget_param,
+                ) in resolved["BUDGET_PARAMS"][method][dataset]
+            )
+            for index in indices:
+                inputs = [
+                    *_training_inputs(dataset, index),
+                    BundleInput(
+                        role=InputRole.CLASSIFIER,
+                        path=_classifier_bundle_path(
+                            resolved, method, dataset
+                        ),
+                    ),
+                ]
+                if pretrained_model is not None:
+                    inputs.append(
+                        BundleInput(
+                            role=InputRole.PRETRAINED_MODEL,
+                            path=_pretrained_model_bundle_path(
+                                resolved, pretrained_model, dataset, index
+                            ),
+                        )
+                    )
+                records.extend(
+                    _bundle_record(
+                        output_root,
+                        path=_method_bundle_path(
+                            resolved,
+                            method,
+                            dataset,
+                            index,
+                            train_hard_budget,
+                            train_soft_budget_param,
+                        ),
+                        category=PayloadCategory.AFA_METHOD_BUNDLE,
+                        inputs=inputs,
+                        dataset_key=dataset,
+                        dataset_instance_index=index,
+                        method_name=method,
+                        pretrained_model_name=pretrained_model,
+                        seed=index,
+                        train_hard_budget=_nullable(train_hard_budget),
+                        train_soft_budget_param=_nullable(
+                            train_soft_budget_param
+                        ),
+                    )
+                    for train_hard_budget, train_soft_budget_param in (
+                        train_budgets
+                    )
+                )
+    return records
+
+
+def _bundle_record(
+    output_root: Path,
+    *,
+    path: str,
+    category: PayloadCategory,
+    inputs: list[BundleInput],
+    dataset_key: str,
+    dataset_instance_index: int,
+    seed: int,
+    split: str | None = None,
+    method_name: str | None = None,
+    pretrained_model_name: str | None = None,
+    train_hard_budget: float | None = None,
+    train_soft_budget_param: float | None = None,
+) -> BundleRecord:
+    bundle = output_root / path
+    manifest_path = bundle / "manifest.json"
+    return BundleRecord(
+        path=path,
+        category=category,
+        present=bundle.is_dir(),
+        size_bytes=(
+            sum(
+                file.stat().st_size
+                for file in bundle.rglob("*")
+                if file.is_file()
+            )
+            if bundle.is_dir()
+            else None
+        ),
+        dataset_key=dataset_key,
+        dataset_instance_index=dataset_instance_index,
+        split=split,
+        method_name=method_name,
+        pretrained_model_name=pretrained_model_name,
+        seed=seed,
+        train_hard_budget=train_hard_budget,
+        train_soft_budget_param=train_soft_budget_param,
+        inputs=inputs,
+        bundle_manifest=(
+            json.loads(manifest_path.read_text())
+            if manifest_path.is_file()
+            else None
+        ),
+    )
+
+
+def _training_inputs(dataset: str, index: int) -> list[BundleInput]:
+    return [
+        BundleInput(
+            role=InputRole.TRAIN_DATASET,
+            path=_dataset_bundle_path(dataset, index, "train"),
+        ),
+        BundleInput(
+            role=InputRole.VAL_DATASET,
+            path=_dataset_bundle_path(dataset, index, "val"),
+        ),
+    ]
+
+
+def _dataset_bundle_path(dataset: str, index: int, split: str) -> str:
+    return f"datasets/{dataset}/{index}/{split}.bundle"
+
+
+def _pretrained_model_bundle_path(
+    resolved: Mapping[str, Any], name: str, dataset: str, index: int
+) -> str:
+    return (
+        f"pretrained_models/{_initializer_tag(resolved)}/{name}/"
+        f"dataset-{dataset}+instance_idx-{index}/"
+        f"pretrain_seed-{index}/model.bundle"
+    )
+
+
+def _method_bundle_path(
+    resolved: Mapping[str, Any],
+    method: str,
+    dataset: str,
+    index: int,
+    train_hard_budget: float | str,
+    train_soft_budget_param: float | str,
+) -> str:
+    return (
+        f"trained_methods/{_initializer_tag(resolved)}/{method}/"
+        f"dataset-{dataset}+instance_idx-{index}/"
+        f"{_pretrain_folder(resolved, method, index)}"
+        f"train_seed-{index}+"
+        f"train_hard_budget-{train_hard_budget}+"
+        f"train_soft_budget_param-{train_soft_budget_param}/"
+        "method.bundle"
+    )
+
+
+def _pretrain_folder(
+    resolved: Mapping[str, Any], method: str, index: int
+) -> str:
+    if method in resolved["METHOD_TO_PRETRAINED_MODEL"]:
+        return f"pretrain_seed-{index}/"
+    return f"{resolved['NO_PRETRAIN_STR']}/"

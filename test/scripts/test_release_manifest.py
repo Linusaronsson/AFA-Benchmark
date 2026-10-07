@@ -381,6 +381,10 @@ def test_manifest_lists_every_configured_table_with_its_identity(
         ),
         "raw_present": True,
         "transformed_present": False,
+        "raw_size_bytes": (tmp_path / "source" / RAW_HARD_BUDGET_TABLE)
+        .stat()
+        .st_size,
+        "transformed_size_bytes": None,
         "method_name": "alpha",
         "dataset_key": "cube",
         "dataset_instance_index": 0,
@@ -403,6 +407,24 @@ def test_manifest_lists_every_configured_table_with_its_identity(
         ),
         "eval_batch_size": 4,
         "classifier_variants": ["external"],
+        "inputs": [
+            {"role": "eval_dataset", "path": "datasets/cube/0/test.bundle"},
+            {
+                "role": "method",
+                "path": (
+                    "trained_methods/initializer-cold/alpha/"
+                    "dataset-cube+instance_idx-0/NO_PRETRAIN/"
+                    "train_seed-0+train_hard_budget-3+"
+                    "train_soft_budget_param-null/method.bundle"
+                ),
+            },
+            {
+                "role": "classifier",
+                "path": (
+                    "trained_classifiers/initializer-cold/dataset-cube.bundle"
+                ),
+            },
+        ],
     }
     soft = next(
         t
@@ -420,7 +442,10 @@ def test_manifest_lists_every_configured_table_with_its_identity(
 def test_coverage_describes_only_the_outputs_present(tmp_path: Path) -> None:
     snapshot_dir, _ = save_release(tmp_path, "--scope", "partial")
 
-    assert read_manifest(snapshot_dir)["coverage"] == {
+    coverage = read_manifest(snapshot_dir)["coverage"]
+    # Per-category payload counts are pinned in test_release_native_payloads.
+    del coverage["payloads"]
+    assert coverage == {
         "datasets": ["cube"],
         "dataset_instance_indices": [0],
         "methods": ["alpha"],
