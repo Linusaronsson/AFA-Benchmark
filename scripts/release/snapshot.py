@@ -3,7 +3,7 @@ Save and restore an output snapshot (see `afabench.release.snapshot`).
 
 `save --release-id` also writes a release manifest from the checkout and the
 workflow configuration given by `--profile`, `--configfile` and `--config`
-(see `docs/release_manifest.md`). `inventory` reports, for the same
+(see `docs/reference/release_manifest.md`). `inventory` reports, for the same
 configuration, how many payloads of each category an output root holds and
 their size, without copying anything.
 
@@ -11,7 +11,8 @@ their size, without copying anything.
 retrieves one release from it, the latest full one unless a release id is
 given, either whole (`--all`) or the payloads selected by category and
 coverage (see `afabench.release.publishing`, `afabench.release.selection`
-and `docs/release_publishing.md`). Nothing else here touches the host.
+and `docs/reference/snapshot_command.md`). Nothing else here touches the
+host.
 """
 
 from collections.abc import Callable
@@ -63,11 +64,9 @@ RepoIdOption = Annotated[
         help="Hugging Face dataset repository holding the releases.",
     ),
 ]
-TestReleaseOption = Annotated[
+SmokeReleaseOption = Annotated[
     bool,
-    typer.Option(
-        help="A test_only package, kept apart from official releases."
-    ),
+    typer.Option(help="A smoke package, kept apart from official releases."),
 ]
 
 
@@ -83,7 +82,9 @@ def save(
     ] = None,
     scope: Annotated[
         ReleaseScope | None,
-        typer.Option(help="Declared coverage; smoke outputs are test_only."),
+        typer.Option(
+            help="Declared coverage; smoke-test outputs are always smoke."
+        ),
     ] = None,
     profile: Annotated[
         Path | None,
@@ -119,7 +120,7 @@ def save(
             raise typer.BadParameter(msg)
     else:
         if scope is None:
-            msg = "--release-id needs --scope (full, partial or test_only)."
+            msg = "--release-id needs --scope (full, partial or smoke)."
             raise typer.BadParameter(msg)
         workflow_config = resolve_workflow_config(
             profile=profile,
@@ -200,7 +201,7 @@ def publish(
     snapshot_dir: Path,
     *,
     repo_id: RepoIdOption,
-    test_release: TestReleaseOption = False,
+    smoke_release: SmokeReleaseOption = False,
     allow_redistribution: Annotated[
         list[str] | None,
         typer.Option(
@@ -213,10 +214,10 @@ def publish(
     manifest = publish_release(
         snapshot_dir,
         transport,
-        test_release=test_release,
+        smoke_release=smoke_release,
         allow_redistribution=allow_redistribution or [],
     )
-    folder = release_folder(manifest.release_id, test_release=test_release)
+    folder = release_folder(manifest.release_id, smoke_release=smoke_release)
     _echo_manifest(manifest, snapshot_dir / RELEASE_MANIFEST_FILENAME)
     typer.echo(f"Published to {transport.folder_url(folder)}")
 
@@ -273,7 +274,7 @@ def download(
         typer.Option(help="Only evaluations with these predictions."),
     ] = None,
     overwrite: bool = False,
-    test_release: TestReleaseOption = False,
+    smoke_release: SmokeReleaseOption = False,
 ) -> None:
     """
     Download all of one release, or the selected payloads of it.
@@ -306,7 +307,7 @@ def download(
         )
         raise typer.BadParameter(msg)
     transport = _transport(ctx, repo_id)
-    resolved = resolve_release(release, transport, test_release=test_release)
+    resolved = resolve_release(release, transport, smoke_release=smoke_release)
     manifest = resolved.manifest
     if release == LATEST_RELEASE:
         typer.echo(f"Latest full release: {manifest.release_id}")

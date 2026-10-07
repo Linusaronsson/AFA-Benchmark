@@ -54,8 +54,8 @@ respect to Snakemake's code, params, input-set and software-environment
 rerun triggers: changing a rule's code or params after a restore does not,
 by itself, cause Snakemake to schedule a rerun for outputs that came from
 the snapshot. Only the mtime check still applies, because snapshot mtimes
-round-trip (`docs/tutorials/output_snapshots.md`, "Why mtimes are
-preserved").
+round-trip (`docs/explanation/output_snapshots.md`, "Why a snapshot
+keeps mtimes").
 
 This follows directly from #36's position that checkout compatibility is
 the user's responsibility, not something the tooling enforces: "Display
@@ -80,7 +80,7 @@ project's two journeys:
   wildcard. None of the project's `shell:` rules use `conda:`/`container:`
   either, so the software-environment trigger never applies regardless of
   metadata.
-- A benchmark adopter forks the repository, then downloads published
+- A repository adopter forks the repository, then downloads published
   baseline bundles and evaluation tables so Snakemake only runs the new
   method's missing work (#36, story 26 and the "default aggregation...
   must not recreate published baselines unnecessarily" decision). Their
@@ -88,10 +88,12 @@ project's two journeys:
   commit as the project's own Snakefiles keep evolving, independently of
   whether the restored rule's actual behaviour changed. Restoring metadata
   ties every restored output's fate to that Snakefile-text match, risking
-  exactly the retraining the adopter journey exists to avoid, as a side
-  effect of a checkout difference nobody asked the tooling to police.
-- A snapshot is explicitly not curated and carries no provenance of its own
-  (`CONTEXT.md`, "Output snapshot"); a benchmark release built from one adds
+  exactly the retraining the repository adopter's workflow exists to
+  avoid, as a side effect of a checkout difference nobody asked the
+  tooling to police.
+- A snapshot copies every file without selection and carries no
+  provenance of its own (`CONTEXT.md`, "Output snapshot"); a benchmark
+  release built from one adds
   that provenance separately (#63). Execution metadata tied to one
   checkout's rule code is exactly the kind of implicit, unreviewed
   compatibility signal the release design keeps out of the snapshot layer,
@@ -121,8 +123,8 @@ than relying on Snakemake to notice.
 
 ## Consequences
 
-- `docs/tutorials/output_snapshots.md` documents this as a known limitation
-  instead of an open question, with the dry-run check given above.
+- `docs/explanation/output_snapshots.md` documents this as a known
+  limitation instead of an open question, with the dry-run check given above.
 - If a future ticket needs rerun-trigger fidelity across a restore within
   one unchanged checkout (e.g. resuming an interrupted run from a snapshot
   on the same machine), that is a narrower case than cross-checkout release

@@ -4,7 +4,8 @@ status: accepted
 
 # Artifacts record their own provenance
 
-Today an artifact's identity lives in its Snakemake path. Nothing inside a
+Today an artifact's identity lives in its Snakemake path. An artifact is a
+bundle or an evaluation table (see **Artifact** in `CONTEXT.md`). Nothing inside a
 bundle or an evaluation Parquet file records the producing code commit, the
 resolved configuration, the input bundles, or the seed actually used. The
 evaluator writes only `eval_seed` and `eval_hard_budget`; method name, dataset
@@ -42,20 +43,20 @@ A frozen dataclass serialised as a JSON object. `null` always means
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `provenance_version` | int | Schema version, starting at 1. Readers reject versions they do not know. |
-| `activity` | string | The execution activity that produced the artifact: `dataset_generation`, `classifier_training`, `pretraining`, `training` or `evaluation`. Not called "stage": in `CONTEXT.md` a pipeline stage is only pretraining, training or evaluation. |
+| `stage` | string | The pipeline stage that produced the artifact: `dataset_generation`, `classifier_training`, `pretraining`, `training` or `evaluation`. |
 | `created_at` | string | UTC ISO-8601 time of capture. |
 | `code_commit` | string or null | `git rev-parse HEAD` of the checkout; null outside a git work tree. |
 | `code_dirty` | bool or null | Whether tracked files differ from `code_commit`. Untracked files (outputs, data) are ignored. The diff itself is not recorded. |
 | `resolved_config` | object | The script's full configuration after interpolation and after smoke-test overrides, as the script actually used it. Must be JSON-serialisable; otherwise capture raises. |
 | `seed` | int | The seed actually used, never null (see the reproducibility policy). |
 | `smoke_test` | bool | Promoted from the config because release tooling must refuse smoke artifacts. |
-| `method_name` | string or null | Pipeline method name for training and evaluation records; null for other activities. |
+| `method_name` | string or null | Pipeline method name for training and evaluation records; null for other stages. |
 | `dataset_key` | string or null | Dataset key. |
 | `dataset_instance_index` | int or null | Dataset instance index. |
 | `split` | string or null | `train`, `val` or `test` for a dataset bundle (its own split) and for an evaluation (the evaluated split); null otherwise. |
 | `inputs` | list | One entry per input bundle: `role` (`train_dataset`, `val_dataset`, `eval_dataset`, `classifier`, `pretrained_model`, `method`), `path` as given, `class_name`, and `content_hash` copied from the input's manifest (null for inputs that predate this ADR). |
 | `environment` | object | Python version; versions of `afabench`, `torch`, `numpy` and `pandas`; SHA-256 of `uv.lock` (null if absent); `platform.platform()`. The lockfile hash identifies the full environment without recording a package freeze. |
-| `execution` | object | Device as configured; accelerator name (CUDA device name, null on CPU); torch CUDA and cuDNN versions; `torch.get_float32_matmul_precision()`; cuDNN `deterministic` and `benchmark` flags; whether deterministic algorithms are enabled. |
+| `compute` | object | Device as configured; accelerator name (CUDA device name, null on CPU); torch CUDA and cuDNN versions; `torch.get_float32_matmul_precision()`; cuDNN `deterministic` and `benchmark` flags; whether deterministic algorithms are enabled. |
 
 Paths are recorded exactly as passed, which is relative under the pipeline.
 Release tooling may redact absolute paths before publishing; the record
@@ -72,7 +73,7 @@ itself is not rewritten.
 - **Raw evaluation tables.** The record is stored as JSON under the Arrow
   schema metadata key `afabench.provenance`, and the identity it implies is
   also written as columns (below). Both are needed: pandas drops custom
-  schema metadata on read and concatenation, and results-only researchers
+  schema metadata on read and concatenation, and results-only users
   read columns with plain Parquet readers.
 - **Transformed tables** copy the source record into their own schema
   metadata (one raw table in, one transformed table out). Merged tables and
@@ -89,14 +90,14 @@ config.
 ## Where capture happens
 
 One HF-unaware library module builds the record. It collects the
-environment, execution and code facts itself; callers supply the activity,
+environment, compute and code facts itself; callers supply the stage,
 resolved config, resolved seed, inputs and identity. `save_bundle` requires
 a record (keyword-only), so a bundle without provenance cannot be written
 by production code; tests build records through the same module. Training,
 evaluation and plotting scripts never learn about Hugging Face: publishing
 only reads these records.
 
-| Activity | Captured by | Seed | Inputs | Identity |
+| Stage | Captured by | Seed | Inputs | Identity |
 | --- | --- | --- | --- | --- |
 | Dataset generation | both generation scripts, per split bundle | the instance's generation seed | none | dataset key from the selected dataset config, instance index, own split |
 | Classifier training | both classifier scripts | resolved from the config | train and val datasets | copied from the train dataset's record |
@@ -141,8 +142,8 @@ recovered by following `inputs`.
 The transform step then only derives plotting columns: it adds
 `n_selections_performed`, melts the prediction columns into `classifier` and
 `predicted_class`, and normalises nullable dtypes. It carries
-`dataset_instance_index` and `eval_split` through the melt, closing the gap
-noted in `docs/artifact_publishing.md`. The Snakemake rule keeps passing its
+`dataset_instance_index` and `eval_split` through the melt, so transformed tables
+no longer lose them. The Snakemake rule keeps passing its
 wildcards, but they become checks instead of sources: a value that
 disagrees with a non-null column raises, and only a column that is missing
 or null is filled from its argument. That keeps tables written before this
@@ -151,7 +152,7 @@ They are validated against the column set they were written with.
 
 ## Reproducibility policy
 
-**RNG ownership.** The activity's entry point owns the seed: the
+**RNG ownership.** The stage's entry point owns the seed: the
 `training_run` helper, the evaluator, the classifier scripts and the dataset
 generators. It resolves a null seed once by drawing one, seeds Python,
 NumPy and torch (CPU and CUDA), passes that resolved seed, never `None`, to
@@ -165,7 +166,7 @@ keeps cuDNN deterministic mode on and benchmark mode off. Enabling deterministic
 algorithms raises on operations that have no deterministic CUDA
 implementation and requires `CUBLAS_WORKSPACE_CONFIG`. The promise is: the
 same seed, code, environment and device type reproduce a CPU run; CUDA
-runs are reproducible on a best-effort basis. The record's `execution` and
+runs are reproducible on a best-effort basis. The record's `compute` and
 `environment` fields say which case applies.
 
 **Precision.** Classifier training, evaluation and most pretraining and
@@ -195,7 +196,7 @@ reason; it is part of the recorded resolved config.
 | Classifier seed may be null and is then recorded as null | Bug, fixed by RNG ownership. |
 | `eval_soft_budget_param` is not written to the raw table | Bug, fixed by the identity columns. |
 | The two dataset generators write different metadata keys | Bug, superseded by the record. |
-| `docs/bundle_format.md` shows `bundle_version` as integer `1`; the code writes `"1.0.0"` | Documentation bug, fixed with the manifest change. |
+| `docs/reference/bundle_format.md` shows `bundle_version` as integer `1`; the code writes `"1.0.0"` | Documentation bug, fixed with the manifest change. |
 | AACO training reads `split_idx`, which the dataset generator never writes | Already fixed: #53 moved AACO to `save_result`, and nothing reads that key any more. |
 
 ## Required tests

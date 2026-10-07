@@ -112,7 +112,7 @@ def raw_episode_table() -> pd.DataFrame:
     )
 
 
-def save_test_only(
+def save_smoke(
     tmp_path: Path, source_root: Path, *extra: str
 ) -> dict[str, Any]:
     configfile = tmp_path / "smoke.yaml"
@@ -130,7 +130,7 @@ def save_test_only(
             "--release-id",
             "smoke-native",
             "--scope",
-            "test_only",
+            "smoke",
             *extra,
         ],
     )
@@ -146,7 +146,7 @@ def test_manifest_lists_every_configured_bundle_with_category_and_inputs(
 
     bundles = {
         record["path"]: record
-        for record in save_test_only(tmp_path, source_root)["bundles"]
+        for record in save_smoke(tmp_path, source_root)["bundles"]
     }
 
     assert set(bundles) == {
@@ -222,7 +222,7 @@ def test_bundle_records_carry_identity_seeds_and_budgets(
 
     bundles = {
         record["path"]: {field: record[field] for field in IDENTITY_FIELDS}
-        for record in save_test_only(tmp_path, source_root)["bundles"]
+        for record in save_smoke(tmp_path, source_root)["bundles"]
     }
 
     shared = {"method_name": None, "pretrained_model_name": None}
@@ -273,7 +273,7 @@ def test_present_bundles_record_size_and_their_own_manifest(
 
     bundles = {
         record["path"]: record
-        for record in save_test_only(tmp_path, source_root)["bundles"]
+        for record in save_smoke(tmp_path, source_root)["bundles"]
     }
 
     assert bundles[PRETRAINED_MODEL]["size_bytes"] == size_bytes
@@ -306,9 +306,7 @@ def test_evaluation_tables_record_the_bundles_they_were_evaluated_from(
 
     tables = {
         record["raw_path"]: record
-        for record in save_test_only(tmp_path, source_root)[
-            "evaluation_tables"
-        ]
+        for record in save_smoke(tmp_path, source_root)["evaluation_tables"]
     }
 
     alpha = tables[ALPHA_RAW_TABLE]
@@ -332,7 +330,7 @@ def test_coverage_inventories_each_payload_category(tmp_path: Path) -> None:
     raw_table.parent.mkdir(parents=True)
     raw_episode_table().to_parquet(raw_table, index=False)
 
-    payloads = save_test_only(tmp_path, source_root)["coverage"]["payloads"]
+    payloads = save_smoke(tmp_path, source_root)["coverage"]["payloads"]
 
     def summary(
         category: str,
@@ -398,7 +396,7 @@ def test_raw_tables_round_trip_values_nulls_schema_and_histories(
         {**table.schema.metadata, b"afabench.provenance": b'{"seed": 0}'}
     )
     pq.write_table(table, raw_table)
-    save_test_only(tmp_path, source_root)
+    save_smoke(tmp_path, source_root)
 
     destination_root = tmp_path / "checkout/extra/output"
     restore(tmp_path / "snapshot", destination_root)
@@ -460,7 +458,7 @@ def test_datasets_without_a_review_are_recorded_and_reported_unreviewed(
             "--release-id",
             "smoke-native",
             "--scope",
-            "test_only",
+            "smoke",
             "--checkout",
             str(checkout),
         ],
@@ -493,9 +491,7 @@ def test_reviewed_datasets_record_the_review_from_the_checkout(
     review_file.parent.mkdir(parents=True)
     review_file.write_text(yaml.safe_dump({"datasets": {"cube": review}}))
 
-    manifest = save_test_only(
-        tmp_path, source_root, "--checkout", str(checkout)
-    )
+    manifest = save_smoke(tmp_path, source_root, "--checkout", str(checkout))
 
     assert manifest["settings"]["dataset_redistribution"] == {"cube": review}
 
@@ -507,9 +503,7 @@ def test_the_checked_in_review_grants_no_dataset_redistribution(
     write_bundle(source_root, TRAIN, "CubeDataset")
     repository = Path(__file__).parents[2]
 
-    manifest = save_test_only(
-        tmp_path, source_root, "--checkout", str(repository)
-    )
+    manifest = save_smoke(tmp_path, source_root, "--checkout", str(repository))
 
     assert manifest["settings"]["dataset_redistribution"] == {
         "cube": UNREVIEWED
@@ -554,20 +548,20 @@ def test_release_transport_carries_bundles_and_redistribution_warnings(
     source_root = tmp_path / "source"
     write_bundle(source_root, TRAIN, "CubeDataset")
     write_bundle(source_root, ALPHA_METHOD, "RandomWithoutClassifierAFAMethod")
-    save_test_only(tmp_path, source_root)
+    save_smoke(tmp_path, source_root)
     transport = FakeReleaseTransport()
     destination_root = tmp_path / "checkout/extra/output"
 
     published = runner.invoke(
         app,
         ["publish", str(tmp_path / "snapshot"), "--repo-id", "fake/repo"]
-        + ["--test-release"],
+        + ["--smoke-release"],
         obj=lambda _repo_id: transport,
     )
     downloaded = runner.invoke(
         app,
         ["download", "smoke-native", "--repo-id", "fake/repo"]
-        + ["--destination-root", str(destination_root), "--test-release"]
+        + ["--destination-root", str(destination_root), "--smoke-release"]
         + ["--all"],
         obj=lambda _repo_id: transport,
     )

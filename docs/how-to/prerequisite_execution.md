@@ -38,7 +38,7 @@ execution:
   one pretrained model still depend on the same bundle, regardless of method
   order. The classifier input remains the external classifier, even if a
   downstream method uses a method-specific classifier.
-- Each unspecified execution activity defaults to `cpu`. Without `execution`, the deprecated
+- Each unspecified pipeline stage defaults to `cpu`. Without `execution`, the deprecated
   global `device` still applies with a warning; it cannot coexist with
   `execution`.
   Values are exactly `cpu` and `cuda`, with no hardware inference or fallback.

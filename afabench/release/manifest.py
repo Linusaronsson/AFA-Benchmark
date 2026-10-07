@@ -9,7 +9,7 @@ workflow's `all_*` rules name their targets, rather than parsed back out of
 paths. Once evaluation tables and bundles carry their own identity columns
 and provenance record (`docs/adr/0002-provenance-recorded-in-artifacts.md`),
 that enumeration should read them instead. The field list is documented in
-`docs/release_manifest.md`.
+`docs/reference/release_manifest.md`.
 """
 
 import hashlib
@@ -52,7 +52,7 @@ DATASET_REDISTRIBUTION_FILE = Path(
 class ReleaseScope(StrEnum):
     FULL = "full"
     PARTIAL = "partial"
-    TEST_ONLY = "test_only"
+    SMOKE = "smoke"
 
 
 class ExecutionMode(StrEnum):
@@ -268,12 +268,12 @@ class ReleaseManifest:
             raise ValueError(msg)
         if (
             self.execution_mode is ExecutionMode.SMOKE
-            and self.scope is not ReleaseScope.TEST_ONLY
+            and self.scope is not ReleaseScope.SMOKE
         ):
             msg = (
                 f"Smoke-test outputs cannot be declared a {self.scope} "
                 f"release ({self.release_id!r}); use scope "
-                f"{ReleaseScope.TEST_ONLY}."
+                f"{ReleaseScope.SMOKE}."
             )
             raise ValueError(msg)
 

@@ -11,8 +11,8 @@ import yaml
 
 type Device = Literal["cpu", "cuda"]
 type Hardware = Literal["cpu", "gpu"]
-# Execution activities: the kinds of job whose hardware this policy resolves.
-type Activity = Literal[
+# Pipeline stages: the kinds of job whose hardware this policy resolves.
+type Stage = Literal[
     "classifier",
     "pretraining",
     "training",
@@ -24,9 +24,9 @@ type Activity = Literal[
 ]
 type ResourceFunction = Callable[[object], int | str]
 
-METHOD_ACTIVITIES = {"training", "evaluation", "classifier"}
-COMPUTATIONAL_ACTIVITIES = METHOD_ACTIVITIES | {"pretraining"}
-PROCESSING_ACTIVITIES = {
+METHOD_STAGES = {"training", "evaluation", "classifier"}
+COMPUTATIONAL_STAGES = METHOD_STAGES | {"pretraining"}
+PROCESSING_STAGES = {
     "dataset_generation",
     "transformation",
     "aggregation",
@@ -91,9 +91,7 @@ class ExecutionPolicy:
         self.defaults = _mapping(
             self.execution.get("defaults", {}), "execution.defaults"
         )
-        _known_keys(
-            self.defaults, COMPUTATIONAL_ACTIVITIES, "execution.defaults"
-        )
+        _known_keys(self.defaults, COMPUTATIONAL_STAGES, "execution.defaults")
         self.methods = _mapping(
             self.execution.get("methods", {}), "execution.methods"
         )
@@ -135,7 +133,7 @@ class ExecutionPolicy:
             # Attributed to this module: Snakemake 9.12.0 drops warnings
             # attributed to Snakefile frames, as stacklevel=2 would be.
             warnings.warn(
-                "Global device is deprecated; use execution activity "
+                "Global device is deprecated; use per-stage execution "
                 "defaults and overrides",
                 stacklevel=1,
             )
@@ -145,7 +143,7 @@ class ExecutionPolicy:
         for method in config.get("methods", []):
             overrides = self._method_overrides(method)
             _known_keys(
-                overrides, METHOD_ACTIVITIES, f"execution.methods.{method}"
+                overrides, METHOD_STAGES, f"execution.methods.{method}"
             )
             if "classifier" in overrides and method not in method_classifiers:
                 message = f"execution.methods.{method}.classifier is set, but {method!r} has no method-specific classifier; external classifiers use execution.defaults.classifier"
@@ -163,27 +161,27 @@ class ExecutionPolicy:
             self.methods.get(method, {}), f"execution.methods.{method}"
         )
 
-    def device(self, activity: Activity, identity: str | None) -> Device:
+    def device(self, stage: Stage, identity: str | None) -> Device:
         # Processing never inherits GPU intent, including legacy global device.
-        if activity in PROCESSING_ACTIVITIES:
+        if stage in PROCESSING_STAGES:
             return "cpu"
-        choice = self.defaults.get(activity, self.legacy_device)
+        choice = self.defaults.get(stage, self.legacy_device)
         # Shared pretraining is named independently of its downstream methods.
         # A None identity selects the external classifier default only.
-        if activity == "pretraining":
+        if stage == "pretraining":
             choice = self.pretrained_models.get(str(identity), choice)
         elif identity is not None:
-            choice = self._method_overrides(identity).get(activity, choice)
+            choice = self._method_overrides(identity).get(stage, choice)
         if choice in ("cpu", "cuda"):
             return choice
-        message = f"Invalid execution choice {choice!r} for {activity}/{identity}; expected cpu or cuda"
+        message = f"Invalid execution choice {choice!r} for {stage}/{identity}; expected cpu or cuda"
         raise ValueError(message)
 
     def _validate_allocation(
-        self, hardware: Hardware, activity: Activity, identity: str | None
+        self, hardware: Hardware, stage: Stage, identity: str | None
     ) -> None:
         if hardware not in self.site:
-            message = f"execution_site has no {hardware} allocation for {activity}/{identity}"
+            message = f"execution_site has no {hardware} allocation for {stage}/{identity}"
             raise ValueError(message)
         site = _mapping(
             self.site.get(hardware, {}), f"execution_site.{hardware}"
@@ -221,15 +219,15 @@ class ExecutionPolicy:
             raise ValueError(message)
 
     def resource(
-        self, name: str, activity: Activity, identity: str | None
+        self, name: str, stage: Stage, identity: str | None
     ) -> int | str:
         hardware: Hardware = (
-            "gpu" if self.device(activity, identity) == "cuda" else "cpu"
+            "gpu" if self.device(stage, identity) == "cuda" else "cpu"
         )
         if self.site:
-            self._validate_allocation(hardware, activity, identity)
+            self._validate_allocation(hardware, stage, identity)
         elif self.submits_to_cluster():
-            message = f"Cluster submission of {activity}/{identity} needs an execution_site allocation map; set execution_site_file in the site profile, and repeat it whenever passing --config, which replaces the profile's config"
+            message = f"Cluster submission of {stage}/{identity} needs an execution_site allocation map; set execution_site_file in the site profile, and repeat it whenever passing --config, which replaces the profile's config"
             raise ValueError(message)
         site = _mapping(self.site.get(hardware, {}), "execution_site")
         default = ALLOCATION_RESOURCES[name]
@@ -240,7 +238,7 @@ class ExecutionPolicy:
 
     def allocation_resources(
         self,
-        activity: Activity,
+        stage: Stage,
         identity: Callable[[object], str | None],
     ) -> dict[str, ResourceFunction]:
         """Return a rule's allocation resources, resolved per job."""
@@ -250,24 +248,24 @@ class ExecutionPolicy:
             names.remove("slurm_partition")
             names.remove("slurm_account")
         return {
-            name: self._resource_function(name, activity, identity)
+            name: self._resource_function(name, stage, identity)
             for name in names
         }
 
     def _resource_function(
         self,
         name: str,
-        activity: Activity,
+        stage: Stage,
         identity: Callable[[object], str | None],
     ) -> ResourceFunction:
         def resolve(wildcards: object) -> int | str:
-            return self.resource(name, activity, identity(wildcards))
+            return self.resource(name, stage, identity(wildcards))
 
         return resolve
 
     def checked_device(
         self,
-        activity: Activity,
+        stage: Stage,
         identity: str | None,
         resources: Mapping[str, object],
     ) -> Device:
@@ -275,9 +273,9 @@ class ExecutionPolicy:
         for name, default in ALLOCATION_RESOURCES.items():
             if not self.site and name in {"slurm_partition", "slurm_account"}:
                 continue
-            expected = self.resource(name, activity, identity)
+            expected = self.resource(name, stage, identity)
             actual = resources.get(name, default)
             if actual != expected:
-                message = f"Conflicting allocation for {activity}/{identity}: {name}={actual!r}, expected {expected!r}; configure execution_site instead of rule overrides"
+                message = f"Conflicting allocation for {stage}/{identity}: {name}={actual!r}, expected {expected!r}; configure execution_site instead of rule overrides"
                 raise ValueError(message)
-        return self.device(activity, identity)
+        return self.device(stage, identity)

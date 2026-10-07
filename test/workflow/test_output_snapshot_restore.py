@@ -69,7 +69,7 @@ pd.DataFrame(
 
 
 @pytest.mark.pipeline
-def test_smoke_snapshot_round_trips_its_test_only_manifest(
+def test_smoke_snapshot_round_trips_its_smoke_manifest(
     tmp_path: Path,
 ) -> None:
     completed = WorkflowHarness(tmp_path / "completed")
@@ -95,7 +95,7 @@ def test_smoke_snapshot_round_trips_its_test_only_manifest(
             "--release-id",
             "smoke-check",
             "--scope",
-            "test_only",
+            "smoke",
         ],
     )
     assert save.exit_code == 0, save.output
@@ -114,7 +114,7 @@ def test_smoke_snapshot_round_trips_its_test_only_manifest(
     manifest = read_release_manifest(
         tmp_path / "fresh/extra/release_manifest.json"
     )
-    assert manifest.scope is ReleaseScope.TEST_ONLY
+    assert manifest.scope is ReleaseScope.SMOKE
     assert manifest.execution_mode is ExecutionMode.SMOKE
     assert manifest.evaluation_tables
     assert all(table.raw_present for table in manifest.evaluation_tables)

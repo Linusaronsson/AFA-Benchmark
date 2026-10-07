@@ -19,8 +19,8 @@ Runtime filters (--config, select subsets to run):
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
     device (str, default='cpu'): Deprecated invocation-wide device for
         computational jobs, with a warning. Cannot be combined with execution.
-    execution (mapping, default={}): CPU/cuda defaults for the execution
-        activities classifier, pretraining, training and evaluation. methods.<name> overrides training,
+    execution (mapping, default={}): CPU/cuda defaults for the pipeline
+        stages classifier, pretraining, training and evaluation. methods.<name> overrides training,
         evaluation and method-specific classifier choices; pretrained_models
         overrides pretraining by named model. External classifiers use only
         the classifier default. Overrides take precedence over defaults.
@@ -53,7 +53,7 @@ Execution configuration and required files:
     Invalid selected-method and prerequisite execution fails before submission,
     including conflicting device arguments in classifier/pretraining params,
     unknown pretrained_models names and default-resources slurm_extra.
-    See docs/tutorials/mixed_execution.md and prerequisite_execution.md for
+    See docs/how-to/mixed_execution.md and prerequisite_execution.md for
     execution YAML, site.yaml, migration and captured-submission tests.
 
 Usage:
@@ -69,7 +69,7 @@ Usage:
         snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
             --config "datasets=[cube]" "dataset_instance_indices=[0]" \
             smoke_test=true use_wandb=false
-    See docs/tutorials/reproduce_full_results.md and slurm_integration.md.
+    See docs/how-to/reproduce_full_results.md and slurm_integration.md.
     Add a method to published baselines: download the baselines'
     transformed tables and the shared prerequisites into extra/output, then
     run only the new method's missing work and the comparison plots:
@@ -77,17 +77,17 @@ Usage:
             --config "methods=[my_method]" \
                 "reference_methods=[random_dummy, gdfs]" \
                 "datasets=[cube]" "dataset_instance_indices=[0]"
-    See docs/tutorials/compare_with_published_baselines.md.
+    See docs/how-to/compare_your_method_with_published_results.md.
 
 CPU-only processing:
     Dataset generation (full pipeline only), transformations, aggregation and
     visualization always resolve to CPU, including with legacy device=cuda.
-    These fixed activities have no execution defaults/overrides. The profile's
+    These fixed stages have no execution defaults/overrides. The profile's
     execution_site.cpu allocation maps their partition/account and clears GPU
     requests; CPU counts, memory and runtime remain independently configurable.
     Conflicting rule allocation overrides fail before any submission. Heavy
     processing is submitted normally, not designated as login-node/local work.
-    See docs/tutorials/cpu_processing_execution.md for site requirements and
+    See docs/how-to/cpu_processing_execution.md for site requirements and
     final-target command-boundary verification.
 
 Output namespacing:

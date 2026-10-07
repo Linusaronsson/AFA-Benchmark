@@ -1,70 +1,11 @@
 # Release manifest
 
-A **release manifest** is the JSON file `release_manifest.json` written beside
-an output snapshot's `output/` tree. It identifies a benchmark release and
-records what produced the tree, so the snapshot stays reviewable and its
-tables stay interpretable without knowing the path layout. The schema is
-`afabench.release.manifest.ReleaseManifest`, version 1; publishing and
-selective download
-([`release_publishing.md`](release_publishing.md#selecting-what-to-download))
-read it. Design background:
-[`artifact_publishing.md`](artifact_publishing.md) and
-[ADR 0002](adr/0002-provenance-recorded-in-artifacts.md).
-
-## Writing and restoring
-
-```shell
-uv run python scripts/release/snapshot.py save /path/to/snapshot-dir \
-    --release-id 2026-10-kdd26 --scope full \
-    --profile extra/workflow/profiles/config/kdd26
-```
-
-`--release-id` asks for a manifest; without it `save` and `restore` behave
-exactly as in [`tutorials/output_snapshots.md`](tutorials/output_snapshots.md).
-With it, `--scope` (`full`, `partial` or `test_only`) is required, and so is
-the workflow configuration the run used, given the way Snakemake was given it:
-
-- `--profile DIR`: the profile's `config.yaml` supplies `configfile` and
-  `config`.
-- `--configfile PATH` (repeatable): replaces the profile's `configfile`.
-- `--config KEY=VALUE` (repeatable, values parsed as YAML): replaces the
-  profile's `config`, as a CLI `--config` does for Snakemake.
-
-Config files are merged recursively in order and the overrides merged over
-them, as Snakemake does. The command prints the profile, config files and
-overrides it recorded, the release identity and the commit, and names every
-dataset whose redistribution is unreviewed or restricted (see
-[Dataset redistribution](#dataset-redistribution)). `--checkout` (default:
-the working directory) names the git checkout whose commit is recorded,
-whose feature-cost files are hashed and whose redistribution reviews are
-read.
-
-Smoke outputs are never a release. If the merged config has
-`smoke_test: true`, the manifest records `execution_mode: smoke`, and any
-scope other than `test_only` is refused before anything is copied.
-
-`restore` copies the manifest to `release_manifest.json` beside the
-destination root (`extra/release_manifest.json` for the default
-`extra/output`), mirroring the snapshot layout, and prints its identity.
-Like every other restored file it is not overwritten without `--overwrite`.
-A manifest whose `manifest_version` this checkout does not know is refused
-before anything is restored. A snapshot without a manifest restores without
-one.
-
-## Inventory
-
-```shell
-uv run python scripts/release/snapshot.py inventory \
-    --source-root extra/output \
-    --profile extra/workflow/profiles/config/kdd26
-```
-
-Takes the same `--profile`, `--configfile` and `--config` options as `save`
-and prints, per [payload category](#payload-categories), how many payloads
-the configuration schedules, how many are present, their total size in
-bytes and the bundle classes found (`coverage.payloads`, below). It copies
-and writes nothing, so it can be run on a full production output root
-before deciding what to snapshot or publish.
+`release_manifest.json` is written beside a snapshot's `output/` tree by
+`snapshot.py save --release-id` and restored to `extra/release_manifest.json`
+([command](snapshot_command.md)). It identifies a benchmark release and
+records what produced the outputs, so that its tables can be interpreted
+without knowing the output path layout. The schema is
+`afabench.release.manifest.ReleaseManifest`, version 1.
 
 ## Fields
 
@@ -78,8 +19,8 @@ keys are strings. `null` means unknown or not applicable, never a default.
 | --- | --- |
 | `manifest_version` | Schema version, 1. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
-| `scope` | `full`, `partial` or `test_only`, as declared. Only `full` and `partial` are published as official releases; `test_only` is never promoted and can only be published as a test release ([`release_publishing.md`](release_publishing.md)). |
-| `execution_mode` | `smoke` or `production`, from the merged config's `smoke_test`. `smoke` implies `test_only`. |
+| `scope` | `full`, `partial` or `smoke`, as declared. Only `full` and `partial` are published as benchmark releases; `smoke` only as a smoke release. |
+| `execution_mode` | `smoke` or `production`, from the merged config's `smoke_test`. `smoke` implies scope `smoke`. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
 | `code.commit` | `git rev-parse HEAD` of the checkout; null outside a git work tree. |
 | `code.dirty` | Whether tracked files differ from the commit (untracked files are ignored); null outside a git work tree. |
@@ -199,9 +140,7 @@ those baselines; evaluating a new method needs the dataset bundles and the
 external classifier of its datasets, and the pretrained model it trains
 from, if the release has it. AFA-method bundles are never needed for
 comparison plots. Follow `inputs` to find what a bundle or table was
-produced from. See
-[`tutorials/compare_with_published_baselines.md`](tutorials/compare_with_published_baselines.md)
-for the workflow.
+produced from.
 
 Pretrained-model and AFA-method bundles are restored together with the
 `pretrain_time.txt` or `train_time.txt` record their job wrote in the same
@@ -224,8 +163,8 @@ the checkout. That file ships empty, so every dataset is `unreviewed`, and
 restricted keys. Only a `permitted` dataset's bundles may be published;
 unreviewed and restricted ones stay out of any public release until
 reviewed. `publish` refuses an official release holding any of them
-unless the maintainer allows each by its dataset key; see
-[`release_publishing.md`](release_publishing.md#dataset-redistribution).
+unless the maintainer allows each by its dataset key (see
+[`publish`](snapshot_command.md#publish)).
 
 What a dataset bundle holds decides what the review covers:
 
@@ -287,7 +226,7 @@ granularity:
 
 - **Raw evaluation tables** (`eval_results/.../eval_data.parquet`,
   `raw_path`) have one row per episode and time step, as described in
-  [`evaluation_dataframes.md`](evaluation_dataframes.md): `episode_id`,
+  [evaluation dataframes](evaluation_dataframes.md): `episode_id`,
   `step`, `action_performed`, `builtin_predicted_class`,
   `external_predicted_class`, `true_class`, `accumulated_cost`, `forced_stop`,
   `eval_seed`, `eval_hard_budget`. They hold the full acquisition history;
@@ -317,16 +256,3 @@ where in that run's sampled evaluation an episode came, not which dataset
 instance row it was. They do not identify the same instance across runs, so
 they do not support paired instance-level comparisons between methods or
 releases.
-
-## Limits of this version
-
-- Per-table and per-bundle identity is enumerated from the workflow config,
-  not read from the payloads. Files that the recorded config would not
-  produce (stale outputs, other configs) are copied but not listed. Once
-  bundles and evaluation tables carry their own provenance record and
-  identity columns (ADR 0002, #65/#66), the manifest should collect those
-  instead, and the enumeration duplicated from `rules/helpers.smk` (pinned
-  by `test/workflow/test_release_manifest_tables.py`) should go.
-- The manifest records the producing commit; it does not check that the
-  checkout restoring it is compatible.
-- Bundle contents are not hashed.

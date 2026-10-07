@@ -230,18 +230,18 @@ def test_published_release_downloads_with_native_tables_and_plots(
     assert "Release 2026-10-cube" in downloaded.output
 
 
-def test_test_only_package_is_refused_as_an_official_release(
+def test_smoke_package_is_refused_as_an_official_release(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(
-        tmp_path, "smoke-check", scope="test_only", smoke_test=True
+        tmp_path, "smoke-check", scope="smoke", smoke_test=True
     )
 
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    assert "test_only" in str(result.exception)
+    assert "it can only be a smoke release" in str(result.exception)
     assert transport.files == {}
 
 
@@ -375,40 +375,40 @@ def test_allowing_a_dataset_that_needs_no_allowance_is_refused(
     assert transport.files == {}
 
 
-def test_unreviewed_dataset_is_published_as_a_test_release(
+def test_unreviewed_dataset_is_published_as_a_smoke_release(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(
         tmp_path,
         "smoke-check",
-        scope="test_only",
+        scope="smoke",
         smoke_test=True,
         checkout=tmp_path / "unreviewed",
     )
 
-    result = invoke(transport, "publish", str(package_dir), "--test-release")
+    result = invoke(transport, "publish", str(package_dir), "--smoke-release")
 
     assert result.exit_code == 0, result.output
     assert "Unreviewed dataset redistribution: cube" in result.output
     assert transport.file_exists(
-        "test_releases/smoke-check/release_manifest.json"
+        "smoke_releases/smoke-check/release_manifest.json"
     )
 
 
-def test_test_release_takes_no_redistribution_allowance(
+def test_smoke_release_takes_no_redistribution_allowance(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(
-        tmp_path, "smoke-check", scope="test_only", smoke_test=True
+        tmp_path, "smoke-check", scope="smoke", smoke_test=True
     )
 
     result = invoke(
         transport,
         "publish",
         str(package_dir),
-        "--test-release",
+        "--smoke-release",
         "--allow-redistribution",
         "cube",
     )
@@ -418,20 +418,20 @@ def test_test_release_takes_no_redistribution_allowance(
     assert transport.files == {}
 
 
-def test_smoke_provenance_survives_a_test_release_round_trip(
+def test_smoke_provenance_survives_a_smoke_release_round_trip(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(
-        tmp_path, "smoke-check", scope="test_only", smoke_test=True
+        tmp_path, "smoke-check", scope="smoke", smoke_test=True
     )
     destination_root = tmp_path / "fork/extra/output"
 
     published = invoke(
-        transport, "publish", str(package_dir), "--test-release"
+        transport, "publish", str(package_dir), "--smoke-release"
     )
     downloaded = download(
-        transport, "smoke-check", destination_root, "--test-release"
+        transport, "smoke-check", destination_root, "--smoke-release"
     )
 
     assert published.exit_code == 0, published.output
@@ -442,19 +442,19 @@ def test_smoke_provenance_survives_a_test_release_round_trip(
     assert restored == read_release_manifest(
         package_dir / "release_manifest.json"
     )
-    assert restored.scope is ReleaseScope.TEST_ONLY
+    assert restored.scope is ReleaseScope.SMOKE
     assert restored.execution_mode is ExecutionMode.SMOKE
-    assert "scope test_only, execution smoke" in downloaded.output
+    assert "scope smoke, execution smoke" in downloaded.output
 
 
-def test_test_release_is_not_downloadable_as_an_official_release(
+def test_smoke_release_is_not_downloadable_as_an_official_release(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(
-        tmp_path, "smoke-check", scope="test_only", smoke_test=True
+        tmp_path, "smoke-check", scope="smoke", smoke_test=True
     )
-    invoke(transport, "publish", str(package_dir), "--test-release")
+    invoke(transport, "publish", str(package_dir), "--smoke-release")
     destination_root = tmp_path / "fork/extra/output"
 
     result = download(transport, "smoke-check", destination_root)
@@ -464,13 +464,13 @@ def test_test_release_is_not_downloadable_as_an_official_release(
     assert not destination_root.exists()
 
 
-def test_test_release_flag_does_not_publish_an_official_package(
+def test_smoke_release_flag_does_not_publish_an_official_package(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(tmp_path, "2026-10-cube", scope="full")
 
-    result = invoke(transport, "publish", str(package_dir), "--test-release")
+    result = invoke(transport, "publish", str(package_dir), "--smoke-release")
 
     assert result.exit_code != 0
     assert transport.files == {}

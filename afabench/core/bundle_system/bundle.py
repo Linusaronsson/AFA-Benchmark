@@ -1,4 +1,4 @@
-"""Loading and saving "bundles", as described in `docs/bundle_format.md`."""
+"""Loading and saving "bundles", as described in `docs/reference/bundle_format.md`."""
 
 import json
 from pathlib import Path

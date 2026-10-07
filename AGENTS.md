@@ -21,8 +21,8 @@ select them with `-m`.
   your area. How to consume both: `docs/agents/domain.md`.
 - **Review rules**: `CODING_STANDARDS.md`.
 - **Bundles**: objects are saved as `.bundle/` folders through
-  `afabench.core.bundle_system` (`docs/bundle_format.md`). Any class saved as
-  a bundle needs an entry in `REGISTERED_CLASSES` in
+  `afabench.core.bundle_system` (`docs/reference/bundle_format.md`). Any
+  class saved as a bundle needs an entry in `REGISTERED_CLASSES` in
   `afabench/core/registry.py`, or `load_bundle` cannot rebuild it.
 - **Hydra configs**: script configs live under
   `extra/conf/scripts/<script_group>/<script_name>/`, shared groups under
@@ -31,7 +31,9 @@ select them with `-m`.
 - **Snakemake**: when editing `extra/workflow/snakefiles/orchestration/`,
   update the docstring at the top of the file (config arguments, required
   files, usage examples).
-- **Adding a method or dataset**: `docs/tutorials/`.
+- **Docs**: before writing, splitting or moving a page in `docs/`, read
+  `docs/README.md`: pages follow Diátaxis, one folder per type.
+- **Adding a method or dataset**: `docs/how-to/`.
 
 ## Agent skills
 

@@ -100,11 +100,11 @@ def write_release_outputs(
     Each transformed table, bundle and the plot holds the release id, so a
     test can tell which release a restored file came from.
     """
-    # Only the scheduled paths are read from this manifest; test_only is
+    # Only the scheduled paths are read from this manifest; scope smoke is
     # the scope every config, smoke or not, accepts.
     scheduled = build_release_manifest(
         release_id=release_id,
-        scope=ReleaseScope.TEST_ONLY,
+        scope=ReleaseScope.SMOKE,
         workflow_config=WorkflowConfigRecord(
             profile=None, configfiles=[], overrides={}, merged=config
         ),
@@ -213,7 +213,7 @@ def publish(
         transport,
         "publish",
         str(package_dir),
-        *(["--test-release"] if scope == "test_only" else []),
+        *(["--smoke-release"] if scope == "smoke" else []),
     )
     assert published.exit_code == 0, published.output
     return package_dir
@@ -705,7 +705,7 @@ def test_download_needs_either_all_or_a_category_selection(
     assert not destination_root.exists()
 
 
-def test_selected_payloads_of_a_test_release_keep_smoke_provenance(
+def test_selected_payloads_of_a_smoke_release_keep_smoke_provenance(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
@@ -713,7 +713,7 @@ def test_selected_payloads_of_a_test_release_keep_smoke_provenance(
         tmp_path,
         transport,
         "smoke-check",
-        scope="test_only",
+        scope="smoke",
         smoke_test=True,
     )
     destination_root = tmp_path / "fork/extra/output"
@@ -722,7 +722,7 @@ def test_selected_payloads_of_a_test_release_keep_smoke_provenance(
         transport,
         destination_root,
         "smoke-check",
-        "--test-release",
+        "--smoke-release",
         "--payload-category",
         "raw_evaluation_table",
         "--dataset",
@@ -736,28 +736,26 @@ def test_selected_payloads_of_a_test_release_keep_smoke_provenance(
     assert restored == read_release_manifest(
         package_dir / "release_manifest.json"
     )
-    assert "scope test_only, execution smoke" in result.output
+    assert "scope smoke, execution smoke" in result.output
     assert all(
         path.startswith("eval_results/")
         for path in restored_files(destination_root)
     )
 
 
-def test_latest_is_not_a_test_release_and_not_a_release_id(
+def test_latest_is_not_a_smoke_release_and_not_a_release_id(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
-    publish(
-        tmp_path, transport, "smoke-check", scope="test_only", smoke_test=True
-    )
+    publish(tmp_path, transport, "smoke-check", scope="smoke", smoke_test=True)
 
     result = download(
-        transport, tmp_path / "fork/extra/output", "--test-release", "--all"
+        transport, tmp_path / "fork/extra/output", "--smoke-release", "--all"
     )
     published = publish_reserved_release_id(tmp_path, transport)
 
     assert result.exit_code != 0
-    assert "name a test release by its release id" in str(result.exception)
+    assert "name a smoke release by its release id" in str(result.exception)
     assert published.exit_code != 0
     assert "reserved" in str(published.exception)
     assert transport.list_folders("releases") == []

@@ -1,8 +1,8 @@
 """
-The repository-adopter and results-only journeys on a real smoke run (#41).
+Repository adopter and results-only user workflows on a real smoke run (#41).
 
 A published workspace runs the real pipeline on CUBE with `random_dummy`
-and `gdfs` (see `test_native_bundle_restore`), saves a test-only release
+and `gdfs` (see `test_native_bundle_restore`), saves a smoke release
 and publishes it to a fake release host. A separate fork downloads the
 baselines' plotting-ready tables and the shared prerequisites, adds
 `gdfs_adopter`, a configured variant of GDFS, and runs the ordinary `all`
@@ -207,7 +207,7 @@ def journey(tmp_path_factory: pytest.TempPathFactory) -> Journey:
             "--release-id",
             RELEASE_ID,
             "--scope",
-            "test_only",
+            "smoke",
             "--checkout",
             str(REPO_ROOT),
         ],
@@ -215,7 +215,7 @@ def journey(tmp_path_factory: pytest.TempPathFactory) -> Journey:
     assert saved.exit_code == 0, saved.output
     result.transport = FakeReleaseTransport()
     published = invoke(
-        result.transport, "publish", str(package), "--test-release"
+        result.transport, "publish", str(package), "--smoke-release"
     )
     assert published.exit_code == 0, published.output
 
@@ -224,7 +224,7 @@ def journey(tmp_path_factory: pytest.TempPathFactory) -> Journey:
         result.transport,
         "download",
         RELEASE_ID,
-        "--test-release",
+        "--smoke-release",
         "--destination-root",
         str(result.forked / "extra/output"),
         "--payload-category",
@@ -394,7 +394,7 @@ def test_results_only_journey_needs_no_afabench_loading(
         journey.transport,
         "download",
         RELEASE_ID,
-        "--test-release",
+        "--smoke-release",
         "--destination-root",
         str(destination),
         "--payload-category",
@@ -412,7 +412,7 @@ def test_results_only_journey_needs_no_afabench_loading(
             # The host stores each table as an ordinary file, so a plain
             # download of its URL reads the same as the restored copy.
             hosted = journey.transport.files[
-                f"test_releases/{RELEASE_ID}/output/{table[key]}"
+                f"smoke_releases/{RELEASE_ID}/output/{table[key]}"
             ]
             pd.testing.assert_frame_equal(
                 pd.read_parquet(destination / table[key]),

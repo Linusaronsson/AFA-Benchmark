@@ -4,7 +4,7 @@ Experiment files may not set training-contract fields.
 Snakemake always overrides contract fields on the command line, so a
 contract field set in an experiment YAML is dead in the pipeline and only
 misleads a developer running the script by hand (see
-`docs/training_contract_inventory.md`, issue #43). This test covers every
+`docs/explanation/training_contract_inventory.md`, issue #43). This test covers every
 method under `extra/conf/scripts/`. `NOT_YET_PORTED` lists the methods whose
 experiment files are known to still set contract fields, pending their
 training-contract port (see the open "Port ... to the training contract

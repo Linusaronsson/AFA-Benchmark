@@ -1,4 +1,4 @@
-# Pipeline explanation
+# Pipeline configuration
 
 The pipeline uses [Snakemake](https://snakemake.readthedocs.io/) for workflow orchestration and parallelization. This means dependencies are automatically tracked, and jobs are only rerun if their inputs change.
 
@@ -11,7 +11,7 @@ WANDB_PROJECT=afabench \
     --jobs 8
 ```
 
-This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](slurm_integration.md).
+This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](../how-to/slurm_integration.md).
 
 ## Configuration overview
 
@@ -23,7 +23,7 @@ Configuration files are organized into subdirectories under
 CPU. `extra/workflow/profiles/config/kdd26` bundles the `kdd26.yaml` files
 together with `extra/workflow/conf/execution/kdd26.yaml`, which runs
 classifiers, pretrained models and some methods on GPU; it is meant for the
-SLURM command in [Reproducing full results](reproduce_full_results.md).
+SLURM command in [Reproducing full results](../how-to/reproduce_full_results.md).
 Below we discuss the meaning of each configuration group.
 
 ## Runtime configuration options
@@ -60,11 +60,11 @@ transformations, aggregation and plotting always run on CPU regardless.
 ### `execution`
 
 A mapping, given in a config file, that declares per job whether it runs on
-`cpu` or `cuda`: execution activity defaults for `classifier`, `pretraining`,
-`training` and `evaluation`, overrides per method and activity, and overrides
-per named pretrained model. Unspecified activities run on CPU. The resolved choice is both
+`cpu` or `cuda`: pipeline stage defaults for `classifier`, `pretraining`,
+`training` and `evaluation`, overrides per method and stage, and overrides
+per named pretrained model. Unspecified stages run on CPU. The resolved choice is both
 the script's `device` argument and, under SLURM, the CPU or GPU allocation.
-See [Reproducing full results](reproduce_full_results.md#declaring-hardware)
+See [Reproducing full results](../how-to/reproduce_full_results.md#declaring-hardware)
 for the format and precedence, and `extra/workflow/conf/execution/` for the
 shipped declarations.
 

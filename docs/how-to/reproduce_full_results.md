@@ -92,7 +92,7 @@ job runs. Values are exactly `cpu` and `cuda`:
 
 ```yaml
 execution:
-  defaults:            # per execution activity; unspecified ones default to cpu
+  defaults:            # per pipeline stage; unspecified ones default to cpu
     classifier: cuda   # external and method-specific classifiers
     pretraining: cuda  # named pretrained models
     training: cpu

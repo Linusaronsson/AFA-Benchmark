@@ -32,7 +32,7 @@ Execution configuration and required files:
     Site profiles own CPU/GPU partition, account and GPU request syntax;
     CPU counts, memory and runtime remain separate resource settings.
     Invalid selected-method execution fails before submission.
-    See docs/tutorials/mixed_execution.md for the execution YAML format,
+    See docs/how-to/mixed_execution.md for the execution YAML format,
     site.yaml requirements, migration policy and captured-submission tests.
 
 Usage (add existing scientific --configfile inputs):
@@ -44,12 +44,12 @@ Usage (add existing scientific --configfile inputs):
 CPU-only processing:
     Dataset generation (full pipeline only), transformations, aggregation and
     visualization always resolve to CPU, including with legacy device=cuda.
-    These fixed activities have no execution defaults/overrides. The profile's
+    These fixed stages have no execution defaults/overrides. The profile's
     execution_site.cpu allocation maps their partition/account and clears GPU
     requests; CPU counts, memory and runtime remain independently configurable.
     Conflicting rule allocation overrides fail before any submission. Heavy
     processing is submitted normally, not designated as login-node/local work.
-    See docs/tutorials/cpu_processing_execution.md for site requirements and
+    See docs/how-to/cpu_processing_execution.md for site requirements and
     final-target command-boundary verification.
 
 Output namespacing:

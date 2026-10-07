@@ -229,13 +229,13 @@ def test_smoke_override_on_production_config_is_also_refused(
     assert not snapshot_dir.exists()
 
 
-def test_smoke_outputs_are_recorded_as_test_only(tmp_path: Path) -> None:
+def test_smoke_outputs_are_recorded_as_smoke(tmp_path: Path) -> None:
     snapshot_dir, _ = save_release(
-        tmp_path, "--scope", "test_only", smoke_test=True
+        tmp_path, "--scope", "smoke", smoke_test=True
     )
 
     manifest = read_manifest(snapshot_dir)
-    assert manifest["scope"] == "test_only"
+    assert manifest["scope"] == "smoke"
     assert manifest["execution_mode"] == "smoke"
 
 

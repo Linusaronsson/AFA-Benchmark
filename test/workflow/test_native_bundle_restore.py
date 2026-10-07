@@ -4,7 +4,7 @@ Restore a real smoke run's native bundles and use them again.
 Unlike `submission_harness`, which stubs every script, this runs the real
 pipeline on CUBE with one dataset instance, `random_dummy` (no pretraining
 stage) and `gdfs` (a pretrained model and the external classifier), saves
-a test-only snapshot and restores it into a fresh workspace through the
+a smoke snapshot and restores it into a fresh workspace through the
 public `scripts/release/snapshot.py` commands.
 """
 
@@ -147,7 +147,7 @@ def restored(
             "--release-id",
             "smoke-native-bundles",
             "--scope",
-            "test_only",
+            "smoke",
             "--checkout",
             str(REPO_ROOT),
         ],
@@ -175,7 +175,7 @@ def test_smoke_release_covers_every_payload_category(
 ) -> None:
     _, _, _, manifest = restored
 
-    assert manifest.scope is ReleaseScope.TEST_ONLY
+    assert manifest.scope is ReleaseScope.SMOKE
     assert manifest.execution_mode is ExecutionMode.SMOKE
     for payload in manifest.coverage.payloads:
         assert payload.scheduled > 0, payload

@@ -46,7 +46,7 @@ def configured_harness(tmp_path: Path) -> tuple[WorkflowHarness, Path]:
 def build_manifest(tmp_path: Path, configfile: Path) -> ReleaseManifest:
     return build_release_manifest(
         release_id="pin",
-        scope=ReleaseScope.TEST_ONLY,
+        scope=ReleaseScope.SMOKE,
         workflow_config=resolve_workflow_config(
             profile=None, configfiles=[configfile], overrides=[]
         ),

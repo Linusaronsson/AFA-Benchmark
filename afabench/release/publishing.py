@@ -18,8 +18,8 @@ chose, into a staging directory, and restores them with
 `output/`, which downloading puts back before restoring: Snakemake judges
 restored outputs by mtime.
 
-Test-only packages (smoke outputs, see `ReleaseScope`) are only ever
-published under `test_releases/<release_id>/`, so a maintainer can check
+Smoke packages (scope `smoke`, see `ReleaseScope`) are only ever
+published under `smoke_releases/<release_id>/`, so a maintainer can check
 the host round trip without promoting them to official releases. An
 official release is refused while any dataset in its manifest's
 `settings.dataset_redistribution` is not `permitted`, unless the maintainer
@@ -48,7 +48,7 @@ from afabench.release.selection import SelectedPayloads
 from afabench.release.snapshot import SNAPSHOT_OUTPUT_SUBDIR, restore_snapshot
 
 RELEASES_FOLDER = "releases"
-TEST_RELEASES_FOLDER = "test_releases"
+SMOKE_RELEASES_FOLDER = "smoke_releases"
 OUTPUT_MTIMES_FILENAME = "output_mtimes.json"
 # One path segment without glob characters, so a release cannot address
 # another release's files or match more than its own folder on download.
@@ -89,7 +89,7 @@ def publish_release(
     package_dir: Path,
     transport: ReleaseTransport,
     *,
-    test_release: bool = False,
+    smoke_release: bool = False,
     allow_redistribution: Sequence[str] = (),
 ) -> ReleaseManifest:
     """
@@ -99,14 +99,14 @@ def publish_release(
     a maintainer publishes in an official release anyway.
     """
     manifest = read_release_manifest(package_dir / RELEASE_MANIFEST_FILENAME)
-    _check_scope(manifest, test_release=test_release)
-    folder = release_folder(manifest.release_id, test_release=test_release)
+    _check_scope(manifest, smoke_release=smoke_release)
+    folder = release_folder(manifest.release_id, smoke_release=smoke_release)
     message = f"Publish benchmark release {manifest.release_id}"
-    if test_release:
+    if smoke_release:
         if allow_redistribution:
             msg = (
                 "Dataset redistribution is reviewed only for official "
-                "releases; a test release needs no allowance."
+                "releases; a smoke release needs no allowance."
             )
             raise ValueError(msg)
     else:
@@ -150,24 +150,24 @@ class ResolvedRelease:
 
 
 def resolve_release(
-    release: str, transport: ReleaseTransport, *, test_release: bool = False
+    release: str, transport: ReleaseTransport, *, smoke_release: bool = False
 ) -> ResolvedRelease:
     """Fix the release `release` names: a release id or `LATEST_RELEASE`."""
     if release == LATEST_RELEASE:
-        if test_release:
+        if smoke_release:
             msg = (
                 f"{LATEST_RELEASE!r} selects the latest {ReleaseScope.FULL} "
-                "release; name a test release by its release id."
+                "release; name a smoke release by its release id."
             )
             raise ValueError(msg)
         return _latest_full_release(transport)
-    folder = release_folder(release, test_release=test_release)
+    folder = release_folder(release, smoke_release=smoke_release)
     if not transport.file_exists(f"{folder}/{RELEASE_MANIFEST_FILENAME}"):
-        kind = "test release" if test_release else "official release"
+        kind = "smoke release" if smoke_release else "official release"
         msg = f"No {kind} {release!r} is published."
         raise FileNotFoundError(msg)
     resolved = _fetch_manifest(transport, folder, release)
-    _check_scope(resolved.manifest, test_release=test_release)
+    _check_scope(resolved.manifest, smoke_release=smoke_release)
     return resolved
 
 
@@ -280,7 +280,7 @@ def _fetch_manifest(
     )
 
 
-def release_folder(release_id: str, *, test_release: bool = False) -> str:
+def release_folder(release_id: str, *, smoke_release: bool = False) -> str:
     if not RELEASE_ID_PATTERN.fullmatch(release_id):
         msg = (
             f"Release id {release_id!r} must be letters, digits, '.', '_' "
@@ -290,7 +290,7 @@ def release_folder(release_id: str, *, test_release: bool = False) -> str:
     if release_id == LATEST_RELEASE:
         msg = f"Release id {release_id!r} is reserved for the latest release."
         raise ValueError(msg)
-    parent = TEST_RELEASES_FOLDER if test_release else RELEASES_FOLDER
+    parent = SMOKE_RELEASES_FOLDER if smoke_release else RELEASES_FOLDER
     return f"{parent}/{release_id}"
 
 
@@ -342,19 +342,19 @@ def _set_output_mtimes(
             os.utime(output_root / relative, ns=(mtime_ns, mtime_ns))
 
 
-def _check_scope(manifest: ReleaseManifest, *, test_release: bool) -> None:
-    is_test_only = manifest.scope is ReleaseScope.TEST_ONLY
-    if is_test_only and not test_release:
+def _check_scope(manifest: ReleaseManifest, *, smoke_release: bool) -> None:
+    is_smoke = manifest.scope is ReleaseScope.SMOKE
+    if is_smoke and not smoke_release:
         msg = (
             f"Release {manifest.release_id!r} has scope "
-            f"{ReleaseScope.TEST_ONLY}; it can only be a test release, "
+            f"{ReleaseScope.SMOKE}; it can only be a smoke release, "
             "never an official one."
         )
         raise ValueError(msg)
-    if test_release and not is_test_only:
+    if smoke_release and not is_smoke:
         msg = (
             f"Release {manifest.release_id!r} has scope {manifest.scope}; "
-            f"only {ReleaseScope.TEST_ONLY} packages are test releases."
+            f"only {ReleaseScope.SMOKE} packages are smoke releases."
         )
         raise ValueError(msg)
 

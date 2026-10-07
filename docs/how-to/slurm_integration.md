@@ -116,5 +116,5 @@ declare one generic GPU (`gpu=1`), which local runs can bound with
 
 - [Reproducing full results](reproduce_full_results.md) - the single
   full-benchmark command and where to run it
-- [Pipeline explanation](pipeline_explanation.md) - overview of the pipeline
+- [Pipeline configuration](../reference/pipeline_configuration.md) - overview of the pipeline
   and its configuration

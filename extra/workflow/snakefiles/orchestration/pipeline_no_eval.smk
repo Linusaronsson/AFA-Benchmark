@@ -15,8 +15,8 @@ Runtime filters (--config, select subsets to run):
         random seeds
     device (str, default='cpu'): Deprecated global option, ignored by CPU-only
         processing; cannot be combined with execution.
-    execution (mapping, default={}): Computational execution activity policy;
-        processing activities are fixed CPU-only and cannot be overridden.
+    execution (mapping, default={}): Per-stage CPU/cuda policy for computational jobs;
+        processing stages are fixed CPU-only and cannot be overridden.
     execution_site_file (str, required for SLURM submission): Profile-owned
         YAML allocation map; submitting without one fails before any job.
         Alternatively provide execution_site in a configuration file. A CLI
@@ -31,12 +31,12 @@ Runtime filters (--config, select subsets to run):
 CPU-only processing:
     Dataset generation (full pipeline only), transformations, aggregation and
     visualization always resolve to CPU, including with legacy device=cuda.
-    These fixed activities have no execution defaults/overrides. The profile's
+    These fixed stages have no execution defaults/overrides. The profile's
     execution_site.cpu allocation maps their partition/account and clears GPU
     requests; CPU counts, memory and runtime remain independently configurable.
     Conflicting rule allocation overrides fail before any submission. Heavy
     processing is submitted normally, not designated as login-node/local work.
-    See docs/tutorials/cpu_processing_execution.md for site requirements and
+    See docs/how-to/cpu_processing_execution.md for site requirements and
     final-target command-boundary verification.
 
 Required files and usage:
