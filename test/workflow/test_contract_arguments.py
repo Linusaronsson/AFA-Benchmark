@@ -34,6 +34,7 @@ PRETRAINING_VALUES = {
 TRAINING_VALUES = {
     **PRETRAINING_VALUES,
     "save_path": "method.bundle",
+    "method_name": "my_method",
     "pretrained_model_bundle_path": "model.bundle",
     "hard_budget": 5,
     "soft_budget_param": "null",

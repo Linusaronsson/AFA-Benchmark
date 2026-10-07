@@ -42,6 +42,7 @@ from afabench.datasets.datasets import CubeDataset
 from afabench.fit.inputs import load_inputs
 from afabench.fit.run import fit_run
 from afabench.fit.smoke_test import SMOKE_TEST_N_BATCHES
+from afabench.testing.provenance import placeholder_provenance
 
 SEED = 0
 N_BATCHES = 2
@@ -64,8 +65,10 @@ def _save_tiny_bundles(tmp_path: Path) -> tuple[Path, Path, Path]:
     val_dataset = CubeDataset(seed=SEED + 1, n_samples=16)
     train_path = tmp_path / "train.bundle"
     val_path = tmp_path / "val.bundle"
-    save_bundle(train_dataset, train_path, {})
-    save_bundle(val_dataset, val_path, {})
+    save_bundle(
+        train_dataset, train_path, {}, provenance=placeholder_provenance()
+    )
+    save_bundle(val_dataset, val_path, {}, provenance=placeholder_provenance())
 
     _features, train_labels = train_dataset.get_all_data()
     n_features = train_dataset.feature_shape.numel()
@@ -86,7 +89,12 @@ def _save_tiny_bundles(tmp_path: Path) -> tuple[Path, Path, Path]:
         class_probabilities=get_class_frequencies(train_labels),
     )
     pretrained_path = tmp_path / "pretrained.bundle"
-    save_bundle(TorchModelBundle(pretrained_model), pretrained_path, {})
+    save_bundle(
+        TorchModelBundle(pretrained_model),
+        pretrained_path,
+        {},
+        provenance=placeholder_provenance(),
+    )
     return train_path, val_path, pretrained_path
 
 
@@ -102,6 +110,7 @@ def _make_jafa_train_config(
         initializer=InitializerConfig(class_name="ZeroInitializer", kwargs={}),
         unmasker=UnmaskerConfig(class_name="DirectUnmasker", kwargs={}),
         dataset_key="cube",
+        method_name="jafa",
         hard_budget=2,
         mdp=AFAMDPConfig(force_hard_budget=True, n_agents=2),
         rl_training_loop=AFARLTrainingLoopConfig(

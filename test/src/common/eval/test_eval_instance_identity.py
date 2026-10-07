@@ -17,6 +17,7 @@ from afabench.core.types import (
 from afabench.datasets.datasets import CubeDataset
 from afabench.evaluation.eval import eval_afa_method
 from afabench.testing.helpers import get_direct_unmask_fn
+from afabench.testing.provenance import placeholder_provenance
 
 
 def initialize_fully_observed(
@@ -37,6 +38,7 @@ def test_sampled_evaluation_records_the_evaluated_instances(
         source.create_subset(torch.randperm(30)[:20].tolist()),
         bundle_path,
         metadata={},
+        provenance=placeholder_provenance(),
     )
     dataset = cast("CubeDataset", load_bundle(bundle_path)[0])
     seen: list[torch.Tensor] = []

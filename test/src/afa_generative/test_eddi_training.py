@@ -13,16 +13,23 @@ from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.datasets.datasets import CubeDataset
 from afabench.fit.contract import TrainingContract
 from afabench.fit.inputs import load_inputs
+from afabench.testing.provenance import placeholder_provenance
 
 
 def test_eddi_rejects_a_pretrained_model_that_is_not_a_partial_vae(
     tmp_path: Path,
 ) -> None:
     save_bundle(
-        CubeDataset(n_samples=10, seed=1), tmp_path / "train.bundle", {}
+        CubeDataset(n_samples=10, seed=1),
+        tmp_path / "train.bundle",
+        {},
+        provenance=placeholder_provenance(),
     )
     save_bundle(
-        TorchModelBundle(nn.Linear(2, 2)), tmp_path / "pretrained.bundle", {}
+        TorchModelBundle(nn.Linear(2, 2)),
+        tmp_path / "pretrained.bundle",
+        {},
+        provenance=placeholder_provenance(),
     )
     inputs = load_inputs(
         TrainingContract(
@@ -37,6 +44,7 @@ def test_eddi_rejects_a_pretrained_model_that_is_not_a_partial_vae(
             ),
             unmasker=UnmaskerConfig(class_name="DirectUnmasker", kwargs={}),
             dataset_key="cube",
+            method_name="eddi",
             hard_budget=3,
             soft_budget_param=None,
             device="cpu",

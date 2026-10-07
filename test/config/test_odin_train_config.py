@@ -25,6 +25,7 @@ def test_odin_train_config_composes_for_workflow_overrides() -> None:
                 "classifier_bundle_path=classifier.bundle",
                 "pretrained_model_bundle_path=model.bundle",
                 "save_path=method.bundle",
+                "method_name=odin_model_free",
                 "initializer=cold",
                 "unmasker=direct",
                 "dataset_key=cube_without_noise",

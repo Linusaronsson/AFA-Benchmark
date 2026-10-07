@@ -88,6 +88,7 @@ def _training_contract(wildcards, input, output, resources) -> str:
                 input.pretrained_model[0] if input.pretrained_model else None
             ),
             "save_path": output.method_bundle,
+            "method_name": wildcards.method,
             "initializer": INITIALIZER,
             "unmasker": UNMASKERS[wildcards.dataset],
             "dataset_key": wildcards.dataset,

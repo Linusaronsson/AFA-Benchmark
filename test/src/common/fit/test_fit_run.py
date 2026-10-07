@@ -29,6 +29,7 @@ def _method_config(*, seed: int, use_wandb: bool) -> _MethodTrainConfig:
         ),
         unmasker=UnmaskerConfig(class_name="DirectUnmasker", kwargs={}),
         dataset_key="cube",
+        method_name="my_method",
         hard_budget=3,
         soft_budget_param=None,
         device="cpu",
@@ -142,7 +143,11 @@ def test_fit_run_with_wandb_sets_job_type_from_contract_stage(
     stage: str,
 ) -> None:
     kwargs = (
-        {"hard_budget": 3, "soft_budget_param": None}
+        {
+            "method_name": "my_method",
+            "hard_budget": 3,
+            "soft_budget_param": None,
+        }
         if contract_class is TrainingContract
         else {}
     )

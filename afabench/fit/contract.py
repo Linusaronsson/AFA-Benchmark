@@ -45,8 +45,18 @@ class PretrainingContract(BaseContract):
 
 @dataclass(frozen=True, kw_only=True)
 class TrainingContract(BaseContract):
+    """
+    The training contract.
+
+    `method_name` is the pipeline's method name (`CONTEXT.md`), which the
+    renderer takes from the rule's method wildcard. A method bundle cannot
+    know it otherwise, since one script serves several method names; it is
+    recorded in the bundle's provenance (ADR 0002 amending ADR 0001).
+    """
+
     stage: ClassVar[FitStage] = "training"
 
+    method_name: str
     pretrained_model_bundle_path: str | None = None
     hard_budget: int | None
     soft_budget_param: float | None

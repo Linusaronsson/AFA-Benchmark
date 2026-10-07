@@ -20,6 +20,7 @@ from afabench.fit.inputs import (
     UnavailableFitInputError,
     load_inputs,
 )
+from afabench.testing.provenance import placeholder_provenance
 
 N_FEATURES = 20
 N_CLASSES = 8
@@ -40,6 +41,7 @@ def _training_contract(
         ),
         unmasker=UnmaskerConfig(class_name="DirectUnmasker", kwargs={}),
         dataset_key="cube",
+        method_name="my_method",
         hard_budget=3,
         soft_budget_param=None,
         device="cpu",
@@ -53,11 +55,13 @@ def bundle_dir(tmp_path: Path) -> Path:
         CubeDataset(n_samples=10, seed=1),
         tmp_path / "train.bundle",
         metadata={},
+        provenance=placeholder_provenance(),
     )
     save_bundle(
         CubeDataset(n_samples=6, seed=2),
         tmp_path / "val.bundle",
         metadata={},
+        provenance=placeholder_provenance(),
     )
     save_bundle(
         WrappedMaskedMLPClassifier(
@@ -68,11 +72,13 @@ def bundle_dir(tmp_path: Path) -> Path:
         ),
         tmp_path / "classifier.bundle",
         metadata={},
+        provenance=placeholder_provenance(),
     )
     save_bundle(
         TorchModelBundle(nn.Linear(2, 2)),
         tmp_path / "pretrained.bundle",
         metadata={},
+        provenance=placeholder_provenance(),
     )
     return tmp_path
 

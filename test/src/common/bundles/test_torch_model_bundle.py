@@ -8,6 +8,7 @@ from torch import nn
 
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
+from afabench.testing.provenance import placeholder_provenance
 
 
 class SimpleLinearModel(nn.Module):
@@ -63,7 +64,12 @@ class TestTorchModelBundle:
             # Save model using TorchModelBundle
             model_bundle = TorchModelBundle(original_model)
             metadata = {"test_info": "simple linear model"}
-            save_bundle(model_bundle, bundle_path, metadata)
+            save_bundle(
+                model_bundle,
+                bundle_path,
+                metadata,
+                provenance=placeholder_provenance(),
+            )
 
             # Load model back
             loaded_bundle, loaded_metadata = load_bundle(
@@ -100,7 +106,12 @@ class TestTorchModelBundle:
             # Save model
             model_bundle = TorchModelBundle(original_model)
             metadata = {"model_type": "complex", "layers": 3}
-            save_bundle(model_bundle, bundle_path, metadata)
+            save_bundle(
+                model_bundle,
+                bundle_path,
+                metadata,
+                provenance=placeholder_provenance(),
+            )
 
             # Load model back
             loaded_bundle, loaded_manifest = load_bundle(
@@ -148,7 +159,12 @@ class TestTorchModelBundle:
             # Save trained model
             model_bundle = TorchModelBundle(model)
             metadata = {"trained": True, "epochs": 10}
-            save_bundle(model_bundle, bundle_path, metadata)
+            save_bundle(
+                model_bundle,
+                bundle_path,
+                metadata,
+                provenance=placeholder_provenance(),
+            )
 
             # Load model back
             loaded_bundle, loaded_manifest = load_bundle(
@@ -202,7 +218,12 @@ class TestTorchModelBundle:
             # Save model (should handle device correctly)
             model_bundle = TorchModelBundle(original_model)
             metadata = {"device": "cuda"}
-            save_bundle(model_bundle, bundle_path, metadata)
+            save_bundle(
+                model_bundle,
+                bundle_path,
+                metadata,
+                provenance=placeholder_provenance(),
+            )
 
             # Load model back on CPU
             loaded_bundle, _loaded_metadata = load_bundle(
@@ -239,7 +260,12 @@ class TestTorchModelBundle:
 
             # Save and load model
             model_bundle = TorchModelBundle(model)
-            save_bundle(model_bundle, bundle_path, {"test": "parameters"})
+            save_bundle(
+                model_bundle,
+                bundle_path,
+                {"test": "parameters"},
+                provenance=placeholder_provenance(),
+            )
 
             loaded_bundle, _loaded_metadata = load_bundle(
                 bundle_path,
@@ -264,7 +290,12 @@ class TestTorchModelBundle:
 
             # Save model
             model_bundle = TorchModelBundle(model)
-            save_bundle(model_bundle, bundle_path, {"state": "eval"})
+            save_bundle(
+                model_bundle,
+                bundle_path,
+                {"state": "eval"},
+                provenance=placeholder_provenance(),
+            )
 
             # Load model
             loaded_bundle, _loaded_metadata = load_bundle(
@@ -280,7 +311,12 @@ class TestTorchModelBundle:
             # Test with training mode
             model.train()
             model_bundle = TorchModelBundle(model)
-            save_bundle(model_bundle, bundle_path, {"state": "train"})
+            save_bundle(
+                model_bundle,
+                bundle_path,
+                {"state": "train"},
+                provenance=placeholder_provenance(),
+            )
 
             loaded_bundle, _loaded_metadata = load_bundle(
                 bundle_path,
@@ -308,7 +344,12 @@ class TestTorchModelBundle:
                 "created_by": "test_suite",
                 "version": "1.0.0",
             }
-            save_bundle(model_bundle, bundle_path, metadata)
+            save_bundle(
+                model_bundle,
+                bundle_path,
+                metadata,
+                provenance=placeholder_provenance(),
+            )
 
             # Load and verify manifest
             _loaded_bundle, loaded_manifest = load_bundle(

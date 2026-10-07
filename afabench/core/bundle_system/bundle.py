@@ -1,13 +1,23 @@
 """Loading and saving "bundles", as described in `docs/reference/bundle_format.md`."""
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Protocol, Self
 
+from afabench.core.provenance import (
+    InputRole,
+    ProvenanceInput,
+    ProvenanceRecord,
+    input_from_manifest,
+    provenance_from_manifest,
+)
 from afabench.core.registry import get_class
 
-# Do not allow loading of bundles with different major version
-BUNDLE_VERSION = "1.0.0"
+# Do not allow loading of bundles with different major version. 1.1.0 added
+# the top-level `provenance` and `content_hash` keys (ADR 0002); 1.0.0
+# manifests without them still load.
+BUNDLE_VERSION = "1.1.0"
 
 
 def is_same_major_semver(sv1: str, sv2: str) -> bool:
@@ -89,8 +99,42 @@ def validate_class_version(version: str) -> bool:
         return False
 
 
-def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
-    """Save a bundle to disk. `path` is required to end with the `.bundle` extension to make it clear that this is a bundle."""
+def compute_content_hash(data_path: Path) -> str:
+    """
+    Hash a bundle's `data/` folder as `sha256:<hex>`.
+
+    Files are taken in sorted relative-path order; for each, the relative
+    POSIX path (UTF-8), a NUL byte, the size as 8 big-endian bytes and the
+    contents are fed to SHA-256. The manifest is not under `data/`, so it is
+    never part of the hash.
+    """
+    digest = hashlib.sha256()
+    for file in sorted(
+        file for file in data_path.rglob("*") if file.is_file()
+    ):
+        contents = file.read_bytes()
+        digest.update(file.relative_to(data_path).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(len(contents).to_bytes(8, "big"))
+        digest.update(contents)
+    return f"sha256:{digest.hexdigest()}"
+
+
+def save_bundle(
+    obj: Saveable,
+    path: Path,
+    metadata: dict[str, Any],
+    *,
+    provenance: ProvenanceRecord,
+) -> None:
+    """
+    Save a bundle to disk.
+
+    `path` is required to end with the `.bundle` extension to make it clear
+    that this is a bundle. `provenance` is the record of this bundle being
+    produced (`afabench.core.provenance.capture_provenance`); `metadata`
+    stays free-form and object-specific.
+    """
     assert path.suffix == ".bundle", (
         "Bundle path must end with .bundle extension"
     )
@@ -120,10 +164,31 @@ def save_bundle(obj: Saveable, path: Path, metadata: dict[str, Any]) -> None:
                 "class_name": obj.__class__.__name__,
                 "class_version": class_version,
                 "metadata": metadata,
+                "provenance": provenance.to_json_dict(),
+                "content_hash": compute_content_hash(data_path),
             },
             f,
             indent=2,
         )
+
+
+def read_manifest(path: Path) -> dict[str, Any]:
+    """Read a bundle's manifest without loading the object."""
+    assert path.suffix == ".bundle", (
+        "Bundle path must end with .bundle extension"
+    )
+    with (path / "manifest.json").open("r") as f:
+        return json.load(f)
+
+
+def bundle_provenance(path: Path) -> ProvenanceRecord | None:
+    """Read a bundle's provenance record; null for a bundle written without one."""
+    return provenance_from_manifest(read_manifest(path))
+
+
+def bundle_input(role: InputRole, path: str) -> ProvenanceInput:
+    """Describe the bundle at `path` as an input of the artifact being written."""
+    return input_from_manifest(role, path, read_manifest(Path(path)))
 
 
 def load_bundle(

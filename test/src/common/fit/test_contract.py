@@ -30,6 +30,7 @@ PRETRAINING_CONTRACT_FIELDS = {
 
 TRAINING_CONTRACT_FIELDS = {
     *PRETRAINING_CONTRACT_FIELDS,
+    "method_name",
     "pretrained_model_bundle_path",
     "hard_budget",
     "soft_budget_param",
@@ -40,6 +41,7 @@ CONTRACT_OVERRIDES = [
     "val_dataset_bundle_path=val.bundle",
     "classifier_bundle_path=classifier.bundle",
     "save_path=method.bundle",
+    "method_name=my_method",
     "dataset_key=cube_without_noise",
     "hard_budget=5",
     "soft_budget_param=null",
@@ -106,6 +108,7 @@ def test_method_config_inheriting_contract_composes_with_hydra_overrides(
 
     assert isinstance(cfg, _MethodTrainConfig)
     assert cfg.save_path == "method.bundle"
+    assert cfg.method_name == "my_method"
     assert cfg.dataset_key == "cube_without_noise"
     assert cfg.hard_budget == 5
     assert cfg.soft_budget_param is None
@@ -129,9 +132,14 @@ def test_composed_contract_is_frozen(tmp_path: Path) -> None:
         cfg.seed = 4  # pyright: ignore[reportAttributeAccessIssue]
 
 
-def test_contract_requires_seed(tmp_path: Path) -> None:
+@pytest.mark.parametrize("field_name", ["seed", "method_name"])
+def test_training_contract_requires_its_field(
+    tmp_path: Path, field_name: str
+) -> None:
     _write_method_config(tmp_path)
-    overrides = [o for o in CONTRACT_OVERRIDES if not o.startswith("seed=")]
+    overrides = [
+        o for o in CONTRACT_OVERRIDES if not o.startswith(f"{field_name}=")
+    ]
 
-    with pytest.raises(MissingMandatoryValue, match="seed"):
+    with pytest.raises(MissingMandatoryValue, match=field_name):
         _compose_method_config(tmp_path, overrides)

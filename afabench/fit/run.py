@@ -10,7 +10,18 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from afabench.core.bundle_system.bundle import Saveable, save_bundle
+from afabench.core.bundle_system.bundle import (
+    Saveable,
+    bundle_input,
+    bundle_provenance,
+    save_bundle,
+)
+from afabench.core.provenance import (
+    ProvenanceInput,
+    ProvenanceRecord,
+    capture_provenance,
+    shared_dataset_identity,
+)
 from afabench.core.utils import initialize_wandb_run, set_seed
 from afabench.fit.contract import (
     BaseContract,
@@ -80,7 +91,10 @@ def save_result(
     Save `obj` as a bundle at the contract's `save_path`.
 
     The bundle metadata records the stage, the contract fields and the
-    remaining fields of `config`.
+    remaining fields of `config`. The bundle's provenance record
+    (ADR 0002) takes the contract's seed, its input bundles and, for
+    training, its method name; the dataset identity is copied from the
+    dataset bundles' own records.
     """
     contract_class = _CONTRACT_CLASSES[contract.stage]
     contract_field_names = {f.name for f in fields(contract_class)}
@@ -102,5 +116,42 @@ def save_result(
             "contract": contract_dict,
             "method_config": method_config_dict,
         },
+        provenance=_fit_provenance(
+            contract, resolved_config={**contract_dict, **method_config_dict}
+        ),
     )
     log.info(f"Saved {type(obj).__name__} to {contract.save_path}")
+
+
+def _fit_provenance(
+    contract: BaseContract, *, resolved_config: dict[str, object]
+) -> ProvenanceRecord:
+    inputs: list[ProvenanceInput] = [
+        bundle_input("train_dataset", contract.train_dataset_bundle_path),
+        bundle_input("val_dataset", contract.val_dataset_bundle_path),
+        bundle_input("classifier", contract.classifier_bundle_path),
+    ]
+    method_name = None
+    if isinstance(contract, TrainingContract):
+        method_name = contract.method_name
+        if contract.pretrained_model_bundle_path is not None:
+            inputs.append(
+                bundle_input(
+                    "pretrained_model", contract.pretrained_model_bundle_path
+                )
+            )
+    identity = shared_dataset_identity(
+        bundle_provenance(Path(contract.train_dataset_bundle_path)),
+        bundle_provenance(Path(contract.val_dataset_bundle_path)),
+    )
+    return capture_provenance(
+        stage=contract.stage,
+        resolved_config=resolved_config,
+        seed=contract.seed,
+        smoke_test=contract.smoke_test,
+        device=contract.device,
+        inputs=inputs,
+        method_name=method_name,
+        dataset_key=identity.dataset_key,
+        dataset_realization_index=identity.dataset_realization_index,
+    )

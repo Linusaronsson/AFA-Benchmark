@@ -56,6 +56,7 @@ from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.datasets.datasets import ImagenetteDataset
 from afabench.fit.inputs import load_inputs
+from afabench.testing.provenance import placeholder_provenance
 
 
 @pytest.fixture
@@ -81,7 +82,9 @@ def image_contract_values(
         split_role="val",
     )
     path = tmp_path / "images.bundle"
-    save_bundle(dataset, path, metadata={})
+    save_bundle(
+        dataset, path, metadata={}, provenance=placeholder_provenance()
+    )
     return {
         "train_dataset_bundle_path": str(path),
         "val_dataset_bundle_path": str(path),
@@ -164,10 +167,16 @@ def test_image_training_returns_method_without_saving(
     )
     pretrained = pretrain_image(pretrain_cfg, inputs=load_inputs(pretrain_cfg))
     pretrained_path = tmp_path / "pretrained.bundle"
-    save_bundle(pretrained, pretrained_path, metadata={})
+    save_bundle(
+        pretrained,
+        pretrained_path,
+        metadata={},
+        provenance=placeholder_provenance(),
+    )
     cfg = config_type(
         **image_contract_values,
         pretrained_model_bundle_path=str(pretrained_path),
+        method_name="cae",
         hard_budget=1,
         soft_budget_param=None,
         batch_size=2,
@@ -191,6 +200,7 @@ def test_cae_image_training_returns_method_without_saving(
 ) -> None:
     cfg = CAETrainingConfig(
         **image_contract_values,
+        method_name="cae",
         hard_budget=1,
         soft_budget_param=None,
         batch_size=2,

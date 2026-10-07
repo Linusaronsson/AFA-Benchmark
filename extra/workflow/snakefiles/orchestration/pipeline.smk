@@ -40,11 +40,16 @@ Training contract:
     The pretrain_model and train_method rules (rules/training.smk) pass every
     pretraining and training script the plain `key=value` training contract
     rendered by extra/workflow/src/contract_arguments.py: dataset, classifier
-    and pretrained-model bundle paths, save_path, initializer, unmasker,
-    dataset_key, hard_budget, soft_budget_param, device, seed, use_wandb and
-    smoke_test (pretraining receives no pretrained model and no budgets).
-    Methods add their own arguments through method_specific_params and
+    and pretrained-model bundle paths, save_path, method_name (the rule's
+    method wildcard), initializer, unmasker, dataset_key, hard_budget,
+    soft_budget_param, device, seed, use_wandb and smoke_test (pretraining
+    receives no method name, no pretrained model and no budgets). Methods
+    add their own arguments through method_specific_params and
     pretrain_params. See docs/adr/0001-training-contract-as-library.md.
+    Every bundle a rule writes carries a provenance record in its manifest
+    (docs/adr/0002-provenance-recorded-in-artifacts.md): the training
+    scripts record the contract's seed, inputs and method name; the
+    classifier and dataset generation scripts record theirs.
 
 Execution configuration and required files:
     Methods retain their independent scripts and native bundle/result paths.

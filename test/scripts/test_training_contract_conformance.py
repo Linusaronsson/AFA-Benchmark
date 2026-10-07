@@ -27,6 +27,7 @@ from afabench.components.classifiers.models import MaskedMLPClassifier
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.registry import get_class
 from afabench.datasets.datasets import CubeDataset
+from afabench.testing.provenance import placeholder_provenance
 
 REPO_ROOT = Path(__file__).parents[2]
 WORKFLOW_CONF = REPO_ROOT / "extra/workflow/conf"
@@ -134,11 +135,17 @@ class SmokeInputs:
         # Large enough for the methods that keep their own batch size of 128
         # with drop_last during a smoke test.
         train_dataset = CubeDataset(n_samples=256, seed=SEED)
-        save_bundle(train_dataset, self.train_dataset_bundle_path, metadata={})
+        save_bundle(
+            train_dataset,
+            self.train_dataset_bundle_path,
+            metadata={},
+            provenance=placeholder_provenance(),
+        )
         save_bundle(
             CubeDataset(n_samples=64, seed=SEED + 1),
             self.val_dataset_bundle_path,
             metadata={},
+            provenance=placeholder_provenance(),
         )
         save_bundle(
             WrappedMaskedMLPClassifier(
@@ -151,6 +158,7 @@ class SmokeInputs:
             ),
             self.classifier_bundle_path,
             metadata={},
+            provenance=placeholder_provenance(),
         )
 
     def pretraining_values(self, save_path: Path) -> dict[str, object]:
@@ -169,10 +177,14 @@ class SmokeInputs:
         }
 
     def training_values(
-        self, save_path: Path, pretrained_model_bundle_path: Path | None
+        self,
+        save_path: Path,
+        pretrained_model_bundle_path: Path | None,
+        method_name: str,
     ) -> dict[str, object]:
         return {
             **self.pretraining_values(save_path),
+            "method_name": method_name,
             "pretrained_model_bundle_path": pretrained_model_bundle_path,
             "hard_budget": HARD_BUDGET,
             "soft_budget_param": "null",
@@ -227,7 +239,7 @@ def test_training_script_writes_a_loadable_bundle_at_save_path(
         f"train_method/{options['train_script_name']}.py",
         _load_renderer().render_training_contract(
             smoke_inputs.training_values(
-                save_path, pretrained_model_bundle_path
+                save_path, pretrained_model_bundle_path, method_name
             )
         ),
         " ".join(options.get("method_specific_params", [])),  # pyright: ignore[reportArgumentType, reportCallIssue]

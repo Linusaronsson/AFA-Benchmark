@@ -56,6 +56,7 @@ from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.datasets.datasets import CubeDataset
 from afabench.fit.inputs import load_inputs
+from afabench.testing.provenance import placeholder_provenance
 
 
 @pytest.mark.pipeline
@@ -65,8 +66,18 @@ def test_pretraining_returns_classifier_without_saving(
 ) -> None:
     train_path = tmp_path / "train.bundle"
     val_path = tmp_path / "val.bundle"
-    save_bundle(CubeDataset(n_samples=128, seed=0), train_path, metadata={})
-    save_bundle(CubeDataset(n_samples=32, seed=1), val_path, metadata={})
+    save_bundle(
+        CubeDataset(n_samples=128, seed=0),
+        train_path,
+        metadata={},
+        provenance=placeholder_provenance(),
+    )
+    save_bundle(
+        CubeDataset(n_samples=32, seed=1),
+        val_path,
+        metadata={},
+        provenance=placeholder_provenance(),
+    )
     config_type = (
         DIMEPretrainingConfig if method == "dime" else GDFSPretrainingConfig
     )
@@ -102,7 +113,9 @@ def test_pretraining_returns_classifier_without_saving(
     assert isinstance(result, GreedyAFAClassifier)
     assert not Path(cfg.save_path).exists()
     caller_path = tmp_path / "caller.bundle"
-    save_bundle(result, caller_path, metadata={})
+    save_bundle(
+        result, caller_path, metadata={}, provenance=placeholder_provenance()
+    )
     restored, _ = load_bundle(caller_path, device=torch.device("cpu"))
     assert isinstance(restored, GreedyAFAClassifier)
 
@@ -131,8 +144,15 @@ def test_training_returns_method_without_saving(
     train_path = tmp_path / "train.bundle"
     val_path = tmp_path / "val.bundle"
     pretrained_path = tmp_path / "pretrained.bundle"
-    save_bundle(dataset, train_path, metadata={})
-    save_bundle(CubeDataset(n_samples=32, seed=1), val_path, metadata={})
+    save_bundle(
+        dataset, train_path, metadata={}, provenance=placeholder_provenance()
+    )
+    save_bundle(
+        CubeDataset(n_samples=32, seed=1),
+        val_path,
+        metadata={},
+        provenance=placeholder_provenance(),
+    )
     architecture = {
         "type": "mlp",
         "in_features": dataset.feature_shape.numel() * 2,
@@ -152,7 +172,12 @@ def test_training_returns_method_without_saving(
         architecture,
         torch.device("cpu"),
     )
-    save_bundle(pretrained, pretrained_path, metadata={})
+    save_bundle(
+        pretrained,
+        pretrained_path,
+        metadata={},
+        provenance=placeholder_provenance(),
+    )
     cfg = config_type(
         train_dataset_bundle_path=str(train_path),
         val_dataset_bundle_path=str(val_path),
@@ -166,6 +191,7 @@ def test_training_returns_method_without_saving(
         dataset_key="cube",
         device="cpu",
         seed=0,
+        method_name="cae",
         hard_budget=3,
         soft_budget_param=None,
         batch_size=32,
@@ -181,7 +207,9 @@ def test_training_returns_method_without_saving(
     assert isinstance(result, result_type)
     assert not Path(cfg.save_path).exists()
     caller_path = tmp_path / "caller.bundle"
-    save_bundle(result, caller_path, metadata={})
+    save_bundle(
+        result, caller_path, metadata={}, provenance=placeholder_provenance()
+    )
     restored, _ = load_bundle(caller_path, device=torch.device("cpu"))
     assert isinstance(restored, result_type)
 
@@ -190,8 +218,18 @@ def test_training_returns_method_without_saving(
 def test_cae_training_returns_method_without_saving(tmp_path: Path) -> None:
     train_path = tmp_path / "train.bundle"
     val_path = tmp_path / "val.bundle"
-    save_bundle(CubeDataset(n_samples=128, seed=0), train_path, metadata={})
-    save_bundle(CubeDataset(n_samples=32, seed=1), val_path, metadata={})
+    save_bundle(
+        CubeDataset(n_samples=128, seed=0),
+        train_path,
+        metadata={},
+        provenance=placeholder_provenance(),
+    )
+    save_bundle(
+        CubeDataset(n_samples=32, seed=1),
+        val_path,
+        metadata={},
+        provenance=placeholder_provenance(),
+    )
     cfg = CAETrainingConfig(
         train_dataset_bundle_path=str(train_path),
         val_dataset_bundle_path=str(val_path),
@@ -204,6 +242,7 @@ def test_cae_training_returns_method_without_saving(tmp_path: Path) -> None:
         dataset_key="cube",
         device="cpu",
         seed=0,
+        method_name="cae",
         hard_budget=3,
         soft_budget_param=None,
         batch_size=32,
@@ -220,6 +259,8 @@ def test_cae_training_returns_method_without_saving(tmp_path: Path) -> None:
     assert isinstance(result, StaticBaseMethod)
     assert not Path(cfg.save_path).exists()
     caller_path = tmp_path / "caller.bundle"
-    save_bundle(result, caller_path, metadata={})
+    save_bundle(
+        result, caller_path, metadata={}, provenance=placeholder_provenance()
+    )
     restored, _ = load_bundle(caller_path, device=torch.device("cpu"))
     assert isinstance(restored, StaticBaseMethod)

@@ -14,6 +14,7 @@ from afabench.components.methods.oracle.aaco.train import run
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.datasets.datasets import CubeDataset
+from afabench.testing.provenance import placeholder_provenance
 
 
 def test_aaco_training_returns_a_method_without_saving(tmp_path: Path) -> None:
@@ -21,7 +22,9 @@ def test_aaco_training_returns_a_method_without_saving(tmp_path: Path) -> None:
     dataset_path = tmp_path / "train.bundle"
     classifier_path = tmp_path / "classifier.bundle"
     save_path = tmp_path / "method.bundle"
-    save_bundle(dataset, dataset_path, metadata={})
+    save_bundle(
+        dataset, dataset_path, metadata={}, provenance=placeholder_provenance()
+    )
     save_bundle(
         WrappedMaskedMLPClassifier(
             MaskedMLPClassifier(
@@ -33,6 +36,7 @@ def test_aaco_training_returns_a_method_without_saving(tmp_path: Path) -> None:
         ),
         classifier_path,
         metadata={},
+        provenance=placeholder_provenance(),
     )
     cfg = AACOTrainConfig(
         train_dataset_bundle_path=str(dataset_path),
@@ -46,6 +50,7 @@ def test_aaco_training_returns_a_method_without_saving(tmp_path: Path) -> None:
         dataset_key="cube",
         device="cpu",
         seed=0,
+        method_name="aaco",
         hard_budget=3,
         soft_budget_param=None,
         aco=AACOConfig(),
