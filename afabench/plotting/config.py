@@ -25,6 +25,9 @@ class PlottingDisplayConfig:
     datasets_with_f_score: list[str]
     dataset_sets: dict[str, list[str]]
     color_palette_name: str
+    # Printed under every evaluation performance plot, for example to mark
+    # plots of smoke runs as workflow demonstrations.
+    caption: str | None = None
 
 
 @dataclass

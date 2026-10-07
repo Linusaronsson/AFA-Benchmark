@@ -152,3 +152,7 @@ dataset_sets:
     - cube_nonuniform_costs
 
 color_palette_name: Dark2
+
+# Printed under every evaluation performance plot when set, for example
+# "Workflow demonstration from smoke runs, not scientific results".
+caption: null

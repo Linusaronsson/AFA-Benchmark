@@ -196,9 +196,17 @@ later conversion is added beside the native files, never instead of them.
 A bundle is a shared prerequisite when its `method_name` is null. Plotting a
 new method against published baselines needs only the evaluation tables of
 those baselines; evaluating a new method needs the dataset bundles and the
-external classifier of its datasets. AFA-method bundles are never needed
-for comparison plots. Follow `inputs` to find what a bundle or table was
-produced from.
+external classifier of its datasets, and the pretrained model it trains
+from, if the release has it. AFA-method bundles are never needed for
+comparison plots. Follow `inputs` to find what a bundle or table was
+produced from. See
+[`tutorials/compare_with_published_baselines.md`](tutorials/compare_with_published_baselines.md)
+for the workflow.
+
+Pretrained-model and AFA-method bundles are restored together with the
+`pretrain_time.txt` or `train_time.txt` record their job wrote in the same
+folder. The workflow's time aggregation reads the record, so without it
+the workflow would rerun the job.
 
 Bundles are the inference format the evaluator loads. Intermediate training
 checkpoints, such as the Lightning checkpoints of classifier training, are

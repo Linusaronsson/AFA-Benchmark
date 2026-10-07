@@ -4,12 +4,13 @@ Choose which payloads of a benchmark release a download fetches.
 Selection reads only the release manifest. Evaluation tables are matched
 against the requested coverage; the bundles they depend on are found by
 following the `inputs` of those tables and, in turn, of the bundles, then
-kept if their payload category is requested. So asking for evaluation
-tables alone fetches no bundle, and asking for dataset and classifier
-bundles fetches the shared prerequisites of the selected evaluations
-without their AFA-method bundles. Output categories (top-level folders of
-the output root such as `plot_results`) are not described per file by the
-manifest, so they are selected whole.
+kept if their payload category is requested. Pretrained-model and
+AFA-method bundles come with the time record their job wrote beside them.
+So asking for evaluation tables alone fetches no bundle, and asking for
+dataset and classifier bundles fetches the shared prerequisites of the
+selected evaluations without their AFA-method bundles. Output categories
+(top-level folders of the output root such as `plot_results`) are not
+described per file by the manifest, so they are selected whole.
 
 Requested coverage the release does not have is reported in `missing`,
 never filled from elsewhere.
@@ -17,6 +18,7 @@ never filled from elsewhere.
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from pathlib import PurePosixPath
 
 from afabench.release.manifest import (
     BudgetSetting,
@@ -128,12 +130,13 @@ def select_payloads(
                 into=files,
             )
     for bundle in _dependencies(manifest, tables):
-        if bundle.category in categories:
-            take(
-                bundle.category,
-                bundle.path,
-                present=bundle.present,
-                into=folders,
+        if bundle.category not in categories:
+            continue
+        if bundle.present:
+            folders.append(_job_folder(bundle))
+        else:
+            missing.append(
+                f"{bundle.category} {bundle.path}: not in the release"
             )
     for output_category in dict.fromkeys(selection.output_categories):
         take(
@@ -147,6 +150,23 @@ def select_payloads(
         folders=list(dict.fromkeys(folders)),
         missing=missing,
     )
+
+
+def _job_folder(bundle: BundleRecord) -> str:
+    """
+    Return the folder to fetch for a bundle: it, or its job's folder.
+
+    The pretraining and training jobs write a time record beside their
+    bundle, which the workflow's time aggregation reads. Without it the
+    workflow reruns the job, replacing the restored bundle. Each of these
+    bundles' parent folders holds the outputs of that one job only.
+    """
+    if bundle.category in {
+        PayloadCategory.PRETRAINED_MODEL_BUNDLE,
+        PayloadCategory.AFA_METHOD_BUNDLE,
+    }:
+        return str(PurePosixPath(bundle.path).parent)
+    return bundle.path
 
 
 def _dependencies(

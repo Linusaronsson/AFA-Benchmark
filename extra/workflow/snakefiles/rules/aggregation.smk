@@ -9,7 +9,11 @@ Combines individual results into unified datasets:
 
 
 rule merge_eval_perf:
-    """Merge evaluation performance results from all methods within a method set."""
+    """Merge evaluation performance results from all methods within a method set.
+
+    Reference methods' tables are restored files that no rule produces, so a
+    missing one fails the plan instead of scheduling its production.
+    """
     input: lambda wc:
         [
             (
@@ -25,7 +29,7 @@ rule merge_eval_perf:
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"eval_data.parquet"
             )
-            for method in METHOD_SETS[wc.method_set] if method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for method in METHOD_SETS[wc.method_set] if method in COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for (
@@ -49,7 +53,7 @@ rule merge_eval_perf:
                                 f"eval_soft_budget_param-{eval_soft_budget_param}/"
                                     f"eval_data.parquet"
             )
-            for method in METHOD_SETS[wc.method_set] if method in METHODS_WITH_PRETRAINING_STAGE
+            for method in METHOD_SETS[wc.method_set] if method in COMPARED_METHODS_WITH_PRETRAINING_STAGE
             for dataset in DATASETS
             for dataset_instance_idx in DATASET_INSTANCE_INDICES
             for (

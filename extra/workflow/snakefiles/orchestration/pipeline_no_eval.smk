@@ -7,6 +7,9 @@ for existing evaluation outputs.
 
 Runtime filters (--config, select subsets to run):
     methods (list[str], required): Subset of methods from method_options.yaml
+    reference_methods (list[str], default=[]): Methods whose plotting-ready
+        tables were restored from a benchmark release; aggregated with
+        `methods` but never produced. See pipeline.smk.
     datasets (list[str], required): Subset of datasets to run
     dataset_instance_indices (list[int], default=[0,1,2,3,4]): Subset of
         random seeds
@@ -124,6 +127,9 @@ METHOD_OPTIONS = _config["METHOD_OPTIONS"]
 METHODS = _config["METHODS"]
 METHODS_WITH_PRETRAINING_STAGE = _config["METHODS_WITH_PRETRAINING_STAGE"]
 METHODS_WITHOUT_PRETRAINING_STAGE = _config["METHODS_WITHOUT_PRETRAINING_STAGE"]
+REFERENCE_METHODS = _config["REFERENCE_METHODS"]
+COMPARED_METHODS_WITH_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITH_PRETRAINING_STAGE"]
+COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE"]
 METHOD_TRAIN_SCRIPT_NAMES = _config["METHOD_TRAIN_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_NAMES = _config["METHOD_CLASSIFIER_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_PARAMS = _config["METHOD_CLASSIFIER_SCRIPT_PARAMS"]

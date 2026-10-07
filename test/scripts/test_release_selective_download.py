@@ -19,6 +19,7 @@ from click.testing import Result
 from typer.testing import CliRunner
 
 from afabench.release.manifest import (
+    PayloadCategory,
     ReleaseScope,
     build_release_manifest,
     read_release_manifest,
@@ -33,6 +34,11 @@ REPO_ID = "afabench-test/releases"
 TAG = "initializer-cold"
 PLOT = f"plot_results/eval_split-test/{TAG}/cube/eval_perf.pdf"
 EXTERNAL_CLASSIFIER = f"trained_classifiers/{TAG}/dataset-cube.bundle"
+# What the pretraining and training jobs write beside their bundle.
+TIME_RECORDS = {
+    PayloadCategory.PRETRAINED_MODEL_BUNDLE: "pretrain_time.txt",
+    PayloadCategory.AFA_METHOD_BUNDLE: "train_time.txt",
+}
 
 
 def workflow_config(*, smoke_test: bool = False) -> dict[str, Any]:
@@ -123,6 +129,9 @@ def write_release_outputs(
         (root / bundle.path / "manifest.json").write_text(
             json.dumps({"bundle_version": "1.0.0", "class_name": "Fake"})
         )
+        if bundle.category in TIME_RECORDS:
+            time_record = TIME_RECORDS[bundle.category]
+            (root / bundle.path).parent.joinpath(time_record).write_text("1.0")
     (root / PLOT).parent.mkdir(parents=True)
     (root / PLOT).write_text(release_id)
 
@@ -216,6 +225,14 @@ def restored_files(destination_root: Path) -> set[str]:
         path.relative_to(destination_root).as_posix()
         for path in destination_root.rglob("*")
         if path.is_file()
+    }
+
+
+def restored_bundles(destination_root: Path) -> set[str]:
+    return {
+        path.split(".bundle/")[0] + ".bundle"
+        for path in restored_files(destination_root)
+        if ".bundle/" in path
     }
 
 
@@ -424,10 +441,7 @@ def test_shared_prerequisites_download_without_afa_method_bundles(
     )
 
     assert result.exit_code == 0, result.output
-    bundles = {
-        path.split(".bundle/")[0] + ".bundle"
-        for path in restored_files(destination_root)
-    }
+    bundles = restored_bundles(destination_root)
     # The external classifier was trained on instance 0, so its training
     # splits come too: without them the workflow would regenerate them and
     # retrain the classifier.
@@ -467,10 +481,7 @@ def test_method_bundles_follow_the_selected_budget_setting(
     )
 
     assert result.exit_code == 0, result.output
-    bundles = {
-        path.split(".bundle/")[0] + ".bundle"
-        for path in restored_files(destination_root)
-    }
+    bundles = restored_bundles(destination_root)
     # Only alpha has soft-budget evaluations, and it pretrains nothing.
     assert bundles == {
         f"trained_methods/{TAG}/alpha/dataset-cube+instance_idx-0/"
@@ -478,6 +489,46 @@ def test_method_bundles_follow_the_selected_budget_setting(
         "train_seed-0+train_hard_budget-null+train_soft_budget_param-0.5/"
         "method.bundle"
     }
+
+
+def test_model_bundles_come_with_the_time_records_of_their_jobs(
+    tmp_path: Path,
+) -> None:
+    # The workflow's time aggregation reads them: without them it would
+    # rerun the pretraining or training job, replacing the restored bundle.
+    transport = FakeReleaseTransport()
+    publish(tmp_path, transport, "2026-10-full")
+    destination_root = tmp_path / "fork/extra/output"
+
+    result = download(
+        transport,
+        destination_root,
+        "--payload-category",
+        "pretrained_model_bundle",
+        "--payload-category",
+        "afa_method_bundle",
+        "--method",
+        "beta",
+        "--dataset",
+        "cube",
+        "--dataset-instance",
+        "0",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert {
+        path
+        for path in restored_files(destination_root)
+        if ".bundle/" not in path
+    } == {
+        f"pretrained_models/{TAG}/shared/dataset-cube+instance_idx-0/"
+        "pretrain_seed-0/pretrain_time.txt",
+        f"trained_methods/{TAG}/beta/dataset-cube+instance_idx-0/"
+        "pretrain_seed-0/"
+        "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
+        "train_time.txt",
+    }
+    assert "Downloaded 0 file(s) and 2 folder(s)." in result.output
 
 
 def beta_table(index: int) -> str:
