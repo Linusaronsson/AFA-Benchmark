@@ -29,9 +29,11 @@ A dataset without an entry is `unreviewed`.
 
 ## 3. Save the release package
 
-Run the benchmark ([reproduce the full results](reproduce_full_results.md)),
-then save its outputs with a release manifest
-([create output snapshots](create_output_snapshots.md#save-a-snapshot-as-a-benchmark-release)):
+Run the benchmark ([reproduce the full results](reproduce_full_results.md)).
+Then save its outputs as an
+[output snapshot](create_output_snapshots.md) with a release manifest, by
+giving a release id, a scope and the workflow configuration the pipeline
+ran with, the same way it was given to Snakemake:
 
 ```shell
 uv run python scripts/release/snapshot.py save /path/to/2026-10-kdd26 \
@@ -39,7 +41,14 @@ uv run python scripts/release/snapshot.py save /path/to/2026-10-kdd26 \
     --profile extra/workflow/profiles/config/kdd26
 ```
 
+This also writes `/path/to/2026-10-kdd26/release_manifest.json` and
+prints what it recorded. Check that the printed profile, config files and
+overrides are those of the run.
+
 Release ids are letters, digits, `.`, `_` and `-`, and are never reused.
+Use scope `full` for a run of the whole benchmark configuration, `partial`
+for anything less, and `smoke` for smoke-test outputs, which can have no
+other scope.
 
 ## 4. Review the package
 

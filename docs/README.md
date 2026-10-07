@@ -46,6 +46,7 @@ instead of defining a term on a page.
   [compare your method with published results](how-to/compare_your_method_with_published_results.md).
 - Maintaining releases:
   [create output snapshots](how-to/create_output_snapshots.md),
+  [restore an output snapshot](how-to/restore_an_output_snapshot.md),
   [publish a benchmark release](how-to/publish_a_benchmark_release.md).
 
 ### Reference
