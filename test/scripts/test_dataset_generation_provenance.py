@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from afabench.core.bundle_system.bundle import bundle_provenance
 from afabench.datasets.config import SplitRatioConfig
 from afabench.datasets.datasets import CubeDataset
@@ -53,6 +55,9 @@ def test_generated_split_bundles_record_their_identity_and_seed(
         assert record.resolved_config == resolved_config
 
 
+# A Hydra subprocess takes about 7 s, too slow for the default suite;
+# generate_and_save_split covers the bundles' records in it
+@pytest.mark.pipeline
 def test_generation_script_takes_the_dataset_key_from_the_selected_config(
     tmp_path: Path,
 ) -> None:

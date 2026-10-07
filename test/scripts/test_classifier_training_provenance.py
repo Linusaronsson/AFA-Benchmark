@@ -2,10 +2,12 @@
 
 import subprocess
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
 import torch
+from hydra import compose, initialize_config_dir
 
 from afabench.core.bundle_system.bundle import (
     bundle_provenance,
@@ -16,8 +18,12 @@ from afabench.core.bundle_system.bundle import (
 from afabench.core.provenance import ProvenanceInput
 from afabench.datasets.datasets import CubeDataset
 from afabench.testing.provenance import placeholder_provenance
+from scripts.train_classifier.masked_mlp_classifier import main
 
 REPO_ROOT = Path(__file__).parents[2]
+CONFIG_DIR = (
+    REPO_ROOT / "extra/conf/scripts/train_classifier/masked_mlp_classifier"
+)
 SEED = 5
 
 
@@ -44,14 +50,16 @@ def dataset_bundles(tmp_path: Path) -> tuple[Path, Path]:
     return train_path, val_path
 
 
-def test_masked_mlp_classifier_bundle_records_its_inputs_seed_and_dataset(
-    dataset_bundles: tuple[Path, Path], tmp_path: Path
-) -> None:
-    train_path, val_path = dataset_bundles
-    save_path = tmp_path / "classifier.bundle"
-    command = [
-        sys.executable,
-        "scripts/train_classifier/masked_mlp_classifier.py",
+@pytest.fixture
+def restore_matmul_precision() -> Iterator[None]:
+    """Undo the script's process-wide matmul precision after the test."""
+    precision = torch.get_float32_matmul_precision()
+    yield
+    torch.set_float32_matmul_precision(precision)
+
+
+def _overrides(train_path: Path, val_path: Path, save_path: Path) -> list[str]:
+    return [
         f"train_dataset_path={train_path}",
         f"val_dataset_path={val_path}",
         f"save_path={save_path}",
@@ -64,18 +72,12 @@ def test_masked_mlp_classifier_bundle_records_its_inputs_seed_and_dataset(
         "experiment@_global_=cube",
         "epochs=1",
         "num_cells=[4]",
-        f"hydra.run.dir={tmp_path / 'hydra'}",
     ]
-    completed = subprocess.run(
-        command,
-        cwd=REPO_ROOT,
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=600,
-    )
-    assert completed.returncode == 0, completed.stderr[-4000:]
 
+
+def _assert_records_inputs_seed_and_dataset(
+    save_path: Path, train_path: Path, val_path: Path
+) -> None:
     assert load_bundle(save_path, device=torch.device("cpu"))[0] is not None
     record = bundle_provenance(save_path)
     assert record is not None
@@ -108,3 +110,51 @@ def test_masked_mlp_classifier_bundle_records_its_inputs_seed_and_dataset(
     assert record.resolved_config["smoke_test"] is True
     assert record.compute.device == "cpu"
     assert record.compute.float32_matmul_precision == "medium"
+
+
+@pytest.mark.usefixtures("restore_matmul_precision")
+def test_masked_mlp_classifier_bundle_records_its_inputs_seed_and_dataset(
+    dataset_bundles: tuple[Path, Path],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    train_path, val_path = dataset_bundles
+    save_path = tmp_path / "classifier.bundle"
+    with initialize_config_dir(version_base=None, config_dir=str(CONFIG_DIR)):
+        cfg = compose(
+            config_name="config",
+            overrides=_overrides(train_path, val_path, save_path),
+        )
+    # Lightning writes its logs relative to the working directory
+    monkeypatch.chdir(tmp_path)
+
+    # Hydra passes a given config straight to the script, in this process
+    main(cfg)
+
+    _assert_records_inputs_seed_and_dataset(save_path, train_path, val_path)
+
+
+# A Hydra subprocess takes about 10 s, too slow for the default suite
+@pytest.mark.pipeline
+def test_masked_mlp_classifier_script_records_its_inputs_seed_and_dataset(
+    dataset_bundles: tuple[Path, Path], tmp_path: Path
+) -> None:
+    train_path, val_path = dataset_bundles
+    save_path = tmp_path / "classifier.bundle"
+    command = [
+        sys.executable,
+        "scripts/train_classifier/masked_mlp_classifier.py",
+        *_overrides(train_path, val_path, save_path),
+        f"hydra.run.dir={tmp_path / 'hydra'}",
+    ]
+    completed = subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=600,
+    )
+    assert completed.returncode == 0, completed.stderr[-4000:]
+
+    _assert_records_inputs_seed_and_dataset(save_path, train_path, val_path)
