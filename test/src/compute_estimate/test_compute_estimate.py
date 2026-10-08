@@ -29,6 +29,7 @@ from afabench.core.job_record import (
     ExitStatus,
     JobIdentity,
     JobRecord,
+    JobType,
 )
 
 ALPHA_TRAINING = JobIdentity(
@@ -234,17 +235,17 @@ def test_failed_and_timed_out_jobs_warn_once_per_stage_name_and_dataset_key(
 
     assert estimate.failure_histories == [
         FailureHistory(
-            stage="training",
-            name="alpha",
-            dataset_key="cube",
+            job_type=JobType(
+                stage="training", name="alpha", dataset_key="cube"
+            ),
             failed=1,
             timed_out=3,
             time_limits_minutes=[300, 600],
         ),
         FailureHistory(
-            stage="training",
-            name="beta",
-            dataset_key="cube",
+            job_type=JobType(
+                stage="training", name="beta", dataset_key="cube"
+            ),
             failed=0,
             timed_out=1,
             time_limits_minutes=[600],

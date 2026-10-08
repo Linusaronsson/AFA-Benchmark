@@ -14,11 +14,14 @@ import pandas as pd
 
 from afabench.compute_estimate.estimate import (
     IDENTITY_COLUMNS,
+    POOL_COLUMNS,
     ComputeEstimate,
     FailureHistory,
+    JobEstimate,
     MatchLevel,
 )
 from afabench.core.job_duration_table import RECORD_FIELD_DTYPES
+from afabench.core.job_record import JobType
 
 JOB_COLUMNS = [
     "rule",
@@ -28,17 +31,21 @@ JOB_COLUMNS = [
     "cpus",
     "gpus",
 ]
-ESTIMATE_COLUMNS = [
-    "match_level",
-    "matched_job_records",
-    "mean_job_duration_seconds",
-    "p90_job_duration_seconds",
+DURATION_COLUMNS = ["mean_job_duration_seconds", "p90_job_duration_seconds"]
+# What totals add up
+HOUR_COLUMNS = [
     "mean_job_hours",
     "p90_job_hours",
     "mean_core_hours",
     "p90_core_hours",
     "mean_gpu_hours",
     "p90_gpu_hours",
+]
+ESTIMATE_COLUMNS = [
+    "match_level",
+    "matched_job_records",
+    *DURATION_COLUMNS,
+    *HOUR_COLUMNS,
 ]
 # As in the job duration table, nullable
 PER_JOB_DTYPES = {
@@ -50,14 +57,12 @@ PER_JOB_DTYPES = {
     "gpus": "Int64",
     "match_level": "string",
     "matched_job_records": "Int64",
-    **dict.fromkeys(ESTIMATE_COLUMNS[2:], "Float64"),
+    **dict.fromkeys([*DURATION_COLUMNS, *HOUR_COLUMNS], "Float64"),
     "failure_history": "boolean",
 }
 GROUPING_COLUMNS = [column for column in JOB_COLUMNS if column != "wildcards"]
 DEFAULT_GROUPING = ["stage", "device"]
-TOTAL_COLUMNS = ESTIMATE_COLUMNS[4:]
 COUNTED_MATCH_LEVELS: list[MatchLevel] = ["exact", "pooled", "unestimated"]
-UNESTIMATED_GROUPING = ["stage", "name", "dataset_key", "device"]
 
 
 class UnknownGroupingColumnError(ValueError):
@@ -70,36 +75,34 @@ def per_job_table(estimate: ComputeEstimate) -> pd.DataFrame:
 
     `failure_history` flags jobs whose job type failed or timed out before.
     """
-    failed_types = {
-        (history.stage, history.name, history.dataset_key)
-        for history in estimate.failure_histories
+    failed_types = {history.job_type for history in estimate.failure_histories}
+    return pd.DataFrame(
+        [_per_job_row(job, failed_types) for job in estimate.jobs],
+        columns=pd.Index(list(PER_JOB_DTYPES)),
+    ).astype(PER_JOB_DTYPES)
+
+
+def _per_job_row(
+    job_estimate: JobEstimate, failed_types: set[JobType]
+) -> dict[str, object]:
+    job = job_estimate.job
+    return {
+        "rule": job.rule,
+        "wildcards": json.dumps(job.wildcards),
+        **(
+            dict.fromkeys(IDENTITY_COLUMNS)
+            if job.identity is None
+            else asdict(job.identity)
+        ),
+        "device": job.device,
+        "cpus": job.cpus,
+        "gpus": job.gpus,
+        **{
+            column: getattr(job_estimate, column)
+            for column in ESTIMATE_COLUMNS
+        },
+        "failure_history": job.job_type in failed_types,
     }
-    rows = [
-        {
-            "rule": job.job.rule,
-            "wildcards": json.dumps(job.job.wildcards),
-            **(
-                asdict(job.job.identity)
-                if job.job.identity is not None
-                else dict.fromkeys(IDENTITY_COLUMNS)
-            ),
-            "device": job.job.device,
-            "cpus": job.job.cpus,
-            "gpus": job.job.gpus,
-            **{column: getattr(job, column) for column in ESTIMATE_COLUMNS},
-            "failure_history": job.job.identity is not None
-            and (
-                job.job.identity.stage,
-                job.job.identity.name,
-                job.job.identity.dataset_key,
-            )
-            in failed_types,
-        }
-        for job in estimate.jobs
-    ]
-    return pd.DataFrame(rows, columns=pd.Index(list(PER_JOB_DTYPES))).astype(
-        PER_JOB_DTYPES
-    )
 
 
 def check_grouping(by: Sequence[str]) -> None:
@@ -135,7 +138,7 @@ def group_totals(
             },
             **{
                 column: counted[column].astype(float)
-                for column in TOTAL_COLUMNS
+                for column in HOUR_COLUMNS
             },
         )
         .groupby(list(by), dropna=False, sort=True)
@@ -144,7 +147,7 @@ def group_totals(
         [
             grouped[COUNTED_MATCH_LEVELS].sum(),
             # Groups of only unestimated jobs have no total.
-            grouped[TOTAL_COLUMNS].sum(min_count=1),
+            grouped[HOUR_COLUMNS].sum(min_count=1),
         ],
         axis=1,
     )
@@ -181,7 +184,7 @@ def format_report(
     overall = {
         **dict.fromkeys(by, ""),
         **totals[["jobs", *COUNTED_MATCH_LEVELS]].sum(),
-        **totals[TOTAL_COLUMNS].sum(min_count=1),
+        **totals[HOUR_COLUMNS].sum(min_count=1),
     }
     overall[by[0]] = "total"
     totals = pd.concat([totals, pd.DataFrame([overall])], ignore_index=True)
@@ -199,7 +202,7 @@ def format_report(
         lines += [
             "Unestimated jobs, not in the totals:",
             _table(
-                unestimated.loc[:, UNESTIMATED_GROUPING]
+                unestimated.loc[:, POOL_COLUMNS]
                 .value_counts(dropna=False)
                 .sort_index()
                 .reset_index(name="jobs")
@@ -239,9 +242,10 @@ def format_report(
 
 def _failure_warning(history: FailureHistory) -> str:
     """Return e.g. "training alpha on mnist timed out 3 times at 600 min"."""
-    job_type = " on ".join(
+    job_type = history.job_type
+    names = " on ".join(
         value
-        for value in [history.name, history.dataset_key]
+        for value in [job_type.name, job_type.dataset_key]
         if value is not None
     )
     attempts = []
@@ -255,7 +259,7 @@ def _failure_warning(history: FailureHistory) -> str:
         attempts.append(f"timed out {_plural(history.timed_out, 'time')} {at}")
     if history.failed:
         attempts.append(f"failed {_plural(history.failed, 'time')}")
-    return f"{history.stage} {job_type} {', '.join(attempts)}"
+    return f"{job_type.stage} {names} {', '.join(attempts)}"
 
 
 def _table(table: pd.DataFrame) -> str:

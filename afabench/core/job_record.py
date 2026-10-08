@@ -62,6 +62,15 @@ type ExitStatus = Literal["completed", "failed", "timeout"]
 
 
 @dataclass(frozen=True, kw_only=True)
+class JobType:
+    """What jobs share when they differ only in seeds, realization, budgets."""
+
+    stage: Stage
+    name: str | None
+    dataset_key: str | None
+
+
+@dataclass(frozen=True, kw_only=True)
 class JobIdentity:
     """What a job computed. Fields outside the stage's identity are null."""
 
@@ -77,6 +86,12 @@ class JobIdentity:
     eval_hard_budget: int | None = None
     eval_soft_budget_param: float | None = None
     eval_batch_size: int | None = None
+
+    @property
+    def job_type(self) -> JobType:
+        return JobType(
+            stage=self.stage, name=self.name, dataset_key=self.dataset_key
+        )
 
 
 @dataclass(frozen=True, kw_only=True)
