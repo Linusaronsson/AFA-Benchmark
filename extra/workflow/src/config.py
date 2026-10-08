@@ -12,8 +12,6 @@ from typing import Any
 # Snakemake config values are intentionally heterogeneous.
 # ruff: noqa: ANN401
 
-NO_PRETRAIN_STR = "NO_PRETRAIN"
-
 type ConfigDict = Mapping[str, Any]
 type BudgetParam = int | float | str
 type NullableParam = BudgetParam | None
@@ -105,32 +103,12 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
             filtered_method_sets[key] = filtered_methods
     method_sets = filtered_method_sets
 
-    # Filter methods by pretraining stage availability
-    # A method has a pretraining stage if pretrained_model_name is set
-    methods_with_pretraining_stage = [
-        method
-        for method, options in method_options.items()
-        if "pretrained_model_name" in options and method in methods
-    ]
-
-    methods_without_pretraining_stage = [
-        method
-        for method, options in method_options.items()
-        if "pretrained_model_name" not in options and method in methods
-    ]
-
     # Reference tables live under the same pretraining folder as they would
     # if the method were produced here.
     compared_methods_with_pretraining_stage = [
         method
         for method, options in method_options.items()
         if "pretrained_model_name" in options and method in compared_methods
-    ]
-    compared_methods_without_pretraining_stage = [
-        method
-        for method, options in method_options.items()
-        if "pretrained_model_name" not in options
-        and method in compared_methods
     ]
 
     # Build method option mappings for training scripts
@@ -332,7 +310,6 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
     )
 
     return {
-        "NO_PRETRAIN_STR": NO_PRETRAIN_STR,
         "DATASET_REALIZATION_INDICES": dataset_realization_indices,
         "INITIALIZER": initializer,
         "EVAL_DATASET_SPLIT": eval_dataset_split,
@@ -343,14 +320,9 @@ def load_config(config: ConfigDict) -> dict[str, Any]:  # noqa: C901, PLR0915
         "PRETRAIN_PARAMS": pretrain_model_params,
         "METHOD_OPTIONS": method_options,
         "METHODS": methods,
-        "METHODS_WITH_PRETRAINING_STAGE": methods_with_pretraining_stage,
-        "METHODS_WITHOUT_PRETRAINING_STAGE": methods_without_pretraining_stage,
         "REFERENCE_METHODS": reference_methods,
         "COMPARED_METHODS_WITH_PRETRAINING_STAGE": (
             compared_methods_with_pretraining_stage
-        ),
-        "COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE": (
-            compared_methods_without_pretraining_stage
         ),
         "METHOD_TRAIN_SCRIPT_NAMES": method_train_script_names,
         "METHOD_CLASSIFIER_SCRIPT_NAMES": method_classifier_script_names,

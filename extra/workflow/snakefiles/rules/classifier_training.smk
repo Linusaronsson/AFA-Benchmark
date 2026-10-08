@@ -41,13 +41,23 @@ def _method_classifier_script_params(method: str, dataset: str) -> str:
 
 rule train_classifier:
     input:
-        "extra/output/datasets/{dataset}/{dataset_realization_index}/train.bundle",
-        "extra/output/datasets/{dataset}/{dataset_realization_index}/val.bundle"
+        OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split="train",
+        ),
+        OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split="val",
+        ),
     output:
         directory(
-            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-                "dataset-{dataset}+"
-                "realization_index-{dataset_realization_index}.bundle"
+            OUTPUT_LAYOUT.classifier_bundle(
+                dataset="{dataset}",
+                dataset_realization_index="{dataset_realization_index}",
+                method=None,
+            )
         )
     params:
         device=lambda wc, resources: EXECUTION.checked_device("classifier_training", None, resources),
@@ -80,13 +90,23 @@ rule train_classifier:
 
 rule train_classifier_for_method:
     input:
-        "extra/output/datasets/{dataset}/{dataset_realization_index}/train.bundle",
-        "extra/output/datasets/{dataset}/{dataset_realization_index}/val.bundle"
+        OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split="train",
+        ),
+        OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split="val",
+        ),
     output:
         directory(
-            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            "method-{method}+dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}.bundle"
+            OUTPUT_LAYOUT.classifier_bundle(
+                dataset="{dataset}",
+                dataset_realization_index="{dataset_realization_index}",
+                method="{method}",
+            )
         )
     params:
         device=lambda wc, resources: EXECUTION.checked_device("classifier_training", wc.method, resources),

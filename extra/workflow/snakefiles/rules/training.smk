@@ -6,9 +6,11 @@ Both rules pass their script the training contract, rendered by
 (`docs/adr/0001-training-contract-as-library.md`), followed by the pretrained
 model's `pretrain_params` or the method's `method_specific_params`.
 
-`{pretrain_folder}` in `train_method` is `pretrain_seed-<seed>/` for methods
-with a pretraining stage and `NO_PRETRAIN/` for the others, the same folder
-the evaluation rules use, so the two former training rules are one.
+`{pretrain_folder}` in `train_method` is the folder
+`afabench.core.output_layout.pretrain_folder` names: one per pretraining seed
+for methods with a pretraining stage, and one shared folder for the others.
+The evaluation rules use the same folder, so the two former training rules
+are one.
 """
 
 from execution import checked_script_params
@@ -16,52 +18,39 @@ from contract_arguments import (
     render_pretraining_contract,
     render_training_contract,
 )
-
-
-def _classifier_bundle_for_method(
-    method: str, dataset: str, dataset_realization_index: str
-) -> str:
-    realization = (
-        f"dataset-{dataset}+realization_index-{dataset_realization_index}"
-    )
-    if method in METHOD_CLASSIFIER_SCRIPT_NAMES:
-        return (
-            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            f"method-{method}+{realization}.bundle"
-        )
-    return (
-        f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-        f"{realization}.bundle"
-    )
+from afabench.core.output_layout import (
+    PRETRAIN_FOLDER_PATTERN,
+    TrainingRun,
+    pretrain_folder,
+    pretrain_seed_in_folder,
+)
 
 
 def _pretrained_model_bundle(wildcards) -> list[str]:
     """The pretrained model a training run needs: one bundle or none."""
     has_pretraining_stage = wildcards.method in METHOD_TO_PRETRAINED_MODEL
-    if wildcards.pretrain_folder == f"{NO_PRETRAIN_STR}/":
+    pretrain_seed = pretrain_seed_in_folder(wildcards.pretrain_folder)
+    if pretrain_seed is None:
         if has_pretraining_stage:
             raise ValueError(
                 f"Method {wildcards.method!r} has a pretraining stage, so its "
-                f"bundles live under pretrain_seed-<seed>/, not "
-                f"{NO_PRETRAIN_STR}/."
+                f"bundles live under {pretrain_folder('<seed>')}/, not "
+                f"{wildcards.pretrain_folder}/."
             )
         return []
     if not has_pretraining_stage:
         raise ValueError(
             f"Method {wildcards.method!r} has no pretraining stage, so its "
-            f"bundles live under {NO_PRETRAIN_STR}/, not "
-            f"{wildcards.pretrain_folder}."
+            f"bundles live under {pretrain_folder(None)}/, not "
+            f"{wildcards.pretrain_folder}/."
         )
-    pretrain_seed = wildcards.pretrain_folder.removeprefix(
-        "pretrain_seed-"
-    ).removesuffix("/")
     return [
-        f"extra/output/pretrained_models/{INITIALIZER_TAG}/"
-        f"{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
-        f"dataset-{wildcards.dataset}+"
-        f"realization_index-{wildcards.dataset_realization_index}/"
-        f"pretrain_seed-{pretrain_seed}/"
-        "model.bundle"
+        OUTPUT_LAYOUT.pretrained_model_bundle(
+            pretrained_model_name=METHOD_TO_PRETRAINED_MODEL[wildcards.method],
+            dataset=wildcards.dataset,
+            dataset_realization_index=wildcards.dataset_realization_index,
+            pretrain_seed=pretrain_seed,
+        )
     ]
 
 
@@ -109,27 +98,37 @@ def _training_contract(wildcards, input, output, resources) -> str:
 
 rule pretrain_model:
     input:
-        train_dataset="extra/output/datasets/{dataset}/{dataset_realization_index}/train.bundle",
-        val_dataset="extra/output/datasets/{dataset}/{dataset_realization_index}/val.bundle",
+        train_dataset=OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split="train",
+        ),
+        val_dataset=OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split="val",
+        ),
         classifier=ancient(
-            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}.bundle"
+            OUTPUT_LAYOUT.classifier_bundle(
+                dataset="{dataset}",
+                dataset_realization_index="{dataset_realization_index}",
+                method=None,
+            )
         ),
     output:
         model_bundle=directory(
-            f"extra/output/pretrained_models/{INITIALIZER_TAG}/{{pretrained_model_name}}/"
-                "dataset-{dataset}+"
-                "realization_index-{dataset_realization_index}/"
-                    "pretrain_seed-{pretrain_seed}/"
-                        "model.bundle"
+            OUTPUT_LAYOUT.pretrained_model_bundle(
+                pretrained_model_name="{pretrained_model_name}",
+                dataset="{dataset}",
+                dataset_realization_index="{dataset_realization_index}",
+                pretrain_seed="{pretrain_seed}",
+            )
         ),
-        pretrain_time=(
-            f"extra/output/pretrained_models/{INITIALIZER_TAG}/{{pretrained_model_name}}/"
-                "dataset-{dataset}+"
-                "realization_index-{dataset_realization_index}/"
-                    "pretrain_seed-{pretrain_seed}/"
-                        "pretrain_time.txt"
+        pretrain_time=OUTPUT_LAYOUT.pretrain_time(
+            pretrained_model_name="{pretrained_model_name}",
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            pretrain_seed="{pretrain_seed}",
         ),
     params:
         script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
@@ -152,39 +151,36 @@ rule pretrain_model:
 
 rule train_method:
     input:
-        train_dataset="extra/output/datasets/{dataset}/{dataset_realization_index}/train.bundle",
-        val_dataset="extra/output/datasets/{dataset}/{dataset_realization_index}/val.bundle",
+        train_dataset=OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split="train",
+        ),
+        val_dataset=OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split="val",
+        ),
         pretrained_model=_pretrained_model_bundle,
+        # The method's own classifier if it has one, else the external one.
         classifier=ancient(
-            lambda wildcards: _classifier_bundle_for_method(
-                wildcards.method,
-                wildcards.dataset,
-                wildcards.dataset_realization_index,
+            lambda wildcards: OUTPUT_LAYOUT.classifier_bundle(
+                dataset=wildcards.dataset,
+                dataset_realization_index=wildcards.dataset_realization_index,
+                method=(
+                    wildcards.method
+                    if wildcards.method in METHOD_CLASSIFIER_SCRIPT_NAMES
+                    else None
+                ),
             )
         ),
     output:
         method_bundle=directory(
-            f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
-                "dataset-{dataset}+"
-                "realization_index-{dataset_realization_index}/"
-                    "{pretrain_folder}"
-                        "train_seed-{train_seed}+"
-                        "train_hard_budget-{train_hard_budget}+"
-                        "train_soft_budget_param-{train_soft_budget_param}/"
-                            "method.bundle"
+            OUTPUT_LAYOUT.method_bundle(TrainingRun.wildcards())
         ),
-        train_time=(
-            f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
-                "dataset-{dataset}+"
-                "realization_index-{dataset_realization_index}/"
-                    "{pretrain_folder}"
-                        "train_seed-{train_seed}+"
-                        "train_hard_budget-{train_hard_budget}+"
-                        "train_soft_budget_param-{train_soft_budget_param}/"
-                            "train_time.txt"
-        ),
+        train_time=OUTPUT_LAYOUT.train_time(TrainingRun.wildcards()),
     wildcard_constraints:
-        pretrain_folder=rf"pretrain_seed-\d+/|{NO_PRETRAIN_STR}/",
+        pretrain_folder=PRETRAIN_FOLDER_PATTERN,
     params:
         script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],
         contract=_training_contract,

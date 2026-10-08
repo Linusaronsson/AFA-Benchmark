@@ -2,6 +2,13 @@
 Rules for running the pipeline up to a certain step.
 """
 
+from afabench.core.output_layout import (
+    EvaluationRun,
+    TrainingRun,
+    pretrain_folder,
+)
+
+
 rule all:
     input:
         [
@@ -25,7 +32,11 @@ rule all:
 rule all_generate_datasets:
     input:
         [
-            f"extra/output/datasets/{dataset}/{dataset_realization_index}/{split}.bundle"
+            OUTPUT_LAYOUT.dataset_bundle(
+                dataset=dataset,
+                dataset_realization_index=dataset_realization_index,
+                split=split,
+            )
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
             for split in ["train", "val", "test"]
@@ -35,19 +46,19 @@ rule all_generate_datasets:
 rule all_train_classifiers:
     input:
         [
-            (
-                f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}.bundle"
+            OUTPUT_LAYOUT.classifier_bundle(
+                dataset=dataset,
+                dataset_realization_index=dataset_realization_index,
+                method=None,
             )
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
         ] +
         [
-            (
-                f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-                    f"method-{method}+dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}.bundle"
+            OUTPUT_LAYOUT.classifier_bundle(
+                dataset=dataset,
+                dataset_realization_index=dataset_realization_index,
+                method=method,
             )
             for method in METHODS
             if method in METHOD_CLASSIFIER_SCRIPT_NAMES
@@ -59,12 +70,11 @@ rule all_train_classifiers:
 rule all_pretrain_models:
     input:
         [
-            (
-                f"extra/output/pretrained_models/{INITIALIZER_TAG}/{pretrain_name}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}/"
-                        f"pretrain_seed-{dataset_realization_index}/"
-                            "model.bundle"
+            OUTPUT_LAYOUT.pretrained_model_bundle(
+                pretrained_model_name=pretrain_name,
+                dataset=dataset,
+                dataset_realization_index=dataset_realization_index,
+                pretrain_seed=dataset_realization_index,
             )
             for pretrain_name in PRETRAIN_NAMES
             for dataset in DATASETS_USED_PER_PRETRAIN_NAME[pretrain_name]
@@ -75,33 +85,22 @@ rule all_pretrain_models:
 rule all_train_methods:
     input:
         [
-            (
-                f"extra/output/trained_methods/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}/"
-                        f"pretrain_seed-{dataset_realization_index}/"
-                            f"train_seed-{dataset_realization_index}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                "method.bundle"
+            OUTPUT_LAYOUT.method_bundle(
+                TrainingRun(
+                    method=method,
+                    dataset=dataset,
+                    dataset_realization_index=dataset_realization_index,
+                    pretrain_folder=pretrain_folder(
+                        dataset_realization_index
+                        if method in METHOD_TO_PRETRAINED_MODEL
+                        else None
+                    ),
+                    train_seed=dataset_realization_index,
+                    train_hard_budget=train_hard_budget,
+                    train_soft_budget_param=train_soft_budget_param,
+                )
             )
-            for method in METHODS_WITH_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for (train_hard_budget, _eval_hard_budget, train_soft_budget_param, _eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
-        ] +
-        [
-            (
-                f"extra/output/trained_methods/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}/"
-                        f"{NO_PRETRAIN_STR}/"
-                            f"train_seed-{dataset_realization_index}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                "method.bundle"
-            )
-            for method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for method in METHODS
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
             for (train_hard_budget, _eval_hard_budget, train_soft_budget_param, _eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
@@ -110,39 +109,27 @@ rule all_train_methods:
 rule all_eval_methods:
     input:
         [
-            (
-                f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}/"
-                        f"pretrain_seed-{dataset_realization_index}/"
-                            f"train_seed-{dataset_realization_index}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_realization_index}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.parquet"
+            OUTPUT_LAYOUT.raw_evaluation_table(
+                EvaluationRun(
+                    training=TrainingRun(
+                        method=method,
+                        dataset=dataset,
+                        dataset_realization_index=dataset_realization_index,
+                        pretrain_folder=pretrain_folder(
+                            dataset_realization_index
+                            if method in METHOD_TO_PRETRAINED_MODEL
+                            else None
+                        ),
+                        train_seed=dataset_realization_index,
+                        train_hard_budget=train_hard_budget,
+                        train_soft_budget_param=train_soft_budget_param,
+                    ),
+                    eval_seed=dataset_realization_index,
+                    eval_hard_budget=eval_hard_budget,
+                    eval_soft_budget_param=eval_soft_budget_param,
+                )
             )
-            for method in METHODS_WITH_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
-        ] +
-        [
-            (
-                f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}/"
-                        f"{NO_PRETRAIN_STR}/"
-                            f"train_seed-{dataset_realization_index}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_realization_index}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.parquet"
-            )
-            for method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for method in METHODS
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
             for (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]

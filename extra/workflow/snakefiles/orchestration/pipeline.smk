@@ -96,6 +96,10 @@ CPU-only processing:
     final-target command-boundary verification.
 
 Output namespacing:
+    - Every rule addresses dataset, classifier, pretrained-model and method
+      bundles, evaluation tables and time files under extra/output through
+      OUTPUT_LAYOUT (afabench/core/output_layout.py), the native layout that
+      release manifests and restored benchmark releases also use.
     - All initializer-dependent artifacts are stored under
       `initializer-<initializer>` to allow side-by-side comparisons
       (for example `cold` vs `missingness`) without overwriting.
@@ -144,6 +148,7 @@ workflow_dir = os.path.dirname(os.path.dirname(snakefile_dir))
 src_dir = os.path.join(workflow_dir, "src")
 sys.path.insert(0, src_dir)
 
+from afabench.core.output_layout import OutputLayout
 from config import load_config
 from execution import ExecutionPolicy
 
@@ -159,11 +164,13 @@ EXECUTION = ExecutionPolicy(
     submits_to_cluster=lambda: workflow.is_main_process and workflow.non_local_exec,
 )
 
-NO_PRETRAIN_STR = _config["NO_PRETRAIN_STR"]
 DATASET_REALIZATION_INDICES = _config["DATASET_REALIZATION_INDICES"]
 INITIALIZER = _config["INITIALIZER"]
 INITIALIZER_TAG = f"initializer-{INITIALIZER}"
 EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
+OUTPUT_LAYOUT = OutputLayout(
+    root="extra/output", initializer=INITIALIZER, eval_split=EVAL_DATASET_SPLIT
+)
 USE_WANDB = _config["USE_WANDB"]
 SMOKE_TEST = _config["SMOKE_TEST"]
 PRETRAIN_NAMES = _config["PRETRAIN_NAMES"]
@@ -171,11 +178,8 @@ PRETRAIN_SCRIPT_NAMES = _config["PRETRAIN_SCRIPT_NAMES"]
 PRETRAIN_PARAMS = _config["PRETRAIN_PARAMS"]
 METHOD_OPTIONS = _config["METHOD_OPTIONS"]
 METHODS = _config["METHODS"]
-METHODS_WITH_PRETRAINING_STAGE = _config["METHODS_WITH_PRETRAINING_STAGE"]
-METHODS_WITHOUT_PRETRAINING_STAGE = _config["METHODS_WITHOUT_PRETRAINING_STAGE"]
 REFERENCE_METHODS = _config["REFERENCE_METHODS"]
 COMPARED_METHODS_WITH_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITH_PRETRAINING_STAGE"]
-COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE"]
 METHOD_TRAIN_SCRIPT_NAMES = _config["METHOD_TRAIN_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_NAMES = _config["METHOD_CLASSIFIER_SCRIPT_NAMES"]
 METHOD_CLASSIFIER_SCRIPT_PARAMS = _config["METHOD_CLASSIFIER_SCRIPT_PARAMS"]

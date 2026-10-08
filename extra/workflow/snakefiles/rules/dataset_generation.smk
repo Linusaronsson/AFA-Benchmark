@@ -3,12 +3,20 @@
 rule dataset_generation:
     output:
         [
-            directory(f"extra/output/datasets/{{dataset}}/{dataset_realization_index}/{split}.bundle") for dataset_realization_index in DATASET_REALIZATION_INDICES for split in ["train", "val", "test"]
+            directory(
+                OUTPUT_LAYOUT.dataset_bundle(
+                    dataset="{dataset}",
+                    dataset_realization_index=dataset_realization_index,
+                    split=split,
+                )
+            )
+            for dataset_realization_index in DATASET_REALIZATION_INDICES
+            for split in ["train", "val", "test"]
         ]
     params:
         # Validate final resources during planning; this script has no device argument.
         allocation_check=lambda wc, resources: EXECUTION.checked_device("dataset_generation", wc.dataset, resources),
-        save_path=lambda wc: f"extra/output/datasets/{wc.dataset}",
+        save_path=lambda wc: OUTPUT_LAYOUT.dataset_folder(dataset=wc.dataset),
         dataset_realization_indices_str=lambda wildcards: "["
         + ",".join(str(i) for i in DATASET_REALIZATION_INDICES)
         + "]",

@@ -4,66 +4,30 @@ Evaluation rules.
 Handles evaluation of trained methods on test/validation datasets.
 """
 
-
-def _classifier_bundle_for_method(
-    method: str, dataset: str, dataset_realization_index: str
-) -> str:
-    realization = (
-        f"dataset-{dataset}+realization_index-{dataset_realization_index}"
-    )
-    if method in METHOD_CLASSIFIER_SCRIPT_NAMES:
-        return (
-            f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-            f"method-{method}+{realization}.bundle"
-        )
-    return (
-        f"extra/output/trained_classifiers/{INITIALIZER_TAG}/"
-        f"{realization}.bundle"
-    )
+from afabench.core.output_layout import EvaluationRun, TrainingRun
 
 
 rule eval_method:
     input:
-        f"extra/output/datasets/{{dataset}}/{{dataset_realization_index}}/{EVAL_DATASET_SPLIT}.bundle",
-
-        f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                "{pretrain_folder}"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "method.bundle",
-
-        lambda wildcards: _classifier_bundle_for_method(
-            wildcards.method,
-            wildcards.dataset,
-            wildcards.dataset_realization_index,
-        )
-
+        OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split=EVAL_DATASET_SPLIT,
+        ),
+        OUTPUT_LAYOUT.method_bundle(TrainingRun.wildcards()),
+        # The method's own classifier if it has one, else the external one.
+        lambda wildcards: OUTPUT_LAYOUT.classifier_bundle(
+            dataset=wildcards.dataset,
+            dataset_realization_index=wildcards.dataset_realization_index,
+            method=(
+                wildcards.method
+                if wildcards.method in METHOD_CLASSIFIER_SCRIPT_NAMES
+                else None
+            ),
+        ),
     output:
-        f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                "{pretrain_folder}"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_data.parquet",
-        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                "{pretrain_folder}"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_time.txt",
+        OUTPUT_LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()),
+        OUTPUT_LAYOUT.eval_time(EvaluationRun.wildcards()),
     params:
         device=lambda wildcards, resources: EXECUTION.checked_device("evaluation", wildcards.method, resources),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],

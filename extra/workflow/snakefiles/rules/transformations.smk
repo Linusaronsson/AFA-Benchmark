@@ -9,6 +9,8 @@ format.
 
 import re
 
+from afabench.core.output_layout import EvaluationRun
+
 # Reference methods' plotting-ready tables are restored from a benchmark
 # release. Not matching them here leaves those tables as plain input files,
 # so aggregating them never schedules their evaluation or training.
@@ -30,29 +32,9 @@ rule transform_eval_data:
     classifier columns to tidy data format.
     """
     input:
-        f"extra/output/eval_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                "{pretrain_folder}"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_data.parquet",
+        OUTPUT_LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()),
     output:
-        f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                "{pretrain_folder}"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_data.parquet",
+        OUTPUT_LAYOUT.transformed_evaluation_table(EvaluationRun.wildcards()),
     wildcard_constraints:
         method=TRANSFORMED_METHOD_PATTERN,
     params:

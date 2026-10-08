@@ -7,6 +7,12 @@ Combines individual results into unified datasets:
 - Merging time measurements across all runs
 """
 
+from afabench.core.output_layout import (
+    EvaluationRun,
+    TrainingRun,
+    pretrain_folder,
+)
+
 
 rule merge_eval_perf:
     """Merge evaluation performance results from all methods within a method set.
@@ -16,44 +22,30 @@ rule merge_eval_perf:
     """
     input: lambda wc:
         [
-            (
-                f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}/"
-                        f"{NO_PRETRAIN_STR}/"
-                            f"train_seed-{dataset_realization_index}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_realization_index}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.parquet"
+            OUTPUT_LAYOUT.transformed_evaluation_table(
+                EvaluationRun(
+                    training=TrainingRun(
+                        method=method,
+                        dataset=dataset,
+                        dataset_realization_index=dataset_realization_index,
+                        # Reference tables live under the same pretrain
+                        # folder as they would if the method were produced
+                        # here.
+                        pretrain_folder=pretrain_folder(
+                            dataset_realization_index
+                            if method in COMPARED_METHODS_WITH_PRETRAINING_STAGE
+                            else None
+                        ),
+                        train_seed=dataset_realization_index,
+                        train_hard_budget=train_hard_budget,
+                        train_soft_budget_param=train_soft_budget_param,
+                    ),
+                    eval_seed=dataset_realization_index,
+                    eval_hard_budget=eval_hard_budget,
+                    eval_soft_budget_param=eval_soft_budget_param,
+                )
             )
-            for method in METHOD_SETS[wc.method_set] if method in COMPARED_METHODS_WITHOUT_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for (
-                train_hard_budget,
-                eval_hard_budget,
-                train_soft_budget_param,
-                eval_soft_budget_param,
-            ) in BUDGET_PARAMS[method][dataset]
-        ] +
-        [
-            (
-                f"extra/output/eval_results_transformed/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}/"
-                        f"pretrain_seed-{dataset_realization_index}/"
-                            f"train_seed-{dataset_realization_index}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_realization_index}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"eval_data.parquet"
-            )
-            for method in METHOD_SETS[wc.method_set] if method in COMPARED_METHODS_WITH_PRETRAINING_STAGE
+            for method in METHOD_SETS[wc.method_set]
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
             for (
@@ -98,44 +90,22 @@ rule split_by_classifier_type:
 rule time_df_with_pretrain:
     """Combine pretrain, train, and eval time measurements into a single dataframe."""
     input:
-        lambda wildcards: (
-            f"extra/output/pretrained_models/{INITIALIZER_TAG}/{METHOD_TO_PRETRAINED_MODEL[wildcards.method]}/"
-                f"dataset-{wildcards.dataset}+"
-                f"realization_index-{wildcards.dataset_realization_index}/"
-                    f"pretrain_seed-{wildcards.pretrain_seed}/"
-                        "pretrain_time.txt"
+        lambda wildcards: OUTPUT_LAYOUT.pretrain_time(
+            pretrained_model_name=METHOD_TO_PRETRAINED_MODEL[wildcards.method],
+            dataset=wildcards.dataset,
+            dataset_realization_index=wildcards.dataset_realization_index,
+            pretrain_seed=wildcards.pretrain_seed,
         ),
-        f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                "pretrain_seed-{pretrain_seed}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "train_time.txt",
-        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                "pretrain_seed-{pretrain_seed}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_time.txt"
+        OUTPUT_LAYOUT.train_time(
+            TrainingRun.wildcards(pretrain_folder=pretrain_folder("{pretrain_seed}"))
+        ),
+        OUTPUT_LAYOUT.eval_time(
+            EvaluationRun.wildcards(pretrain_folder=pretrain_folder("{pretrain_seed}"))
+        ),
     output:
-        f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                "pretrain_seed-{pretrain_seed}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "combined_time.parquet"
+        OUTPUT_LAYOUT.combined_time(
+            EvaluationRun.wildcards(pretrain_folder=pretrain_folder("{pretrain_seed}"))
+        ),
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_with_pretrain", resources),
     resources:
@@ -156,37 +126,16 @@ rule time_df_with_pretrain:
 rule time_df_without_pretrain:
     """Combine train and eval time measurements, with pretrain time set to null."""
     input:
-        f"extra/output/trained_methods/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                f"{NO_PRETRAIN_STR}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "train_time.txt",
-        f"extra/output/eval_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                f"{NO_PRETRAIN_STR}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "eval_time.txt"
+        OUTPUT_LAYOUT.train_time(
+            TrainingRun.wildcards(pretrain_folder=pretrain_folder(None))
+        ),
+        OUTPUT_LAYOUT.eval_time(
+            EvaluationRun.wildcards(pretrain_folder=pretrain_folder(None))
+        ),
     output:
-        f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{{method}}/"
-            "dataset-{dataset}+"
-            "realization_index-{dataset_realization_index}/"
-                f"{NO_PRETRAIN_STR}/"
-                    "train_seed-{train_seed}+"
-                    "train_hard_budget-{train_hard_budget}+"
-                    "train_soft_budget_param-{train_soft_budget_param}/"
-                        "eval_seed-{eval_seed}+"
-                        "eval_hard_budget-{eval_hard_budget}+"
-                        "eval_soft_budget_param-{eval_soft_budget_param}/"
-                            "combined_time.parquet"
+        OUTPUT_LAYOUT.combined_time(
+            EvaluationRun.wildcards(pretrain_folder=pretrain_folder(None))
+        ),
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_without_pretrain", resources),
     resources:
@@ -207,20 +156,27 @@ rule merge_time:
     """Merge time measurements from all method-dataset combinations."""
     input:
         [
-            (
-                f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}/"
-                        f"{NO_PRETRAIN_STR}/"
-                            f"train_seed-{dataset_realization_index}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_realization_index}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"combined_time.parquet"
+            OUTPUT_LAYOUT.combined_time(
+                EvaluationRun(
+                    training=TrainingRun(
+                        method=method,
+                        dataset=dataset,
+                        dataset_realization_index=dataset_realization_index,
+                        pretrain_folder=pretrain_folder(
+                            dataset_realization_index
+                            if method in METHOD_TO_PRETRAINED_MODEL
+                            else None
+                        ),
+                        train_seed=dataset_realization_index,
+                        train_hard_budget=train_hard_budget,
+                        train_soft_budget_param=train_soft_budget_param,
+                    ),
+                    eval_seed=dataset_realization_index,
+                    eval_hard_budget=eval_hard_budget,
+                    eval_soft_budget_param=eval_soft_budget_param,
+                )
             )
-            for method in METHODS_WITHOUT_PRETRAINING_STAGE
+            for method in METHODS
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
             for (
@@ -228,30 +184,6 @@ rule merge_time:
                 eval_hard_budget,
                 train_soft_budget_param,
                 eval_soft_budget_param,
-            ) in BUDGET_PARAMS[method][dataset]
-        ] +
-        [
-            (
-                f"extra/output/combined_time_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/{method}/"
-                    f"dataset-{dataset}+"
-                    f"realization_index-{dataset_realization_index}/"
-                        f"pretrain_seed-{dataset_realization_index}/"
-                            f"train_seed-{dataset_realization_index}+"
-                            f"train_hard_budget-{train_hard_budget}+"
-                            f"train_soft_budget_param-{train_soft_budget_param}/"
-                                f"eval_seed-{dataset_realization_index}+"
-                                f"eval_hard_budget-{eval_hard_budget}+"
-                                f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                                    f"combined_time.parquet"
-            )
-            for method in METHODS_WITH_PRETRAINING_STAGE
-            for dataset in DATASETS
-            for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for (
-                train_hard_budget,
-                eval_hard_budget,
-                train_soft_budget_param,
-                eval_soft_budget_param
             ) in BUDGET_PARAMS[method][dataset]
         ]
     output:
