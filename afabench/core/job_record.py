@@ -8,17 +8,25 @@ beside the artifact the job produced. `null` always means "unknown" or "not
 part of this job's identity", never a default. The command runs once per
 pipeline job before its script, so this module imports nothing heavy.
 
-    python -m afabench.core.job_record --record <path> --stage <stage>
+    python -m afabench.core.job_record --record <path>
+        --failed-record <path> --stage <stage>
         [identity and allocation options] -- <script command>
+
+Snakemake deletes a failed job's declared outputs, so the record of a job
+that failed or timed out goes to the undeclared failed-record path instead,
+with an attempt id that keeps repeated attempts apart.
 """
 
 import json
 import os
 import platform
 import re
+import signal
 import socket
 import subprocess
+import threading
 import time
+import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,6 +39,10 @@ from afabench.core.code_identity import AFABENCH_CHECKOUT, code_identity
 JOB_RECORD_VERSION = 1
 # A record is named after its artifact: model.bundle, model.job_record.json
 JOB_RECORD_SUFFIX = ".job_record.json"
+# SLURM sends SIGTERM at a job's time limit and SIGKILL after its KillWait,
+# 30 seconds by default. Kill a script that ignores SIGTERM before then, so
+# that the record is still written.
+SCRIPT_KILL_DELAY_SECONDS = 10
 
 # Plain assignments, not `type` statements: typer reads only these as
 # choices. The pipeline stages whose jobs are computational and leave a job
@@ -44,7 +56,7 @@ Stage = Literal[
     "transformation",
 ]
 Device = Literal["cpu", "cuda"]
-type ExitStatus = Literal["completed", "failed"]
+type ExitStatus = Literal["completed", "failed", "timeout"]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -115,20 +127,52 @@ def run_job(
     allocation: Allocation,
     smoke_test: bool,
     record_path: Path,
+    failed_record_path: Path,
 ) -> JobRecord:
-    """Run a job's script command, then write and return its job record."""
+    """
+    Run a job's script command, then write and return its job record.
+
+    A completed job's record goes to `record_path`. A failed or timed-out
+    job's goes beside `failed_record_path`, named uniquely per attempt.
+    """
     started_at = datetime.now(UTC)
     start = time.perf_counter()
-    exit_code = subprocess.run(command, check=False).returncode
+    process = subprocess.Popen(command)
+    terminated = threading.Event()
+    kill = threading.Timer(SCRIPT_KILL_DELAY_SECONDS, process.kill)
+    kill.daemon = True
+
+    def terminate(_signal: int, _frame: object) -> None:
+        if terminated.is_set():
+            return
+        terminated.set()
+        # SLURM signals the whole job step, but a local SIGTERM reaches only
+        # this process.
+        process.terminate()
+        kill.start()
+
+    previous_handler = signal.signal(signal.SIGTERM, terminate)
+    try:
+        exit_code = process.wait()
+    finally:
+        signal.signal(signal.SIGTERM, previous_handler)
+        kill.cancel()
     job_duration_seconds = time.perf_counter() - start
     ended_at = datetime.now(UTC)
+    exit_status: ExitStatus = (
+        "timeout"
+        if terminated.is_set()
+        else "completed"
+        if exit_code == 0
+        else "failed"
+    )
     record = JobRecord(
         job_record_version=JOB_RECORD_VERSION,
         **asdict(identity),
         started_at=started_at.isoformat(),
         ended_at=ended_at.isoformat(),
         job_duration_seconds=job_duration_seconds,
-        exit_status="completed" if exit_code == 0 else "failed",
+        exit_status=exit_status,
         exit_code=exit_code,
         **asdict(allocation),
         gpu_model=_gpu_model() if allocation.gpus else None,
@@ -138,9 +182,18 @@ def run_job(
         code_commit=code_identity(AFABENCH_CHECKOUT)[0],
         smoke_test=smoke_test,
     )
+    if exit_status != "completed":
+        record_path = _attempt_path(failed_record_path, started_at)
     record_path.parent.mkdir(parents=True, exist_ok=True)
     record_path.write_text(json.dumps(record.to_json_dict(), indent=2) + "\n")
     return record
+
+
+def _attempt_path(failed_record_path: Path, started_at: datetime) -> Path:
+    """Insert a unique, chronologically sortable attempt id before the suffix."""
+    stem = failed_record_path.name.removesuffix(JOB_RECORD_SUFFIX)
+    attempt = f"{started_at:%Y%m%dT%H%M%S%fZ}-{uuid.uuid4().hex[:8]}"
+    return failed_record_path.with_name(f"{stem}.{attempt}{JOB_RECORD_SUFFIX}")
 
 
 def _gpu_model() -> str | None:
@@ -185,7 +238,16 @@ def main(
         list[str], typer.Argument(help="The job's script command, after --.")
     ],
     record: Annotated[
-        Path, typer.Option(help="Where to write the job record.")
+        Path, typer.Option(help="Where to write a completed job's record.")
+    ],
+    failed_record: Annotated[
+        Path,
+        typer.Option(
+            help=(
+                "Where to write a failed or timed-out job's record, with an "
+                "attempt id inserted before .job_record.json."
+            )
+        ),
     ],
     stage: Annotated[Stage, typer.Option()],
     device: Annotated[Device, typer.Option()],
@@ -228,12 +290,23 @@ def main(
         allocation=Allocation(device=device, cpus=cpus, gpus=gpus),
         smoke_test=smoke_test,
         record_path=record,
+        failed_record_path=failed_record,
     )
-    if job_record.exit_code != 0:
-        raise typer.Exit(job_record.exit_code or 1)
+    if job_record.exit_status != "completed":
+        raise typer.Exit(_wrapper_exit_code(job_record.exit_code))
     # The time aggregation still reads *_time.txt (ADR-0006 expand step)
     if time_file is not None:
         time_file.write_text(f"{job_record.job_duration_seconds:.6f}\n")
+
+
+def _wrapper_exit_code(script_exit_code: int | None) -> int:
+    """Propagate the script's exit code, as a shell would for a signal."""
+    if script_exit_code is None or script_exit_code == 0:
+        # The script exited cleanly after SIGTERM, but the job timed out.
+        return 128 + signal.SIGTERM
+    if script_exit_code < 0:
+        return 128 - script_exit_code
+    return script_exit_code
 
 
 if __name__ == "__main__":

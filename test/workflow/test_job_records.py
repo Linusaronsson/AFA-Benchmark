@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from test.workflow.submission_harness import REPO_ROOT
+from test.workflow.submission_harness import REPO_ROOT, WorkflowHarness
 from test.workflow.test_full_reproduction import (
     GPU_JOBS,
     full_benchmark_workflow,
@@ -260,3 +260,38 @@ def test_time_files_and_time_aggregation_still_work(
         recorded_run.output / f"plot_results/eval_split-test/{TAG}/time"
     )
     assert (time_plots / "fixture.svg").is_file()
+
+
+def test_failed_attempts_leave_separate_records_outside_declared_outputs(
+    tmp_path: Path,
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    (tmp_path / "scripts/train_method/alpha.py").write_text(
+        "import sys\nsys.exit(3)\n"
+    )
+    output = tmp_path / "extra/output"
+    training = f"trained_methods/{TAG}/alpha"
+
+    for _ in range(2):
+        result = workflow.run()
+        assert result.returncode != 0
+        assert "exit status 3" in result.stderr
+
+    records = [
+        json.loads(path.read_text())
+        for path in (output / "failed_job_records" / training).rglob(
+            "method.*.job_record.json"
+        )
+    ]
+    assert len(records) == 2
+    for record in records:
+        assert record["stage"] == "training"
+        assert record["name"] == "alpha"
+        assert record["exit_status"] == "failed"
+        assert record["exit_code"] == 3
+    declared = ["method.bundle", "train_time.txt", "method.job_record.json"]
+    assert not [
+        path
+        for path in (output / training).rglob("*")
+        if path.name in declared
+    ]
