@@ -2,10 +2,11 @@
 `estimate-compute` plans an invocation's jobs with their allocations (#79).
 
 The planner takes the same Snakemake arguments as a real run. These tests
-compare its per-job CSV with what the same arguments make Snakemake submit
-to the fake `sbatch`, or with how a real invocation fails.
+compare the jobs of its per-job CSV with what the same arguments make
+Snakemake submit to the fake `sbatch`, or with how a real invocation fails.
 """
 
+import json
 import re
 from pathlib import Path
 
@@ -38,12 +39,16 @@ def submitted_allocation(args: list[str]) -> Job:
     return rule, tuple(sorted(wildcards.split("_"))), device, cpus, gpus
 
 
+def wildcards(row: dict[str, str]) -> dict[str, str]:
+    """Return a planned job's wildcards from its row of the per-job CSV."""
+    return json.loads(row["wildcards"])
+
+
 def planned_allocation(row: dict[str, str]) -> Job:
     """Return a planned job's identity, in the form of a submission comment."""
-    allocation = {"rule", "device", "cpus", "gpus"}
     # The SLURM plugin joins wildcard values with "_" and replaces "/".
     values = "_".join(
-        value for key, value in row.items() if key not in allocation and value
+        value for value in wildcards(row).values() if value
     ).replace("/", "_")
     return (
         row["rule"],
@@ -87,7 +92,8 @@ def test_only_the_remaining_jobs_are_planned_once_outputs_exist(
 
     assert plan.returncode == 0, plan.stdout + plan.stderr
     assert sorted(
-        (job["rule"], job["method"]) for job in workflow.planned_jobs()
+        (job["rule"], wildcards(job)["method"])
+        for job in workflow.planned_jobs()
     ) == [("eval_method", "alpha"), ("eval_method", "beta")]
 
 
@@ -98,7 +104,9 @@ def test_reference_methods_are_never_planned(tmp_path: Path) -> None:
 
     assert plan.returncode == 0, plan.stdout + plan.stderr
     jobs = workflow.planned_jobs()
-    assert {job["method"] for job in jobs if job["method"]} == {"beta"}
+    assert {
+        wildcards(job)["method"] for job in jobs if "method" in wildcards(job)
+    } == {"beta"}
     assert "merge_eval_perf" in {job["rule"] for job in jobs}
 
 
@@ -118,7 +126,7 @@ def test_set_resources_overrides_are_reflected_in_the_planned_allocation(
 
     assert plan.returncode == 0, plan.stdout + plan.stderr
     assert sorted(
-        (job["method"], job["device"], job["cpus"], job["gpus"])
+        (wildcards(job)["method"], job["device"], job["cpus"], job["gpus"])
         for job in workflow.planned_jobs()
     ) == [("alpha", "cuda", "3", "1"), ("beta", "cpu", "3", "0")]
 
