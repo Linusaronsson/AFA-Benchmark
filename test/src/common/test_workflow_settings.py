@@ -122,6 +122,28 @@ def test_misspelt_method_option_is_rejected(typo: str) -> None:
         load_config(config)
 
 
+# A config passed through JSON, as a release config is, has string keys.
+@pytest.mark.parametrize("eval_budget_key", [1, "1"])
+def test_eval_to_train_hard_budget_mapping_sets_the_train_hard_budget(
+    eval_budget_key: int | str,
+) -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "eval_to_train_hard_budget_mapping": {
+                    "cube": {eval_budget_key: 3}
+                },
+            }
+        }
+    )
+
+    settings = load_config(config)
+
+    assert (3, 1, "null", "null") in settings.budget_params["alpha"]["cube"]
+
+
 def test_method_without_train_script_name_is_rejected() -> None:
     config = _config(method_options={"alpha": {"eval_batch_size": 1}})
 

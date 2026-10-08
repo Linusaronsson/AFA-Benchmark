@@ -350,6 +350,19 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
 def _method_options(
     method: str, options: Mapping[str, Any], known_dataset_keys: set[str]
 ) -> MethodOptions:
+    if "eval_to_train_hard_budget_mapping" in options:
+        options = {
+            **options,
+            "eval_to_train_hard_budget_mapping": {
+                dataset: {
+                    _hard_budget(eval_budget): train_budget
+                    for eval_budget, train_budget in mapping.items()
+                }
+                for dataset, mapping in options[
+                    "eval_to_train_hard_budget_mapping"
+                ].items()
+            },
+        }
     parsed = _parse_strictly(
         MethodOptions, options, f"method_options[{method!r}]"
     )
@@ -386,6 +399,19 @@ def _classifier_script(
     return _parse_strictly(
         ClassifierScript, classifier, f"classifier_names[{key!r}]"
     )
+
+
+def _hard_budget(budget: object) -> object:
+    """Read a hard budget that JSON turned into a string key back."""
+    if not isinstance(budget, str):
+        return budget
+    try:
+        return int(budget)
+    except ValueError:
+        try:
+            return float(budget)
+        except ValueError:
+            return budget
 
 
 def _parse_strictly[T](
