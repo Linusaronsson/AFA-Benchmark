@@ -583,12 +583,9 @@ def execution_mode(index: ArtifactIndex) -> ExecutionMode | None:
 
 def _execution_mode(index: ArtifactIndex) -> ExecutionMode:
     # Dataset generation has no smoke mode and always records production,
-    # so one smoke artifact makes the tree a smoke tree. So does one smoke
-    # job record, whose duration a compute estimate would refuse.
-    table = job_duration_table_entry(index)
-    if (table is not None and table.smoke_test) or any(
-        entry.smoke_test for entry in [*index.bundles, *index.evaluations]
-    ):
+    # so one smoke artifact makes the tree a smoke tree. Job records do not:
+    # the job duration table carries its own smoke flag.
+    if any(entry.smoke_test for entry in [*index.bundles, *index.evaluations]):
         return ExecutionMode.SMOKE
     return ExecutionMode.PRODUCTION
 

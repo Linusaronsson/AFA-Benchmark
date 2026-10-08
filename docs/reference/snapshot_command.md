@@ -56,7 +56,7 @@ is copied:
 - any bundle, or Parquet file under `eval_results/` or
   `eval_results_transformed/`, without a provenance record; they are
   listed;
-- any smoke-test artifact or job record with a scope other than `smoke`;
+- any smoke-test artifact with a scope other than `smoke`;
 - a source root without any artifact.
 
 `--checkout` names the git checkout whose redistribution reviews are read.

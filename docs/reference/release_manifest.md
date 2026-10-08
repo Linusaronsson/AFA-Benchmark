@@ -33,7 +33,7 @@ which is as the producing job was given it. JSON object keys are strings.
 | `manifest_version` | Schema version, 3. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
 | `scope` | `full`, `partial` or `smoke`, as declared. Only `full` and `partial` are published as benchmark releases; `smoke` only as a smoke release. |
-| `execution_mode` | `smoke` if any artifact's record or any job record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `smoke` implies scope `smoke`. |
+| `execution_mode` | `smoke` if any artifact's record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `smoke` implies scope `smoke`. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
 | `dataset_redistribution` | Per dataset key any record names, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
 | `job_duration_table` | The release's [job duration table](#job-duration-table): `size_bytes`, `job_records` (its rows) and `smoke_test` (whether any row is of a smoke test); null when the output tree holds no job record. |
@@ -198,10 +198,10 @@ the release. A release without job records has no table: the manifest
 records it as null, and asking for it reports
 `job_duration_table: not in the release`.
 
-Each row keeps the record's `smoke_test`. A smoke job record marks the
-table `smoke_test` and makes the release's `execution_mode` smoke, so a
-`full` or `partial` release never ships durations that a compute estimate
-refuses.
+Each row keeps the record's `smoke_test`, and a smoke job record marks the
+table `smoke_test`; a compute estimate refuses those rows. Job records do
+not set the release's `execution_mode`, so a failed smoke attempt left in
+`failed_job_records/` does not block a `full` or `partial` release.
 
 `failed_job_records/` is part of the output tree and is snapshotted, listed
 in `output_categories` and downloadable with `--output-category` like any

@@ -662,11 +662,12 @@ def test_the_job_duration_table_is_built_from_every_job_record(
     ).is_file()
 
 
-def test_a_smoke_job_record_marks_the_table_and_the_outputs_smoke(
+def test_a_smoke_job_record_marks_only_the_job_duration_table_smoke(
     tmp_path: Path,
 ) -> None:
-    # The compute estimate refuses smoke durations, so a full or partial
-    # release cannot ship them.
+    # A failed smoke attempt left in failed_job_records/ marks the table,
+    # whose smoke durations the compute estimate refuses, but does not make
+    # the production outputs a smoke release.
     source_root = tmp_path / "source"
     write_catalog(source_root, Catalog(methods=[ALPHA]))
     write_job_record(source_root, ALPHA_METHOD_RECORD)
@@ -677,14 +678,11 @@ def test_a_smoke_job_record_marks_the_table_and_the_outputs_smoke(
         smoke_test=True,
     )
 
-    refused = save(tmp_path, scope="partial")
-    saved = save(tmp_path, scope="smoke")
+    result = save(tmp_path, scope="partial")
 
-    assert refused.exit_code != 0
-    assert "smoke" in str(refused.exception)
-    assert saved.exit_code == 0, saved.output
+    assert result.exit_code == 0, result.output
     manifest = read_manifest(tmp_path)
-    assert manifest["execution_mode"] == "smoke"
+    assert manifest["execution_mode"] == "production"
     assert manifest["job_duration_table"]["smoke_test"] is True
 
 
