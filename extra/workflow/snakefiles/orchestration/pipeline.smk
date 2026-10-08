@@ -119,7 +119,7 @@ CPU-only processing:
 
 Output namespacing:
     - Every rule addresses dataset, classifier, pretrained-model and method
-      bundles, evaluation tables and time files under extra/output through
+      bundles, evaluation tables and job records under extra/output through
       OUTPUT_LAYOUT (afabench/core/output_layout.py), the native layout that
       release manifests and restored benchmark releases also use.
     - All initializer-dependent artifacts are stored under
