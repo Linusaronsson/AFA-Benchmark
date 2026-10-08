@@ -111,7 +111,8 @@ Config files (--configfile):
     missing train_script_name, a pretrained_model_name outside
     pretrain_mapping, a method missing from method_options or
     soft_budget_params, and an ignored dataset that is not a dataset key all
-    fail the parse, naming the method; see
+    fail the parse, naming the method, as does a malformed pretrain_mapping
+    entry, naming the pretrained model; see
     docs/reference/pipeline_configuration.md.
     Fixed definitions:
         method_options.yaml,

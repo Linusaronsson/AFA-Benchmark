@@ -147,6 +147,22 @@ def test_pretrained_model_missing_from_pretrain_mapping_is_rejected() -> None:
         load_config(config)
 
 
+@pytest.mark.parametrize(
+    "model_config",
+    [
+        {"pretrain_params": []},
+        {"pretrain_script_name": "shared", "pretrain_parms": []},
+    ],
+)
+def test_malformed_pretrain_mapping_entry_is_rejected(
+    model_config: dict[str, object],
+) -> None:
+    config = _config(pretrain_mapping={"shared": model_config})
+
+    with pytest.raises(ValueError, match=r"pretrain_mapping\['shared'\]"):
+        load_config(config)
+
+
 def test_method_missing_from_method_options_is_rejected() -> None:
     config = _config(methods=["alpha", "beta"])
 

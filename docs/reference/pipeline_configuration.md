@@ -211,6 +211,8 @@ Each error names the method and the key or value at fault:
   `extra/conf/components/dataset_key/`. It need not be in this run's
   `datasets`, which only selects what runs.
 - `eval_batch_size`, when a mapping, needs a `default`.
+- A `pretrain_mapping` entry takes only `pretrain_script_name`, which it
+  requires, and `pretrain_params`.
 - A method's `classifier`, and a `classifier_names` value given as a
   mapping, take only `script_name` and `script_params`.
 - Every method in `methods` and `reference_methods` must have a

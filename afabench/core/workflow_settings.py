@@ -40,6 +40,14 @@ class ClassifierScript:
 
 
 @dataclass(frozen=True, kw_only=True)
+class PretrainedModelOptions:
+    """One `pretrain_mapping` entry."""
+
+    pretrain_script_name: str
+    pretrain_params: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
 class MethodOptions:
     """One `method_options` entry."""
 
@@ -95,9 +103,16 @@ class WorkflowSettings:
 
 def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     """Validate the merged Snakemake `config` and resolve its settings."""
-    pretrain_mapping: dict[str, Any] = _required_config(
-        config, "pretrain_mapping"
-    )
+    pretrain_mapping = {
+        name: _parse_strictly(
+            PretrainedModelOptions,
+            model_config,
+            f"pretrain_mapping[{name!r}]",
+        )
+        for name, model_config in _required_config(
+            config, "pretrain_mapping"
+        ).items()
+    }
     known_dataset_keys = {path.stem for path in DATASET_KEY_DIR.glob("*.yaml")}
     method_options = {
         method: _method_options(method, options, known_dataset_keys)
@@ -212,11 +227,11 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         smoke_test=config.get("smoke_test", False),
         pretrain_names=pretrain_names,
         pretrain_script_names={
-            name: model_config["pretrain_script_name"]
+            name: model_config.pretrain_script_name
             for name, model_config in pretrain_mapping.items()
         },
         pretrain_params={
-            name: " ".join(model_config.get("pretrain_params", []))
+            name: " ".join(model_config.pretrain_params)
             for name, model_config in pretrain_mapping.items()
         },
         method_options=method_options,
@@ -270,13 +285,9 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
 def _method_options(
     method: str, options: Mapping[str, Any], known_dataset_keys: set[str]
 ) -> MethodOptions:
-    try:
-        parsed = dacite.from_dict(
-            MethodOptions, options, config=dacite.Config(strict=True)
-        )
-    except dacite.DaciteError as error:
-        message = f"method_options[{method!r}]: {error}"
-        raise ValueError(message) from error
+    parsed = _parse_strictly(
+        MethodOptions, options, f"method_options[{method!r}]"
+    )
     if (
         isinstance(parsed.eval_batch_size, dict)
         and "default" not in parsed.eval_batch_size
@@ -307,12 +318,21 @@ def _classifier_script(
 ) -> ClassifierScript:
     if isinstance(classifier, str):
         return ClassifierScript(script_name=classifier)
+    return _parse_strictly(
+        ClassifierScript, classifier, f"classifier_names[{key!r}]"
+    )
+
+
+def _parse_strictly[T](
+    data_class: type[T], data: Mapping[str, Any], label: str
+) -> T:
+    """Parse `data`, rejecting unknown keys; errors start with `label`."""
     try:
         return dacite.from_dict(
-            ClassifierScript, classifier, config=dacite.Config(strict=True)
+            data_class, data, config=dacite.Config(strict=True)
         )
     except dacite.DaciteError as error:
-        message = f"classifier_names[{key!r}]: {error}"
+        message = f"{label}: {error}"
         raise ValueError(message) from error
 
 
