@@ -2,13 +2,6 @@
 Rules for running the pipeline up to a certain step.
 """
 
-from afabench.core.output_layout import (
-    EvaluationRun,
-    TrainingRun,
-    pretrain_seed_folder,
-)
-
-
 rule all:
     input:
         [
@@ -86,51 +79,32 @@ rule all_train_methods:
     input:
         [
             OUTPUT_LAYOUT.method_bundle(
-                TrainingRun(
+                WORKFLOW_SETTINGS.evaluation_run(
                     method=method,
                     dataset=dataset,
                     dataset_realization_index=dataset_realization_index,
-                    pretrain_folder=pretrain_seed_folder(
-                        dataset_realization_index
-                        if method in METHOD_TO_PRETRAINED_MODEL
-                        else None
-                    ),
-                    train_seed=dataset_realization_index,
-                    train_hard_budget=train_hard_budget,
-                    train_soft_budget_param=train_soft_budget_param,
-                )
+                    budget_combination=budget_combination,
+                ).training
             )
             for method in METHODS
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for (train_hard_budget, _eval_hard_budget, train_soft_budget_param, _eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
+            for budget_combination in BUDGET_PARAMS[method][dataset]
         ]
 
 rule all_eval_methods:
     input:
         [
             OUTPUT_LAYOUT.raw_evaluation_table(
-                EvaluationRun(
-                    training=TrainingRun(
-                        method=method,
-                        dataset=dataset,
-                        dataset_realization_index=dataset_realization_index,
-                        pretrain_folder=pretrain_seed_folder(
-                            dataset_realization_index
-                            if method in METHOD_TO_PRETRAINED_MODEL
-                            else None
-                        ),
-                        train_seed=dataset_realization_index,
-                        train_hard_budget=train_hard_budget,
-                        train_soft_budget_param=train_soft_budget_param,
-                    ),
-                    eval_seed=dataset_realization_index,
-                    eval_hard_budget=eval_hard_budget,
-                    eval_soft_budget_param=eval_soft_budget_param,
+                WORKFLOW_SETTINGS.evaluation_run(
+                    method=method,
+                    dataset=dataset,
+                    dataset_realization_index=dataset_realization_index,
+                    budget_combination=budget_combination,
                 )
             )
             for method in METHODS
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for (train_hard_budget, eval_hard_budget, train_soft_budget_param, eval_soft_budget_param) in BUDGET_PARAMS[method][dataset]
+            for budget_combination in BUDGET_PARAMS[method][dataset]
         ]

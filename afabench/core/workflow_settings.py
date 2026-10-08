@@ -17,6 +17,14 @@ from typing import Any
 
 import dacite
 
+from afabench.core.output_layout import (
+    EvaluationRun,
+    OutputLayout,
+    PathValue,
+    TrainingRun,
+    pretrain_seed_folder,
+)
+
 type BudgetParam = int | float | str
 type NullableParam = BudgetParam | None
 # (train_hard_budget, eval_hard_budget, train_soft_budget_param,
@@ -79,7 +87,6 @@ class WorkflowSettings:
     pretrain_names: list[str]
     pretrain_script_names: dict[str, str]
     pretrain_params: dict[str, str]
-    method_options: dict[str, MethodOptions]
     methods: list[str]
     # Methods whose plotting-ready tables are restored from a benchmark
     # release: they join method sets and aggregation, but the workflow never
@@ -99,6 +106,65 @@ class WorkflowSettings:
     method_sets: dict[str, list[str]]
     eval_batch_sizes: dict[str, dict[str, int]]
     datasets_used_per_pretrain_name: dict[str, list[str]]
+
+    def evaluation_run(
+        self,
+        *,
+        method: str,
+        dataset: str,
+        dataset_realization_index: PathValue,
+        budget_combination: BudgetCombination,
+    ) -> EvaluationRun:
+        """
+        Name one evaluation of `method` on a dataset realization.
+
+        Its pretraining, training and evaluation are all seeded with the
+        dataset realization index, and its pretrain folder is that seed's
+        only if the method has a pretraining stage.
+        """
+        (
+            train_hard_budget,
+            eval_hard_budget,
+            train_soft_budget_param,
+            eval_soft_budget_param,
+        ) = budget_combination
+        return EvaluationRun(
+            training=TrainingRun(
+                method=method,
+                dataset=dataset,
+                dataset_realization_index=dataset_realization_index,
+                pretrain_folder=pretrain_seed_folder(
+                    dataset_realization_index
+                    if method in self.compared_methods_with_pretraining_stage
+                    else None
+                ),
+                train_seed=dataset_realization_index,
+                train_hard_budget=train_hard_budget,
+                train_soft_budget_param=train_soft_budget_param,
+            ),
+            eval_seed=dataset_realization_index,
+            eval_hard_budget=eval_hard_budget,
+            eval_soft_budget_param=eval_soft_budget_param,
+        )
+
+    def classifier_bundle(
+        self,
+        layout: OutputLayout,
+        *,
+        method: str,
+        dataset: str,
+        dataset_realization_index: PathValue,
+    ) -> str:
+        """Address the classifier `method` uses on a dataset realization."""
+        return layout.classifier_bundle(
+            dataset=dataset,
+            dataset_realization_index=dataset_realization_index,
+            method=(
+                method
+                if method in self.method_classifier_script_names
+                else None
+            ),
+        )
 
 
 def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
@@ -234,7 +300,6 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
             name: " ".join(model_config.pretrain_params)
             for name, model_config in pretrain_mapping.items()
         },
-        method_options=method_options,
         methods=methods,
         reference_methods=reference_methods,
         # Reference tables live under the same pretraining folder as they

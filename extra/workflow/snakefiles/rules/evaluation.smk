@@ -15,15 +15,11 @@ rule eval_method:
             split=EVAL_DATASET_SPLIT,
         ),
         OUTPUT_LAYOUT.method_bundle(TrainingRun.wildcards()),
-        # The method's built-in classifier if it has one, else the external one.
-        lambda wildcards: OUTPUT_LAYOUT.classifier_bundle(
+        lambda wildcards: WORKFLOW_SETTINGS.classifier_bundle(
+            OUTPUT_LAYOUT,
+            method=wildcards.method,
             dataset=wildcards.dataset,
             dataset_realization_index=wildcards.dataset_realization_index,
-            method=(
-                wildcards.method
-                if wildcards.method in METHOD_CLASSIFIER_SCRIPT_NAMES
-                else None
-            ),
         ),
     output:
         OUTPUT_LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()),

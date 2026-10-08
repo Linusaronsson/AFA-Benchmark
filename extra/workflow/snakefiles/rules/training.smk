@@ -163,16 +163,12 @@ rule train_method:
             split="val",
         ),
         pretrained_model=_pretrained_model_bundle,
-        # The method's built-in classifier if it has one, else the external one.
         classifier=ancient(
-            lambda wildcards: OUTPUT_LAYOUT.classifier_bundle(
+            lambda wildcards: WORKFLOW_SETTINGS.classifier_bundle(
+                OUTPUT_LAYOUT,
+                method=wildcards.method,
                 dataset=wildcards.dataset,
                 dataset_realization_index=wildcards.dataset_realization_index,
-                method=(
-                    wildcards.method
-                    if wildcards.method in METHOD_CLASSIFIER_SCRIPT_NAMES
-                    else None
-                ),
             )
         ),
     output:

@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
+from afabench.core.output_layout import OutputLayout
 from afabench.core.workflow_settings import load_config
 from afabench.release.workflow_config import resolve_workflow_config
 
@@ -32,7 +33,6 @@ def test_shipped_configs_load(profile: str) -> None:
     settings = load_config(record.merged)
 
     assert settings.methods
-    assert set(settings.methods) <= set(settings.method_options)
 
 
 def test_load_config_uses_pipeline_defaults() -> None:
@@ -240,6 +240,102 @@ def test_misspelt_classifier_key_is_rejected() -> None:
 
     with pytest.raises(ValueError, match=r"'default'.*script_parms"):
         load_config(config)
+
+
+def _compared_methods_config() -> dict[str, object]:
+    """
+    Compare two methods and a reference method.
+
+    Alpha has no pretraining stage and no built-in classifier, beta has
+    both, and gamma, the reference method, has a pretraining stage.
+    """
+    config = _config(
+        method_options={
+            "alpha": {"train_script_name": "alpha", "eval_batch_size": 1},
+            "beta": {
+                "train_script_name": "beta",
+                "pretrained_model_name": "shared",
+                "classifier": {"script_name": "beta_classifier"},
+                "eval_batch_size": 1,
+            },
+            "gamma": {
+                "train_script_name": "gamma",
+                "pretrained_model_name": "shared",
+            },
+        },
+        methods=["alpha", "beta"],
+        pretrain_mapping={"shared": {"pretrain_script_name": "shared"}},
+    )
+    config["reference_methods"] = ["gamma"]
+    config["soft_budget_params"] = {
+        method: {"default": [[0.1, 0.2]]}
+        for method in ["alpha", "beta", "gamma"]
+    }
+    return config
+
+
+@pytest.mark.parametrize(
+    ("method", "pretrain_folder"),
+    [
+        ("alpha", "NO_PRETRAIN"),
+        ("beta", "pretrain_seed-2"),
+        ("gamma", "pretrain_seed-2"),
+    ],
+)
+def test_evaluation_run_is_seeded_with_its_dataset_realization_index(
+    method: str, pretrain_folder: str
+) -> None:
+    settings = load_config(_compared_methods_config())
+
+    run = settings.evaluation_run(
+        method=method,
+        dataset="cube",
+        dataset_realization_index=2,
+        budget_combination=("null", "null", 0.1, 0.2),
+    )
+
+    assert run.training.pretrain_folder == pretrain_folder
+    assert run.training.train_seed == 2
+    assert run.eval_seed == 2
+    assert (run.training.train_hard_budget, run.eval_hard_budget) == (
+        "null",
+        "null",
+    )
+    assert (
+        run.training.train_soft_budget_param,
+        run.eval_soft_budget_param,
+    ) == (0.1, 0.2)
+
+
+@pytest.mark.parametrize(
+    ("method", "bundle"),
+    [
+        (
+            "alpha",
+            "extra/output/trained_classifiers/initializer-cold/"
+            "dataset-cube+realization_index-2.bundle",
+        ),
+        (
+            "beta",
+            "extra/output/trained_classifiers/initializer-cold/"
+            "method-beta+dataset-cube+realization_index-2.bundle",
+        ),
+    ],
+)
+def test_classifier_bundle_is_the_built_in_one_if_the_method_has_one(
+    method: str, bundle: str
+) -> None:
+    settings = load_config(_compared_methods_config())
+    layout = OutputLayout(
+        root="extra/output", initializer="cold", eval_split="test"
+    )
+
+    assert (
+        settings.classifier_bundle(
+            layout, method=method, dataset="cube", dataset_realization_index=2
+        )
+        == bundle
+    )
 
 
 def _config(

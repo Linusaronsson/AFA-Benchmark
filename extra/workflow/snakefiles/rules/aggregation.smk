@@ -23,37 +23,17 @@ rule merge_eval_perf:
     input: lambda wc:
         [
             OUTPUT_LAYOUT.transformed_evaluation_table(
-                EvaluationRun(
-                    training=TrainingRun(
-                        method=method,
-                        dataset=dataset,
-                        dataset_realization_index=dataset_realization_index,
-                        # Reference tables live under the same pretrain
-                        # folder as they would if the method were produced
-                        # here.
-                        pretrain_folder=pretrain_seed_folder(
-                            dataset_realization_index
-                            if method in COMPARED_METHODS_WITH_PRETRAINING_STAGE
-                            else None
-                        ),
-                        train_seed=dataset_realization_index,
-                        train_hard_budget=train_hard_budget,
-                        train_soft_budget_param=train_soft_budget_param,
-                    ),
-                    eval_seed=dataset_realization_index,
-                    eval_hard_budget=eval_hard_budget,
-                    eval_soft_budget_param=eval_soft_budget_param,
+                WORKFLOW_SETTINGS.evaluation_run(
+                    method=method,
+                    dataset=dataset,
+                    dataset_realization_index=dataset_realization_index,
+                    budget_combination=budget_combination,
                 )
             )
             for method in METHOD_SETS[wc.method_set]
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for (
-                train_hard_budget,
-                eval_hard_budget,
-                train_soft_budget_param,
-                eval_soft_budget_param,
-            ) in BUDGET_PARAMS[method][dataset]
+            for budget_combination in BUDGET_PARAMS[method][dataset]
         ]
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "merge_eval_perf", resources),
@@ -157,34 +137,17 @@ rule merge_time:
     input:
         [
             OUTPUT_LAYOUT.combined_time(
-                EvaluationRun(
-                    training=TrainingRun(
-                        method=method,
-                        dataset=dataset,
-                        dataset_realization_index=dataset_realization_index,
-                        pretrain_folder=pretrain_seed_folder(
-                            dataset_realization_index
-                            if method in METHOD_TO_PRETRAINED_MODEL
-                            else None
-                        ),
-                        train_seed=dataset_realization_index,
-                        train_hard_budget=train_hard_budget,
-                        train_soft_budget_param=train_soft_budget_param,
-                    ),
-                    eval_seed=dataset_realization_index,
-                    eval_hard_budget=eval_hard_budget,
-                    eval_soft_budget_param=eval_soft_budget_param,
+                WORKFLOW_SETTINGS.evaluation_run(
+                    method=method,
+                    dataset=dataset,
+                    dataset_realization_index=dataset_realization_index,
+                    budget_combination=budget_combination,
                 )
             )
             for method in METHODS
             for dataset in DATASETS
             for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for (
-                train_hard_budget,
-                eval_hard_budget,
-                train_soft_budget_param,
-                eval_soft_budget_param,
-            ) in BUDGET_PARAMS[method][dataset]
+            for budget_combination in BUDGET_PARAMS[method][dataset]
         ]
     output:
         f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/all.parquet",
