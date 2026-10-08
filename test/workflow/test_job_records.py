@@ -163,8 +163,20 @@ def expected_records() -> dict[str, dict[str, Any]]:
     return records
 
 
+COMPUTATIONAL_RULES = [
+    "dataset_generation",
+    "train_classifier",
+    "train_classifier_for_method",
+    "pretrain_model",
+    "train_method",
+    "eval_method",
+    "transform_eval_data",
+]
+
+
 @dataclass
 class RecordedRun:
+    workflow: WorkflowHarness
     output: Path
     records: dict[str, dict[str, Any]]
 
@@ -189,6 +201,7 @@ def recorded_run(tmp_path_factory: pytest.TempPathFactory) -> RecordedRun:
     assert result.returncode == 0, result.stdout + result.stderr
     output = root / "extra/output"
     return RecordedRun(
+        workflow,
         output,
         {
             path.relative_to(output).as_posix(): json.loads(path.read_text())
@@ -259,6 +272,32 @@ def test_job_records_are_the_only_timing_jobs_leave(
 ) -> None:
     assert not list(recorded_run.output.rglob("*_time.txt"))
     assert not (recorded_run.output / "eval_time_results").exists()
+
+
+def test_another_allocation_reruns_no_recorded_job(
+    recorded_run: RecordedRun,
+) -> None:
+    # The wrapper command records the allocation, but Snakemake does not
+    # track params derived from resources, so raising a time limit, as the
+    # compute estimate's failure warnings advise, reruns nothing.
+    root = recorded_run.workflow.root
+    result = recorded_run.workflow.run(
+        "--workflow-profile",
+        str(root / "extra/workflow/profiles/mixed-gres"),
+        "--executor",
+        "local",
+        "--dry-run",
+        "--set-resources",
+        *(
+            f"{rule}:{resource}"
+            for rule in COMPUTATIONAL_RULES
+            for resource in ["runtime=999", "cpus_per_task=2"]
+        ),
+        target="all",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Nothing to be done" in result.stdout + result.stderr
 
 
 def test_failed_attempts_leave_separate_records_outside_declared_outputs(
