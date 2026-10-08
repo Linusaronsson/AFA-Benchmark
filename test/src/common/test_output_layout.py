@@ -14,7 +14,7 @@ from afabench.core.output_layout import (
     EvaluationRun,
     OutputLayout,
     TrainingRun,
-    pretrain_folder,
+    pretrain_seed_folder,
     pretrain_seed_in_folder,
 )
 
@@ -94,7 +94,7 @@ BETA_RUN = TrainingRun(
     method="beta",
     dataset="cube",
     dataset_realization_index=1,
-    pretrain_folder=pretrain_folder(1),
+    pretrain_folder=pretrain_seed_folder(1),
     train_seed=1,
     train_hard_budget=2,
     train_soft_budget_param="null",
@@ -107,7 +107,7 @@ ALPHA_RUN = TrainingRun(
     method="alpha",
     dataset="cube",
     dataset_realization_index=0,
-    pretrain_folder=pretrain_folder(None),
+    pretrain_folder=pretrain_seed_folder(None),
     train_seed=0,
     train_hard_budget="null",
     train_soft_budget_param=0.5,
@@ -218,7 +218,7 @@ def test_wildcards_give_a_rule_pattern() -> None:
 
 
 def test_wildcards_of_one_pretrain_folder_kind() -> None:
-    run = TrainingRun.wildcards(pretrain_folder=pretrain_folder(None))
+    run = TrainingRun.wildcards(pretrain_folder=pretrain_seed_folder(None))
 
     assert LAYOUT.train_time(run) == (
         "extra/output/trained_methods/initializer-cold/"

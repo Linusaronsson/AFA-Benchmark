@@ -5,7 +5,7 @@ Rules for running the pipeline up to a certain step.
 from afabench.core.output_layout import (
     EvaluationRun,
     TrainingRun,
-    pretrain_folder,
+    pretrain_seed_folder,
 )
 
 
@@ -90,7 +90,7 @@ rule all_train_methods:
                     method=method,
                     dataset=dataset,
                     dataset_realization_index=dataset_realization_index,
-                    pretrain_folder=pretrain_folder(
+                    pretrain_folder=pretrain_seed_folder(
                         dataset_realization_index
                         if method in METHOD_TO_PRETRAINED_MODEL
                         else None
@@ -115,7 +115,7 @@ rule all_eval_methods:
                         method=method,
                         dataset=dataset,
                         dataset_realization_index=dataset_realization_index,
-                        pretrain_folder=pretrain_folder(
+                        pretrain_folder=pretrain_seed_folder(
                             dataset_realization_index
                             if method in METHOD_TO_PRETRAINED_MODEL
                             else None

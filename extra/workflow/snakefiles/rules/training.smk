@@ -7,8 +7,9 @@ Both rules pass their script the training contract, rendered by
 model's `pretrain_params` or the method's `method_specific_params`.
 
 `{pretrain_folder}` in `train_method` is the folder
-`afabench.core.output_layout.pretrain_folder` names: one per pretraining seed
-for methods with a pretraining stage, and one shared folder for the others.
+`afabench.core.output_layout.pretrain_seed_folder` names: one per pretraining
+seed for methods with a pretraining stage, and one shared folder for the
+others.
 The evaluation rules use the same folder, so the two former training rules
 are one.
 """
@@ -21,7 +22,7 @@ from contract_arguments import (
 from afabench.core.output_layout import (
     PRETRAIN_FOLDER_PATTERN,
     TrainingRun,
-    pretrain_folder,
+    pretrain_seed_folder,
     pretrain_seed_in_folder,
 )
 
@@ -34,14 +35,14 @@ def _pretrained_model_bundle(wildcards) -> list[str]:
         if has_pretraining_stage:
             raise ValueError(
                 f"Method {wildcards.method!r} has a pretraining stage, so its "
-                f"bundles live under {pretrain_folder('<seed>')}/, not "
+                f"bundles live under {pretrain_seed_folder('<seed>')}/, not "
                 f"{wildcards.pretrain_folder}/."
             )
         return []
     if not has_pretraining_stage:
         raise ValueError(
             f"Method {wildcards.method!r} has no pretraining stage, so its "
-            f"bundles live under {pretrain_folder(None)}/, not "
+            f"bundles live under {pretrain_seed_folder(None)}/, not "
             f"{wildcards.pretrain_folder}/."
         )
     return [

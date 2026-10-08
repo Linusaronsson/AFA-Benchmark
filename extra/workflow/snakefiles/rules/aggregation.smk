@@ -10,7 +10,7 @@ Combines individual results into unified datasets:
 from afabench.core.output_layout import (
     EvaluationRun,
     TrainingRun,
-    pretrain_folder,
+    pretrain_seed_folder,
 )
 
 
@@ -31,7 +31,7 @@ rule merge_eval_perf:
                         # Reference tables live under the same pretrain
                         # folder as they would if the method were produced
                         # here.
-                        pretrain_folder=pretrain_folder(
+                        pretrain_folder=pretrain_seed_folder(
                             dataset_realization_index
                             if method in COMPARED_METHODS_WITH_PRETRAINING_STAGE
                             else None
@@ -97,14 +97,14 @@ rule time_df_with_pretrain:
             pretrain_seed=wildcards.pretrain_seed,
         ),
         OUTPUT_LAYOUT.train_time(
-            TrainingRun.wildcards(pretrain_folder=pretrain_folder("{pretrain_seed}"))
+            TrainingRun.wildcards(pretrain_folder=pretrain_seed_folder("{pretrain_seed}"))
         ),
         OUTPUT_LAYOUT.eval_time(
-            EvaluationRun.wildcards(pretrain_folder=pretrain_folder("{pretrain_seed}"))
+            EvaluationRun.wildcards(pretrain_folder=pretrain_seed_folder("{pretrain_seed}"))
         ),
     output:
         OUTPUT_LAYOUT.combined_time(
-            EvaluationRun.wildcards(pretrain_folder=pretrain_folder("{pretrain_seed}"))
+            EvaluationRun.wildcards(pretrain_folder=pretrain_seed_folder("{pretrain_seed}"))
         ),
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_with_pretrain", resources),
@@ -127,14 +127,14 @@ rule time_df_without_pretrain:
     """Combine train and eval time measurements, with pretrain time set to null."""
     input:
         OUTPUT_LAYOUT.train_time(
-            TrainingRun.wildcards(pretrain_folder=pretrain_folder(None))
+            TrainingRun.wildcards(pretrain_folder=pretrain_seed_folder(None))
         ),
         OUTPUT_LAYOUT.eval_time(
-            EvaluationRun.wildcards(pretrain_folder=pretrain_folder(None))
+            EvaluationRun.wildcards(pretrain_folder=pretrain_seed_folder(None))
         ),
     output:
         OUTPUT_LAYOUT.combined_time(
-            EvaluationRun.wildcards(pretrain_folder=pretrain_folder(None))
+            EvaluationRun.wildcards(pretrain_folder=pretrain_seed_folder(None))
         ),
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "time_df_without_pretrain", resources),
@@ -162,7 +162,7 @@ rule merge_time:
                         method=method,
                         dataset=dataset,
                         dataset_realization_index=dataset_realization_index,
-                        pretrain_folder=pretrain_folder(
+                        pretrain_folder=pretrain_seed_folder(
                             dataset_realization_index
                             if method in METHOD_TO_PRETRAINED_MODEL
                             else None

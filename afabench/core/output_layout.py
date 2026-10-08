@@ -25,7 +25,7 @@ _NO_PRETRAIN_FOLDER = "NO_PRETRAIN"
 PRETRAIN_FOLDER_PATTERN = rf"{_PRETRAIN_SEED_PREFIX}\d+|{_NO_PRETRAIN_FOLDER}"
 
 
-def pretrain_folder(pretrain_seed: PathValue | None) -> str:
+def pretrain_seed_folder(pretrain_seed: PathValue | None) -> str:
     """Name the folder of one pretraining seed; `None` for no such stage."""
     if pretrain_seed is None:
         return _NO_PRETRAIN_FOLDER
@@ -33,7 +33,7 @@ def pretrain_folder(pretrain_seed: PathValue | None) -> str:
 
 
 def pretrain_seed_in_folder(folder: str) -> str | None:
-    """Read back the seed `pretrain_folder` wrote into `folder`, or None."""
+    """Read back the seed `pretrain_seed_folder` wrote into `folder`."""
     if not re.fullmatch(PRETRAIN_FOLDER_PATTERN, folder):
         msg = f"Not a pretrain folder: {folder!r}"
         raise ValueError(msg)
@@ -47,8 +47,9 @@ class TrainingRun:
     """
     The path segments of one trained method.
 
-    `pretrain_folder` comes from `pretrain_folder`, or is a placeholder in a
-    rule pattern that covers methods with and without a pretraining stage.
+    `pretrain_folder` comes from `pretrain_seed_folder`, or is a placeholder
+    in a rule pattern that covers methods with and without a pretraining
+    stage.
     """
 
     method: PathValue
@@ -227,7 +228,7 @@ class OutputLayout:
             self._initializer_tag,
             f"{pretrained_model_name}",
             _dataset_realization_folder(dataset, dataset_realization_index),
-            pretrain_folder(pretrain_seed),
+            pretrain_seed_folder(pretrain_seed),
             file_name,
         )
 
