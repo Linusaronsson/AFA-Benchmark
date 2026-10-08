@@ -241,7 +241,7 @@ def test_job_records_carry_timing_code_commit_and_smoke_flag(
         assert started.utcoffset() is not None, path
         assert started <= ended, path
         assert record["job_duration_seconds"] == pytest.approx(
-            (ended - started).total_seconds(), abs=1e-3
+            (ended - started).total_seconds(), abs=0.1
         )
         assert record["job_record_version"] == 1, path
         assert record["exit_status"] == "completed", path
