@@ -27,7 +27,8 @@ planned jobs, and the CPUs and GPUs each would request, are those of
 
 Only completed job records give job durations: failed and timed-out
 attempts do not, and smoke-test records are refused and counted in the
-report. Each planned job's match level is the first that applies:
+report. Failed and timed-out records give [failure warnings](#report)
+instead. Each planned job's match level is the first that applies:
 
 | Match level | Job durations used |
 | --- | --- |
@@ -58,8 +59,13 @@ Printed to standard output, in this order:
    level, then `mean_` and `p90_` `job_hours`, `core_hours` and
    `gpu_hours` of the estimated jobs. A p90 total adds up each job's p90.
 5. Unestimated jobs, counted per stage, name, dataset key and device.
-6. Jobs of rules without job records, counted per rule.
-7. How many estimated jobs' core-hours are unknown, if any.
+6. Failure warnings, if any: one line per stage, name and dataset key of
+   a planned job with `failed` or `timeout` job records (smoke tests
+   excluded), on any device, with the number of each and the distinct
+   `time_limit_minutes` of the timed-out ones ("an unknown time limit"
+   when none was recorded). The estimate of these jobs may be low.
+7. Jobs of rules without job records, counted per rule.
+8. How many estimated jobs' core-hours are unknown, if any.
 
 ## Per-job CSV
 
@@ -76,3 +82,4 @@ null.
 | `matched_job_records` | How many job durations the estimate uses. |
 | `mean_job_duration_seconds`, `p90_job_duration_seconds` | The job's estimated job duration. |
 | `mean_job_hours`, `p90_job_hours`, `mean_core_hours`, `p90_core_hours`, `mean_gpu_hours`, `p90_gpu_hours` | The same in hours, times 1, the planned CPUs and the planned GPUs. |
+| `failure_history` | `True` when the report has a failure warning for the job's stage, name and dataset key. |
