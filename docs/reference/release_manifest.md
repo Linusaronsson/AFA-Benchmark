@@ -9,7 +9,9 @@ own [provenance records](../adr/0002-provenance-recorded-in-artifacts.md),
 never from the workflow configuration: it is a cache of those records, and
 saving the same output tree again gives the same index
 ([ADR 0006](../adr/0006-release-manifest-indexes-artifact-provenance.md)).
-The schema is `afabench.release.manifest.ReleaseManifest`, version 2.
+The schema is `afabench.release.manifest.ReleaseManifest`, version 3.
+Version 3 added the [job duration table](#job-duration-table); version 2
+manifests are not read, since no release was published with one.
 
 `save --release-id` refuses an output tree holding any bundle, or any
 Parquet file under `eval_results/` or `eval_results_transformed/`, without
@@ -28,12 +30,13 @@ which is as the producing job was given it. JSON object keys are strings.
 
 | Field | Meaning |
 | --- | --- |
-| `manifest_version` | Schema version, 2. Readers reject versions they do not know. |
+| `manifest_version` | Schema version, 3. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
 | `scope` | `full`, `partial` or `smoke`, as declared. Only `full` and `partial` are published as benchmark releases; `smoke` only as a smoke release. |
-| `execution_mode` | `smoke` if any artifact's record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `smoke` implies scope `smoke`. |
+| `execution_mode` | `smoke` if any artifact's record or any job record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `smoke` implies scope `smoke`. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
 | `dataset_redistribution` | Per dataset key any record names, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
+| `job_duration_table` | The release's [job duration table](#job-duration-table): `size_bytes`, `job_records` (its rows) and `smoke_test` (whether any row is of a smoke test); null when the output tree holds no job record. |
 
 There is no release-wide commit: each index entry has the `code` that
 produced it. `save` and `publish` print them per pipeline stage (see
@@ -123,11 +126,14 @@ Derived from the index: `datasets`, `dataset_realization_indices`,
 evaluations, and `output_categories` (top-level directories of the output
 root that contain files, such as `datasets`, `trained_methods`,
 `eval_results`, `eval_results_transformed`, `merged_results` and
-`plot_results`).
+`plot_results`, and `failed_job_records` when a job failed or timed out;
+see [Job duration table](#job-duration-table)).
 
 `payloads` has one entry per [payload category](#payload-categories), in
 the order of that table: `category`, `count`, `size_bytes` and
-`class_names` (the bundle classes present; empty for tables).
+`class_names` (the bundle classes present; empty for tables). The
+`job_duration_table` entry has `count` 1 when the release has the table, 0
+otherwise.
 
 ## Payload categories
 
@@ -147,6 +153,7 @@ later conversion is added beside the native files, never instead of them.
 | `classifier_bundle` | `trained_classifiers/` | External-classifier predictions for any method's evaluation on a dataset realization (`dataset-<key>+realization_index-<realization>.bundle`, one per dataset realization), without retraining it. `method-<name>+dataset-<key>+realization_index-<realization>.bundle` is a classifier one method trains with and is needed only to retrain that method. | Shared prerequisite (external); method-specific otherwise |
 | `pretrained_model_bundle` | `pretrained_models/` | Training any method that names the same pretrained model, without repeating pretraining. | Shared prerequisite |
 | `afa_method_bundle` | `trained_methods/` | Re-evaluating a published method (other seeds, budgets, splits) or inspecting its policy, without retraining it. | Optional baseline |
+| `job_duration_table` | `release_job_duration_table.parquet` beside the manifest, not in `output/` | Estimating the compute of a pipeline invocation from the release's measured job durations, or inspecting them with any Parquet reader, without running anything. | Results |
 
 A bundle is a shared prerequisite when its `method_name` is null. Plotting a
 new method against published baselines needs only the evaluation tables of
@@ -166,6 +173,42 @@ checkpoints, such as the Lightning checkpoints of classifier training, are
 written under `extra/logs/`, outside the output root, so they are never in
 a snapshot: they serve resuming or debugging one training run, are not
 loadable by `load_bundle`, and are not a reusable payload.
+
+## Job duration table
+
+The release's [job duration table](job_records.md#job-duration-table) has
+one row per job record under the output root: the completed records beside
+artifacts and every failed or timed-out attempt under
+`failed_job_records/`. `save --release-id` builds it from those records,
+with `afabench.core.job_duration_table`, and writes it beside the manifest
+as `release_job_duration_table.parquet`. It is not the copy the
+`collect_job_records` rule wrote to `merged_results/`, which is only as
+recent as that rule's last run; that copy stays in the output tree like any
+merged table. `restore` and `download` put the table beside the restored
+manifest, at `extra/release_job_duration_table.parquet` by default.
+
+It lives outside `output/` because the workflow rebuilds
+`merged_results/job_duration_table.parquet` from the local output root on
+every `all` run: a release table restored there would be replaced by the
+adopter's own records. Beside the manifest it stays the release's table, so
+a compute estimate can be pointed at it before or after running anything
+(`load_job_duration_table` reads it as it reads any job duration table).
+
+`--payload-category job_duration_table` downloads it alone, without any
+output tree; coverage options do not narrow it, since it holds every job of
+the release. A release without job records has no table: the manifest
+records it as null, and asking for it reports
+`job_duration_table: not in the release`.
+
+Each row keeps the record's `smoke_test`. A smoke job record marks the
+table `smoke_test` and makes the release's `execution_mode` smoke, so a
+`full` or `partial` release never ships durations that a compute estimate
+refuses.
+
+`failed_job_records/` is part of the output tree and is snapshotted, listed
+in `output_categories` and downloadable with `--output-category` like any
+other folder. Its records are already rows of the job duration table, whose
+`exit_status` tells them apart, so estimating needs only the table.
 
 ## Dataset redistribution
 
