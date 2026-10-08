@@ -63,7 +63,9 @@ Printed to standard output, in this order:
    a planned job with `failed` or `timeout` job records (smoke tests
    excluded), on any device, with the number of each and the distinct
    `time_limit_minutes` of the timed-out ones ("an unknown time limit"
-   when none was recorded). The estimate of these jobs may be low.
+   when none was recorded). The estimate of these jobs may be low. A
+   warning stays while those job records are in the source, also after a
+   later attempt completed.
 7. Jobs of rules without job records, counted per rule.
 8. How many estimated jobs' core-hours are unknown, if any.
 

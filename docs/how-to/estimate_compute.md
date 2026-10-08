@@ -59,53 +59,29 @@ same way.
 
 ## 4. Read the report
 
-- The first line counts the planned jobs per match level: `exact` jobs
-  were measured with the same identity and device; `pooled` jobs use every
-  measurement of their stage, method or model, dataset key and device;
-  `unestimated` jobs have no measurement there.
-- The `Job durations from` line names the source, with the release id and
-  scope of a downloaded release's table, and the hosts, CPU models and GPU
-  models of the job records that were matched.
-- The totals table gives job-hours, core-hours and GPU-hours per pipeline
-  stage and device, as a mean and a pessimistic p90, and a `total` row.
-  Request the p90 total for a safety margin.
-- Unestimated jobs are listed by stage, name, dataset key and device, and
-  are not in the totals. Aggregation and visualization jobs write no job
-  record and are never estimated; they are short.
+The [report](../reference/estimate_compute_command.md#report) gives
+job-hours, core-hours and GPU-hours per pipeline stage and device, as a
+mean and a pessimistic p90.
 
-A pooled estimate ignores how job duration depends on seeds, hard budgets
-and soft-budget parameters, so it is rougher than an exact one.
+- Request the p90 `total` for a safety margin.
+- Check the counts of `pooled` and `unestimated` jobs on the first line
+  ([match levels](../reference/estimate_compute_command.md#matching)).
+  Unestimated jobs are not in the totals; estimate them some other way, or
+  first run a few of them to record their job durations.
 
 ## 5. Act on failure warnings
 
-Under `Failed or timed out before`, the report lists each planned stage,
-method or model and dataset key that has failed or timed-out job records
-in the source, for example:
-
-```text
-Failed or timed out before, so the estimate of these jobs may be low:
-  training alpha on mnist timed out 3 times at 600 min, failed 1 time
-```
-
-Only completed jobs give job durations, so a job type whose slow jobs hit
-their time limit is estimated from its fast ones, and the jobs that time
-out again will use their whole time limit and leave no artifact. Before you
+For each job type listed under `Failed or timed out before`, before you
 launch:
 
 - **Timed out**: raise the time limit of that stage's rule above the limit
   shown, in your site profile's `set-resources` or with `--set-resources
   <rule>:runtime=<minutes>` (rule names:
   [SLURM integration](slurm_integration.md)), and pass the same arguments
-  to the estimate and to the real run. A job cancelled with `scancel` is
-  also recorded as timed out.
-- **Failed**: the script exited with an error. Its job record is under
-  `extra/output/failed_job_records/`, and Snakemake's output of that run
-  names the failed job and its log; fix the cause, or the jobs will fail
-  again.
-
-The warnings are history: they stay while the failed and timed-out job
-records are in the source, also after a rerun with a larger time limit
-completed.
+  to the estimate and to the real run.
+- **Failed**: find the failed job in Snakemake's output of that run, and
+  its job record under `extra/output/failed_job_records/`; fix the cause,
+  or the jobs will fail again.
 
 ## 6. Break the estimate down
 
