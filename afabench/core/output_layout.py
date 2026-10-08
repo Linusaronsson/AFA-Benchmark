@@ -1,10 +1,12 @@
 """
-The pipeline's native output layout: where each pipeline stage writes.
+The pipeline's native output layout of bundles, tables and time files.
 
-Every Snakemake rule addresses outputs through this module, so the layout
-is spelled once. Benchmark releases are restored at these paths and
-reference methods' tables are found by them, so the layout must not
-change. Artifacts carry their own identity
+Every Snakemake rule addresses bundles, evaluation tables and time files
+through this module, so their layout is spelled once; the aggregation and
+visualization rules spell their merged results and plots themselves, under
+this module's initializer tag. Benchmark releases are restored at these
+paths and reference methods' tables are found by them, so the layout must
+not change. Artifacts carry their own identity
 (`docs/adr/0002-provenance-recorded-in-artifacts.md`); the paths are
 Snakemake target naming only.
 
@@ -136,7 +138,7 @@ class OutputLayout:
             realization if method is None else f"method-{method}+{realization}"
         )
         return self._path(
-            "trained_classifiers", self._initializer_tag, f"{name}.bundle"
+            "trained_classifiers", self.initializer_tag, f"{name}.bundle"
         )
 
     def pretrained_model_bundle(
@@ -180,7 +182,7 @@ class OutputLayout:
     def _training_path(self, run: TrainingRun, file_name: str) -> str:
         return self._path(
             "trained_methods",
-            self._initializer_tag,
+            self.initializer_tag,
             *_training_segments(run),
             file_name,
         )
@@ -207,7 +209,7 @@ class OutputLayout:
         return self._path(
             stage_folder,
             f"eval_split-{self.eval_split}",
-            self._initializer_tag,
+            self.initializer_tag,
             *_training_segments(run.training),
             f"eval_seed-{run.eval_seed}+"
             f"eval_hard_budget-{run.eval_hard_budget}+"
@@ -225,7 +227,7 @@ class OutputLayout:
     ) -> str:
         return self._path(
             "pretrained_models",
-            self._initializer_tag,
+            self.initializer_tag,
             f"{pretrained_model_name}",
             _dataset_realization_folder(dataset, dataset_realization_index),
             pretrain_seed_folder(pretrain_seed),
@@ -233,7 +235,7 @@ class OutputLayout:
         )
 
     @property
-    def _initializer_tag(self) -> str:
+    def initializer_tag(self) -> str:
         return f"initializer-{self.initializer}"
 
     def _path(self, *segments: str) -> str:

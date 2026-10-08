@@ -38,6 +38,10 @@ def test_dataset_folder_holds_every_realization() -> None:
     )
 
 
+def test_initializer_tag() -> None:
+    assert LAYOUT.initializer_tag == "initializer-cold"
+
+
 def test_external_classifier_bundle() -> None:
     assert (
         LAYOUT.classifier_bundle(

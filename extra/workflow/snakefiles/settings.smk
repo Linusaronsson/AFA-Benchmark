@@ -34,11 +34,12 @@ EXECUTION = ExecutionPolicy(
 
 DATASET_REALIZATION_INDICES = WORKFLOW_SETTINGS.dataset_realization_indices
 INITIALIZER = WORKFLOW_SETTINGS.initializer
-INITIALIZER_TAG = f"initializer-{INITIALIZER}"
 EVAL_DATASET_SPLIT = WORKFLOW_SETTINGS.eval_dataset_split
 OUTPUT_LAYOUT = OutputLayout(
     root="extra/output", initializer=INITIALIZER, eval_split=EVAL_DATASET_SPLIT
 )
+# For the merged results and plots, which the layout does not address.
+INITIALIZER_TAG = OUTPUT_LAYOUT.initializer_tag
 USE_WANDB = WORKFLOW_SETTINGS.use_wandb
 SMOKE_TEST = WORKFLOW_SETTINGS.smoke_test
 PRETRAIN_NAMES = WORKFLOW_SETTINGS.pretrain_names
