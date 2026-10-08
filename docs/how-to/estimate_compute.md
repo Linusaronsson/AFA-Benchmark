@@ -28,17 +28,18 @@ GPUs your site profile will request.
 - **From your own runs**: by default the estimate reads every job record
   under `extra/output/`, including those of a run that is still going. Use
   this to estimate what is left of a run.
-- **From a benchmark release**: download the release's job duration table,
-  for example
+- **From a benchmark release**: download the release's job duration
+  table alone:
 
   ```shell
-  curl -L -o job_durations/<release_id>.parquet \
-      https://huggingface.co/datasets/<repo_id>/resolve/main/releases/<release_id>/output/merged_results/job_duration_table.parquet
+  uv run python scripts/release/snapshot.py download <release_id> \
+      --repo-id <repo_id> --payload-category job_duration_table
   ```
 
-  Keep it outside `extra/output/merged_results/`, which the pipeline's
-  `all` target rewrites. Pass it with `--job-durations
-  job_durations/<release_id>.parquet`.
+  It lands at `extra/release_job_duration_table.parquet`, beside the
+  release manifest, where the pipeline never rewrites it
+  ([`download`](../reference/snapshot_command.md#download)). Pass it with
+  `--job-durations extra/release_job_duration_table.parquet`.
 
 The durations are used as measured: they are not scaled to your hardware.
 The report names the hosts, CPU models and GPU models they came from;
@@ -47,7 +48,7 @@ scale the totals yourself if your cluster is faster or slower.
 ## 3. Run the estimate
 
 ```shell
-just estimate-compute [--job-durations job_durations/<release_id>.parquet] \
+just estimate-compute [--job-durations extra/release_job_duration_table.parquet] \
     --profile extra/workflow/profiles/config/kdd26 \
     --workflow-profile extra/workflow/profiles/<your_site> all
 ```
@@ -62,8 +63,9 @@ same way.
   were measured with the same identity and device; `pooled` jobs use every
   measurement of their stage, method or model, dataset key and device;
   `unestimated` jobs have no measurement there.
-- The `Job durations from` line names the source, and the hosts, CPU
-  models and GPU models of the job records that were matched.
+- The `Job durations from` line names the source, with the release id and
+  scope of a downloaded release's table, and the hosts, CPU models and GPU
+  models of the job records that were matched.
 - The totals table gives job-hours, core-hours and GPU-hours per pipeline
   stage and device, as a mean and a pessimistic p90, and a `total` row.
   Request the p90 total for a safety margin.

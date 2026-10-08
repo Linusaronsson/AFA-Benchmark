@@ -3,7 +3,8 @@
 
 A minimal Snakefile stands in for the pipeline: its rule renders a job
 record wrapper command, as the pipeline's computational rules do. The
-pipeline itself is covered in `test/workflow/test_compute_estimate_recorded_run.py`.
+pipeline itself is covered in
+`test/workflow/test_compute_estimate_recorded_run.py`.
 """
 
 import csv
@@ -18,6 +19,17 @@ from typer.testing import CliRunner
 from afabench.core.job_duration_table import write_job_duration_table
 from afabench.core.job_record import JobIdentity, JobRecord
 from scripts.compute_estimate.estimate_compute import app
+from test.scripts.release_artifacts import (
+    ALPHA,
+    Catalog,
+    write_catalog,
+    write_job_record,
+)
+from test.scripts.test_release_manifest import (
+    ALPHA_METHOD_RECORD,
+    restore,
+    save,
+)
 
 SNAKEFILE = """
 rule all:
@@ -118,3 +130,50 @@ def test_a_missing_job_duration_source_is_refused() -> None:
 
     assert result.exit_code != 0
     assert "missing.parquet" in result.output
+
+
+def test_without_an_output_root_every_job_is_unestimated(
+    workflow: Path,
+) -> None:
+    shutil.rmtree(workflow / "extra/output")
+
+    result = estimate()
+
+    assert result.exit_code == 0, result.output
+    assert "0 exact, 0 pooled, 2 unestimated" in result.output
+
+
+def test_a_restored_release_table_is_named_by_its_release(
+    workflow: Path,
+) -> None:
+    write_catalog(workflow / "source", Catalog(methods=[ALPHA]))
+    write_job_record(workflow / "source", ALPHA_METHOD_RECORD)
+    assert save(workflow).exit_code == 0
+    assert restore(workflow).exit_code == 0
+    table = workflow / "checkout/extra/release_job_duration_table.parquet"
+
+    result = estimate("--job-durations", str(table))
+
+    assert result.exit_code == 0, result.output
+    assert (
+        f"Job durations from {table} (release 2026-10-cube, partial scope)"
+        in result.output
+    )
+    assert "0 exact, 1 pooled, 1 unestimated" in result.output
+
+
+def test_a_table_left_from_another_release_is_not_named_by_the_manifest(
+    workflow: Path,
+) -> None:
+    write_catalog(workflow / "source", Catalog(methods=[ALPHA]))
+    write_job_record(workflow / "source", ALPHA_METHOD_RECORD)
+    assert save(workflow).exit_code == 0
+    assert restore(workflow).exit_code == 0
+    table = workflow / "checkout/extra/release_job_duration_table.parquet"
+    # As a download of another release with --overwrite leaves it
+    write_job_duration_table(workflow / "extra/output", table)
+
+    result = estimate("--job-durations", str(table))
+
+    assert result.exit_code == 0, result.output
+    assert "(not the table of release 2026-10-cube" in result.output
