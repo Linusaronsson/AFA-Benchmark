@@ -39,7 +39,7 @@ the per-dataset hyperparameter file.
 | Hydra root configs | 19 `extra/conf/scripts/{train_method,pretrain_model}/*/config.yaml` (808 lines) | 11 contract keys in each of 19 files, `pretrained_model_bundle_path` in 8 |
 | Hydra experiment files | 115 training + 64 pretraining `experiment/<dataset>.yaml` | 58 hardcode `hard_budget` (see below) |
 | Snakemake rules | `extra/workflow/snakefiles/rules/training.smk` | 3 rules with the same shell body: `pretrain_model`, `train_method_with_pretrained_model`, `train_method_without_pretrained_model` |
-| Workflow config | `extra/workflow/src/config.py`, `conf/method_options/*.yaml`, `conf/pretrain_mappings/*.yaml` | method → script name, pretrained model name, free-form `method_specific_params` / `pretrain_params` strings |
+| Workflow config | `extra/workflow/src/config.py` (since moved to `afabench/core/workflow_settings.py`), `conf/method_options/*.yaml`, `conf/pretrain_mappings/*.yaml` | method → script name, pretrained model name, free-form `method_specific_params` / `pretrain_params` strings |
 | Tutorial | `docs/how-to/add_method.md` (390 lines) | restates the contract fields and both YAML skeletons |
 
 Per-field count in the 17 config dataclasses:
