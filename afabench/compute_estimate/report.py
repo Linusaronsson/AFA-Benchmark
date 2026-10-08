@@ -15,6 +15,7 @@ import pandas as pd
 from afabench.compute_estimate.estimate import (
     IDENTITY_COLUMNS,
     ComputeEstimate,
+    FailureHistory,
     MatchLevel,
 )
 from afabench.core.job_duration_table import RECORD_FIELD_DTYPES
@@ -189,6 +190,16 @@ def format_report(
             ),
         ]
     lines.append("")
+    if estimate.failure_histories:
+        lines += [
+            "Failed or timed out before, so the estimate of these jobs may "
+            "be low:",
+            *(
+                f"  {_failure_warning(history)}"
+                for history in estimate.failure_histories
+            ),
+            "",
+        ]
     without_records = jobs.loc[
         jobs["match_level"] == "no_job_record", "rule"
     ].value_counts(sort=False)
@@ -208,6 +219,27 @@ def format_report(
             " whose CPUs the cluster chooses."
         )
     return "\n".join(lines) + "\n"
+
+
+def _failure_warning(history: FailureHistory) -> str:
+    """Return e.g. "training alpha on mnist timed out 3 times at 600 min"."""
+    job_type = " on ".join(
+        value
+        for value in [history.name, history.dataset_key]
+        if value is not None
+    )
+    attempts = []
+    if history.timed_out:
+        limits = history.time_limits_minutes
+        at = (
+            f"at {' and '.join(map(str, limits))} min"
+            if limits
+            else "at an unknown time limit"
+        )
+        attempts.append(f"timed out {_plural(history.timed_out, 'time')} {at}")
+    if history.failed:
+        attempts.append(f"failed {_plural(history.failed, 'time')}")
+    return f"{history.stage} {job_type} {', '.join(attempts)}"
 
 
 def _table(table: pd.DataFrame) -> str:
