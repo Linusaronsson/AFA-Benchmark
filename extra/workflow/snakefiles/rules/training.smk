@@ -163,7 +163,7 @@ rule train_method:
             split="val",
         ),
         pretrained_model=_pretrained_model_bundle,
-        # The method's own classifier if it has one, else the external one.
+        # The method's built-in classifier if it has one, else the external one.
         classifier=ancient(
             lambda wildcards: OUTPUT_LAYOUT.classifier_bundle(
                 dataset=wildcards.dataset,

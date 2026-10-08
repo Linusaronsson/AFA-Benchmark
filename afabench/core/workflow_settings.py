@@ -64,7 +64,7 @@ class MethodOptions:
         str, dict[int | float, int | float]
     ] = field(default_factory=dict)
     use_max_hard_budget_when_training_soft_budget: bool = False
-    # The method's own classifier, trained instead of the external one.
+    # The method's built-in classifier, trained instead of the external one.
     classifier: ClassifierScript | None = None
 
 

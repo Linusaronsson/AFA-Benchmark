@@ -198,7 +198,7 @@ A `method_options` entry takes only these keys:
 | `soft_budget_ignored_datasets` | The same for the soft-budget setting. |
 | `eval_to_train_hard_budget_mapping` | Per dataset key, the train hard budget for an eval hard budget; unmapped budgets train at the eval hard budget. |
 | `use_max_hard_budget_when_training_soft_budget` | `true` to train soft-budget runs under the largest train hard budget. |
-| `classifier` | The method's own classifier: `script_name` and optional `script_params`, trained instead of the external classifier. |
+| `classifier` | The method's built-in classifier: `script_name` and optional `script_params`, trained instead of the external classifier. |
 
 The workflow config is validated when Snakemake parses the workflow, by
 `load_config` in `afabench/core/workflow_settings.py`, before any job runs.

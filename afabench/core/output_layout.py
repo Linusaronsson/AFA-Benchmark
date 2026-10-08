@@ -128,7 +128,7 @@ class OutputLayout:
         dataset_realization_index: PathValue,
         method: PathValue | None,
     ) -> str:
-        """Address `method`'s own classifier, or the external one for None."""
+        """Address `method`'s built-in classifier; None for the external."""
         realization = _dataset_realization_folder(
             dataset, dataset_realization_index
         )

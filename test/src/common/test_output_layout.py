@@ -48,7 +48,7 @@ def test_external_classifier_bundle() -> None:
     )
 
 
-def test_method_specific_classifier_bundle() -> None:
+def test_built_in_classifier_bundle() -> None:
     assert (
         LAYOUT.classifier_bundle(
             dataset="cube", dataset_realization_index=1, method="beta"

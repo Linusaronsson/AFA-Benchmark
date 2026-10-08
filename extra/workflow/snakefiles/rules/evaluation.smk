@@ -15,7 +15,7 @@ rule eval_method:
             split=EVAL_DATASET_SPLIT,
         ),
         OUTPUT_LAYOUT.method_bundle(TrainingRun.wildcards()),
-        # The method's own classifier if it has one, else the external one.
+        # The method's built-in classifier if it has one, else the external one.
         lambda wildcards: OUTPUT_LAYOUT.classifier_bundle(
             dataset=wildcards.dataset,
             dataset_realization_index=wildcards.dataset_realization_index,
