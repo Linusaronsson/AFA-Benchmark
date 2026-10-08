@@ -1,5 +1,6 @@
 """Real orchestration fixtures with only scripts and SLURM replaced at boundaries."""
 
+import csv
 import json
 import os
 import shutil
@@ -11,6 +12,7 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).parents[2]
+ESTIMATE_COMPUTE = REPO_ROOT / "scripts/compute_estimate/estimate_compute.py"
 # Cluster submission needs a site map; this one mirrors profiles/mixed-gres.
 SITE = {
     "cpu": {"slurm_partition": "cpu-queue", "slurm_account": "cpu-account"},
@@ -108,6 +110,37 @@ class WorkflowHarness:
     ) -> subprocess.CompletedProcess[str]:
         return self._snakemake(invocation, target, options, timeout)
 
+    def plan(
+        self,
+        *options: str,
+        target: str = "all_eval_methods",
+        timeout: int = 240,
+    ) -> subprocess.CompletedProcess[str]:
+        """Plan, with `estimate-compute`, the jobs `run` would submit."""
+        return subprocess.run(
+            [
+                sys.executable,
+                str(ESTIMATE_COMPUTE),
+                "--output",
+                str(self.planned_jobs_path),
+                *self._arguments(self._pipeline_invocation(), target, options),
+            ],
+            cwd=self.root,
+            env=self._environment(),
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+
+    @property
+    def planned_jobs_path(self) -> Path:
+        return self.root / "planned_jobs.csv"
+
+    def planned_jobs(self) -> list[dict[str, str]]:
+        with self.planned_jobs_path.open(newline="") as stream:
+            return list(csv.DictReader(stream))
+
     def submit_first_wave(
         self,
         count: int,
@@ -177,6 +210,14 @@ class WorkflowHarness:
             sys.executable,
             "-m",
             "snakemake",
+            *self._arguments(invocation, target, options),
+        ]
+
+    def _arguments(
+        self, invocation: list[str], target: str, options: tuple[str, ...]
+    ) -> list[str]:
+        """Return the Snakemake arguments of a run."""
+        return [
             *invocation,
             "--cores",
             "2",
