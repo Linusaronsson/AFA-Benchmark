@@ -54,6 +54,7 @@ instead of defining a term on a page.
 - [Pipeline configuration](reference/pipeline_configuration.md)
 - [Bundle format](reference/bundle_format.md)
 - [Evaluation dataframes](reference/evaluation_dataframes.md)
+- [Job records](reference/job_records.md)
 - [Release manifest](reference/release_manifest.md)
 - [`snapshot.py` command](reference/snapshot_command.md)
 - [Release notes](reference/release_notes.md)
