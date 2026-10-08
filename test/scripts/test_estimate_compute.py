@@ -3,7 +3,7 @@
 
 A minimal Snakefile stands in for the pipeline: its rule renders a job
 record wrapper command, as the pipeline's computational rules do. The
-pipeline itself is covered in `test/workflow/test_compute_estimate.py`.
+pipeline itself is covered in `test/workflow/test_compute_estimate_recorded_run.py`.
 """
 
 import csv
