@@ -448,6 +448,59 @@ def test_smoke_release_flag_does_not_publish_an_official_package(
     assert transport.files == {}
 
 
+@pytest.mark.parametrize(
+    ("scope", "output_root"),
+    [("full", "extra/output"), ("smoke", "extra/output_smoke")],
+)
+def test_a_release_downloads_into_the_output_root_of_its_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    output_root: str,
+) -> None:
+    smoke = scope == "smoke"
+    transport = FakeReleaseTransport()
+    package_dir = prepare_package(
+        tmp_path, "2026-10-cube", scope=scope, smoke_test=smoke
+    )
+    flag = ["--smoke-release"] if smoke else []
+    invoke(transport, "publish", str(package_dir), *flag)
+    fork = tmp_path / "fork"
+    fork.mkdir()
+    monkeypatch.chdir(fork)
+
+    result = invoke(transport, "download", "2026-10-cube", "--all", *flag)
+
+    assert result.exit_code == 0, result.output
+    assert (fork / output_root / PLOT).read_bytes() == b"%PDF-1.4 plot"
+    assert sorted(path.name for path in (fork / "extra").iterdir()) == sorted(
+        [Path(output_root).name, "release_manifest.json"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("scope", "output_root"),
+    [("full", "extra/output"), ("smoke", "extra/output_smoke")],
+)
+def test_a_snapshot_restores_into_the_output_root_of_its_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    scope: str,
+    output_root: str,
+) -> None:
+    package_dir = prepare_package(
+        tmp_path, "2026-10-cube", scope=scope, smoke_test=scope == "smoke"
+    )
+    fork = tmp_path / "fork"
+    fork.mkdir()
+    monkeypatch.chdir(fork)
+
+    result = runner.invoke(app, ["restore", str(package_dir)])
+
+    assert result.exit_code == 0, result.output
+    assert (fork / output_root / PLOT).read_bytes() == b"%PDF-1.4 plot"
+
+
 def test_each_published_release_downloads_its_own_outputs(
     tmp_path: Path,
 ) -> None:

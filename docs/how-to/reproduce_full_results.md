@@ -181,6 +181,9 @@ This uses the same graph and execution resolution as a cluster run, with every
 job resolved to CPU. Smoke-test settings make the scripts fast; the resulting
 metrics only show that the pipeline runs and are not meaningful benchmark
 results.
+Everything the smoke test writes goes under its own output root,
+`extra/output_smoke`, never `extra/output`, so a real run afterwards still runs
+every job.
 
 ## Migrating from the six-invocation workflow
 

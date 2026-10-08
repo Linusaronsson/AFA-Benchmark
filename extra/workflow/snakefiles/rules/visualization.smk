@@ -29,9 +29,9 @@ def _plot_time_selection() -> str:
 rule plot_eval_perf:
     """Generate evaluation performance plots."""
     input:
-        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
+        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
     output:
-        directory(f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}"),
+        directory(f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}"),
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_perf", resources),
     resources:
@@ -46,9 +46,9 @@ rule plot_eval_perf:
 # This rule probably does not need to use both types of classifiers, since the actions are the same (they come from the same original evaluation dataframe).
 rule plot_eval_actions:
     input:
-        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
+        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
     output:
-        directory(f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_actions/{{method_set}}+classifier_type-{{classifier_type}}"),
+        directory(f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_actions/{{method_set}}+classifier_type-{{classifier_type}}"),
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_actions", resources),
     resources:
@@ -64,14 +64,14 @@ rule plot_eval_actions:
 rule plot_time:
     """Plot the job durations of the selected methods from the job duration table.
 
-    The table holds every job record under extra/output; the script keeps
+    The table holds every job record under the output root; the script keeps
     the completed jobs of `methods` under this initializer and evaluation
     split.
     """
     input:
-        "extra/output/merged_results/job_duration_table.parquet",
+        f"{OUTPUT_ROOT}/merged_results/job_duration_table.parquet",
     output:
-        directory(f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"),
+        directory(f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"),
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_time", resources),
         selection=_plot_time_selection(),

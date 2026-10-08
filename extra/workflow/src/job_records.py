@@ -6,8 +6,8 @@ job record. This module renders its options from what Snakemake resolved
 for the job: identity from the wildcards, allocation from the final
 resources, after profile defaults and `--set-resources` overrides.
 
-A failed or timed-out job's record goes to the same path under
-`FAILED_JOB_RECORDS` instead, because Snakemake deletes a failed job's
+A failed or timed-out job's record goes to the same path under the output
+root's `failed_job_records/` instead, because Snakemake deletes a failed job's
 declared outputs; it is not an output of any rule.
 """
 
@@ -27,8 +27,7 @@ from afabench.core.job_record import (
 )
 from afabench.core.output_layout import pretrain_seed_in_folder
 
-OUTPUT_ROOT = Path("extra/output")
-FAILED_JOB_RECORDS = OUTPUT_ROOT / "failed_job_records"
+FAILED_JOB_RECORDS_FOLDER = "failed_job_records"
 
 IDENTITY_FIELDS = {field.name for field in fields(JobIdentity)}
 # A wildcard named after an identity field holds that field; these hold one
@@ -50,9 +49,10 @@ class JobRecordCommands:
     """Render the wrapper command param of each computational rule."""
 
     def __init__(
-        self, execution: ExecutionPolicy, *, smoke_test: bool
+        self, execution: ExecutionPolicy, *, output_root: str, smoke_test: bool
     ) -> None:
         self.execution: ExecutionPolicy = execution
+        self.output_root: str = output_root
         self.smoke_test: bool = smoke_test
 
     def param(
@@ -78,6 +78,7 @@ class JobRecordCommands:
         ) -> str:
             return job_record_command(
                 output.job_record,
+                output_root=self.output_root,
                 stage=stage,
                 wildcards=wildcards,
                 # Also checks the job's final allocation, for rules whose
@@ -97,6 +98,7 @@ class JobRecordCommands:
 def job_record_command(
     record: str,
     *,
+    output_root: str,
     stage: str,
     wildcards: Wildcards,
     device: str,
@@ -121,8 +123,9 @@ def job_record_command(
     identity |= fields
     options: dict[str, object] = {
         "record": record,
-        "failed_record": FAILED_JOB_RECORDS
-        / Path(record).relative_to(OUTPUT_ROOT),
+        "failed_record": Path(output_root)
+        / FAILED_JOB_RECORDS_FOLDER
+        / Path(record).relative_to(output_root),
         "stage": stage,
         "device": device,
         "cpus": allocated_cpus(resources, threads),

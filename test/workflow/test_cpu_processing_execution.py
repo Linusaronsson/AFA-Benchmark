@@ -20,7 +20,7 @@ def test_dataset_generation_clears_gpu_defaults(
 ) -> None:
     workflow = WorkflowHarness(tmp_path)
     workflow.config["datasets"] = [dataset]
-    shutil.rmtree(tmp_path / "extra/output/datasets")
+    shutil.rmtree(tmp_path / "extra/output_smoke/datasets")
     workflow.config["execution_site"] = {
         "cpu": {
             "slurm_partition": "cpu-queue",
@@ -51,7 +51,7 @@ def test_dataset_generation_clears_gpu_defaults(
     assert "gres=gpu:" not in commands
     assert f"scripts/dataset_generation/{script}" in commands
     assert "dataset_realization_indices=[0]" in commands
-    assert f"save_path=extra/output/datasets/{dataset}" in commands
+    assert f"save_path=extra/output_smoke/datasets/{dataset}" in commands
 
 
 CPU_RULES = {
@@ -68,7 +68,7 @@ CPU_RULES = {
 
 def processing_workflow(root: Path) -> WorkflowHarness:
     workflow = WorkflowHarness(root)
-    shutil.rmtree(root / "extra/output/datasets")
+    shutil.rmtree(root / "extra/output_smoke/datasets")
     workflow.config.update(
         {
             "execution": {
@@ -87,7 +87,7 @@ def processing_workflow(root: Path) -> WorkflowHarness:
         }
     )
     pretrained = (
-        root / "extra/output/pretrained_models/initializer-cold/shared/"
+        root / "extra/output_smoke/pretrained_models/initializer-cold/shared/"
         "dataset-cube+realization_index-0/pretrain_seed-0"
     )
     (pretrained / "model.bundle").mkdir(parents=True)
@@ -294,14 +294,14 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
         elif "dataset_generation" in script:
             assert args["dataset_realization_indices"] == "[0]"
             assert args["seeds"] == "[0]"
-            assert args["save_path"] == "extra/output/datasets/cube"
+            assert args["save_path"] == "extra/output_smoke/datasets/cube"
         elif "plotting" in script:
             assert args["formats"] == "[pdf,svg]"
             assert (tmp_path / args["output_folder"] / "fixture.svg").is_file()
             if "plot_total_time" in script:
                 assert args == {
-                    "input": "extra/output/merged_results/job_duration_table.parquet",
-                    "output_folder": "extra/output/plot_results/eval_split-test/initializer-cold/time",
+                    "input": "extra/output_smoke/merged_results/job_duration_table.parquet",
+                    "output_folder": "extra/output_smoke/plot_results/eval_split-test/initializer-cold/time",
                     "methods": "[alpha,beta]",
                     "++pretrained_models": "{alpha:shared}",
                     "initializer_tag": "initializer-cold",
@@ -312,9 +312,12 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
             assert args["dataset"] == "cube"
             assert args["initializer"] == "cold"
             assert (tmp_path / args["output_path"]).is_file()
-    assert (tmp_path / "extra/output/datasets/cube/0/test.bundle").is_dir()
     assert (
-        tmp_path / "extra/output/merged_results/job_duration_table.parquet"
+        tmp_path / "extra/output_smoke/datasets/cube/0/test.bundle"
+    ).is_dir()
+    assert (
+        tmp_path
+        / "extra/output_smoke/merged_results/job_duration_table.parquet"
     ).is_file()
 
 
@@ -324,9 +327,9 @@ def test_processing_variants_use_cpu_site_mapping(
 ) -> None:
     workflow = processing_workflow(tmp_path)
     for split in ["train", "val", "test"]:
-        (tmp_path / f"extra/output/datasets/cube/0/{split}.bundle").mkdir(
-            parents=True
-        )
+        (
+            tmp_path / f"extra/output_smoke/datasets/cube/0/{split}.bundle"
+        ).mkdir(parents=True)
     for method, pretrain in [
         ("alpha", "pretrain_seed-0"),
         ("beta", "NO_PRETRAIN"),
@@ -341,11 +344,11 @@ def test_processing_variants_use_cpu_site_mapping(
         )
         trained = (
             tmp_path
-            / f"extra/output/trained_methods/initializer-cold/{training}"
+            / f"extra/output_smoke/trained_methods/initializer-cold/{training}"
         )
         (trained / "method.bundle").mkdir(parents=True)
         eval_table = (
-            tmp_path / "extra/output/eval_results/eval_split-test/"
+            tmp_path / "extra/output_smoke/eval_results/eval_split-test/"
             f"initializer-cold/{evaluation}/eval_data.parquet"
         )
         eval_table.parent.mkdir(parents=True, exist_ok=True)
@@ -393,6 +396,7 @@ def test_local_cpu_processing_reaches_native_final_outputs(
         if "device" in args:
             assert args["device"] == "cpu"
     plots = (
-        tmp_path / "extra/output/plot_results/eval_split-test/initializer-cold"
+        tmp_path
+        / "extra/output_smoke/plot_results/eval_split-test/initializer-cold"
     )
     assert len(list(plots.rglob("fixture.svg"))) == 4

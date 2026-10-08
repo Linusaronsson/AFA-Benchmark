@@ -91,6 +91,15 @@ Enables smoke testing mode, where each script runs as fast as possible while sti
 
 - **Default:** `false`
 - **Example:** `smoke_test=true` for quick validation runs
+- **Note:** A smoke test writes under its own output root, `extra/output_smoke` by default (see [`output_root`](#output_root))
+
+### `output_root`
+
+The output root the run writes all its bundles, evaluation tables, job records, merged results and plots under. A smoke test has its own, so its outputs never satisfy a real run and a real run after a smoke test still runs every job.
+
+- **Default:** `extra/output`, or `extra/output_smoke` with `smoke_test=true`
+- **Example:** `output_root=/scratch/afabench/output`
+- **Note:** `smoke_test=true` with `output_root=extra/output` is a config error
 
 ## Datasets
 

@@ -18,10 +18,13 @@ from typing import Any
 import dacite
 
 from afabench.core.output_layout import (
+    PRODUCTION_OUTPUT_ROOT,
+    SMOKE_OUTPUT_ROOT,
     EvaluationRun,
     OutputLayout,
     PathValue,
     TrainingRun,
+    default_output_root,
     pretrain_seed_folder,
 )
 
@@ -83,6 +86,8 @@ class WorkflowSettings:
     eval_dataset_split: str
     use_wandb: bool
     smoke_test: bool
+    # Where the run writes its artifacts and job records
+    output_root: str
     # Only the pretrained models a selected method uses.
     pretrain_names: list[str]
     pretrain_script_names: dict[str, str]
@@ -187,6 +192,10 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         ).items()
     }
 
+    smoke_test: bool = config.get("smoke_test", False)
+    output_root = _output_root(
+        config.get("output_root"), smoke_test=smoke_test
+    )
     methods: list[str] | None = config.get("methods", [])
     if methods is None:
         message = "Expected methods to be provided."
@@ -290,7 +299,8 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         # Switch to val while developing, and train if debugging.
         eval_dataset_split=config.get("eval_dataset_split", "test"),
         use_wandb=config.get("use_wandb", True),
-        smoke_test=config.get("smoke_test", False),
+        smoke_test=smoke_test,
+        output_root=output_root,
         pretrain_names=pretrain_names,
         pretrain_script_names={
             name: model_config.pretrain_script_name
@@ -425,6 +435,31 @@ def _parse_strictly[T](
     except dacite.DaciteError as error:
         message = f"{label}: {error}"
         raise ValueError(message) from error
+
+
+def _output_root(output_root: str | None, *, smoke_test: bool) -> str:
+    """
+    Resolve the run's output root, refusing a smoke test into production.
+
+    A smoke test in the production output root would leave smoke artifacts
+    that a later real run takes as its own and skips their jobs.
+    """
+    if output_root is None:
+        return default_output_root(smoke_test=smoke_test)
+    # Relative paths are relative to the checkout, Snakemake's working
+    # directory.
+    if (
+        smoke_test
+        and Path(output_root).resolve()
+        == Path(PRODUCTION_OUTPUT_ROOT).resolve()
+    ):
+        message = (
+            f"smoke_test=true cannot write into output_root={output_root}, "
+            "the production output root; omit output_root to use "
+            f"{SMOKE_OUTPUT_ROOT}."
+        )
+        raise ValueError(message)
+    return output_root
 
 
 def _check_reference_methods(

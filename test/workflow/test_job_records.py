@@ -1,5 +1,6 @@
 """Job records the computational stages leave beside their artifacts."""
 
+import copy
 import json
 import subprocess
 from dataclasses import dataclass
@@ -9,6 +10,10 @@ from typing import Any
 
 import pytest
 
+from afabench.core.output_layout import (
+    PRODUCTION_OUTPUT_ROOT,
+    SMOKE_OUTPUT_ROOT,
+)
 from test.workflow.submission_harness import REPO_ROOT, WorkflowHarness
 from test.workflow.test_full_reproduction import (
     GPU_JOBS,
@@ -199,7 +204,7 @@ def recorded_run(tmp_path_factory: pytest.TempPathFactory) -> RecordedRun:
         target="all",
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    output = root / "extra/output"
+    output = root / SMOKE_OUTPUT_ROOT
     return RecordedRun(
         workflow,
         output,
@@ -309,6 +314,39 @@ def test_another_allocation_reruns_no_recorded_job(
     assert "Nothing to be done" in result.stdout + result.stderr
 
 
+def test_a_smoke_run_writes_nothing_under_the_production_output_root(
+    recorded_run: RecordedRun,
+) -> None:
+    output = recorded_run.output
+    assert (output / "merged_results/job_duration_table.parquet").is_file()
+    assert (output / "plot_results").is_dir()
+    assert recorded_run.records
+    assert not (recorded_run.workflow.root / PRODUCTION_OUTPUT_ROOT).exists()
+
+
+def test_a_real_run_after_a_smoke_run_plans_every_job(
+    recorded_run: RecordedRun, tmp_path: Path
+) -> None:
+    def planned_job_stats(workflow: WorkflowHarness) -> str:
+        # A copy, so the module's recorded run keeps its smoke config
+        workflow = copy.copy(workflow)
+        workflow.config = {**workflow.config, "smoke_test": False}
+        result = workflow.run(
+            "--workflow-profile",
+            str(workflow.root / "extra/workflow/profiles/mixed-gres"),
+            "--dry-run",
+            "--quiet",
+            "rules",
+            target="all",
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return result.stdout
+
+    fresh = full_benchmark_workflow(tmp_path)
+
+    assert planned_job_stats(recorded_run.workflow) == planned_job_stats(fresh)
+
+
 def test_failed_attempts_leave_separate_records_outside_declared_outputs(
     tmp_path: Path,
 ) -> None:
@@ -316,7 +354,7 @@ def test_failed_attempts_leave_separate_records_outside_declared_outputs(
     (tmp_path / "scripts/train_method/alpha.py").write_text(
         "import sys\nsys.exit(3)\n"
     )
-    output = tmp_path / "extra/output"
+    output = tmp_path / SMOKE_OUTPUT_ROOT
     training = f"trained_methods/{TAG}/alpha"
 
     for _ in range(2):

@@ -31,7 +31,12 @@ Runtime filters (--config, select subsets to run):
         --config replaces the workflow profile's config, so repeat
         execution_site_file=<site>/site.yaml whenever passing --config.
     use_wandb (bool, default=True): Enable W&B logging
-    smoke_test (bool, default=False): Run smoke tests
+    smoke_test (bool, default=False): Run smoke tests, under their own
+        output root
+    output_root (str, default='extra/output', or 'extra/output_smoke' with
+        smoke_test=true): Where the run writes its bundles, evaluation
+        tables, job records, merged results and plots. A smoke test cannot
+        write into extra/output, so its outputs never satisfy a real run.
     initializer (str, default='cold'): Initialization strategy, a file in
         extra/conf/components/initializer/
     eval_dataset_split (str, default='test'): Dataset split for evaluation
@@ -61,11 +66,11 @@ Job records:
     the dataset key's folder): the job's identity, job duration and resolved
     allocation (device, CPUs, GPUs, time limit). A job whose script fails, or that
     receives SLURM's time-limit SIGTERM, writes its record to the same path
-    under extra/output/failed_job_records/ instead, one record per attempt;
+    under the output root's failed_job_records/ instead, one record per attempt;
     Snakemake deletes a failed job's declared outputs. The
     collect_job_records rule, part of `all`, collects every job record
-    under extra/output, failed attempts included, into the job duration
-    table extra/output/merged_results/job_duration_table.parquet, one row
+    under the output root, failed attempts included, into the job duration
+    table <output_root>/merged_results/job_duration_table.parquet, one row
     per record (afabench.core.job_duration_table). The plot_time rule plots
     from it the job durations of the completed pretraining, method-specific
     classifier training, training, evaluation and transformation jobs of
@@ -96,6 +101,8 @@ Usage:
         snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
             --config "datasets=[cube]" "dataset_realization_indices=[0]" \
             smoke_test=true use_wandb=false
+    It writes under extra/output_smoke, so a later real run still runs every
+    job.
     See docs/how-to/reproduce_full_results.md and slurm_integration.md.
     Add a method to published baselines: download the baselines'
     transformed tables and the shared prerequisites into extra/output, then
@@ -119,8 +126,8 @@ CPU-only processing:
 
 Output namespacing:
     - Every rule addresses dataset, classifier, pretrained-model and method
-      bundles, evaluation tables and job records under extra/output through
-      OUTPUT_LAYOUT (afabench/core/output_layout.py), the native layout that
+      bundles, evaluation tables and job records under the output root
+      (output_root) through OUTPUT_LAYOUT (afabench/core/output_layout.py), the native layout that
       release manifests and restored benchmark releases also use.
     - All initializer-dependent artifacts are stored under
       `initializer-<initializer>` to allow side-by-side comparisons

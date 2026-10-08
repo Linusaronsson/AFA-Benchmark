@@ -5,24 +5,24 @@ Rules for running the pipeline up to a certain step.
 rule all:
     input:
         [
-            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{method_set}+classifier_type-builtin" for method_set in METHOD_SETS
+            f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{method_set}+classifier_type-builtin" for method_set in METHOD_SETS
         ] +
         [
-            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
+            f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{method_set}+classifier_type-external" for method_set in METHOD_SETS
         ] +
         # The next two sets of plots should be identical, but include them both just in case
         (
             [
-                f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_actions/method_set-{HEATMAP_METHOD_SET}+classifier_type-external"
+                f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_actions/method_set-{HEATMAP_METHOD_SET}+classifier_type-external"
             ]
             if HEATMAP_METHOD_SET in METHOD_SETS
             else []
         ) +
         [
-            f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"
+            f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"
         ] +
         [
-            "extra/output/merged_results/job_duration_table.parquet"
+            f"{OUTPUT_ROOT}/merged_results/job_duration_table.parquet"
         ]
 
 rule all_generate_datasets:

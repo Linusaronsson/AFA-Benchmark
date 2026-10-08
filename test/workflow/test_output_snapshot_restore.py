@@ -29,10 +29,10 @@ def test_restored_snapshot_leaves_nothing_for_a_dry_run_to_schedule(
     assert run.returncode == 0, run.stdout + run.stderr
 
     snapshot_dir = tmp_path / "snapshot"
-    save_snapshot(tmp_path / "completed/extra/output", snapshot_dir)
+    save_snapshot(tmp_path / "completed/extra/output_smoke", snapshot_dir)
 
     fresh = WorkflowHarness(tmp_path / "fresh")
-    restore_snapshot(snapshot_dir, tmp_path / "fresh/extra/output")
+    restore_snapshot(snapshot_dir, tmp_path / "fresh/extra/output_smoke")
 
     result = fresh.run(
         "--dry-run", "--executor", "local", target="all_eval_methods"
@@ -158,7 +158,7 @@ for stage, folder in [
     ("dataset_generation", "datasets"),
     ("classifier_training", "trained_classifiers"),
 ]:
-    for path in sorted(Path("extra/output", folder).rglob("*.bundle")):
+    for path in sorted(Path("extra/output_smoke", folder).rglob("*.bundle")):
         write_bundle(path, record(stage))
 """
 
@@ -203,7 +203,7 @@ def test_smoke_snapshot_round_trips_its_smoke_manifest(
             "save",
             str(snapshot_dir),
             "--source-root",
-            str(tmp_path / "completed/extra/output"),
+            str(tmp_path / "completed/extra/output_smoke"),
             "--configfile",
             str(configfile),
             "--release-id",
@@ -220,7 +220,7 @@ def test_smoke_snapshot_round_trips_its_smoke_manifest(
             "restore",
             str(snapshot_dir),
             "--destination-root",
-            str(tmp_path / "fresh/extra/output"),
+            str(tmp_path / "fresh/extra/output_smoke"),
         ],
     )
     assert restore.exit_code == 0, restore.output

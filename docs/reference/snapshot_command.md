@@ -40,6 +40,9 @@ snapshot.py save SNAPSHOT_DIR [--source-root extra/output] [--overwrite]
     [--checkout .]
 ```
 
+A smoke test's outputs are under `extra/output_smoke`: pass
+`--source-root extra/output_smoke` to save them.
+
 Copies every file and directory under the source root to
 `SNAPSHOT_DIR/output`, keeping file and directory modification times. A
 missing or empty source root is an error.
@@ -56,7 +59,8 @@ is copied:
 - any bundle, or Parquet file under `eval_results/` or
   `eval_results_transformed/`, without a provenance record; they are
   listed;
-- any smoke-test artifact with a scope other than `smoke`;
+- any smoke-test artifact with a scope other than `smoke`; up to five of
+  them are listed, with their total count;
 - a source root without any artifact.
 
 `--checkout` names the git checkout whose redistribution reviews are read.
@@ -79,8 +83,12 @@ Transformed tables carry their evaluation's record; the commits of transformatio
 ## `restore`
 
 ```shell
-snapshot.py restore SNAPSHOT_DIR [--destination-root extra/output] [--overwrite]
+snapshot.py restore SNAPSHOT_DIR [--destination-root ROOT] [--overwrite]
 ```
+
+The destination root defaults to `extra/output`, or `extra/output_smoke`
+when the snapshot's release manifest has scope `smoke`, so smoke outputs
+never satisfy a production run.
 
 Copies `SNAPSHOT_DIR/output` into the destination root, keeping
 modification times, and the snapshot's release manifest, if any, to
@@ -95,6 +103,8 @@ is restored.
 ```shell
 snapshot.py inventory [--source-root extra/output]
 ```
+
+Pass `--source-root extra/output_smoke` for a smoke test's outputs.
 
 Prints the execution mode of the source root's artifacts and, per
 [payload category](release_manifest.md#payload-categories), how many
@@ -140,8 +150,11 @@ producing code per pipeline stage as `save` does.
 ```shell
 snapshot.py download [RELEASE] --repo-id REPO
     (--all | SELECTION OPTIONS)
-    [--destination-root extra/output] [--overwrite] [--smoke-release]
+    [--destination-root ROOT] [--overwrite] [--smoke-release]
 ```
+
+The destination root defaults to `extra/output`, or `extra/output_smoke`
+with `--smoke-release`.
 
 Downloads one release and restores it as `restore` does, then prints its
 scope, execution mode and workflow configuration. A public

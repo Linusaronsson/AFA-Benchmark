@@ -11,6 +11,11 @@ from pathlib import Path
 
 import yaml
 
+from afabench.core.output_layout import (
+    PRODUCTION_OUTPUT_ROOT,
+    SMOKE_OUTPUT_ROOT,
+)
+
 REPO_ROOT = Path(__file__).parents[2]
 ESTIMATE_COMPUTE = REPO_ROOT / "scripts/compute_estimate/estimate_compute.py"
 # Cluster submission needs a site map; this one mirrors profiles/mixed-gres.
@@ -25,8 +30,12 @@ SITE = {
 
 
 class WorkflowHarness:
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, smoke_test: bool = True) -> None:
         self.root = root
+        # The output root the run writes under, holding its fixtures
+        self.output = root / (
+            SMOKE_OUTPUT_ROOT if smoke_test else PRODUCTION_OUTPUT_ROOT
+        )
         shutil.copytree(REPO_ROOT / "extra/workflow", root / "extra/workflow")
         # Cheap enough to run for real, unlike the stubbed stage scripts
         (root / "scripts/misc").mkdir(parents=True)
@@ -50,15 +59,15 @@ class WorkflowHarness:
             },
             "classifier_names": {"default": "masked_mlp_classifier"},
             "use_wandb": False,
-            "smoke_test": True,
+            "smoke_test": smoke_test,
         }
         for split in ["train", "val", "test"]:
-            (root / f"extra/output/datasets/cube/0/{split}.bundle").mkdir(
+            (self.output / f"datasets/cube/0/{split}.bundle").mkdir(
                 parents=True
             )
         (
-            root
-            / "extra/output/trained_classifiers/initializer-cold/dataset-cube+realization_index-0.bundle"
+            self.output
+            / "trained_classifiers/initializer-cold/dataset-cube+realization_index-0.bundle"
         ).mkdir(parents=True)
         self.capture = root / "submissions.jsonl"
         self.arguments = root / "arguments.jsonl"

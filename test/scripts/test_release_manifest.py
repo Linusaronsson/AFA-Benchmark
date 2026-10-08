@@ -161,6 +161,28 @@ def test_smoke_outputs_cannot_be_declared_a_release(
     assert not (tmp_path / "snapshot").exists()
 
 
+def test_a_refused_smoke_release_names_some_of_its_smoke_artifacts(
+    tmp_path: Path,
+) -> None:
+    write_catalog(
+        tmp_path / "source", Catalog(methods=[ALPHA], smoke_test=True)
+    )
+    assert save(tmp_path, scope="smoke").exit_code == 0
+    manifest = read_manifest(tmp_path)
+    smoke = [
+        entry.get("path") or entry["raw_path"] or entry["transformed_path"]
+        for entry in [*manifest["bundles"], *manifest["evaluations"]]
+        if entry["smoke_test"]
+    ]
+    assert len(smoke) > 5
+
+    refused = save(tmp_path, "--overwrite", scope="full")
+
+    message = str(refused.exception)
+    assert f"{len(smoke)} smoke-test artifacts" in message
+    assert sum(path in message for path in smoke) == 5
+
+
 def test_smoke_outputs_are_recorded_as_smoke(tmp_path: Path) -> None:
     write_catalog(
         tmp_path / "source", Catalog(methods=[ALPHA], smoke_test=True)
@@ -187,7 +209,8 @@ def test_one_smoke_artifact_makes_the_outputs_smoke(tmp_path: Path) -> None:
     saved = save(tmp_path, scope="smoke")
 
     assert refused.exit_code != 0
-    assert "smoke" in str(refused.exception)
+    assert "1 smoke-test artifact" in str(refused.exception)
+    assert method_bundle(ALPHA, "cube", 1, HARD_3) in str(refused.exception)
     assert saved.exit_code == 0, saved.output
     assert read_manifest(tmp_path)["execution_mode"] == "smoke"
 

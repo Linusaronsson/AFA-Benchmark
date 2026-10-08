@@ -27,7 +27,8 @@ GPUs your site profile will request.
 
 - **From your own runs**: by default the estimate reads every job record
   under `extra/output/`, including those of a run that is still going. Use
-  this to estimate what is left of a run.
+  this to estimate what is left of a run. Smoke tests write their job
+  records under `extra/output_smoke/` instead, so they do not end up here.
 - **From a benchmark release**: download the release's job duration
   table alone:
 

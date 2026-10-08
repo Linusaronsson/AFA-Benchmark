@@ -43,6 +43,35 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.smoke_test is False
     assert settings.use_wandb is True
     assert settings.initializer == "cold"
+    assert settings.output_root == "extra/output"
+
+
+def test_smoke_test_writes_under_its_own_output_root() -> None:
+    settings = load_config(_config() | {"smoke_test": True})
+
+    assert settings.output_root == "extra/output_smoke"
+
+
+@pytest.mark.parametrize("smoke_test", [False, True])
+def test_an_explicit_output_root_wins(*, smoke_test: bool) -> None:
+    settings = load_config(
+        _config() | {"smoke_test": smoke_test, "output_root": "elsewhere"}
+    )
+
+    assert settings.output_root == "elsewhere"
+
+
+@pytest.mark.parametrize(
+    "output_root",
+    ["extra/output", "extra/output/", str(Path("extra/output").resolve())],
+)
+def test_smoke_test_cannot_write_into_the_production_output_root(
+    output_root: str,
+) -> None:
+    config = _config() | {"smoke_test": True, "output_root": output_root}
+
+    with pytest.raises(ValueError, match=r"smoke_test.*output_root"):
+        load_config(config)
 
 
 def test_aaco_eval_batch_size_is_pinned_per_dataset() -> None:

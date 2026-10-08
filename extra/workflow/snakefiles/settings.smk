@@ -36,14 +36,17 @@ EXECUTION = ExecutionPolicy(
 DATASET_REALIZATION_INDICES = WORKFLOW_SETTINGS.dataset_realization_indices
 INITIALIZER = WORKFLOW_SETTINGS.initializer
 EVAL_DATASET_SPLIT = WORKFLOW_SETTINGS.eval_dataset_split
+OUTPUT_ROOT = WORKFLOW_SETTINGS.output_root
 OUTPUT_LAYOUT = OutputLayout(
-    root="extra/output", initializer=INITIALIZER, eval_split=EVAL_DATASET_SPLIT
+    root=OUTPUT_ROOT, initializer=INITIALIZER, eval_split=EVAL_DATASET_SPLIT
 )
 # For the merged results and plots, which the layout does not address.
 INITIALIZER_TAG = OUTPUT_LAYOUT.initializer_tag
 USE_WANDB = WORKFLOW_SETTINGS.use_wandb
 SMOKE_TEST = WORKFLOW_SETTINGS.smoke_test
-JOB_RECORDS = JobRecordCommands(EXECUTION, smoke_test=SMOKE_TEST)
+JOB_RECORDS = JobRecordCommands(
+    EXECUTION, output_root=OUTPUT_ROOT, smoke_test=SMOKE_TEST
+)
 PRETRAIN_NAMES = WORKFLOW_SETTINGS.pretrain_names
 PRETRAIN_SCRIPT_NAMES = WORKFLOW_SETTINGS.pretrain_script_names
 PRETRAIN_PARAMS = WORKFLOW_SETTINGS.pretrain_params

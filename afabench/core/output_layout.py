@@ -22,6 +22,17 @@ from typing import Self
 
 type PathValue = str | int | float
 
+# The output root of a production run, and of a smoke test unless the
+# workflow config's `output_root` says otherwise.
+PRODUCTION_OUTPUT_ROOT = "extra/output"
+SMOKE_OUTPUT_ROOT = "extra/output_smoke"
+
+
+def default_output_root(*, smoke_test: bool) -> str:
+    """Return the output root of a smoke test or a production run."""
+    return SMOKE_OUTPUT_ROOT if smoke_test else PRODUCTION_OUTPUT_ROOT
+
+
 _PRETRAIN_SEED_PREFIX = "pretrain_seed-"
 _NO_PRETRAIN_FOLDER = "NO_PRETRAIN"
 # Constrains a `{pretrain_folder}` wildcard to the folders below.

@@ -34,7 +34,7 @@ rule merge_eval_perf:
         shell_exec="bash",
         **EXECUTION.allocation_resources("aggregation", lambda wc: "merge_eval_perf"),
     output:
-        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet",
+        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet",
     shell:
         """
             python scripts/misc/merge_dataframes.py {input} --output {output}
@@ -42,10 +42,10 @@ rule merge_eval_perf:
 
 rule split_by_classifier_type:
     input:
-        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet"
+        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet"
     output:
-        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
-        f"extra/output/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
+        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
+        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
     params:
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "split_by_classifier_type", resources),
     resources:
@@ -65,7 +65,7 @@ rule collect_job_records:
 
     The selected methods' transformed evaluation tables are inputs only so
     that the table is written after every job of the run. The script reads
-    every job record under extra/output, including failed and timed-out
+    every job record under the output root, including failed and timed-out
     attempts in failed_job_records/ and records of jobs outside this
     invocation. Records are not inputs: a missing one, for example of a
     downloaded shared prerequisite, must not rerun its job.
@@ -86,8 +86,9 @@ rule collect_job_records:
             for budget_combination in BUDGET_PARAMS[method][dataset]
         ]
     output:
-        "extra/output/merged_results/job_duration_table.parquet",
+        f"{OUTPUT_ROOT}/merged_results/job_duration_table.parquet",
     params:
+        output_root=OUTPUT_ROOT,
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "collect_job_records", resources),
     resources:
         shell_exec="bash",
@@ -95,7 +96,7 @@ rule collect_job_records:
     shell:
         """
         python scripts/misc/collect_job_records.py \
-            --output-root extra/output \
+            --output-root {params.output_root} \
             --output {output}
         """
 

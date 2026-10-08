@@ -11,7 +11,9 @@ failed or timed out before. See `afabench.compute_estimate` and
 
 Options, before or among the Snakemake arguments:
     --job-durations PATH  A job duration table, or an output root of job
-                          records (default: extra/output).
+                          records (default: extra/output, the production
+                          output root; a smoke test's job records are under
+                          extra/output_smoke).
     --by COLUMN           Group the totals by these job columns instead,
                           repeatable (e.g. --by name --by dataset_key).
     --output CSV          Also write each planned job's estimate here.
@@ -44,13 +46,14 @@ from afabench.core.job_duration_table import (
     empty_job_duration_table,
     load_job_duration_table,
 )
+from afabench.core.output_layout import PRODUCTION_OUTPUT_ROOT
 from afabench.release.manifest import (
     JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
     read_release_manifest,
 )
 
-DEFAULT_JOB_DURATIONS = Path("extra/output")
+DEFAULT_JOB_DURATIONS = Path(PRODUCTION_OUTPUT_ROOT)
 
 app = typer.Typer()
 

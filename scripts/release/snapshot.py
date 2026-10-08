@@ -23,6 +23,11 @@ from typing import Annotated, Final
 
 import typer
 
+from afabench.core.output_layout import (
+    PRODUCTION_OUTPUT_ROOT,
+    SMOKE_OUTPUT_ROOT,
+    default_output_root,
+)
 from afabench.release.huggingface import HuggingFaceTransport
 from afabench.release.manifest import (
     JOB_DURATION_TABLE_FILENAME,
@@ -59,7 +64,16 @@ from afabench.release.snapshot import (
 from afabench.release.workflow_config import resolve_workflow_config
 
 app = typer.Typer()
-DEFAULT_OUTPUT_ROOT: Final[Path] = Path("extra/output")
+DEFAULT_OUTPUT_ROOT: Final[Path] = Path(PRODUCTION_OUTPUT_ROOT)
+# A smoke release lands in the smoke output root unless a destination root
+# is given, so it never satisfies a production run.
+DestinationRootOption = Annotated[
+    Path | None,
+    typer.Option(
+        help=f"Defaults to {PRODUCTION_OUTPUT_ROOT}, or {SMOKE_OUTPUT_ROOT} "
+        "for a smoke release."
+    ),
+]
 DEFAULT_CHECKOUT: Final[Path] = Path()
 
 type TransportFactory = Callable[[str], ReleaseTransport]
@@ -166,7 +180,7 @@ def save(
 @app.command()
 def restore(
     snapshot_dir: Path,
-    destination_root: Path = DEFAULT_OUTPUT_ROOT,
+    destination_root: DestinationRootOption = None,
     *,
     overwrite: bool = False,
 ) -> None:
@@ -177,6 +191,13 @@ def restore(
         if manifest_path.is_file()
         else None
     )
+    if destination_root is None:
+        destination_root = Path(
+            default_output_root(
+                smoke_test=manifest is not None
+                and manifest.scope is ReleaseScope.SMOKE
+            )
+        )
     restore_snapshot(snapshot_dir, destination_root, overwrite=overwrite)
     if manifest is not None:
         _echo_manifest(
@@ -256,7 +277,7 @@ def download(
             "release."
         ),
     ] = LATEST_RELEASE,
-    destination_root: Path = DEFAULT_OUTPUT_ROOT,
+    destination_root: DestinationRootOption = None,
     *,
     repo_id: RepoIdOption,
     everything: Annotated[
@@ -335,6 +356,8 @@ def download(
     manifest = resolved.manifest
     if release == LATEST_RELEASE:
         typer.echo(f"Latest full release: {manifest.release_id}")
+    if destination_root is None:
+        destination_root = Path(default_output_root(smoke_test=smoke_release))
     if everything:
         download_release(
             resolved, transport, destination_root, overwrite=overwrite

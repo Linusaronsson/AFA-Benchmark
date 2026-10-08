@@ -18,8 +18,7 @@ EVALUATION_CPUS = 4
 def test_an_estimate_of_a_recorded_run_matches_every_job_exactly(
     tmp_path: Path,
 ) -> None:
-    workflow = WorkflowHarness(tmp_path)
-    workflow.config["smoke_test"] = False
+    workflow = WorkflowHarness(tmp_path, smoke_test=False)
     workflow.config["execution"] = {"methods": {"alpha": {"training": "cuda"}}}
     options = (
         "--executor",
@@ -49,7 +48,7 @@ def test_an_estimate_of_a_recorded_run_matches_every_job_exactly(
         ("training", "beta", "cpu", "1", "0"),
     ]
     assert {job["match_level"] for job in jobs} == {"exact"}
-    records = load_job_duration_table(tmp_path / "extra/output")
+    records = load_job_duration_table(workflow.output)
     seconds = {
         (stage, name): duration
         for stage, name, duration in zip(

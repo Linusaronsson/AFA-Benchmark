@@ -18,7 +18,7 @@ planned jobs, and the CPUs and GPUs each would request, are those of
 
 | Option | Meaning |
 | --- | --- |
-| `--job-durations PATH` | A [job duration table](job_records.md#job-duration-table) Parquet file, such as a downloaded release's `extra/release_job_duration_table.parquet`, or an output root whose job records are read. Default `extra/output`; if it does not exist, every job is unestimated. Any other missing path is an error. |
+| `--job-durations PATH` | A [job duration table](job_records.md#job-duration-table) Parquet file, such as a downloaded release's `extra/release_job_duration_table.parquet`, or an output root whose job records are read. Default `extra/output`, the production output root, which holds no smoke test's job records; if it does not exist, every job is unestimated. Any other missing path is an error. |
 | `--by COLUMN` | Group the totals by this job column instead of `stage` and `device`; repeat for several. Any column of the [per-job CSV](#per-job-csv) up to `gpus`, except `wildcards`. |
 | `--output CSV` | Also write the [per-job CSV](#per-job-csv). |
 | `--strict` | Exit with 1 after the report when any planned job is unestimated. |
