@@ -5,7 +5,7 @@ Selection reads only the release manifest. Evaluations are matched
 against the requested coverage; the bundles they depend on are found by
 following the `inputs` of those evaluations and, in turn, of the bundles,
 by content hash, then kept if their payload category is requested. Pretrained-model and
-AFA-method bundles come with the time record their job wrote beside them.
+AFA-method bundles come with the job record their job wrote beside them.
 So asking for evaluation tables alone fetches no bundle, and asking for
 dataset and classifier bundles fetches the shared prerequisites of the
 selected evaluations without their AFA-method bundles. Output categories
@@ -170,10 +170,10 @@ def _job_folder(bundle: BundleEntry) -> str:
     """
     Return the folder to fetch for a bundle: it, or its job's folder.
 
-    The pretraining and training jobs write a time record beside their
-    bundle, which the workflow's time aggregation reads. Without it the
-    workflow reruns the job, replacing the restored bundle. Each of these
-    bundles' parent folders holds the outputs of that one job only.
+    The pretraining and training jobs write a job record beside their
+    bundle, so the restored job keeps its job duration and allocation.
+    Each of these bundles' parent folders holds the outputs of that one job
+    only.
     """
     if bundle.category in {
         PayloadCategory.PRETRAINED_MODEL_BUNDLE,

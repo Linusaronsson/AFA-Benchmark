@@ -40,11 +40,6 @@ TAG = "initializer-cold"
 INITIALIZER = "cold"
 EVAL_SPLIT = "test"
 CLEAN = CodeIdentity(commit="c" * 40, dirty=False)
-# What the pretraining and training jobs write beside their bundle.
-TIME_RECORDS = {
-    "pretraining": "pretrain_time.txt",
-    "training": "train_time.txt",
-}
 
 
 def provenance(
@@ -432,10 +427,6 @@ class _CatalogWriter:
             self.record(stage, **fields),
             content=self.content,
         )
-        if stage in TIME_RECORDS:
-            (self.root / path).parent.joinpath(TIME_RECORDS[stage]).write_text(
-                "1.0"
-            )
 
     def input(self, role: InputRole, path: str) -> ProvenanceInput:
         return bundle_input(self.root, role, path)

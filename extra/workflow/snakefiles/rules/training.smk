@@ -126,12 +126,6 @@ rule pretrain_model:
                 pretrain_seed="{pretrain_seed}",
             )
         ),
-        pretrain_time=OUTPUT_LAYOUT.pretrain_time(
-            pretrained_model_name="{pretrained_model_name}",
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            pretrain_seed="{pretrain_seed}",
-        ),
         job_record=OUTPUT_LAYOUT.pretraining_job_record(
             pretrained_model_name="{pretrained_model_name}",
             dataset="{dataset}",
@@ -147,7 +141,6 @@ rule pretrain_model:
             resources=resources,
             threads=threads,
             smoke_test=SMOKE_TEST,
-            time_file=output.pretrain_time,
             name=wc.pretrained_model_name,
         ),
         script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
@@ -190,7 +183,6 @@ rule train_method:
         method_bundle=directory(
             OUTPUT_LAYOUT.method_bundle(TrainingRun.wildcards())
         ),
-        train_time=OUTPUT_LAYOUT.train_time(TrainingRun.wildcards()),
         job_record=OUTPUT_LAYOUT.training_job_record(TrainingRun.wildcards()),
     wildcard_constraints:
         pretrain_folder=PRETRAIN_FOLDER_PATTERN,
@@ -203,7 +195,6 @@ rule train_method:
             resources=resources,
             threads=threads,
             smoke_test=SMOKE_TEST,
-            time_file=output.train_time,
             name=wc.method,
         ),
         script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],

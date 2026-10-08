@@ -465,24 +465,20 @@ def test_method_bundles_follow_the_selected_budget_setting(
     }
 
 
-def test_model_bundles_come_with_the_time_records_of_their_jobs(
+def test_model_bundles_come_with_the_job_records_of_their_jobs(
     tmp_path: Path,
 ) -> None:
-    # The workflow's time aggregation reads them: without them it would
-    # rerun the pretraining or training job, replacing the restored bundle.
     transport = FakeReleaseTransport()
-    publish(tmp_path, transport, "2026-10-full")
+    publish(tmp_path, transport, "2026-10-full", job_records=True)
     destination_root = tmp_path / "fork/extra/output"
 
     result = download(
         transport,
         destination_root,
         "--payload-category",
-        "pretrained_model_bundle",
-        "--payload-category",
         "afa_method_bundle",
         "--method",
-        "beta",
+        "alpha",
         "--dataset",
         "cube",
         "--dataset-realization",
@@ -490,18 +486,13 @@ def test_model_bundles_come_with_the_time_records_of_their_jobs(
     )
 
     assert result.exit_code == 0, result.output
+    # The failed attempt's record is in the failed_job_records output
+    # category, not in the job folder.
     assert {
         path
         for path in restored_files(destination_root)
         if ".bundle/" not in path
-    } == {
-        f"pretrained_models/{TAG}/shared/dataset-cube+realization_index-0/"
-        "pretrain_seed-0/pretrain_time.txt",
-        f"trained_methods/{TAG}/beta/dataset-cube+realization_index-0/"
-        "pretrain_seed-0/"
-        "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
-        "train_time.txt",
-    }
+    } == {JOB_RECORD}
     assert "Downloaded 0 file(s) and 2 folder(s)." in result.output
 
 
@@ -578,7 +569,7 @@ def test_selection_the_release_does_not_cover_downloads_nothing(
         "--payload-category",
         "raw_evaluation_table",
         "--output-category",
-        "combined_time_results",
+        "failed_job_records",
         "--initializer",
         "warm",
         "--classifier-variant",
@@ -592,7 +583,7 @@ def test_selection_the_release_does_not_cover_downloads_nothing(
         "initializer 'warm': no evaluation of the release matches" in message
     )
     assert "classifier variant 'builtin'" in message
-    assert "output category combined_time_results: not in the release" in (
+    assert "output category failed_job_records: not in the release" in (
         message
     )
     assert not destination_root.parent.exists()

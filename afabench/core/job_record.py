@@ -269,10 +269,6 @@ def main(
     eval_hard_budget: Annotated[int | None, typer.Option()] = None,
     eval_soft_budget_param: Annotated[float | None, typer.Option()] = None,
     eval_batch_size: Annotated[int | None, typer.Option()] = None,
-    time_file: Annotated[
-        Path | None,
-        typer.Option(help="Also write the job duration in seconds here."),
-    ] = None,
 ) -> None:
     """Run a pipeline job's script and write its job record."""
     job_record = run_job(
@@ -303,9 +299,6 @@ def main(
     )
     if job_record.exit_status != "completed":
         raise typer.Exit(_wrapper_exit_code(job_record.exit_code))
-    # The time aggregation still reads *_time.txt (ADR-0006 expand step)
-    if time_file is not None:
-        time_file.write_text(f"{job_record.job_duration_seconds:.6f}\n")
 
 
 def job_identity(command: str) -> JobIdentity:

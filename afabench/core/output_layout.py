@@ -1,14 +1,13 @@
 """
-The pipeline's native output layout of bundles, tables, job records and time
-files.
+The pipeline's native output layout of bundles, tables and job records.
 
-Every Snakemake rule addresses bundles, evaluation tables, the job records
-beside them (`docs/reference/job_records.md`) and time files through this
-module, so their layout is spelled once; the aggregation and
-visualization rules spell their merged results and plots themselves, under
-this module's initializer tag. Benchmark releases are restored at these
-paths and reference methods' tables are found by them, so the layout must
-not change. Artifacts carry their own identity
+Every Snakemake rule addresses bundles, evaluation tables and the job
+records beside them (`docs/reference/job_records.md`) through this module,
+so their layout is spelled once; the aggregation and visualization rules
+spell their merged results and plots themselves, under this module's
+initializer tag. Benchmark releases are restored at these paths and
+reference methods' tables are found by them, so the layout must not change.
+Artifacts carry their own identity
 (`docs/adr/0002-provenance-recorded-in-artifacts.md`); the paths are
 Snakemake target naming only.
 
@@ -200,30 +199,11 @@ class OutputLayout:
             "model.job_record.json",
         )
 
-    def pretrain_time(
-        self,
-        *,
-        pretrained_model_name: PathValue,
-        dataset: PathValue,
-        dataset_realization_index: PathValue,
-        pretrain_seed: PathValue,
-    ) -> str:
-        return self._pretraining_path(
-            pretrained_model_name,
-            dataset,
-            dataset_realization_index,
-            pretrain_seed,
-            "pretrain_time.txt",
-        )
-
     def method_bundle(self, run: TrainingRun) -> str:
         return self._training_path(run, "method.bundle")
 
     def training_job_record(self, run: TrainingRun) -> str:
         return self._training_path(run, "method.job_record.json")
-
-    def train_time(self, run: TrainingRun) -> str:
-        return self._training_path(run, "train_time.txt")
 
     def _training_path(self, run: TrainingRun, file_name: str) -> str:
         return self._path(
@@ -249,14 +229,6 @@ class OutputLayout:
     def transformation_job_record(self, run: EvaluationRun) -> str:
         return self._evaluation_path(
             "eval_results_transformed", run, "eval_data.job_record.json"
-        )
-
-    def eval_time(self, run: EvaluationRun) -> str:
-        return self._evaluation_path("eval_time_results", run, "eval_time.txt")
-
-    def combined_time(self, run: EvaluationRun) -> str:
-        return self._evaluation_path(
-            "combined_time_results", run, "combined_time.parquet"
         )
 
     def _evaluation_path(
