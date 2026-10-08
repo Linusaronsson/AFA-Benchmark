@@ -110,7 +110,12 @@ class OutputLayout:
         return self._path("datasets", f"{dataset}")
 
     def dataset_generation_job_record(self, *, dataset: PathValue) -> str:
-        return self._path("datasets", f"{dataset}.job_record.json")
+        return "/".join(
+            [
+                self.dataset_folder(dataset=dataset),
+                "dataset_generation.job_record.json",
+            ]
+        )
 
     def dataset_bundle(
         self,

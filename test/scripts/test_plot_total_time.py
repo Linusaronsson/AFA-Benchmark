@@ -81,7 +81,9 @@ def test_each_selected_method_gets_its_completed_jobs_of_this_run() -> None:
         [
             # Not a method's: dataset generation and the shared classifier
             completed(
-                "datasets/cube.job_record.json", "dataset_generation", 100
+                "datasets/cube/dataset_generation.job_record.json",
+                "dataset_generation",
+                100,
             ),
             completed(
                 f"trained_classifiers/{TAG}/dataset-cube+realization_index-0.job_record.json",
