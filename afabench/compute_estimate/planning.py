@@ -12,10 +12,8 @@ evaluated, but nothing is submitted or run.
 Needs Snakemake, a development dependency that `uv sync` installs.
 """
 
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
 from unittest import mock
 
 from snakemake.cli import args_to_api, parse_args
@@ -25,9 +23,13 @@ from snakemake.jobs import Job
 from snakemake.workflow import Workflow
 from snakemake_interface_executor_plugins.registry import Plugin
 
-from afabench.core.job_record import JobIdentity, job_identity
-
-type Device = Literal["cpu", "cuda"]
+from afabench.core.job_record import (
+    Device,
+    JobIdentity,
+    allocated_cpus,
+    allocated_gpus,
+    job_identity,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -98,7 +100,7 @@ def _planned_job(job: Job) -> PlannedJob:
     assert params is not None
     job_record_command = params.get("job_record")
     resources = job.resources
-    gpus = _gpus(resources.get("gpu"), resources.get("gres"))
+    gpus = allocated_gpus(resources)
     return PlannedJob(
         rule=job.rule.name,
         wildcards={
@@ -109,28 +111,6 @@ def _planned_job(job: Job) -> PlannedJob:
         if job_record_command is None
         else job_identity(job_record_command),
         device="cuda" if gpus else "cpu",
-        cpus=_cpus(resources.get("cpus_per_task"), job.threads),
+        cpus=allocated_cpus(resources, job.threads),
         gpus=gpus,
     )
-
-
-def _cpus(cpus_per_task: object, threads: int) -> int | None:
-    # As the SLURM executor plugin requests them, and as job records
-    # (extra/workflow/src/job_records.py) record them.
-    if not cpus_per_task:
-        return threads
-    if not isinstance(cpus_per_task, int):
-        message = f"cpus_per_task must be an integer, got {cpus_per_task!r}"
-        raise TypeError(message)
-    # A negative count leaves the CPUs to the cluster's default.
-    return None if cpus_per_task < 0 else max(1, cpus_per_task)
-
-
-def _gpus(gpu: object, gres: object) -> int:
-    if isinstance(gpu, int) and gpu > 0:
-        return gpu
-    if isinstance(gres, str):
-        match = re.fullmatch(r"gpu(?::\w+)?:(\d+)", gres)
-        if match:
-            return int(match[1])
-    return 0

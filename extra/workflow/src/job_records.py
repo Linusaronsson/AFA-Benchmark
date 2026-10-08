@@ -11,33 +11,86 @@ A failed or timed-out job's record goes to the same path under
 declared outputs; it is not an output of any rule.
 """
 
-import re
 import shlex
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import fields
 from pathlib import Path
 from typing import Protocol
+
+from execution import ExecutionPolicy
+
+from afabench.core.job_record import (
+    JobIdentity,
+    Stage,
+    allocated_cpus,
+    allocated_gpus,
+)
 
 OUTPUT_ROOT = Path("extra/output")
 FAILED_JOB_RECORDS = OUTPUT_ROOT / "failed_job_records"
 
-# Wildcards whose value is the job record identity field of the same name
-IDENTITY_WILDCARDS = {
-    "dataset": "dataset_key",
-    "dataset_realization_index": "dataset_realization_index",
-    "pretrain_seed": "pretrain_seed",
-    "train_seed": "train_seed",
-    "eval_seed": "eval_seed",
-    "train_hard_budget": "train_hard_budget",
-    "train_soft_budget_param": "train_soft_budget_param",
-    "eval_hard_budget": "eval_hard_budget",
-    "eval_soft_budget_param": "eval_soft_budget_param",
-}
+IDENTITY_FIELDS = {field.name for field in fields(JobIdentity)}
+# A wildcard named after an identity field holds that field; these hold one
+# under another name.
+RENAMED_WILDCARDS = {"dataset": "dataset_key"}
 # Identity fields no wildcard holds, passed by the rule
 RULE_FIELDS = {"name", "train_seed", "eval_batch_size"}
 
 
 class Wildcards(Protocol):
     def items(self) -> Iterable[tuple[str, str]]: ...
+
+
+class Output(Protocol):
+    job_record: str
+
+
+class JobRecordCommands:
+    """Render the wrapper command param of each computational rule."""
+
+    def __init__(
+        self, execution: ExecutionPolicy, *, smoke_test: bool
+    ) -> None:
+        self.execution: ExecutionPolicy = execution
+        self.smoke_test: bool = smoke_test
+
+    def param(
+        self,
+        stage: Stage,
+        identity: Callable[[Wildcards], str | None],
+        **fields: Callable[[Wildcards], object],
+    ) -> Callable[[Wildcards, Output, Mapping[str, object], int], str]:
+        """
+        Return a rule's `job_record` param, rendered per job.
+
+        `identity` is the execution policy identity the rule's allocation
+        resources use; each of `fields` returns a job record field the
+        wildcards do not hold. Snakemake does not track params that take
+        resources or threads, so another allocation reruns no job.
+        """
+
+        def job_record(
+            wildcards: Wildcards,
+            output: Output,
+            resources: Mapping[str, object],
+            threads: int,
+        ) -> str:
+            return job_record_command(
+                output.job_record,
+                stage=stage,
+                wildcards=wildcards,
+                # Also checks the job's final allocation, for rules whose
+                # script takes no device.
+                device=self.execution.checked_device(
+                    stage, identity(wildcards), resources
+                ),
+                resources=resources,
+                threads=threads,
+                smoke_test=self.smoke_test,
+                **{name: field(wildcards) for name, field in fields.items()},
+            )
+
+        return job_record
 
 
 def job_record_command(
@@ -57,9 +110,9 @@ def job_record_command(
         message = f"Unknown job record fields: {sorted(unknown)}"
         raise ValueError(message)
     identity: dict[str, object] = {
-        IDENTITY_WILDCARDS[wildcard]: value
+        RENAMED_WILDCARDS.get(wildcard, wildcard): value
         for wildcard, value in wildcards.items()
-        if wildcard in IDENTITY_WILDCARDS
+        if RENAMED_WILDCARDS.get(wildcard, wildcard) in IDENTITY_FIELDS
     }
     pretrain_folder = dict(wildcards.items()).get("pretrain_folder", "")
     if pretrain_folder.startswith("pretrain_seed-"):
@@ -89,28 +142,3 @@ def job_record_command(
         if value is not None and value != "null":
             arguments += [f"--{option.replace('_', '-')}", str(value)]
     return shlex.join([*arguments, "--"])
-
-
-def allocated_cpus(
-    resources: Mapping[str, object], threads: int
-) -> int | None:
-    """Return the CPUs the job requests, as the SLURM executor resolves them."""
-    cpus_per_task = resources.get("cpus_per_task")
-    if not cpus_per_task:
-        return threads
-    if not isinstance(cpus_per_task, int):
-        message = f"cpus_per_task must be an integer, got {cpus_per_task!r}"
-        raise TypeError(message)
-    # A negative count leaves the CPUs to the cluster's default.
-    return None if cpus_per_task < 0 else max(1, cpus_per_task)
-
-
-def allocated_gpus(resources: Mapping[str, object]) -> int:
-    """Return the GPUs the job requests through `gpu` or a GPU `gres`."""
-    gpu = resources.get("gpu", 0)
-    if gpu:
-        return int(str(gpu))
-    match = re.fullmatch(
-        r"gpu(:[a-zA-Z0-9_]+)?:(\d+)", str(resources.get("gres", ""))
-    )
-    return int(match.group(2)) if match else 0
