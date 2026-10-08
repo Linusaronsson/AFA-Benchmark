@@ -254,22 +254,11 @@ def test_job_records_carry_timing_code_commit_and_smoke_flag(
         assert "slurm_job_id" in record, path
 
 
-def test_time_files_and_time_aggregation_still_work(
+def test_job_records_are_the_only_timing_jobs_leave(
     recorded_run: RecordedRun,
 ) -> None:
-    for name, count in [
-        ("pretrain_time.txt", 4),
-        ("train_time.txt", 8),
-        ("eval_time.txt", 8),
-    ]:
-        paths = list(recorded_run.output.rglob(name))
-        assert len(paths) == count, name
-        for path in paths:
-            assert float(path.read_text()) >= 0, path
-    time_plots = (
-        recorded_run.output / f"plot_results/eval_split-test/{TAG}/time"
-    )
-    assert (time_plots / "fixture.svg").is_file()
+    assert not list(recorded_run.output.rglob("*_time.txt"))
+    assert not (recorded_run.output / "eval_time_results").exists()
 
 
 def test_failed_attempts_leave_separate_records_outside_declared_outputs(
@@ -299,7 +288,7 @@ def test_failed_attempts_leave_separate_records_outside_declared_outputs(
         assert record["name"] == "alpha"
         assert record["exit_status"] == "failed"
         assert record["exit_code"] == 3
-    declared = ["method.bundle", "train_time.txt", "method.job_record.json"]
+    declared = ["method.bundle", "method.job_record.json"]
     assert not [
         path
         for path in (output / training).rglob("*")

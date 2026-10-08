@@ -371,7 +371,7 @@ def test_independent_prerequisites_submit_once_with_matching_script_devices(
     assert len(shared) == 1
     assert (
         (tmp_path / shared[0]["save_path"])
-        .with_name("pretrain_time.txt")
+        .with_name("model.job_record.json")
         .is_file()
     )
     for script, args in calls:

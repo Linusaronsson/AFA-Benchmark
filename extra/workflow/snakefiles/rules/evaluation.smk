@@ -24,7 +24,6 @@ rule eval_method:
         ),
     output:
         eval_table=OUTPUT_LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()),
-        eval_time=OUTPUT_LAYOUT.eval_time(EvaluationRun.wildcards()),
         job_record=OUTPUT_LAYOUT.evaluation_job_record(EvaluationRun.wildcards()),
     params:
         device=lambda wildcards, resources: EXECUTION.checked_device("evaluation", wildcards.method, resources),
@@ -36,7 +35,6 @@ rule eval_method:
             resources=resources,
             threads=threads,
             smoke_test=SMOKE_TEST,
-            time_file=output.eval_time,
             name=wc.method,
             eval_batch_size=EVAL_BATCH_SIZES[wc.method][wc.dataset],
         ),

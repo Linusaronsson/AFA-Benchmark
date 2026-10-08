@@ -109,18 +109,6 @@ def test_pretraining_job_record() -> None:
     )
 
 
-def test_pretrain_time() -> None:
-    assert (
-        LAYOUT.pretrain_time(
-            pretrained_model_name="shared",
-            dataset="cube",
-            dataset_realization_index=1,
-            pretrain_seed=1,
-        )
-        == f"{PRETRAINED_MODEL_FOLDER}pretrain_time.txt"
-    )
-
-
 # beta has a pretraining stage and a hard budget, alpha neither: it trains
 # with a soft-budget parameter.
 BETA_RUN = TrainingRun(
@@ -172,14 +160,6 @@ def test_training_job_record() -> None:
         LAYOUT.training_job_record(ALPHA_RUN)
         == "extra/output/trained_methods/initializer-cold/"
         f"{ALPHA_RUN_FOLDER}method.job_record.json"
-    )
-
-
-def test_train_time() -> None:
-    assert (
-        LAYOUT.train_time(ALPHA_RUN)
-        == "extra/output/trained_methods/initializer-cold/"
-        f"{ALPHA_RUN_FOLDER}train_time.txt"
     )
 
 
@@ -246,22 +226,6 @@ def test_transformation_job_record_sits_beside_its_table() -> None:
     )
 
 
-def test_eval_time() -> None:
-    assert (
-        LAYOUT.eval_time(BETA_EVALUATION)
-        == f"extra/output/eval_time_results/{BETA_EVALUATION_FOLDER}"
-        "eval_time.txt"
-    )
-
-
-def test_combined_time() -> None:
-    assert (
-        LAYOUT.combined_time(BETA_EVALUATION)
-        == f"extra/output/combined_time_results/{BETA_EVALUATION_FOLDER}"
-        "combined_time.parquet"
-    )
-
-
 def test_wildcards_give_a_rule_pattern() -> None:
     assert LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()) == (
         "extra/output/eval_results/eval_split-test/initializer-cold/"
@@ -277,12 +241,13 @@ def test_wildcards_give_a_rule_pattern() -> None:
 def test_wildcards_of_one_pretrain_folder_kind() -> None:
     run = TrainingRun.wildcards(pretrain_folder=pretrain_seed_folder(None))
 
-    assert LAYOUT.train_time(run) == (
+    assert LAYOUT.training_job_record(run) == (
         "extra/output/trained_methods/initializer-cold/"
         "{method}/dataset-{dataset}+"
         "realization_index-{dataset_realization_index}/NO_PRETRAIN/"
         "train_seed-{train_seed}+train_hard_budget-{train_hard_budget}+"
-        "train_soft_budget_param-{train_soft_budget_param}/train_time.txt"
+        "train_soft_budget_param-{train_soft_budget_param}/"
+        "method.job_record.json"
     )
 
 

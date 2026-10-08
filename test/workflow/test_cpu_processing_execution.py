@@ -91,7 +91,6 @@ def processing_workflow(root: Path) -> WorkflowHarness:
         "dataset-cube+realization_index-0/pretrain_seed-0"
     )
     (pretrained / "model.bundle").mkdir(parents=True)
-    (pretrained / "pretrain_time.txt").write_text("0.125")
     for script in [
         "pretrain_model/shared.py",
         "train_classifier/masked_mlp_classifier.py",
@@ -345,18 +344,12 @@ def test_processing_variants_use_cpu_site_mapping(
             / f"extra/output/trained_methods/initializer-cold/{training}"
         )
         (trained / "method.bundle").mkdir(parents=True)
-        (trained / "train_time.txt").write_text("0.25")
-        for stage, output in [
-            ("eval_results", "eval_data.parquet"),
-            ("eval_time_results", "eval_time.txt"),
-        ]:
-            path = (
-                tmp_path
-                / f"extra/output/{stage}/eval_split-test/initializer-cold/"
-                f"{evaluation}/{output}"
-            )
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("fixture")
+        eval_table = (
+            tmp_path / "extra/output/eval_results/eval_split-test/"
+            f"initializer-cold/{evaluation}/eval_data.parquet"
+        )
+        eval_table.parent.mkdir(parents=True, exist_ok=True)
+        eval_table.write_text("fixture")
 
     result = workflow.run(
         "--dry-run",

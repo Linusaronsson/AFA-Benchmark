@@ -49,7 +49,6 @@ def job_record_command(
     resources: Mapping[str, object],
     threads: int,
     smoke_test: bool,
-    time_file: str | None = None,
     **fields: object,
 ) -> str:
     """Return the wrapper command to prefix a rule's script command with."""
@@ -77,7 +76,6 @@ def job_record_command(
         "cpus": allocated_cpus(resources, threads),
         "gpus": allocated_gpus(resources),
         "time_limit_minutes": resources.get("runtime"),
-        "time_file": time_file,
         **identity,
     }
     arguments = [
