@@ -9,6 +9,10 @@ from pathlib import Path
 import pytest
 
 from test.workflow.submission_harness import WorkflowHarness
+from test.workflow.test_compute_estimate_planning import (
+    planned_allocation,
+    submitted_allocation,
+)
 from test.workflow.test_cpu_processing_execution import processing_workflow
 
 # Membership of the retired extra/workflow/conf/methods/gpu.yaml, whose
@@ -360,6 +364,24 @@ def test_full_graph_submits_every_job_once(
         / "extra/output/plot_results/eval_split-test/initializer-cold"
     )
     assert len(list(plots.rglob("fixture.svg"))) == 4
+
+
+@pytest.mark.pipeline
+def test_full_graph_plan_matches_its_submissions(
+    tmp_path: Path, full_graph_run: FullGraphRun
+) -> None:
+    workflow = full_benchmark_workflow(tmp_path)
+
+    plan = workflow.plan(
+        "--workflow-profile",
+        str(tmp_path / "extra/workflow/profiles/mixed-gres"),
+        target="all",
+    )
+
+    assert plan.returncode == 0, plan.stdout + plan.stderr
+    assert sorted(map(planned_allocation, workflow.planned_jobs())) == sorted(
+        map(submitted_allocation, full_graph_run.submissions)
+    )
 
 
 @pytest.mark.pipeline
