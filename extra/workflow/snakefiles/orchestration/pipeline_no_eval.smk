@@ -29,8 +29,9 @@ Runtime filters (--config, select subsets to run):
         evaluation outputs
 
 Job records:
-    Transformation jobs write a job record beside their output, as in
-    pipeline.smk; see docs/reference/job_records.md.
+    Transformation jobs write a job record beside their output, and `all`
+    collects every record into the job duration table, as in pipeline.smk;
+    see docs/reference/job_records.md.
 
 CPU-only processing:
     Dataset generation (full pipeline only), transformations, aggregation and

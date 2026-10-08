@@ -5,7 +5,9 @@ pipeline job writes beside the artifact it produced. It holds the job's
 identity, its job duration and the allocation it ran with
 ([ADR 0006](../adr/0006-job-records-beside-artifacts.md)). It describes the
 run, not the artifact, so it is not part of the artifact's provenance record.
-The schema is `afabench.core.job_record.JobRecord`, version 1.
+The schema is `afabench.core.job_record.JobRecord`, version 1. The
+[job duration table](#job-duration-table) collects every record of an output
+root.
 
 ## Where records are
 
@@ -128,3 +130,40 @@ Records are flat, so that one record is one row of a table.
 | --- | --- |
 | `code_commit` | Commit of the afabench checkout that ran the job; null outside a git work tree. |
 | `smoke_test` | Whether the pipeline ran with `smoke_test=true`. |
+
+## Job duration table
+
+The [job duration table](../../CONTEXT.md) holds every job record under an
+output root, one row per record with no aggregation: the completed records
+beside artifacts and every failed or timed-out attempt in
+`failed_job_records/`. The `collect_job_records` rule writes it to
+`merged_results/job_duration_table.parquet` with
+`scripts/misc/collect_job_records.py`, as part of the `all` target. It runs
+after the selected methods' transformations, so after every job of the run,
+and on CPU under the site's CPU allocation, like the other aggregation
+rules. It reads the output root, not its inputs, so the table also holds
+records of earlier invocations, for example of other methods, initializers
+or evaluation splits. No record is an input, so a missing record does not
+rerun its job.
+
+`afabench.core.job_duration_table.load_job_duration_table(source)` loads
+either the table's Parquet file or an output root of loose job records,
+and returns the same pandas DataFrame for both, sorted by
+`job_record_path`. It raises `UnknownJobRecordVersionError` for a job record
+version it does not know and `JobRecordFieldsError` for a record or table
+whose fields do not match its version.
+
+The first column is `job_record_path`, the path of the row's record relative
+to the output root. Records do not name the initializer or evaluation split,
+and repeated attempts of a job have the same identity, so the path is what
+tells such rows apart. One column per [field](#fields) follows, named and
+ordered as there. Every column is nullable; null is `<NA>`, or `NaT` for
+times.
+
+| Columns | Type |
+| --- | --- |
+| `job_record_path`, `stage`, `name`, `dataset_key`, `exit_status`, `device`, `gpu_model`, `cpu_model`, `host`, `slurm_job_id`, `code_commit` | `string` |
+| `job_record_version`, `dataset_realization_index`, `pretrain_seed`, `train_seed`, `eval_seed`, `train_hard_budget`, `eval_hard_budget`, `eval_batch_size`, `exit_code`, `cpus`, `gpus`, `time_limit_minutes` | `Int64` |
+| `train_soft_budget_param`, `eval_soft_budget_param`, `job_duration_seconds` | `Float64` |
+| `started_at`, `ended_at` | `datetime64[us, UTC]` |
+| `smoke_test` | `boolean` |
