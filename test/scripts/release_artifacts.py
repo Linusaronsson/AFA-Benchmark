@@ -16,6 +16,12 @@ from pathlib import Path
 import pandas as pd
 
 from afabench.core.bundle_system.bundle import compute_content_hash
+from afabench.core.job_record import (
+    JOB_RECORD_VERSION,
+    ExitStatus,
+    JobRecord,
+)
+from afabench.core.job_record import Stage as JobStage
 from afabench.core.provenance import (
     PROVENANCE_VERSION,
     Compute,
@@ -116,6 +122,50 @@ def write_bundle(
         manifest["provenance"] = record.to_json_dict()
         manifest["content_hash"] = compute_content_hash(bundle / "data")
     (bundle / "manifest.json").write_text(json.dumps(manifest, indent=2))
+
+
+def write_job_record(
+    root: Path,
+    path: str,
+    *,
+    stage: JobStage = "training",
+    exit_status: ExitStatus = "completed",
+    job_duration_seconds: float = 60.0,
+    smoke_test: bool = False,
+) -> None:
+    """Write a job record at `path` under `root` as the job wrapper would."""
+    record = JobRecord(
+        job_record_version=JOB_RECORD_VERSION,
+        stage=stage,
+        name="alpha",
+        dataset_key="cube",
+        dataset_realization_index=0,
+        pretrain_seed=None,
+        train_seed=0,
+        eval_seed=None,
+        train_hard_budget=3,
+        train_soft_budget_param=None,
+        eval_hard_budget=None,
+        eval_soft_budget_param=None,
+        eval_batch_size=None,
+        started_at="2026-10-01T00:00:00+00:00",
+        ended_at="2026-10-01T00:01:00+00:00",
+        job_duration_seconds=job_duration_seconds,
+        exit_status=exit_status,
+        exit_code=0 if exit_status == "completed" else 1,
+        device="cpu",
+        cpus=4,
+        gpus=0,
+        time_limit_minutes=120,
+        gpu_model=None,
+        cpu_model="Test CPU",
+        host="node1",
+        slurm_job_id="42",
+        code_commit=CLEAN.commit,
+        smoke_test=smoke_test,
+    )
+    (root / path).parent.mkdir(parents=True, exist_ok=True)
+    (root / path).write_text(json.dumps(record.to_json_dict(), indent=2))
 
 
 def bundle_input(root: Path, role: InputRole, path: str) -> ProvenanceInput:
