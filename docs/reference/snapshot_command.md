@@ -47,12 +47,16 @@ missing or empty source root is an error.
 With `--release-id`, also writes `SNAPSHOT_DIR/release_manifest.json`
 ([release manifest](release_manifest.md)), indexing the source root's
 artifacts by their provenance records, and `--scope` and the workflow
-configuration options are required. Refused before anything is copied:
+configuration options are required. If the source root holds any job
+record, it also writes the release's
+[job duration table](release_manifest.md#job-duration-table) to
+`SNAPSHOT_DIR/release_job_duration_table.parquet`. Refused before anything
+is copied:
 
 - any bundle, or Parquet file under `eval_results/` or
   `eval_results_transformed/`, without a provenance record; they are
   listed;
-- any smoke-test artifact with a scope other than `smoke`;
+- any smoke-test artifact or job record with a scope other than `smoke`;
 - a source root without any artifact.
 
 `--checkout` names the git checkout whose redistribution reviews are read.
@@ -81,7 +85,8 @@ snapshot.py restore SNAPSHOT_DIR [--destination-root extra/output] [--overwrite]
 Copies `SNAPSHOT_DIR/output` into the destination root, keeping
 modification times, and the snapshot's release manifest, if any, to
 `release_manifest.json` beside the destination root
-(`extra/release_manifest.json` by default). A manifest whose
+(`extra/release_manifest.json` by default), and its job duration table, if
+any, to `release_job_duration_table.parquet` beside it. A manifest whose
 `manifest_version` this checkout does not read is refused before anything
 is restored.
 
@@ -160,6 +165,7 @@ file comes from it.
 | Option (repeatable) | Downloads |
 | --- | --- |
 | `--payload-category` | `raw_evaluation_table`, `transformed_evaluation_table`, `dataset_bundle`, `classifier_bundle`, `pretrained_model_bundle` or `afa_method_bundle` files of the selected evaluations. |
+| `--payload-category job_duration_table` | The release's job duration table alone, beside the restored manifest. Coverage options do not narrow it. |
 | `--output-category` | A top-level folder of the output root listed in `coverage.output_categories`, such as `plot_results` or `merged_results`, whole. Coverage options do not narrow it. |
 
 and optionally narrow the evaluations with coverage options:
@@ -215,6 +221,7 @@ nothing.
 ```text
 releases/<release_id>/
     release_manifest.json
+    release_job_duration_table.parquet     if the release has job records
     output_mtimes.json      modification times of everything under output/
     output/                 the snapshot's output tree
 smoke_releases/<release_id>/    same layout

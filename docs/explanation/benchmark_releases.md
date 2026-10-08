@@ -30,7 +30,11 @@ so a release says which code produced each of its artifacts.
 - **Native files.** Tables are the pipeline's own Parquet files and bundles
   its own bundle folders, restored byte for byte to the paths the workflow
   expects. Snakemake then reuses them instead of producing them again, and
-  a results-only user reads the same files any Parquet reader can.
+  a results-only user reads the same files any Parquet reader can. The
+  release's job duration table is the exception: the workflow rebuilds its
+  own from local job records, so the release's is restored beside the
+  manifest instead
+  ([job duration table](../reference/release_manifest.md#job-duration-table)).
 
 ## Only the release command talks to the host
 

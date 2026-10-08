@@ -144,7 +144,9 @@ and on CPU under the site's CPU allocation, like the other aggregation
 rules. It reads the output root, not its inputs, so the table also holds
 records of earlier invocations, for example of other methods, initializers
 or evaluation splits. No record is an input, so a missing record does not
-rerun its job.
+rerun its job. A benchmark release ships its own copy, beside its manifest
+rather than in `merged_results/`
+([payload category](release_manifest.md#job-duration-table)).
 
 `afabench.core.job_duration_table.load_job_duration_table(source)` loads
 either the table's Parquet file or an output root of loose job records,
