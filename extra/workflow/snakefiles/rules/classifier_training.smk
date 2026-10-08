@@ -4,6 +4,7 @@
 # docs/adr/0005-classifiers-trained-per-dataset-realization.md.
 
 from execution import checked_script_params
+from job_records import job_record_command
 
 
 def _classifier_script_name(dataset: str) -> str:
@@ -46,15 +47,31 @@ rule train_classifier:
             split="val",
         ),
     output:
-        directory(
+        classifier_bundle=directory(
             OUTPUT_LAYOUT.classifier_bundle(
                 dataset="{dataset}",
                 dataset_realization_index="{dataset_realization_index}",
                 method=None,
             )
-        )
+        ),
+        job_record=OUTPUT_LAYOUT.classifier_job_record(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            method=None,
+        ),
     params:
         device=lambda wc, resources: EXECUTION.checked_device("classifier_training", None, resources),
+        job_record=lambda wc, output, resources, threads: job_record_command(
+            output.job_record,
+            stage="classifier_training",
+            wildcards=wc,
+            device=EXECUTION.checked_device("classifier_training", None, resources),
+            resources=resources,
+            threads=threads,
+            smoke_test=SMOKE_TEST,
+            name=_classifier_script_name(wc.dataset),
+            train_seed=wc.dataset_realization_index,
+        ),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         script_name=lambda wildcards: _classifier_script_name(
             wildcards.dataset
@@ -67,10 +84,11 @@ rule train_classifier:
         **EXECUTION.allocation_resources("classifier_training", lambda wc: None),
     shell:
         """
+        {params.job_record} \
         python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
-            save_path={output} \
+            save_path={output.classifier_bundle} \
             initializer={INITIALIZER} \
             unmasker={params.unmasker} \
             device={params.device} \
@@ -95,15 +113,31 @@ rule train_classifier_for_method:
             split="val",
         ),
     output:
-        directory(
+        classifier_bundle=directory(
             OUTPUT_LAYOUT.classifier_bundle(
                 dataset="{dataset}",
                 dataset_realization_index="{dataset_realization_index}",
                 method="{method}",
             )
-        )
+        ),
+        job_record=OUTPUT_LAYOUT.classifier_job_record(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            method="{method}",
+        ),
     params:
         device=lambda wc, resources: EXECUTION.checked_device("classifier_training", wc.method, resources),
+        job_record=lambda wc, output, resources, threads: job_record_command(
+            output.job_record,
+            stage="classifier_training",
+            wildcards=wc,
+            device=EXECUTION.checked_device("classifier_training", wc.method, resources),
+            resources=resources,
+            threads=threads,
+            smoke_test=SMOKE_TEST,
+            name=_method_classifier_script_name(wc.method, wc.dataset),
+            train_seed=wc.dataset_realization_index,
+        ),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         script_name=lambda wildcards: _method_classifier_script_name(
             wildcards.method, wildcards.dataset
@@ -116,10 +150,11 @@ rule train_classifier_for_method:
         **EXECUTION.allocation_resources("classifier_training", lambda wc: wc.method),
     shell:
         """
+        {params.job_record} \
         python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
-            save_path={output} \
+            save_path={output.classifier_bundle} \
             initializer={INITIALIZER} \
             unmasker={params.unmasker} \
             device={params.device} \

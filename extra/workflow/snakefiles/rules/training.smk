@@ -15,6 +15,7 @@ are one.
 """
 
 from execution import checked_script_params
+from job_records import job_record_command
 from contract_arguments import (
     render_pretraining_contract,
     render_training_contract,
@@ -131,7 +132,24 @@ rule pretrain_model:
             dataset_realization_index="{dataset_realization_index}",
             pretrain_seed="{pretrain_seed}",
         ),
+        job_record=OUTPUT_LAYOUT.pretraining_job_record(
+            pretrained_model_name="{pretrained_model_name}",
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            pretrain_seed="{pretrain_seed}",
+        ),
     params:
+        job_record=lambda wc, output, resources, threads: job_record_command(
+            output.job_record,
+            stage="pretraining",
+            wildcards=wc,
+            device=EXECUTION.checked_device("pretraining", wc.pretrained_model_name, resources),
+            resources=resources,
+            threads=threads,
+            smoke_test=SMOKE_TEST,
+            time_file=output.pretrain_time,
+            name=wc.pretrained_model_name,
+        ),
         script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
         contract=_pretraining_contract,
         pretrain_params=lambda wildcards: checked_script_params(PRETRAIN_PARAMS[wildcards.pretrained_model_name], f"pretrain_params for {wildcards.pretrained_model_name!r}"),
@@ -140,13 +158,10 @@ rule pretrain_model:
         **EXECUTION.allocation_resources("pretraining", lambda wc: wc.pretrained_model_name),
     shell:
         """
-        START_TIME=$(date +%s.%N)
+        {params.job_record} \
         python scripts/pretrain_model/{params.script_name}.py \
             {params.contract} \
             {params.pretrain_params}
-        END_TIME=$(date +%s.%N)
-        ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')
-        echo $ELAPSED > '{output.pretrain_time}'
         """
 
 
@@ -176,9 +191,21 @@ rule train_method:
             OUTPUT_LAYOUT.method_bundle(TrainingRun.wildcards())
         ),
         train_time=OUTPUT_LAYOUT.train_time(TrainingRun.wildcards()),
+        job_record=OUTPUT_LAYOUT.training_job_record(TrainingRun.wildcards()),
     wildcard_constraints:
         pretrain_folder=PRETRAIN_FOLDER_PATTERN,
     params:
+        job_record=lambda wc, output, resources, threads: job_record_command(
+            output.job_record,
+            stage="training",
+            wildcards=wc,
+            device=EXECUTION.checked_device("training", wc.method, resources),
+            resources=resources,
+            threads=threads,
+            smoke_test=SMOKE_TEST,
+            time_file=output.train_time,
+            name=wc.method,
+        ),
         script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],
         contract=_training_contract,
         method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method],
@@ -187,11 +214,8 @@ rule train_method:
         **EXECUTION.allocation_resources("training", lambda wc: wc.method),
     shell:
         """
-        START_TIME=$(date +%s.%N)
+        {params.job_record} \
         python scripts/train_method/{params.script_name}.py \
             {params.contract} \
             {params.method_specific_params}
-        END_TIME=$(date +%s.%N)
-        ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')
-        echo $ELAPSED > '{output.train_time}'
         """

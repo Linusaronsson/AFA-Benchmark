@@ -5,6 +5,7 @@ Handles evaluation of trained methods on test/validation datasets.
 """
 
 from afabench.core.output_layout import EvaluationRun, TrainingRun
+from job_records import job_record_command
 
 
 rule eval_method:
@@ -22,10 +23,23 @@ rule eval_method:
             dataset_realization_index=wildcards.dataset_realization_index,
         ),
     output:
-        OUTPUT_LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()),
-        OUTPUT_LAYOUT.eval_time(EvaluationRun.wildcards()),
+        eval_table=OUTPUT_LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()),
+        eval_time=OUTPUT_LAYOUT.eval_time(EvaluationRun.wildcards()),
+        job_record=OUTPUT_LAYOUT.evaluation_job_record(EvaluationRun.wildcards()),
     params:
         device=lambda wildcards, resources: EXECUTION.checked_device("evaluation", wildcards.method, resources),
+        job_record=lambda wc, output, resources, threads: job_record_command(
+            output.job_record,
+            stage="evaluation",
+            wildcards=wc,
+            device=EXECUTION.checked_device("evaluation", wc.method, resources),
+            resources=resources,
+            threads=threads,
+            smoke_test=SMOKE_TEST,
+            time_file=output.eval_time,
+            name=wc.method,
+            eval_batch_size=EVAL_BATCH_SIZES[wc.method][wc.dataset],
+        ),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],
     resources:
@@ -33,13 +47,13 @@ rule eval_method:
         **EXECUTION.allocation_resources("evaluation", lambda wc: wc.method),
     shell:
         """
-        START_TIME=$(date +%s.%N)
+        {params.job_record} \
         python scripts/eval/eval_afa_method.py \
             method_bundle_path={input[1]} \
             initializer={INITIALIZER} \
             unmasker={params.unmasker} \
             dataset_bundle_path={input[0]} \
-            save_path={output[0]} \
+            save_path={output.eval_table} \
             classifier_bundle_path={input[2]} \
             seed={wildcards.eval_seed} \
             device={params.device} \
@@ -48,7 +62,4 @@ rule eval_method:
             batch_size={params.eval_batch_size} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST}
-        END_TIME=$(date +%s.%N)
-        ELAPSED=$(echo "$END_TIME $START_TIME" | awk '{{printf "%.6f", $1 - $2}}')
-        echo $ELAPSED > '{output[1]}'
         """

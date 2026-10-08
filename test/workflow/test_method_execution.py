@@ -24,12 +24,14 @@ def test_training_and_evaluation_have_independent_method_devices(
     assert commands.count("rule eval_method:") == 2
     assert "device=cuda" in commands
     assert "device=cpu" in commands
+    # A script command ends where the next job's job record wrapper starts.
+    # A printed shell command ends at the blank line before the next job.
     alpha_training = commands.split("python scripts/train_method/alpha.py", 1)[
         1
-    ].split("END_TIME", 1)[0]
+    ].split("\n\n", 1)[0]
     beta_training = commands.split("python scripts/train_method/beta.py", 1)[
         1
-    ].split("END_TIME", 1)[0]
+    ].split("\n\n", 1)[0]
     assert "device=cuda" in alpha_training
     assert "device=cpu" in beta_training
 
@@ -366,7 +368,7 @@ def test_unconverted_pretraining_preserves_legacy_device(
     commands = result.stdout + result.stderr
     pretraining = commands.split("python scripts/pretrain_model/shared.py", 1)[
         1
-    ].split("END_TIME", 1)[0]
+    ].split("\n\n", 1)[0]
     assert "device=cuda" in pretraining
     assert "pretrain_seed-0/model.bundle" in pretraining
 

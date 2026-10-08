@@ -28,6 +28,10 @@ Runtime filters (--config, select subsets to run):
     eval_dataset_split (str, default='test'): Dataset split for existing
         evaluation outputs
 
+Job records:
+    Transformation jobs write a job record beside their output, as in
+    pipeline.smk; see docs/reference/job_records.md.
+
 CPU-only processing:
     Dataset generation (full pipeline only), transformations, aggregation and
     visualization always resolve to CPU, including with legacy device=cuda.

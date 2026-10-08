@@ -37,7 +37,7 @@ estimate-compute *args:
     uv run python scripts/compute_estimate/estimate_compute.py "$@"
 
 # Paths the workflow tier depends on
-workflow_paths := "extra/workflow/ extra/conf/ test/workflow/ afabench/release/ afabench/fit/contract afabench/core/bundle_system/ afabench/core/output_layout afabench/core/workflow_settings afabench/compute_estimate/ scripts/compute_estimate/"
+workflow_paths := "extra/workflow/ extra/conf/ test/workflow/ afabench/release/ afabench/fit/contract afabench/core/bundle_system/ afabench/core/output_layout afabench/core/workflow_settings afabench/compute_estimate/ scripts/compute_estimate/ afabench/core/job_record.py afabench/core/code_identity.py"
 
 # Type check and tests run concurrently after the file-rewriting steps
 _qa tier: fix
