@@ -62,6 +62,7 @@ CPU_RULES = {
     "time_df_with_pretrain",
     "time_df_without_pretrain",
     "merge_time",
+    "collect_job_records",
     "plot_eval_perf",
     "plot_eval_actions",
     "plot_time",
@@ -248,7 +249,7 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
     assert result.returncode == 0, result.stdout + result.stderr
     seen = set()
     submissions = workflow.submissions()
-    assert len(submissions) == 18
+    assert len(submissions) == 19
     for args in submissions:
         comment = args[args.index("--comment") + 1]
         gpu = "rule_train_method" in comment or "rule_eval_method" in comment
@@ -289,6 +290,7 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
         )
         assert f"--cpus-per-task={cpus}" in args
     assert seen == CPU_RULES
+    # Every job but collect_job_records, which runs for real, runs a stub.
     calls = workflow.script_arguments()
     assert len(calls) == 18
     for script, args in calls:

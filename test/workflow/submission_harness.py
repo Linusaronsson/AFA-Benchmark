@@ -28,6 +28,12 @@ class WorkflowHarness:
     def __init__(self, root: Path) -> None:
         self.root = root
         shutil.copytree(REPO_ROOT / "extra/workflow", root / "extra/workflow")
+        # Cheap enough to run for real, unlike the stubbed stage scripts
+        (root / "scripts/misc").mkdir(parents=True)
+        shutil.copyfile(
+            REPO_ROOT / "scripts/misc/collect_job_records.py",
+            root / "scripts/misc/collect_job_records.py",
+        )
         self.config: dict[str, object] = {
             "pretrain_mapping": {},
             "method_options": {

@@ -20,6 +20,9 @@ rule all:
         ) +
         [
             f"extra/output/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"
+        ] +
+        [
+            "extra/output/merged_results/job_duration_table.parquet"
         ]
 
 rule all_generate_datasets:

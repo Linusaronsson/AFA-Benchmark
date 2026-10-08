@@ -5,6 +5,7 @@ Combines individual results into unified datasets:
 - Merging evaluation performance data
 - Combining time measurements with and without pretraining
 - Merging time measurements across all runs
+- Collecting every job record into the job duration table
 """
 
 from afabench.core.output_layout import (
@@ -129,6 +130,46 @@ rule time_df_without_pretrain:
             --dataset {wildcards.dataset} \
             --time_train_path {input[0]} \
             --time_eval_path {input[1]}
+        """
+
+
+rule collect_job_records:
+    """Collect every job record under the output root into the job duration table.
+
+    The selected methods' transformed evaluation tables are inputs only so
+    that the table is written after every job of the run. The script reads
+    every job record under extra/output, including failed and timed-out
+    attempts in failed_job_records/ and records of jobs outside this
+    invocation. Records are not inputs: a missing one, for example of a
+    downloaded shared prerequisite, must not rerun its job.
+    """
+    input:
+        [
+            OUTPUT_LAYOUT.transformed_evaluation_table(
+                WORKFLOW_SETTINGS.evaluation_run(
+                    method=method,
+                    dataset=dataset,
+                    dataset_realization_index=dataset_realization_index,
+                    budget_combination=budget_combination,
+                )
+            )
+            for method in METHODS
+            for dataset in DATASETS
+            for dataset_realization_index in DATASET_REALIZATION_INDICES
+            for budget_combination in BUDGET_PARAMS[method][dataset]
+        ]
+    output:
+        "extra/output/merged_results/job_duration_table.parquet",
+    params:
+        allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "collect_job_records", resources),
+    resources:
+        shell_exec="bash",
+        **EXECUTION.allocation_resources("aggregation", lambda wc: "collect_job_records"),
+    shell:
+        """
+        python scripts/misc/collect_job_records.py \
+            --output-root extra/output \
+            --output {output}
         """
 
 
