@@ -86,6 +86,17 @@ def per_job_table(estimate: ComputeEstimate) -> pd.DataFrame:
     ).astype(PER_JOB_DTYPES)
 
 
+def check_grouping(by: Sequence[str]) -> None:
+    """Raise `UnknownGroupingColumnError` unless jobs can be grouped by `by`."""
+    unknown = [column for column in by if column not in GROUPING_COLUMNS]
+    if unknown or not by:
+        message = (
+            f"Cannot group by {unknown or 'no column'}; jobs have the "
+            f"columns {GROUPING_COLUMNS}"
+        )
+        raise UnknownGroupingColumnError(message)
+
+
 def group_totals(
     estimate: ComputeEstimate, by: Sequence[str] = DEFAULT_GROUPING
 ) -> pd.DataFrame:
@@ -96,13 +107,7 @@ def group_totals(
     counted but not in the totals, and jobs of rules without job records
     are left out. p90 totals add up each job's p90.
     """
-    unknown = [column for column in by if column not in GROUPING_COLUMNS]
-    if unknown or not by:
-        message = (
-            f"Cannot group by {unknown}; jobs have the columns "
-            f"{GROUPING_COLUMNS}"
-        )
-        raise UnknownGroupingColumnError(message)
+    check_grouping(by)
     jobs = per_job_table(estimate)
     counted = jobs.loc[jobs["match_level"].isin(COUNTED_MATCH_LEVELS)]
     grouped = (
