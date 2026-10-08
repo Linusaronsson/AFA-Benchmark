@@ -12,7 +12,10 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from afabench.compute_estimate.estimate import estimate_compute
+from afabench.compute_estimate.estimate import (
+    FailureHistory,
+    estimate_compute,
+)
 from afabench.compute_estimate.planning import PlannedJob
 from afabench.compute_estimate.report import (
     UnknownGroupingColumnError,
@@ -57,6 +60,7 @@ class JobRecords:
         cpus: int | None = 4,
         gpus: int = 1,
         exit_status: ExitStatus = "completed",
+        time_limit_minutes: int | None = 600,
         smoke_test: bool = False,
     ) -> None:
         self.count += 1
@@ -82,7 +86,7 @@ class JobRecords:
             device="cuda" if device == "cuda" else "cpu",
             cpus=cpus,
             gpus=gpus,
-            time_limit_minutes=600,
+            time_limit_minutes=time_limit_minutes,
             gpu_model="NVIDIA A40" if gpus else None,
             cpu_model="AMD EPYC 7742",
             host=f"node{self.count % 2}",
@@ -192,6 +196,59 @@ def test_failed_and_timed_out_jobs_give_no_job_durations(
 
     assert job.match_level == "pooled"
     assert job.mean_job_duration_seconds == 3600
+
+
+def test_failed_and_timed_out_jobs_warn_once_per_stage_name_and_dataset_key(
+    records: JobRecords,
+) -> None:
+    # Two seeds of alpha timed out at two time limits and one crashed;
+    # beta timed out on a CPU, and in a smoke test, which is refused; gamma
+    # is not planned.
+    records.add(ALPHA_TRAINING, 36000, exit_status="timeout")
+    records.add(
+        replace(ALPHA_TRAINING, train_seed=1),
+        18000,
+        exit_status="timeout",
+        time_limit_minutes=300,
+    )
+    records.add(
+        replace(ALPHA_TRAINING, train_seed=1), 36000, exit_status="timeout"
+    )
+    records.add(replace(ALPHA_TRAINING, train_seed=2), 5, exit_status="failed")
+    records.add(replace(ALPHA_TRAINING, train_seed=3), 3600)
+    beta = replace(ALPHA_TRAINING, name="beta")
+    records.add(beta, 600, device="cpu", gpus=0, exit_status="timeout")
+    records.add(beta, 1, exit_status="timeout", smoke_test=True)
+    gamma = replace(ALPHA_TRAINING, name="gamma")
+    records.add(gamma, 600, exit_status="failed")
+
+    estimate = estimate_compute(
+        [
+            planned(ALPHA_TRAINING),
+            planned(replace(ALPHA_TRAINING, train_seed=4)),
+            planned(beta),
+        ],
+        records.table(),
+    )
+
+    assert estimate.failure_histories == [
+        FailureHistory(
+            stage="training",
+            name="alpha",
+            dataset_key="cube",
+            failed=1,
+            timed_out=3,
+            time_limits_minutes=[300, 600],
+        ),
+        FailureHistory(
+            stage="training",
+            name="beta",
+            dataset_key="cube",
+            failed=0,
+            timed_out=1,
+            time_limits_minutes=[600],
+        ),
+    ]
 
 
 def test_smoke_test_job_durations_are_refused(records: JobRecords) -> None:
