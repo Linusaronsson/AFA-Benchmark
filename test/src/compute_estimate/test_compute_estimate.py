@@ -14,6 +14,11 @@ import pytest
 
 from afabench.compute_estimate.estimate import estimate_compute
 from afabench.compute_estimate.planning import PlannedJob
+from afabench.compute_estimate.report import (
+    UnknownGroupingColumnError,
+    format_report,
+    group_totals,
+)
 from afabench.core.job_duration_table import load_job_duration_table
 from afabench.core.job_record import (
     JOB_RECORD_VERSION,
@@ -240,3 +245,145 @@ def test_jobs_of_rules_without_job_records_are_not_unestimated(
 
     assert job.match_level == "no_job_record"
     assert job.mean_job_duration_seconds is None
+
+
+def two_methods_on_two_datasets(records: JobRecords) -> list[PlannedJob]:
+    """Measure alpha and beta training on cube, and plan both on two."""
+    records.add(ALPHA_TRAINING, 3600)
+    records.add(replace(ALPHA_TRAINING, name="beta"), 7200, device="cpu")
+    jobs = []
+    for dataset_key in ["cube", "mnist"]:
+        jobs.append(
+            planned(replace(ALPHA_TRAINING, dataset_key=dataset_key), cpus=2)
+        )
+        jobs.append(
+            planned(
+                replace(ALPHA_TRAINING, name="beta", dataset_key=dataset_key),
+                device="cpu",
+                cpus=4,
+                gpus=0,
+            )
+        )
+    jobs.append(planned(None, rule="merge_eval_perf", device="cpu", gpus=0))
+    return jobs
+
+
+def test_totals_group_by_stage_and_device_by_default(
+    records: JobRecords,
+) -> None:
+    estimate = estimate_compute(
+        two_methods_on_two_datasets(records), records.table()
+    )
+
+    totals = group_totals(estimate)
+
+    assert totals.to_dict("records") == [
+        {
+            "stage": "training",
+            "device": "cpu",
+            "jobs": 2,
+            "exact": 1,
+            "pooled": 0,
+            "unestimated": 1,
+            "mean_job_hours": 2.0,
+            "p90_job_hours": 2.0,
+            "mean_core_hours": 8.0,
+            "p90_core_hours": 8.0,
+            "mean_gpu_hours": 0.0,
+            "p90_gpu_hours": 0.0,
+        },
+        {
+            "stage": "training",
+            "device": "cuda",
+            "jobs": 2,
+            "exact": 1,
+            "pooled": 0,
+            "unestimated": 1,
+            "mean_job_hours": 1.0,
+            "p90_job_hours": 1.0,
+            "mean_core_hours": 2.0,
+            "p90_core_hours": 2.0,
+            "mean_gpu_hours": 1.0,
+            "p90_gpu_hours": 1.0,
+        },
+    ]
+
+
+def test_totals_regroup_by_other_columns(records: JobRecords) -> None:
+    estimate = estimate_compute(
+        two_methods_on_two_datasets(records), records.table()
+    )
+
+    by_name = group_totals(estimate, ["name"])
+    by_dataset = group_totals(estimate, ["dataset_key"])
+
+    assert by_name.loc[:, ["name", "jobs", "mean_core_hours"]].to_dict(
+        "records"
+    ) == [
+        {"name": "alpha", "jobs": 2, "mean_core_hours": 2.0},
+        {"name": "beta", "jobs": 2, "mean_core_hours": 8.0},
+    ]
+    assert by_dataset.loc[:, ["dataset_key", "exact", "unestimated"]].to_dict(
+        "records"
+    ) == [
+        {"dataset_key": "cube", "exact": 2, "unestimated": 0},
+        {"dataset_key": "mnist", "exact": 0, "unestimated": 2},
+    ]
+    # Unestimated jobs are not in the totals
+    assert by_dataset.loc[0, "mean_job_hours"] == 3.0
+    assert pd.isna(by_dataset.loc[1, "mean_job_hours"])
+
+
+def test_totals_refuse_an_unknown_grouping_column(
+    records: JobRecords,
+) -> None:
+    estimate = estimate_compute([], records.table())
+
+    with pytest.raises(UnknownGroupingColumnError, match="'method'"):
+        group_totals(estimate, ["method"])
+
+
+def test_the_report_names_the_hardware_of_the_matched_job_records(
+    records: JobRecords,
+) -> None:
+    records.add(replace(ALPHA_TRAINING, name="gamma"), 60, gpus=0)  # node1
+    records.add(ALPHA_TRAINING, 3600)  # node0
+    estimate = estimate_compute([planned(ALPHA_TRAINING)], records.table())
+
+    report = format_report(estimate, source=Path("v1/job_durations.parquet"))
+
+    (source,) = [
+        line for line in report.splitlines() if "v1/job_durations" in line
+    ]
+    assert "1 job record" in source
+    assert "node0" in source
+    assert "node1" not in source
+    assert "AMD EPYC 7742" in source
+    assert "NVIDIA A40" in source
+
+
+def test_the_report_lists_unestimated_jobs_apart_from_the_totals(
+    records: JobRecords,
+) -> None:
+    estimate = estimate_compute(
+        two_methods_on_two_datasets(records), records.table()
+    )
+
+    report = format_report(estimate, source=Path("output"))
+
+    assert "5 planned jobs: 2 exact, 0 pooled, 2 unestimated" in report
+    totals, unestimated = report.split("Unestimated jobs")
+    assert "mnist" not in totals
+    assert "mnist" in unestimated
+    assert "merge_eval_perf" in unestimated
+
+
+def test_the_report_counts_refused_smoke_test_job_records(
+    records: JobRecords,
+) -> None:
+    records.add(ALPHA_TRAINING, 1, smoke_test=True)
+    estimate = estimate_compute([planned(ALPHA_TRAINING)], records.table())
+
+    report = format_report(estimate, source=Path("output"))
+
+    assert "Refused 1 smoke-test job record" in report

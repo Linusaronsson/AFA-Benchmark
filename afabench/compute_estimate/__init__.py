@@ -1,1 +1,1 @@
-"""Compute estimates: planning an invocation's jobs and estimating them (ADR-0006)."""
+"""Compute estimates: plan an invocation's jobs, then estimate them."""

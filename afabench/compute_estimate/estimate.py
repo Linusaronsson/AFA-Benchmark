@@ -72,8 +72,20 @@ class JobEstimate:
 
 
 @dataclass(frozen=True, kw_only=True)
+class Hardware:
+    """Where matched job durations were measured, distinct and sorted."""
+
+    hosts: list[str]
+    cpu_models: list[str]
+    gpu_models: list[str]
+
+
+@dataclass(frozen=True, kw_only=True)
 class ComputeEstimate:
     jobs: list[JobEstimate]
+    # Job records some job was matched to
+    matched_job_records: int
+    hardware: Hardware
     # Job records of smoke tests, never used as job durations
     refused_smoke_test_job_records: int
 
@@ -91,54 +103,67 @@ def estimate_compute(
     smoke_test = job_durations["smoke_test"].fillna(value=False).astype(bool)
     usable = job_durations.loc[
         job_durations["exit_status"].eq("completed") & ~smoke_test
+    ].reset_index(drop=True)
+    # Positions of the usable job records per key
+    exact: defaultdict[Key, list[int]] = defaultdict(list)
+    pools: defaultdict[Key, list[int]] = defaultdict(list)
+    for position, record in enumerate(_records(usable[EXACT_COLUMNS])):
+        exact[_key(record, EXACT_COLUMNS)].append(position)
+        pools[_key(record, POOL_COLUMNS)].append(position)
+    matches = [_match(job, exact, pools) for job in planned_jobs]
+    durations = usable["job_duration_seconds"].astype(float)
+    matched = usable.iloc[
+        sorted(
+            {position for _, positions in matches for position in positions}
+        )
     ]
-    exact: defaultdict[Key, list[float]] = defaultdict(list)
-    pools: defaultdict[Key, list[float]] = defaultdict(list)
-    for record, duration in zip(
-        _records(usable[EXACT_COLUMNS]),
-        usable["job_duration_seconds"].astype(float),
-        strict=True,
-    ):
-        exact[_key(record, EXACT_COLUMNS)].append(duration)
-        pools[_key(record, POOL_COLUMNS)].append(duration)
     return ComputeEstimate(
-        jobs=[_estimate(job, exact, pools) for job in planned_jobs],
+        jobs=[
+            _estimate(job, match_level, durations.iloc[positions])
+            for job, (match_level, positions) in zip(
+                planned_jobs, matches, strict=True
+            )
+        ],
+        matched_job_records=len(matched),
+        hardware=Hardware(
+            hosts=_distinct(matched["host"]),
+            cpu_models=_distinct(matched["cpu_model"]),
+            gpu_models=_distinct(matched["gpu_model"]),
+        ),
         refused_smoke_test_job_records=int(smoke_test.sum()),
     )
 
 
-def _estimate(
+def _match(
     job: PlannedJob,
-    exact: Mapping[Key, list[float]],
-    pools: Mapping[Key, list[float]],
-) -> JobEstimate:
+    exact: Mapping[Key, list[int]],
+    pools: Mapping[Key, list[int]],
+) -> tuple[MatchLevel, list[int]]:
+    """Return the match level and the matched job records' positions."""
     if job.identity is None:
-        return _not_estimated(job, "no_job_record")
+        return "no_job_record", []
     values = {**asdict(job.identity), "device": job.device}
-    match_level: MatchLevel
-    if durations := exact.get(_key(values, EXACT_COLUMNS)):
-        match_level = "exact"
-    elif durations := pools.get(_key(values, POOL_COLUMNS)):
-        match_level = "pooled"
-    else:
-        return _not_estimated(job, "unestimated")
-    series = pd.Series(durations, dtype="float64")
+    if positions := exact.get(_key(values, EXACT_COLUMNS)):
+        return "exact", positions
+    if positions := pools.get(_key(values, POOL_COLUMNS)):
+        return "pooled", positions
+    return "unestimated", []
+
+
+def _estimate(
+    job: PlannedJob, match_level: MatchLevel, durations: pd.Series
+) -> JobEstimate:
+    estimated = not durations.empty
     return JobEstimate(
         job=job,
         match_level=match_level,
-        matched_job_records=len(series),
-        mean_job_duration_seconds=float(series.mean()),
-        p90_job_duration_seconds=float(series.quantile(0.9)),
-    )
-
-
-def _not_estimated(job: PlannedJob, match_level: MatchLevel) -> JobEstimate:
-    return JobEstimate(
-        job=job,
-        match_level=match_level,
-        matched_job_records=0,
-        mean_job_duration_seconds=None,
-        p90_job_duration_seconds=None,
+        matched_job_records=len(durations),
+        mean_job_duration_seconds=float(durations.mean())
+        if estimated
+        else None,
+        p90_job_duration_seconds=float(durations.quantile(0.9))
+        if estimated
+        else None,
     )
 
 
@@ -156,3 +181,7 @@ def _records(table: pd.DataFrame) -> list[dict[str, object]]:
 
 def _key(values: Mapping[str, object], columns: list[str]) -> Key:
     return tuple(values[column] for column in columns)
+
+
+def _distinct(values: pd.Series) -> list[str]:
+    return sorted(str(value) for value in values.dropna().unique())
