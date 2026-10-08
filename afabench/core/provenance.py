@@ -13,7 +13,6 @@ import hashlib
 import importlib.metadata
 import json
 import platform
-import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -25,10 +24,10 @@ import pandas as pd
 import torch
 import torch.version
 
+from afabench.core.code_identity import AFABENCH_CHECKOUT, code_identity
+
 PROVENANCE_VERSION = 1
 AFABENCH_DISTRIBUTION = "afa-benchmark"
-# The work tree holding the running afabench package, wherever it runs from
-AFABENCH_CHECKOUT = Path(__file__).resolve().parents[2]
 
 type Stage = Literal[
     "dataset_generation",
@@ -164,7 +163,7 @@ def capture_provenance(
     """
     _require_json(resolved_config, path="resolved_config")
     checkout = AFABENCH_CHECKOUT if checkout is None else checkout
-    code_commit, code_dirty = _code_identity(checkout)
+    code_commit, code_dirty = code_identity(checkout)
     return ProvenanceRecord(
         provenance_version=PROVENANCE_VERSION,
         stage=stage,
@@ -265,28 +264,6 @@ def _require_json(value: object, *, path: str) -> None:
         f"({type(value).__name__})."
     )
     raise TypeError(msg)
-
-
-def _code_identity(checkout: Path) -> tuple[str | None, bool | None]:
-    commit = _git(checkout, "rev-parse", "HEAD")
-    if commit is None:
-        return None, None
-    # Untracked files (outputs, data) do not make the code dirty
-    status = _git(checkout, "status", "--porcelain", "--untracked-files=no")
-    return commit, bool(status)
-
-
-def _git(checkout: Path, *args: str) -> str | None:
-    try:
-        completed = subprocess.run(
-            ["git", "-C", str(checkout), *args],  # noqa: S607
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
-    return completed.stdout.strip()
 
 
 def _environment(checkout: Path) -> Environment:
