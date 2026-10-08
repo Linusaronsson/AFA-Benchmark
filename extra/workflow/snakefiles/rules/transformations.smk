@@ -10,7 +10,6 @@ format.
 import re
 
 from afabench.core.output_layout import EvaluationRun
-from job_records import job_record_command
 
 # Reference methods' plotting-ready tables are restored from a benchmark
 # release. Not matching them here leaves those tables as plain input files,
@@ -40,17 +39,10 @@ rule transform_eval_data:
     wildcard_constraints:
         method=TRANSFORMED_METHOD_PATTERN,
     params:
-        # Also validates final resources during planning; this script has no
-        # device argument.
-        job_record=lambda wc, output, resources, threads: job_record_command(
-            output.job_record,
-            stage="transformation",
-            wildcards=wc,
-            device=EXECUTION.checked_device("transformation", "transform_eval_data", resources),
-            resources=resources,
-            threads=threads,
-            smoke_test=SMOKE_TEST,
-            name=wc.method,
+        job_record=JOB_RECORDS.param(
+            "transformation",
+            lambda wc: "transform_eval_data",
+            name=lambda wc: wc.method,
         ),
     resources:
         shell_exec="bash",

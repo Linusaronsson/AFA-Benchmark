@@ -5,7 +5,6 @@ Handles evaluation of trained methods on test/validation datasets.
 """
 
 from afabench.core.output_layout import EvaluationRun, TrainingRun
-from job_records import job_record_command
 
 
 rule eval_method:
@@ -27,16 +26,11 @@ rule eval_method:
         job_record=OUTPUT_LAYOUT.evaluation_job_record(EvaluationRun.wildcards()),
     params:
         device=lambda wildcards, resources: EXECUTION.checked_device("evaluation", wildcards.method, resources),
-        job_record=lambda wc, output, resources, threads: job_record_command(
-            output.job_record,
-            stage="evaluation",
-            wildcards=wc,
-            device=EXECUTION.checked_device("evaluation", wc.method, resources),
-            resources=resources,
-            threads=threads,
-            smoke_test=SMOKE_TEST,
-            name=wc.method,
-            eval_batch_size=EVAL_BATCH_SIZES[wc.method][wc.dataset],
+        job_record=JOB_RECORDS.param(
+            "evaluation",
+            lambda wc: wc.method,
+            name=lambda wc: wc.method,
+            eval_batch_size=lambda wc: EVAL_BATCH_SIZES[wc.method][wc.dataset],
         ),
         unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
         eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],

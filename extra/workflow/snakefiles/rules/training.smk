@@ -15,7 +15,6 @@ are one.
 """
 
 from execution import checked_script_params
-from job_records import job_record_command
 from contract_arguments import (
     render_pretraining_contract,
     render_training_contract,
@@ -133,15 +132,10 @@ rule pretrain_model:
             pretrain_seed="{pretrain_seed}",
         ),
     params:
-        job_record=lambda wc, output, resources, threads: job_record_command(
-            output.job_record,
-            stage="pretraining",
-            wildcards=wc,
-            device=EXECUTION.checked_device("pretraining", wc.pretrained_model_name, resources),
-            resources=resources,
-            threads=threads,
-            smoke_test=SMOKE_TEST,
-            name=wc.pretrained_model_name,
+        job_record=JOB_RECORDS.param(
+            "pretraining",
+            lambda wc: wc.pretrained_model_name,
+            name=lambda wc: wc.pretrained_model_name,
         ),
         script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
         contract=_pretraining_contract,
@@ -187,15 +181,8 @@ rule train_method:
     wildcard_constraints:
         pretrain_folder=PRETRAIN_FOLDER_PATTERN,
     params:
-        job_record=lambda wc, output, resources, threads: job_record_command(
-            output.job_record,
-            stage="training",
-            wildcards=wc,
-            device=EXECUTION.checked_device("training", wc.method, resources),
-            resources=resources,
-            threads=threads,
-            smoke_test=SMOKE_TEST,
-            name=wc.method,
+        job_record=JOB_RECORDS.param(
+            "training", lambda wc: wc.method, name=lambda wc: wc.method
         ),
         script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],
         contract=_training_contract,

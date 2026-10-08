@@ -1,5 +1,3 @@
-from job_records import job_record_command
-
 # Generate dataset realizations for a single type of dataset
 # Use the dataset realization indices as seeds
 rule dataset_generation:
@@ -17,17 +15,7 @@ rule dataset_generation:
         ],
         job_record=OUTPUT_LAYOUT.dataset_generation_job_record(dataset="{dataset}"),
     params:
-        # Also validates final resources during planning; this script has no
-        # device argument.
-        job_record=lambda wc, output, resources, threads: job_record_command(
-            output.job_record,
-            stage="dataset_generation",
-            wildcards=wc,
-            device=EXECUTION.checked_device("dataset_generation", wc.dataset, resources),
-            resources=resources,
-            threads=threads,
-            smoke_test=SMOKE_TEST,
-        ),
+        job_record=JOB_RECORDS.param("dataset_generation", lambda wc: wc.dataset),
         save_path=lambda wc: OUTPUT_LAYOUT.dataset_folder(dataset=wc.dataset),
         dataset_realization_indices_str=lambda wildcards: "["
         + ",".join(str(i) for i in DATASET_REALIZATION_INDICES)

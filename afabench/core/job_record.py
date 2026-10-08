@@ -28,6 +28,7 @@ import subprocess
 import threading
 import time
 import uuid
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, fields
 from datetime import UTC, datetime
 from pathlib import Path
@@ -86,6 +87,34 @@ class Allocation:
     cpus: int | None
     gpus: int | None
     time_limit_minutes: int | None
+
+
+def allocated_cpus(
+    resources: Mapping[str, object], threads: int
+) -> int | None:
+    """
+    Return the CPUs a job requests, as the SLURM executor resolves them.
+
+    `resources` are the job's final Snakemake resources. None when a
+    negative `cpus_per_task` leaves the CPUs to the cluster's default.
+    """
+    cpus_per_task = resources.get("cpus_per_task")
+    if not cpus_per_task:
+        return threads
+    if not isinstance(cpus_per_task, int):
+        message = f"cpus_per_task must be an integer, got {cpus_per_task!r}"
+        raise TypeError(message)
+    return None if cpus_per_task < 0 else max(1, cpus_per_task)
+
+
+def allocated_gpus(resources: Mapping[str, object]) -> int:
+    """Return the GPUs a job requests through `gpu` or a GPU `gres`."""
+    # The SLURM executor submits any set `gpu` as --gpus=<gpu>.
+    gpu = resources.get("gpu")
+    if gpu:
+        return int(str(gpu))
+    match = re.fullmatch(r"gpu(?::\w+)?:(\d+)", str(resources.get("gres", "")))
+    return int(match[1]) if match else 0
 
 
 @dataclass(frozen=True, kw_only=True)

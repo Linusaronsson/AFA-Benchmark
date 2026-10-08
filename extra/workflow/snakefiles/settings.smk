@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(workflow.basedir
 from afabench.core.output_layout import OutputLayout
 from afabench.core.workflow_settings import load_config
 from execution import ExecutionPolicy
+from job_records import JobRecordCommands
 
 WORKFLOW_SETTINGS = load_config(config)
 EXECUTION = ExecutionPolicy(
@@ -42,6 +43,7 @@ OUTPUT_LAYOUT = OutputLayout(
 INITIALIZER_TAG = OUTPUT_LAYOUT.initializer_tag
 USE_WANDB = WORKFLOW_SETTINGS.use_wandb
 SMOKE_TEST = WORKFLOW_SETTINGS.smoke_test
+JOB_RECORDS = JobRecordCommands(EXECUTION, smoke_test=SMOKE_TEST)
 PRETRAIN_NAMES = WORKFLOW_SETTINGS.pretrain_names
 PRETRAIN_SCRIPT_NAMES = WORKFLOW_SETTINGS.pretrain_script_names
 PRETRAIN_PARAMS = WORKFLOW_SETTINGS.pretrain_params

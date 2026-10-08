@@ -9,7 +9,8 @@ from typing import Literal
 
 import yaml
 
-type Device = Literal["cpu", "cuda"]
+from afabench.core.job_record import Device
+
 type Hardware = Literal["cpu", "gpu"]
 # Pipeline stages: the kinds of job whose hardware this policy resolves.
 type Stage = Literal[
