@@ -5,12 +5,20 @@ The wrapper (`afabench/core/job_record.py`) times the script and writes the
 job record. This module renders its options from what Snakemake resolved
 for the job: identity from the wildcards, allocation from the final
 resources, after profile defaults and `--set-resources` overrides.
+
+A failed or timed-out job's record goes to the same path under
+`FAILED_JOB_RECORDS` instead, because Snakemake deletes a failed job's
+declared outputs; it is not an output of any rule.
 """
 
 import re
 import shlex
 from collections.abc import Iterable, Mapping
+from pathlib import Path
 from typing import Protocol
+
+OUTPUT_ROOT = Path("extra/output")
+FAILED_JOB_RECORDS = OUTPUT_ROOT / "failed_job_records"
 
 # Wildcards whose value is the job record identity field of the same name
 IDENTITY_WILDCARDS = {
@@ -62,6 +70,8 @@ def job_record_command(
     identity |= fields
     options: dict[str, object] = {
         "record": record,
+        "failed_record": FAILED_JOB_RECORDS
+        / Path(record).relative_to(OUTPUT_ROOT),
         "stage": stage,
         "device": device,
         "cpus": allocated_cpus(resources, threads),
