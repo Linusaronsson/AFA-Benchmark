@@ -1,11 +1,13 @@
 """
 Save and restore an output snapshot (see `afabench.release.snapshot`).
 
-`save --release-id` also writes a release manifest from the checkout and the
-workflow configuration given by `--profile`, `--configfile` and `--config`
-(see `docs/reference/release_manifest.md`). `inventory` reports, for the same
-configuration, how many payloads of each category an output root holds and
-their size, without copying anything.
+`save --release-id` also writes a release manifest indexing the output
+root's artifacts by their provenance records, recording the workflow
+configuration given by `--profile`, `--configfile` and `--config`, and
+prints which commits produced each pipeline stage (see
+`docs/reference/release_manifest.md`).
+`inventory` reports how many payloads of each category an output root holds
+and their size, without copying anything.
 
 `publish` uploads such a snapshot to the release host and `download`
 retrieves one release from it, the latest full one unless a release id is
@@ -31,7 +33,11 @@ from afabench.release.manifest import (
     ReleaseManifest,
     ReleaseScope,
     build_release_manifest,
-    inventory_payloads,
+    code_by_stage,
+    dangling_inputs,
+    execution_mode,
+    index_artifacts,
+    payload_coverage,
     read_release_manifest,
 )
 from afabench.release.publishing import (
@@ -88,7 +94,7 @@ def save(
     ] = None,
     profile: Annotated[
         Path | None,
-        typer.Option(help="Snakemake profile the run used."),
+        typer.Option(help="Snakemake profile whose targets lay out the run."),
     ] = None,
     configfile: Annotated[
         list[Path] | None,
@@ -100,7 +106,9 @@ def save(
     ] = None,
     checkout: Annotated[
         Path,
-        typer.Option(help="Git checkout whose commit produced the outputs."),
+        typer.Option(
+            help="Git checkout holding the dataset redistribution review."
+        ),
     ] = DEFAULT_CHECKOUT,
 ) -> None:
     manifest = None
@@ -122,15 +130,14 @@ def save(
         if scope is None:
             msg = "--release-id needs --scope (full, partial or smoke)."
             raise typer.BadParameter(msg)
-        workflow_config = resolve_workflow_config(
-            profile=profile,
-            configfiles=configfile or [],
-            overrides=config or [],
-        )
         manifest = build_release_manifest(
             release_id=release_id,
             scope=scope,
-            workflow_config=workflow_config,
+            workflow_config=resolve_workflow_config(
+                profile=profile,
+                configfiles=configfile or [],
+                overrides=config or [],
+            ),
             output_root=source_root,
             checkout=checkout,
         )
@@ -139,6 +146,8 @@ def save(
     )
     if manifest is not None:
         _echo_manifest(manifest, snapshot_dir / RELEASE_MANIFEST_FILENAME)
+        _echo_code(manifest)
+        _echo_dangling_inputs(manifest)
 
 
 @app.command()
@@ -161,37 +170,19 @@ def restore(
 
 
 @app.command()
-def inventory(
-    source_root: Path = DEFAULT_OUTPUT_ROOT,
-    *,
-    profile: Annotated[
-        Path | None,
-        typer.Option(help="Snakemake profile the run used."),
-    ] = None,
-    configfile: Annotated[
-        list[Path] | None,
-        typer.Option(help="Workflow config file; replaces the profile's."),
-    ] = None,
-    config: Annotated[
-        list[str] | None,
-        typer.Option(help="KEY=VALUE override; replaces the profile's."),
-    ] = None,
-) -> None:
+def inventory(source_root: Path = DEFAULT_OUTPUT_ROOT) -> None:
     """Report each payload category's count and size; copies nothing."""
-    payload_inventory = inventory_payloads(
-        workflow_config=resolve_workflow_config(
-            profile=profile,
-            configfiles=configfile or [],
-            overrides=config or [],
-        ),
-        output_root=source_root,
-    )
-    typer.echo(f"Execution: {payload_inventory.execution_mode}")
-    for payload in payload_inventory.payloads:
+    index = index_artifacts(source_root)
+    typer.echo(f"Execution: {execution_mode(index) or 'no artifacts'}")
+    for payload in payload_coverage(index):
         typer.echo(
-            f"{payload.category}: {payload.present}/{payload.scheduled} "
-            f"present, {payload.size_bytes} bytes, "
+            f"{payload.category}: {payload.count} present, "
+            f"{payload.size_bytes} bytes, "
             f"classes: {', '.join(payload.class_names) or 'none'}"
+        )
+    if index.unrecorded:
+        typer.echo(
+            "Without a provenance record:\n  " + "\n  ".join(index.unrecorded)
         )
 
 
@@ -209,6 +200,14 @@ def publish(
             "official release anyway; recorded in the host's commit message."
         ),
     ] = None,
+    allow_dirty_code: Annotated[
+        bool,
+        typer.Option(
+            help="Publish an official release holding artifacts produced "
+            "from a dirty tree or unknown code anyway; recorded in the "
+            "host's commit message."
+        ),
+    ] = False,
 ) -> None:
     transport = _transport(ctx, repo_id)
     manifest = publish_release(
@@ -216,9 +215,11 @@ def publish(
         transport,
         smoke_release=smoke_release,
         allow_redistribution=allow_redistribution or [],
+        allow_dirty_code=allow_dirty_code,
     )
     folder = release_folder(manifest.release_id, smoke_release=smoke_release)
     _echo_manifest(manifest, snapshot_dir / RELEASE_MANIFEST_FILENAME)
+    _echo_code(manifest)
     typer.echo(f"Published to {transport.folder_url(folder)}")
 
 
@@ -347,11 +348,9 @@ def _echo_manifest(manifest: ReleaseManifest, path: Path) -> None:
     configfiles = ", ".join(
         record.path for record in workflow_config.configfiles
     )
-    dirty = " (dirty)" if manifest.code.dirty else ""
     typer.echo(
         f"Release {manifest.release_id}: scope {manifest.scope}, "
-        f"execution {manifest.execution_mode}, "
-        f"commit {manifest.code.commit}{dirty}\n"
+        f"execution {manifest.execution_mode}\n"
         f"Workflow profile: {workflow_config.profile}\n"
         f"Workflow config files: {configfiles}\n"
         f"Workflow config overrides: {workflow_config.overrides}\n"
@@ -363,9 +362,7 @@ def _echo_manifest(manifest: ReleaseManifest, path: Path) -> None:
     ]:
         datasets = [
             dataset
-            for dataset, review in (
-                manifest.settings.dataset_redistribution.items()
-            )
+            for dataset, review in manifest.dataset_redistribution.items()
             if review.status is status
         ]
         if datasets:
@@ -373,6 +370,48 @@ def _echo_manifest(manifest: ReleaseManifest, path: Path) -> None:
                 f"{status.capitalize()} dataset redistribution: "
                 f"{', '.join(datasets)}"
             )
+
+
+def _echo_code(manifest: ReleaseManifest) -> None:
+    """Print which commits produced each stage's artifacts."""
+    stage_codes = code_by_stage(manifest)
+    typer.echo("Producing code per pipeline stage:")
+    for stage_code in stage_codes:
+        code = stage_code.code
+        if code.commit is None:
+            described = "unknown commit"
+        elif code.dirty is None:
+            described = f"{code.commit} (dirty state unknown)"
+        else:
+            described = code.commit + (" (dirty)" if code.dirty else "")
+        typer.echo(
+            f"  {stage_code.stage}: {described}, "
+            f"{stage_code.artifacts} artifact(s)"
+        )
+    commits = {stage_code.code.commit for stage_code in stage_codes}
+    if len(commits) > 1:
+        typer.echo(f"The release mixes {len(commits)} producing commits.")
+    if any(not stage_code.code.clean for stage_code in stage_codes):
+        typer.echo(
+            "Some artifacts were produced from dirty or unknown code; "
+            "publishing an official release needs --allow-dirty-code."
+        )
+    typer.echo(
+        "Transformed tables carry their evaluation's record; the commits "
+        "of transformation, aggregation and visualization are not recorded."
+    )
+
+
+def _echo_dangling_inputs(manifest: ReleaseManifest) -> None:
+    dangling = dangling_inputs(manifest)
+    if dangling:
+        typer.echo(
+            "Inputs no bundle of the release matches by content hash:\n  "
+            + "\n  ".join(
+                f"{entry.role} {entry.path} of {entry.artifact_path}"
+                for entry in dangling
+            )
+        )
 
 
 if __name__ == "__main__":

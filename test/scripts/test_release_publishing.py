@@ -6,17 +6,27 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import pytest
 import yaml
 from click.testing import Result
 from typer.testing import CliRunner
 
+from afabench.core.provenance import Stage
 from afabench.release.manifest import (
+    CodeIdentity,
     ExecutionMode,
     ReleaseScope,
     read_release_manifest,
 )
 from scripts.release.snapshot import app
 from test.scripts.fake_release_transport import FakeReleaseTransport
+from test.scripts.release_artifacts import (
+    HARD_3,
+    Catalog,
+    Method,
+    evaluation_table,
+    write_catalog,
+)
 
 runner = CliRunner()
 
@@ -28,74 +38,35 @@ TABLE = (
     "eval_seed-0+eval_hard_budget-3+eval_soft_budget_param-null/"
     "eval_data.parquet"
 )
+ALPHA_HARD_ONLY = Method(name="alpha", budgets=[HARD_3])
+TABLE = evaluation_table(ALPHA_HARD_ONLY, "cube", 0, HARD_3)
 RAW_TABLE = f"eval_results/{TABLE}"
 TRANSFORMED_TABLE = f"eval_results_transformed/{TABLE}"
 PLOT = "plot_results/eval_split-test/initializer-cold/cube/eval_perf.pdf"
+DIRTY = CodeIdentity(commit="d" * 40, dirty=True)
 
 
-def workflow_config(
-    *, smoke_test: bool, datasets: Sequence[str] = ("cube",)
-) -> dict[str, Any]:
-    return {
-        "pretrain_mapping": {},
-        "method_options": {
-            "alpha": {"train_script_name": "alpha", "eval_batch_size": 4}
-        },
-        "methods": ["alpha"],
-        "datasets": list(datasets),
-        "dataset_realization_indices": [0],
-        "unmaskers": {"default": "direct"},
-        "eval_hard_budgets": {"default": [3]},
-        "soft_budget_params": {"alpha": {"default": []}},
-        "classifier_names": {"default": "masked_mlp_classifier"},
-        "use_wandb": False,
-        "smoke_test": smoke_test,
-    }
+def workflow_config(*, smoke_test: bool) -> dict[str, Any]:
+    return {"methods": ["alpha"], "smoke_test": smoke_test}
 
 
-def raw_table() -> pd.DataFrame:
-    """One forced-stop episode with external predictions only."""
-    return pd.DataFrame(
-        {
-            "episode_id": pd.array([0, 0, 0], dtype="Int64"),
-            "step": pd.array([0, 1, 2], dtype="Int64"),
-            "action_performed": pd.array([3, 1, 0], dtype="Int64"),
-            "builtin_predicted_class": pd.array(
-                [None, None, None], dtype="Int64"
-            ),
-            "external_predicted_class": pd.array([1, 0, 0], dtype="Int64"),
-            "true_class": pd.array([0, 0, 0], dtype="Int64"),
-            "accumulated_cost": [1.0, 2.0, 2.0],
-            "forced_stop": [False, False, True],
-            "eval_seed": pd.array([0, 0, 0], dtype="Int64"),
-            "eval_hard_budget": [3.0, 3.0, 3.0],
-        }
+def build_output_tree(
+    root: Path,
+    *,
+    plot: bytes = b"%PDF-1.4 plot",
+    datasets: Sequence[str] = ("cube",),
+    smoke_test: bool = False,
+    code: Mapping[Stage, CodeIdentity] | None = None,
+) -> None:
+    write_catalog(
+        root,
+        Catalog(
+            methods=[ALPHA_HARD_ONLY],
+            datasets=list(datasets),
+            smoke_test=smoke_test,
+            code=code or {},
+        ),
     )
-
-
-def transformed_table() -> pd.DataFrame:
-    return pd.DataFrame(
-        {
-            "afa_method": ["alpha", "alpha"],
-            "classifier": ["builtin", "external"],
-            "predicted_class": pd.array([None, 1], dtype="Int64"),
-            "true_class": pd.array([0, 0], dtype="Int64"),
-            "n_selections_performed": pd.array([1, 1], dtype="Int64"),
-            "eval_soft_budget_param": [None, None],
-        }
-    )
-
-
-def build_output_tree(root: Path, *, plot: bytes = b"%PDF-1.4 plot") -> None:
-    bundle = root / "datasets/cube/0/train.bundle"
-    bundle.mkdir(parents=True)
-    (bundle / "manifest.json").write_text('{"bundle_version": 1}')
-    for path, table in [
-        (RAW_TABLE, raw_table()),
-        (TRANSFORMED_TABLE, transformed_table()),
-    ]:
-        (root / path).parent.mkdir(parents=True)
-        table.to_parquet(root / path, index=False)
     (root / PLOT).parent.mkdir(parents=True)
     (root / PLOT).write_bytes(plot)
 
@@ -133,6 +104,7 @@ def prepare_package(
     plot: bytes = b"%PDF-1.4 plot",
     datasets: Sequence[str] = ("cube",),
     checkout: Path | None = None,
+    code: Mapping[Stage, CodeIdentity] | None = None,
 ) -> Path:
     """
     Save a snapshot with a release manifest, as a maintainer would.
@@ -140,12 +112,16 @@ def prepare_package(
     Unless `checkout` is given, every dataset is reviewed as permitted.
     """
     source_root = tmp_path / f"{release_id}-source"
-    build_output_tree(source_root, plot=plot)
+    build_output_tree(
+        source_root,
+        plot=plot,
+        datasets=datasets,
+        smoke_test=smoke_test,
+        code=code,
+    )
     configfile = tmp_path / f"{release_id}.yaml"
     configfile.write_text(
-        yaml.safe_dump(
-            workflow_config(smoke_test=smoke_test, datasets=datasets)
-        )
+        yaml.safe_dump(workflow_config(smoke_test=smoke_test))
     )
     if checkout is None:
         checkout = reviewed_checkout(
@@ -215,18 +191,14 @@ def test_published_release_downloads_with_native_tables_and_plots(
         assert (destination_root / path).read_bytes() == (
             source_root / path
         ).read_bytes()
-    pd.testing.assert_frame_equal(
-        pd.read_parquet(destination_root / RAW_TABLE), raw_table()
-    )
-    pd.testing.assert_frame_equal(
-        pd.read_parquet(destination_root / TRANSFORMED_TABLE),
-        transformed_table(),
-    )
+    for path in [RAW_TABLE, TRANSFORMED_TABLE]:
+        table = pd.read_parquet(destination_root / path)
+        assert table["afa_method"].unique().tolist() == ["alpha"]
     manifest = read_release_manifest(
         destination_root.parent / "release_manifest.json"
     )
     assert manifest.release_id == "2026-10-cube"
-    assert manifest.evaluation_tables[0].raw_present
+    assert manifest.evaluations[0].raw_path == RAW_TABLE
     assert "Release 2026-10-cube" in downloaded.output
 
 
@@ -655,3 +627,101 @@ def test_saving_a_release_snapshot_uploads_nothing(tmp_path: Path) -> None:
 
     assert result.exit_code == 0, result.output
     assert transport.files == {}
+
+
+@pytest.mark.parametrize("scope", ["full", "partial"])
+def test_dirty_producing_code_is_refused_as_an_official_release(
+    tmp_path: Path, scope: str
+) -> None:
+    transport = FakeReleaseTransport()
+    package_dir = prepare_package(
+        tmp_path, "2026-10", scope=scope, code={"training": DIRTY}
+    )
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code != 0
+    message = str(result.exception)
+    assert f"1 training artifact(s) at {'d' * 40} (dirty)" in message
+    assert "evaluation" not in message
+    assert transport.files == {}
+
+
+def test_unknown_producing_code_is_refused_as_an_official_release(
+    tmp_path: Path,
+) -> None:
+    transport = FakeReleaseTransport()
+    package_dir = prepare_package(
+        tmp_path,
+        "2026-10",
+        code={"evaluation": CodeIdentity(commit=None, dirty=None)},
+    )
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code != 0
+    assert "1 evaluation artifact(s) at unknown commit" in str(
+        result.exception
+    )
+    assert transport.files == {}
+
+
+def test_maintainer_allows_dirty_code_into_an_official_release(
+    tmp_path: Path,
+) -> None:
+    transport = FakeReleaseTransport()
+    package_dir = prepare_package(
+        tmp_path, "2026-10", code={"training": DIRTY}
+    )
+
+    result = invoke(
+        transport, "publish", str(package_dir), "--allow-dirty-code"
+    )
+
+    assert result.exit_code == 0, result.output
+    assert f"training: {'d' * 40} (dirty), 1 artifact(s)" in result.output
+    assert transport.commit_messages == [
+        "Publish benchmark release 2026-10; artifacts produced from dirty "
+        "or unknown code allowed by the maintainer"
+    ]
+
+
+def test_allowing_dirty_code_in_a_clean_release_is_refused(
+    tmp_path: Path,
+) -> None:
+    transport = FakeReleaseTransport()
+    package_dir = prepare_package(tmp_path, "2026-10")
+
+    result = invoke(
+        transport, "publish", str(package_dir), "--allow-dirty-code"
+    )
+
+    assert result.exit_code != 0
+    assert "no allowance is needed" in str(result.exception)
+    assert transport.files == {}
+
+
+def test_dirty_code_is_published_as_a_smoke_release(tmp_path: Path) -> None:
+    transport = FakeReleaseTransport()
+    package_dir = prepare_package(
+        tmp_path,
+        "smoke-check",
+        scope="smoke",
+        smoke_test=True,
+        code={"training": DIRTY},
+    )
+
+    published = invoke(
+        transport, "publish", str(package_dir), "--smoke-release"
+    )
+    allowed = invoke(
+        transport,
+        "publish",
+        str(package_dir),
+        "--smoke-release",
+        "--allow-dirty-code",
+    )
+
+    assert published.exit_code == 0, published.output
+    assert allowed.exit_code != 0
+    assert "official releases" in str(allowed.exception)

@@ -21,10 +21,11 @@ previous one.
 ## 2. Read the release manifest
 
 Open `releases/<release_id>/release_manifest.json`. It records the
-producing commit, the workflow configuration, the `coverage` of the
-release, and one `evaluation_tables` entry per evaluation with the path of
-its tables and its identity: method, dataset, dataset realization, evaluation
-split, budgets and seeds. [Fields](../reference/release_manifest.md#fields).
+workflow configuration, the `coverage` of the release, and one
+`evaluations` entry per evaluation with the path of its tables, the commit
+that produced it, and its identity: method, dataset, dataset realization,
+evaluation split, budgets and seeds.
+[Fields](../reference/release_manifest.md#fields).
 
 ## 3. Download tables and plots
 
@@ -52,8 +53,7 @@ Take `<path>` from the manifest:
 - For acquisition histories, read the raw table (`raw_path`).
 - For plots, browse `output/plot_results/`; they are PDF and SVG files.
 
-Plotting-ready tables have no dataset realization or evaluation split
-column; take both from the table's `evaluation_tables` entry. The
+Both tables carry their identity as columns. The
 [columns of each table](../reference/release_manifest.md#raw-versus-plotting-ready-tables).
 
 To download many tables at once, selected by dataset, method or budget

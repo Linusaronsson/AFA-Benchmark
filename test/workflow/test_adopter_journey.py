@@ -407,7 +407,7 @@ def test_results_only_journey_needs_no_afabench_loading(
 
     assert downloaded.exit_code == 0, downloaded.output
     manifest = json.loads((tmp_path / "release_manifest.json").read_text())
-    for table in manifest["evaluation_tables"]:
+    for table in manifest["evaluations"]:
         for key in ["raw_path", "transformed_path"]:
             # The host stores each table as an ordinary file, so a plain
             # download of its URL reads the same as the restored copy.

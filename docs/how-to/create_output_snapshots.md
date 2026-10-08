@@ -8,14 +8,14 @@ To put it back, see [restore an output snapshot](restore_an_output_snapshot.md).
 ## 1. Preview the snapshot (optional)
 
 To see what the snapshot will hold without copying anything, run
-`inventory` with the workflow configuration the pipeline ran with:
+`inventory`:
 
 ```shell
-uv run python scripts/release/snapshot.py inventory \
-    --profile extra/workflow/profiles/config/kdd26
+uv run python scripts/release/snapshot.py inventory
 ```
 
-It prints each payload category's number of files and size.
+It prints each payload category's number of artifacts and size, and lists
+the artifacts without a provenance record, which a release cannot hold.
 
 ## 2. Save the snapshot
 

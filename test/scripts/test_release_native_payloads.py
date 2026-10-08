@@ -2,12 +2,13 @@
 Native bundles and raw evaluation tables through the snapshot commands.
 
 The snapshot copies the output root verbatim; these tests pin what the
-release manifest says about each payload, and that the payloads survive
-`save` and `restore` unchanged.
+release manifest says about each payload category, and that the payloads
+survive `save` and `restore` unchanged.
 """
 
 import json
 import math
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -17,111 +18,38 @@ import pyarrow.parquet as pq
 import yaml
 from typer.testing import CliRunner
 
+from afabench.evaluation.provenance import PROVENANCE_METADATA_KEY
 from afabench.release.manifest import read_release_manifest
 from scripts.release.snapshot import app
 from test.scripts.fake_release_transport import FakeReleaseTransport
+from test.scripts.release_artifacts import (
+    ALPHA,
+    BETA,
+    HARD_3,
+    Catalog,
+    Evaluation,
+    dataset_bundle,
+    evaluation_table,
+    method_bundle,
+    provenance,
+    raw_table,
+    write_bundle,
+    write_catalog,
+)
 
 runner = CliRunner()
 
-TAG = "initializer-cold"
-TRAIN = "datasets/cube/0/train.bundle"
-VAL = "datasets/cube/0/val.bundle"
-TEST = "datasets/cube/0/test.bundle"
-EXTERNAL_CLASSIFIER = (
-    f"trained_classifiers/{TAG}/dataset-cube+realization_index-0.bundle"
-)
-BETA_CLASSIFIER = (
-    f"trained_classifiers/{TAG}/"
-    "method-beta+dataset-cube+realization_index-0.bundle"
-)
-PRETRAINED_MODEL = (
-    f"pretrained_models/{TAG}/shared/dataset-cube+realization_index-0/"
-    "pretrain_seed-0/model.bundle"
-)
-ALPHA_METHOD = (
-    f"trained_methods/{TAG}/alpha/dataset-cube+realization_index-0/NO_PRETRAIN/"
-    "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
-    "method.bundle"
-)
-BETA_METHOD = (
-    f"trained_methods/{TAG}/beta/dataset-cube+realization_index-0/"
-    "pretrain_seed-0/"
-    "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
-    "method.bundle"
-)
-
-
-def workflow_config() -> dict[str, Any]:
-    """Alpha has no pretraining stage; beta has one and its own classifier."""
-    return {
-        "pretrain_mapping": {"shared": {"pretrain_script_name": "shared"}},
-        "method_options": {
-            "alpha": {"train_script_name": "alpha", "eval_batch_size": 4},
-            "beta": {
-                "train_script_name": "beta",
-                "eval_batch_size": 4,
-                "pretrained_model_name": "shared",
-                "classifier": {"script_name": "special"},
-            },
-        },
-        "methods": ["alpha", "beta"],
-        "datasets": ["cube"],
-        "dataset_realization_indices": [0],
-        "unmaskers": {"default": "direct"},
-        "eval_hard_budgets": {"default": [3]},
-        "soft_budget_params": {
-            "alpha": {"default": []},
-            "beta": {"default": []},
-        },
-        "classifier_names": {"default": "masked_mlp_classifier"},
-        "use_wandb": False,
-        "smoke_test": True,
-    }
-
-
-def write_bundle(root: Path, path: str, class_name: str) -> int:
-    """Lay out a bundle as `save_bundle` does; return its size in bytes."""
-    bundle = root / path
-    (bundle / "data").mkdir(parents=True)
-    payload = b"\x00\x01\x02\x03"
-    (bundle / "data/weights.bin").write_bytes(payload)
-    manifest = json.dumps(
-        {
-            "bundle_version": "1.0.0",
-            "class_name": class_name,
-            "class_version": None,
-            "metadata": {"seed": 0},
-        }
-    )
-    (bundle / "manifest.json").write_text(manifest)
-    return len(payload) + len(manifest)
-
-
-def raw_episode_table() -> pd.DataFrame:
-    """Two episodes as the evaluator writes them, external predictions only."""
-    return pd.DataFrame(
-        {
-            "episode_id": [0, 0, 0, 1],
-            "step": [0, 1, 2, 0],
-            "action_performed": [3, 1, 0, 0],
-            "builtin_predicted_class": pd.array(
-                [None, None, None, None], dtype="Int64"
-            ),
-            "external_predicted_class": [2, 2, 1, 0],
-            "true_class": [1, 1, 1, 0],
-            "accumulated_cost": [1.0, 2.0, 2.0, 0.0],
-            "forced_stop": [False, False, False, False],
-            "eval_seed": [0, 0, 0, 0],
-            "eval_hard_budget": [3.0, 3.0, 3.0, 3.0],
-        }
-    )
+TRAIN = dataset_bundle("cube", 0, "train")
+ALPHA_METHOD = method_bundle(ALPHA, "cube", 0, HARD_3)
+ALPHA_RAW_TABLE = f"eval_results/{evaluation_table(ALPHA, 'cube', 0, HARD_3)}"
+SMOKE = Catalog(methods=[ALPHA, BETA], smoke_test=True)
 
 
 def save_smoke(
     tmp_path: Path, source_root: Path, *extra: str
 ) -> dict[str, Any]:
     configfile = tmp_path / "smoke.yaml"
-    configfile.write_text(yaml.safe_dump(workflow_config()))
+    configfile.write_text(yaml.safe_dump({"smoke_test": True}))
     snapshot_dir = tmp_path / "snapshot"
     result = runner.invoke(
         app,
@@ -143,228 +71,66 @@ def save_smoke(
     return json.loads((snapshot_dir / "release_manifest.json").read_text())
 
 
-def test_manifest_lists_every_configured_bundle_with_category_and_inputs(
-    tmp_path: Path,
-) -> None:
-    source_root = tmp_path / "source"
-    write_bundle(source_root, TRAIN, "CubeDataset")
-
-    bundles = {
-        record["path"]: record
-        for record in save_smoke(tmp_path, source_root)["bundles"]
-    }
-
-    assert set(bundles) == {
-        TRAIN,
-        VAL,
-        TEST,
-        EXTERNAL_CLASSIFIER,
-        BETA_CLASSIFIER,
-        PRETRAINED_MODEL,
-        ALPHA_METHOD,
-        BETA_METHOD,
-    }
-    assert {path: record["category"] for path, record in bundles.items()} == {
-        TRAIN: "dataset_bundle",
-        VAL: "dataset_bundle",
-        TEST: "dataset_bundle",
-        EXTERNAL_CLASSIFIER: "classifier_bundle",
-        BETA_CLASSIFIER: "classifier_bundle",
-        PRETRAINED_MODEL: "pretrained_model_bundle",
-        ALPHA_METHOD: "afa_method_bundle",
-        BETA_METHOD: "afa_method_bundle",
-    }
-    assert {path: record["inputs"] for path, record in bundles.items()} == {
-        TRAIN: [],
-        VAL: [],
-        TEST: [],
-        EXTERNAL_CLASSIFIER: [
-            {"role": "train_dataset", "path": TRAIN},
-            {"role": "val_dataset", "path": VAL},
-        ],
-        BETA_CLASSIFIER: [
-            {"role": "train_dataset", "path": TRAIN},
-            {"role": "val_dataset", "path": VAL},
-        ],
-        PRETRAINED_MODEL: [
-            {"role": "train_dataset", "path": TRAIN},
-            {"role": "val_dataset", "path": VAL},
-            {"role": "classifier", "path": EXTERNAL_CLASSIFIER},
-        ],
-        ALPHA_METHOD: [
-            {"role": "train_dataset", "path": TRAIN},
-            {"role": "val_dataset", "path": VAL},
-            {"role": "classifier", "path": EXTERNAL_CLASSIFIER},
-        ],
-        BETA_METHOD: [
-            {"role": "train_dataset", "path": TRAIN},
-            {"role": "val_dataset", "path": VAL},
-            {"role": "classifier", "path": BETA_CLASSIFIER},
-            {"role": "pretrained_model", "path": PRETRAINED_MODEL},
-        ],
-    }
-    assert bundles[TRAIN]["present"] is True
-    assert bundles[VAL]["present"] is False
-
-
-IDENTITY_FIELDS = [
-    "dataset_key",
-    "dataset_realization_index",
-    "split",
-    "method_name",
-    "pretrained_model_name",
-    "seed",
-    "train_hard_budget",
-    "train_soft_budget_param",
-]
-
-
-def test_bundle_records_carry_identity_seeds_and_budgets(
-    tmp_path: Path,
-) -> None:
-    source_root = tmp_path / "source"
-    write_bundle(source_root, TRAIN, "CubeDataset")
-
-    bundles = {
-        record["path"]: {field: record[field] for field in IDENTITY_FIELDS}
-        for record in save_smoke(tmp_path, source_root)["bundles"]
-    }
-
-    shared = {"method_name": None, "pretrained_model_name": None}
-    untrained = {"train_hard_budget": None, "train_soft_budget_param": None}
-    realization_0 = {"dataset_key": "cube", "dataset_realization_index": 0}
-    assert bundles[TEST] == {
-        **realization_0,
-        **shared,
-        **untrained,
-        "split": "test",
-        "seed": 0,
-    }
-    assert bundles[EXTERNAL_CLASSIFIER] == {
-        **realization_0,
-        **shared,
-        **untrained,
-        "split": None,
-        "seed": 0,
-    }
-    assert bundles[BETA_CLASSIFIER]["method_name"] == "beta"
-    assert bundles[PRETRAINED_MODEL] == {
-        **realization_0,
-        **untrained,
-        "split": None,
-        "method_name": None,
-        "pretrained_model_name": "shared",
-        "seed": 0,
-    }
-    assert bundles[ALPHA_METHOD] == {
-        **realization_0,
-        "split": None,
-        "method_name": "alpha",
-        "pretrained_model_name": None,
-        "seed": 0,
-        "train_hard_budget": 3,
-        "train_soft_budget_param": None,
-    }
-    assert bundles[BETA_METHOD]["pretrained_model_name"] == "shared"
-
-
-def test_present_bundles_record_size_and_their_own_manifest(
-    tmp_path: Path,
-) -> None:
-    source_root = tmp_path / "source"
-    size_bytes = write_bundle(
-        source_root, PRETRAINED_MODEL, "GreedyAFAClassifier"
+def tree_size(path: Path) -> int:
+    return sum(
+        file.stat().st_size for file in path.rglob("*") if file.is_file()
     )
-
-    bundles = {
-        record["path"]: record
-        for record in save_smoke(tmp_path, source_root)["bundles"]
-    }
-
-    assert bundles[PRETRAINED_MODEL]["size_bytes"] == size_bytes
-    assert bundles[PRETRAINED_MODEL]["bundle_manifest"] == {
-        "bundle_version": "1.0.0",
-        "class_name": "GreedyAFAClassifier",
-        "class_version": None,
-        "metadata": {"seed": 0},
-    }
-    assert bundles[ALPHA_METHOD]["size_bytes"] is None
-    assert bundles[ALPHA_METHOD]["bundle_manifest"] is None
-
-
-ALPHA_RAW_TABLE = (
-    f"eval_results/eval_split-test/{TAG}/alpha/dataset-cube+realization_index-0/"
-    "NO_PRETRAIN/"
-    "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
-    "eval_seed-0+eval_hard_budget-3+eval_soft_budget_param-null/"
-    "eval_data.parquet"
-)
-
-
-def test_evaluation_tables_record_the_bundles_they_were_evaluated_from(
-    tmp_path: Path,
-) -> None:
-    source_root = tmp_path / "source"
-    raw_table = source_root / ALPHA_RAW_TABLE
-    raw_table.parent.mkdir(parents=True)
-    raw_episode_table().to_parquet(raw_table, index=False)
-
-    tables = {
-        record["raw_path"]: record
-        for record in save_smoke(tmp_path, source_root)["evaluation_tables"]
-    }
-
-    alpha = tables[ALPHA_RAW_TABLE]
-    assert alpha["inputs"] == [
-        {"role": "eval_dataset", "path": TEST},
-        {"role": "method", "path": ALPHA_METHOD},
-        {"role": "classifier", "path": EXTERNAL_CLASSIFIER},
-    ]
-    assert alpha["raw_size_bytes"] == raw_table.stat().st_size
-    assert alpha["transformed_size_bytes"] is None
 
 
 def test_coverage_inventories_each_payload_category(tmp_path: Path) -> None:
     source_root = tmp_path / "source"
-    dataset_bytes = write_bundle(source_root, TRAIN, "CubeDataset")
-    dataset_bytes += write_bundle(source_root, TEST, "CubeDataset")
-    model_bytes = write_bundle(
-        source_root, PRETRAINED_MODEL, "GreedyAFAClassifier"
-    )
-    raw_table = source_root / ALPHA_RAW_TABLE
-    raw_table.parent.mkdir(parents=True)
-    raw_episode_table().to_parquet(raw_table, index=False)
+    write_catalog(source_root, SMOKE)
 
     payloads = save_smoke(tmp_path, source_root)["coverage"]["payloads"]
 
+    def size(pattern: str) -> int:
+        return sum(
+            tree_size(path) if path.is_dir() else path.stat().st_size
+            for path in source_root.glob(pattern)
+        )
+
     def summary(
-        category: str,
-        scheduled: int,
-        present: int,
-        size_bytes: int,
-        class_names: list[str],
+        category: str, count: int, size_bytes: int, class_names: list[str]
     ) -> dict[str, Any]:
         return {
             "category": category,
-            "scheduled": scheduled,
-            "present": present,
+            "count": count,
             "size_bytes": size_bytes,
             "class_names": class_names,
         }
 
     assert payloads == [
-        summary("raw_evaluation_table", 2, 1, raw_table.stat().st_size, []),
-        summary("transformed_evaluation_table", 2, 0, 0, []),
-        summary("dataset_bundle", 3, 2, dataset_bytes, ["CubeDataset"]),
-        summary("classifier_bundle", 2, 0, 0, []),
+        summary(
+            "raw_evaluation_table",
+            3,
+            size("eval_results/**/*.parquet"),
+            [],
+        ),
+        summary(
+            "transformed_evaluation_table",
+            3,
+            size("eval_results_transformed/**/*.parquet"),
+            [],
+        ),
+        summary("dataset_bundle", 3, size("datasets/*/*/*.bundle"), ["Fake"]),
+        summary(
+            "classifier_bundle",
+            2,
+            size("trained_classifiers/**/*.bundle"),
+            ["Fake"],
+        ),
         summary(
             "pretrained_model_bundle",
             1,
-            1,
-            model_bytes,
-            ["GreedyAFAClassifier"],
+            size("pretrained_models/**/*.bundle"),
+            ["Fake"],
         ),
-        summary("afa_method_bundle", 2, 0, 0, []),
+        summary(
+            "afa_method_bundle",
+            3,
+            size("trained_methods/**/*.bundle"),
+            ["Fake"],
+        ),
     ]
 
 
@@ -385,22 +151,33 @@ def test_raw_tables_round_trip_values_nulls_schema_and_histories(
     tmp_path: Path,
 ) -> None:
     source_root = tmp_path / "source"
-    raw_table = source_root / ALPHA_RAW_TABLE
-    raw_table.parent.mkdir(parents=True)
-    table = pa.Table.from_pandas(raw_episode_table(), preserve_index=False)
+    write_catalog(source_root, Catalog(methods=[ALPHA], smoke_test=True))
+    raw_path = source_root / ALPHA_RAW_TABLE
+    record = pq.read_schema(raw_path).metadata[PROVENANCE_METADATA_KEY]
+    table = pa.Table.from_pandas(
+        raw_table(
+            Evaluation(
+                method="alpha",
+                dataset="cube",
+                realization=0,
+                train_hard_budget=3,
+                train_soft_budget_param=None,
+                eval_hard_budget=3,
+                eval_soft_budget_param=None,
+            )
+        ),
+        preserve_index=False,
+    )
     # A null soft-budget parameter and a NaN cost must stay distinct, and
-    # schema metadata (ADR 0002 stores provenance there) must survive.
-    table = table.append_column(
-        "eval_soft_budget_param", pa.array([None] * 4, type=pa.float64())
-    ).set_column(
+    # the provenance record in the schema metadata must survive.
+    table = table.set_column(
         table.schema.get_field_index("accumulated_cost"),
         "accumulated_cost",
-        pa.array([1.0, 2.0, float("nan"), 0.0]),
+        pa.array([1.0, float("nan")]),
+    ).replace_schema_metadata(
+        {**table.schema.metadata, PROVENANCE_METADATA_KEY: record}
     )
-    table = table.replace_schema_metadata(
-        {**table.schema.metadata, b"afabench.provenance": b'{"seed": 0}'}
-    )
-    pq.write_table(table, raw_table)
+    pq.write_table(table, raw_path)
     save_smoke(tmp_path, source_root)
 
     destination_root = tmp_path / "checkout/extra/output"
@@ -412,24 +189,24 @@ def test_raw_tables_round_trip_values_nulls_schema_and_histories(
     assert restored.drop_columns(["accumulated_cost"]).equals(
         table.drop_columns(["accumulated_cost"])
     )
-    assert restored.schema.metadata[b"afabench.provenance"] == b'{"seed": 0}'
-    assert restored.column("eval_soft_budget_param").null_count == 4
-    assert restored.column("builtin_predicted_class").null_count == 4
+    assert restored.schema.metadata[PROVENANCE_METADATA_KEY] == record
+    assert restored.column("eval_soft_budget_param").null_count == 2
+    assert restored.column("builtin_predicted_class").null_count == 2
     costs = restored.column("accumulated_cost").to_pylist()
-    assert costs[:2] == [1.0, 2.0]
-    assert math.isnan(costs[2])
+    assert costs[0] == 1.0
+    assert math.isnan(costs[1])
     # Selection histories, read with plain pandas: action 0 is stop and
     # action i > 0 is selection i - 1.
-    frame = pd.read_parquet(destination_root / ALPHA_RAW_TABLE)
+    read = pd.read_parquet(destination_root / ALPHA_RAW_TABLE)
     histories = {
         int(episode): [
             int(action) - 1
             for action in steps.sort_values("step")["action_performed"]
             if action != 0
         ]
-        for episode, steps in frame.groupby("episode_id")
+        for episode, steps in read.groupby("episode_id")
     }
-    assert histories == {0: [2, 0], 1: []}
+    assert histories == {0: [2]}
 
 
 UNREVIEWED = {
@@ -445,11 +222,11 @@ def test_datasets_without_a_review_are_recorded_and_reported_unreviewed(
     tmp_path: Path,
 ) -> None:
     source_root = tmp_path / "source"
-    write_bundle(source_root, TRAIN, "CubeDataset")
+    write_catalog(source_root, SMOKE)
     checkout = tmp_path / "checkout"
     checkout.mkdir()
     configfile = tmp_path / "smoke.yaml"
-    configfile.write_text(yaml.safe_dump(workflow_config()))
+    configfile.write_text(yaml.safe_dump({"smoke_test": True}))
 
     result = runner.invoke(
         app,
@@ -473,9 +250,7 @@ def test_datasets_without_a_review_are_recorded_and_reported_unreviewed(
     manifest = json.loads(
         (tmp_path / "snapshot/release_manifest.json").read_text()
     )
-    assert manifest["settings"]["dataset_redistribution"] == {
-        "cube": UNREVIEWED
-    }
+    assert manifest["dataset_redistribution"] == {"cube": UNREVIEWED}
     assert "Unreviewed dataset redistribution: cube" in result.output
 
 
@@ -483,7 +258,7 @@ def test_reviewed_datasets_record_the_review_from_the_checkout(
     tmp_path: Path,
 ) -> None:
     source_root = tmp_path / "source"
-    write_bundle(source_root, TRAIN, "CubeDataset")
+    write_catalog(source_root, SMOKE)
     checkout = tmp_path / "checkout"
     review = {
         "status": "permitted",
@@ -498,41 +273,55 @@ def test_reviewed_datasets_record_the_review_from_the_checkout(
 
     manifest = save_smoke(tmp_path, source_root, "--checkout", str(checkout))
 
-    assert manifest["settings"]["dataset_redistribution"] == {"cube": review}
+    assert manifest["dataset_redistribution"] == {"cube": review}
 
 
 def test_the_checked_in_review_grants_no_dataset_redistribution(
     tmp_path: Path,
 ) -> None:
     source_root = tmp_path / "source"
-    write_bundle(source_root, TRAIN, "CubeDataset")
+    write_catalog(source_root, SMOKE)
     repository = Path(__file__).parents[2]
 
     manifest = save_smoke(tmp_path, source_root, "--checkout", str(repository))
 
-    assert manifest["settings"]["dataset_redistribution"] == {
-        "cube": UNREVIEWED
-    }
+    assert manifest["dataset_redistribution"] == {"cube": UNREVIEWED}
+
+
+def test_every_dataset_a_record_names_is_reviewed(tmp_path: Path) -> None:
+    # Evaluation tables hold true class labels, so a dataset with tables
+    # but no bundles in the release still needs a review.
+    source_root = tmp_path / "source"
+    write_catalog(source_root, SMOKE)
+    write_catalog(
+        source_root,
+        Catalog(methods=[ALPHA], datasets=["mnist"], smoke_test=True),
+    )
+    for bundle in list(source_root.rglob("*.bundle")):
+        if "mnist" in bundle.as_posix():
+            shutil.rmtree(bundle)
+
+    manifest = save_smoke(tmp_path, source_root)
+
+    assert set(manifest["dataset_redistribution"]) == {"cube", "mnist"}
 
 
 def test_inventory_reports_payload_categories_without_copying(
     tmp_path: Path,
 ) -> None:
     source_root = tmp_path / "source"
-    dataset_bytes = write_bundle(source_root, TRAIN, "CubeDataset")
-    configfile = tmp_path / "smoke.yaml"
-    configfile.write_text(yaml.safe_dump(workflow_config()))
+    write_bundle(
+        source_root,
+        TRAIN,
+        provenance("dataset_generation", smoke_test=True),
+        class_name="CubeDataset",
+    )
+    legacy = dataset_bundle("cube", 0, "val")
+    write_bundle(source_root, legacy, None)
     before = sorted(tmp_path.rglob("*"))
 
     result = runner.invoke(
-        app,
-        [
-            "inventory",
-            "--source-root",
-            str(source_root),
-            "--configfile",
-            str(configfile),
-        ],
+        app, ["inventory", "--source-root", str(source_root)]
     )
 
     assert result.exit_code == 0, result.output
@@ -540,19 +329,20 @@ def test_inventory_reports_payload_categories_without_copying(
     lines = result.output.splitlines()
     assert "Execution: smoke" in lines
     assert (
-        f"dataset_bundle: 1/3 present, {dataset_bytes} bytes, "
+        f"dataset_bundle: 1 present, {tree_size(source_root / TRAIN)} bytes, "
         "classes: CubeDataset"
     ) in lines
-    assert "afa_method_bundle: 0/2 present, 0 bytes, classes: none" in lines
-    assert "raw_evaluation_table: 0/2 present, 0 bytes, classes: none" in lines
+    assert "afa_method_bundle: 0 present, 0 bytes, classes: none" in lines
+    assert "raw_evaluation_table: 0 present, 0 bytes, classes: none" in lines
+    assert "Without a provenance record:" in lines
+    assert f"  {legacy}" in lines
 
 
 def test_release_transport_carries_bundles_and_redistribution_warnings(
     tmp_path: Path,
 ) -> None:
     source_root = tmp_path / "source"
-    write_bundle(source_root, TRAIN, "CubeDataset")
-    write_bundle(source_root, ALPHA_METHOD, "RandomWithoutClassifierAFAMethod")
+    write_catalog(source_root, SMOKE)
     save_smoke(tmp_path, source_root)
     transport = FakeReleaseTransport()
     destination_root = tmp_path / "checkout/extra/output"
@@ -584,7 +374,6 @@ def test_release_transport_carries_bundles_and_redistribution_warnings(
     manifest = read_release_manifest(
         tmp_path / "checkout/extra/release_manifest.json"
     )
-    assert {bundle.path for bundle in manifest.bundles if bundle.present} == {
-        TRAIN,
-        ALPHA_METHOD,
+    assert {TRAIN, ALPHA_METHOD} <= {
+        bundle.path for bundle in manifest.bundles
     }

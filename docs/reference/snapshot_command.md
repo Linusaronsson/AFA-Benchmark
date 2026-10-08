@@ -18,9 +18,10 @@ else in the destination is deleted.
 
 ## Workflow configuration options
 
-`save` with `--release-id`, and `inventory`, take the workflow
-configuration the pipeline ran with, given the way it was given to
-Snakemake:
+`save` with `--release-id` takes the workflow configuration whose targets
+lay out the release, given the way it was given to Snakemake. It is
+recorded as the manifest's `workflow_config`, never read to describe an
+artifact:
 
 | Option | Meaning |
 | --- | --- |
@@ -44,14 +45,32 @@ Copies every file and directory under the source root to
 missing or empty source root is an error.
 
 With `--release-id`, also writes `SNAPSHOT_DIR/release_manifest.json`
-([release manifest](release_manifest.md)), and `--scope` and the workflow
-configuration options are required. If the merged configuration has
-`smoke_test: true`, any scope but `smoke` is refused before anything is
-copied. `--checkout` names the git checkout whose commit is recorded,
-whose feature-cost files are hashed and whose redistribution reviews are
-read. The command prints the recorded configuration, the release identity,
-the commit, and every dataset whose redistribution is `unreviewed` or
-`restricted`.
+([release manifest](release_manifest.md)), indexing the source root's
+artifacts by their provenance records, and `--scope` and the workflow
+configuration options are required. Refused before anything is copied:
+
+- any bundle, or Parquet file under `eval_results/` or
+  `eval_results_transformed/`, without a provenance record; they are
+  listed;
+- any smoke-test artifact with a scope other than `smoke`;
+- a source root without any artifact.
+
+`--checkout` names the git checkout whose redistribution reviews are read.
+The command prints the recorded configuration, the release identity, every
+dataset whose redistribution is `unreviewed` or `restricted`, the
+producing code per pipeline stage, and the
+[dangling inputs](release_manifest.md#inputs):
+
+```text
+Producing code per pipeline stage:
+  dataset_generation: 3f2a…, 6 artifact(s)
+  classifier_training: 3f2a…, 1 artifact(s)
+  training: 9c41… (dirty), 4 artifact(s)
+  evaluation: 9c41… (dirty), 4 artifact(s)
+The release mixes 2 producing commits.
+Some artifacts were produced from dirty or unknown code; publishing an official release needs --allow-dirty-code.
+Transformed tables carry their evaluation's record; the commits of transformation, aggregation and visualization are not recorded.
+```
 
 ## `restore`
 
@@ -69,18 +88,21 @@ is restored.
 ## `inventory`
 
 ```shell
-snapshot.py inventory [--source-root extra/output] CONFIGURATION OPTIONS
+snapshot.py inventory [--source-root extra/output]
 ```
 
-Prints, per [payload category](release_manifest.md#payload-categories),
-how many payloads the configuration schedules, how many are present, their
-total size and the bundle classes found. Writes nothing.
+Prints the execution mode of the source root's artifacts and, per
+[payload category](release_manifest.md#payload-categories), how many
+artifacts are present, their total size and the bundle classes found, then
+lists the artifacts without a provenance record, which `save --release-id`
+would refuse. Writes nothing.
 
 ## `publish`
 
 ```shell
 snapshot.py publish SNAPSHOT_DIR --repo-id REPO
     [--smoke-release] [--allow-redistribution DATASET_KEY ...]
+    [--allow-dirty-code]
 ```
 
 Uploads the snapshot as the release its manifest names, in one commit, to
@@ -97,10 +119,16 @@ Refuses:
 - scope `smoke` without `--smoke-release`, and `--smoke-release` with any
   other scope;
 - an official release with an `unreviewed` or `restricted` dataset in
-  `settings.dataset_redistribution`, unless each such dataset key is given
+  `dataset_redistribution`, unless each such dataset key is given
   with `--allow-redistribution`. Allowing a dataset that is neither is an
-  error, and smoke releases take no allowance. Allowed dataset keys are
+  error. Allowed dataset keys are named in the host's commit message;
+- an official release holding an artifact produced from a dirty tree or
+  outside a git work tree (unknown code), unless `--allow-dirty-code` is
+  given. Giving it for a release without one is an error. Its use is
   named in the host's commit message.
+
+Smoke releases take neither allowance. On success, `publish` prints the
+producing code per pipeline stage as `save` does.
 
 ## `download`
 
@@ -111,7 +139,7 @@ snapshot.py download [RELEASE] --repo-id REPO
 ```
 
 Downloads one release and restores it as `restore` does, then prints its
-scope, execution mode, commit and workflow configuration. A public
+scope, execution mode and workflow configuration. A public
 repository needs no token.
 
 ### Release
@@ -144,7 +172,7 @@ and optionally narrow the evaluations with coverage options:
 | `--eval-split` | this evaluation split |
 | `--initializer` | this initializer |
 | `--budget-setting` | `hard_budget` or `soft_budget` |
-| `--classifier-variant` | `builtin` or `external` predictions in the raw table |
+| `--classifier-variant` | non-null `builtin` or `external` predictions |
 
 Values of one option match any; different options must all match; an
 option not given does not restrict.
@@ -153,10 +181,10 @@ For the selected evaluations, payload categories download:
 
 - their raw or plotting-ready evaluation tables;
 - the bundles they were produced from, found by following the `inputs` of
-  the tables and, in turn, of the bundles, if the bundle's category is
-  named. For example, the external classifier of a dataset realization was
-  trained on that realization's `train` and `val` dataset bundles, so
-  selecting it also selects them.
+  the evaluations and, in turn, of the bundles, by content hash, if the
+  bundle's category is named. For example, the external classifier of a
+  dataset realization was trained on that realization's `train` and `val`
+  dataset bundles, so selecting it also selects them.
 - with each pretrained-model and AFA-method bundle, the folder of the job
   that wrote it, including its `pretrain_time.txt` or `train_time.txt`.
 
@@ -171,8 +199,13 @@ download:
 Downloaded 6 file(s) and 1 folder(s).
 Missing from release 2026-11-partial:
   dataset 'physionet': no evaluation of the release matches
-  transformed_evaluation_table eval_results_transformed/...: not in the release
+  transformed_evaluation_table of the evaluation eval_results/...: not in the release
+  classifier_bundle extra/output/trained_classifiers/..., classifier input of eval_results/...: not in the release
 ```
+
+An input is reported only if its category is named; a
+[dangling input](release_manifest.md#inputs)'s own inputs are unknown, so
+they are not followed.
 
 If nothing selected is in the release, the command fails and writes
 nothing.

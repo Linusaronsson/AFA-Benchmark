@@ -21,12 +21,15 @@ import torch
 import yaml
 from typer.testing import CliRunner
 
-from afabench.core.bundle_system.bundle import load_bundle
+from afabench.core.bundle_system.bundle import load_bundle, read_manifest
 from afabench.release.manifest import (
     ExecutionMode,
     PayloadCategory,
     ReleaseManifest,
     ReleaseScope,
+    Stage,
+    code_by_stage,
+    dangling_inputs,
     read_release_manifest,
 )
 from scripts.release.snapshot import app
@@ -178,8 +181,7 @@ def test_smoke_release_covers_every_payload_category(
     assert manifest.scope is ReleaseScope.SMOKE
     assert manifest.execution_mode is ExecutionMode.SMOKE
     for payload in manifest.coverage.payloads:
-        assert payload.scheduled > 0, payload
-        assert payload.present == payload.scheduled, payload
+        assert payload.count > 0, payload
         assert payload.size_bytes > 0, payload
     class_names = {
         payload.category: payload.class_names
@@ -202,36 +204,40 @@ def test_smoke_release_covers_every_payload_category(
 def test_smoke_release_retains_the_provenance_of_its_bundles(
     restored: tuple[Path, Path, list[Path], ReleaseManifest],
 ) -> None:
-    _, _, _, manifest = restored
+    _, fresh, _, manifest = restored
     bundles = {bundle.path: bundle for bundle in manifest.bundles}
 
-    assert manifest.code.commit is not None
-    assert manifest.settings.unmaskers == {"cube": "direct"}
-    assert manifest.settings.initializer == "cold"
-    assert manifest.settings.forcing_policy == (
-        "forced_acquisition_when_eval_hard_budget_is_set"
+    # Every artifact was produced by this checkout, in one smoke run.
+    assert {
+        stage_code.code.commit for stage_code in code_by_stage(manifest)
+    } == {git_head()}
+    assert [stage_code.stage for stage_code in code_by_stage(manifest)] == (
+        list(Stage)
     )
+    assert dangling_inputs(manifest) == []
     dataset = bundles["datasets/cube/0/test.bundle"]
-    assert dataset.bundle_manifest is not None
-    generation = dataset.bundle_manifest["metadata"]
-    assert generation["dataset_realization_index"] == 0
-    assert generation["kwargs"]["seed"] == 0
+    assert (dataset.dataset_key, dataset.split, dataset.seed) == (
+        "cube",
+        "test",
+        0,
+    )
     classifier = bundles[
         f"trained_classifiers/{TAG}/dataset-cube+realization_index-0.bundle"
     ]
     assert classifier.method_name is None
     assert classifier.seed == 0
     method = bundles[GDFS_METHOD]
-    assert method.pretrained_model_name == "gdfs"
-    assert method.train_hard_budget == 2
-    assert method.bundle_manifest is not None
-    contract = method.bundle_manifest["metadata"]["contract"]
-    assert contract["smoke_test"] is True
-    assert contract["seed"] == 0
+    assert method.method_name == "gdfs"
+    assert method.smoke_test is True
+    assert method.seed == 0
+    contract = read_manifest(fresh / "extra/output" / GDFS_METHOD)["metadata"][
+        "contract"
+    ]
     assert contract["unmasker"]["class_name"] == "DirectUnmasker"
     assert contract["initializer"]["class_name"] == "RandomInitializer"
+    by_hash = {bundle.content_hash: bundle.path for bundle in manifest.bundles}
     assert {
-        (bundle_input.role, bundle_input.path)
+        (bundle_input.role, by_hash[bundle_input.content_hash])
         for bundle_input in method.inputs
     } == {
         ("train_dataset", "datasets/cube/0/train.bundle"),
@@ -245,6 +251,15 @@ def test_smoke_release_retains_the_provenance_of_its_bundles(
     }
 
 
+def git_head() -> str:
+    return subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],  # noqa: S607
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
 @pytest.mark.pipeline
 def test_restored_bundles_load_through_the_native_loaders(
     restored: tuple[Path, Path, list[Path], ReleaseManifest],
@@ -255,8 +270,7 @@ def test_restored_bundles_load_through_the_native_loaders(
         loaded = load_native(
             fresh / "extra/output" / bundle.path, bundle.category
         )
-        assert bundle.bundle_manifest is not None
-        assert type(loaded).__name__ == bundle.bundle_manifest["class_name"]
+        assert type(loaded).__name__ == bundle.class_name
     original_test_split = cast(
         "AFADataset",
         load_native(

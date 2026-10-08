@@ -1,154 +1,117 @@
+"""The release manifest `snapshot.py save --release-id` writes (ADR 0006)."""
+
 import json
-import subprocess
+import shutil
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import pytest
 import yaml
+from click.testing import Result
 from typer.testing import CliRunner
 
 from afabench.release.manifest import (
+    CodeIdentity,
     ReleaseScope,
     read_release_manifest,
 )
 from scripts.release.snapshot import app
+from test.scripts.release_artifacts import (
+    ALPHA,
+    BETA,
+    HARD_3,
+    SOFT_HALF,
+    Catalog,
+    Evaluation,
+    classifier_bundle,
+    dataset_bundle,
+    evaluation_table,
+    method_bundle,
+    provenance,
+    write_bundle,
+    write_catalog,
+    write_evaluation,
+)
 
 runner = CliRunner()
 
-RAW_HARD_BUDGET_TABLE = (
-    "eval_results/eval_split-test/initializer-cold/alpha/"
-    "dataset-cube+realization_index-0/NO_PRETRAIN/"
-    "train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
-    "eval_seed-0+eval_hard_budget-3+eval_soft_budget_param-null/"
-    "eval_data.parquet"
-)
+ALPHA_HARD = evaluation_table(ALPHA, "cube", 0, HARD_3)
+ALPHA_SOFT = evaluation_table(ALPHA, "cube", 0, SOFT_HALF)
+EXTERNAL_CLASSIFIER = classifier_bundle("cube", 0)
+ALPHA_METHOD = method_bundle(ALPHA, "cube", 0, HARD_3)
+CLASSIFIER_COMMIT = CodeIdentity(commit="a" * 40, dirty=False)
+METHOD_COMMIT = CodeIdentity(commit="b" * 40, dirty=False)
 
 
-def workflow_config(*, smoke_test: bool) -> dict[str, Any]:
-    return {
-        "pretrain_mapping": {},
-        "method_options": {
-            "alpha": {"train_script_name": "alpha", "eval_batch_size": 4}
-        },
-        "methods": ["alpha"],
-        "datasets": ["cube"],
-        "dataset_realization_indices": [0, 1],
-        "unmaskers": {"default": "direct"},
-        "eval_hard_budgets": {"default": [3]},
-        "soft_budget_params": {"alpha": {"default": [[0.5, None]]}},
-        "classifier_names": {"default": "masked_mlp_classifier"},
-        "use_wandb": False,
-        "smoke_test": smoke_test,
-    }
-
-
-def write_configfile(path: Path, *, smoke_test: bool) -> Path:
-    path.write_text(yaml.safe_dump(workflow_config(smoke_test=smoke_test)))
+def write_configfile(path: Path) -> Path:
+    path.write_text(
+        yaml.safe_dump({"methods": ["alpha"], "smoke_test": False})
+    )
     return path
 
 
-def build_output_tree(root: Path) -> None:
-    bundle = root / "datasets/cube/0/train.bundle"
-    bundle.mkdir(parents=True)
-    (bundle / "manifest.json").write_text('{"bundle_version": 1}')
-
-
-def write_raw_table(root: Path) -> None:
-    """One episode with external predictions only, as the evaluator saves."""
-    path = root / RAW_HARD_BUDGET_TABLE
-    path.parent.mkdir(parents=True)
-    pd.DataFrame(
-        {
-            "episode_id": [0, 0],
-            "step": [0, 1],
-            "action_performed": [2, 0],
-            "builtin_predicted_class": [None, None],
-            "external_predicted_class": [1, 0],
-            "true_class": [0, 0],
-            "accumulated_cost": [1.0, 1.0],
-            "forced_stop": [False, False],
-            "eval_seed": [0, 0],
-            "eval_hard_budget": [3.0, 3.0],
-        }
-    ).to_parquet(path, index=False)
-
-
-def save_args(
-    snapshot_dir: Path, source_root: Path, configfile: Path, *extra: str
-) -> list[str]:
-    return [
-        "save",
-        str(snapshot_dir),
-        "--source-root",
-        str(source_root),
-        "--configfile",
-        str(configfile),
-        *extra,
-    ]
-
-
-def read_manifest(snapshot_dir: Path) -> dict[str, Any]:
-    return json.loads((snapshot_dir / "release_manifest.json").read_text())
-
-
-def save_release(
-    tmp_path: Path, *extra: str, smoke_test: bool = False
-) -> tuple[Path, Path]:
-    source_root = tmp_path / "source"
-    build_output_tree(source_root)
-    write_raw_table(source_root)
-    configfile = write_configfile(tmp_path / "run.yaml", smoke_test=smoke_test)
-    snapshot_dir = tmp_path / "snapshot"
-    result = runner.invoke(
+def save(tmp_path: Path, *extra: str, scope: str | None = "partial") -> Result:
+    """Save `tmp_path/source` as release `2026-10-cube`."""
+    configfile = write_configfile(tmp_path / "run.yaml")
+    return runner.invoke(
         app,
-        save_args(
-            snapshot_dir,
-            source_root,
-            configfile,
+        [
+            "save",
+            str(tmp_path / "snapshot"),
+            "--source-root",
+            str(tmp_path / "source"),
+            "--configfile",
+            str(configfile),
             "--release-id",
             "2026-10-cube",
+            *(["--scope", scope] if scope else []),
             *extra,
-        ),
+        ],
     )
+
+
+def save_catalog(
+    tmp_path: Path, catalog: Catalog | None = None, *extra: str
+) -> Result:
+    write_catalog(tmp_path / "source", catalog or Catalog(methods=[ALPHA]))
+    result = save(tmp_path, *extra)
     assert result.exit_code == 0, result.output
-    return snapshot_dir, configfile
+    return result
+
+
+def read_manifest(tmp_path: Path) -> dict[str, Any]:
+    return json.loads(
+        (tmp_path / "snapshot/release_manifest.json").read_text()
+    )
+
+
+def bundles(tmp_path: Path) -> dict[str, dict[str, Any]]:
+    return {
+        bundle["path"]: bundle for bundle in read_manifest(tmp_path)["bundles"]
+    }
 
 
 def test_save_with_release_id_writes_manifest_beside_output(
     tmp_path: Path,
 ) -> None:
-    source_root = tmp_path / "source"
-    build_output_tree(source_root)
-    configfile = write_configfile(tmp_path / "run.yaml", smoke_test=False)
-    snapshot_dir = tmp_path / "snapshot"
+    result = save_catalog(tmp_path)
 
-    result = runner.invoke(
-        app,
-        save_args(
-            snapshot_dir,
-            source_root,
-            configfile,
-            "--release-id",
-            "2026-10-cube",
-            "--scope",
-            "partial",
-        ),
-    )
-
-    assert result.exit_code == 0, result.output
-    assert (snapshot_dir / "output/datasets/cube/0/train.bundle").is_dir()
-    manifest = read_manifest(snapshot_dir)
-    assert manifest["manifest_version"] == 1
+    assert (tmp_path / "snapshot/output" / ALPHA_METHOD).is_dir()
+    manifest = read_manifest(tmp_path)
+    assert manifest["manifest_version"] == 2
     assert manifest["release_id"] == "2026-10-cube"
     assert manifest["scope"] == "partial"
     assert manifest["execution_mode"] == "production"
-    assert str(configfile) in result.output
+    assert "code" not in manifest
+    assert "settings" not in manifest
+    assert str(tmp_path / "run.yaml") in result.output
 
 
 def test_save_without_release_id_writes_no_manifest(tmp_path: Path) -> None:
     source_root = tmp_path / "source"
-    build_output_tree(source_root)
+    # A tree the manifest could not describe saves without one.
+    write_bundle(source_root, dataset_bundle("cube", 0, "train"), None)
     snapshot_dir = tmp_path / "snapshot"
 
     result = runner.invoke(
@@ -162,100 +125,105 @@ def test_save_without_release_id_writes_no_manifest(tmp_path: Path) -> None:
 def test_manifest_options_without_release_id_are_refused(
     tmp_path: Path,
 ) -> None:
-    source_root = tmp_path / "source"
-    build_output_tree(source_root)
-    configfile = write_configfile(tmp_path / "run.yaml", smoke_test=False)
-    snapshot_dir = tmp_path / "snapshot"
+    write_catalog(tmp_path / "source", Catalog(methods=[ALPHA]))
+    configfile = write_configfile(tmp_path / "run.yaml")
 
     result = runner.invoke(
-        app, save_args(snapshot_dir, source_root, configfile)
+        app,
+        [
+            "save",
+            str(tmp_path / "snapshot"),
+            "--source-root",
+            str(tmp_path / "source"),
+            "--configfile",
+            str(configfile),
+        ],
     )
 
     assert result.exit_code != 0
-    assert not snapshot_dir.exists()
+    assert not (tmp_path / "snapshot").exists()
 
 
 @pytest.mark.parametrize("scope", ["full", "partial"])
 def test_smoke_outputs_cannot_be_declared_a_release(
     tmp_path: Path, scope: str
 ) -> None:
-    source_root = tmp_path / "source"
-    build_output_tree(source_root)
-    configfile = write_configfile(tmp_path / "run.yaml", smoke_test=True)
-    snapshot_dir = tmp_path / "snapshot"
-
-    result = runner.invoke(
-        app,
-        save_args(
-            snapshot_dir,
-            source_root,
-            configfile,
-            "--release-id",
-            "smoke",
-            "--scope",
-            scope,
-        ),
+    write_catalog(
+        tmp_path / "source", Catalog(methods=[ALPHA], smoke_test=True)
     )
+
+    result = save(tmp_path, scope=scope)
 
     assert result.exit_code != 0
     assert "smoke" in str(result.exception)
-    assert not snapshot_dir.exists()
-
-
-def test_smoke_override_on_production_config_is_also_refused(
-    tmp_path: Path,
-) -> None:
-    source_root = tmp_path / "source"
-    build_output_tree(source_root)
-    configfile = write_configfile(tmp_path / "run.yaml", smoke_test=False)
-    snapshot_dir = tmp_path / "snapshot"
-
-    result = runner.invoke(
-        app,
-        save_args(
-            snapshot_dir,
-            source_root,
-            configfile,
-            "--config",
-            "smoke_test=true",
-            "--release-id",
-            "smoke",
-            "--scope",
-            "full",
-        ),
-    )
-
-    assert result.exit_code != 0
-    assert not snapshot_dir.exists()
+    assert not (tmp_path / "snapshot").exists()
 
 
 def test_smoke_outputs_are_recorded_as_smoke(tmp_path: Path) -> None:
-    snapshot_dir, _ = save_release(
-        tmp_path, "--scope", "smoke", smoke_test=True
+    write_catalog(
+        tmp_path / "source", Catalog(methods=[ALPHA], smoke_test=True)
     )
 
-    manifest = read_manifest(snapshot_dir)
+    result = save(tmp_path, scope="smoke")
+
+    assert result.exit_code == 0, result.output
+    manifest = read_manifest(tmp_path)
     assert manifest["scope"] == "smoke"
     assert manifest["execution_mode"] == "smoke"
+
+
+def test_one_smoke_artifact_makes_the_outputs_smoke(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    write_catalog(source_root, Catalog(methods=[ALPHA]))
+    write_bundle(
+        source_root,
+        method_bundle(ALPHA, "cube", 1, HARD_3),
+        provenance("training", smoke_test=True),
+    )
+
+    refused = save(tmp_path, scope="partial")
+    saved = save(tmp_path, scope="smoke")
+
+    assert refused.exit_code != 0
+    assert "smoke" in str(refused.exception)
+    assert saved.exit_code == 0, saved.output
+    assert read_manifest(tmp_path)["execution_mode"] == "smoke"
+
+
+def test_production_dataset_bundles_go_in_a_smoke_release(
+    tmp_path: Path,
+) -> None:
+    # Dataset generation has no smoke mode: a smoke run's dataset bundles
+    # record production.
+    source_root = tmp_path / "source"
+    write_catalog(source_root, Catalog(methods=[ALPHA], smoke_test=True))
+    for split in ["train", "val", "test"]:
+        path = dataset_bundle("cube", 0, split)
+        shutil.rmtree(source_root / path)
+        write_bundle(source_root, path, provenance("dataset_generation"))
+
+    result = save(tmp_path, scope="smoke")
+
+    assert result.exit_code == 0, result.output
+    assert read_manifest(tmp_path)["execution_mode"] == "smoke"
 
 
 def test_manifest_records_each_configfile_and_override(
     tmp_path: Path,
 ) -> None:
-    snapshot_dir, configfile = save_release(
+    save_catalog(
         tmp_path,
-        "--scope",
-        "partial",
+        None,
         "--config",
         "initializer=warm",
         "--config",
         "datasets=[cube]",
     )
 
-    workflow = read_manifest(snapshot_dir)["workflow_config"]
+    workflow = read_manifest(tmp_path)["workflow_config"]
     assert workflow["profile"] is None
     assert [record["path"] for record in workflow["configfiles"]] == [
-        str(configfile)
+        str(tmp_path / "run.yaml")
     ]
     assert len(workflow["configfiles"][0]["sha256"]) == 64
     assert workflow["overrides"] == {
@@ -269,9 +237,8 @@ def test_manifest_records_each_configfile_and_override(
 def test_profile_supplies_configfiles_and_cli_config_replaces_its_config(
     tmp_path: Path,
 ) -> None:
-    source_root = tmp_path / "source"
-    build_output_tree(source_root)
-    configfile = write_configfile(tmp_path / "run.yaml", smoke_test=False)
+    write_catalog(tmp_path / "source", Catalog(methods=[ALPHA]))
+    configfile = write_configfile(tmp_path / "run.yaml")
     profile = tmp_path / "profile"
     profile.mkdir()
     (profile / "config.yaml").write_text(
@@ -282,15 +249,14 @@ def test_profile_supplies_configfiles_and_cli_config_replaces_its_config(
             }
         )
     )
-    snapshot_dir = tmp_path / "snapshot"
 
     result = runner.invoke(
         app,
         [
             "save",
-            str(snapshot_dir),
+            str(tmp_path / "snapshot"),
             "--source-root",
-            str(source_root),
+            str(tmp_path / "source"),
             "--profile",
             str(profile),
             "--config",
@@ -304,185 +270,363 @@ def test_profile_supplies_configfiles_and_cli_config_replaces_its_config(
 
     assert result.exit_code == 0, result.output
     assert str(profile) in result.output
-    manifest = read_manifest(snapshot_dir)
-    workflow = manifest["workflow_config"]
+    workflow = read_manifest(tmp_path)["workflow_config"]
     assert workflow["profile"] == str(profile)
     assert [record["path"] for record in workflow["configfiles"]] == [
         str(configfile)
     ]
     assert workflow["overrides"] == {"initializer": "random"}
-    assert workflow["merged"]["use_wandb"] is False
-    assert manifest["settings"]["initializer"] == "random"
+    assert "use_wandb" not in workflow["merged"]
 
 
-def test_manifest_records_resolved_settings(tmp_path: Path) -> None:
-    snapshot_dir, _ = save_release(tmp_path, "--scope", "partial")
-
-    settings = read_manifest(snapshot_dir)["settings"]
-    assert settings["initializer"] == "cold"
-    assert settings["eval_split"] == "test"
-    assert settings["dataset_realization_indices"] == [0, 1]
-    assert settings["dataset_splits"] == ["train", "val", "test"]
-    assert settings["unmaskers"] == {"cube": "direct"}
-    assert settings["feature_costs"] == {
-        "cube": {"path": None, "sha256": None}
-    }
-    assert settings["eval_batch_sizes"] == {"alpha": {"cube": 4}}
-    assert settings["classifiers"] == [
-        {
-            "bundle_path": (
-                "trained_classifiers/initializer-cold/"
-                f"dataset-cube+realization_index-{index}.bundle"
-            ),
-            "script_name": "masked_mlp_classifier",
-            "script_params": "",
-            "dataset_key": "cube",
-            "method_name": None,
-            "dataset_realization_index": index,
-            "seed": index,
-        }
-        for index in [0, 1]
-    ]
-
-
-def test_manifest_records_feature_cost_file_of_the_checkout(
-    tmp_path: Path,
-) -> None:
-    checkout = tmp_path / "checkout"
-    costs = checkout / "extra/data/misc/feature_costs/cube.csv"
-    costs.parent.mkdir(parents=True)
-    costs.write_text("1,2,3\n")
-
-    snapshot_dir, _ = save_release(
-        tmp_path, "--scope", "partial", "--checkout", str(checkout)
+def test_the_workflow_config_describes_no_artifact(tmp_path: Path) -> None:
+    # A config scheduling other methods and datasets changes nothing the
+    # index says: it is read from the artifacts.
+    write_catalog(tmp_path / "source", Catalog(methods=[ALPHA]))
+    other = tmp_path / "other.yaml"
+    other.write_text(
+        yaml.safe_dump({"methods": ["zeta"], "datasets": ["physionet"]})
     )
 
-    assert read_manifest(snapshot_dir)["settings"]["feature_costs"] == {
-        "cube": {
-            "path": "extra/data/misc/feature_costs/cube.csv",
-            "sha256": (
-                "7a8988e95e356e2b5b8fecf5e31f7c2e"
-                "7e8fb44a5cd9d89ebb0d1e60b1f5c689"
-            ),
-        }
-    }
+    result = save(tmp_path, "--configfile", str(other))
+
+    assert result.exit_code == 0, result.output
+    manifest = read_manifest(tmp_path)
+    assert manifest["coverage"]["methods"] == ["alpha"]
+    assert manifest["coverage"]["datasets"] == ["cube"]
 
 
-def test_manifest_lists_every_configured_table_with_its_identity(
+def test_bundles_are_indexed_from_their_records(tmp_path: Path) -> None:
+    save_catalog(tmp_path, Catalog(methods=[ALPHA, BETA]))
+
+    indexed = bundles(tmp_path)
+    method = indexed[method_bundle(BETA, "cube", 0, HARD_3)]
+    bundle_manifest = json.loads(
+        (tmp_path / "source" / method_bundle(BETA, "cube", 0, HARD_3))
+        .joinpath("manifest.json")
+        .read_text()
+    )
+    assert method["category"] == "afa_method_bundle"
+    assert method["stage"] == "training"
+    assert method["class_name"] == "Fake"
+    assert method["content_hash"] == bundle_manifest["content_hash"]
+    assert method["code"] == {"commit": "c" * 40, "dirty": False}
+    assert (method["method_name"], method["dataset_key"]) == ("beta", "cube")
+    assert method["dataset_realization_index"] == 0
+    assert method["split"] is None
+    assert method["size_bytes"] > 0
+    # Inputs keep the path the job was given; they link by content hash.
+    assert [(entry["role"], entry["path"]) for entry in method["inputs"]] == [
+        ("train_dataset", "extra/output/datasets/cube/0/train.bundle"),
+        ("val_dataset", "extra/output/datasets/cube/0/val.bundle"),
+        ("classifier", f"extra/output/{classifier_bundle('cube', 0, 'beta')}"),
+        (
+            "pretrained_model",
+            "extra/output/pretrained_models/initializer-cold/shared/"
+            "dataset-cube+realization_index-0/pretrain_seed-0/model.bundle",
+        ),
+    ]
+    categories = {path: bundle["category"] for path, bundle in indexed.items()}
+    assert categories[dataset_bundle("cube", 0, "test")] == "dataset_bundle"
+    assert indexed[dataset_bundle("cube", 0, "test")]["split"] == "test"
+    beta_classifier = classifier_bundle("cube", 0, "beta")
+    assert categories[beta_classifier] == "classifier_bundle"
+    assert indexed[beta_classifier]["method_name"] == "beta"
+    assert (
+        sum(
+            category == "pretrained_model_bundle"
+            for category in categories.values()
+        )
+        == 1
+    )
+    # Alpha hard and soft budget, beta hard budget.
+    assert (
+        sum(
+            category == "afa_method_bundle" for category in categories.values()
+        )
+        == 3
+    )
+
+
+def test_evaluations_pair_their_tables_and_read_identity_columns(
     tmp_path: Path,
 ) -> None:
-    snapshot_dir, _ = save_release(tmp_path, "--scope", "partial")
+    save_catalog(tmp_path)
 
-    tables = read_manifest(snapshot_dir)["evaluation_tables"]
-    assert (
-        len(tables) == 4
-    )  # two dataset realizations, one hard and one soft budget
-    hard = next(t for t in tables if t["raw_path"] == RAW_HARD_BUDGET_TABLE)
-    assert hard == {
-        "raw_path": RAW_HARD_BUDGET_TABLE,
-        "transformed_path": RAW_HARD_BUDGET_TABLE.replace(
-            "eval_results/", "eval_results_transformed/", 1
-        ),
-        "raw_present": True,
-        "transformed_present": False,
-        "raw_size_bytes": (tmp_path / "source" / RAW_HARD_BUDGET_TABLE)
-        .stat()
-        .st_size,
-        "transformed_size_bytes": None,
+    evaluations = {
+        evaluation["raw_path"]: evaluation
+        for evaluation in read_manifest(tmp_path)["evaluations"]
+    }
+    assert set(evaluations) == {
+        f"eval_results/{ALPHA_HARD}",
+        f"eval_results/{ALPHA_SOFT}",
+    }
+    hard = evaluations[f"eval_results/{ALPHA_HARD}"]
+    assert hard["transformed_path"] == f"eval_results_transformed/{ALPHA_HARD}"
+    assert hard["raw_size_bytes"] > 0
+    assert hard["transformed_size_bytes"] > 0
+    assert {
+        key: hard[key]
+        for key in [
+            "method_name",
+            "dataset_key",
+            "dataset_realization_index",
+            "eval_split",
+            "initializer",
+            "budget_setting",
+            "train_seed",
+            "train_hard_budget",
+            "train_soft_budget_param",
+            "eval_seed",
+            "eval_hard_budget",
+            "eval_soft_budget_param",
+            "classifier_variants",
+        ]
+    } == {
         "method_name": "alpha",
         "dataset_key": "cube",
         "dataset_realization_index": 0,
-        "dataset_generation_seed": 0,
         "eval_split": "test",
         "initializer": "cold",
-        "unmasker": "direct",
         "budget_setting": "hard_budget",
-        "pretrained_model_name": None,
-        "pretrain_seed": None,
         "train_seed": 0,
-        "train_hard_budget": 3,
+        "train_hard_budget": 3.0,
         "train_soft_budget_param": None,
         "eval_seed": 0,
-        "eval_hard_budget": 3,
+        "eval_hard_budget": 3.0,
         "eval_soft_budget_param": None,
-        "forced_acquisition": True,
-        "classifier_bundle_path": (
-            "trained_classifiers/initializer-cold/"
-            "dataset-cube+realization_index-0.bundle"
-        ),
-        "eval_batch_size": 4,
         "classifier_variants": ["external"],
-        "inputs": [
-            {"role": "eval_dataset", "path": "datasets/cube/0/test.bundle"},
-            {
-                "role": "method",
-                "path": (
-                    "trained_methods/initializer-cold/alpha/"
-                    "dataset-cube+realization_index-0/NO_PRETRAIN/"
-                    "train_seed-0+train_hard_budget-3+"
-                    "train_soft_budget_param-null/method.bundle"
-                ),
-            },
-            {
-                "role": "classifier",
-                "path": (
-                    "trained_classifiers/initializer-cold/"
-                    "dataset-cube+realization_index-0.bundle"
-                ),
-            },
-        ],
     }
-    soft = next(
-        t
-        for t in tables
-        if t["dataset_realization_index"] == 1
-        and t["budget_setting"] == "soft_budget"
+    assert [entry["role"] for entry in hard["inputs"]] == [
+        "eval_dataset",
+        "method",
+        "classifier",
+    ]
+    soft = evaluations[f"eval_results/{ALPHA_SOFT}"]
+    assert soft["budget_setting"] == "soft_budget"
+    assert soft["eval_soft_budget_param"] == 0.5
+
+
+def test_an_evaluation_without_its_raw_table_reads_the_transformed_one(
+    tmp_path: Path,
+) -> None:
+    write_catalog(
+        tmp_path / "source",
+        Catalog(methods=[ALPHA]),
+        omit=[f"eval_results/{ALPHA_HARD}"],
     )
-    assert soft["raw_present"] is False
-    assert soft["train_soft_budget_param"] == 0.5
-    assert soft["eval_hard_budget"] is None
-    assert soft["forced_acquisition"] is False
-    assert soft["classifier_variants"] is None
-    classifier = (
-        "trained_classifiers/initializer-cold/"
-        "dataset-cube+realization_index-1.bundle"
+
+    result = save(tmp_path)
+
+    assert result.exit_code == 0, result.output
+    hard = next(
+        evaluation
+        for evaluation in read_manifest(tmp_path)["evaluations"]
+        if evaluation["transformed_path"]
+        == f"eval_results_transformed/{ALPHA_HARD}"
     )
-    assert soft["classifier_bundle_path"] == classifier
-    assert {"role": "classifier", "path": classifier} in soft["inputs"]
+    assert hard["raw_path"] is None
+    assert hard["raw_size_bytes"] is None
+    assert hard["method_name"] == "alpha"
+    assert hard["classifier_variants"] == ["external"]
 
 
-def test_coverage_describes_only_the_outputs_present(tmp_path: Path) -> None:
-    snapshot_dir, _ = save_release(tmp_path, "--scope", "partial")
+def test_save_reports_the_commits_of_a_release_built_across_commits(
+    tmp_path: Path,
+) -> None:
+    result = save_catalog(
+        tmp_path,
+        Catalog(
+            methods=[ALPHA],
+            code={
+                "dataset_generation": CLASSIFIER_COMMIT,
+                "classifier_training": CLASSIFIER_COMMIT,
+                "training": METHOD_COMMIT,
+                "evaluation": METHOD_COMMIT,
+            },
+        ),
+    )
 
-    coverage = read_manifest(snapshot_dir)["coverage"]
-    # Per-category payload counts are pinned in test_release_native_payloads.
-    del coverage["payloads"]
+    indexed = bundles(tmp_path)
+    assert indexed[EXTERNAL_CLASSIFIER]["code"]["commit"] == "a" * 40
+    assert indexed[ALPHA_METHOD]["code"]["commit"] == "b" * 40
+    assert {
+        evaluation["code"]["commit"]
+        for evaluation in read_manifest(tmp_path)["evaluations"]
+    } == {"b" * 40}
+    assert f"classifier_training: {'a' * 40}, 1 artifact(s)" in result.output
+    assert f"training: {'b' * 40}, 2 artifact(s)" in result.output
+    assert f"evaluation: {'b' * 40}, 2 artifact(s)" in result.output
+    assert "The release mixes 2 producing commits." in result.output
+
+
+def test_save_flags_dirty_and_unknown_producing_code(tmp_path: Path) -> None:
+    result = save_catalog(
+        tmp_path,
+        Catalog(
+            methods=[ALPHA],
+            code={
+                "training": CodeIdentity(commit="b" * 40, dirty=True),
+                "evaluation": CodeIdentity(commit=None, dirty=None),
+            },
+        ),
+    )
+
+    assert f"training: {'b' * 40} (dirty), 2 artifact(s)" in result.output
+    assert "evaluation: unknown commit, 2 artifact(s)" in result.output
+    assert "needs --allow-dirty-code" in result.output
+    assert "transformation, aggregation and visualization" in result.output
+
+
+def test_a_single_clean_commit_is_not_reported_as_mixed(
+    tmp_path: Path,
+) -> None:
+    result = save_catalog(tmp_path)
+
+    assert "mixes" not in result.output
+    assert "--allow-dirty-code" not in result.output
+
+
+def test_artifacts_without_a_record_are_refused(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    write_catalog(source_root, Catalog(methods=[ALPHA]))
+    legacy_bundle = dataset_bundle("cube", 1, "train")
+    write_bundle(source_root, legacy_bundle, None)
+    legacy_table = evaluation_table(ALPHA, "cube", 1, HARD_3)
+    write_evaluation(
+        source_root,
+        legacy_table,
+        Evaluation(
+            method="alpha",
+            dataset="cube",
+            realization=1,
+            train_hard_budget=3,
+            train_soft_budget_param=None,
+            eval_hard_budget=3,
+            eval_soft_budget_param=None,
+        ),
+        None,
+    )
+
+    result = save(tmp_path)
+
+    assert result.exit_code != 0
+    message = str(result.exception)
+    assert "no provenance record" in message
+    assert legacy_bundle in message
+    assert f"eval_results/{legacy_table}" in message
+    assert f"eval_results_transformed/{legacy_table}" in message
+    assert not (tmp_path / "snapshot").exists()
+
+
+def test_tables_outside_the_evaluation_folders_need_no_record(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "source"
+    write_catalog(source_root, Catalog(methods=[ALPHA]))
+    merged = source_root / "merged_results/eval_perf/method_set-all.parquet"
+    merged.parent.mkdir(parents=True)
+    pd.DataFrame({"afa_method": ["alpha"]}).to_parquet(merged)
+
+    result = save(tmp_path)
+
+    assert result.exit_code == 0, result.output
+    manifest = read_manifest(tmp_path)
+    assert len(manifest["evaluations"]) == 2
+    assert "merged_results" in manifest["coverage"]["output_categories"]
+
+
+def test_a_tree_without_artifacts_is_not_a_release(tmp_path: Path) -> None:
+    plot = tmp_path / "source/plot_results/eval_perf.pdf"
+    plot.parent.mkdir(parents=True)
+    plot.write_bytes(b"%PDF-1.4 plot")
+
+    result = save(tmp_path)
+
+    assert result.exit_code != 0
+    assert "holds no artifact" in str(result.exception)
+
+
+def test_inputs_link_by_content_hash_and_report_regenerated_bundles(
+    tmp_path: Path,
+) -> None:
+    # The classifier is retrained after the method was trained and
+    # evaluated with the old one: its path still resolves, its hash not.
+    source_root = tmp_path / "source"
+    write_catalog(source_root, Catalog(methods=[ALPHA]))
+    shutil.rmtree(source_root / EXTERNAL_CLASSIFIER)
+    write_bundle(
+        source_root,
+        EXTERNAL_CLASSIFIER,
+        provenance("classifier_training", dataset_key="cube"),
+        content="retrained",
+    )
+
+    result = save(tmp_path)
+
+    assert result.exit_code == 0, result.output
+    assert "Inputs no bundle of the release matches" in result.output
+    assert (
+        f"classifier extra/output/{EXTERNAL_CLASSIFIER} of {ALPHA_METHOD}"
+        in result.output
+    )
+    assert (
+        f"classifier extra/output/{EXTERNAL_CLASSIFIER} of "
+        f"eval_results/{ALPHA_HARD}" in result.output
+    )
+
+
+def test_coverage_describes_the_evaluations_present(tmp_path: Path) -> None:
+    save_catalog(tmp_path)
+
+    coverage = read_manifest(tmp_path)["coverage"]
+    payloads = {
+        payload["category"]: payload["count"]
+        for payload in coverage.pop("payloads")
+    }
     assert coverage == {
         "datasets": ["cube"],
         "dataset_realization_indices": [0],
         "methods": ["alpha"],
         "eval_splits": ["test"],
-        "budget_settings": ["hard_budget"],
+        "budget_settings": ["hard_budget", "soft_budget"],
         "classifier_variants": ["external"],
-        "output_categories": ["datasets", "eval_results"],
+        "output_categories": [
+            "datasets",
+            "eval_results",
+            "eval_results_transformed",
+            "trained_classifiers",
+            "trained_methods",
+        ],
     }
+    assert payloads == {
+        "raw_evaluation_table": 2,
+        "transformed_evaluation_table": 2,
+        "dataset_bundle": 3,
+        "classifier_bundle": 1,
+        "pretrained_model_bundle": 0,
+        "afa_method_bundle": 2,
+    }
+
+
+def restore(tmp_path: Path) -> Result:
+    return runner.invoke(
+        app,
+        [
+            "restore",
+            str(tmp_path / "snapshot"),
+            "--destination-root",
+            str(tmp_path / "checkout/extra/output"),
+        ],
+    )
 
 
 def test_restore_keeps_manifest_beside_the_restored_root(
     tmp_path: Path,
 ) -> None:
-    snapshot_dir, _ = save_release(tmp_path, "--scope", "partial")
-    destination_root = tmp_path / "checkout/extra/output"
+    save_catalog(tmp_path)
 
-    result = runner.invoke(
-        app,
-        [
-            "restore",
-            str(snapshot_dir),
-            "--destination-root",
-            str(destination_root),
-        ],
-    )
+    result = restore(tmp_path)
 
     assert result.exit_code == 0, result.output
     restored = tmp_path / "checkout/extra/release_manifest.json"
@@ -490,150 +634,58 @@ def test_restore_keeps_manifest_beside_the_restored_root(
     assert "2026-10-cube" in result.output
     assert (
         restored.read_bytes()
-        == (snapshot_dir / "release_manifest.json").read_bytes()
+        == (tmp_path / "snapshot/release_manifest.json").read_bytes()
     )
-    assert (destination_root / RAW_HARD_BUDGET_TABLE).is_file()
+    assert (
+        tmp_path / "checkout/extra/output/eval_results" / ALPHA_HARD
+    ).is_file()
     manifest = read_release_manifest(restored)
     assert manifest.scope is ReleaseScope.PARTIAL
-    assert manifest.evaluation_tables[0].method_name == "alpha"
+    assert manifest.evaluations[0].method_name == "alpha"
 
 
 def test_restore_refuses_an_existing_manifest_and_restores_nothing(
     tmp_path: Path,
 ) -> None:
-    snapshot_dir, _ = save_release(tmp_path, "--scope", "partial")
-    destination_root = tmp_path / "checkout/extra/output"
+    save_catalog(tmp_path)
     existing = tmp_path / "checkout/extra/release_manifest.json"
     existing.parent.mkdir(parents=True)
     existing.write_text("pre-existing")
 
-    result = runner.invoke(
-        app,
-        [
-            "restore",
-            str(snapshot_dir),
-            "--destination-root",
-            str(destination_root),
-        ],
-    )
+    result = restore(tmp_path)
 
     assert result.exit_code != 0
     assert existing.read_text() == "pre-existing"
-    assert not destination_root.exists()
+    assert not (tmp_path / "checkout/extra/output").exists()
 
 
-def test_restore_refuses_an_unknown_manifest_version(tmp_path: Path) -> None:
-    snapshot_dir, _ = save_release(tmp_path, "--scope", "partial")
-    manifest_path = snapshot_dir / "release_manifest.json"
+@pytest.mark.parametrize("version", [1, 99])
+def test_restore_refuses_another_manifest_version(
+    tmp_path: Path, version: int
+) -> None:
+    save_catalog(tmp_path)
+    manifest_path = tmp_path / "snapshot/release_manifest.json"
     manifest = json.loads(manifest_path.read_text())
-    manifest["manifest_version"] = 99
+    manifest["manifest_version"] = version
     manifest_path.write_text(json.dumps(manifest))
-    destination_root = tmp_path / "checkout/extra/output"
 
-    result = runner.invoke(
-        app,
-        [
-            "restore",
-            str(snapshot_dir),
-            "--destination-root",
-            str(destination_root),
-        ],
-    )
+    result = restore(tmp_path)
 
     assert result.exit_code != 0
-    assert "99" in str(result.exception)
-    assert not destination_root.exists()
+    assert f"version {version}" in str(result.exception)
+    assert not (tmp_path / "checkout/extra/output").exists()
 
 
 def test_save_refuses_an_existing_manifest_and_copies_nothing(
     tmp_path: Path,
 ) -> None:
-    source_root = tmp_path / "source"
-    build_output_tree(source_root)
-    configfile = write_configfile(tmp_path / "run.yaml", smoke_test=False)
-    snapshot_dir = tmp_path / "snapshot"
-    existing = snapshot_dir / "release_manifest.json"
+    write_catalog(tmp_path / "source", Catalog(methods=[ALPHA]))
+    existing = tmp_path / "snapshot/release_manifest.json"
     existing.parent.mkdir()
     existing.write_text("pre-existing")
 
-    result = runner.invoke(
-        app,
-        save_args(
-            snapshot_dir,
-            source_root,
-            configfile,
-            "--release-id",
-            "2026-10-cube",
-            "--scope",
-            "partial",
-        ),
-    )
+    result = save(tmp_path)
 
     assert result.exit_code != 0
     assert existing.read_text() == "pre-existing"
-    assert not (snapshot_dir / "output").exists()
-
-
-def git(checkout: Path, *args: str) -> str:
-    return subprocess.run(
-        ["git", "-C", str(checkout), *args],  # noqa: S607
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
-
-
-def test_manifest_records_commit_and_dirty_state_of_the_checkout(
-    tmp_path: Path,
-) -> None:
-    checkout = tmp_path / "checkout"
-    checkout.mkdir()
-    git(checkout, "init", "--quiet")
-    (checkout / "code.py").write_text("x = 1\n")
-    git(checkout, "add", "code.py")
-    git(
-        checkout,
-        "-c",
-        "user.name=Test",
-        "-c",
-        "user.email=test@example.com",
-        "commit",
-        "--quiet",
-        "-m",
-        "initial",
-    )
-    commit = git(checkout, "rev-parse", "HEAD")
-    (checkout / "untracked.txt").write_text("ignored")
-
-    clean_dir, _ = save_release(
-        tmp_path / "clean", "--scope", "partial", "--checkout", str(checkout)
-    )
-    (checkout / "code.py").write_text("x = 2\n")
-    dirty_dir, _ = save_release(
-        tmp_path / "dirty", "--scope", "partial", "--checkout", str(checkout)
-    )
-
-    assert read_manifest(clean_dir)["code"] == {
-        "commit": commit,
-        "dirty": False,
-    }
-    assert read_manifest(dirty_dir)["code"] == {
-        "commit": commit,
-        "dirty": True,
-    }
-
-
-def test_manifest_records_null_code_identity_outside_git(
-    tmp_path: Path,
-) -> None:
-    checkout = tmp_path / "not-a-repo"
-    checkout.mkdir()
-
-    snapshot_dir, _ = save_release(
-        tmp_path, "--scope", "partial", "--checkout", str(checkout)
-    )
-
-    assert read_manifest(snapshot_dir)["code"] == {
-        "commit": None,
-        "dirty": None,
-    }
+    assert not (tmp_path / "snapshot/output").exists()

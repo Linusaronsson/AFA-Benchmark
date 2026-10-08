@@ -1,21 +1,25 @@
 """
-The release manifest: identity, provenance and coverage of a snapshot.
+The release manifest: identity, redistribution review and artifact index.
 
 A release manifest is a JSON file written beside an output snapshot's
-`output/` tree. It is filled from the workflow configuration and the git
-state of the checkout. Per-table and per-bundle identity is enumerated
-forward from the resolved workflow configuration, the same way the
-workflow's `all_*` rules name their targets, rather than parsed back out of
-paths. Once evaluation tables and bundles carry their own identity columns
-and provenance record (`docs/adr/0002-provenance-recorded-in-artifacts.md`),
-that enumeration should read them instead. The field list is documented in
+`output/` tree. It holds the facts that belong to the release (its id,
+declared scope and the maintainers' dataset redistribution review) and an
+index of the snapshot's artifacts, generated from their provenance records
+and never from the workflow configuration. That configuration is recorded
+as the maintainer declares it, for users who lay out a comparison against
+the release
+(`docs/adr/0006-release-manifest-indexes-artifact-provenance.md`). The index
+is a cache of the records: rebuilding it from the same output tree gives the
+same result. The field list is documented in
 `docs/reference/release_manifest.md`.
+
+Bundles are found anywhere under the output root, evaluation tables under
+the folders that hold the raw and transformed tables. An index entry links
+its inputs to bundles by content hash, never by path.
 """
 
-import hashlib
 import json
-import subprocess
-from collections.abc import Mapping
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -26,17 +30,14 @@ import dacite
 import pyarrow.parquet as pq
 import yaml
 
-from afabench.core.types import FEATURE_COSTS_DIR
-from afabench.release.workflow_config import (
-    WorkflowConfigRecord,
-    load_workflow_settings,
-)
+from afabench.core.bundle_system.bundle import read_manifest
+from afabench.core.provenance import ProvenanceRecord, provenance_from_manifest
+from afabench.evaluation.provenance import evaluation_table_provenance
+from afabench.evaluation.schemas import IDENTITY_DTYPES
+from afabench.release.workflow_config import WorkflowConfigRecord
 
-MANIFEST_VERSION = 1
+MANIFEST_VERSION = 2
 RELEASE_MANIFEST_FILENAME = "release_manifest.json"
-# The dataset generation rule always writes these three split bundles.
-DATASET_SPLITS = ("train", "val", "test")
-FORCING_POLICY = "forced_acquisition_when_eval_hard_budget_is_set"
 # Maintainers' redistribution reviews, relative to the checkout. A dataset
 # key it does not list is unreviewed.
 DATASET_REDISTRIBUTION_FILE = Path(
@@ -82,6 +83,16 @@ class PayloadCategory(StrEnum):
     AFA_METHOD_BUNDLE = "afa_method_bundle"
 
 
+class Stage(StrEnum):
+    """The pipeline stages that write a provenance record, in order."""
+
+    DATASET_GENERATION = "dataset_generation"
+    CLASSIFIER_TRAINING = "classifier_training"
+    PRETRAINING = "pretraining"
+    TRAINING = "training"
+    EVALUATION = "evaluation"
+
+
 class InputRole(StrEnum):
     """The role names of ADR 0002's provenance `inputs`."""
 
@@ -93,18 +104,42 @@ class InputRole(StrEnum):
     METHOD = "method"
 
 
+BUNDLE_CATEGORIES = {
+    Stage.DATASET_GENERATION: PayloadCategory.DATASET_BUNDLE,
+    Stage.CLASSIFIER_TRAINING: PayloadCategory.CLASSIFIER_BUNDLE,
+    Stage.PRETRAINING: PayloadCategory.PRETRAINED_MODEL_BUNDLE,
+    Stage.TRAINING: PayloadCategory.AFA_METHOD_BUNDLE,
+}
+# The payload category of the bundle an input of each role is
+INPUT_CATEGORIES = {
+    InputRole.TRAIN_DATASET: PayloadCategory.DATASET_BUNDLE,
+    InputRole.VAL_DATASET: PayloadCategory.DATASET_BUNDLE,
+    InputRole.EVAL_DATASET: PayloadCategory.DATASET_BUNDLE,
+    InputRole.CLASSIFIER: PayloadCategory.CLASSIFIER_BUNDLE,
+    InputRole.PRETRAINED_MODEL: PayloadCategory.PRETRAINED_MODEL_BUNDLE,
+    InputRole.METHOD: PayloadCategory.AFA_METHOD_BUNDLE,
+}
+# Top-level folders of the output root holding each evaluation table kind
+EVALUATION_TABLE_FOLDERS = {
+    PayloadCategory.RAW_EVALUATION_TABLE: "eval_results",
+    PayloadCategory.TRANSFORMED_EVALUATION_TABLE: "eval_results_transformed",
+}
+PREDICTION_COLUMNS = {
+    ClassifierVariant.BUILTIN: "builtin_predicted_class",
+    ClassifierVariant.EXTERNAL: "external_predicted_class",
+}
+
+
 @dataclass(frozen=True, kw_only=True)
 class CodeIdentity:
+    """The code that produced an artifact; null is unknown."""
+
     commit: str | None
     dirty: bool | None
 
-
-@dataclass(frozen=True, kw_only=True)
-class FeatureCostRecord:
-    """Both fields null means the dataset has unit feature costs."""
-
-    path: str | None
-    sha256: str | None
+    @property
+    def clean(self) -> bool:
+        return self.commit is not None and self.dirty is False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -128,105 +163,91 @@ UNREVIEWED_REDISTRIBUTION = DatasetRedistribution(
 
 
 @dataclass(frozen=True, kw_only=True)
-class ClassifierRecord:
-    bundle_path: str
-    script_name: str
-    script_params: str
-    dataset_key: str
-    method_name: str | None
-    dataset_realization_index: int
-    seed: int
+class IndexedInput:
+    """
+    One input of an artifact, as its record names it.
 
+    `path` is recorded as given to the producing job, so it locates
+    nothing in a release; the input is the bundle with `content_hash`.
+    """
 
-@dataclass(frozen=True, kw_only=True)
-class ResolvedSettings:
-    initializer: str
-    eval_split: str
-    dataset_realization_indices: list[int]
-    dataset_splits: list[str]
-    unmaskers: dict[str, str]
-    feature_costs: dict[str, FeatureCostRecord]
-    dataset_redistribution: dict[str, DatasetRedistribution]
-    classifiers: list[ClassifierRecord]
-    eval_batch_sizes: dict[str, dict[str, int]]
-    forcing_policy: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class BundleInput:
     role: InputRole
     path: str
+    content_hash: str | None
 
 
 @dataclass(frozen=True, kw_only=True)
-class EvaluationTableRecord:
-    raw_path: str
-    transformed_path: str
-    raw_present: bool
-    transformed_present: bool
-    raw_size_bytes: int | None
-    transformed_size_bytes: int | None
-    method_name: str
-    dataset_key: str
-    dataset_realization_index: int
-    dataset_generation_seed: int
-    eval_split: str
-    initializer: str
-    unmasker: str
-    budget_setting: BudgetSetting
-    pretrained_model_name: str | None
-    pretrain_seed: int | None
-    train_seed: int
-    train_hard_budget: int | float | None
-    train_soft_budget_param: int | float | None
-    eval_seed: int
-    eval_hard_budget: int | float | None
-    eval_soft_budget_param: int | float | None
-    forced_acquisition: bool
-    classifier_bundle_path: str
-    eval_batch_size: int
-    classifier_variants: list[ClassifierVariant] | None
-    inputs: list[BundleInput]
-
-
-@dataclass(frozen=True, kw_only=True)
-class BundleRecord:
-    """
-    One bundle the workflow config schedules, present or not.
-
-    `method_name` is null for shared prerequisites: dataset splits, the
-    external classifier and pretrained models. `bundle_manifest` is the
-    bundle's own `manifest.json`, null if the bundle is absent or has none.
-    """
+class BundleEntry:
+    """One bundle in the output tree, described by its record."""
 
     path: str
     category: PayloadCategory
-    present: bool
-    size_bytes: int | None
-    dataset_key: str
-    dataset_realization_index: int
-    split: str | None
-    method_name: str | None
-    pretrained_model_name: str | None
+    class_name: str
+    content_hash: str | None
+    size_bytes: int
+    stage: Stage
+    code: CodeIdentity
+    smoke_test: bool
     seed: int
-    train_hard_budget: int | float | None
-    train_soft_budget_param: int | float | None
-    inputs: list[BundleInput]
-    bundle_manifest: dict[str, Any] | None
+    method_name: str | None
+    dataset_key: str | None
+    dataset_realization_index: int | None
+    split: str | None
+    inputs: list[IndexedInput]
+
+
+@dataclass(frozen=True, kw_only=True)
+class EvaluationEntry:
+    """
+    One evaluation: its raw and transformed tables, either possibly absent.
+
+    Identity comes from the tables' identity columns; a null value is
+    unknown, as in the columns. `classifier_variants` are the variants with
+    a non-null prediction.
+    """
+
+    raw_path: str | None
+    transformed_path: str | None
+    raw_size_bytes: int | None
+    transformed_size_bytes: int | None
+    code: CodeIdentity
+    smoke_test: bool
+    method_name: str | None
+    dataset_key: str | None
+    dataset_realization_index: int | None
+    eval_split: str | None
+    initializer: str | None
+    budget_setting: BudgetSetting
+    train_seed: int | None
+    train_hard_budget: float | None
+    train_soft_budget_param: float | None
+    eval_seed: int | None
+    eval_hard_budget: float | None
+    eval_soft_budget_param: float | None
+    classifier_variants: list[ClassifierVariant]
+    inputs: list[IndexedInput]
+
+    @property
+    def path(self) -> str:
+        """The path naming this evaluation: its raw table, if present."""
+        path = self.raw_path or self.transformed_path
+        if path is None:
+            msg = "An evaluation entry has neither a raw nor a transformed table."
+            raise ValueError(msg)
+        return path
 
 
 @dataclass(frozen=True, kw_only=True)
 class PayloadCoverage:
     """
-    How many payloads of one category the config schedules and has.
+    How many payloads of one category the release holds.
 
     `class_names` are the bundle classes present, so the loaders a restored
     category needs; empty for evaluation tables.
     """
 
     category: PayloadCategory
-    scheduled: int
-    present: int
+    count: int
     size_bytes: int
     class_names: list[str]
 
@@ -250,12 +271,11 @@ class ReleaseManifest:
     scope: ReleaseScope
     execution_mode: ExecutionMode
     created_at: str
-    code: CodeIdentity
     workflow_config: WorkflowConfigRecord
-    settings: ResolvedSettings
+    dataset_redistribution: dict[str, DatasetRedistribution]
     coverage: Coverage
-    evaluation_tables: list[EvaluationTableRecord]
-    bundles: list[BundleRecord]
+    evaluations: list[EvaluationEntry]
+    bundles: list[BundleEntry]
 
     def __post_init__(self) -> None:
         if not self.release_id:
@@ -273,6 +293,42 @@ class ReleaseManifest:
             raise ValueError(msg)
 
 
+@dataclass(frozen=True, kw_only=True)
+class ArtifactIndex:
+    """
+    The artifacts of an output tree, and those it cannot describe.
+
+    `unrecorded` are the bundles and evaluation tables without a provenance
+    record, as paths relative to the output root.
+    """
+
+    evaluations: list[EvaluationEntry]
+    bundles: list[BundleEntry]
+    unrecorded: list[str]
+
+
+@dataclass(frozen=True, kw_only=True)
+class DanglingInput:
+    """An input whose bundle, by content hash, is not in the release."""
+
+    artifact_path: str
+    role: InputRole
+    path: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class StageCode:
+    """How many artifacts of one stage one code identity produced."""
+
+    stage: Stage
+    code: CodeIdentity
+    artifacts: int
+
+
+class UnrecordedArtifactsError(ValueError):
+    """Raised when a release would ship artifacts without a record."""
+
+
 def build_release_manifest(
     *,
     release_id: str,
@@ -281,50 +337,117 @@ def build_release_manifest(
     output_root: Path,
     checkout: Path,
 ) -> ReleaseManifest:
-    """Describe `output_root` as produced by `workflow_config`."""
-    resolved = load_workflow_settings(workflow_config.merged)
-    execution_mode = _execution_mode(resolved)
-    tables = _evaluation_tables(resolved, output_root)
-    bundles = _bundles(resolved, output_root)
+    """
+    Describe `output_root` by its artifacts' provenance records.
+
+    `workflow_config` is the maintainer's declaration of the configuration
+    whose targets lay out the release; it is recorded, never read.
+    `checkout` supplies the maintainers' dataset redistribution review.
+    """
+    index = index_artifacts(output_root)
+    if index.unrecorded:
+        msg = (
+            f"Release {release_id!r} cannot describe these artifacts, which "
+            "have no provenance record; regenerate or remove them:\n  "
+            + "\n  ".join(index.unrecorded)
+        )
+        raise UnrecordedArtifactsError(msg)
+    if not index.evaluations and not index.bundles:
+        msg = f"Release {release_id!r} holds no artifact under {output_root}."
+        raise ValueError(msg)
+    datasets = sorted(
+        {
+            entry.dataset_key
+            for entry in [*index.evaluations, *index.bundles]
+            if entry.dataset_key is not None
+        }
+    )
     return ReleaseManifest(
         manifest_version=MANIFEST_VERSION,
         release_id=release_id,
         scope=scope,
-        execution_mode=execution_mode,
+        execution_mode=_execution_mode(index),
         created_at=datetime.now(UTC).isoformat(),
-        code=capture_code_identity(checkout),
         workflow_config=workflow_config,
-        settings=_settings(resolved, checkout),
-        coverage=_coverage(tables, bundles, output_root),
-        evaluation_tables=tables,
+        dataset_redistribution=_dataset_redistribution(checkout, datasets),
+        coverage=_coverage(index, output_root),
+        evaluations=index.evaluations,
+        bundles=index.bundles,
+    )
+
+
+def index_artifacts(output_root: Path) -> ArtifactIndex:
+    """Index every bundle and evaluation table under `output_root`."""
+    if not output_root.is_dir():
+        msg = f"Output root does not exist: {output_root}"
+        raise FileNotFoundError(msg)
+    unrecorded: list[str] = []
+    bundles: list[BundleEntry] = []
+    for path in sorted(output_root.rglob("*.bundle")):
+        if not path.is_dir():
+            continue
+        relative = path.relative_to(output_root).as_posix()
+        entry = _bundle_entry(path, relative)
+        if entry is None:
+            unrecorded.append(relative)
+        else:
+            bundles.append(entry)
+    tables: dict[PayloadCategory, list[tuple[str, ProvenanceRecord]]] = {}
+    for category, folder in EVALUATION_TABLE_FOLDERS.items():
+        tables[category] = []
+        for path in sorted((output_root / folder).rglob("*.parquet")):
+            relative = path.relative_to(output_root).as_posix()
+            record = evaluation_table_provenance(path)
+            if record is None:
+                unrecorded.append(relative)
+            else:
+                tables[category].append((relative, record))
+    return ArtifactIndex(
+        evaluations=_evaluation_entries(output_root, tables),
         bundles=bundles,
+        unrecorded=unrecorded,
     )
 
 
-@dataclass(frozen=True, kw_only=True)
-class PayloadInventory:
-    execution_mode: ExecutionMode
-    payloads: list[PayloadCoverage]
-
-
-def inventory_payloads(
-    *, workflow_config: WorkflowConfigRecord, output_root: Path
-) -> PayloadInventory:
-    """Count and size the payloads of `output_root`, as a manifest would."""
-    resolved = load_workflow_settings(workflow_config.merged)
-    return PayloadInventory(
-        execution_mode=_execution_mode(resolved),
-        payloads=_payload_coverage(
-            _evaluation_tables(resolved, output_root),
-            _bundles(resolved, output_root),
-        ),
+def dangling_inputs(manifest: ReleaseManifest) -> list[DanglingInput]:
+    """Return the inputs no bundle of the release matches by hash."""
+    hashes = {bundle.content_hash for bundle in manifest.bundles}
+    artifacts: list[tuple[str, list[IndexedInput]]] = [
+        (bundle.path, bundle.inputs) for bundle in manifest.bundles
+    ]
+    artifacts.extend(
+        (evaluation.path, evaluation.inputs)
+        for evaluation in manifest.evaluations
     )
+    return [
+        DanglingInput(artifact_path=path, role=entry.role, path=entry.path)
+        for path, inputs in artifacts
+        for entry in inputs
+        if entry.content_hash is None or entry.content_hash not in hashes
+    ]
 
 
-def _execution_mode(resolved: Mapping[str, Any]) -> ExecutionMode:
-    if resolved["SMOKE_TEST"]:
-        return ExecutionMode.SMOKE
-    return ExecutionMode.PRODUCTION
+def code_by_stage(manifest: ReleaseManifest) -> list[StageCode]:
+    """Count the release's artifacts per stage and producing code."""
+    counts: Counter[tuple[Stage, CodeIdentity]] = Counter(
+        (bundle.stage, bundle.code) for bundle in manifest.bundles
+    )
+    counts.update(
+        (Stage.EVALUATION, evaluation.code)
+        for evaluation in manifest.evaluations
+    )
+    stages = list(Stage)
+    return [
+        StageCode(stage=stage, code=code, artifacts=artifacts)
+        for (stage, code), artifacts in sorted(
+            counts.items(),
+            key=lambda item: (
+                stages.index(item[0][0]),
+                item[0][1].commit or "",
+                str(item[0][1].dirty),
+            ),
+        )
+    ]
 
 
 def write_release_manifest(manifest: ReleaseManifest, path: Path) -> None:
@@ -350,6 +473,7 @@ def read_release_manifest(path: Path) -> ReleaseManifest:
                 BudgetSetting,
                 ClassifierVariant,
                 PayloadCategory,
+                Stage,
                 InputRole,
                 RedistributionStatus,
             ],
@@ -358,63 +482,222 @@ def read_release_manifest(path: Path) -> ReleaseManifest:
     )
 
 
-def capture_code_identity(checkout: Path) -> CodeIdentity:
-    commit = _git(checkout, "rev-parse", "HEAD")
-    if commit is None:
-        return CodeIdentity(commit=None, dirty=None)
-    # Untracked files (outputs, data) do not make the code dirty.
-    status = _git(checkout, "status", "--porcelain", "--untracked-files=no")
-    return CodeIdentity(commit=commit, dirty=bool(status))
-
-
-def _git(checkout: Path, *args: str) -> str | None:
-    try:
-        completed = subprocess.run(
-            ["git", "-C", str(checkout), *args],  # noqa: S607
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
-    return completed.stdout.strip()
-
-
-def _settings(resolved: Mapping[str, Any], checkout: Path) -> ResolvedSettings:
-    datasets: list[str] = list(resolved["DATASETS"])
-    return ResolvedSettings(
-        initializer=resolved["INITIALIZER"],
-        eval_split=resolved["EVAL_DATASET_SPLIT"],
-        dataset_realization_indices=list(
-            resolved["DATASET_REALIZATION_INDICES"]
+def payload_coverage(index: ArtifactIndex) -> list[PayloadCoverage]:
+    """Count and size each payload category of an index."""
+    payloads = [
+        PayloadCoverage(
+            category=PayloadCategory.RAW_EVALUATION_TABLE,
+            count=sum(e.raw_path is not None for e in index.evaluations),
+            size_bytes=sum(e.raw_size_bytes or 0 for e in index.evaluations),
+            class_names=[],
         ),
-        dataset_splits=list(DATASET_SPLITS),
-        unmaskers={
-            dataset: resolved["UNMASKERS"][dataset] for dataset in datasets
-        },
-        feature_costs={
-            dataset: _feature_cost_record(checkout, dataset)
-            for dataset in datasets
-        },
-        dataset_redistribution=_dataset_redistribution(checkout, datasets),
-        classifiers=_classifiers(resolved),
-        eval_batch_sizes={
-            method: {dataset: batch_sizes[dataset] for dataset in datasets}
-            for method, batch_sizes in resolved["EVAL_BATCH_SIZES"].items()
-        },
-        forcing_policy=FORCING_POLICY,
+        PayloadCoverage(
+            category=PayloadCategory.TRANSFORMED_EVALUATION_TABLE,
+            count=sum(
+                e.transformed_path is not None for e in index.evaluations
+            ),
+            size_bytes=sum(
+                e.transformed_size_bytes or 0 for e in index.evaluations
+            ),
+            class_names=[],
+        ),
+    ]
+    for category in BUNDLE_CATEGORIES.values():
+        bundles = [b for b in index.bundles if b.category is category]
+        payloads.append(
+            PayloadCoverage(
+                category=category,
+                count=len(bundles),
+                size_bytes=sum(bundle.size_bytes for bundle in bundles),
+                class_names=sorted({bundle.class_name for bundle in bundles}),
+            )
+        )
+    return payloads
+
+
+def execution_mode(index: ArtifactIndex) -> ExecutionMode | None:
+    """Return the execution mode the records agree on; null if none."""
+    return (
+        _execution_mode(index) if index.bundles or index.evaluations else None
     )
 
 
-def _feature_cost_record(checkout: Path, dataset: str) -> FeatureCostRecord:
-    relative = FEATURE_COSTS_DIR / f"{dataset}.csv"
-    path = checkout / relative
-    if not path.is_file():
-        return FeatureCostRecord(path=None, sha256=None)
-    return FeatureCostRecord(
-        path=relative.as_posix(),
-        sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+def _execution_mode(index: ArtifactIndex) -> ExecutionMode:
+    # Dataset generation has no smoke mode and always records production,
+    # so one smoke artifact makes the tree a smoke tree.
+    if any(entry.smoke_test for entry in [*index.bundles, *index.evaluations]):
+        return ExecutionMode.SMOKE
+    return ExecutionMode.PRODUCTION
+
+
+def _bundle_entry(path: Path, relative: str) -> BundleEntry | None:
+    if not (path / "manifest.json").is_file():
+        return None
+    bundle_manifest = read_manifest(path)
+    record = provenance_from_manifest(bundle_manifest)
+    if record is None:
+        return None
+    stage = Stage(record.stage)
+    if stage not in BUNDLE_CATEGORIES:
+        msg = (
+            f"Bundle {relative} records stage {stage}, which writes no bundle."
+        )
+        raise ValueError(msg)
+    return BundleEntry(
+        path=relative,
+        category=BUNDLE_CATEGORIES[stage],
+        class_name=bundle_manifest["class_name"],
+        content_hash=bundle_manifest.get("content_hash"),
+        size_bytes=sum(
+            file.stat().st_size for file in path.rglob("*") if file.is_file()
+        ),
+        stage=stage,
+        code=_code(record),
+        smoke_test=record.smoke_test,
+        seed=record.seed,
+        method_name=record.method_name,
+        dataset_key=record.dataset_key,
+        dataset_realization_index=record.dataset_realization_index,
+        split=record.split,
+        inputs=_inputs(record),
     )
+
+
+def _evaluation_entries(
+    output_root: Path,
+    tables: dict[PayloadCategory, list[tuple[str, ProvenanceRecord]]],
+) -> list[EvaluationEntry]:
+    # The transform copies the raw table's record, so equal records are one
+    # evaluation.
+    paired: dict[str, dict[PayloadCategory, str]] = {}
+    records: dict[str, ProvenanceRecord] = {}
+    for category, entries in tables.items():
+        for relative, record in entries:
+            key = json.dumps(record.to_json_dict(), sort_keys=True)
+            if category in paired.setdefault(key, {}):
+                msg = (
+                    f"{paired[key][category]} and {relative} hold the same "
+                    "provenance record; one evaluation has one table of "
+                    "each kind."
+                )
+                raise ValueError(msg)
+            paired[key][category] = relative
+            records[key] = record
+    return [
+        _evaluation_entry(
+            output_root,
+            records[key],
+            raw_path=paths.get(PayloadCategory.RAW_EVALUATION_TABLE),
+            transformed_path=paths.get(
+                PayloadCategory.TRANSFORMED_EVALUATION_TABLE
+            ),
+        )
+        for key, paths in sorted(
+            paired.items(),
+            key=lambda item: _evaluation_sort_key(item[1]),
+        )
+    ]
+
+
+def _evaluation_sort_key(paths: dict[PayloadCategory, str]) -> str:
+    return paths.get(PayloadCategory.RAW_EVALUATION_TABLE) or paths.get(
+        PayloadCategory.TRANSFORMED_EVALUATION_TABLE, ""
+    )
+
+
+def _evaluation_entry(
+    output_root: Path,
+    record: ProvenanceRecord,
+    *,
+    raw_path: str | None,
+    transformed_path: str | None,
+) -> EvaluationEntry:
+    # Identity is constant per table, so either table's first row holds it.
+    table_path = output_root / (raw_path or transformed_path or "")
+    identity = _identity(table_path)
+    variants = (
+        _raw_classifier_variants(output_root / raw_path)
+        if raw_path is not None
+        else _transformed_classifier_variants(table_path)
+    )
+    eval_hard_budget = identity.get("eval_hard_budget")
+    return EvaluationEntry(
+        raw_path=raw_path,
+        transformed_path=transformed_path,
+        raw_size_bytes=_file_size(output_root, raw_path),
+        transformed_size_bytes=_file_size(output_root, transformed_path),
+        code=_code(record),
+        smoke_test=record.smoke_test,
+        method_name=identity.get("afa_method"),
+        dataset_key=identity.get("dataset"),
+        dataset_realization_index=identity.get("dataset_realization_index"),
+        eval_split=identity.get("eval_split"),
+        initializer=identity.get("initializer"),
+        budget_setting=(
+            BudgetSetting.SOFT_BUDGET
+            if eval_hard_budget is None
+            else BudgetSetting.HARD_BUDGET
+        ),
+        train_seed=identity.get("train_seed"),
+        train_hard_budget=identity.get("train_hard_budget"),
+        train_soft_budget_param=identity.get("train_soft_budget_param"),
+        eval_seed=identity.get("eval_seed"),
+        eval_hard_budget=eval_hard_budget,
+        eval_soft_budget_param=identity.get("eval_soft_budget_param"),
+        classifier_variants=variants,
+        inputs=_inputs(record),
+    )
+
+
+def _identity(path: Path) -> dict[str, Any]:
+    """Read the first row's identity columns; a missing one is null."""
+    parquet = pq.ParquetFile(path)
+    columns = [
+        column
+        for column in IDENTITY_DTYPES
+        if column in parquet.schema_arrow.names
+    ]
+    table = parquet.read(columns=columns).slice(0, 1)
+    if table.num_rows == 0:
+        return {}
+    return {column: table.column(column)[0].as_py() for column in columns}
+
+
+def _raw_classifier_variants(path: Path) -> list[ClassifierVariant]:
+    table = pq.read_table(path, columns=list(PREDICTION_COLUMNS.values()))
+    return [
+        variant
+        for variant, column in PREDICTION_COLUMNS.items()
+        if table.column(column).null_count < table.num_rows
+    ]
+
+
+def _transformed_classifier_variants(path: Path) -> list[ClassifierVariant]:
+    table = pq.read_table(path, columns=["classifier", "predicted_class"])
+    predicted = table.filter(table.column("predicted_class").is_valid())
+    present = set(predicted.column("classifier").unique().to_pylist())
+    return [variant for variant in ClassifierVariant if variant in present]
+
+
+def _file_size(output_root: Path, relative: str | None) -> int | None:
+    if relative is None:
+        return None
+    return (output_root / relative).stat().st_size
+
+
+def _code(record: ProvenanceRecord) -> CodeIdentity:
+    return CodeIdentity(commit=record.code_commit, dirty=record.code_dirty)
+
+
+def _inputs(record: ProvenanceRecord) -> list[IndexedInput]:
+    return [
+        IndexedInput(
+            role=InputRole(entry.role),
+            path=entry.path,
+            content_hash=entry.content_hash,
+        )
+        for entry in record.inputs
+    ]
 
 
 def _dataset_redistribution(
@@ -444,234 +727,29 @@ def _dataset_redistribution(
     return records
 
 
-def _classifiers(resolved: Mapping[str, Any]) -> list[ClassifierRecord]:
-    # Each dataset realization has its own classifiers, seeded with its
-    # index like everything else trained on it (ADR 0005).
-    indices: list[int] = list(resolved["DATASET_REALIZATION_INDICES"])
-    records: list[ClassifierRecord] = []
-    for dataset in resolved["DATASETS"]:
-        classifier_config = resolved["CLASSIFIER_NAMES"][dataset]
-        if isinstance(classifier_config, dict):
-            script_name = classifier_config["script_name"]
-            script_params = " ".join(
-                classifier_config.get("script_params", [])
-            )
-        else:
-            script_name, script_params = classifier_config, ""
-        records.extend(
-            ClassifierRecord(
-                bundle_path=_classifier_bundle_path(
-                    resolved, None, dataset, index
-                ),
-                script_name=script_name,
-                script_params=script_params,
-                dataset_key=dataset,
-                method_name=None,
-                dataset_realization_index=index,
-                seed=index,
-            )
-            for index in indices
+def _coverage(index: ArtifactIndex, output_root: Path) -> Coverage:
+    evaluations = index.evaluations
+
+    def values[T](name: str) -> list[T]:
+        return sorted(
+            {
+                getattr(evaluation, name)
+                for evaluation in evaluations
+                if getattr(evaluation, name) is not None
+            }
         )
-    for method, script_name in resolved[
-        "METHOD_CLASSIFIER_SCRIPT_NAMES"
-    ].items():
-        records.extend(
-            ClassifierRecord(
-                bundle_path=_classifier_bundle_path(
-                    resolved, method, dataset, index
-                ),
-                script_name=script_name,
-                script_params=resolved["METHOD_CLASSIFIER_SCRIPT_PARAMS"][
-                    method
-                ],
-                dataset_key=dataset,
-                method_name=method,
-                dataset_realization_index=index,
-                seed=index,
-            )
-            for dataset in resolved["DATASETS"]
-            for index in indices
-        )
-    return records
 
-
-def _classifier_bundle_path(
-    resolved: Mapping[str, Any], method: str | None, dataset: str, index: int
-) -> str:
-    # Method `None` names the external classifier of the dataset realization. Mirrors `_classifier_bundle_for_method` in rules/evaluation.smk.
-    tag = _initializer_tag(resolved)
-    realization = f"dataset-{dataset}+realization_index-{index}"
-    if method in resolved["METHOD_CLASSIFIER_SCRIPT_NAMES"]:
-        return (
-            f"trained_classifiers/{tag}/method-{method}+{realization}.bundle"
-        )
-    return f"trained_classifiers/{tag}/{realization}.bundle"
-
-
-def _initializer_tag(resolved: Mapping[str, Any]) -> str:
-    return f"initializer-{resolved['INITIALIZER']}"
-
-
-def _evaluation_tables(
-    resolved: Mapping[str, Any], output_root: Path
-) -> list[EvaluationTableRecord]:
-    # Mirrors the targets of `all_eval_methods` in rules/helpers.smk and
-    # `transform_eval_data` in rules/transformations.smk; the workflow test
-    # `test_release_manifest_tables_match_workflow_targets` pins the two.
-    split = resolved["EVAL_DATASET_SPLIT"]
-    tag = _initializer_tag(resolved)
-    records: list[EvaluationTableRecord] = []
-    for method in resolved["METHODS"]:
-        pretrained_model = resolved["METHOD_TO_PRETRAINED_MODEL"].get(method)
-        for dataset in resolved["DATASETS"]:
-            for index in resolved["DATASET_REALIZATION_INDICES"]:
-                classifier_bundle_path = _classifier_bundle_path(
-                    resolved, method, dataset, index
-                )
-                for (
-                    train_hard_budget,
-                    eval_hard_budget,
-                    train_soft_budget_param,
-                    eval_soft_budget_param,
-                ) in resolved["BUDGET_PARAMS"][method][dataset]:
-                    relative = (
-                        f"eval_split-{split}/{tag}/{method}/"
-                        f"dataset-{dataset}+realization_index-{index}/"
-                        f"{_pretrain_folder(resolved, method, index)}"
-                        f"train_seed-{index}+"
-                        f"train_hard_budget-{train_hard_budget}+"
-                        f"train_soft_budget_param-{train_soft_budget_param}/"
-                        f"eval_seed-{index}+"
-                        f"eval_hard_budget-{eval_hard_budget}+"
-                        f"eval_soft_budget_param-{eval_soft_budget_param}/"
-                        "eval_data.parquet"
-                    )
-                    raw_path = f"eval_results/{relative}"
-                    transformed_path = f"eval_results_transformed/{relative}"
-                    raw_file = output_root / raw_path
-                    transformed_file = output_root / transformed_path
-                    eval_hard = _nullable(eval_hard_budget)
-                    records.append(
-                        EvaluationTableRecord(
-                            raw_path=raw_path,
-                            transformed_path=transformed_path,
-                            raw_present=raw_file.is_file(),
-                            transformed_present=transformed_file.is_file(),
-                            raw_size_bytes=_file_size(raw_file),
-                            transformed_size_bytes=_file_size(
-                                transformed_file
-                            ),
-                            method_name=method,
-                            dataset_key=dataset,
-                            dataset_realization_index=index,
-                            dataset_generation_seed=index,
-                            eval_split=split,
-                            initializer=resolved["INITIALIZER"],
-                            unmasker=resolved["UNMASKERS"][dataset],
-                            budget_setting=(
-                                BudgetSetting.SOFT_BUDGET
-                                if eval_hard is None
-                                else BudgetSetting.HARD_BUDGET
-                            ),
-                            pretrained_model_name=pretrained_model,
-                            pretrain_seed=(
-                                None if pretrained_model is None else index
-                            ),
-                            train_seed=index,
-                            train_hard_budget=_nullable(train_hard_budget),
-                            train_soft_budget_param=_nullable(
-                                train_soft_budget_param
-                            ),
-                            eval_seed=index,
-                            eval_hard_budget=eval_hard,
-                            eval_soft_budget_param=_nullable(
-                                eval_soft_budget_param
-                            ),
-                            forced_acquisition=eval_hard is not None,
-                            classifier_bundle_path=classifier_bundle_path,
-                            eval_batch_size=resolved["EVAL_BATCH_SIZES"][
-                                method
-                            ][dataset],
-                            classifier_variants=_classifier_variants(raw_file),
-                            inputs=[
-                                BundleInput(
-                                    role=InputRole.EVAL_DATASET,
-                                    path=_dataset_bundle_path(
-                                        dataset, index, split
-                                    ),
-                                ),
-                                BundleInput(
-                                    role=InputRole.METHOD,
-                                    path=_method_bundle_path(
-                                        resolved,
-                                        method,
-                                        dataset,
-                                        index,
-                                        train_hard_budget,
-                                        train_soft_budget_param,
-                                    ),
-                                ),
-                                BundleInput(
-                                    role=InputRole.CLASSIFIER,
-                                    path=classifier_bundle_path,
-                                ),
-                            ],
-                        )
-                    )
-    return records
-
-
-def _file_size(path: Path) -> int | None:
-    return path.stat().st_size if path.is_file() else None
-
-
-def _nullable(value: float | str) -> int | float | None:
-    if value == "null":
-        return None
-    if isinstance(value, str):
-        msg = f"Budget value is neither a number nor 'null': {value!r}"
-        raise TypeError(msg)
-    return value
-
-
-def _classifier_variants(raw_table: Path) -> list[ClassifierVariant] | None:
-    if not raw_table.is_file():
-        return None
-    columns = {
-        ClassifierVariant.BUILTIN: "builtin_predicted_class",
-        ClassifierVariant.EXTERNAL: "external_predicted_class",
-    }
-    table = pq.read_table(raw_table, columns=list(columns.values()))
-    return [
-        variant
-        for variant, column in columns.items()
-        if table.column(column).null_count < table.num_rows
-    ]
-
-
-def _coverage(
-    tables: list[EvaluationTableRecord],
-    bundles: list[BundleRecord],
-    output_root: Path,
-) -> Coverage:
-    present = [
-        table
-        for table in tables
-        if table.raw_present or table.transformed_present
-    ]
     return Coverage(
-        datasets=sorted({table.dataset_key for table in present}),
-        dataset_realization_indices=sorted(
-            {table.dataset_realization_index for table in present}
-        ),
-        methods=sorted({table.method_name for table in present}),
-        eval_splits=sorted({table.eval_split for table in present}),
-        budget_settings=sorted({table.budget_setting for table in present}),
+        datasets=values("dataset_key"),
+        dataset_realization_indices=values("dataset_realization_index"),
+        methods=values("method_name"),
+        eval_splits=values("eval_split"),
+        budget_settings=values("budget_setting"),
         classifier_variants=sorted(
             {
                 variant
-                for table in present
-                for variant in table.classifier_variants or []
+                for evaluation in evaluations
+                for variant in evaluation.classifier_variants
             }
         ),
         output_categories=sorted(
@@ -679,289 +757,6 @@ def _coverage(
             for category in output_root.iterdir()
             if category.is_dir()
             and any(path.is_file() for path in category.rglob("*"))
-        )
-        if output_root.is_dir()
-        else [],
-        payloads=_payload_coverage(tables, bundles),
+        ),
+        payloads=payload_coverage(index),
     )
-
-
-def _payload_coverage(
-    tables: list[EvaluationTableRecord], bundles: list[BundleRecord]
-) -> list[PayloadCoverage]:
-    payloads = [
-        PayloadCoverage(
-            category=PayloadCategory.RAW_EVALUATION_TABLE,
-            scheduled=len(tables),
-            present=sum(table.raw_present for table in tables),
-            size_bytes=sum(table.raw_size_bytes or 0 for table in tables),
-            class_names=[],
-        ),
-        PayloadCoverage(
-            category=PayloadCategory.TRANSFORMED_EVALUATION_TABLE,
-            scheduled=len(tables),
-            present=sum(table.transformed_present for table in tables),
-            size_bytes=sum(
-                table.transformed_size_bytes or 0 for table in tables
-            ),
-            class_names=[],
-        ),
-    ]
-    for category in [
-        PayloadCategory.DATASET_BUNDLE,
-        PayloadCategory.CLASSIFIER_BUNDLE,
-        PayloadCategory.PRETRAINED_MODEL_BUNDLE,
-        PayloadCategory.AFA_METHOD_BUNDLE,
-    ]:
-        records = [bundle for bundle in bundles if bundle.category is category]
-        payloads.append(
-            PayloadCoverage(
-                category=category,
-                scheduled=len(records),
-                present=sum(bundle.present for bundle in records),
-                size_bytes=sum(bundle.size_bytes or 0 for bundle in records),
-                class_names=sorted(
-                    {
-                        bundle.bundle_manifest["class_name"]
-                        for bundle in records
-                        if bundle.bundle_manifest is not None
-                        and "class_name" in bundle.bundle_manifest
-                    }
-                ),
-            )
-        )
-    return payloads
-
-
-def _bundles(
-    resolved: Mapping[str, Any], output_root: Path
-) -> list[BundleRecord]:
-    # Mirrors the targets of `all_generate_datasets`, `all_train_classifiers`,
-    # `all_pretrain_models` and `all_train_methods` in rules/helpers.smk, and
-    # the inputs of the rules producing them; the workflow test
-    # `test_release_manifest_bundles_match_workflow_targets` pins the two.
-    datasets: list[str] = list(resolved["DATASETS"])
-    indices: list[int] = list(resolved["DATASET_REALIZATION_INDICES"])
-    records = [
-        _bundle_record(
-            output_root,
-            path=_dataset_bundle_path(dataset, index, split),
-            category=PayloadCategory.DATASET_BUNDLE,
-            inputs=[],
-            dataset_key=dataset,
-            dataset_realization_index=index,
-            split=split,
-            seed=index,
-        )
-        for dataset in datasets
-        for index in indices
-        for split in DATASET_SPLITS
-    ]
-    classifier_owners = [
-        None,
-        *(
-            method
-            for method in resolved["METHODS"]
-            if method in resolved["METHOD_CLASSIFIER_SCRIPT_NAMES"]
-        ),
-    ]
-    records.extend(
-        _bundle_record(
-            output_root,
-            path=_classifier_bundle_path(resolved, method, dataset, index),
-            category=PayloadCategory.CLASSIFIER_BUNDLE,
-            inputs=_training_inputs(dataset, index),
-            dataset_key=dataset,
-            dataset_realization_index=index,
-            method_name=method,
-            seed=index,
-        )
-        for method in classifier_owners
-        for dataset in datasets
-        for index in indices
-    )
-    records.extend(
-        _bundle_record(
-            output_root,
-            path=_pretrained_model_bundle_path(resolved, name, dataset, index),
-            category=PayloadCategory.PRETRAINED_MODEL_BUNDLE,
-            # Pretraining always reads the external classifier.
-            inputs=[
-                *_training_inputs(dataset, index),
-                BundleInput(
-                    role=InputRole.CLASSIFIER,
-                    path=_classifier_bundle_path(
-                        resolved, None, dataset, index
-                    ),
-                ),
-            ],
-            dataset_key=dataset,
-            dataset_realization_index=index,
-            pretrained_model_name=name,
-            seed=index,
-        )
-        for name in resolved["PRETRAIN_NAMES"]
-        for dataset in resolved["DATASETS_USED_PER_PRETRAIN_NAME"][name]
-        for index in indices
-    )
-    for method in resolved["METHODS"]:
-        pretrained_model = resolved["METHOD_TO_PRETRAINED_MODEL"].get(method)
-        for dataset in datasets:
-            # Several evaluations can share one trained method bundle.
-            train_budgets = dict.fromkeys(
-                (train_hard_budget, train_soft_budget_param)
-                for (
-                    train_hard_budget,
-                    _eval_hard_budget,
-                    train_soft_budget_param,
-                    _eval_soft_budget_param,
-                ) in resolved["BUDGET_PARAMS"][method][dataset]
-            )
-            for index in indices:
-                inputs = [
-                    *_training_inputs(dataset, index),
-                    BundleInput(
-                        role=InputRole.CLASSIFIER,
-                        path=_classifier_bundle_path(
-                            resolved, method, dataset, index
-                        ),
-                    ),
-                ]
-                if pretrained_model is not None:
-                    inputs.append(
-                        BundleInput(
-                            role=InputRole.PRETRAINED_MODEL,
-                            path=_pretrained_model_bundle_path(
-                                resolved, pretrained_model, dataset, index
-                            ),
-                        )
-                    )
-                records.extend(
-                    _bundle_record(
-                        output_root,
-                        path=_method_bundle_path(
-                            resolved,
-                            method,
-                            dataset,
-                            index,
-                            train_hard_budget,
-                            train_soft_budget_param,
-                        ),
-                        category=PayloadCategory.AFA_METHOD_BUNDLE,
-                        inputs=inputs,
-                        dataset_key=dataset,
-                        dataset_realization_index=index,
-                        method_name=method,
-                        pretrained_model_name=pretrained_model,
-                        seed=index,
-                        train_hard_budget=_nullable(train_hard_budget),
-                        train_soft_budget_param=_nullable(
-                            train_soft_budget_param
-                        ),
-                    )
-                    for train_hard_budget, train_soft_budget_param in (
-                        train_budgets
-                    )
-                )
-    return records
-
-
-def _bundle_record(
-    output_root: Path,
-    *,
-    path: str,
-    category: PayloadCategory,
-    inputs: list[BundleInput],
-    dataset_key: str,
-    dataset_realization_index: int,
-    seed: int,
-    split: str | None = None,
-    method_name: str | None = None,
-    pretrained_model_name: str | None = None,
-    train_hard_budget: float | None = None,
-    train_soft_budget_param: float | None = None,
-) -> BundleRecord:
-    bundle = output_root / path
-    manifest_path = bundle / "manifest.json"
-    return BundleRecord(
-        path=path,
-        category=category,
-        present=bundle.is_dir(),
-        size_bytes=(
-            sum(
-                file.stat().st_size
-                for file in bundle.rglob("*")
-                if file.is_file()
-            )
-            if bundle.is_dir()
-            else None
-        ),
-        dataset_key=dataset_key,
-        dataset_realization_index=dataset_realization_index,
-        split=split,
-        method_name=method_name,
-        pretrained_model_name=pretrained_model_name,
-        seed=seed,
-        train_hard_budget=train_hard_budget,
-        train_soft_budget_param=train_soft_budget_param,
-        inputs=inputs,
-        bundle_manifest=(
-            json.loads(manifest_path.read_text())
-            if manifest_path.is_file()
-            else None
-        ),
-    )
-
-
-def _training_inputs(dataset: str, index: int) -> list[BundleInput]:
-    return [
-        BundleInput(
-            role=InputRole.TRAIN_DATASET,
-            path=_dataset_bundle_path(dataset, index, "train"),
-        ),
-        BundleInput(
-            role=InputRole.VAL_DATASET,
-            path=_dataset_bundle_path(dataset, index, "val"),
-        ),
-    ]
-
-
-def _dataset_bundle_path(dataset: str, index: int, split: str) -> str:
-    return f"datasets/{dataset}/{index}/{split}.bundle"
-
-
-def _pretrained_model_bundle_path(
-    resolved: Mapping[str, Any], name: str, dataset: str, index: int
-) -> str:
-    return (
-        f"pretrained_models/{_initializer_tag(resolved)}/{name}/"
-        f"dataset-{dataset}+realization_index-{index}/"
-        f"pretrain_seed-{index}/model.bundle"
-    )
-
-
-def _method_bundle_path(
-    resolved: Mapping[str, Any],
-    method: str,
-    dataset: str,
-    index: int,
-    train_hard_budget: float | str,
-    train_soft_budget_param: float | str,
-) -> str:
-    return (
-        f"trained_methods/{_initializer_tag(resolved)}/{method}/"
-        f"dataset-{dataset}+realization_index-{index}/"
-        f"{_pretrain_folder(resolved, method, index)}"
-        f"train_seed-{index}+"
-        f"train_hard_budget-{train_hard_budget}+"
-        f"train_soft_budget_param-{train_soft_budget_param}/"
-        "method.bundle"
-    )
-
-
-def _pretrain_folder(
-    resolved: Mapping[str, Any], method: str, index: int
-) -> str:
-    if method in resolved["METHOD_TO_PRETRAINED_MODEL"]:
-        return f"pretrain_seed-{index}/"
-    return f"{resolved['NO_PRETRAIN_STR']}/"

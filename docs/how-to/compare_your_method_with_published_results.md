@@ -68,9 +68,16 @@ The command prints what the release lacks of your selection. All options:
 
 ## 3. Check the release's provenance
 
-`download` prints the release's provenance and restores its manifest to
-`extra/release_manifest.json`. Compare its `code.commit` with your fork's
-history, and read the [release notes](../reference/release_notes.md) for
+`download` restores the release's manifest to
+`extra/release_manifest.json`. Each of its `evaluations` and `bundles`
+entries has the `code.commit` that produced it; list them with
+
+```shell
+jq -r '[.evaluations[], .bundles[]] | .[].code.commit' \
+    extra/release_manifest.json | sort -u
+```
+
+Compare those commits with your fork's history, and read the [release notes](../reference/release_notes.md) for
 changes since that commit. If a change affects results (data, splits,
 preprocessing, classifiers, acquisition semantics or metrics), your
 results are not comparable with the published ones, even though every

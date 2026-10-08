@@ -1,11 +1,16 @@
 # Benchmark releases
 
-A benchmark release publishes the outputs of one benchmark run, so that
+A benchmark release publishes the outputs of a benchmark run, so that
 [results-only users and repository adopters](user_types.md) can use them
 without running the benchmark. It is an
 [output snapshot](output_snapshots.md) saved with a
 [release manifest](../reference/release_manifest.md) and published on
-Hugging Face by a maintainer.
+Hugging Face by a maintainer. A release can be built up across commits:
+classifiers trained on one commit, a snapshot restored, methods trained and
+evaluated on a later one. Every bundle and evaluation table records the
+commit that produced it, and the manifest indexes those records
+([ADR 0006](../adr/0006-release-manifest-indexes-artifact-provenance.md)),
+so a release says which code produced each of its artifacts.
 
 ## What a release guarantees
 
@@ -58,8 +63,10 @@ another commit. Whether that is valid has two separate parts:
   - evaluation batch sizes, seeds and metrics.
 
 AFABench checks neither for a checkout, and does not require users to run
-the producing commit (#36). Instead, a release makes its provenance
-visible (commit, dirty flag, configuration) and maintainers record both
+the producing commits (#36). Instead, a release makes its provenance
+visible (each artifact's commit and dirty flag, its resolved configuration
+in the artifact's record, the workflow configuration) and maintainers
+record both
 kinds of change in the [release notes](../reference/release_notes.md); the
 user decides.
 
@@ -76,14 +83,12 @@ public benchmark releases.
 
 ## Limits
 
-- The manifest lists tables and bundles by enumerating what the recorded
-  workflow configuration schedules, not by reading the files. Files the
-  configuration would not produce, such as stale outputs, are published but
-  not listed. Once bundles and evaluation tables carry their own provenance
-  record (ADR 0002, #65/#66), the manifest should collect it instead, and
-  the enumeration duplicated from `rules/helpers.smk` (pinned by
-  `test/workflow/test_release_manifest_tables.py`) should go.
-- Bundle contents are not hashed.
+- Only artifacts carry provenance records. Transformed tables copy their
+  evaluation's record, and merged tables and plots have none, so the
+  commits of transformation, aggregation and visualization are not
+  known. Merged tables and plots are published but not indexed.
+- Bundle content hashes are recorded and link inputs, but neither
+  `publish` nor `download` verifies them against the bundles' files.
 - "Latest" is decided by the manifests' `created_at`, so finding it reads
   the manifest of every published release.
 - Output categories other than payload categories, such as `plot_results`

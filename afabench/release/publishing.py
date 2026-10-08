@@ -22,9 +22,12 @@ Smoke packages (scope `smoke`, see `ReleaseScope`) are only ever
 published under `smoke_releases/<release_id>/`, so a maintainer can check
 the host round trip without promoting them to official releases. An
 official release is refused while any dataset in its manifest's
-`settings.dataset_redistribution` is not `permitted`, unless the maintainer
-allows that dataset by name. The scope and redistribution checks live here
-rather than in a transport, so no transport can skip them.
+`dataset_redistribution` is not `permitted`, unless the maintainer allows
+that dataset by name, and while any of its artifacts was produced from a
+dirty tree or unknown code, unless the maintainer allows dirty code
+(`docs/adr/0006-release-manifest-indexes-artifact-provenance.md`). The
+scope, redistribution and code checks live here rather than in a
+transport, so no transport can skip them.
 """
 
 import json
@@ -42,6 +45,7 @@ from afabench.release.manifest import (
     RedistributionStatus,
     ReleaseManifest,
     ReleaseScope,
+    code_by_stage,
     read_release_manifest,
 )
 from afabench.release.selection import SelectedPayloads
@@ -91,32 +95,41 @@ def publish_release(
     *,
     smoke_release: bool = False,
     allow_redistribution: Sequence[str] = (),
+    allow_dirty_code: bool = False,
 ) -> ReleaseManifest:
     """
     Upload the snapshot in `package_dir` as its manifest's release.
 
     `allow_redistribution` names the unreviewed or restricted dataset keys
-    a maintainer publishes in an official release anyway.
+    a maintainer publishes in an official release anyway;
+    `allow_dirty_code` publishes one whose artifacts were produced from a
+    dirty tree or unknown code anyway.
     """
     manifest = read_release_manifest(package_dir / RELEASE_MANIFEST_FILENAME)
     _check_scope(manifest, smoke_release=smoke_release)
     folder = release_folder(manifest.release_id, smoke_release=smoke_release)
     message = f"Publish benchmark release {manifest.release_id}"
     if smoke_release:
-        if allow_redistribution:
+        if allow_redistribution or allow_dirty_code:
             msg = (
-                "Dataset redistribution is reviewed only for official "
-                "releases; a smoke release needs no allowance."
+                "Dataset redistribution and producing code are checked only "
+                "for official releases; a smoke release needs no allowance."
             )
             raise ValueError(msg)
     else:
         _check_redistribution(manifest, allow_redistribution)
+        _check_code(manifest, allow_dirty_code=allow_dirty_code)
+        # The host's history records what the maintainer allowed through.
         if allow_redistribution:
-            # The host's history records which datasets were allowed through.
             message += (
                 "; redistribution allowed by the maintainer for unreviewed "
                 "or restricted datasets: "
                 + ", ".join(sorted(allow_redistribution))
+            )
+        if allow_dirty_code:
+            message += (
+                "; artifacts produced from dirty or unknown code allowed by "
+                "the maintainer"
             )
     # A published release is never replaced, so its identity keeps naming
     # the same outputs.
@@ -364,7 +377,7 @@ def _check_redistribution(
 ) -> None:
     unresolved = {
         dataset: review.status
-        for dataset, review in manifest.settings.dataset_redistribution.items()
+        for dataset, review in manifest.dataset_redistribution.items()
         if review.status is not RedistributionStatus.PERMITTED
     }
     needless = [
@@ -393,3 +406,33 @@ def _check_redistribution(
             "allow each by name."
         )
         raise ValueError(msg)
+
+
+def _check_code(manifest: ReleaseManifest, *, allow_dirty_code: bool) -> None:
+    unclean = [
+        stage_code
+        for stage_code in code_by_stage(manifest)
+        if not stage_code.code.clean
+    ]
+    if not unclean:
+        if allow_dirty_code:
+            msg = (
+                f"Release {manifest.release_id!r} has no artifact produced "
+                "from dirty or unknown code; no allowance is needed."
+            )
+            raise ValueError(msg)
+        return
+    if allow_dirty_code:
+        return
+    described = ", ".join(
+        f"{stage_code.artifacts} {stage_code.stage} artifact(s) at "
+        f"{stage_code.code.commit or 'unknown commit'}"
+        + (" (dirty)" if stage_code.code.dirty else "")
+        for stage_code in unclean
+    )
+    msg = (
+        f"Release {manifest.release_id!r} holds artifacts produced from "
+        f"dirty or unknown code: {described}. Regenerate them from a clean "
+        "commit and save the snapshot again, or allow dirty code."
+    )
+    raise ValueError(msg)

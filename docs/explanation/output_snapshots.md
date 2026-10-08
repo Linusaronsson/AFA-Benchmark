@@ -11,9 +11,9 @@ it back, [restore an output snapshot](../how-to/restore_an_output_snapshot.md).
 A snapshot copies the whole output root as it is, including stale files no
 current rule would produce (#39). It does not select by dataset, method or
 output category; selection happens when downloading a published release
-([`download`](../reference/snapshot_command.md#selection)). Its only
-provenance is the release manifest, written only when it is saved with a
-release id.
+([`download`](../reference/snapshot_command.md#selection)). Its bundles
+and evaluation tables carry their own provenance records; a release
+manifest, written only when it is saved with a release id, indexes them.
 
 ## Why a snapshot keeps mtimes
 

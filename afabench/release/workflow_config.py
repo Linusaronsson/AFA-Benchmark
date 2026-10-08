@@ -5,20 +5,19 @@ Snakemake is a development dependency, so its config merging is mirrored
 here: config files are merged recursively in order, then `--config` values
 are merged over them. A CLI `--configfile` or `--config` replaces the
 profile's value for that option, as Snakemake's own option parsing does.
+
+A release manifest records the result as the configuration whose targets
+lay out the release; nothing per artifact is derived from it
+(`docs/adr/0006-release-manifest-indexes-artifact-provenance.md`).
 """
 
 import hashlib
-import importlib.util
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
-
-WORKFLOW_CONFIG_MODULE = (
-    Path(__file__).resolve().parents[2] / "extra/workflow/src/config.py"
-)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -81,19 +80,6 @@ def resolve_workflow_config(
         overrides=used_overrides,
         merged=merged,
     )
-
-
-def load_workflow_settings(merged: Mapping[str, Any]) -> dict[str, Any]:
-    """Run the workflow's own `load_config` on a merged config."""
-    spec = importlib.util.spec_from_file_location(
-        "afabench_workflow_config", WORKFLOW_CONFIG_MODULE
-    )
-    if spec is None or spec.loader is None:
-        msg = f"Cannot import workflow config from {WORKFLOW_CONFIG_MODULE}"
-        raise ImportError(msg)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.load_config(merged)
 
 
 def _read_profile(profile: Path) -> tuple[list[Path], dict[str, Any]]:

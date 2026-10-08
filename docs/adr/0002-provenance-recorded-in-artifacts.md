@@ -246,7 +246,10 @@ marked `pipeline`.
 - The release manifest (#63) is assembled from these records plus
   release-level facts (release identity, coverage, workflow config), and
   does not re-derive per-artifact identity from paths. Publish and download
-  tooling remain the only HF-aware code.
+  tooling remain the only HF-aware code. _Amended by
+  [ADR 0006](0006-release-manifest-indexes-artifact-provenance.md): the
+  manifest indexes a projection of the records, links inputs by content
+  hash, and holds no release-wide commit._
 - Once artifacts carry identity, the remaining reasons for the long
   artifact paths become Snakemake target naming only; #47 reassesses the
   shared path builder on that basis.

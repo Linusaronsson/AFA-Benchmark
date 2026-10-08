@@ -3,29 +3,51 @@
 `release_manifest.json` is written beside a snapshot's `output/` tree by
 `snapshot.py save --release-id` and restored to `extra/release_manifest.json`
 ([command](snapshot_command.md)). It identifies a benchmark release and
-records what produced the outputs, so that its tables can be interpreted
-without knowing the output path layout. The schema is
-`afabench.release.manifest.ReleaseManifest`, version 1.
+indexes its artifacts, so that a download can choose what to fetch without
+reading every artifact first. The index is generated from the artifacts'
+own [provenance records](../adr/0002-provenance-recorded-in-artifacts.md),
+never from the workflow configuration: it is a cache of those records, and
+saving the same output tree again gives the same index
+([ADR 0006](../adr/0006-release-manifest-indexes-artifact-provenance.md)).
+The schema is `afabench.release.manifest.ReleaseManifest`, version 2.
+
+`save --release-id` refuses an output tree holding any bundle, or any
+Parquet file under `eval_results/` or `eval_results_transformed/`, without
+a provenance record, and lists them. Merged tables, plots and other
+derived outputs carry no record and are not indexed; they are part of the
+snapshot all the same.
 
 ## Fields
 
 All paths inside the manifest are POSIX paths relative to the output root,
-except config file and feature-cost paths, which are as given. JSON object
-keys are strings. `null` means unknown or not applicable, never a default.
+except config file paths, which are as given, and the `path` of an input,
+which is as the producing job was given it. JSON object keys are strings.
+`null` means unknown or not applicable, never a default.
 
 ### Release
 
 | Field | Meaning |
 | --- | --- |
-| `manifest_version` | Schema version, 1. Readers reject versions they do not know. |
+| `manifest_version` | Schema version, 2. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
 | `scope` | `full`, `partial` or `smoke`, as declared. Only `full` and `partial` are published as benchmark releases; `smoke` only as a smoke release. |
-| `execution_mode` | `smoke` or `production`, from the merged config's `smoke_test`. `smoke` implies scope `smoke`. |
+| `execution_mode` | `smoke` if any artifact's record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `smoke` implies scope `smoke`. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
-| `code.commit` | `git rev-parse HEAD` of the checkout; null outside a git work tree. |
-| `code.dirty` | Whether tracked files differ from the commit (untracked files are ignored); null outside a git work tree. |
+| `dataset_redistribution` | Per dataset key any record names, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
+
+There is no release-wide commit: each index entry has the `code` that
+produced it. `save` and `publish` print them per pipeline stage (see
+[`save`](snapshot_command.md#save)).
 
 ### `workflow_config`
+
+The workflow configuration the maintainer declares with `--profile`,
+`--configfile` and `--config`: the one whose targets lay out the release.
+A [repository adopter](../how-to/compare_your_method_with_published_results.md)
+layers a comparison over `merged`, so that the workflow finds the published
+tables where the release has them. It is recorded, never read to describe
+an artifact; a release built across commits has the configuration of the
+final run, which reused the restored outputs because its targets name them.
 
 | Field | Meaning |
 | --- | --- |
@@ -34,87 +56,78 @@ keys are strings. `null` means unknown or not applicable, never a default.
 | `overrides` | The `--config` (or profile `config`) values. |
 | `merged` | The full config Snakemake sees after merging. |
 
-### `settings`
-
-Resolved by the workflow's own `load_config`
-(`extra/workflow/src/config.py`), so defaults and per-dataset fallbacks match
-the run.
+### `code` of an entry
 
 | Field | Meaning |
 | --- | --- |
-| `initializer` | Initializer config name. |
-| `eval_split` | The split every evaluation in this config used. |
-| `dataset_realization_indices` | Configured dataset realizations. |
-| `dataset_splits` | Splits generated per dataset realization: `train`, `val`, `test`. |
-| `unmaskers` | Unmasker config name per dataset key. |
-| `feature_costs` | Per dataset key, `{path, sha256}` of `extra/data/misc/feature_costs/<key>.csv` in the checkout; both null means unit feature costs. |
-| `dataset_redistribution` | Per dataset key, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
-| `classifiers` | One entry per classifier bundle the config trains, one per dataset realization: `bundle_path`, `script_name`, `script_params`, `dataset_key`, `method_name` (null for the external classifier shared by every method on a dataset realization; set for a classifier trained for one method by `method_options.<method>.classifier`), `dataset_realization_index` (the realization whose train and val splits it was trained on) and `seed` (equal to `dataset_realization_index`). |
-| `eval_batch_sizes` | Evaluation batch size per method and dataset key. It can affect results (see ADR 0002). |
-| `forcing_policy` | `forced_acquisition_when_eval_hard_budget_is_set`: hard-budget evaluation uses forced acquisition; soft-budget evaluation lets the policy stop. |
+| `commit` | The record's `code_commit`: `git rev-parse HEAD` of the checkout that produced the artifact; null outside a git work tree. |
+| `dirty` | The record's `code_dirty`: whether tracked files differed from the commit; null outside a git work tree. |
 
-### `evaluation_tables`
+An artifact is produced from **clean** code when `commit` is set and
+`dirty` is `false`. `publish` refuses an official release holding any
+other artifact unless the maintainer allows dirty code.
 
-One entry per evaluation the config schedules, present or not, enumerated
-from the resolved config the same way the workflow names its targets. The
-entry carries the identity that transformed tables written before the
-identity columns existed do not hold in their columns, notably
-`dataset_realization_index` and `eval_split`.
+### `evaluations`
+
+One entry per evaluation in the output tree: its raw table, its
+plotting-ready table, or both, paired because the transform copies the raw
+table's record. Identity is read from the tables' identity columns
+([raw versus plotting-ready tables](#raw-versus-plotting-ready-tables)).
 
 | Field | Meaning |
 | --- | --- |
-| `raw_path`, `transformed_path` | The raw and plotting-ready Parquet tables. |
-| `raw_present`, `transformed_present` | Whether each file is in the snapshot. |
+| `raw_path`, `transformed_path` | The raw and plotting-ready Parquet tables; null when that table is not in the release. |
 | `raw_size_bytes`, `transformed_size_bytes` | File sizes; null when absent. |
-| `method_name`, `dataset_key`, `dataset_realization_index`, `eval_split`, `initializer`, `unmasker` | Identity of the evaluation. |
-| `dataset_generation_seed` | Seed of the dataset realization (its index). |
-| `budget_setting` | `hard_budget` or `soft_budget` (no evaluation hard budget). |
-| `pretrained_model_name`, `pretrain_seed` | Null for methods without a pretraining stage. |
+| `code`, `smoke_test` | From the evaluation's record. |
+| `method_name`, `dataset_key`, `dataset_realization_index`, `eval_split`, `initializer` | The columns `afa_method`, `dataset`, `dataset_realization_index`, `eval_split` and `initializer`. |
+| `budget_setting` | `hard_budget`, or `soft_budget` when `eval_hard_budget` is null. |
 | `train_seed`, `train_hard_budget`, `train_soft_budget_param` | Training run of the evaluated method bundle. |
-| `eval_seed`, `eval_hard_budget`, `eval_soft_budget_param` | Evaluation settings. |
-| `forced_acquisition` | Whether the evaluation forced acquisition. |
-| `classifier_bundle_path` | The classifier bundle in `settings.classifiers` that produced the `external` predictions, trained on the same dataset realization. |
-| `eval_batch_size` | Evaluation batch size. |
-| `classifier_variants` | Which of `builtin` and `external` predictions the raw table holds (non-null prediction column); null if the raw table is absent. |
-| `inputs` | The bundles the evaluation loaded, as `{role, path}`: `eval_dataset`, `method` and `classifier`. |
+| `eval_seed`, `eval_hard_budget`, `eval_soft_budget_param` | Evaluation settings. A hard-budget evaluation uses forced acquisition; a soft-budget one lets the policy stop. |
+| `classifier_variants` | Which of `builtin` and `external` have a non-null prediction, read from the raw table, or from the plotting-ready table without one. |
+| `inputs` | The bundles the evaluation loaded, as `{role, path, content_hash}` with roles `eval_dataset`, `method` and `classifier`. |
 
 ### `bundles`
 
-One entry per native bundle the config schedules, present or not,
-enumerated the way the workflow names its `all_generate_datasets`,
-`all_train_classifiers`, `all_pretrain_models` and `all_train_methods`
-targets. A trained method bundle shared by several evaluations is listed
-once.
+One entry per bundle in the output tree, whatever its folder.
 
 | Field | Meaning |
 | --- | --- |
 | `path` | The bundle folder. |
-| `category` | `dataset_bundle`, `classifier_bundle`, `pretrained_model_bundle` or `afa_method_bundle`. |
-| `present`, `size_bytes` | Whether the bundle is in the snapshot, and the bytes of all files in it (null when absent). |
+| `category` | From the record's stage: `dataset_bundle` (dataset generation), `classifier_bundle` (classifier training), `pretrained_model_bundle` (pretraining) or `afa_method_bundle` (training). |
+| `class_name` | The bundle's class, which names the registered loader it needs. |
+| `content_hash` | The bundle's own `content_hash` ([bundle format](bundle_format.md)). |
+| `size_bytes` | Bytes of all files in the bundle. |
+| `stage`, `code`, `smoke_test`, `seed` | From the record. |
+| `method_name` | The method an AFA-method bundle or a method's own classifier belongs to; null for shared prerequisites. |
 | `dataset_key`, `dataset_realization_index` | The dataset realization the bundle was generated or trained from. |
 | `split` | `train`, `val` or `test` for a dataset bundle; null otherwise. |
-| `method_name` | The method an AFA-method bundle or a method's own classifier belongs to; null for shared prerequisites. |
-| `pretrained_model_name` | The pretrained model of a pretrained-model bundle, or the one an AFA-method bundle was trained from. |
-| `seed` | Dataset generation, classifier, pretraining or training seed; always the dataset realization index. |
-| `train_hard_budget`, `train_soft_budget_param` | Training budget of an AFA-method bundle; null otherwise. |
-| `inputs` | The bundles the producing job read, as `{role, path}` with roles `train_dataset`, `val_dataset`, `classifier` and `pretrained_model`. Dataset bundles have none. |
-| `bundle_manifest` | The bundle's own `manifest.json`, verbatim; null when absent. Its `metadata` holds the dataset generation parameters, or the training contract (initializer, Unmasker, seed, budgets, smoke flag, input paths) and method configuration; its `provenance` is the bundle's provenance record and `content_hash` its data hash ([bundle format](bundle_format.md)), both absent from bundles written before ADR 0002. |
+| `inputs` | The bundles the producing job read, as `{role, path, content_hash}` with roles `train_dataset`, `val_dataset`, `classifier` and `pretrained_model`. Dataset bundles have none. |
+
+The full record (resolved configuration, environment, compute, input class
+names) stays in the artifact: the bundle's `manifest.json`, or the Arrow
+schema metadata of a table.
+
+### Inputs
+
+An input is the bundle in the release with its `content_hash`, not the
+bundle at its `path`: a bundle regenerated after the artifact was produced
+still has the path, but not the hash. An input no bundle of the release
+matches is a **dangling input**. `save` lists them, and a selective download
+reports those of the categories it fetches as missing. A partial release
+may leave bundles out on purpose.
 
 ### `coverage`
 
-Computed from the evaluation tables actually present (raw or transformed),
-not from the config, so a partial run is not described as complete:
-`datasets`, `dataset_realization_indices`, `methods`, `eval_splits`,
-`budget_settings`, `classifier_variants`, and `output_categories` (top-level
-directories of the output root that contain files, such as `datasets`,
-`trained_methods`, `eval_results`, `eval_results_transformed`,
-`merged_results` and `plot_results`).
+Derived from the index: `datasets`, `dataset_realization_indices`,
+`methods`, `eval_splits`, `budget_settings` and `classifier_variants` of the
+evaluations, and `output_categories` (top-level directories of the output
+root that contain files, such as `datasets`, `trained_methods`,
+`eval_results`, `eval_results_transformed`, `merged_results` and
+`plot_results`).
 
 `payloads` has one entry per [payload category](#payload-categories), in
-the order of that table: `category`, `scheduled` (entries the config
-schedules), `present`, `size_bytes` (of the present ones) and `class_names`
-(the bundle classes present, which name the registered loaders a restore
-needs; empty for tables).
+the order of that table: `category`, `count`, `size_bytes` and
+`class_names` (the bundle classes present; empty for tables).
 
 ## Payload categories
 
@@ -157,7 +170,7 @@ loadable by `load_bundle`, and are not a reusable payload.
 ## Dataset redistribution
 
 Being able to generate a dataset bundle grants no right to publish it. Each
-dataset key is recorded in `settings.dataset_redistribution` from the
+dataset key any record names is recorded in `dataset_redistribution` from the
 maintainers' reviews in `extra/conf/release/dataset_redistribution.yaml` of
 the checkout. That file ships empty, so every dataset is `unreviewed`, and
 `save`, `restore`, `publish` and `download` print the unreviewed and
@@ -204,7 +217,7 @@ budget only for `random_dummy`, and `smoke_test=true`. These are
 which are unknown until `inventory` is run on a full production output
 root.
 
-| Category | Present | Bytes | Classes |
+| Category | Count | Bytes | Classes |
 | --- | --- | --- | --- |
 | `raw_evaluation_table` | 3 | 20,343 | |
 | `transformed_evaluation_table` | 3 | 29,767 | |
@@ -234,9 +247,8 @@ granularity:
   `dataset_realization_index`, `eval_split`, `initializer`, `train_seed`,
   `train_hard_budget`, `train_soft_budget_param`, `eval_seed`,
   `eval_hard_budget` and `eval_soft_budget_param`, with their provenance
-  record in the Arrow schema metadata. Tables written before the identity
-  columns existed have only `eval_seed` and `eval_hard_budget` of them. They
-  hold the full acquisition history; selection histories can be
+  record in the Arrow schema metadata. They hold the full acquisition
+  history; selection histories can be
   reconstructed from `episode_id`, `step` and `action_performed`.
 - **Plotting-ready tables** (`eval_results_transformed/.../eval_data.parquet`,
   `transformed_path`) are produced by
@@ -246,9 +258,7 @@ granularity:
   `n_selections_performed`, so these are prediction/cost rows, not episode
   logs. They keep `generation_index` and `split_index` (null for tables
   transformed from legacy logs), every identity column and the raw table's
-  provenance record. A table transformed from a raw table written before the
-  identity columns existed has null `dataset_realization_index` and
-  `eval_split`: read those from the table's `evaluation_tables` entry.
+  provenance record.
 - **Merged tables** (`merged_results/`) concatenate plotting-ready tables per
   method set and classifier type and carry no per-table identity beyond those
   columns.

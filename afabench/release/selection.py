@@ -1,10 +1,10 @@
 """
 Choose which payloads of a benchmark release a download fetches.
 
-Selection reads only the release manifest. Evaluation tables are matched
+Selection reads only the release manifest. Evaluations are matched
 against the requested coverage; the bundles they depend on are found by
-following the `inputs` of those tables and, in turn, of the bundles, then
-kept if their payload category is requested. Pretrained-model and
+following the `inputs` of those evaluations and, in turn, of the bundles,
+by content hash, then kept if their payload category is requested. Pretrained-model and
 AFA-method bundles come with the time record their job wrote beside them.
 So asking for evaluation tables alone fetches no bundle, and asking for
 dataset and classifier bundles fetches the shared prerequisites of the
@@ -12,8 +12,8 @@ selected evaluations without their AFA-method bundles. Output categories
 (top-level folders of the output root such as `plot_results`) are not
 described per file by the manifest, so they are selected whole.
 
-Requested coverage the release does not have is reported in `missing`,
-never filled from elsewhere.
+Requested coverage the release does not have, and inputs no bundle of the
+release matches, are reported in `missing`, never filled from elsewhere.
 """
 
 from collections.abc import Callable, Sequence
@@ -21,10 +21,12 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 
 from afabench.release.manifest import (
+    INPUT_CATEGORIES,
     BudgetSetting,
-    BundleRecord,
+    BundleEntry,
     ClassifierVariant,
-    EvaluationTableRecord,
+    EvaluationEntry,
+    IndexedInput,
     PayloadCategory,
     ReleaseManifest,
 )
@@ -61,7 +63,7 @@ class SelectedPayloads:
     missing: list[str]
 
 
-type TableValues = Callable[[EvaluationTableRecord], Sequence[object]]
+type TableValues = Callable[[EvaluationEntry], Sequence[object]]
 
 
 def select_payloads(
@@ -85,12 +87,12 @@ def select_payloads(
         (
             "classifier variant",
             selection.classifier_variants,
-            lambda t: t.classifier_variants or [],
+            lambda t: t.classifier_variants,
         ),
     ]
     tables = [
         table
-        for table in manifest.evaluation_tables
+        for table in manifest.evaluations
         if all(
             not wanted or set(values(table)) & set(wanted)
             for _, wanted, values in dimensions
@@ -106,45 +108,42 @@ def select_payloads(
     folders: list[str] = []
     categories = set(selection.payload_categories)
 
-    def take(
-        category: str, path: str, *, present: bool, into: list[str]
-    ) -> None:
-        if present:
-            into.append(path)
-        else:
-            missing.append(f"{category} {path}: not in the release")
-
     for table in tables:
-        if PayloadCategory.RAW_EVALUATION_TABLE in categories:
-            take(
-                PayloadCategory.RAW_EVALUATION_TABLE,
-                table.raw_path,
-                present=table.raw_present,
-                into=files,
-            )
-        if PayloadCategory.TRANSFORMED_EVALUATION_TABLE in categories:
-            take(
+        for category, path in [
+            (PayloadCategory.RAW_EVALUATION_TABLE, table.raw_path),
+            (
                 PayloadCategory.TRANSFORMED_EVALUATION_TABLE,
                 table.transformed_path,
-                present=table.transformed_present,
-                into=files,
-            )
-    for bundle in _dependencies(manifest, tables):
-        if bundle.category not in categories:
-            continue
-        if bundle.present:
-            folders.append(_job_folder(bundle))
+            ),
+        ]:
+            if category not in categories:
+                continue
+            if path is None:
+                missing.append(
+                    f"{category} of the evaluation {table.path}: "
+                    "not in the release"
+                )
+            else:
+                files.append(path)
+    bundles, dangling = _dependencies(manifest, tables)
+    folders.extend(
+        _job_folder(bundle)
+        for bundle in bundles
+        if bundle.category in categories
+    )
+    missing.extend(
+        f"{INPUT_CATEGORIES[bundle_input.role]} {bundle_input.path}, "
+        f"{bundle_input.role} input of {artifact_path}: not in the release"
+        for artifact_path, bundle_input in dangling
+        if INPUT_CATEGORIES[bundle_input.role] in categories
+    )
+    for output_category in dict.fromkeys(selection.output_categories):
+        if output_category in manifest.coverage.output_categories:
+            folders.append(output_category)
         else:
             missing.append(
-                f"{bundle.category} {bundle.path}: not in the release"
+                f"output category {output_category}: not in the release"
             )
-    for output_category in dict.fromkeys(selection.output_categories):
-        take(
-            "output category",
-            output_category,
-            present=output_category in manifest.coverage.output_categories,
-            into=folders,
-        )
     return SelectedPayloads(
         files=list(dict.fromkeys(files)),
         folders=list(dict.fromkeys(folders)),
@@ -152,7 +151,7 @@ def select_payloads(
     )
 
 
-def _job_folder(bundle: BundleRecord) -> str:
+def _job_folder(bundle: BundleEntry) -> str:
     """
     Return the folder to fetch for a bundle: it, or its job's folder.
 
@@ -170,26 +169,38 @@ def _job_folder(bundle: BundleRecord) -> str:
 
 
 def _dependencies(
-    manifest: ReleaseManifest, tables: list[EvaluationTableRecord]
-) -> list[BundleRecord]:
-    """Every bundle the tables were produced from, in manifest order."""
-    bundles = {bundle.path: bundle for bundle in manifest.bundles}
+    manifest: ReleaseManifest, tables: list[EvaluationEntry]
+) -> tuple[list[BundleEntry], list[tuple[str, IndexedInput]]]:
+    """
+    Every bundle the tables were produced from, in manifest order.
+
+    Also returns the inputs on the way that no bundle of the release
+    matches by content hash, each with the path of the artifact naming it.
+    """
+    bundles: dict[str, list[BundleEntry]] = {}
+    for bundle in manifest.bundles:
+        if bundle.content_hash is not None:
+            bundles.setdefault(bundle.content_hash, []).append(bundle)
     reached: set[str] = set()
+    dangling: list[tuple[str, IndexedInput]] = []
     pending = [
-        bundle_input.path for table in tables for bundle_input in table.inputs
+        (table.path, bundle_input)
+        for table in tables
+        for bundle_input in table.inputs
     ]
     while pending:
-        path = pending.pop()
-        if path in reached:
+        artifact_path, bundle_input = pending.pop()
+        content_hash = bundle_input.content_hash
+        if content_hash is None or content_hash not in bundles:
+            if (artifact_path, bundle_input) not in dangling:
+                dangling.append((artifact_path, bundle_input))
             continue
-        if path not in bundles:
-            msg = (
-                f"Release {manifest.release_id!r} names input bundle "
-                f"{path!r} but lists no such bundle."
-            )
-            raise ValueError(msg)
-        reached.add(path)
-        pending.extend(
-            bundle_input.path for bundle_input in bundles[path].inputs
-        )
-    return [bundle for bundle in manifest.bundles if bundle.path in reached]
+        for bundle in bundles[content_hash]:
+            if bundle.path in reached:
+                continue
+            reached.add(bundle.path)
+            pending.extend((bundle.path, entry) for entry in bundle.inputs)
+    return (
+        [bundle for bundle in manifest.bundles if bundle.path in reached],
+        sorted(dangling, key=lambda item: (item[0], item[1].path)),
+    )

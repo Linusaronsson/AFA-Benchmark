@@ -9,8 +9,8 @@ They are not benchmark results.
 import json
 import os
 from collections.abc import Iterable
+from dataclasses import replace
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 import pytest
@@ -18,15 +18,17 @@ import yaml
 from click.testing import Result
 from typer.testing import CliRunner
 
-from afabench.release.manifest import (
-    PayloadCategory,
-    ReleaseScope,
-    build_release_manifest,
-    read_release_manifest,
-)
-from afabench.release.workflow_config import WorkflowConfigRecord
+from afabench.release.manifest import read_release_manifest
 from scripts.release.snapshot import app
 from test.scripts.fake_release_transport import FakeReleaseTransport
+from test.scripts.release_artifacts import (
+    ALPHA,
+    BETA,
+    Catalog,
+    classifier_bundle,
+    dataset_bundle,
+    write_catalog,
+)
 
 runner = CliRunner()
 
@@ -34,107 +36,34 @@ REPO_ID = "afabench-test/releases"
 TAG = "initializer-cold"
 PLOT = f"plot_results/eval_split-test/{TAG}/cube/eval_perf.pdf"
 # The external classifier of dataset realization 1 of cube.
-EXTERNAL_CLASSIFIER = (
-    f"trained_classifiers/{TAG}/dataset-cube+realization_index-1.bundle"
+EXTERNAL_CLASSIFIER = classifier_bundle("cube", 1)
+# Alpha has no pretraining stage; beta pretrains and has its own classifier.
+CATALOG = Catalog(
+    methods=[ALPHA, BETA],
+    datasets=["cube", "diabetes"],
+    realizations=[0, 1],
 )
-# What the pretraining and training jobs write beside their bundle.
-TIME_RECORDS = {
-    PayloadCategory.PRETRAINED_MODEL_BUNDLE: "pretrain_time.txt",
-    PayloadCategory.AFA_METHOD_BUNDLE: "train_time.txt",
-}
-
-
-def workflow_config(*, smoke_test: bool = False) -> dict[str, Any]:
-    """Alpha has no pretraining stage; beta pretrains and has a classifier."""
-    return {
-        "pretrain_mapping": {"shared": {"pretrain_script_name": "shared"}},
-        "method_options": {
-            "alpha": {"train_script_name": "alpha", "eval_batch_size": 4},
-            "beta": {
-                "train_script_name": "beta",
-                "eval_batch_size": 4,
-                "pretrained_model_name": "shared",
-                "classifier": {"script_name": "special"},
-            },
-        },
-        "methods": ["alpha", "beta"],
-        "datasets": ["cube", "diabetes"],
-        "dataset_realization_indices": [0, 1],
-        "unmaskers": {"default": "direct"},
-        "eval_hard_budgets": {"default": [3]},
-        "soft_budget_params": {
-            "alpha": {"default": [[0.5, 0.5]]},
-            "beta": {"default": []},
-        },
-        "classifier_names": {"default": "masked_mlp_classifier"},
-        "use_wandb": False,
-        "smoke_test": smoke_test,
-    }
-
-
-def raw_table() -> pd.DataFrame:
-    """External predictions only, so the builtin variant is not covered."""
-    return pd.DataFrame(
-        {
-            "episode_id": [0, 0],
-            "step": [0, 1],
-            "action_performed": [3, 0],
-            "builtin_predicted_class": pd.array([None, None], dtype="Int64"),
-            "external_predicted_class": [1, 0],
-            "true_class": [0, 0],
-            "accumulated_cost": [1.0, 1.0],
-            "forced_stop": [False, True],
-            "eval_seed": [0, 0],
-            "eval_hard_budget": [3.0, 3.0],
-        }
-    )
 
 
 def write_release_outputs(
     root: Path,
     release_id: str,
-    config: dict[str, Any],
     *,
+    smoke_test: bool = False,
     omit: Iterable[str] = (),
 ) -> None:
     """
-    Write every table and bundle `config` schedules, except those in `omit`.
+    Write every artifact of the catalog, except those in `omit`.
 
     Each transformed table, bundle and the plot holds the release id, so a
     test can tell which release a restored file came from.
     """
-    # Only the scheduled paths are read from this manifest; scope smoke is
-    # the scope every config, smoke or not, accepts.
-    scheduled = build_release_manifest(
-        release_id=release_id,
-        scope=ReleaseScope.SMOKE,
-        workflow_config=WorkflowConfigRecord(
-            profile=None, configfiles=[], overrides={}, merged=config
-        ),
-        output_root=root,
-        checkout=root,
+    write_catalog(
+        root,
+        replace(CATALOG, smoke_test=smoke_test),
+        content=release_id,
+        omit=omit,
     )
-    omitted = set(omit)
-    for table in scheduled.evaluation_tables:
-        if table.raw_path not in omitted:
-            (root / table.raw_path).parent.mkdir(parents=True)
-            raw_table().to_parquet(root / table.raw_path, index=False)
-        if table.transformed_path not in omitted:
-            (root / table.transformed_path).parent.mkdir(parents=True)
-            pd.DataFrame({"release": [release_id]}).to_parquet(
-                root / table.transformed_path, index=False
-            )
-    for bundle in scheduled.bundles:
-        if bundle.path in omitted:
-            continue
-        (root / bundle.path / "data").mkdir(parents=True)
-        (root / bundle.path / "data/weights.bin").write_text(release_id)
-        (root / bundle.path / "manifest.json").write_text(
-            json.dumps({"bundle_version": "1.0.0", "class_name": "Fake"})
-        )
-        if bundle.category in TIME_RECORDS:
-            time_record = TIME_RECORDS[bundle.category]
-            (root / bundle.path).parent.joinpath(time_record).write_text("1.0")
     (root / PLOT).parent.mkdir(parents=True)
     (root / PLOT).write_text(release_id)
 
@@ -163,11 +92,12 @@ def publish(
 
     `backdate` gives every saved output a distinct old mtime first.
     """
-    config = workflow_config(smoke_test=smoke_test)
     source_root = tmp_path / f"{release_id}-source"
-    write_release_outputs(source_root, release_id, config, omit=omit)
+    write_release_outputs(
+        source_root, release_id, smoke_test=smoke_test, omit=omit
+    )
     configfile = tmp_path / f"{release_id}.yaml"
-    configfile.write_text(yaml.safe_dump(config))
+    configfile.write_text(yaml.safe_dump({"smoke_test": smoke_test}))
     # Every dataset is reviewed as permitted, so official releases publish.
     checkout = tmp_path / f"{release_id}-checkout"
     review_file = checkout / "extra/conf/release/dataset_redistribution.yaml"
@@ -180,7 +110,7 @@ def publish(
         "notes": None,
     }
     review_file.write_text(
-        yaml.safe_dump({"datasets": dict.fromkeys(config["datasets"], review)})
+        yaml.safe_dump({"datasets": dict.fromkeys(CATALOG.datasets, review)})
     )
     package_dir = tmp_path / f"{release_id}-package"
     saved = runner.invoke(
@@ -598,8 +528,8 @@ def test_missing_coverage_is_reported_and_not_taken_from_another_release(
         result.output
     )
     assert (
-        f"transformed_evaluation_table {missing_table}: not in the release"
-        in result.output
+        "transformed_evaluation_table of the evaluation "
+        f"eval_results/{beta_table(1)}: not in the release" in result.output
     )
     assert restored_files(destination_root) == {
         f"eval_results_transformed/{beta_table(0)}"
@@ -764,11 +694,10 @@ def test_latest_is_not_a_smoke_release_and_not_a_release_id(
 def publish_reserved_release_id(
     tmp_path: Path, transport: FakeReleaseTransport
 ) -> Result:
-    config = workflow_config()
     source_root = tmp_path / "latest-source"
-    write_release_outputs(source_root, "latest", config)
+    write_release_outputs(source_root, "latest")
     configfile = tmp_path / "latest.yaml"
-    configfile.write_text(yaml.safe_dump(config))
+    configfile.write_text(yaml.safe_dump({"smoke_test": False}))
     package_dir = tmp_path / "latest-package"
     runner.invoke(
         app,
@@ -809,3 +738,49 @@ def test_selected_outputs_keep_their_published_mtimes(tmp_path: Path) -> None:
         restored = destination_root / path
         published = package_dir / "output" / path
         assert restored.stat().st_mtime == published.stat().st_mtime, path
+
+
+def test_inputs_the_release_lacks_are_reported_for_their_category(
+    tmp_path: Path,
+) -> None:
+    transport = FakeReleaseTransport()
+    publish(
+        tmp_path,
+        transport,
+        "2026-11-partial",
+        scope="partial",
+        omit=[EXTERNAL_CLASSIFIER],
+    )
+    selection = ["--method", "alpha", "--dataset", "cube"]
+    selection += ["--dataset-realization", "1"]
+
+    tables_only = download(
+        transport,
+        tmp_path / "tables/extra/output",
+        "2026-11-partial",
+        "--payload-category",
+        "transformed_evaluation_table",
+        *selection,
+    )
+    prerequisites = download(
+        transport,
+        tmp_path / "prerequisites/extra/output",
+        "2026-11-partial",
+        "--payload-category",
+        "dataset_bundle",
+        "--payload-category",
+        "classifier_bundle",
+        *selection,
+    )
+
+    assert tables_only.exit_code == 0, tables_only.output
+    assert "Missing from release" not in tables_only.output
+    assert prerequisites.exit_code == 0, prerequisites.output
+    assert (
+        f"classifier_bundle extra/output/{EXTERNAL_CLASSIFIER}, classifier "
+        "input of eval_results/" in prerequisites.output
+    )
+    # The training splits are still reached through the method bundles.
+    assert restored_bundles(tmp_path / "prerequisites/extra/output") == {
+        dataset_bundle("cube", 1, split) for split in ["train", "val", "test"]
+    }

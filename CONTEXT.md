@@ -284,16 +284,19 @@ _Avoid_: Latest results, pipeline run (a run need not be published)
 A verbatim copy of everything the pipeline has written under its output
 root, taken so it can later be put back exactly where the workflow expects
 it. It holds every file, with no selection; a benchmark release is
-published from one. Its only provenance is an optional release manifest
-beside it.
+published from one. Its artifacts carry their own provenance records; it
+may also carry a release manifest beside it.
 _Avoid_: Backup, archive, export, package
 
 **Release manifest**:
 The JSON file beside an output snapshot's output tree that identifies its
-benchmark release, declares full, partial or smoke scope, and records
-the producing commit, workflow configuration, resolved settings, per-table
-identity and coverage (see `docs/reference/release_manifest.md`).
-Smoke-test outputs always have smoke scope.
+benchmark release, declares full, partial or smoke scope, records the
+maintainers' dataset redistribution review and the workflow configuration
+that lays out the release, and indexes the snapshot's artifacts. The index is generated from the artifacts' provenance records,
+never from the workflow configuration, so it is a cache of those records
+rather than a second source of truth (see
+`docs/reference/release_manifest.md`). Smoke-test outputs always have smoke
+scope.
 _Avoid_: Metadata, release info, provenance record (that is per artifact)
 
 **Payload category**:
