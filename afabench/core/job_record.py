@@ -1,7 +1,7 @@
 """
 The job record: one pipeline job's identity, job duration and allocation.
 
-Design: `docs/adr/0006-job-records-beside-artifacts.md`; schema:
+Design: `docs/adr/0007-job-records-beside-artifacts.md`; schema:
 `docs/reference/job_records.md`. A pipeline rule runs its script through
 this module's command, which times the script and writes the record as JSON
 beside the artifact the job produced. `null` always means "unknown" or "not

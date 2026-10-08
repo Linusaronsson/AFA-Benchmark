@@ -4,6 +4,11 @@ status: accepted
 
 # Job records sit beside artifacts, and compute estimates come from raw job durations
 
+_This amends [ADR 0006](0006-release-manifest-indexes-artifact-provenance.md):
+the release manifest also describes a release's job duration table, which
+is built from job records rather than provenance records and ships beside
+the manifest, outside `output/`._
+
 A full benchmark run costs thousands of CPU and GPU hours, so users need a
 **compute estimate** before they launch one. Today each timed job writes a
 bare `*_time.txt` holding seconds only: it does not say which device or
@@ -50,3 +55,13 @@ GPU-hours.
   release and site its job durations came from.
 - Durations from smoke tests are refused, because they would make every
   estimate look far too cheap.
+- The release manifest (ADR 0006) gains a `job_duration_table` entry and
+  payload category (manifest version 3). Unlike the rest of its index, the
+  entry comes from job records, since a run's timing is no artifact's
+  provenance. The table is a file beside the manifest, not in `output/`:
+  the pipeline rebuilds `merged_results/job_duration_table.parquet` from
+  the local output root on every `all` run and would replace a restored
+  release table there. Job records do not set the release's
+  `execution_mode`; the table carries its own smoke flag, so a failed smoke
+  attempt left among the failed records does not block a production
+  release.

@@ -1,7 +1,7 @@
 """
 The job duration table: every job record of a pipeline's outputs as one row.
 
-Design: `docs/adr/0006-job-records-beside-artifacts.md`; columns:
+Design: `docs/adr/0007-job-records-beside-artifacts.md`; columns:
 `docs/reference/job_records.md`. Rows are not aggregated: each job record,
 completed, failed or timed out, is one row, so repeated attempts of one job
 are separate rows. `load_job_duration_table` reads either an output root of

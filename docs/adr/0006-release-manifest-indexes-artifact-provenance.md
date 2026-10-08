@@ -58,6 +58,10 @@ rebuilding it from the same output tree gives the same result.
   which every selective download fetches first.
 - **Coverage**, derived from the index.
 
+_Amended by [ADR 0007](0007-job-records-beside-artifacts.md): the manifest
+also describes the release's job duration table, built from job records and
+shipped beside the manifest._
+
 Dropped: the save-time `code` and the resolved `settings`. Each artifact's record holds its producing script's
 `resolved_config`; the feature-cost files and other checkout contents are
 identified by the producing commit.
