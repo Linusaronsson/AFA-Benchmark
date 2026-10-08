@@ -76,12 +76,44 @@ same way.
 A pooled estimate ignores how job duration depends on seeds, hard budgets
 and soft-budget parameters, so it is rougher than an exact one.
 
-## 5. Break the estimate down
+## 5. Act on failure warnings
+
+Under `Failed or timed out before`, the report lists each planned stage,
+method or model and dataset key that has failed or timed-out job records
+in the source, for example:
+
+```text
+Failed or timed out before, so the estimate of these jobs may be low:
+  training alpha on mnist timed out 3 times at 600 min, failed 1 time
+```
+
+Only completed jobs give job durations, so a job type whose slow jobs hit
+their time limit is estimated from its fast ones, and the jobs that time
+out again will use their whole time limit and leave no artifact. Before you
+launch:
+
+- **Timed out**: raise the time limit of that stage's rule above the limit
+  shown, in your site profile's `set-resources` or with `--set-resources
+  <rule>:runtime=<minutes>` (rule names:
+  [SLURM integration](slurm_integration.md)), and pass the same arguments
+  to the estimate and to the real run. A job cancelled with `scancel` is
+  also recorded as timed out.
+- **Failed**: the script exited with an error. Its job record is under
+  `extra/output/failed_job_records/`, and Snakemake's output of that run
+  names the failed job and its log; fix the cause, or the jobs will fail
+  again.
+
+The warnings are history: they stay while the failed and timed-out job
+records are in the source, also after a rerun with a larger time limit
+completed.
+
+## 6. Break the estimate down
 
 - Group the totals by other columns with `--by`, for example by method or
   pretrained-model name and dataset key: `--by name --by dataset_key`.
 - Write every planned job's estimate to a CSV with `--output
-  estimate.csv`, for your own analysis.
+  estimate.csv`, for your own analysis. Its `failure_history` column flags
+  the jobs of the job types the report warns about.
 - Make the estimate fail when any planned job is unestimated with
   `--strict`, so that an allocation request never rests on an incomplete
   estimate.
