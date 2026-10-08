@@ -1,0 +1,254 @@
+"""
+The workflow config loader: typed settings, rejected at load time when wrong.
+
+Each config mistake below once surfaced late, as a `KeyError` while
+Snakemake built the DAG, or never, as a silently different benchmark.
+"""
+
+import warnings
+from pathlib import Path
+
+import pytest
+import yaml
+
+from afabench.core.workflow_settings import load_config
+from afabench.release.workflow_config import resolve_workflow_config
+
+REPO_ROOT = Path(__file__).parents[3]
+
+
+@pytest.mark.parametrize("profile", ["all", "kdd26"])
+def test_shipped_configs_load(profile: str) -> None:
+    profile_file = REPO_ROOT / "extra/workflow/profiles/config" / profile
+    configfiles = yaml.safe_load((profile_file / "config.yaml").read_text())[
+        "configfile"
+    ]
+    record = resolve_workflow_config(
+        profile=None,
+        configfiles=[REPO_ROOT / path for path in configfiles],
+        overrides=[],
+    )
+
+    settings = load_config(record.merged)
+
+    assert settings.methods
+    assert set(settings.methods) <= set(settings.method_options)
+
+
+def test_load_config_uses_pipeline_defaults() -> None:
+    settings = load_config(_config())
+
+    assert settings.eval_dataset_split == "test"
+    assert settings.dataset_realization_indices == [0, 1, 2, 3, 4]
+    assert settings.smoke_test is False
+    assert settings.use_wandb is True
+    assert settings.initializer == "cold"
+
+
+def test_aaco_eval_batch_size_is_pinned_per_dataset() -> None:
+    """AACO batches its acquisition, so all.yaml pins its eval batch size."""
+    method_options = yaml.safe_load(
+        (REPO_ROOT / "extra/workflow/conf/method_options/all.yaml").read_text()
+    )["method_options"]
+    config = _config(
+        method_options=method_options,
+        methods=["aaco", "aaco_nn"],
+        datasets=["cube", "mnist", "fashion_mnist", "synthetic_mnist"],
+        pretrain_mapping={"aaco": {"pretrain_script_name": "aaco"}},
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        settings = load_config(config)
+
+    # Image datasets get the smaller pinned size, every other dataset the
+    # default. The loader keeps the `default` key alongside the datasets.
+    expected = {
+        "default": 128,
+        "cube": 128,
+        "mnist": 32,
+        "fashion_mnist": 32,
+        "synthetic_mnist": 32,
+        "synthetic_mnist_without_noise": 32,
+    }
+    assert settings.eval_batch_sizes["aaco"] == expected
+    assert settings.eval_batch_sizes["aaco_nn"] == expected
+
+
+def test_missing_eval_batch_size_warns_and_falls_back_to_one() -> None:
+    config = _config(
+        method_options={"unbatched": {"train_script_name": "unbatched"}},
+        methods=["unbatched"],
+        datasets=["cube", "mnist"],
+    )
+
+    with pytest.warns(UserWarning, match=r"unbatched.*eval_batch_size"):
+        settings = load_config(config)
+
+    assert settings.eval_batch_sizes["unbatched"] == {"cube": 1, "mnist": 1}
+
+
+def test_eval_batch_size_mapping_without_default_is_rejected() -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": {"cube": 8},
+            }
+        }
+    )
+
+    with pytest.raises(ValueError, match=r"'alpha'.*eval_batch_size.*default"):
+        load_config(config)
+
+
+@pytest.mark.parametrize(
+    "typo",
+    [
+        "pretrained_model_nme",
+        "hard_budget_ignored_dataset",
+        "soft_budget_ignored_dataset",
+        "eval_batch_sise",
+    ],
+)
+def test_misspelt_method_option_is_rejected(typo: str) -> None:
+    config = _config(
+        method_options={
+            "alpha": {"train_script_name": "alpha", typo: "anything"}
+        }
+    )
+
+    with pytest.raises(ValueError, match=rf"'alpha'.*{typo}"):
+        load_config(config)
+
+
+def test_method_without_train_script_name_is_rejected() -> None:
+    config = _config(method_options={"alpha": {"eval_batch_size": 1}})
+
+    with pytest.raises(ValueError, match=r"'alpha'.*train_script_name"):
+        load_config(config)
+
+
+def test_pretrained_model_missing_from_pretrain_mapping_is_rejected() -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "pretrained_model_name": "shard",
+                "eval_batch_size": 1,
+            }
+        },
+        pretrain_mapping={"shared": {"pretrain_script_name": "shared"}},
+    )
+
+    with pytest.raises(
+        ValueError, match=r"'alpha'.*'shard'.*pretrain_mapping"
+    ):
+        load_config(config)
+
+
+def test_method_missing_from_method_options_is_rejected() -> None:
+    config = _config(methods=["alpha", "beta"])
+
+    with pytest.raises(ValueError, match=r"'beta'.*method_options"):
+        load_config(config)
+
+
+def test_method_missing_from_soft_budget_params_is_rejected() -> None:
+    config = _config()
+    config["soft_budget_params"] = {}
+
+    with pytest.raises(ValueError, match=r"'alpha'.*soft_budget_params"):
+        load_config(config)
+
+
+def test_reference_method_missing_from_soft_budget_params_is_rejected() -> (
+    None
+):
+    config = _config(
+        method_options={
+            name: {"train_script_name": name, "eval_batch_size": 1}
+            for name in ["alpha", "beta"]
+        },
+        methods=["beta"],
+    )
+    config["reference_methods"] = ["alpha"]
+
+    with pytest.raises(ValueError, match=r"'alpha'.*soft_budget_params"):
+        load_config(config)
+
+
+@pytest.mark.parametrize(
+    "option", ["hard_budget_ignored_datasets", "soft_budget_ignored_datasets"]
+)
+def test_unknown_ignored_dataset_key_is_rejected(option: str) -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                option: ["imagenete"],
+            }
+        }
+    )
+
+    with pytest.raises(ValueError, match=rf"'alpha'.*{option}.*'imagenete'"):
+        load_config(config)
+
+
+def test_ignored_dataset_need_not_be_in_this_run() -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "hard_budget_ignored_datasets": ["imagenette"],
+            }
+        },
+        datasets=["cube"],
+    )
+
+    settings = load_config(config)
+
+    assert settings.budget_params["alpha"]["cube"] == [
+        (1, 1, "null", "null"),
+        ("null", "null", 0.1, 0.1),
+    ]
+
+
+def test_misspelt_classifier_key_is_rejected() -> None:
+    config = _config()
+    config["classifier_names"] = {
+        "default": {"script_name": "masked_mlp_classifier", "script_parms": []}
+    }
+
+    with pytest.raises(ValueError, match=r"'default'.*script_parms"):
+        load_config(config)
+
+
+def _config(
+    *,
+    method_options: dict[str, object] | None = None,
+    methods: list[str] | None = None,
+    datasets: list[str] | None = None,
+    pretrain_mapping: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Build a minimal valid config, with the given parts replaced."""
+    if method_options is None:
+        method_options = {
+            "alpha": {"train_script_name": "alpha", "eval_batch_size": 1}
+        }
+    if methods is None:
+        methods = list(method_options)
+    return {
+        "pretrain_mapping": pretrain_mapping or {},
+        "method_options": method_options,
+        "methods": methods,
+        "datasets": datasets or ["cube"],
+        "unmaskers": {"default": "direct"},
+        "eval_hard_budgets": {"default": [1]},
+        "soft_budget_params": {
+            method: {"default": [[0.1, 0.1]]} for method in methods
+        },
+        "classifier_names": {"default": "masked_mlp_classifier"},
+    }
