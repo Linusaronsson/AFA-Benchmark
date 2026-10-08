@@ -10,6 +10,10 @@ import re
 from pathlib import Path
 
 from test.workflow.submission_harness import WorkflowHarness
+from test.workflow.test_reference_results import (
+    ALPHA_HARD_BUDGET_TABLE,
+    adopter_workflow,
+)
 
 type Job = tuple[str, tuple[str, ...], str, int, int]
 
@@ -66,3 +70,29 @@ def test_planned_jobs_match_the_submitted_jobs_and_allocations(
     submitted = sorted(map(submitted_job, workflow.submissions()))
     assert sorted(map(planned_job, workflow.planned_jobs())) == submitted
     assert {job[2:] for job in submitted} == {("cuda", 8, 1), ("cpu", 8, 0)}
+
+
+def test_only_the_remaining_jobs_are_planned_once_outputs_exist(
+    tmp_path: Path,
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    trained = workflow.run("--executor", "local", target="all_train_methods")
+    assert trained.returncode == 0, trained.stdout + trained.stderr
+
+    plan = workflow.plan("--executor", "local")
+
+    assert plan.returncode == 0, plan.stdout + plan.stderr
+    assert sorted(
+        (job["rule"], job["method"]) for job in workflow.planned_jobs()
+    ) == [("eval_method", "alpha"), ("eval_method", "beta")]
+
+
+def test_reference_methods_are_never_planned(tmp_path: Path) -> None:
+    workflow = adopter_workflow(tmp_path, ALPHA_HARD_BUDGET_TABLE)
+
+    plan = workflow.plan("--executor", "local", target="all")
+
+    assert plan.returncode == 0, plan.stdout + plan.stderr
+    jobs = workflow.planned_jobs()
+    assert {job["method"] for job in jobs if job["method"]} == {"beta"}
+    assert "merge_eval_perf" in {job["rule"] for job in jobs}
