@@ -58,8 +58,11 @@ Job records:
     extra/workflow/src/job_records.py. It writes a job record, a declared
     output named after the job's artifact with `.job_record.json` in place
     of its suffix: the job's identity, job duration and resolved allocation
-    (device, CPUs, GPUs). Pretraining, training and evaluation also still
-    write *_time.txt for the time aggregation. See
+    (device, CPUs, GPUs, time limit). A job whose script fails, or that
+    receives SLURM's time-limit SIGTERM, writes its record to the same path
+    under extra/output/failed_job_records/ instead, one record per attempt;
+    Snakemake deletes a failed job's declared outputs. Pretraining, training
+    and evaluation also still write *_time.txt for the time aggregation. See
     docs/reference/job_records.md and
     docs/adr/0006-job-records-beside-artifacts.md.
 

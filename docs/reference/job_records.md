@@ -31,23 +31,50 @@ a job whose artifact exists, for example a downloaded shared prerequisite.
 Pretraining, training and evaluation also still write `*_time.txt`, which
 the time aggregation reads.
 
+### Failed and timed-out jobs
+
+Snakemake deletes a failed job's declared outputs, so a job whose
+`exit_status` is `failed` or `timeout` writes its record to the
+failed-records directory `failed_job_records/` instead. No rule declares
+it. The record's path there is the path in the table above, with an
+attempt id inserted before `.job_record.json`: the UTC start time and a
+random suffix. Each attempt of a job leaves its own record, for example
+
+```text
+failed_job_records/trained_methods/<tag>/<training>/method.20261008T120000123456Z-1a2b3c4d.job_record.json
+```
+
+Snakemake does not delete these records, and a later successful attempt
+does not remove them.
+
 ## How a record is written
 
 A rule runs its script through the wrapper command, which runs the script,
 times it and writes the record:
 
 ```shell
-python -m afabench.core.job_record --record <path> --stage <stage> \
-    --device <cpu|cuda> [--cpus <n>] [--gpus <n>] [--smoke-test] \
+python -m afabench.core.job_record --record <path> \
+    --failed-record <path> --stage <stage> --device <cpu|cuda> \
+    [--cpus <n>] [--gpus <n>] [--time-limit-minutes <n>] [--smoke-test] \
     [identity options] [--time-file <path>] -- <script command>
 ```
 
-Each identity field below has an option of the same name with `-` for `_`
-(`--dataset-key`); an omitted option records `null`. `--time-file` also
-writes the job duration in seconds there. The wrapper exits with the
-script's exit code. `extra/workflow/src/job_records.py` renders the options
-from the job's wildcards and its final Snakemake resources, after profile
-defaults and `--set-resources` overrides.
+`--record` is where a completed job's record goes, `--failed-record` the
+path a failed or timed-out job's record is named after. Each identity field
+below has an option of the same name with `-` for `_` (`--dataset-key`); an
+omitted option records `null`. `--time-file` also writes the job duration in
+seconds there, for completed jobs only. `extra/workflow/src/job_records.py`
+renders the options from the job's wildcards and its final Snakemake
+resources, after profile defaults and `--set-resources` overrides.
+
+The wrapper exits with the script's exit code, or 128 plus the number of
+the signal that ended the script, so Snakemake sees a failed script as a
+failed job. On SIGTERM, which SLURM sends at a job's time limit, it passes
+the signal on to the script, kills the script if it has not exited after 10
+seconds, records `timeout` and exits with 143 (128 plus SIGTERM). SLURM
+kills the wrapper itself after its `KillWait`, 30 seconds by default, so a
+cluster with a `KillWait` under 10 seconds can lose a timed-out job's
+record.
 
 ## Fields
 
@@ -79,8 +106,8 @@ Records are flat, so that one record is one row of a table.
 | --- | --- |
 | `started_at`, `ended_at` | UTC ISO-8601 times the script started and ended. |
 | `job_duration_seconds` | Job duration: the script's wall-clock time in seconds, measured with a monotonic clock. |
-| `exit_status` | `completed` if the script exited with 0, `failed` otherwise. Snakemake deletes a failed job's declared outputs, so only `completed` records remain beside artifacts. |
-| `exit_code` | The script's exit code; negative if a signal ended it. |
+| `exit_status` | `completed` if the script exited with 0; `timeout` if the wrapper received SIGTERM, which SLURM sends at the time limit, but which `scancel` also sends; `failed` otherwise. Only `completed` records sit beside artifacts; the others are in the failed-records directory. |
+| `exit_code` | The script's exit code; negative if a signal ended it, `-15` for SIGTERM. |
 
 ### Allocation
 
@@ -89,6 +116,7 @@ Records are flat, so that one record is one row of a table.
 | `device` | `cpu` or `cuda`, the device the pipeline resolved for the job. |
 | `cpus` | CPUs requested: the `cpus_per_task` resource, or the job's threads without one, as the SLURM executor requests them; null if `cpus_per_task` is negative, which leaves it to the cluster. |
 | `gpus` | GPUs requested: the `gpu` resource, or the count of a `gpu[:<model>]:<n>` `gres`; 0 for none. |
+| `time_limit_minutes` | The job's time limit in minutes: its `runtime` resource, which the SLURM executor requests with `-t`; null if no profile sets one. |
 | `gpu_model` | Names of the GPUs `nvidia-smi` lists in the job, comma-separated; null for jobs without GPUs or where it cannot be queried. |
 | `cpu_model` | The CPU's model name from `/proc/cpuinfo`, or the platform's processor name. |
 | `host` | Host name the job ran on. |
