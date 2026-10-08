@@ -9,6 +9,11 @@ the job is pooled with every job of its stage, name, dataset key and
 device, whatever their seeds, dataset realizations, hard budgets and
 soft-budget parameters. Otherwise it is unestimated. Matching never crosses
 device or dataset key, and durations are not normalized across hardware.
+
+Failed and timed-out job records give no job duration. Instead, each
+planned job type (stage, name and dataset key) that has them gets a failure
+history: its jobs may fail or hit their time limit again, so their estimate
+may be low.
 """
 
 from collections import defaultdict
@@ -19,7 +24,7 @@ from typing import Literal
 import pandas as pd
 
 from afabench.compute_estimate.planning import PlannedJob
-from afabench.core.job_record import JobIdentity
+from afabench.core.job_record import JobIdentity, Stage
 
 # no_job_record: the job's rule writes no job record, so no job duration
 # can match it; aggregation and visualization jobs are not computational.
@@ -28,6 +33,7 @@ type MatchLevel = Literal["exact", "pooled", "unestimated", "no_job_record"]
 IDENTITY_COLUMNS = [field.name for field in fields(JobIdentity)]
 EXACT_COLUMNS = [*IDENTITY_COLUMNS, "device"]
 POOL_COLUMNS = ["stage", "name", "dataset_key", "device"]
+JOB_TYPE_COLUMNS = ["stage", "name", "dataset_key"]
 
 # The values of a job's identity columns and device, None for null
 type Key = tuple[object, ...]
@@ -81,6 +87,19 @@ class Hardware:
 
 
 @dataclass(frozen=True, kw_only=True)
+class FailureHistory:
+    """The failed and timed-out job records of a planned job type."""
+
+    stage: Stage
+    name: str | None
+    dataset_key: str | None
+    failed: int
+    timed_out: int
+    # Distinct known time limits of the timed-out jobs, sorted
+    time_limits_minutes: list[int]
+
+
+@dataclass(frozen=True, kw_only=True)
 class ComputeEstimate:
     jobs: list[JobEstimate]
     # Job records some job was matched to
@@ -88,6 +107,8 @@ class ComputeEstimate:
     hardware: Hardware
     # Job records of smoke tests, never used as job durations
     refused_smoke_test_job_records: int
+    # Sorted by job type
+    failure_histories: list[FailureHistory]
 
 
 def estimate_compute(
@@ -131,7 +152,55 @@ def estimate_compute(
             gpu_models=_distinct(matched["gpu_model"]),
         ),
         refused_smoke_test_job_records=int(smoke_test.sum()),
+        failure_histories=_failure_histories(
+            planned_jobs,
+            job_durations.loc[
+                job_durations["exit_status"].isin(["failed", "timeout"])
+                & ~smoke_test
+            ],
+        ),
     )
+
+
+def _failure_histories(
+    planned_jobs: Sequence[PlannedJob], failures: pd.DataFrame
+) -> list[FailureHistory]:
+    """Return the failure history of each planned job type that has one."""
+    planned_types = {
+        _key(asdict(job.identity), JOB_TYPE_COLUMNS): job.identity
+        for job in planned_jobs
+        if job.identity is not None
+    }
+    timed_out: defaultdict[Key, int] = defaultdict(int)
+    failed: defaultdict[Key, int] = defaultdict(int)
+    time_limits: defaultdict[Key, set[int]] = defaultdict(set)
+    for record in _records(
+        failures.loc[
+            :, [*JOB_TYPE_COLUMNS, "exit_status", "time_limit_minutes"]
+        ]
+    ):
+        job_type = _key(record, JOB_TYPE_COLUMNS)
+        if record["exit_status"] == "timeout":
+            timed_out[job_type] += 1
+            if isinstance(limit := record["time_limit_minutes"], int):
+                time_limits[job_type].add(limit)
+        else:
+            failed[job_type] += 1
+    return [
+        FailureHistory(
+            stage=identity.stage,
+            name=identity.name,
+            dataset_key=identity.dataset_key,
+            failed=failed[job_type],
+            timed_out=timed_out[job_type],
+            time_limits_minutes=sorted(time_limits[job_type]),
+        )
+        for job_type, identity in sorted(
+            planned_types.items(),
+            key=lambda item: tuple(str(value) for value in item[0]),
+        )
+        if failed[job_type] or timed_out[job_type]
+    ]
 
 
 def _match(
