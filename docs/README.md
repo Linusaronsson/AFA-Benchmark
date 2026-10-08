@@ -38,7 +38,8 @@ instead of defining a term on a page.
   [run on SLURM](how-to/slurm_integration.md), choose hardware
   [per method](how-to/mixed_execution.md) and
   [for classifiers and pretrained models](how-to/prerequisite_execution.md),
-  [CPU-only processing](how-to/cpu_processing_execution.md).
+  [CPU-only processing](how-to/cpu_processing_execution.md),
+  [estimate the compute of a run](how-to/estimate_compute.md).
 - Extending the benchmark: [add a dataset](how-to/add_dataset.md),
   [add a method](how-to/add_method.md).
 - Using published results:
@@ -57,6 +58,7 @@ instead of defining a term on a page.
 - [Job records](reference/job_records.md)
 - [Release manifest](reference/release_manifest.md)
 - [`snapshot.py` command](reference/snapshot_command.md)
+- [`estimate-compute` command](reference/estimate_compute_command.md)
 - [Release notes](reference/release_notes.md)
 - [Terminology: patch-based unmasking example](reference/terminology.md)
 
