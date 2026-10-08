@@ -6,6 +6,7 @@ sends the job SIGTERM before it kills it at its time limit.
 """
 
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -79,3 +80,21 @@ def test_a_failing_script_s_exit_code_propagates_to_its_failed_record(
     assert record["exit_status"] == "failed"
     assert record["exit_code"] == 3
     assert not (tmp_path / "output/job/model.job_record.json").exists()
+
+
+def test_a_record_names_the_slurm_job_and_cluster_it_ran_in(
+    tmp_path: Path,
+) -> None:
+    environment = {
+        **os.environ,
+        "SLURM_JOB_ID": "4242",
+        "SLURM_CLUSTER_NAME": "alvis",
+    }
+
+    subprocess.run(wrapper(tmp_path, "true"), env=environment, check=True)
+
+    record = json.loads(
+        (tmp_path / "output/job/model.job_record.json").read_text()
+    )
+    assert record["slurm_job_id"] == "4242"
+    assert record["slurm_cluster"] == "alvis"

@@ -42,8 +42,9 @@ GPUs your site profile will request.
   `--job-durations extra/release_job_duration_table.parquet`.
 
 The durations are used as measured: they are not scaled to your hardware.
-The report names the hosts, CPU models and GPU models they came from;
-scale the totals yourself if your cluster is faster or slower.
+The report names the SLURM clusters, hosts, CPU models and GPU models
+they came from; scale the totals yourself if your cluster is faster or
+slower.
 
 ## 3. Run the estimate
 

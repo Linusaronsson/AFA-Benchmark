@@ -81,6 +81,8 @@ class JobEstimate:
 class Hardware:
     """Where matched job durations were measured, distinct and sorted."""
 
+    # The sites, as far as SLURM names them
+    slurm_clusters: list[str]
     hosts: list[str]
     cpu_models: list[str]
     gpu_models: list[str]
@@ -145,6 +147,7 @@ def estimate_compute(
         ],
         matched_job_records=len(matched),
         hardware=Hardware(
+            slurm_clusters=_distinct(matched["slurm_cluster"]),
             hosts=_distinct(matched["host"]),
             cpu_models=_distinct(matched["cpu_model"]),
             gpu_models=_distinct(matched["gpu_model"]),

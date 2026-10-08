@@ -48,11 +48,11 @@ are never scaled across hardware.
 Printed to standard output, in this order:
 
 1. The number of planned jobs per match level.
-2. The source of the job durations, and the distinct hosts, CPU models
-   and GPU models of the matched job records. For a
-   `release_job_duration_table.parquet` with a release manifest beside it,
-   the source names the release id and scope, or says that the table is
-   not that release's when its size differs from the manifest's
+2. The source of the job durations, and the distinct SLURM clusters
+   (sites), hosts, CPU models and GPU models of the matched job records.
+   For a `release_job_duration_table.parquet` with a release manifest
+   beside it, the source names the release id and scope, or says that the
+   table is not that release's when its size differs from the manifest's
    `job_duration_table` entry.
 3. The number of refused smoke-test job records, if any.
 4. The totals per group, and a `total` row: `jobs` and the jobs per match

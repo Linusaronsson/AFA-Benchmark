@@ -120,6 +120,7 @@ Records are flat, so that one record is one row of a table.
 | `cpu_model` | The CPU's model name from `/proc/cpuinfo`, or the platform's processor name. |
 | `host` | Host name the job ran on. |
 | `slurm_job_id` | `SLURM_JOB_ID` of the job; null outside SLURM. |
+| `slurm_cluster` | `SLURM_CLUSTER_NAME` of the job, the site it ran at; null outside SLURM. |
 
 ### Code and mode
 
@@ -170,7 +171,7 @@ times.
 
 | Columns | Type |
 | --- | --- |
-| `job_record_path`, `stage`, `name`, `dataset_key`, `exit_status`, `device`, `gpu_model`, `cpu_model`, `host`, `slurm_job_id`, `code_commit` | `string` |
+| `job_record_path`, `stage`, `name`, `dataset_key`, `exit_status`, `device`, `gpu_model`, `cpu_model`, `host`, `slurm_job_id`, `slurm_cluster`, `code_commit` | `string` |
 | `job_record_version`, `dataset_realization_index`, `pretrain_seed`, `train_seed`, `eval_seed`, `train_hard_budget`, `eval_hard_budget`, `eval_batch_size`, `exit_code`, `cpus`, `gpus`, `time_limit_minutes` | `Int64` |
 | `train_soft_budget_param`, `eval_soft_budget_param`, `job_duration_seconds` | `Float64` |
 | `started_at`, `ended_at` | `datetime64[us, UTC]` |

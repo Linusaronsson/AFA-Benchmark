@@ -273,6 +273,7 @@ def test_job_records_carry_timing_code_commit_and_smoke_flag(
             assert isinstance(record[field], str), (path, field)
         assert "gpu_model" in record, path
         assert "slurm_job_id" in record, path
+        assert "slurm_cluster" in record, path
 
 
 def test_job_records_are_the_only_timing_jobs_leave(
