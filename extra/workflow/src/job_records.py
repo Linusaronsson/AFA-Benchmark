@@ -76,6 +76,7 @@ def job_record_command(
         "device": device,
         "cpus": allocated_cpus(resources, threads),
         "gpus": allocated_gpus(resources),
+        "time_limit_minutes": resources.get("runtime"),
         "time_file": time_file,
         **identity,
     }

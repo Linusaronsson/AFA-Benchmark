@@ -24,12 +24,14 @@ PRETRAINED_MODELS = {
     "gamma": "other",
     "delta": None,
 }
-# CPUs this test's --set-resources gives pretraining and evaluation. It
-# replaces the mixed-gres profile's set-resources, so the other jobs get the
-# profile's default-resources.
+# CPUs this test's --set-resources gives pretraining and evaluation, and
+# evaluation's time limit. It replaces the mixed-gres profile's
+# set-resources, so the other jobs get the profile's default-resources.
 PRETRAINING_CPUS = 3
 EVALUATION_CPUS = 4
 DEFAULT_CPUS = 1
+EVALUATION_TIME_LIMIT_MINUTES = 45
+DEFAULT_TIME_LIMIT_MINUTES = 120
 UNIDENTIFIED = {
     "name": None,
     "dataset_realization_index": None,
@@ -44,11 +46,17 @@ UNIDENTIFIED = {
 }
 
 
-def allocation(*, gpu: bool, cpus: int) -> dict[str, Any]:
+def allocation(
+    *,
+    gpu: bool,
+    cpus: int,
+    time_limit_minutes: int = DEFAULT_TIME_LIMIT_MINUTES,
+) -> dict[str, Any]:
     return {
         "device": "cuda" if gpu else "cpu",
         "cpus": cpus,
         "gpus": 1 if gpu else 0,
+        "time_limit_minutes": time_limit_minutes,
     }
 
 
@@ -141,6 +149,7 @@ def expected_records() -> dict[str, dict[str, Any]]:
                 **allocation(
                     gpu=("eval_method", method) in GPU_JOBS,
                     cpus=EVALUATION_CPUS,
+                    time_limit_minutes=EVALUATION_TIME_LIMIT_MINUTES,
                 ),
             }
             records[
@@ -174,6 +183,7 @@ def recorded_run(tmp_path_factory: pytest.TempPathFactory) -> RecordedRun:
         "--set-resources",
         f"pretrain_model:cpus_per_task={PRETRAINING_CPUS}",
         f"eval_method:cpus_per_task={EVALUATION_CPUS}",
+        f"eval_method:runtime={EVALUATION_TIME_LIMIT_MINUTES}",
         target="all",
     )
     assert result.returncode == 0, result.stdout + result.stderr

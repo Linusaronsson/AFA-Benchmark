@@ -84,6 +84,7 @@ class Allocation:
     device: Device
     cpus: int | None
     gpus: int | None
+    time_limit_minutes: int | None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -109,6 +110,7 @@ class JobRecord:
     device: Device
     cpus: int | None
     gpus: int | None
+    time_limit_minutes: int | None
     gpu_model: str | None
     cpu_model: str | None
     host: str | None
@@ -253,6 +255,7 @@ def main(
     device: Annotated[Device, typer.Option()],
     cpus: Annotated[int | None, typer.Option()] = None,
     gpus: Annotated[int | None, typer.Option()] = None,
+    time_limit_minutes: Annotated[int | None, typer.Option()] = None,
     smoke_test: Annotated[bool, typer.Option()] = False,  # noqa: FBT002
     name: Annotated[str | None, typer.Option()] = None,
     dataset_key: Annotated[str | None, typer.Option()] = None,
@@ -287,7 +290,12 @@ def main(
             eval_soft_budget_param=eval_soft_budget_param,
             eval_batch_size=eval_batch_size,
         ),
-        allocation=Allocation(device=device, cpus=cpus, gpus=gpus),
+        allocation=Allocation(
+            device=device,
+            cpus=cpus,
+            gpus=gpus,
+            time_limit_minutes=time_limit_minutes,
+        ),
         smoke_test=smoke_test,
         record_path=record,
         failed_record_path=failed_record,
