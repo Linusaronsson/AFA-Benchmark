@@ -112,6 +112,7 @@ def save(
     ] = DEFAULT_CHECKOUT,
 ) -> None:
     manifest = None
+    job_duration_table = None
     if release_id is None:
         given = [
             name
@@ -130,6 +131,8 @@ def save(
         if scope is None:
             msg = "--release-id needs --scope (full, partial or smoke)."
             raise typer.BadParameter(msg)
+        index = index_artifacts(source_root)
+        job_duration_table = index.job_duration_table
         manifest = build_release_manifest(
             release_id=release_id,
             scope=scope,
@@ -139,10 +142,15 @@ def save(
                 overrides=config or [],
             ),
             output_root=source_root,
+            index=index,
             checkout=checkout,
         )
     save_snapshot(
-        source_root, snapshot_dir, overwrite=overwrite, manifest=manifest
+        source_root,
+        snapshot_dir,
+        overwrite=overwrite,
+        manifest=manifest,
+        job_duration_table=job_duration_table,
     )
     if manifest is not None:
         _echo_manifest(manifest, snapshot_dir / RELEASE_MANIFEST_FILENAME)

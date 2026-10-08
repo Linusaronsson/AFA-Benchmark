@@ -15,9 +15,13 @@ same result. The field list is documented in
 
 Bundles are found anywhere under the output root, evaluation tables under
 the folders that hold the raw and transformed tables. An index entry links
-its inputs to bundles by content hash, never by path.
+its inputs to bundles by content hash, never by path. The index also builds
+the release's job duration table from every job record under the output
+root; a release keeps it beside its manifest, outside the output tree the
+pipeline rewrites.
 """
 
+import io
 import json
 from collections import Counter
 from dataclasses import asdict, dataclass
@@ -27,17 +31,21 @@ from pathlib import Path
 from typing import Any
 
 import dacite
+import pandas as pd
 import pyarrow.parquet as pq
 import yaml
 
 from afabench.core.bundle_system.bundle import read_manifest
+from afabench.core.job_duration_table import load_job_duration_table
 from afabench.core.provenance import ProvenanceRecord, provenance_from_manifest
 from afabench.evaluation.provenance import evaluation_table_provenance
 from afabench.evaluation.schemas import IDENTITY_DTYPES
 from afabench.release.workflow_config import WorkflowConfigRecord
 
-MANIFEST_VERSION = 2
+MANIFEST_VERSION = 3
 RELEASE_MANIFEST_FILENAME = "release_manifest.json"
+# Beside the release manifest, so the pipeline never rewrites it
+JOB_DURATION_TABLE_FILENAME = "release_job_duration_table.parquet"
 # Maintainers' redistribution reviews, relative to the checkout. A dataset
 # key it does not list is unreviewed.
 DATASET_REDISTRIBUTION_FILE = Path(
@@ -81,6 +89,7 @@ class PayloadCategory(StrEnum):
     CLASSIFIER_BUNDLE = "classifier_bundle"
     PRETRAINED_MODEL_BUNDLE = "pretrained_model_bundle"
     AFA_METHOD_BUNDLE = "afa_method_bundle"
+    JOB_DURATION_TABLE = "job_duration_table"
 
 
 class Stage(StrEnum):
@@ -238,6 +247,19 @@ class EvaluationEntry:
 
 
 @dataclass(frozen=True, kw_only=True)
+class JobDurationTableEntry:
+    """
+    The release's job duration table, one row per job record.
+
+    `smoke_test` is whether any record is of a smoke test.
+    """
+
+    size_bytes: int
+    job_records: int
+    smoke_test: bool
+
+
+@dataclass(frozen=True, kw_only=True)
 class PayloadCoverage:
     """
     How many payloads of one category the release holds.
@@ -274,6 +296,7 @@ class ReleaseManifest:
     workflow_config: WorkflowConfigRecord
     dataset_redistribution: dict[str, DatasetRedistribution]
     coverage: Coverage
+    job_duration_table: JobDurationTableEntry | None
     evaluations: list[EvaluationEntry]
     bundles: list[BundleEntry]
 
@@ -299,12 +322,15 @@ class ArtifactIndex:
     The artifacts of an output tree, and those it cannot describe.
 
     `unrecorded` are the bundles and evaluation tables without a provenance
-    record, as paths relative to the output root.
+    record, as paths relative to the output root. `job_duration_table` is
+    the job duration table of every job record under the root as Parquet,
+    null without any record.
     """
 
     evaluations: list[EvaluationEntry]
     bundles: list[BundleEntry]
     unrecorded: list[str]
+    job_duration_table: bytes | None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -335,16 +361,17 @@ def build_release_manifest(
     scope: ReleaseScope,
     workflow_config: WorkflowConfigRecord,
     output_root: Path,
+    index: ArtifactIndex,
     checkout: Path,
 ) -> ReleaseManifest:
     """
     Describe `output_root` by its artifacts' provenance records.
 
-    `workflow_config` is the maintainer's declaration of the configuration
-    whose targets lay out the release; it is recorded, never read.
-    `checkout` supplies the maintainers' dataset redistribution review.
+    `index` is `index_artifacts(output_root)`. `workflow_config` is the
+    maintainer's declaration of the configuration whose targets lay out the
+    release; it is recorded, never read. `checkout` supplies the
+    maintainers' dataset redistribution review.
     """
-    index = index_artifacts(output_root)
     if index.unrecorded:
         msg = (
             f"Release {release_id!r} cannot describe these artifacts, which "
@@ -371,6 +398,7 @@ def build_release_manifest(
         workflow_config=workflow_config,
         dataset_redistribution=_dataset_redistribution(checkout, datasets),
         coverage=_coverage(index, output_root),
+        job_duration_table=job_duration_table_entry(index),
         evaluations=index.evaluations,
         bundles=index.bundles,
     )
@@ -402,10 +430,32 @@ def index_artifacts(output_root: Path) -> ArtifactIndex:
                 unrecorded.append(relative)
             else:
                 tables[category].append((relative, record))
+    job_records = load_job_duration_table(output_root)
+    job_duration_table = None
+    if not job_records.empty:
+        buffer = io.BytesIO()
+        job_records.to_parquet(buffer, index=False)
+        job_duration_table = buffer.getvalue()
     return ArtifactIndex(
         evaluations=_evaluation_entries(output_root, tables),
         bundles=bundles,
         unrecorded=unrecorded,
+        job_duration_table=job_duration_table,
+    )
+
+
+def job_duration_table_entry(
+    index: ArtifactIndex,
+) -> JobDurationTableEntry | None:
+    if index.job_duration_table is None:
+        return None
+    smoke_test = pd.read_parquet(
+        io.BytesIO(index.job_duration_table), columns=["smoke_test"]
+    )["smoke_test"]
+    return JobDurationTableEntry(
+        size_bytes=len(index.job_duration_table),
+        job_records=len(smoke_test),
+        smoke_test=bool(smoke_test.fillna(value=False).any()),
     )
 
 
@@ -512,6 +562,15 @@ def payload_coverage(index: ArtifactIndex) -> list[PayloadCoverage]:
                 class_names=sorted({bundle.class_name for bundle in bundles}),
             )
         )
+    table = index.job_duration_table
+    payloads.append(
+        PayloadCoverage(
+            category=PayloadCategory.JOB_DURATION_TABLE,
+            count=int(table is not None),
+            size_bytes=len(table or b""),
+            class_names=[],
+        )
+    )
     return payloads
 
 
@@ -524,8 +583,12 @@ def execution_mode(index: ArtifactIndex) -> ExecutionMode | None:
 
 def _execution_mode(index: ArtifactIndex) -> ExecutionMode:
     # Dataset generation has no smoke mode and always records production,
-    # so one smoke artifact makes the tree a smoke tree.
-    if any(entry.smoke_test for entry in [*index.bundles, *index.evaluations]):
+    # so one smoke artifact makes the tree a smoke tree. So does one smoke
+    # job record, whose duration a compute estimate would refuse.
+    table = job_duration_table_entry(index)
+    if (table is not None and table.smoke_test) or any(
+        entry.smoke_test for entry in [*index.bundles, *index.evaluations]
+    ):
         return ExecutionMode.SMOKE
     return ExecutionMode.PRODUCTION
 

@@ -2,14 +2,16 @@
 Save and restore a verbatim copy of the pipeline's output root.
 
 A snapshot may carry a release manifest beside its `output/` tree
-(`afabench.release.manifest`). Restore puts it beside the restored root, so
-the snapshot layout is mirrored: `<root>/../release_manifest.json`.
+(`afabench.release.manifest`), and the release's job duration table beside
+that. Restore puts them beside the restored root, so the snapshot layout is
+mirrored: `<root>/../release_manifest.json`.
 """
 
 import shutil
 from pathlib import Path
 
 from afabench.release.manifest import (
+    JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
     ReleaseManifest,
     write_release_manifest,
@@ -24,11 +26,18 @@ def save_snapshot(
     *,
     overwrite: bool = False,
     manifest: ReleaseManifest | None = None,
+    job_duration_table: bytes | None = None,
 ) -> None:
-    """Copy every file under `source_root` into `snapshot_dir/output`."""
+    """
+    Copy every file under `source_root` into `snapshot_dir/output`.
+
+    `job_duration_table` is the Parquet of the release `manifest` describes.
+    """
     manifest_path = snapshot_dir / RELEASE_MANIFEST_FILENAME
+    table_path = snapshot_dir / JOB_DURATION_TABLE_FILENAME
     if manifest is not None:
         _refuse_existing(manifest_path, overwrite=overwrite)
+        _refuse_existing(table_path, overwrite=overwrite)
     _verbatim_copy(
         source_root,
         snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR,
@@ -36,6 +45,11 @@ def save_snapshot(
     )
     if manifest is not None:
         write_release_manifest(manifest, manifest_path)
+        if job_duration_table is None:
+            # An overwritten release must not keep an earlier one's table.
+            table_path.unlink(missing_ok=True)
+        else:
+            table_path.write_bytes(job_duration_table)
 
 
 def restore_snapshot(
@@ -61,7 +75,7 @@ def restored_manifest_location(destination_root: Path) -> Path:
 
 def _refuse_existing(path: Path, *, overwrite: bool) -> None:
     if path.exists() and not overwrite:
-        msg = f"Refusing to overwrite existing release manifest: {path}"
+        msg = f"Refusing to overwrite existing release file: {path}"
         raise FileExistsError(msg)
 
 

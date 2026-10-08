@@ -11,6 +11,7 @@ import yaml
 from click.testing import Result
 from typer.testing import CliRunner
 
+from afabench.core.job_duration_table import load_job_duration_table
 from afabench.release.manifest import (
     CodeIdentity,
     ReleaseScope,
@@ -32,6 +33,7 @@ from test.scripts.release_artifacts import (
     write_bundle,
     write_catalog,
     write_evaluation,
+    write_job_record,
 )
 
 runner = CliRunner()
@@ -99,7 +101,7 @@ def test_save_with_release_id_writes_manifest_beside_output(
 
     assert (tmp_path / "snapshot/output" / ALPHA_METHOD).is_dir()
     manifest = read_manifest(tmp_path)
-    assert manifest["manifest_version"] == 2
+    assert manifest["manifest_version"] == 3
     assert manifest["release_id"] == "2026-10-cube"
     assert manifest["scope"] == "partial"
     assert manifest["execution_mode"] == "production"
@@ -606,7 +608,95 @@ def test_coverage_describes_the_evaluations_present(tmp_path: Path) -> None:
         "classifier_bundle": 1,
         "pretrained_model_bundle": 0,
         "afa_method_bundle": 2,
+        "job_duration_table": 0,
     }
+
+
+ALPHA_METHOD_RECORD = ALPHA_METHOD.replace(
+    "method.bundle", "method.job_record.json"
+)
+FAILED_ALPHA_METHOD_RECORD = "failed_job_records/" + ALPHA_METHOD.replace(
+    "method.bundle", "method.20261001T000000000000Z-1a2b3c4d.job_record.json"
+)
+
+
+def test_the_job_duration_table_is_built_from_every_job_record(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "source"
+    write_catalog(source_root, Catalog(methods=[ALPHA]))
+    write_job_record(source_root, ALPHA_METHOD_RECORD)
+    write_job_record(
+        source_root, FAILED_ALPHA_METHOD_RECORD, exit_status="timeout"
+    )
+
+    result = save(tmp_path)
+
+    assert result.exit_code == 0, result.output
+    table_path = tmp_path / "snapshot/release_job_duration_table.parquet"
+    table = load_job_duration_table(table_path)
+    assert table[["job_record_path", "exit_status"]].to_numpy().tolist() == [
+        [FAILED_ALPHA_METHOD_RECORD, "timeout"],
+        [ALPHA_METHOD_RECORD, "completed"],
+    ]
+    manifest = read_manifest(tmp_path)
+    assert manifest["job_duration_table"] == {
+        "size_bytes": table_path.stat().st_size,
+        "job_records": 2,
+        "smoke_test": False,
+    }
+    payloads = {
+        payload["category"]: payload
+        for payload in manifest["coverage"]["payloads"]
+    }
+    assert payloads["job_duration_table"] == {
+        "category": "job_duration_table",
+        "count": 1,
+        "size_bytes": table_path.stat().st_size,
+        "class_names": [],
+    }
+    # The failed records are also copied as an ordinary output folder.
+    assert "failed_job_records" in manifest["coverage"]["output_categories"]
+    assert (
+        tmp_path / "snapshot/output" / FAILED_ALPHA_METHOD_RECORD
+    ).is_file()
+
+
+def test_a_smoke_job_record_marks_the_table_and_the_outputs_smoke(
+    tmp_path: Path,
+) -> None:
+    # The compute estimate refuses smoke durations, so a full or partial
+    # release cannot ship them.
+    source_root = tmp_path / "source"
+    write_catalog(source_root, Catalog(methods=[ALPHA]))
+    write_job_record(source_root, ALPHA_METHOD_RECORD)
+    write_job_record(
+        source_root,
+        FAILED_ALPHA_METHOD_RECORD,
+        exit_status="failed",
+        smoke_test=True,
+    )
+
+    refused = save(tmp_path, scope="partial")
+    saved = save(tmp_path, scope="smoke")
+
+    assert refused.exit_code != 0
+    assert "smoke" in str(refused.exception)
+    assert saved.exit_code == 0, saved.output
+    manifest = read_manifest(tmp_path)
+    assert manifest["execution_mode"] == "smoke"
+    assert manifest["job_duration_table"]["smoke_test"] is True
+
+
+def test_outputs_without_job_records_record_the_table_as_absent(
+    tmp_path: Path,
+) -> None:
+    save_catalog(tmp_path)
+
+    assert read_manifest(tmp_path)["job_duration_table"] is None
+    assert not (
+        tmp_path / "snapshot/release_job_duration_table.parquet"
+    ).exists()
 
 
 def restore(tmp_path: Path) -> Result:
@@ -659,7 +749,7 @@ def test_restore_refuses_an_existing_manifest_and_restores_nothing(
     assert not (tmp_path / "checkout/extra/output").exists()
 
 
-@pytest.mark.parametrize("version", [1, 99])
+@pytest.mark.parametrize("version", [2, 99])
 def test_restore_refuses_another_manifest_version(
     tmp_path: Path, version: int
 ) -> None:
