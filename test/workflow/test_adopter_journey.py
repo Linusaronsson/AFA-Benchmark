@@ -74,21 +74,19 @@ SHARED_PREREQUISITES = [
 ]
 EVAL_PERF = f"eval_split-test/{TAG}/eval_perf"
 COMPARISON = "method_set-adopter_comparison"
-# Only the variant's training, evaluation and transformation, its time
-# record, and the comparison's aggregation and plots.
+# Only the variant's training, evaluation and transformation, the job
+# duration table, and the comparison's aggregation and plots.
 ADOPTER_JOBS = {
     "all": 1,
     "eval_method": 1,
     "merge_eval_perf": 1,
-    "merge_time": 1,
     "collect_job_records": 1,
     "plot_eval_perf": 2,
     "plot_time": 1,
     "split_by_classifier_type": 1,
-    "time_df_with_pretrain": 1,
     "train_method": 1,
     "transform_eval_data": 1,
-    "total": 12,
+    "total": 10,
 }
 
 

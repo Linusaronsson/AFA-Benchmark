@@ -292,11 +292,8 @@ FULL_GRAPH_JOBS = {
     "train_method": 8,
     "eval_method": 8,
     "transform_eval_data": 8,
-    "time_df_with_pretrain": 6,
-    "time_df_without_pretrain": 2,
     "merge_eval_perf": 1,
     "split_by_classifier_type": 1,
-    "merge_time": 1,
     "collect_job_records": 1,
     "plot_eval_perf": 2,
     "plot_eval_actions": 1,
@@ -457,7 +454,7 @@ def test_full_graph_submits_jobs_after_their_dependencies(
         )
     assert position("merge_eval_perf") < position("split_by_classifier_type")
     assert position("split_by_classifier_type") < position("plot_eval_perf")
-    assert position("merge_time") < position("plot_time")
+    assert position("collect_job_records") < position("plot_time")
 
 
 @pytest.mark.pipeline

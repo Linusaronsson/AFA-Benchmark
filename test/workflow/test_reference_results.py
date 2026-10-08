@@ -88,15 +88,13 @@ def test_only_local_methods_are_produced_for_a_comparison_with_references(
         "all": 1,
         "eval_method": 1,
         "merge_eval_perf": 1,
-        "merge_time": 1,
         "collect_job_records": 1,
         "plot_eval_perf": 2,
         "plot_time": 1,
         "split_by_classifier_type": 1,
-        "time_df_without_pretrain": 1,
         "train_method": 1,
         "transform_eval_data": 1,
-        "total": 12,
+        "total": 10,
     }, output
     merge = output.split("rule merge_eval_perf:", 1)[1].split("output:", 1)[0]
     assert ALPHA_HARD_BUDGET_TABLE in merge

@@ -65,7 +65,13 @@ cs.store(name="plot_eval_actions", node=PlotEvalActionsConfig)
 @dataclass
 class PlotTotalTimeConfig:
     output_folder: str
-    input: str | None
+    # A job duration table
+    input: str
+    methods: list[str]
+    # The pretrained model each method of `methods` trains from, if any
+    pretrained_models: dict[str, str]
+    initializer_tag: str
+    eval_dataset_split: str
     formats: list[str]
     plotting: PlottingDisplayConfig
 
