@@ -25,6 +25,7 @@ from afabench.core.job_record import (
     allocated_cpus,
     allocated_gpus,
 )
+from afabench.core.output_layout import pretrain_seed_in_folder
 
 OUTPUT_ROOT = Path("extra/output")
 FAILED_JOB_RECORDS = OUTPUT_ROOT / "failed_job_records"
@@ -114,11 +115,9 @@ def job_record_command(
         for wildcard, value in wildcards.items()
         if RENAMED_WILDCARDS.get(wildcard, wildcard) in IDENTITY_FIELDS
     }
-    pretrain_folder = dict(wildcards.items()).get("pretrain_folder", "")
-    if pretrain_folder.startswith("pretrain_seed-"):
-        identity["pretrain_seed"] = pretrain_folder.removeprefix(
-            "pretrain_seed-"
-        ).removesuffix("/")
+    pretrain_folder = dict(wildcards.items()).get("pretrain_folder")
+    if pretrain_folder is not None:
+        identity["pretrain_seed"] = pretrain_seed_in_folder(pretrain_folder)
     identity |= fields
     options: dict[str, object] = {
         "record": record,
