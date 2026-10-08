@@ -16,11 +16,7 @@ from pathlib import Path
 import pandas as pd
 
 from afabench.core.bundle_system.bundle import compute_content_hash
-from afabench.core.job_record import (
-    JOB_RECORD_VERSION,
-    ExitStatus,
-    JobRecord,
-)
+from afabench.core.job_record import ExitStatus, JobIdentity
 from afabench.core.job_record import Stage as JobStage
 from afabench.core.provenance import (
     PROVENANCE_VERSION,
@@ -35,6 +31,7 @@ from afabench.core.provenance import (
 from afabench.evaluation.provenance import save_evaluation_table
 from afabench.evaluation.schemas import IDENTITY_DTYPES
 from afabench.release.manifest import CodeIdentity
+from test import job_record_examples
 
 TAG = "initializer-cold"
 INITIALIZER = "cold"
@@ -129,38 +126,27 @@ def write_job_record(
     smoke_test: bool = False,
 ) -> None:
     """Write a job record at `path` under `root` as the job wrapper would."""
-    record = JobRecord(
-        job_record_version=JOB_RECORD_VERSION,
-        stage=stage,
-        name="alpha",
-        dataset_key="cube",
-        dataset_realization_index=0,
-        pretrain_seed=None,
-        train_seed=0,
-        eval_seed=None,
-        train_hard_budget=3,
-        train_soft_budget_param=None,
-        eval_hard_budget=None,
-        eval_soft_budget_param=None,
-        eval_batch_size=None,
-        started_at="2026-10-01T00:00:00+00:00",
-        ended_at="2026-10-01T00:01:00+00:00",
+    record = job_record_examples.job_record(
+        JobIdentity(
+            stage=stage,
+            name="alpha",
+            dataset_key="cube",
+            dataset_realization_index=0,
+            train_seed=0,
+            train_hard_budget=3,
+        ),
         job_duration_seconds=job_duration_seconds,
         exit_status=exit_status,
         exit_code=0 if exit_status == "completed" else 1,
-        device="cpu",
         cpus=4,
-        gpus=0,
         time_limit_minutes=120,
-        gpu_model=None,
         cpu_model="Test CPU",
         host="node1",
         slurm_job_id="42",
         code_commit=CLEAN.commit,
         smoke_test=smoke_test,
     )
-    (root / path).parent.mkdir(parents=True, exist_ok=True)
-    (root / path).write_text(json.dumps(record.to_json_dict(), indent=2))
+    job_record_examples.write_job_record(root / path, record)
 
 
 def bundle_input(root: Path, role: InputRole, path: str) -> ProvenanceInput:

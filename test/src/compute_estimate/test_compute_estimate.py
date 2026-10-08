@@ -5,7 +5,6 @@ Job durations come from job records written under an output root and
 loaded as the job duration table, as `estimate-compute` loads them.
 """
 
-import json
 from dataclasses import replace
 from pathlib import Path
 
@@ -24,13 +23,8 @@ from afabench.compute_estimate.report import (
     per_job_table,
 )
 from afabench.core.job_duration_table import load_job_duration_table
-from afabench.core.job_record import (
-    JOB_RECORD_VERSION,
-    ExitStatus,
-    JobIdentity,
-    JobRecord,
-    JobType,
-)
+from afabench.core.job_record import ExitStatus, JobIdentity, JobType
+from test.job_record_examples import job_record, write_job_record
 
 ALPHA_TRAINING = JobIdentity(
     stage="training",
@@ -66,38 +60,27 @@ class JobRecords:
         smoke_test: bool = False,
     ) -> None:
         self.count += 1
-        record = JobRecord(
-            job_record_version=JOB_RECORD_VERSION,
-            stage=identity.stage,
-            name=identity.name,
-            dataset_key=identity.dataset_key,
-            dataset_realization_index=identity.dataset_realization_index,
-            pretrain_seed=identity.pretrain_seed,
-            train_seed=identity.train_seed,
-            eval_seed=identity.eval_seed,
-            train_hard_budget=identity.train_hard_budget,
-            train_soft_budget_param=identity.train_soft_budget_param,
-            eval_hard_budget=identity.eval_hard_budget,
-            eval_soft_budget_param=identity.eval_soft_budget_param,
-            eval_batch_size=identity.eval_batch_size,
-            started_at="2026-10-08T12:00:00+00:00",
-            ended_at="2026-10-08T13:00:00+00:00",
-            job_duration_seconds=job_duration_seconds,
-            exit_status=exit_status,
-            exit_code=0 if exit_status == "completed" else 1,
-            device="cuda" if device == "cuda" else "cpu",
-            cpus=cpus,
-            gpus=gpus,
-            time_limit_minutes=time_limit_minutes,
-            gpu_model="NVIDIA A40" if gpus else None,
-            cpu_model="AMD EPYC 7742",
-            host=f"node{self.count % 2}",
-            slurm_job_id=str(self.count),
-            code_commit="0123abc",
-            smoke_test=smoke_test,
+        write_job_record(
+            self.output_root / f"job{self.count}.job_record.json",
+            job_record(
+                identity,
+                started_at="2026-10-08T12:00:00+00:00",
+                ended_at="2026-10-08T13:00:00+00:00",
+                job_duration_seconds=job_duration_seconds,
+                exit_status=exit_status,
+                exit_code=0 if exit_status == "completed" else 1,
+                device="cuda" if device == "cuda" else "cpu",
+                cpus=cpus,
+                gpus=gpus,
+                time_limit_minutes=time_limit_minutes,
+                gpu_model="NVIDIA A40" if gpus else None,
+                cpu_model="AMD EPYC 7742",
+                host=f"node{self.count % 2}",
+                slurm_job_id=str(self.count),
+                code_commit="0123abc",
+                smoke_test=smoke_test,
+            ),
         )
-        path = self.output_root / f"job{self.count}.job_record.json"
-        path.write_text(json.dumps(record.to_json_dict()))
 
     def table(self) -> pd.DataFrame:
         return load_job_duration_table(self.output_root)

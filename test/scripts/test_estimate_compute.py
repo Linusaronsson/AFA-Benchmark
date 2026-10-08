@@ -8,7 +8,6 @@ pipeline itself is covered in
 """
 
 import csv
-import json
 import shutil
 from pathlib import Path
 
@@ -17,8 +16,9 @@ from click.testing import Result
 from typer.testing import CliRunner
 
 from afabench.core.job_duration_table import write_job_duration_table
-from afabench.core.job_record import JobIdentity, JobRecord
+from afabench.core.job_record import JobIdentity
 from scripts.compute_estimate.estimate_compute import app
+from test import job_record_examples
 from test.scripts.release_artifacts import (
     ALPHA,
     Catalog,
@@ -54,29 +54,16 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     (tmp_path / "Snakefile").write_text(SNAKEFILE)
     output_root = tmp_path / "extra/output"
     output_root.mkdir(parents=True)
-    record = JobRecord(
-        job_record_version=1,
-        **vars(
-            JobIdentity(stage="training", name="alpha", dataset_key="cube")
+    job_record_examples.write_job_record(
+        output_root / "alpha.job_record.json",
+        job_record_examples.job_record(
+            JobIdentity(stage="training", name="alpha", dataset_key="cube"),
+            started_at="2026-10-08T12:00:00+00:00",
+            ended_at="2026-10-08T14:00:00+00:00",
+            job_duration_seconds=7200,
+            cpu_model="AMD EPYC 7742",
+            host="node0",
         ),
-        started_at="2026-10-08T12:00:00+00:00",
-        ended_at="2026-10-08T14:00:00+00:00",
-        job_duration_seconds=7200,
-        exit_status="completed",
-        exit_code=0,
-        device="cpu",
-        cpus=1,
-        gpus=0,
-        time_limit_minutes=None,
-        gpu_model=None,
-        cpu_model="AMD EPYC 7742",
-        host="node0",
-        slurm_job_id=None,
-        code_commit=None,
-        smoke_test=False,
-    )
-    (output_root / "alpha.job_record.json").write_text(
-        json.dumps(record.to_json_dict())
     )
     monkeypatch.chdir(tmp_path)
     return tmp_path
