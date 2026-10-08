@@ -21,13 +21,14 @@ import json
 import os
 import platform
 import re
+import shlex
 import signal
 import socket
 import subprocess
 import threading
 import time
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, fields
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -305,6 +306,30 @@ def main(
     # The time aggregation still reads *_time.txt (ADR-0006 expand step)
     if time_file is not None:
         time_file.write_text(f"{job_record.job_duration_seconds:.6f}\n")
+
+
+def job_identity(command: str) -> JobIdentity:
+    """
+    Return the identity a job's wrapper command will record.
+
+    `command` is the rendered wrapper prefix of a rule, ending with `--`.
+    It is parsed with the wrapper's own options, so a planned job gets
+    the identity its record will have.
+    """
+    arguments = shlex.split(command)
+    prefix = ["python", "-m", "afabench.core.job_record"]
+    if arguments[:3] != prefix or arguments[-1] != "--":
+        message = f"Not a job record wrapper command: {command!r}"
+        raise ValueError(message)
+    # Resilient parsing: the script command after -- is not rendered yet.
+    options = (
+        typer.main.get_command(app)
+        .make_context("job_record", arguments[3:], resilient_parsing=True)
+        .params
+    )
+    return JobIdentity(
+        **{field.name: options[field.name] for field in fields(JobIdentity)}
+    )
 
 
 def _wrapper_exit_code(script_exit_code: int | None) -> int:
