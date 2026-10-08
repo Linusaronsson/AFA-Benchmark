@@ -35,6 +35,7 @@ from test.scripts.release_artifacts import (
     raw_table,
     write_bundle,
     write_catalog,
+    write_job_record,
 )
 
 runner = CliRunner()
@@ -80,8 +81,14 @@ def tree_size(path: Path) -> int:
 def test_coverage_inventories_each_payload_category(tmp_path: Path) -> None:
     source_root = tmp_path / "source"
     write_catalog(source_root, SMOKE)
+    write_job_record(
+        source_root,
+        ALPHA_METHOD.replace("method.bundle", "method.job_record.json"),
+        smoke_test=True,
+    )
 
-    payloads = save_smoke(tmp_path, source_root)["coverage"]["payloads"]
+    manifest = save_smoke(tmp_path, source_root)
+    payloads = manifest["coverage"]["payloads"]
 
     def size(pattern: str) -> int:
         return sum(
@@ -131,7 +138,17 @@ def test_coverage_inventories_each_payload_category(tmp_path: Path) -> None:
             size("trained_methods/**/*.bundle"),
             ["Fake"],
         ),
+        summary(
+            "job_duration_table",
+            1,
+            (tmp_path / "snapshot/release_job_duration_table.parquet")
+            .stat()
+            .st_size,
+            [],
+        ),
     ]
+    # Marked smoke, as the compute estimate refuses smoke durations.
+    assert manifest["job_duration_table"]["smoke_test"] is True
 
 
 def restore(snapshot_dir: Path, destination_root: Path) -> None:
