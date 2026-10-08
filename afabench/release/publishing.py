@@ -41,6 +41,7 @@ from typing import Protocol
 
 from afabench.release.manifest import (
     DATASET_REDISTRIBUTION_FILE,
+    JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
     RedistributionStatus,
     ReleaseManifest,
@@ -216,8 +217,8 @@ def download_selection(
     *,
     overwrite: bool = False,
 ) -> None:
-    """Fetch only the selected files and folders of `release`; restore them."""
-    if not payloads.files and not payloads.folders:
+    """Fetch only the selected payloads of `release`; restore them."""
+    if not (payloads.files or payloads.folders or payloads.job_duration_table):
         msg = (
             "Nothing selected is in release "
             f"{release.manifest.release_id!r}:\n" + "\n".join(payloads.missing)
@@ -229,6 +230,11 @@ def download_selection(
             [
                 f"{release.folder}/{OUTPUT_MTIMES_FILENAME}",
                 *(f"{output}/{path}" for path in payloads.files),
+                *(
+                    [f"{release.folder}/{JOB_DURATION_TABLE_FILENAME}"]
+                    if payloads.job_duration_table
+                    else []
+                ),
             ],
             Path(staging),
         )

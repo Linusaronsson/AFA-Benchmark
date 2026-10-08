@@ -28,6 +28,7 @@ from test.scripts.release_artifacts import (
     classifier_bundle,
     dataset_bundle,
     write_catalog,
+    write_job_record,
 )
 
 runner = CliRunner()
@@ -51,12 +52,14 @@ def write_release_outputs(
     *,
     smoke_test: bool = False,
     omit: Iterable[str] = (),
+    job_records: bool = False,
 ) -> None:
     """
     Write every artifact of the catalog, except those in `omit`.
 
     Each transformed table, bundle and the plot holds the release id, so a
-    test can tell which release a restored file came from.
+    test can tell which release a restored file came from. `job_records`
+    adds a completed and a failed job record.
     """
     write_catalog(
         root,
@@ -66,6 +69,26 @@ def write_release_outputs(
     )
     (root / PLOT).parent.mkdir(parents=True)
     (root / PLOT).write_text(release_id)
+    if job_records:
+        write_job_record(root, JOB_RECORD, smoke_test=smoke_test)
+        write_job_record(
+            root,
+            FAILED_JOB_RECORD,
+            exit_status="failed",
+            smoke_test=smoke_test,
+        )
+
+
+JOB_RECORD = (
+    f"trained_methods/{TAG}/alpha/dataset-cube+realization_index-0/"
+    "NO_PRETRAIN/train_seed-0+train_hard_budget-3+train_soft_budget_param-null/"
+    "method.job_record.json"
+)
+FAILED_JOB_RECORD = "failed_job_records/" + JOB_RECORD.replace(
+    "method.job_record.json",
+    "method.20261001T000000000000Z-1a2b3c4d.job_record.json",
+)
+TABLE = "release_job_duration_table.parquet"
 
 
 def invoke(transport: FakeReleaseTransport, *args: str) -> Result:
@@ -86,6 +109,7 @@ def publish(
     smoke_test: bool = False,
     omit: Iterable[str] = (),
     backdate: bool = False,
+    job_records: bool = False,
 ) -> Path:
     """
     Save and publish a release whose manifest has `created_at`.
@@ -94,7 +118,11 @@ def publish(
     """
     source_root = tmp_path / f"{release_id}-source"
     write_release_outputs(
-        source_root, release_id, smoke_test=smoke_test, omit=omit
+        source_root,
+        release_id,
+        smoke_test=smoke_test,
+        omit=omit,
+        job_records=job_records,
     )
     configfile = tmp_path / f"{release_id}.yaml"
     configfile.write_text(yaml.safe_dump({"smoke_test": smoke_test}))
@@ -784,3 +812,64 @@ def test_inputs_the_release_lacks_are_reported_for_their_category(
     assert restored_bundles(tmp_path / "prerequisites/extra/output") == {
         dataset_bundle("cube", 1, split) for split in ["train", "val", "test"]
     }
+
+
+@pytest.mark.parametrize(
+    "selection", [["--payload-category", "job_duration_table"], ["--all"]]
+)
+def test_the_job_duration_table_downloads_beside_the_manifest(
+    tmp_path: Path, selection: list[str]
+) -> None:
+    transport = FakeReleaseTransport()
+    package_dir = publish(
+        tmp_path, transport, "2026-10-full", job_records=True
+    )
+    requested = requested_paths(transport)
+    destination_root = tmp_path / "fork/extra/output"
+
+    result = download(transport, destination_root, *selection)
+
+    assert result.exit_code == 0, result.output
+    table = destination_root.parent / TABLE
+    assert table.read_bytes() == (package_dir / TABLE).read_bytes()
+    assert f"Job duration table: {table}" in result.output
+    assert restored_release_id(destination_root) == "2026-10-full"
+    if selection != ["--all"]:
+        assert not destination_root.exists()
+        assert not [path for path in requested if "/output/" in path]
+
+
+def test_a_release_without_a_job_duration_table_reports_it_missing(
+    tmp_path: Path,
+) -> None:
+    transport = FakeReleaseTransport()
+    publish(tmp_path, transport, "2026-10-full")
+    destination_root = tmp_path / "fork/extra/output"
+
+    alone = download(
+        transport,
+        destination_root,
+        "--payload-category",
+        "job_duration_table",
+    )
+    with_tables = download(
+        transport,
+        destination_root,
+        "--payload-category",
+        "job_duration_table",
+        "--payload-category",
+        "transformed_evaluation_table",
+        "--method",
+        "alpha",
+    )
+
+    assert alone.exit_code != 0
+    message = str(alone.exception)
+    assert "Nothing selected is in release '2026-10-full'" in message
+    assert "job_duration_table: not in the release" in message
+    assert with_tables.exit_code == 0, with_tables.output
+    assert (
+        "Missing from release 2026-10-full:\n"
+        "  job_duration_table: not in the release" in with_tables.output
+    )
+    assert not (destination_root.parent / TABLE).exists()

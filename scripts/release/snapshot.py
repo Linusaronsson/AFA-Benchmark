@@ -25,6 +25,7 @@ import typer
 
 from afabench.release.huggingface import HuggingFaceTransport
 from afabench.release.manifest import (
+    JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
     BudgetSetting,
     ClassifierVariant,
@@ -153,7 +154,11 @@ def save(
         job_duration_table=job_duration_table,
     )
     if manifest is not None:
-        _echo_manifest(manifest, snapshot_dir / RELEASE_MANIFEST_FILENAME)
+        _echo_manifest(
+            manifest,
+            snapshot_dir / RELEASE_MANIFEST_FILENAME,
+            job_duration_table=job_duration_table is not None,
+        )
         _echo_code(manifest)
         _echo_dangling_inputs(manifest)
 
@@ -174,7 +179,13 @@ def restore(
     )
     restore_snapshot(snapshot_dir, destination_root, overwrite=overwrite)
     if manifest is not None:
-        _echo_manifest(manifest, restored_manifest_location(destination_root))
+        _echo_manifest(
+            manifest,
+            restored_manifest_location(destination_root),
+            job_duration_table=(
+                snapshot_dir / JOB_DURATION_TABLE_FILENAME
+            ).is_file(),
+        )
 
 
 @app.command()
@@ -226,7 +237,11 @@ def publish(
         allow_dirty_code=allow_dirty_code,
     )
     folder = release_folder(manifest.release_id, smoke_release=smoke_release)
-    _echo_manifest(manifest, snapshot_dir / RELEASE_MANIFEST_FILENAME)
+    _echo_manifest(
+        manifest,
+        snapshot_dir / RELEASE_MANIFEST_FILENAME,
+        job_duration_table=manifest.job_duration_table is not None,
+    )
     _echo_code(manifest)
     typer.echo(f"Published to {transport.folder_url(folder)}")
 
@@ -324,6 +339,7 @@ def download(
         download_release(
             resolved, transport, destination_root, overwrite=overwrite
         )
+        job_duration_table = manifest.job_duration_table is not None
     else:
         payloads = select_payloads(manifest, selection)
         download_selection(
@@ -333,6 +349,7 @@ def download(
             destination_root,
             overwrite=overwrite,
         )
+        job_duration_table = payloads.job_duration_table
         typer.echo(
             f"Downloaded {len(payloads.files)} file(s) and "
             f"{len(payloads.folders)} folder(s)."
@@ -342,7 +359,11 @@ def download(
                 f"Missing from release {manifest.release_id}:\n  "
                 + "\n  ".join(payloads.missing)
             )
-    _echo_manifest(manifest, restored_manifest_location(destination_root))
+    _echo_manifest(
+        manifest,
+        restored_manifest_location(destination_root),
+        job_duration_table=job_duration_table,
+    )
 
 
 def _transport(ctx: typer.Context, repo_id: str) -> ReleaseTransport:
@@ -351,7 +372,15 @@ def _transport(ctx: typer.Context, repo_id: str) -> ReleaseTransport:
     return factory(repo_id)
 
 
-def _echo_manifest(manifest: ReleaseManifest, path: Path) -> None:
+def _echo_manifest(
+    manifest: ReleaseManifest, path: Path, *, job_duration_table: bool
+) -> None:
+    """
+    Print the release's identity and where its manifest is.
+
+    `job_duration_table` is whether the release's job duration table was
+    written beside the manifest, which also prints its path.
+    """
     workflow_config = manifest.workflow_config
     configfiles = ", ".join(
         record.path for record in workflow_config.configfiles
@@ -364,6 +393,10 @@ def _echo_manifest(manifest: ReleaseManifest, path: Path) -> None:
         f"Workflow config overrides: {workflow_config.overrides}\n"
         f"Release manifest: {path}"
     )
+    if job_duration_table:
+        typer.echo(
+            f"Job duration table: {path.parent / JOB_DURATION_TABLE_FILENAME}"
+        )
     for status in [
         RedistributionStatus.UNREVIEWED,
         RedistributionStatus.RESTRICTED,

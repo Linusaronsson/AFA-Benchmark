@@ -734,6 +734,33 @@ def test_restore_keeps_manifest_beside_the_restored_root(
     assert manifest.evaluations[0].method_name == "alpha"
 
 
+def test_restore_keeps_the_job_duration_table_beside_the_manifest(
+    tmp_path: Path,
+) -> None:
+    # Outside the output root, so the pipeline's next run cannot rewrite it.
+    source_root = tmp_path / "source"
+    write_catalog(source_root, Catalog(methods=[ALPHA]))
+    write_job_record(source_root, ALPHA_METHOD_RECORD)
+    assert save(tmp_path).exit_code == 0
+    restored = tmp_path / "checkout/extra/release_job_duration_table.parquet"
+    restored.parent.mkdir(parents=True)
+    restored.write_text("pre-existing")
+
+    refused = restore(tmp_path)
+    restored.unlink()
+    result = restore(tmp_path)
+
+    assert refused.exit_code != 0
+    assert str(restored) in str(refused.exception)
+    assert result.exit_code == 0, result.output
+    assert (
+        restored.read_bytes()
+        == (
+            tmp_path / "snapshot/release_job_duration_table.parquet"
+        ).read_bytes()
+    )
+
+
 def test_restore_refuses_an_existing_manifest_and_restores_nothing(
     tmp_path: Path,
 ) -> None:

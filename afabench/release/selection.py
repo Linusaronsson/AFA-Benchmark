@@ -10,7 +10,9 @@ So asking for evaluation tables alone fetches no bundle, and asking for
 dataset and classifier bundles fetches the shared prerequisites of the
 selected evaluations without their AFA-method bundles. Output categories
 (top-level folders of the output root such as `plot_results`) are not
-described per file by the manifest, so they are selected whole.
+described per file by the manifest, so they are selected whole. The job
+duration table is one file beside the manifest holding every job of the
+release, so coverage does not narrow it either.
 
 Requested coverage the release does not have, and inputs no bundle of the
 release matches, are reported in `missing`, never filled from elsewhere.
@@ -38,9 +40,9 @@ class ReleaseSelection:
     What to download from one release.
 
     Empty coverage lists do not restrict; coverage never restricts output
-    categories. A table matches a classifier variant if its raw table holds
-    that variant's predictions, so a table without its raw table matches
-    none.
+    categories or the job duration table. A table matches a classifier
+    variant if its raw table holds that variant's predictions, so a table
+    without its raw table matches none.
     """
 
     payload_categories: list[PayloadCategory] = field(default_factory=list)
@@ -56,10 +58,16 @@ class ReleaseSelection:
 
 @dataclass(frozen=True, kw_only=True)
 class SelectedPayloads:
-    """Paths relative to the release's output root."""
+    """
+    Paths relative to the release's output root.
+
+    `job_duration_table` is whether to fetch the release's job duration
+    table, beside its manifest.
+    """
 
     files: list[str]
     folders: list[str]
+    job_duration_table: bool
     missing: list[str]
 
 
@@ -144,9 +152,16 @@ def select_payloads(
             missing.append(
                 f"output category {output_category}: not in the release"
             )
+    job_duration_table = PayloadCategory.JOB_DURATION_TABLE in categories
+    if job_duration_table and manifest.job_duration_table is None:
+        missing.append(
+            f"{PayloadCategory.JOB_DURATION_TABLE}: not in the release"
+        )
+        job_duration_table = False
     return SelectedPayloads(
         files=list(dict.fromkeys(files)),
         folders=list(dict.fromkeys(folders)),
+        job_duration_table=job_duration_table,
         missing=missing,
     )
 

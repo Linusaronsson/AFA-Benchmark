@@ -55,18 +55,26 @@ def save_snapshot(
 def restore_snapshot(
     snapshot_dir: Path, destination_root: Path, *, overwrite: bool = False
 ) -> None:
-    """Copy every file from `snapshot_dir/output` into `destination_root`."""
-    manifest_path = snapshot_dir / RELEASE_MANIFEST_FILENAME
-    restored_manifest_path = restored_manifest_location(destination_root)
-    if manifest_path.is_file():
-        _refuse_existing(restored_manifest_path, overwrite=overwrite)
-    _verbatim_copy(
-        snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR,
-        destination_root,
-        overwrite=overwrite,
-    )
-    if manifest_path.is_file():
-        shutil.copy2(manifest_path, restored_manifest_path)
+    """
+    Copy every file from `snapshot_dir/output` into `destination_root`.
+
+    The release manifest and job duration table, if any, go beside it.
+    """
+    release_files = [
+        (snapshot_dir / name, destination_root.parent / name)
+        for name in [RELEASE_MANIFEST_FILENAME, JOB_DURATION_TABLE_FILENAME]
+        if (snapshot_dir / name).is_file()
+    ]
+    for _, restored in release_files:
+        _refuse_existing(restored, overwrite=overwrite)
+    output = snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR
+    table = snapshot_dir / JOB_DURATION_TABLE_FILENAME
+    # A download of the job duration table alone fetches no output tree.
+    if output.exists() or not table.is_file():
+        _verbatim_copy(output, destination_root, overwrite=overwrite)
+    for path, restored in release_files:
+        restored.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, restored)
 
 
 def restored_manifest_location(destination_root: Path) -> Path:
