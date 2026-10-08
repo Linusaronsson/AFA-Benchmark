@@ -184,6 +184,39 @@ defines two methods `eddi_external` and `odin_model_based` which both use the sa
 
 Usually during the *soft-budget* setting, the hard budget is disabled. `use_max_hard_budget_when_training_soft_budget` enforces the largest hard budget instead.
 
+### Method option keys and validation
+
+A `method_options` entry takes only these keys:
+
+| Key | Meaning |
+| --- | --- |
+| `train_script_name` | Required. The training script, `scripts/train_method/<name>.py`. |
+| `pretrained_model_name` | A key of `pretrain_mapping`; the method then has a pretraining stage. |
+| `method_specific_params` | Extra `key=value` arguments for the training script. |
+| `eval_batch_size` | An integer for every dataset, or a mapping from dataset key to integer with a `default` for the others. If absent, evaluation uses batch size 1 and the pipeline warns. |
+| `hard_budget_ignored_datasets` | Dataset keys the method is not trained or evaluated on in the hard-budget setting. |
+| `soft_budget_ignored_datasets` | The same for the soft-budget setting. |
+| `eval_to_train_hard_budget_mapping` | Per dataset key, the train hard budget for an eval hard budget; unmapped budgets train at the eval hard budget. |
+| `use_max_hard_budget_when_training_soft_budget` | `true` to train soft-budget runs under the largest train hard budget. |
+| `classifier` | The method's own classifier: `script_name` and optional `script_params`, trained instead of the external classifier. |
+
+The workflow config is validated when Snakemake parses the workflow, by
+`load_config` in `afabench/core/workflow_settings.py`, before any job runs.
+Each error names the method and the key or value at fault:
+
+- An unknown key in a `method_options` entry, such as a misspelt
+  `pretrained_model_nme`, or a missing `train_script_name`, is rejected, for
+  every entry, whether or not the method is selected.
+- An ignored dataset must be a dataset key, a file in
+  `extra/conf/components/dataset_key/`. It need not be in this run's
+  `datasets`, which only selects what runs.
+- `eval_batch_size`, when a mapping, needs a `default`.
+- A method's `classifier`, and a `classifier_names` value given as a
+  mapping, take only `script_name` and `script_params`.
+- Every method in `methods` and `reference_methods` must have a
+  `method_options` entry and a `soft_budget_params` entry, and its
+  `pretrained_model_name`, if any, must be a key of `pretrain_mapping`.
+
 Lastly, files in `extra/workflow/conf/soft_budget_params/` contain the per-dataset soft-budget parameters for each method. Each soft-budget parameter is represented as a tuple `(train_soft_budget_param, eval_soft_budget_param)`. While the `default` key **can** be used, it is recommended to tune the values for each dataset due to sensitivity issues.
 
 ## Classifiers
