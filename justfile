@@ -30,8 +30,14 @@ qa: (_qa "auto")
 # Pre-PR gate: static checks + fast tests including the workflow tier
 qa-full: (_qa "full")
 
+# Plan the jobs of a pipeline invocation as a per-job CSV; takes the
+# Snakemake arguments of the real run, plus --output <csv>
+[positional-arguments]
+estimate-compute *args:
+    uv run python scripts/compute_estimate/estimate_compute.py "$@"
+
 # Paths the workflow tier depends on
-workflow_paths := "extra/workflow/ extra/conf/ test/workflow/ afabench/release/ afabench/fit/contract afabench/core/bundle_system/ afabench/core/output_layout afabench/core/workflow_settings"
+workflow_paths := "extra/workflow/ extra/conf/ test/workflow/ afabench/release/ afabench/fit/contract afabench/core/bundle_system/ afabench/core/output_layout afabench/core/workflow_settings afabench/compute_estimate/ scripts/compute_estimate/"
 
 # Type check and tests run concurrently after the file-rewriting steps
 _qa tier: fix
