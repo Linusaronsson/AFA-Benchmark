@@ -57,6 +57,7 @@ class JobRecords:
         gpus: int = 1,
         exit_status: ExitStatus = "completed",
         time_limit_minutes: int | None = 600,
+        slurm_cluster: str | None = "alvis",
         smoke_test: bool = False,
     ) -> None:
         self.count += 1
@@ -77,6 +78,7 @@ class JobRecords:
                 cpu_model="AMD EPYC 7742",
                 host=f"node{self.count % 2}",
                 slurm_job_id=str(self.count),
+                slurm_cluster=slurm_cluster,
                 code_commit="0123abc",
                 smoke_test=smoke_test,
             ),
@@ -385,11 +387,16 @@ def test_totals_refuse_an_unknown_grouping_column(
         group_totals(estimate, ["method"])
 
 
-def test_the_report_names_the_hardware_of_the_matched_job_records(
+def test_the_report_names_the_site_and_hardware_of_the_matched_job_records(
     records: JobRecords,
 ) -> None:
-    records.add(replace(ALPHA_TRAINING, name="gamma"), 60, gpus=0)  # node1
-    records.add(ALPHA_TRAINING, 3600)  # node0
+    records.add(
+        replace(ALPHA_TRAINING, name="gamma"),
+        60,
+        gpus=0,
+        slurm_cluster="vera",
+    )  # node1
+    records.add(ALPHA_TRAINING, 3600, slurm_cluster="alvis")  # node0
     estimate = estimate_compute([planned(ALPHA_TRAINING)], records.table())
 
     report = format_report(estimate, source="v1/job_durations.parquet")
@@ -398,6 +405,8 @@ def test_the_report_names_the_hardware_of_the_matched_job_records(
         line for line in report.splitlines() if "v1/job_durations" in line
     ]
     assert "1 job record" in source
+    assert "SLURM clusters: alvis;" in source
+    assert "vera" not in source
     assert "node0" in source
     assert "node1" not in source
     assert "AMD EPYC 7742" in source

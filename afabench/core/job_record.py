@@ -160,6 +160,7 @@ class JobRecord:
     cpu_model: str | None
     host: str | None
     slurm_job_id: str | None
+    slurm_cluster: str | None
     code_commit: str | None
     smoke_test: bool
 
@@ -226,6 +227,7 @@ def run_job(
         cpu_model=_cpu_model(),
         host=socket.gethostname() or None,
         slurm_job_id=os.environ.get("SLURM_JOB_ID"),
+        slurm_cluster=os.environ.get("SLURM_CLUSTER_NAME"),
         code_commit=code_identity(AFABENCH_CHECKOUT)[0],
         smoke_test=smoke_test,
     )

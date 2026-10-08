@@ -51,6 +51,7 @@ RECORD_FIELD_DTYPES = {
     "cpu_model": "string",
     "host": "string",
     "slurm_job_id": "string",
+    "slurm_cluster": "string",
     "code_commit": "string",
     "smoke_test": "boolean",
 }

@@ -25,6 +25,7 @@ def job_record(identity: JobIdentity, **fields: object) -> JobRecord:
         cpu_model=None,
         host=None,
         slurm_job_id=None,
+        slurm_cluster=None,
         code_commit=None,
         smoke_test=False,
     )

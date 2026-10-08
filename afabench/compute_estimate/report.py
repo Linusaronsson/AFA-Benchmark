@@ -173,6 +173,7 @@ def format_report(
         + f", {counts.get('no_job_record', 0)} without job records",
         f"Job durations from {source}: "
         f"{_plural(estimate.matched_job_records, 'job record')} matched; "
+        f"SLURM clusters: {_listing(hardware.slurm_clusters)}; "
         f"hosts: {_listing(hardware.hosts)}; "
         f"CPU models: {_listing(hardware.cpu_models)}; "
         f"GPU models: {_listing(hardware.gpu_models)}",
