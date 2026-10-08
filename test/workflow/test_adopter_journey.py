@@ -81,13 +81,14 @@ ADOPTER_JOBS = {
     "eval_method": 1,
     "merge_eval_perf": 1,
     "merge_time": 1,
+    "collect_job_records": 1,
     "plot_eval_perf": 2,
     "plot_time": 1,
     "split_by_classifier_type": 1,
     "time_df_with_pretrain": 1,
     "train_method": 1,
     "transform_eval_data": 1,
-    "total": 11,
+    "total": 12,
 }
 
 

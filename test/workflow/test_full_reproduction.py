@@ -297,6 +297,7 @@ FULL_GRAPH_JOBS = {
     "merge_eval_perf": 1,
     "split_by_classifier_type": 1,
     "merge_time": 1,
+    "collect_job_records": 1,
     "plot_eval_perf": 2,
     "plot_eval_actions": 1,
     "plot_time": 1,
@@ -359,7 +360,8 @@ def test_full_graph_submits_every_job_once(
     ]
     assert len(set(comments)) == len(comments)
     assert Counter(rule for rule, _ in full_graph_run.jobs) == FULL_GRAPH_JOBS
-    assert len(full_graph_run.calls) == len(comments)
+    # Every job but collect_job_records, which runs for real, runs a stub.
+    assert len(full_graph_run.calls) == len(comments) - 1
     plots = (
         full_graph_run.root
         / "extra/output/plot_results/eval_split-test/initializer-cold"
@@ -449,6 +451,9 @@ def test_full_graph_submits_jobs_after_their_dependencies(
         assert evaluation < position("transform_eval_data", method)
         assert position("transform_eval_data", method) < position(
             "merge_eval_perf"
+        )
+        assert position("transform_eval_data", method) < position(
+            "collect_job_records"
         )
     assert position("merge_eval_perf") < position("split_by_classifier_type")
     assert position("split_by_classifier_type") < position("plot_eval_perf")
@@ -699,7 +704,8 @@ def test_local_cpu_smoke_runs_the_same_full_graph(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     assert workflow.submissions() == []
     calls = workflow.script_arguments()
-    assert len(calls) == sum(FULL_GRAPH_JOBS.values())
+    # Every job but collect_job_records, which runs for real, runs a stub.
+    assert len(calls) == sum(FULL_GRAPH_JOBS.values()) - 1
     for script, args in calls:
         if "device" in args:
             assert args["device"] == "cpu", script
