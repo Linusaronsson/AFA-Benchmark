@@ -164,9 +164,7 @@ comparison plots. Follow `inputs` to find what a bundle or table was
 produced from.
 
 Pretrained-model and AFA-method bundles are restored together with the
-`pretrain_time.txt` or `train_time.txt` record their job wrote in the same
-folder. The workflow's time aggregation reads the record, so without it
-the workflow would rerun the job.
+[job record](job_records.md) their job wrote in the same folder.
 
 Bundles are the inference format the evaluator loads. Intermediate training
 checkpoints, such as the Lightning checkpoints of classifier training, are
@@ -270,8 +268,8 @@ root.
 | `afa_method_bundle` | 3 | 199,310 | `GDFSAFAMethod`, `RandomWithoutClassifierAFAMethod` |
 
 The rest of that output root was `plot_results/` (5.1 MB, 134 files),
-`merged_results/` (83 kB), `combined_time_results/` (10 kB) and
-`eval_time_results/` (30 B). A production run multiplies the counts by
+`merged_results/` (83 kB) and per-job timing files (10 kB) that job
+records have since replaced. A production run multiplies the counts by
 datasets, dataset realizations, methods and budgets, and per-payload sizes
 change with dataset size, architecture and smoke settings, so these numbers
 do not extrapolate.

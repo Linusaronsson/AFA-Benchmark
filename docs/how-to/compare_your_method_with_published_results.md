@@ -138,10 +138,10 @@ uv run snakemake \
 The plan should list only:
 
 - your method's `train_method`, `eval_method` and `transform_eval_data`
-  jobs and its time records;
+  jobs;
 - `pretrain_model`, only if you did not download its pretrained model;
 - the comparison's `merge_eval_perf`, `split_by_classifier_type`,
-  `plot_eval_perf`, `merge_time` and `plot_time`.
+  `plot_eval_perf`, `collect_job_records` and `plot_time`.
 
 If it lists `dataset_generation` or `train_classifier`, a
 [shared prerequisite](../../CONTEXT.md) is missing: download it (step 2) rather than letting the

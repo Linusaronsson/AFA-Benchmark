@@ -13,7 +13,7 @@ Runtime filters (--config, select subsets to run):
         MissingInputException. Their tables are expected at this config's
         eval split, initializer, dataset realizations and budgets. A method
         cannot be in both lists, and method sets without any method from
-        `methods` are skipped. Time aggregation covers `methods` only.
+        `methods` are skipped. The time plot covers `methods` only.
     datasets (list[str], required): Subset of datasets to run. Every dataset
         key needs a file extra/conf/components/dataset_key/<key>.yaml.
     dataset_realization_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
@@ -61,13 +61,15 @@ Job records:
     (device, CPUs, GPUs, time limit). A job whose script fails, or that
     receives SLURM's time-limit SIGTERM, writes its record to the same path
     under extra/output/failed_job_records/ instead, one record per attempt;
-    Snakemake deletes a failed job's declared outputs. Pretraining, training
-    and evaluation also still write *_time.txt for the time aggregation.
-    The collect_job_records rule, part of `all`, collects every job record
+    Snakemake deletes a failed job's declared outputs. The
+    collect_job_records rule, part of `all`, collects every job record
     under extra/output, failed attempts included, into the job duration
     table extra/output/merged_results/job_duration_table.parquet, one row
-    per record (afabench.core.job_duration_table). See
-    docs/reference/job_records.md and
+    per record (afabench.core.job_duration_table). The plot_time rule plots
+    from it the job durations of the completed pretraining, method-specific
+    classifier training, training, evaluation and transformation jobs of
+    `methods` under this initializer and eval split; failed and timed-out
+    attempts are left out. See docs/reference/job_records.md and
     docs/adr/0006-job-records-beside-artifacts.md.
 
 Execution configuration and required files:

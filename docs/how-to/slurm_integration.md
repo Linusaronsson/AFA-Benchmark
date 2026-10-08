@@ -77,8 +77,7 @@ work for you unchanged.
    size: `dataset_generation`, `train_classifier`,
    `train_classifier_for_method`, `pretrain_model`, `train_method`,
    `eval_method`, `transform_eval_data`, `merge_eval_perf`,
-   `split_by_classifier_type`, `time_df_with_pretrain`,
-   `time_df_without_pretrain`, `merge_time`, `plot_eval_perf`,
+   `split_by_classifier_type`, `collect_job_records`, `plot_eval_perf`,
    `plot_eval_actions` and `plot_time`. The `vera` profile shows sizes we have
    used. Do not set `slurm_partition`, `slurm_account`, `gpu`, `gres`,
    `gpu_model` or `slurm_extra` per rule; the site map owns them, and
