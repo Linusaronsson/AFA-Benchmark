@@ -31,7 +31,7 @@ qa: (_qa "auto")
 qa-full: (_qa "full")
 
 # Paths the workflow tier depends on
-workflow_paths := "extra/workflow/ extra/conf/ test/workflow/ afabench/release/ afabench/fit/contract afabench/core/bundle_system/"
+workflow_paths := "extra/workflow/ extra/conf/ test/workflow/ afabench/release/ afabench/fit/contract afabench/core/bundle_system/ afabench/core/output_layout"
 
 # Type check and tests run concurrently after the file-rewriting steps
 _qa tier: fix
