@@ -65,3 +65,15 @@ GPU-hours.
   `execution_mode`; the table carries its own smoke flag, so a failed smoke
   attempt left among the failed records does not block a production
   release.
+- The estimator plans through Snakemake's own command-line handling, but
+  Snakemake 9.12 has no public way to list a DAG's jobs with their resolved
+  resources without running them. It replaces `Workflow.execute` and calls
+  private members (`_prepare_dag`, `_build_dag`), so Snakemake is pinned
+  below 9.13 in `pyproject.toml`. A newer version is allowed once the
+  planner's workflow tests (`test/workflow/test_compute_estimate_planning.py`)
+  pass on it.
+- The wrapper command holds the job's allocation and is a rule param
+  computed from `resources` and `threads`. Snakemake does not track such
+  params for reruns, so raising a time limit or CPUs reruns no finished
+  job; `test/workflow/test_job_records.py` checks that on a Snakemake
+  upgrade too.
