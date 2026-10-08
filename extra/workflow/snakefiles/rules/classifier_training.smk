@@ -7,20 +7,14 @@ from execution import checked_script_params
 
 
 def _classifier_script_name(dataset: str) -> str:
-    classifier_cfg = CLASSIFIER_NAMES[dataset]
-    if isinstance(classifier_cfg, dict):
-        return classifier_cfg["script_name"]
-    return classifier_cfg
+    return CLASSIFIER_NAMES[dataset].script_name
 
 
 def _classifier_script_params(dataset: str) -> str:
-    classifier_cfg = CLASSIFIER_NAMES[dataset]
-    if isinstance(classifier_cfg, dict):
-        return checked_script_params(
-            " ".join(classifier_cfg.get("script_params", [])),
-            f"classifier script_params for {dataset!r}",
-        )
-    return ""
+    return checked_script_params(
+        " ".join(CLASSIFIER_NAMES[dataset].script_params),
+        f"classifier script_params for {dataset!r}",
+    )
 
 
 def _method_classifier_script_name(method: str, dataset: str) -> str:

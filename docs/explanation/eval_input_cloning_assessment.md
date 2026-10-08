@@ -37,7 +37,7 @@ two are load-bearing and must stay regardless of performance.
 `scripts/dev/benchmark_process_batch_cloning.py` measures the cost of all
 three clones together against total `process_batch` time, across workload
 sizes mirroring the pinned AACO evaluation batch sizes in
-`test/workflow/test_eval_batch_sizes.py` (32 for image datasets with 784
+`test/src/common/test_workflow_settings.py` (32 for image datasets with 784
 features, 128 for tabular datasets with 20 features), with the episode length
 capped by `selection_budget` to a realistic handful of acquisitions.
 

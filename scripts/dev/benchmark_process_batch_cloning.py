@@ -100,7 +100,7 @@ def main() -> None:
     torch.manual_seed(0)
     device = torch.device("cpu")
     # Workload sizes mirror the pinned AACO eval batch sizes in
-    # test/workflow/test_eval_batch_sizes.py: 32 for image datasets
+    # test/src/common/test_workflow_settings.py: 32 for image datasets
     # (mnist/fashion_mnist, 784 features), 128 for tabular datasets
     # (cube, default). selection_budget caps episode length to a realistic
     # handful of acquisitions rather than exhausting every feature.

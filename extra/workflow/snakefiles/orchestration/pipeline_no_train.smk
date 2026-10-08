@@ -62,6 +62,14 @@ Output namespacing:
       (for example `cold` vs `missingness`) without overwriting.
 
 Config files (--configfile):
+    The merged config is validated by load_config
+    (afabench/core/workflow_settings.py) through ../settings.smk, which
+    defines the globals the rules read. Unknown method_options keys, a
+    missing train_script_name, a pretrained_model_name outside
+    pretrain_mapping, a method missing from method_options or
+    soft_budget_params, and an ignored dataset that is not a dataset key all
+    fail the parse, naming the method; see
+    docs/reference/pipeline_configuration.md.
     Fixed definitions:
         method_options.yaml,
         pretrain_mapping.yaml,
@@ -95,64 +103,7 @@ Config files (--configfile):
      BOTH hard and soft budgets across all methods that consume that model.
 """
 
-import os
-import sys
-import time
-from datetime import datetime
-
-snakefile_dir = workflow.basedir
-workflow_dir = os.path.dirname(os.path.dirname(snakefile_dir))
-src_dir = os.path.join(workflow_dir, "src")
-sys.path.insert(0, src_dir)
-
-from afabench.core.output_layout import OutputLayout
-from config import load_config
-from execution import ExecutionPolicy
-
-_config = load_config(config)
-EXECUTION = ExecutionPolicy(
-    config,
-    method_classifiers=_config["METHOD_CLASSIFIER_SCRIPT_NAMES"],
-    default_resources=(
-        workflow.resource_settings.default_resources.parsed
-        if workflow.resource_settings.default_resources
-        else {}
-    ),
-    submits_to_cluster=lambda: workflow.is_main_process and workflow.non_local_exec,
-)
-
-DATASET_REALIZATION_INDICES = _config["DATASET_REALIZATION_INDICES"]
-INITIALIZER = _config["INITIALIZER"]
-INITIALIZER_TAG = f"initializer-{INITIALIZER}"
-EVAL_DATASET_SPLIT = _config["EVAL_DATASET_SPLIT"]
-OUTPUT_LAYOUT = OutputLayout(
-    root="extra/output", initializer=INITIALIZER, eval_split=EVAL_DATASET_SPLIT
-)
-USE_WANDB = _config["USE_WANDB"]
-SMOKE_TEST = _config["SMOKE_TEST"]
-PRETRAIN_NAMES = _config["PRETRAIN_NAMES"]
-PRETRAIN_SCRIPT_NAMES = _config["PRETRAIN_SCRIPT_NAMES"]
-PRETRAIN_PARAMS = _config["PRETRAIN_PARAMS"]
-METHOD_OPTIONS = _config["METHOD_OPTIONS"]
-METHODS = _config["METHODS"]
-REFERENCE_METHODS = _config["REFERENCE_METHODS"]
-COMPARED_METHODS_WITH_PRETRAINING_STAGE = _config["COMPARED_METHODS_WITH_PRETRAINING_STAGE"]
-METHOD_TRAIN_SCRIPT_NAMES = _config["METHOD_TRAIN_SCRIPT_NAMES"]
-METHOD_CLASSIFIER_SCRIPT_NAMES = _config["METHOD_CLASSIFIER_SCRIPT_NAMES"]
-METHOD_CLASSIFIER_SCRIPT_PARAMS = _config["METHOD_CLASSIFIER_SCRIPT_PARAMS"]
-METHOD_TO_PRETRAINED_MODEL = _config["METHOD_TO_PRETRAINED_MODEL"]
-METHOD_SPECIFIC_PARAMS = _config["METHOD_SPECIFIC_PARAMS"]
-DATASETS = _config["DATASETS"]
-UNMASKERS = _config["UNMASKERS"]
-BUDGET_PARAMS = _config["BUDGET_PARAMS"]
-CLASSIFIER_NAMES = _config["CLASSIFIER_NAMES"]
-METHOD_SETS = _config["METHOD_SETS"]
-EVAL_BATCH_SIZES = _config["EVAL_BATCH_SIZES"]
-HARD_BUDGET_IGNORED_DATASETS = _config["HARD_BUDGET_IGNORED_DATASETS"]
-SOFT_BUDGET_IGNORED_DATASETS = _config["SOFT_BUDGET_IGNORED_DATASETS"]
-DATASETS_USED_PER_METHOD = _config["DATASETS_USED_PER_METHOD"]
-DATASETS_USED_PER_PRETRAIN_NAME = _config["DATASETS_USED_PER_PRETRAIN_NAME"]
-HEATMAP_METHOD_SET = "heatmap_comparison"
+include: "../settings.smk"
 
 # NOTE: exclude training rules!
 # include: "../rules/training.smk"
