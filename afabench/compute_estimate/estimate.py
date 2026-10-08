@@ -18,13 +18,13 @@ may be low.
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass, fields
+from dataclasses import asdict, astuple, dataclass, fields
 from typing import Literal
 
 import pandas as pd
 
 from afabench.compute_estimate.planning import PlannedJob
-from afabench.core.job_record import JobIdentity, Stage
+from afabench.core.job_record import JobIdentity, JobType
 
 # no_job_record: the job's rule writes no job record, so no job duration
 # can match it; aggregation and visualization jobs are not computational.
@@ -32,8 +32,8 @@ type MatchLevel = Literal["exact", "pooled", "unestimated", "no_job_record"]
 
 IDENTITY_COLUMNS = [field.name for field in fields(JobIdentity)]
 EXACT_COLUMNS = [*IDENTITY_COLUMNS, "device"]
-POOL_COLUMNS = ["stage", "name", "dataset_key", "device"]
-JOB_TYPE_COLUMNS = ["stage", "name", "dataset_key"]
+JOB_TYPE_COLUMNS = [field.name for field in fields(JobType)]
+POOL_COLUMNS = [*JOB_TYPE_COLUMNS, "device"]
 
 # The values of a job's identity columns and device, None for null
 type Key = tuple[object, ...]
@@ -90,9 +90,7 @@ class Hardware:
 class FailureHistory:
     """The failed and timed-out job records of a planned job type."""
 
-    stage: Stage
-    name: str | None
-    dataset_key: str | None
+    job_type: JobType
     failed: int
     timed_out: int
     # Distinct known time limits of the timed-out jobs, sorted
@@ -167,9 +165,7 @@ def _failure_histories(
 ) -> list[FailureHistory]:
     """Return the failure history of each planned job type that has one."""
     planned_types = {
-        _key(asdict(job.identity), JOB_TYPE_COLUMNS): job.identity
-        for job in planned_jobs
-        if job.identity is not None
+        job.job_type for job in planned_jobs if job.job_type is not None
     }
     timed_out: defaultdict[Key, int] = defaultdict(int)
     failed: defaultdict[Key, int] = defaultdict(int)
@@ -179,28 +175,28 @@ def _failure_histories(
             :, [*JOB_TYPE_COLUMNS, "exit_status", "time_limit_minutes"]
         ]
     ):
-        job_type = _key(record, JOB_TYPE_COLUMNS)
+        key = _key(record, JOB_TYPE_COLUMNS)
         if record["exit_status"] == "timeout":
-            timed_out[job_type] += 1
+            timed_out[key] += 1
             if isinstance(limit := record["time_limit_minutes"], int):
-                time_limits[job_type].add(limit)
+                time_limits[key].add(limit)
         else:
-            failed[job_type] += 1
-    return [
-        FailureHistory(
-            stage=identity.stage,
-            name=identity.name,
-            dataset_key=identity.dataset_key,
-            failed=failed[job_type],
-            timed_out=timed_out[job_type],
-            time_limits_minutes=sorted(time_limits[job_type]),
-        )
-        for job_type, identity in sorted(
-            planned_types.items(),
-            key=lambda item: tuple(str(value) for value in item[0]),
-        )
-        if failed[job_type] or timed_out[job_type]
-    ]
+            failed[key] += 1
+    histories = []
+    for job_type in sorted(
+        planned_types, key=lambda job_type: tuple(map(str, astuple(job_type)))
+    ):
+        key = astuple(job_type)
+        if failed[key] or timed_out[key]:
+            histories.append(
+                FailureHistory(
+                    job_type=job_type,
+                    failed=failed[key],
+                    timed_out=timed_out[key],
+                    time_limits_minutes=sorted(time_limits[key]),
+                )
+            )
+    return histories
 
 
 def _match(

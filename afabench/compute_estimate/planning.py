@@ -26,6 +26,7 @@ from snakemake_interface_executor_plugins.registry import Plugin
 from afabench.core.job_record import (
     Device,
     JobIdentity,
+    JobType,
     allocated_cpus,
     allocated_gpus,
     job_identity,
@@ -45,6 +46,10 @@ class PlannedJob:
     # None when the cluster's default applies.
     cpus: int | None
     gpus: int
+
+    @property
+    def job_type(self) -> JobType | None:
+        return None if self.identity is None else self.identity.job_type
 
 
 class InvocationError(Exception):
