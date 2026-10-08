@@ -66,12 +66,13 @@ def renderer() -> ModuleType:
 
 
 def test_contract_import_does_not_load_torch_or_sklearn() -> None:
-    # Snakemake imports the contract and the output layout on every parse,
-    # including dry runs.
+    # Snakemake imports the contract, the output layout and the workflow
+    # settings on every parse, including dry runs.
     probe = (
         "import sys\n"
         "import afabench.fit.contract\n"
         "import afabench.core.output_layout\n"
+        "import afabench.core.workflow_settings\n"
         "print(sorted({'torch', 'sklearn'} & set(sys.modules)))"
     )
 
