@@ -2,7 +2,7 @@
 Estimate the compute of planned jobs from measured job durations.
 
 The second half of a compute estimate
-(`docs/adr/0006-job-records-beside-artifacts.md`): each planned job is
+(`docs/adr/0007-job-records-beside-artifacts.md`): each planned job is
 matched to the completed job records of a job duration table, in a fixed
 fallback order. An exact match has the same identity and device. Otherwise
 the job is pooled with every job of its stage, name, dataset key and

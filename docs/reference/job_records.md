@@ -3,7 +3,7 @@
 A [job record](../../CONTEXT.md) is a JSON file that one computational
 pipeline job writes beside the artifact it produced. It holds the job's
 identity, its job duration and the allocation it ran with
-([ADR 0006](../adr/0006-job-records-beside-artifacts.md)). It describes the
+([ADR 0007](../adr/0007-job-records-beside-artifacts.md)). It describes the
 run, not the artifact, so it is not part of the artifact's provenance record.
 The schema is `afabench.core.job_record.JobRecord`, version 1. The
 [job duration table](#job-duration-table) collects every record of an output

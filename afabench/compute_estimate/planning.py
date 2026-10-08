@@ -2,7 +2,7 @@
 Plan the jobs a Snakemake invocation would run, with their allocations.
 
 The plan is the first half of a compute estimate
-(`docs/adr/0006-job-records-beside-artifacts.md`). It comes from
+(`docs/adr/0007-job-records-beside-artifacts.md`). It comes from
 Snakemake's own command-line handling, so profiles, workflow profiles,
 `--config` and `--set-resources` resolve exactly as in a real run, and an
 invalid invocation fails with the same error. Only the scheduling step is

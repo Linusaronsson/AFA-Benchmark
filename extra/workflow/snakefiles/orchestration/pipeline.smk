@@ -70,7 +70,7 @@ Job records:
     classifier training, training, evaluation and transformation jobs of
     `methods` under this initializer and eval split; failed and timed-out
     attempts are left out. See docs/reference/job_records.md and
-    docs/adr/0006-job-records-beside-artifacts.md.
+    docs/adr/0007-job-records-beside-artifacts.md.
 
 Execution configuration and required files:
     Methods retain their independent scripts and native bundle/result paths.
