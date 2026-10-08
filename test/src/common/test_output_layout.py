@@ -205,23 +205,8 @@ def test_combined_time() -> None:
     )
 
 
-def test_placeholders_give_a_rule_pattern() -> None:
-    run = EvaluationRun(
-        training=TrainingRun(
-            method="{method}",
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            pretrain_folder="{pretrain_folder}",
-            train_seed="{train_seed}",
-            train_hard_budget="{train_hard_budget}",
-            train_soft_budget_param="{train_soft_budget_param}",
-        ),
-        eval_seed="{eval_seed}",
-        eval_hard_budget="{eval_hard_budget}",
-        eval_soft_budget_param="{eval_soft_budget_param}",
-    )
-
-    assert LAYOUT.raw_evaluation_table(run) == (
+def test_wildcards_give_a_rule_pattern() -> None:
+    assert LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()) == (
         "extra/output/eval_results/eval_split-test/initializer-cold/"
         "{method}/dataset-{dataset}+"
         "realization_index-{dataset_realization_index}/{pretrain_folder}/"
@@ -229,6 +214,18 @@ def test_placeholders_give_a_rule_pattern() -> None:
         "train_soft_budget_param-{train_soft_budget_param}/"
         "eval_seed-{eval_seed}+eval_hard_budget-{eval_hard_budget}+"
         "eval_soft_budget_param-{eval_soft_budget_param}/eval_data.parquet"
+    )
+
+
+def test_wildcards_of_one_pretrain_folder_kind() -> None:
+    run = TrainingRun.wildcards(pretrain_folder=pretrain_folder(None))
+
+    assert LAYOUT.train_time(run) == (
+        "extra/output/trained_methods/initializer-cold/"
+        "{method}/dataset-{dataset}+"
+        "realization_index-{dataset_realization_index}/NO_PRETRAIN/"
+        "train_seed-{train_seed}+train_hard_budget-{train_hard_budget}+"
+        "train_soft_budget_param-{train_soft_budget_param}/train_time.txt"
     )
 
 

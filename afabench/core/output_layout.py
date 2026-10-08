@@ -15,6 +15,7 @@ Snakemake imports this module at parse time, so it must not import torch.
 
 import re
 from dataclasses import dataclass
+from typing import Self
 
 type PathValue = str | int | float
 
@@ -58,6 +59,19 @@ class TrainingRun:
     train_hard_budget: PathValue
     train_soft_budget_param: PathValue
 
+    @classmethod
+    def wildcards(cls, *, pretrain_folder: str = "{pretrain_folder}") -> Self:
+        """Build the rule pattern: each field is a wildcard of its name."""
+        return cls(
+            method="{method}",
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            pretrain_folder=pretrain_folder,
+            train_seed="{train_seed}",
+            train_hard_budget="{train_hard_budget}",
+            train_soft_budget_param="{train_soft_budget_param}",
+        )
+
 
 @dataclass(frozen=True, kw_only=True)
 class EvaluationRun:
@@ -67,6 +81,16 @@ class EvaluationRun:
     eval_seed: PathValue
     eval_hard_budget: PathValue
     eval_soft_budget_param: PathValue
+
+    @classmethod
+    def wildcards(cls, *, pretrain_folder: str = "{pretrain_folder}") -> Self:
+        """Build the rule pattern: each field is a wildcard of its name."""
+        return cls(
+            training=TrainingRun.wildcards(pretrain_folder=pretrain_folder),
+            eval_seed="{eval_seed}",
+            eval_hard_budget="{eval_hard_budget}",
+            eval_soft_budget_param="{eval_soft_budget_param}",
+        )
 
 
 @dataclass(frozen=True, kw_only=True)
