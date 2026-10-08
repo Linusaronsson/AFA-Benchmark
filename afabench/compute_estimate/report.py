@@ -51,6 +51,7 @@ PER_JOB_DTYPES = {
     "match_level": "string",
     "matched_job_records": "Int64",
     **dict.fromkeys(ESTIMATE_COLUMNS[2:], "Float64"),
+    "failure_history": "boolean",
 }
 GROUPING_COLUMNS = [column for column in JOB_COLUMNS if column != "wildcards"]
 DEFAULT_GROUPING = ["stage", "device"]
@@ -64,7 +65,15 @@ class UnknownGroupingColumnError(ValueError):
 
 
 def per_job_table(estimate: ComputeEstimate) -> pd.DataFrame:
-    """Return one row per planned job: identity, allocation, estimate."""
+    """
+    Return one row per planned job: identity, allocation, estimate.
+
+    `failure_history` flags jobs whose job type failed or timed out before.
+    """
+    failed_types = {
+        (history.stage, history.name, history.dataset_key)
+        for history in estimate.failure_histories
+    }
     rows = [
         {
             "rule": job.job.rule,
@@ -78,12 +87,19 @@ def per_job_table(estimate: ComputeEstimate) -> pd.DataFrame:
             "cpus": job.job.cpus,
             "gpus": job.job.gpus,
             **{column: getattr(job, column) for column in ESTIMATE_COLUMNS},
+            "failure_history": job.job.identity is not None
+            and (
+                job.job.identity.stage,
+                job.job.identity.name,
+                job.job.identity.dataset_key,
+            )
+            in failed_types,
         }
         for job in estimate.jobs
     ]
-    return pd.DataFrame(
-        rows, columns=pd.Index([*JOB_COLUMNS, *ESTIMATE_COLUMNS])
-    ).astype(PER_JOB_DTYPES)
+    return pd.DataFrame(rows, columns=pd.Index(list(PER_JOB_DTYPES))).astype(
+        PER_JOB_DTYPES
+    )
 
 
 def check_grouping(by: Sequence[str]) -> None:

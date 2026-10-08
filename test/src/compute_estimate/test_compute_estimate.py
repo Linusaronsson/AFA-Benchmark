@@ -21,6 +21,7 @@ from afabench.compute_estimate.report import (
     UnknownGroupingColumnError,
     format_report,
     group_totals,
+    per_job_table,
 )
 from afabench.core.job_duration_table import load_job_duration_table
 from afabench.core.job_record import (
@@ -486,3 +487,23 @@ def test_the_report_has_no_warnings_without_failed_or_timed_out_jobs(
     report = format_report(estimate, source="output")
 
     assert "Failed or timed out before" not in report
+
+
+def test_the_per_job_table_flags_jobs_whose_type_failed_before(
+    records: JobRecords,
+) -> None:
+    records.add(ALPHA_TRAINING, 5, exit_status="failed")
+    beta = replace(ALPHA_TRAINING, name="beta")
+    records.add(beta, 3600)
+    estimate = estimate_compute(
+        [
+            planned(replace(ALPHA_TRAINING, train_seed=1)),
+            planned(beta),
+            planned(None, rule="merge_eval_perf", device="cpu", gpus=0),
+        ],
+        records.table(),
+    )
+
+    jobs = per_job_table(estimate)
+
+    assert jobs["failure_history"].tolist() == [True, False, False]
