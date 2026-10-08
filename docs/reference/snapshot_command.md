@@ -192,7 +192,7 @@ For the selected evaluations, payload categories download:
   dataset realization was trained on that realization's `train` and `val`
   dataset bundles, so selecting it also selects them.
 - with each pretrained-model and AFA-method bundle, the folder of the job
-  that wrote it, including its `pretrain_time.txt` or `train_time.txt`.
+  that wrote it, including its job record.
 
 A method-specific classifier comes only with its method's evaluations.
 

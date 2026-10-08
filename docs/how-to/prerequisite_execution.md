@@ -73,8 +73,8 @@ uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
 Remove `-n` to submit from one authorized environment with shared filesystem and
 access to both allocation types. The same graph schedules prerequisites according
 to their dependencies. Dataset realizations, seeds, Initializers, Unmaskers, budget
-settings, method-owned scripts, plain pretraining/training contract, native
-bundle directories and `pretrain_time.txt` outputs are unchanged. Classifier
+settings, method-owned scripts, plain pretraining/training contract and native
+bundle directories are unchanged. Classifier
 scripts retain their existing Hydra arguments. For the single full-benchmark
 command, see [Reproducing full results](reproduce_full_results.md).
 

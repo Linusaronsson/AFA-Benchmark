@@ -12,12 +12,9 @@ transforming it. Repository adopters list published methods under
 Default aggregation enumerates the evaluations of every method in
 `methods`, and Snakemake schedules the upstream work of each one. Listing
 a published method in `methods`, even with all its tables downloaded,
-therefore retrains and re-evaluates it:
-
-- the time plot of the `all` target needs every method's `train_time.txt`
-  and `eval_time.txt`, which only training and evaluation write;
-- a restored table is rebuilt whenever a prerequisite upstream of it is
-  newer, or is missing and produced again.
+therefore retrains and re-evaluates it: a restored table is rebuilt
+whenever a prerequisite upstream of it is newer, or is missing and
+produced again.
 
 A reference method's plotting-ready tables are plain input files: the
 transformation rule does not match reference methods, so Snakemake has no

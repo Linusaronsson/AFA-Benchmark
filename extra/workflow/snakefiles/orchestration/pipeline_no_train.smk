@@ -37,8 +37,9 @@ Execution configuration and required files:
 
 Job records:
     Evaluation and transformation jobs write a job record beside their
-    output, and `all` collects every record into the job duration table, as
-    in pipeline.smk; see docs/reference/job_records.md.
+    output, and `all` collects every record into the job duration table,
+    which the time plot reads, as in pipeline.smk; see
+    docs/reference/job_records.md.
 
 Usage (add existing scientific --configfile inputs):
     snakemake -s extra/workflow/snakefiles/orchestration/pipeline_no_train.smk \

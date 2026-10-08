@@ -30,8 +30,6 @@ and `<evaluation>` the evaluation's subfolder
 
 No job depends on a record, so a missing record never makes Snakemake rerun
 a job whose artifact exists, for example a downloaded shared prerequisite.
-Pretraining, training and evaluation also still write `*_time.txt`, which
-the time aggregation reads.
 
 ### Failed and timed-out jobs
 
@@ -58,14 +56,13 @@ times it and writes the record:
 python -m afabench.core.job_record --record <path> \
     --failed-record <path> --stage <stage> --device <cpu|cuda> \
     [--cpus <n>] [--gpus <n>] [--time-limit-minutes <n>] [--smoke-test] \
-    [identity options] [--time-file <path>] -- <script command>
+    [identity options] -- <script command>
 ```
 
 `--record` is where a completed job's record goes, `--failed-record` the
 path a failed or timed-out job's record is named after. Each identity field
 below has an option of the same name with `-` for `_` (`--dataset-key`); an
-omitted option records `null`. `--time-file` also writes the job duration in
-seconds there, for completed jobs only. `extra/workflow/src/job_records.py`
+omitted option records `null`. `extra/workflow/src/job_records.py`
 renders the options from the job's wildcards and its final Snakemake
 resources, after profile defaults and `--set-resources` overrides.
 
@@ -147,6 +144,13 @@ or evaluation splits. No record is an input, so a missing record does not
 rerun its job. A benchmark release ships its own copy, beside its manifest
 rather than in `merged_results/`
 ([payload category](release_manifest.md#job-duration-table)).
+
+The `plot_time` rule plots the table with
+`scripts/plotting/plot_total_time.py`. It keeps the completed jobs of the
+selected methods under the run's initializer and evaluation split, so
+failed and timed-out attempts are left out: each method's pretraining,
+through the pretrained model it trains from, its method-specific
+classifier training, training, evaluation and transformation.
 
 `afabench.core.job_duration_table.load_job_duration_table(source)` loads
 either the table's Parquet file or an output root of loose job records,
