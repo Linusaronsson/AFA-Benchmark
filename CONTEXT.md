@@ -301,8 +301,8 @@ _Avoid_: Metadata, release info, provenance record (that is per artifact)
 
 **Payload category**:
 One kind of reusable output a release manifest lists: raw or transformed
-evaluation tables, or dataset, classifier, pretrained-model or AFA-method
-bundles. AFA-method bundles are optional, never needed to plot against
+evaluation tables, the job duration table, or dataset, classifier,
+pretrained-model or AFA-method bundles. AFA-method bundles are optional, never needed to plot against
 published results.
 _Avoid_: Artifact type, output kind
 
@@ -390,6 +390,30 @@ _Avoid_: Metadata (the free-form manifest field), lineage, run info
 A run mode where every stage executes as fast as possible to verify the
 pipeline works end to end.
 _Avoid_: Dry run, quick mode
+
+**Job duration**:
+The measured wall-clock time of one pipeline job, from the start to the end of
+its script.
+_Avoid_: Runtime (the scheduler's requested time limit), job time, elapsed
+
+**Job record**:
+The description of one finished pipeline job: what it computed, its job
+duration, and the hardware it was allocated. Unlike a provenance record it
+describes the run, not the artifact, and is kept beside the artifact rather
+than inside it.
+_Avoid_: Time file, job log, provenance record (that is per artifact)
+
+**Job duration table**:
+All job records of a pipeline's outputs collected into one table, one row
+per job, with no aggregation.
+_Avoid_: Time results, timing table
+
+**Compute estimate**:
+The predicted compute a pipeline invocation will consume before it runs,
+derived from job durations of earlier runs and the allocation each job would
+request, in CPU core-hours and GPU-hours.
+_Avoid_: Compute cost (cost means feature, selection or accumulated cost),
+compute budget (budget means hard budget or soft-budget parameter)
 
 **Contract**:
 The fixed set of inputs the pipeline gives a pretraining or training script,

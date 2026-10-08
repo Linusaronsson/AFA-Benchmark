@@ -1,0 +1,52 @@
+---
+status: accepted
+---
+
+# Job records sit beside artifacts, and compute estimates come from raw job durations
+
+A full benchmark run costs thousands of CPU and GPU hours, so users need a
+**compute estimate** before they launch one. Today each timed job writes a
+bare `*_time.txt` holding seconds only: it does not say which device or
+hardware ran the job or how many CPUs and GPUs it had. Dataset generation
+and classifier training are not timed at all.
+
+We replace `*_time.txt` with a **job record**, one JSON file per pipeline job
+for every computational stage. It holds the job's identity, its job
+duration, and its allocation (device, CPUs, GPUs, GPU and CPU model, host,
+SLURM job id). A wrapper around the stage's script writes it beside the
+artifact the job produced. Failed jobs and jobs killed at the time limit
+write their record to an undeclared directory instead, because Snakemake
+deletes a failed job's declared outputs. An aggregation rule collects every
+record into the **job duration table**, one row per job with no
+aggregation, and the table is a payload category of benchmark releases. The
+estimator plans jobs from the same Snakemake invocation the user would run.
+It matches each planned job to measured job durations with a fixed fallback
+order: an exact match, then a pool over seeds, realizations and budgets
+within the same stage, name, dataset and device. It reports core-hours and
+GPU-hours.
+
+## Considered options
+
+- **Put the timing in the provenance record (ADR-0002).** Rejected: a
+  provenance record describes the artifact and should be identical however
+  often the artifact is reproduced. Timing and hardware describe one run of
+  the job and differ every time. A script also cannot time its own
+  interpreter start-up. ADR-0002 rejects sidecars for provenance because a
+  copy can separate them from their artifact. That risk is acceptable here,
+  since losing a job record never makes an artifact uninterpretable.
+- **A committed, hand-curated table of per-method average durations.**
+  Rejected: averaging discards how job duration scales with hard budget and
+  soft-budget parameter. Aggregating is the job of the estimator and of
+  visualization, not of storage. Measured durations also depend on hardware,
+  so they belong to the release that measured them, not to the code.
+- **Keep `*_time.txt` and add a sidecar for the allocation.** Rejected: no
+  benchmark release existed yet, so a clean format change cost nothing.
+
+## Consequences
+
+- `combined_time_results/`, the per-method time merges and `plot_time` are
+  replaced by, or ported to, the job duration table.
+- No durations are normalized across hardware. An estimate states which
+  release and site its job durations came from.
+- Durations from smoke tests are refused, because they would make every
+  estimate look far too cheap.
