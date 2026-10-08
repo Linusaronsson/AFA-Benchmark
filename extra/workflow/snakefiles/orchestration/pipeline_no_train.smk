@@ -35,6 +35,10 @@ Execution configuration and required files:
     See docs/how-to/mixed_execution.md for the execution YAML format,
     site.yaml requirements, migration policy and captured-submission tests.
 
+Job records:
+    Evaluation and transformation jobs write a job record beside their
+    output, as in pipeline.smk; see docs/reference/job_records.md.
+
 Usage (add existing scientific --configfile inputs):
     snakemake -s extra/workflow/snakefiles/orchestration/pipeline_no_train.smk \
         --workflow-profile extra/workflow/profiles/mixed-gres \

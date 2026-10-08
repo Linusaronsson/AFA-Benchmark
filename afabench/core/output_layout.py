@@ -1,8 +1,10 @@
 """
-The pipeline's native output layout of bundles, tables and time files.
+The pipeline's native output layout of bundles, tables, job records and time
+files.
 
-Every Snakemake rule addresses bundles, evaluation tables and time files
-through this module, so their layout is spelled once; the aggregation and
+Every Snakemake rule addresses bundles, evaluation tables, the job records
+beside them (`docs/reference/job_records.md`) and time files through this
+module, so their layout is spelled once; the aggregation and
 visualization rules spell their merged results and plots themselves, under
 this module's initializer tag. Benchmark releases are restored at these
 paths and reference methods' tables are found by them, so the layout must
@@ -108,6 +110,9 @@ class OutputLayout:
         """Where dataset generation writes every realization's bundles."""
         return self._path("datasets", f"{dataset}")
 
+    def dataset_generation_job_record(self, *, dataset: PathValue) -> str:
+        return self._path("datasets", f"{dataset}.job_record.json")
+
     def dataset_bundle(
         self,
         *,
@@ -131,6 +136,28 @@ class OutputLayout:
         method: PathValue | None,
     ) -> str:
         """Address `method`'s built-in classifier; None for the external."""
+        return self._classifier_path(
+            dataset, dataset_realization_index, method, ".bundle"
+        )
+
+    def classifier_job_record(
+        self,
+        *,
+        dataset: PathValue,
+        dataset_realization_index: PathValue,
+        method: PathValue | None,
+    ) -> str:
+        return self._classifier_path(
+            dataset, dataset_realization_index, method, ".job_record.json"
+        )
+
+    def _classifier_path(
+        self,
+        dataset: PathValue,
+        dataset_realization_index: PathValue,
+        method: PathValue | None,
+        suffix: str,
+    ) -> str:
         realization = _dataset_realization_folder(
             dataset, dataset_realization_index
         )
@@ -138,7 +165,7 @@ class OutputLayout:
             realization if method is None else f"method-{method}+{realization}"
         )
         return self._path(
-            "trained_classifiers", self.initializer_tag, f"{name}.bundle"
+            "trained_classifiers", self.initializer_tag, f"{name}{suffix}"
         )
 
     def pretrained_model_bundle(
@@ -155,6 +182,22 @@ class OutputLayout:
             dataset_realization_index,
             pretrain_seed,
             "model.bundle",
+        )
+
+    def pretraining_job_record(
+        self,
+        *,
+        pretrained_model_name: PathValue,
+        dataset: PathValue,
+        dataset_realization_index: PathValue,
+        pretrain_seed: PathValue,
+    ) -> str:
+        return self._pretraining_path(
+            pretrained_model_name,
+            dataset,
+            dataset_realization_index,
+            pretrain_seed,
+            "model.job_record.json",
         )
 
     def pretrain_time(
@@ -176,6 +219,9 @@ class OutputLayout:
     def method_bundle(self, run: TrainingRun) -> str:
         return self._training_path(run, "method.bundle")
 
+    def training_job_record(self, run: TrainingRun) -> str:
+        return self._training_path(run, "method.job_record.json")
+
     def train_time(self, run: TrainingRun) -> str:
         return self._training_path(run, "train_time.txt")
 
@@ -193,6 +239,16 @@ class OutputLayout:
     def transformed_evaluation_table(self, run: EvaluationRun) -> str:
         return self._evaluation_path(
             "eval_results_transformed", run, "eval_data.parquet"
+        )
+
+    def evaluation_job_record(self, run: EvaluationRun) -> str:
+        return self._evaluation_path(
+            "eval_results", run, "eval_data.job_record.json"
+        )
+
+    def transformation_job_record(self, run: EvaluationRun) -> str:
+        return self._evaluation_path(
+            "eval_results_transformed", run, "eval_data.job_record.json"
         )
 
     def eval_time(self, run: EvaluationRun) -> str:

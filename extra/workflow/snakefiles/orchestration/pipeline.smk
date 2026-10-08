@@ -51,6 +51,18 @@ Training contract:
     scripts record the contract's seed, inputs and method name; the
     classifier and dataset generation scripts record theirs.
 
+Job records:
+    Every computational job (dataset generation, classifier training,
+    pretraining, training, evaluation and transformation) runs its script
+    through `python -m afabench.core.job_record`, rendered by
+    extra/workflow/src/job_records.py. It writes a job record, a declared
+    output named after the job's artifact with `.job_record.json` in place
+    of its suffix: the job's identity, job duration and resolved allocation
+    (device, CPUs, GPUs). Pretraining, training and evaluation also still
+    write *_time.txt for the time aggregation. See
+    docs/reference/job_records.md and
+    docs/adr/0006-job-records-beside-artifacts.md.
+
 Execution configuration and required files:
     Methods retain their independent scripts and native bundle/result paths.
     Site profiles own CPU/GPU partition, account and GPU request syntax;

@@ -1,5 +1,6 @@
 """Single-invocation full reproduction through the real orchestration."""
 
+import json
 import re
 import shutil
 from collections import Counter
@@ -405,6 +406,25 @@ def test_full_graph_submissions_mix_cpu_and_gpu_allocations(
         method_job = job[0] in {"train_method", "eval_method"}
         assert args[args.index("-t") + 1] == ("600" if method_job else "120")
         assert f"--cpus-per-task={8 if method_job else 1}" in args
+
+
+@pytest.mark.pipeline
+def test_full_graph_job_records_carry_submitted_allocations(
+    full_graph_run: FullGraphRun,
+) -> None:
+    records = [
+        json.loads(path.read_text())
+        for path in (full_graph_run.root / "extra/output").rglob(
+            "*.job_record.json"
+        )
+    ]
+    # Every job but aggregation and visualization leaves one.
+    assert len(records) == 33
+    assert sum(record["device"] == "cuda" for record in records) == 8
+    for record in records:
+        method_job = record["stage"] in {"training", "evaluation"}
+        assert record["cpus"] == (8 if method_job else 1), record
+        assert record["gpus"] == (1 if record["device"] == "cuda" else 0)
 
 
 @pytest.mark.pipeline

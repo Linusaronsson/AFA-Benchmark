@@ -135,12 +135,13 @@ def test_named_pretraining_is_deduplicated_and_independent_of_method_order(
         assert result.returncode == 0, commands
         assert commands.count("rule pretrain_model:") == 2
         assert commands.count("rule train_method:") == 3
+        # A printed shell command ends at the blank line before the next job.
         shared = commands.split("python scripts/pretrain_model/shared.py", 1)[
             1
-        ].split("END_TIME", 1)[0]
+        ].split("\n\n", 1)[0]
         other = commands.split("python scripts/pretrain_model/other.py", 1)[
             1
-        ].split("END_TIME", 1)[0]
+        ].split("\n\n", 1)[0]
         assert "device=cuda" in shared
         assert "device=cpu" in other
         assert "seed=0" in shared
@@ -155,7 +156,7 @@ def test_named_pretraining_is_deduplicated_and_independent_of_method_order(
         for method in ["alpha", "beta"]:
             training = commands.split(
                 f"python scripts/train_method/{method}.py", 1
-            )[1].split("END_TIME", 1)[0]
+            )[1].split("\n\n", 1)[0]
             assert (
                 "shared/dataset-cube+realization_index-0/pretrain_seed-0/model.bundle"
                 in training
@@ -443,7 +444,7 @@ def test_pretrained_model_choice_uses_model_name_not_script_name(
     pretraining = commands.split("python scripts/pretrain_model/shared.py")[1:]
     assert len(pretraining) == 2
     for command in pretraining:
-        contract = command.split("END_TIME", 1)[0]
+        contract = command.split("\n\n", 1)[0]
         if "/shared/dataset-cube" in contract:
             assert "device=cuda" in contract
         else:

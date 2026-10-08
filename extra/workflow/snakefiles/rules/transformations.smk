@@ -10,6 +10,7 @@ format.
 import re
 
 from afabench.core.output_layout import EvaluationRun
+from job_records import job_record_command
 
 # Reference methods' plotting-ready tables are restored from a benchmark
 # release. Not matching them here leaves those tables as plain input files,
@@ -34,19 +35,32 @@ rule transform_eval_data:
     input:
         OUTPUT_LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()),
     output:
-        OUTPUT_LAYOUT.transformed_evaluation_table(EvaluationRun.wildcards()),
+        eval_table=OUTPUT_LAYOUT.transformed_evaluation_table(EvaluationRun.wildcards()),
+        job_record=OUTPUT_LAYOUT.transformation_job_record(EvaluationRun.wildcards()),
     wildcard_constraints:
         method=TRANSFORMED_METHOD_PATTERN,
     params:
-        allocation_check=lambda wc, resources: EXECUTION.checked_device("transformation", "transform_eval_data", resources),
+        # Also validates final resources during planning; this script has no
+        # device argument.
+        job_record=lambda wc, output, resources, threads: job_record_command(
+            output.job_record,
+            stage="transformation",
+            wildcards=wc,
+            device=EXECUTION.checked_device("transformation", "transform_eval_data", resources),
+            resources=resources,
+            threads=threads,
+            smoke_test=SMOKE_TEST,
+            name=wc.method,
+        ),
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("transformation", lambda wc: "transform_eval_data"),
     shell:
         """
+        {params.job_record} \
         python scripts/misc/transform_eval_data_pipeline.py \
             --input_path {input} \
-            --output_path {output} \
+            --output_path {output.eval_table} \
             --method {wildcards.method} \
             --dataset {wildcards.dataset} \
             --initializer {INITIALIZER} \
