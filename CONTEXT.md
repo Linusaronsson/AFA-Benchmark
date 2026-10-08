@@ -415,6 +415,24 @@ request, in CPU core-hours and GPU-hours.
 _Avoid_: Compute cost (cost means feature, selection or accumulated cost),
 compute budget (budget means hard budget or soft-budget parameter)
 
+**Job type**:
+What jobs share when they differ only in seeds, dataset realization, hard
+budgets and soft-budget parameters: pipeline stage, name (method,
+pretrained-model or classifier name) and dataset key.
+_Avoid_: Job kind, job group
+
+**Match level**:
+How a compute estimate found a planned job's job durations: **exact**, from
+job records with the same identity and device; **pooled**, from every job
+record of its job type on the same device; or **unestimated**, from none, so
+the job is left out of the totals.
+_Avoid_: Match quality, fallback level
+
+**Failure history**:
+The failed and timed-out job records of a planned job's job type. They give
+no job duration, but warn that the compute estimate of its jobs may be low.
+_Avoid_: Timeout history, failure count
+
 **Contract**:
 The fixed set of inputs the pipeline gives a pretraining or training script,
 and the bundle it expects back at the save path. Each stage has its own
