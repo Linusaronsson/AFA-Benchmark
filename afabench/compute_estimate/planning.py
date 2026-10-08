@@ -25,6 +25,8 @@ from snakemake.jobs import Job
 from snakemake.workflow import Workflow
 from snakemake_interface_executor_plugins.registry import Plugin
 
+from afabench.core.job_record import JobIdentity, job_identity
+
 type Device = Literal["cpu", "cuda"]
 
 
@@ -34,6 +36,9 @@ class PlannedJob:
 
     rule: str
     wildcards: dict[str, str]
+    # What the job's record will say it computed; None for rules that
+    # write no job record (aggregation and visualization).
+    identity: JobIdentity | None
     device: Device
     # None when the cluster's default applies.
     cpus: int | None
@@ -89,7 +94,9 @@ def plan_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
 def _planned_job(job: Job) -> PlannedJob:
     # Evaluating params runs the workflow's allocation checks, as
     # submission does.
-    job.params  # noqa: B018
+    params = job.params
+    assert params is not None
+    job_record_command = params.get("job_record")
     resources = job.resources
     gpus = _gpus(resources.get("gpu"), resources.get("gres"))
     return PlannedJob(
@@ -98,6 +105,9 @@ def _planned_job(job: Job) -> PlannedJob:
             name: str(value)
             for name, value in (job.wildcards_dict or {}).items()
         },
+        identity=None
+        if job_record_command is None
+        else job_identity(job_record_command),
         device="cuda" if gpus else "cpu",
         cpus=_cpus(resources.get("cpus_per_task"), job.threads),
         gpus=gpus,
