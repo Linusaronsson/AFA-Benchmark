@@ -62,7 +62,11 @@ Job records:
     receives SLURM's time-limit SIGTERM, writes its record to the same path
     under extra/output/failed_job_records/ instead, one record per attempt;
     Snakemake deletes a failed job's declared outputs. Pretraining, training
-    and evaluation also still write *_time.txt for the time aggregation. See
+    and evaluation also still write *_time.txt for the time aggregation.
+    The collect_job_records rule, part of `all`, collects every job record
+    under extra/output, failed attempts included, into the job duration
+    table extra/output/merged_results/job_duration_table.parquet, one row
+    per record (afabench.core.job_duration_table). See
     docs/reference/job_records.md and
     docs/adr/0006-job-records-beside-artifacts.md.
 
