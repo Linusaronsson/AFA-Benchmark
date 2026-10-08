@@ -1,10 +1,14 @@
-"""The aggregation rule that collects job records into the job duration table."""
+"""The job duration table the aggregation rule collects, and the time plot of it."""
 
+import shutil
+from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from afabench.core.job_duration_table import load_job_duration_table
+from test.workflow.submission_harness import REPO_ROOT
 from test.workflow.test_cpu_processing_execution import processing_workflow
 
 TAG = "initializer-cold"
@@ -33,11 +37,23 @@ COMPLETED_RECORDS = {
 TABLE = "merged_results/job_duration_table.parquet"
 
 
-def test_the_table_holds_one_row_per_job_that_ran_including_failed_attempts(
-    tmp_path: Path,
-) -> None:
-    workflow = processing_workflow(tmp_path)
-    beta = tmp_path / "scripts/train_method/beta.py"
+@dataclass
+class CollectedRun:
+    output: Path
+    table: pd.DataFrame
+
+
+@pytest.fixture(scope="module")
+def collected_run(tmp_path_factory: pytest.TempPathFactory) -> CollectedRun:
+    """Run `all` after a failed attempt, with the real time plot script."""
+    root = tmp_path_factory.mktemp("collected")
+    workflow = processing_workflow(root)
+    shutil.copyfile(
+        REPO_ROOT / "scripts/plotting/plot_total_time.py",
+        root / "scripts/plotting/plot_total_time.py",
+    )
+    shutil.copytree(REPO_ROOT / "extra/conf", root / "extra/conf")
+    beta = root / "scripts/train_method/beta.py"
     script = beta.read_text()
     beta.write_text("import sys\nsys.exit(3)\n")
     failed = workflow.run("--executor", "local", target="all")
@@ -47,8 +63,16 @@ def test_the_table_holds_one_row_per_job_that_ran_including_failed_attempts(
     result = workflow.run("--executor", "local", target="all")
 
     assert result.returncode == 0, result.stdout + result.stderr
-    output = tmp_path / "extra/output"
-    table = load_job_duration_table(output / TABLE)
+    output = root / "extra/output"
+    return CollectedRun(
+        output=output, table=load_job_duration_table(output / TABLE)
+    )
+
+
+def test_the_table_holds_one_row_per_job_that_ran_including_failed_attempts(
+    collected_run: CollectedRun,
+) -> None:
+    table = collected_run.table
     completed = table[table["exit_status"] == "completed"]
     assert sorted(completed["job_record_path"]) == sorted(COMPLETED_RECORDS)
     failed_attempts = table[table["exit_status"] == "failed"]
@@ -58,4 +82,17 @@ def test_the_table_holds_one_row_per_job_that_ran_including_failed_attempts(
         f"failed_job_records/trained_methods/{TAG}/{BETA}/method."
     )
     assert len(table) == len(COMPLETED_RECORDS) + 1
-    pd.testing.assert_frame_equal(table, load_job_duration_table(output))
+    pd.testing.assert_frame_equal(
+        table, load_job_duration_table(collected_run.output)
+    )
+
+
+def test_the_time_plot_renders_from_the_table(
+    collected_run: CollectedRun,
+) -> None:
+    time_plots = (
+        collected_run.output / f"plot_results/eval_split-test/{TAG}/time"
+    )
+    for plot in ["average_time", "dataset_time"]:
+        for suffix in [".pdf", ".svg"]:
+            assert (time_plots / plot).with_suffix(suffix).is_file()

@@ -1,19 +1,23 @@
 """
-Plot the time that each method takes to pretrain, train and evaluate, averaged over all datasets and seeds.
+Plot the time each method's jobs take per pipeline stage, from the job duration table.
 
-Expected input dataframe with columns:
-- afa_method (str): Which method was evaluated. For example "jafa" or "odin".
-- dataset (str): Which dataset the method was evaluated on. For example "cube_nm" or "mnist".
-- time_pretrain (float | null): How long the pretraining (if applicable) took in seconds.
-- time_train (float | null): How long the training (if applicable) took in seconds.
-- time_eval (float): How long the evaluation took in seconds.
+The input is a job duration table (`docs/reference/job_records.md`). Only
+completed jobs count, so failed and timed-out attempts are left out. A job
+belongs to a method if its record sits in that method's folders of the
+selected initializer and evaluation split: its pretraining (through the
+pretrained model the method trains from), its method-specific classifier
+training, its training, its evaluation and its transformation. Dataset
+generation and shared classifiers belong to no method.
+
+The averaged plot shows each stage's mean job duration over the datasets
+every method has jobs on; the per-dataset plot stacks every job, so it
+shows each stage's total.
 """
 
 from pathlib import Path
 from typing import cast
 
 import hydra
-import numpy as np
 import pandas as pd
 import plotnine as p9
 from omegaconf import OmegaConf
@@ -30,62 +34,74 @@ from plotnine import (
     theme,
 )
 
+from afabench.core.job_duration_table import load_job_duration_table
 from afabench.plotting.config import PlottingDisplayConfig, PlotTotalTimeConfig
 
 PLOT_FONT_SIZE = 12
 
+# Pipeline stages a method's jobs run in, in pipeline order
+STAGE_LABELS = {
+    "classifier_training": "Classifier training",
+    "pretraining": "Pretraining",
+    "training": "Training",
+    "evaluation": "Evaluation",
+    "transformation": "Transformation",
+}
 
-def get_mock_df() -> pd.DataFrame:
-    """Generate mock dataframe for testing."""
-    methods = ["jafa", "odin"]
-    datasets = ["cube", "cube_nm"]
-    seeds = list(range(1, 6))
 
-    rows = [(m, d, s) for m in methods for d in datasets for s in seeds]
+def method_job_durations(
+    table: pd.DataFrame,
+    *,
+    methods: list[str],
+    pretrained_models: dict[str, str],
+    initializer_tag: str,
+    eval_dataset_split: str,
+) -> pd.DataFrame:
+    """
+    Return the job duration of each completed job of each method.
 
-    rng = np.random.default_rng(42)
-    df = pd.DataFrame(
-        {
-            "afa_method": [r[0] for r in rows],
-            "dataset": [r[1] for r in rows],
-            "pretrain": rng.integers(1, 11, size=len(rows)).tolist(),
-            "train": rng.integers(1, 11, size=len(rows)).tolist(),
-            "eval": rng.integers(1, 11, size=len(rows)).tolist(),
+    `pretrained_models` maps a method to the pretrained model it trains
+    from. Columns: afa_method, dataset, stage, time (seconds); a pretraining
+    job shared by several methods is a row of each.
+    """
+    completed = table.loc[table["exit_status"].eq("completed").fillna(False)]
+    split_tag = f"eval_split-{eval_dataset_split}/{initializer_tag}"
+    method_jobs = []
+    for method in methods:
+        folders = {
+            "classifier_training": f"trained_classifiers/{initializer_tag}/method-{method}+",
+            "training": f"trained_methods/{initializer_tag}/{method}/",
+            "evaluation": f"eval_results/{split_tag}/{method}/",
+            "transformation": f"eval_results_transformed/{split_tag}/{method}/",
         }
-    )
-
-    return df
-
-
-def read_parquet_safe(path: Path) -> pd.DataFrame:
-    """Read CSV file with appropriate data types."""
-    df = pd.read_parquet(
-        path,
-        columns=[
-            "afa_method",
-            "dataset",
-            "time_pretrain",
-            "time_train",
-            "time_eval",
-        ],
-    ).astype(
+        if method in pretrained_models:
+            folders["pretraining"] = (
+                f"pretrained_models/{initializer_tag}/"
+                f"{pretrained_models[method]}/"
+            )
+        for stage, folder in folders.items():
+            jobs = completed.loc[
+                completed["stage"].eq(stage).fillna(False)
+                & completed["job_record_path"].str.startswith(folder)
+            ]
+            method_jobs.append(
+                pd.DataFrame(
+                    {
+                        "afa_method": method,
+                        "dataset": jobs["dataset_key"],
+                        "stage": stage,
+                        "time": jobs["job_duration_seconds"],
+                    }
+                )
+            )
+    return pd.concat(method_jobs, ignore_index=True).astype(
         {
             "afa_method": "string",
             "dataset": "string",
-            "time_pretrain": "float64",
-            "time_train": "float64",
-            "time_eval": "float64",
+            "stage": "string",
+            "time": "float64",
         }
     )
-
-    # Treat null times as 0
-    return df.rename(
-        columns={
-            "time_pretrain": "pretrain",
-            "time_train": "train",
-            "time_eval": "eval",
-        }
-    ).fillna({"pretrain": 0, "train": 0, "eval": 0})
 
 
 def common_plot_operations(
@@ -105,12 +121,8 @@ def common_plot_operations(
         + scale_fill_brewer(
             type="qual",
             palette=plotting_config.color_palette_name,
-            labels={
-                "pretrain": "Pretraining",
-                "train": "Training",
-                "eval": "Evaluation",
-            },
-            breaks=["pretrain", "train", "eval"],
+            labels=STAGE_LABELS,
+            breaks=list(STAGE_LABELS),
         )
     )
 
@@ -165,10 +177,14 @@ def get_plots(
     unknown_methods = sorted(available_methods - set(method_order_filtered))
     method_order_filtered.extend(unknown_methods)
 
-    # Cast to categorical with the correct order
-    method_dtype = pd.CategoricalDtype(method_order_filtered)
-    df_common = df_common.astype({"afa_method": method_dtype})
-    df = df.astype({"afa_method": method_dtype})
+    # Cast to categorical with the correct order. Stages stack in reverse
+    # pipeline order, the last stage at the bottom.
+    dtypes = {
+        "afa_method": pd.CategoricalDtype(method_order_filtered),
+        "stage": pd.CategoricalDtype(list(reversed(STAGE_LABELS))),
+    }
+    df_common = df_common.astype(dtypes)
+    df = df.astype(dtypes)
 
     # One plot averaged over datasets (using only common datasets)
     averaged_plot = ggplot(
@@ -193,19 +209,6 @@ def get_plots(
     return averaged_plot, dataset_plot
 
 
-def unpivot(df: pd.DataFrame) -> pd.DataFrame:
-    df_long = df.melt(
-        id_vars=["afa_method", "dataset"],
-        value_vars=["pretrain", "train", "eval"],
-        var_name="stage",
-        value_name="time",
-    )
-    # Convert stage to categorical with correct order for stacking
-    # This ensures bars are stacked as: eval (bottom), train, pretrain (top)
-    stage_order = ["eval", "train", "pretrain"]
-    return df_long.astype({"stage": pd.CategoricalDtype(stage_order)})
-
-
 @hydra.main(
     version_base=None,
     config_path="../../extra/conf/scripts/plotting/plot_total_time",
@@ -215,12 +218,16 @@ def main(cfg: PlotTotalTimeConfig) -> None:
     cfg = cast("PlotTotalTimeConfig", OmegaConf.to_object(cfg))
     assert isinstance(cfg, PlotTotalTimeConfig)
 
-    df = read_parquet_safe(Path(cfg.input)) if cfg.input else get_mock_df()
-
-    df_long = unpivot(df)
+    durations = method_job_durations(
+        load_job_duration_table(Path(cfg.input)),
+        methods=cfg.methods,
+        pretrained_models=cfg.pretrained_models,
+        initializer_tag=cfg.initializer_tag,
+        eval_dataset_split=cfg.eval_dataset_split,
+    )
 
     averaged_plot, dataset_plot = get_plots(
-        df=df_long, plotting_config=cfg.plotting
+        df=durations, plotting_config=cfg.plotting
     )
 
     output_folder = Path(cfg.output_folder)

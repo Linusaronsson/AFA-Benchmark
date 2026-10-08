@@ -6,7 +6,6 @@ import pytest
 
 from scripts.misc import (
     merge_dataframes,
-    merge_time_results,
     split_eval_perf_by_classifier,
 )
 
@@ -88,52 +87,6 @@ def test_split_by_classifier_requires_classifier_column(
 
     with pytest.raises(ValueError, match="classifier"):
         split_eval_perf_by_classifier.main()
-
-
-def test_merge_time_results_writes_one_row_with_missing_pretraining(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    train_path = tmp_path / "train.txt"
-    eval_path = tmp_path / "eval.txt"
-    train_path.write_text("12,5\n")
-    eval_path.write_text("3.25")
-    output_path = tmp_path / "nested" / "time.parquet"
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "merge_time_results.py",
-            "--output_path",
-            str(output_path),
-            "--method",
-            "jafa",
-            "--dataset",
-            "cube",
-            "--time_train_path",
-            str(train_path),
-            "--time_eval_path",
-            str(eval_path),
-        ],
-    )
-
-    merge_time_results.main()
-
-    assert pq.read_table(output_path).to_pylist() == [
-        {
-            "afa_method": "jafa",
-            "dataset": "cube",
-            "time_pretrain": None,
-            "time_train": 12.5,
-            "time_eval": 3.25,
-        }
-    ]
-    assert parquet_schema(output_path) == {
-        "afa_method": pa.string(),
-        "dataset": pa.string(),
-        "time_pretrain": pa.float64(),
-        "time_train": pa.float64(),
-        "time_eval": pa.float64(),
-    }
 
 
 def run_merge(

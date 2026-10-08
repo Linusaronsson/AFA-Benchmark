@@ -59,9 +59,6 @@ CPU_RULES = {
     "transform_eval_data",
     "merge_eval_perf",
     "split_by_classifier_type",
-    "time_df_with_pretrain",
-    "time_df_without_pretrain",
-    "merge_time",
     "collect_job_records",
     "plot_eval_perf",
     "plot_eval_actions",
@@ -108,7 +105,6 @@ def processing_workflow(root: Path) -> WorkflowHarness:
         "misc/transform_eval_data_pipeline.py",
         "misc/merge_dataframes.py",
         "misc/split_eval_perf_by_classifier.py",
-        "misc/merge_time_results.py",
         "plotting/plot_eval_perf.py",
         "plotting/plot_eval_actions.py",
         "plotting/plot_total_time.py",
@@ -249,7 +245,7 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
     assert result.returncode == 0, result.stdout + result.stderr
     seen = set()
     submissions = workflow.submissions()
-    assert len(submissions) == 19
+    assert len(submissions) == 16
     for args in submissions:
         comment = args[args.index("--comment") + 1]
         gpu = "rule_train_method" in comment or "rule_eval_method" in comment
@@ -292,7 +288,7 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
     assert seen == CPU_RULES
     # Every job but collect_job_records, which runs for real, runs a stub.
     calls = workflow.script_arguments()
-    assert len(calls) == 18
+    assert len(calls) == 15
     for script, args in calls:
         if "train_method" in script or "eval/" in script:
             assert args["device"] == "cuda"
@@ -303,14 +299,23 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
         elif "plotting" in script:
             assert args["formats"] == "[pdf,svg]"
             assert (tmp_path / args["output_folder"] / "fixture.svg").is_file()
+            if "plot_total_time" in script:
+                assert args == {
+                    "input": "extra/output/merged_results/job_duration_table.parquet",
+                    "output_folder": "extra/output/plot_results/eval_split-test/initializer-cold/time",
+                    "methods": "[alpha,beta]",
+                    "++pretrained_models": "{alpha:shared}",
+                    "initializer_tag": "initializer-cold",
+                    "eval_dataset_split": "test",
+                    "formats": "[pdf,svg]",
+                }
         elif "transform_eval" in script:
             assert args["dataset"] == "cube"
             assert args["initializer"] == "cold"
             assert (tmp_path / args["output_path"]).is_file()
     assert (tmp_path / "extra/output/datasets/cube/0/test.bundle").is_dir()
     assert (
-        tmp_path
-        / "extra/output/merged_results/eval_split-test/initializer-cold/time/all.parquet"
+        tmp_path / "extra/output/merged_results/job_duration_table.parquet"
     ).is_file()
 
 
@@ -390,7 +395,7 @@ def test_local_cpu_processing_reaches_native_final_outputs(
     assert result.returncode == 0, result.stdout + result.stderr
     assert workflow.submissions() == []
     calls = workflow.script_arguments()
-    assert len(calls) == 18
+    assert len(calls) == 15
     for _, args in calls:
         if "device" in args:
             assert args["device"] == "cpu"
