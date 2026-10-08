@@ -35,7 +35,8 @@ class PlannedJob:
     rule: str
     wildcards: dict[str, str]
     device: Device
-    cpus: int
+    # None when the cluster's default applies.
+    cpus: int | None
     gpus: int
 
 
@@ -103,12 +104,16 @@ def _planned_job(job: Job) -> PlannedJob:
     )
 
 
-def _cpus(cpus_per_task: object, threads: int) -> int:
-    # As the SLURM executor plugin requests them: cpus_per_task, at least 1,
-    # when set, otherwise the job's threads.
-    if isinstance(cpus_per_task, int) and cpus_per_task:
-        return max(1, cpus_per_task)
-    return threads
+def _cpus(cpus_per_task: object, threads: int) -> int | None:
+    # As the SLURM executor plugin requests them, and as job records
+    # (extra/workflow/src/job_records.py) record them.
+    if not cpus_per_task:
+        return threads
+    if not isinstance(cpus_per_task, int):
+        message = f"cpus_per_task must be an integer, got {cpus_per_task!r}"
+        raise TypeError(message)
+    # A negative count leaves the CPUs to the cluster's default.
+    return None if cpus_per_task < 0 else max(1, cpus_per_task)
 
 
 def _gpus(gpu: object, gres: object) -> int:
