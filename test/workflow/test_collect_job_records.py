@@ -19,7 +19,7 @@ ALPHA = f"alpha/{REALIZATION}/pretrain_seed-0/{BUDGETS}"
 BETA = f"beta/{REALIZATION}/NO_PRETRAIN/{BUDGETS}"
 # The record of each job of processing_workflow's graph that leaves one.
 COMPLETED_RECORDS = {
-    "datasets/cube.job_record.json",
+    "datasets/cube/dataset_generation.job_record.json",
     f"trained_classifiers/{TAG}/{REALIZATION}.job_record.json",
     f"pretrained_models/{TAG}/shared/{REALIZATION}/pretrain_seed-0/"
     "model.job_record.json",

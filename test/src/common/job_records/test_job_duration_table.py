@@ -16,6 +16,7 @@ from afabench.core.job_duration_table import (
 )
 from afabench.core.job_record import Allocation, JobIdentity, run_job
 
+DATASET_GENERATION = "datasets/cube/dataset_generation.job_record.json"
 TRAINING = (
     "trained_methods/initializer-cold/alpha/dataset-cube+realization_index-0/"
     "NO_PRETRAIN/train_seed-0+train_hard_budget-1+train_soft_budget_param-null"
@@ -54,7 +55,7 @@ def record_jobs(tmp_path: Path) -> RecordedJobs:
     output_root = tmp_path / "output"
     dataset_generation = run_recorded_job(
         output_root,
-        "datasets/cube.job_record.json",
+        DATASET_GENERATION,
         succeeds=True,
         identity=JobIdentity(stage="dataset_generation", dataset_key="cube"),
         allocation=Allocation(
@@ -94,11 +95,9 @@ def test_an_output_root_loads_one_row_per_job_record_including_failed(
 
     assert len(table) == 4
     rows = table.set_index("job_record_path")
-    assert rows.loc["datasets/cube.job_record.json", "stage"] == (
-        "dataset_generation"
-    )
-    assert pd.isna(rows.loc["datasets/cube.job_record.json", "cpus"])
-    assert pd.isna(rows.loc["datasets/cube.job_record.json", "name"])
+    assert rows.loc[DATASET_GENERATION, "stage"] == "dataset_generation"
+    assert pd.isna(rows.loc[DATASET_GENERATION, "cpus"])
+    assert pd.isna(rows.loc[DATASET_GENERATION, "name"])
     assert rows.loc[f"{TRAINING}/method.job_record.json", "cpus"] == 8
     failed = table[table["exit_status"] == "failed"]
     assert sorted(failed["job_duration_seconds"]) == sorted(
@@ -110,7 +109,7 @@ def test_an_output_root_loads_one_row_per_job_record_including_failed(
         for path in failed["job_record_path"]
     )
     for path, record in [
-        ("datasets/cube.job_record.json", jobs.dataset_generation),
+        (DATASET_GENERATION, jobs.dataset_generation),
         (f"{TRAINING}/method.job_record.json", jobs.completed_training),
     ]:
         assert {
@@ -144,7 +143,7 @@ def test_a_job_record_of_an_unknown_version_is_rejected(
     tmp_path: Path,
 ) -> None:
     jobs = record_jobs(tmp_path)
-    path = jobs.output_root / "datasets/cube.job_record.json"
+    path = jobs.output_root / DATASET_GENERATION
     path.write_text(
         json.dumps(json.loads(path.read_text()) | {"job_record_version": 2})
     )
@@ -171,7 +170,7 @@ def test_a_job_record_missing_a_field_of_its_version_is_rejected(
     tmp_path: Path,
 ) -> None:
     jobs = record_jobs(tmp_path)
-    path = jobs.output_root / "datasets/cube.job_record.json"
+    path = jobs.output_root / DATASET_GENERATION
     record = json.loads(path.read_text())
     del record["cpus"]
     path.write_text(json.dumps(record))

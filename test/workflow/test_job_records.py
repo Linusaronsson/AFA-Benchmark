@@ -63,7 +63,7 @@ def allocation(
 def expected_records() -> dict[str, dict[str, Any]]:
     """Every job record of the run, by path, with identity and allocation."""
     records: dict[str, dict[str, Any]] = {
-        "datasets/cube.job_record.json": {
+        "datasets/cube/dataset_generation.job_record.json": {
             **UNIDENTIFIED,
             "stage": "dataset_generation",
             "dataset_key": "cube",
@@ -229,6 +229,14 @@ def test_job_records_sit_beside_their_artifacts(
     # A record is named after its artifact: model.bundle, model.job_record.json
     for path in recorded_run.records:
         record = recorded_run.output / path
+        if record.name == "dataset_generation.job_record.json":
+            # One job generates every dataset realization of a dataset key.
+            assert sorted(
+                sibling.name
+                for sibling in record.parent.iterdir()
+                if sibling != record
+            ) == [str(k) for k in REALIZATIONS]
+            continue
         artifact_name = record.name.removesuffix(".job_record.json")
         artifacts = [
             sibling

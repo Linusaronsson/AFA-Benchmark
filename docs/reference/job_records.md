@@ -21,7 +21,7 @@ and `<evaluation>` the evaluation's subfolder
 
 | Pipeline stage | Rule | Record |
 | --- | --- | --- |
-| `dataset_generation` | `dataset_generation` | `datasets/<key>.job_record.json`, beside the folder of all dataset realizations of `<key>` |
+| `dataset_generation` | `dataset_generation` | `datasets/<key>/dataset_generation.job_record.json`, in the folder of all dataset realizations of `<key>`, which the job generates together |
 | `classifier_training` | `train_classifier`, `train_classifier_for_method` | `trained_classifiers/<tag>/[method-<method>+]dataset-<key>+realization_index-<k>.job_record.json` |
 | `pretraining` | `pretrain_model` | `pretrained_models/<tag>/<pretrained model>/dataset-<key>+realization_index-<k>/pretrain_seed-<s>/model.job_record.json` |
 | `training` | `train_method` | `trained_methods/<tag>/<training>/method.job_record.json` |
