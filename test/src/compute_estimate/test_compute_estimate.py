@@ -444,3 +444,45 @@ def test_the_report_counts_refused_smoke_test_job_records(
     report = format_report(estimate, source="output")
 
     assert "Refused 1 smoke-test job record" in report
+
+
+def test_the_report_warns_that_job_types_that_failed_before_may_be_low(
+    records: JobRecords,
+) -> None:
+    records.add(ALPHA_TRAINING, 36000, exit_status="timeout")
+    records.add(ALPHA_TRAINING, 18000, exit_status="timeout")
+    records.add(
+        ALPHA_TRAINING, 3600, exit_status="timeout", time_limit_minutes=60
+    )
+    records.add(ALPHA_TRAINING, 5, exit_status="failed")
+    beta = replace(ALPHA_TRAINING, name="beta")
+    records.add(beta, 5, exit_status="failed")
+    records.add(beta, 5, exit_status="failed")
+    gamma = replace(ALPHA_TRAINING, name="gamma")
+    records.add(gamma, 60, exit_status="timeout", time_limit_minutes=None)
+    estimate = estimate_compute(
+        [planned(ALPHA_TRAINING), planned(beta), planned(gamma)],
+        records.table(),
+    )
+
+    report = format_report(estimate, source="output")
+
+    _, warnings = report.split("Failed or timed out before")
+    assert "may be low" in warnings.splitlines()[0]
+    assert warnings.splitlines()[1:4] == [
+        "  training alpha on cube timed out 3 times at 60 and 600 min, "
+        "failed 1 time",
+        "  training beta on cube failed 2 times",
+        "  training gamma on cube timed out 1 time at an unknown time limit",
+    ]
+
+
+def test_the_report_has_no_warnings_without_failed_or_timed_out_jobs(
+    records: JobRecords,
+) -> None:
+    records.add(ALPHA_TRAINING, 3600)
+    estimate = estimate_compute([planned(ALPHA_TRAINING)], records.table())
+
+    report = format_report(estimate, source="output")
+
+    assert "Failed or timed out before" not in report
