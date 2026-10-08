@@ -149,7 +149,9 @@ rerun its job.
 `afabench.core.job_duration_table.load_job_duration_table(source)` loads
 either the table's Parquet file or an output root of loose job records,
 and returns the same pandas DataFrame for both, sorted by
-`job_record_path`. It raises `UnknownJobRecordVersionError` for a job record
+`job_record_path`. The
+[`estimate-compute` command](estimate_compute_command.md) loads its job
+durations with it. It raises `UnknownJobRecordVersionError` for a job record
 version it does not know and `JobRecordFieldsError` for a record or table
 whose fields do not match its version.
 

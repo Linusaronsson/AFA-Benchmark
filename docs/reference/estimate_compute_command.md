@@ -1,0 +1,74 @@
+# `estimate-compute` command
+
+`just estimate-compute` (`scripts/compute_estimate/estimate_compute.py`)
+prints the [compute estimate](../../CONTEXT.md) of a pipeline invocation
+([ADR 0006](../adr/0006-job-records-beside-artifacts.md)). Steps:
+[estimate the compute of a run](../how-to/estimate_compute.md).
+
+```shell
+just estimate-compute [--job-durations PATH] [--by COLUMN ...]
+    [--output CSV] [--strict] <Snakemake arguments>
+```
+
+## Options
+
+Every argument other than these four goes to Snakemake unchanged, so the
+planned jobs, and the CPUs and GPUs each would request, are those of
+`snakemake <Snakemake arguments>`. Nothing is submitted or run.
+
+| Option | Meaning |
+| --- | --- |
+| `--job-durations PATH` | A [job duration table](job_records.md#job-duration-table) Parquet file, or an output root whose job records are read. Default `extra/output`. |
+| `--by COLUMN` | Group the totals by this job column instead of `stage` and `device`; repeat for several. Any column of the [per-job CSV](#per-job-csv) up to `gpus`, except `wildcards`. |
+| `--output CSV` | Also write the [per-job CSV](#per-job-csv). |
+| `--strict` | Exit with 1 after the report when any planned job is unestimated. |
+
+## Matching
+
+Only completed job records give job durations: failed and timed-out
+attempts do not, and smoke-test records are refused and counted in the
+report. Each planned job's match level is the first that applies:
+
+| Match level | Job durations used |
+| --- | --- |
+| `exact` | Records with the same identity (every identity [field](job_records.md#identity)) and device. |
+| `pooled` | Records with the same stage, name, dataset key and device: any seeds, dataset realizations, hard budgets, soft-budget parameters and evaluation batch size. |
+| `unestimated` | None; the job is not in the totals. |
+| `no_job_record` | None; the job's rule writes no job record (aggregation and visualization). Not in the totals, and `--strict` ignores it. |
+
+A job's estimate is the mean and the p90 (linear interpolation) of its
+matched durations. Core-hours multiply them by the CPUs the job would
+request and GPU-hours by its GPUs, not by the allocation the measured jobs
+had. A job whose CPUs are left to the cluster has no core-hours. Durations
+are never scaled across hardware.
+
+## Report
+
+Printed to standard output, in this order:
+
+1. The number of planned jobs per match level.
+2. The source of the job durations, and the distinct hosts, CPU models
+   and GPU models of the matched job records.
+3. The number of refused smoke-test job records, if any.
+4. The totals per group, and a `total` row: `jobs` and the jobs per match
+   level, then `mean_` and `p90_` `job_hours`, `core_hours` and
+   `gpu_hours` of the estimated jobs. A p90 total adds up each job's p90.
+5. Unestimated jobs, counted per stage, name, dataset key and device.
+6. Jobs of rules without job records, counted per rule.
+7. How many estimated jobs' core-hours are unknown, if any.
+
+## Per-job CSV
+
+One row per planned job, sorted by rule and wildcards. Empty cells are
+null.
+
+| Column | Meaning |
+| --- | --- |
+| `rule` | Snakemake rule. |
+| `wildcards` | The job's wildcards as a JSON object. |
+| `stage` ... `eval_batch_size` | The identity the job's record will have, as in [job records](job_records.md#identity); empty for `no_job_record` jobs. |
+| `device`, `cpus`, `gpus` | The planned allocation; `cpus` is empty when the cluster chooses. |
+| `match_level` | See [matching](#matching). |
+| `matched_job_records` | How many job durations the estimate uses. |
+| `mean_job_duration_seconds`, `p90_job_duration_seconds` | The job's estimated job duration. |
+| `mean_job_hours`, `p90_job_hours`, `mean_core_hours`, `p90_core_hours`, `mean_gpu_hours`, `p90_gpu_hours` | The same in hours, times 1, the planned CPUs and the planned GPUs. |
