@@ -18,7 +18,7 @@ planned jobs, and the CPUs and GPUs each would request, are those of
 
 | Option | Meaning |
 | --- | --- |
-| `--job-durations PATH` | A [job duration table](job_records.md#job-duration-table) Parquet file, or an output root whose job records are read. Default `extra/output`. |
+| `--job-durations PATH` | A [job duration table](job_records.md#job-duration-table) Parquet file, such as a downloaded release's `extra/release_job_duration_table.parquet`, or an output root whose job records are read. Default `extra/output`; if it does not exist, every job is unestimated. Any other missing path is an error. |
 | `--by COLUMN` | Group the totals by this job column instead of `stage` and `device`; repeat for several. Any column of the [per-job CSV](#per-job-csv) up to `gpus`, except `wildcards`. |
 | `--output CSV` | Also write the [per-job CSV](#per-job-csv). |
 | `--strict` | Exit with 1 after the report when any planned job is unestimated. |
@@ -48,7 +48,11 @@ Printed to standard output, in this order:
 
 1. The number of planned jobs per match level.
 2. The source of the job durations, and the distinct hosts, CPU models
-   and GPU models of the matched job records.
+   and GPU models of the matched job records. For a
+   `release_job_duration_table.parquet` with a release manifest beside it,
+   the source names the release id and scope, or says that the table is
+   not that release's when its size differs from the manifest's
+   `job_duration_table` entry.
 3. The number of refused smoke-test job records, if any.
 4. The totals per group, and a `total` row: `jobs` and the jobs per match
    level, then `mean_` and `p90_` `job_hours`, `core_hours` and

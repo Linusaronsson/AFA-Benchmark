@@ -89,6 +89,11 @@ def load_job_duration_table(source: Path) -> pd.DataFrame:
     return _typed(pd.DataFrame(rows, columns=pd.Index(COLUMN_DTYPES)))
 
 
+def empty_job_duration_table() -> pd.DataFrame:
+    """Return a job duration table without rows, as of an empty output root."""
+    return _typed(pd.DataFrame(columns=pd.Index(COLUMN_DTYPES)))
+
+
 def write_job_duration_table(output_root: Path, table_path: Path) -> None:
     """Write the job duration table of an output root's job records."""
     table_path.parent.mkdir(parents=True, exist_ok=True)

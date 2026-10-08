@@ -350,7 +350,7 @@ def test_the_report_names_the_hardware_of_the_matched_job_records(
     records.add(ALPHA_TRAINING, 3600)  # node0
     estimate = estimate_compute([planned(ALPHA_TRAINING)], records.table())
 
-    report = format_report(estimate, source=Path("v1/job_durations.parquet"))
+    report = format_report(estimate, source="v1/job_durations.parquet")
 
     (source,) = [
         line for line in report.splitlines() if "v1/job_durations" in line
@@ -369,7 +369,7 @@ def test_the_report_lists_unestimated_jobs_apart_from_the_totals(
         two_methods_on_two_datasets(records), records.table()
     )
 
-    report = format_report(estimate, source=Path("output"))
+    report = format_report(estimate, source="output")
 
     assert "5 planned jobs: 2 exact, 0 pooled, 2 unestimated" in report
     totals, unestimated = report.split("Unestimated jobs")
@@ -384,6 +384,6 @@ def test_the_report_counts_refused_smoke_test_job_records(
     records.add(ALPHA_TRAINING, 1, smoke_test=True)
     estimate = estimate_compute([planned(ALPHA_TRAINING)], records.table())
 
-    report = format_report(estimate, source=Path("output"))
+    report = format_report(estimate, source="output")
 
     assert "Refused 1 smoke-test job record" in report

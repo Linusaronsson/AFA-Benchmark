@@ -9,7 +9,6 @@ core-hours and GPU-hours; a p90 total adds up each job's p90 job duration.
 import json
 from collections.abc import Sequence
 from dataclasses import asdict
-from pathlib import Path
 
 import pandas as pd
 
@@ -64,7 +63,7 @@ class UnknownGroupingColumnError(ValueError):
 
 
 def per_job_table(estimate: ComputeEstimate) -> pd.DataFrame:
-    """Return one row per planned job: its identity, allocation and estimate."""
+    """Return one row per planned job: identity, allocation, estimate."""
     rows = [
         {
             "rule": job.job.rule,
@@ -87,7 +86,7 @@ def per_job_table(estimate: ComputeEstimate) -> pd.DataFrame:
 
 
 def check_grouping(by: Sequence[str]) -> None:
-    """Raise `UnknownGroupingColumnError` unless jobs can be grouped by `by`."""
+    """Raise `UnknownGroupingColumnError` unless jobs have columns `by`."""
     unknown = [column for column in by if column not in GROUPING_COLUMNS]
     if unknown or not by:
         message = (
@@ -139,10 +138,10 @@ def group_totals(
 def format_report(
     estimate: ComputeEstimate,
     *,
-    source: Path,
+    source: str,
     by: Sequence[str] = DEFAULT_GROUPING,
 ) -> str:
-    """Return the report `estimate-compute` prints."""
+    """Return the report `estimate-compute` prints, naming `source`."""
     jobs = per_job_table(estimate)
     counts = jobs["match_level"].value_counts()
     hardware = estimate.hardware

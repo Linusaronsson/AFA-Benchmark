@@ -20,7 +20,8 @@ Usage:
     just estimate-compute \
         --profile extra/workflow/profiles/config/kdd26 \
         --workflow-profile extra/workflow/profiles/<site> all
-    just estimate-compute --job-durations <release>/job_duration_table.parquet \
+    just estimate-compute \
+        --job-durations extra/release_job_duration_table.parquet \
         --by name --output estimate.csv <Snakemake arguments>
 """
 
@@ -38,7 +39,15 @@ from afabench.compute_estimate.report import (
     format_report,
     per_job_table,
 )
-from afabench.core.job_duration_table import load_job_duration_table
+from afabench.core.job_duration_table import (
+    empty_job_duration_table,
+    load_job_duration_table,
+)
+from afabench.release.manifest import (
+    JOB_DURATION_TABLE_FILENAME,
+    RELEASE_MANIFEST_FILENAME,
+    read_release_manifest,
+)
 
 DEFAULT_JOB_DURATIONS = Path("extra/output")
 
@@ -77,16 +86,20 @@ def main(
         typer.Option(help="Exit with 1 when a planned job is unestimated."),
     ] = False,
 ) -> None:
-    """Estimate the compute of `snakemake <arguments>`; other options go to it."""
+    """Estimate `snakemake <arguments>`; other options go to Snakemake."""
     grouping = by or DEFAULT_GROUPING
     try:
         check_grouping(grouping)
     except UnknownGroupingColumnError as error:
         raise typer.BadParameter(str(error), param_hint="--by") from None
-    if not job_durations.exists():
+    if job_durations.exists():
+        table = load_job_duration_table(job_durations)
+    elif job_durations == DEFAULT_JOB_DURATIONS:
+        # Nothing has run here yet: every job is unestimated.
+        table = empty_job_duration_table()
+    else:
         message = f"No job duration table or output root at {job_durations}"
         raise typer.BadParameter(message, param_hint="--job-durations")
-    table = load_job_duration_table(job_durations)
     try:
         jobs = plan_jobs(ctx.args)
     except InvocationError:
@@ -95,7 +108,10 @@ def main(
     if output is not None:
         per_job_table(estimate).to_csv(output, index=False)
     typer.echo(
-        format_report(estimate, source=job_durations, by=grouping), nl=False
+        format_report(
+            estimate, source=_described_source(job_durations), by=grouping
+        ),
+        nl=False,
     )
     unestimated = sum(
         job.match_level == "unestimated" for job in estimate.jobs
@@ -106,6 +122,29 @@ def main(
             f"--strict: {unestimated} planned {noun} unestimated", err=True
         )
         raise typer.Exit(1)
+
+
+def _described_source(job_durations: Path) -> str:
+    """Name the release of a restored release's job duration table."""
+    manifest_path = job_durations.parent / RELEASE_MANIFEST_FILENAME
+    if (
+        job_durations.name != JOB_DURATION_TABLE_FILENAME
+        or not manifest_path.is_file()
+    ):
+        return str(job_durations)
+    manifest = read_release_manifest(manifest_path)
+    entry = manifest.job_duration_table
+    # Downloading another release with --overwrite can leave an earlier
+    # release's table beside the new manifest.
+    if entry is None or entry.size_bytes != job_durations.stat().st_size:
+        return (
+            f"{job_durations} (not the table of release "
+            f"{manifest.release_id}, whose manifest is beside it)"
+        )
+    return (
+        f"{job_durations} (release {manifest.release_id}, "
+        f"{manifest.scope} scope)"
+    )
 
 
 if __name__ == "__main__":
