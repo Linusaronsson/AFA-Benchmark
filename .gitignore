@@ -194,3 +194,7 @@ cython_debug/
 /.snakemake
 /.checkpoint.error
 /.claude/worktrees
+
+# Apptainer images and their build logs (containers/build.sbatch)
+/containers/*.sif
+/containers/*.log
