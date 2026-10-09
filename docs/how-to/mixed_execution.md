@@ -5,7 +5,7 @@ on CPU and GPU together, without changing scientific configuration, method-owned
 scripts, dependencies, or native output paths. This page covers method training
 and evaluation; see [classifiers and pretrained models](prerequisite_execution.md),
 [CPU-only processing](cpu_processing_execution.md), and the single full-benchmark
-command in [Reproducing full results](reproduce_full_results.md).
+command in [Run the pipeline](run_the_pipeline.md).
 
 ## Portable execution configuration
 
@@ -110,10 +110,7 @@ use CPU execution choices, and pass `--cores` and `--config smoke_test=True`.
 An explicit global `device` remains supported with a visible deprecation
 message in invocations without `execution`. **Any** combination of global
 `device` and `execution` is rejected, even if values happen to agree. Remove
-`device` from your commands and config files. The former CPU/GPU
-method-selection profiles have been removed; their hardware split is declared
-in `extra/workflow/conf/execution/`. See
-[Reproducing full results](reproduce_full_results.md#migrating-from-the-six-invocation-workflow).
+`device` from your commands and config files.
 
 ## Boundary verification
 

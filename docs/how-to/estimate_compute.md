@@ -12,7 +12,7 @@ runs, either your own or a benchmark release's. Options and output columns:
 ## 1. Write the invocation you will run
 
 Take the Snakemake arguments of the real run, for example from
-[reproduce the full results](reproduce_full_results.md):
+[run the pipeline](run_the_pipeline.md):
 
 ```shell
 --profile extra/workflow/profiles/config/kdd26 \

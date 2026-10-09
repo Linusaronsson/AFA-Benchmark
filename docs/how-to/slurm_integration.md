@@ -5,7 +5,7 @@ The pipeline submits jobs through
 (Snakemake 9.12.0, plugin 1.8.0 in `uv.lock`). A cluster's settings live in a
 workflow profile, `extra/workflow/profiles/<site>/`, passed with
 `--workflow-profile`. For the full benchmark command, see
-[Reproducing full results](reproduce_full_results.md).
+[Run the pipeline](run_the_pipeline.md).
 
 ## Portable execution versus site allocation
 
@@ -113,7 +113,7 @@ declare one generic GPU (`gpu=1`), which local runs can bound with
 
 ## Related documentation
 
-- [Reproducing full results](reproduce_full_results.md) - the single
-  full-benchmark command and where to run it
+- [Run the pipeline](run_the_pipeline.md) - the base
+  command, how to narrow or change a run, and where to run it
 - [Pipeline configuration](../reference/pipeline_configuration.md) - overview of the pipeline
   and its configuration

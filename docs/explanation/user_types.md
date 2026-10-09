@@ -38,7 +38,7 @@ guide covers this yet; the evaluation code is in `afabench/evaluation/`.
 Runs the full benchmark and publishes its results as benchmark releases
 for the other users.
 
-- [Reproduce the full results](../how-to/reproduce_full_results.md)
+- [Run the pipeline](../how-to/run_the_pipeline.md)
 - [Create output snapshots](../how-to/create_output_snapshots.md)
 - [Restore an output snapshot](../how-to/restore_an_output_snapshot.md)
 - [Publish a benchmark release](../how-to/publish_a_benchmark_release.md)

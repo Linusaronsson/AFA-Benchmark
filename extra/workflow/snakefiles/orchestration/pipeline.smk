@@ -104,7 +104,7 @@ Usage:
             smoke_test=true use_wandb=false
     It writes under extra/output/smoke, so a later real run still runs every
     job.
-    See docs/how-to/reproduce_full_results.md and slurm_integration.md.
+    See docs/how-to/run_the_pipeline.md and slurm_integration.md.
     Add a method to published baselines: download the baselines'
     transformed tables and the shared prerequisites into
     extra/output/production, then run only the new method's missing work

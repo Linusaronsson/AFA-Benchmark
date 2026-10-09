@@ -23,7 +23,7 @@ Configuration files are organized into subdirectories under
 CPU. `extra/workflow/profiles/config/kdd26` bundles the `kdd26.yaml` files
 together with `extra/workflow/conf/execution/kdd26.yaml`, which runs
 classifiers, pretrained models and some methods on GPU; it is meant for the
-SLURM command in [Reproducing full results](../how-to/reproduce_full_results.md).
+SLURM command in [Run the pipeline](../how-to/run_the_pipeline.md).
 Below we discuss the meaning of each configuration group.
 
 ## Runtime configuration options
@@ -43,8 +43,9 @@ Specifies which dataset split to use during evaluation.
 Specifies which dataset realizations to run. This allows you to run a subset of the experiments. Each index corresponds to a different random seed for dataset generation, model initialization, and training.
 
 - **Default:** `[0,1,2,3,4]`
-- **Example:** `dataset_realization_indices=[0,1]` to run two different seeds
+- **Example:** `dataset_realization_indices=[0,1]` to run two dataset realizations
 - **Use case:** Use fewer dataset realizations for faster debugging, more for more robust results
+- **Note:** Adding an index later regenerates the existing dataset realizations and reruns their downstream jobs ([issue #96](https://github.com/Linusaronsson/AFA-Benchmark/issues/96))
 
 ### `device` (deprecated)
 
@@ -64,9 +65,44 @@ A mapping, given in a config file, that declares per job whether it runs on
 `training` and `evaluation`, overrides per method and stage, and overrides
 per named pretrained model. Unspecified stages run on CPU. The resolved choice is both
 the script's `device` argument and, under SLURM, the CPU or GPU allocation.
-See [Reproducing full results](../how-to/reproduce_full_results.md#declaring-hardware)
-for the format and precedence, and `extra/workflow/conf/execution/` for the
-shipped declarations.
+`extra/workflow/conf/execution/` holds the shipped declarations. The format,
+from `execution/kdd26.yaml`:
+
+```yaml
+execution:
+  defaults:                     # per pipeline stage; unspecified ones default to cpu
+    classifier_training: cuda   # external and method-specific classifiers
+    pretraining: cuda           # named pretrained models
+    training: cpu
+    evaluation: cpu
+  methods:
+    jafa:                       # per method: training, evaluation, classifier_training
+      training: cuda
+      evaluation: cuda
+  pretrained_models:   # per named model in pretrain_mapping (none here)
+    pvae: cuda
+```
+
+Values are exactly `cpu` and `cuda`. Precedence, resolved independently for
+every job:
+
+1. `execution.methods.<method>.<training|evaluation|classifier_training>`, or
+   `execution.pretrained_models.<named model>` for pretraining.
+2. `execution.defaults.<classifier_training|pretraining|training|evaluation>`.
+3. `cpu`.
+
+Training and evaluation are independent, so a method can train on GPU and
+evaluate on CPU. Evaluation runs the classifier too, so declare its
+end-to-end needs. Shared external classifiers use only
+`defaults.classifier_training`; a pretrained model shared by several methods
+uses its own name, never a requesting method's choice. Dataset generation,
+transformations, aggregation and visualization always run on CPU and cannot
+be configured. Hardware is never inferred from a method's implementation,
+taxonomy or the selected method list, and a `cuda` job never falls back to
+CPU. `cuda` both passes `device=cuda` to the script and requests a GPU
+allocation; `cpu` passes `device=cpu` and requests none. Partitions and
+accounts never belong in these files; the site profile owns them
+([SLURM integration](../how-to/slurm_integration.md)).
 
 ### `--jobs` (Snakemake parameter)
 

@@ -29,7 +29,7 @@ A dataset without an entry is `unreviewed`.
 
 ## 3. Save the release package
 
-Run the benchmark ([reproduce the full results](reproduce_full_results.md)).
+Run the benchmark ([run the pipeline](run_the_pipeline.md)).
 Then save its outputs as an
 [output snapshot](create_output_snapshots.md) with a release manifest, by
 giving a release id, a scope and the workflow configuration whose targets

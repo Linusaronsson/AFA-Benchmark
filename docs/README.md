@@ -34,7 +34,7 @@ instead of defining a term on a page.
 
 ### How-to guides
 
-- Running the benchmark: [reproduce the full results](how-to/reproduce_full_results.md),
+- Running the benchmark: [run the pipeline](how-to/run_the_pipeline.md),
   [run on SLURM](how-to/slurm_integration.md), choose hardware
   [per method](how-to/mixed_execution.md) and
   [for classifiers and pretrained models](how-to/prerequisite_execution.md),

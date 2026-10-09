@@ -48,7 +48,7 @@ uv run snakemake \
 Without an execution file every job runs on CPU. To reproduce the full
 benchmark results, use SLURM instead: one command submits CPU and GPU jobs
 together. See the
-[reproduce the full results](docs/how-to/reproduce_full_results.md) guide
+[run the pipeline](docs/how-to/run_the_pipeline.md) guide
 for the exact command.
 
 ## Features
@@ -120,7 +120,7 @@ for accurate diagnosis with minimal cost. See the following survey for details: 
 ## Documentation
 
 The full index is [`docs/README.md`](docs/README.md). To get started:
-  - [Reproduce the full results](docs/how-to/reproduce_full_results.md)
+  - [Run the pipeline](docs/how-to/run_the_pipeline.md)
   - [Pipeline configuration](docs/reference/pipeline_configuration.md)
   - [Add a dataset](docs/how-to/add_dataset.md)
   - [Add a method](docs/how-to/add_method.md)

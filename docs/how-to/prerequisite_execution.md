@@ -76,7 +76,7 @@ to their dependencies. Dataset realizations, seeds, Initializers, Unmaskers, bud
 settings, method-owned scripts, plain pretraining/training contract and native
 bundle directories are unchanged. Classifier
 scripts retain their existing Hydra arguments. For the single full-benchmark
-command, see [Reproducing full results](reproduce_full_results.md).
+command, see [Run the pipeline](run_the_pipeline.md).
 
 ## Boundary verification
 
