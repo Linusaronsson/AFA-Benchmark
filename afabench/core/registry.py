@@ -8,6 +8,7 @@
 
 REGISTERED_CLASSES = {
     # AFA Method Classes
+    "L2MAFAMethod": "afabench.components.methods.discriminative.l2m.afa_methods.L2MAFAMethod",
     "RLAFAMethod": "afabench.components.methods.rl.common.afa_methods.RLAFAMethod",
     "GDFSAFAMethod": "afabench.components.methods.discriminative.gdfs.afa_methods.GDFSAFAMethod",
     "DIMEAFAMethod": "afabench.components.methods.discriminative.dime.afa_methods.DIMEAFAMethod",
@@ -59,6 +60,8 @@ REGISTERED_CLASSES = {
     "MutualInformationInitializer": "afabench.components.initializers.mutual_information_initializer.MutualInformationInitializer",
     "LeastInformativeInitializer": "afabench.components.initializers.least_informative_initializer.LeastInformativeInitializer",
     "RandomInitializer": "afabench.components.initializers.random_initializer.RandomInitializer",
+    # In-context pretrained models
+    "L2MModel": "afabench.components.methods.discriminative.l2m.models.L2MModel",
     # General PyTorch Model Bundle
     "TorchModelBundle": "afabench.core.bundle_system.torch_bundle.TorchModelBundle",
 }
