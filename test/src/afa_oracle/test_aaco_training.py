@@ -56,7 +56,7 @@ def test_aaco_training_returns_a_method_without_saving(tmp_path: Path) -> None:
         aco=AACOConfig(),
     )
 
-    method = run(cfg)
+    method = run(cfg, hard_budget=3, soft_budget_param=None)
 
     assert isinstance(method, AACOAFAMethod)
     assert not save_path.exists()

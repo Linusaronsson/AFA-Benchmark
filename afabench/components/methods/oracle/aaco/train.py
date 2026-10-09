@@ -7,14 +7,22 @@ from omegaconf import OmegaConf
 
 from afabench.components.methods.oracle import create_aaco_method
 from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
-from afabench.components.methods.oracle.aaco.config import AACOTrainConfig
+from afabench.components.methods.oracle.aaco.config import (
+    AACOPretrainConfig,
+    AACOTrainConfig,
+)
 from afabench.fit.inputs import load_inputs
 from afabench.fit.smoke_test import training_subset
 
 logger = logging.getLogger(__name__)
 
 
-def run(cfg: AACOTrainConfig) -> AACOAFAMethod:
+def run(
+    cfg: AACOPretrainConfig | AACOTrainConfig,
+    *,
+    hard_budget: int | None,
+    soft_budget_param: float | None,
+) -> AACOAFAMethod:
     logger.debug(cfg)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
@@ -47,12 +55,9 @@ def run(cfg: AACOTrainConfig) -> AACOAFAMethod:
     )
     logger.debug(f"Feature shape: {feature_shape}")
 
-    soft_budget_param = (
-        cfg.soft_budget_param
-        if cfg.soft_budget_param is not None
-        else cfg.aco.acquisition_cost
-    )
-    force_acquisition = cfg.hard_budget is not None
+    if soft_budget_param is None:
+        soft_budget_param = cfg.aco.acquisition_cost
+    force_acquisition = hard_budget is not None
 
     classifier_bundle_path = Path(cfg.classifier_bundle_path)
 

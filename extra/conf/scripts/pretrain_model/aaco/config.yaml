@@ -5,7 +5,7 @@ hydra:
     - file://extra/conf/global
 
 defaults:
-  - train_aaco
+  - pretrain_aaco
   - hydra: custom
   - initializer: ???
   - unmasker: ???
@@ -31,12 +31,6 @@ aco:
   hide_val: 0.0
   evaluate_final_performance: true
   eval_only_n_samples: null
-
-# AACO pretraining reuses the training config, but the pretraining stage of
-# the pipeline passes no budgets, so the training-only contract fields are
-# fixed here.
-soft_budget_param: null
-hard_budget: null
 
 initializer_type: "aaco"
 unmasker_type: "one_based_index"

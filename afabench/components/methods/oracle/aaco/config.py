@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
 
-from afabench.fit.contract import TrainingContract, store_contract_config
+from afabench.fit.contract import (
+    PretrainingContract,
+    TrainingContract,
+    store_contract_config,
+)
 
 
 @dataclass
@@ -14,9 +18,18 @@ class AACOConfig:
 
 
 @dataclass(frozen=True, kw_only=True)
-class AACOTrainConfig(TrainingContract):
-    """Shared by the AACO pretraining and training stages."""
+class AACOPretrainConfig(PretrainingContract):
+    aco: AACOConfig
+    experiment_id: str | None = None
+    initializer_type: str = "aaco"
+    unmasker_type: str = "one_based_index"
 
+
+store_contract_config(name="pretrain_aaco", config_class=AACOPretrainConfig)
+
+
+@dataclass(frozen=True, kw_only=True)
+class AACOTrainConfig(TrainingContract):
     aco: AACOConfig
     experiment_id: str | None = None
     initializer_type: str = "aaco"
