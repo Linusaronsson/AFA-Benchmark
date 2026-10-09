@@ -1,0 +1,2 @@
+sweep:
+  dir: logs/hydra/multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}

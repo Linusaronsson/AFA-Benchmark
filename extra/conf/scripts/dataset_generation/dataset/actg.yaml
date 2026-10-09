@@ -1,3 +1,0 @@
-class_name: "ACTG175Dataset"
-kwargs:
-  path: "extra/data/misc/actg.csv"

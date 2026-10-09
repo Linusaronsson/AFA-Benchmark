@@ -35,13 +35,13 @@ as Snakemake does.
 ## `save`
 
 ```shell
-snapshot.py save SNAPSHOT_DIR [--source-root extra/output/production] [--overwrite]
+snapshot.py save SNAPSHOT_DIR [--source-root output/production] [--overwrite]
     [--release-id ID --scope full|partial|smoke CONFIGURATION OPTIONS]
     [--checkout .]
 ```
 
-A smoke test's outputs are under `extra/output/smoke`: pass
-`--source-root extra/output/smoke` to save them.
+A smoke test's outputs are under `output/smoke`: pass
+`--source-root output/smoke` to save them.
 
 Copies every file and directory under the source root to
 `SNAPSHOT_DIR/output`, keeping file and directory modification times,
@@ -88,8 +88,8 @@ Transformed tables carry their evaluation's record; the commits of transformatio
 snapshot.py restore SNAPSHOT_DIR [--destination-root ROOT] [--overwrite]
 ```
 
-The destination root defaults to `extra/output/production`, or
-`extra/output/smoke` when the snapshot's release manifest has scope
+The destination root defaults to `output/production`, or
+`output/smoke` when the snapshot's release manifest has scope
 `smoke`, so smoke outputs never satisfy a production run.
 
 Copies `SNAPSHOT_DIR/output` into the destination root, keeping
@@ -106,10 +106,10 @@ is restored.
 ## `inventory`
 
 ```shell
-snapshot.py inventory [--source-root extra/output/production]
+snapshot.py inventory [--source-root output/production]
 ```
 
-Pass `--source-root extra/output/smoke` for a smoke test's outputs.
+Pass `--source-root output/smoke` for a smoke test's outputs.
 
 Prints the execution mode of the source root's artifacts and, per
 [payload category](release_manifest.md#payload-categories), how many
@@ -158,8 +158,8 @@ snapshot.py download [RELEASE] --repo-id REPO
     [--destination-root ROOT] [--overwrite] [--smoke-release]
 ```
 
-The destination root defaults to `extra/output/production`, or
-`extra/output/smoke` with `--smoke-release`.
+The destination root defaults to `output/production`, or
+`output/smoke` with `--smoke-release`.
 
 Downloads one release and restores it as `restore` does, then prints its
 scope, execution mode and workflow configuration. A public
@@ -224,7 +224,7 @@ Downloaded 6 file(s) and 1 folder(s).
 Missing from release 2026-11-partial:
   dataset 'physionet': no evaluation of the release matches
   transformed_evaluation_table of the evaluation eval_results/...: not in the release
-  classifier_bundle extra/output/production/trained_classifiers/..., classifier input of eval_results/...: not in the release
+  classifier_bundle output/production/trained_classifiers/..., classifier input of eval_results/...: not in the release
 ```
 
 An input is reported only if its category is named; a

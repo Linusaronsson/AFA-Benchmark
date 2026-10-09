@@ -6,7 +6,6 @@ from omegaconf import OmegaConf
 def test_direct_unmasker_kwargs_are_empty_mapping() -> None:
     config_path = (
         Path(__file__).parents[2]
-        / "extra"
         / "conf"
         / "components"
         / "unmasker"

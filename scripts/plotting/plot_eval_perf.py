@@ -898,7 +898,7 @@ class EvaluationPlotter:
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/plotting/plot_eval_perf",
+    config_path="../../conf/scripts/plotting/plot_eval_perf",
     config_name="config",
 )
 def main(cfg: PlotEvalPerfConfig) -> None:

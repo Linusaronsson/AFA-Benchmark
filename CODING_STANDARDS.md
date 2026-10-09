@@ -31,4 +31,4 @@ allowed lint relaxations are enforced by `just qa` (`ruff.toml`,
   default suite stays fast: `just qa` has a 1-minute budget (`AGENTS.md`).
   Tests under `test/workflow/` are marked `workflow` automatically.
 - Tests use `tmp_path` and generated data, never `data/`, `outputs/`,
-  `plots/` or `extra/output/`.
+  `plots/` or `output/`.

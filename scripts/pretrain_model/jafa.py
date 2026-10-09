@@ -62,7 +62,7 @@ def get_jafa_model_fn(
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/pretrain_model/jafa",
+    config_path="../../conf/scripts/pretrain_model/jafa",
     config_name="config",
 )
 def main(cfg: JAFAPretrainConfig) -> None:

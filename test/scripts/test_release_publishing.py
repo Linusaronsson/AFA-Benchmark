@@ -74,7 +74,7 @@ def build_output_tree(
 def reviewed_checkout(tmp_path: Path, reviews: Mapping[str, str]) -> Path:
     """Write a checkout whose redistribution reviews give each status."""
     checkout = tmp_path / "checkout"
-    review_file = checkout / "extra/conf/release/dataset_redistribution.yaml"
+    review_file = checkout / "conf/release/dataset_redistribution.yaml"
     review_file.parent.mkdir(parents=True)
     review_file.write_text(
         yaml.safe_dump(
@@ -179,7 +179,7 @@ def test_published_release_downloads_with_native_tables_and_plots(
 ) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(tmp_path, "2026-10-cube")
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     published = invoke(transport, "publish", str(package_dir))
     downloaded = download(transport, "2026-10-cube", destination_root)
@@ -397,7 +397,7 @@ def test_smoke_provenance_survives_a_smoke_release_round_trip(
     package_dir = prepare_package(
         tmp_path, "smoke-check", scope="smoke", smoke_test=True
     )
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     published = invoke(
         transport, "publish", str(package_dir), "--smoke-release"
@@ -427,7 +427,7 @@ def test_smoke_release_is_not_downloadable_as_an_official_release(
         tmp_path, "smoke-check", scope="smoke", smoke_test=True
     )
     invoke(transport, "publish", str(package_dir), "--smoke-release")
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(transport, "smoke-check", destination_root)
 
@@ -450,7 +450,7 @@ def test_smoke_release_flag_does_not_publish_an_official_package(
 
 @pytest.mark.parametrize(
     ("scope", "output_root"),
-    [("full", "extra/output/production"), ("smoke", "extra/output/smoke")],
+    [("full", "output/production"), ("smoke", "output/smoke")],
 )
 def test_a_release_downloads_into_the_output_root_of_its_scope(
     tmp_path: Path,
@@ -473,7 +473,7 @@ def test_a_release_downloads_into_the_output_root_of_its_scope(
 
     assert result.exit_code == 0, result.output
     assert (fork / output_root / PLOT).read_bytes() == b"%PDF-1.4 plot"
-    assert [path.name for path in (fork / "extra/output").iterdir()] == [
+    assert [path.name for path in (fork / "output").iterdir()] == [
         Path(output_root).name
     ]
     assert (fork / output_root / "release_manifest.json").is_file()
@@ -481,7 +481,7 @@ def test_a_release_downloads_into_the_output_root_of_its_scope(
 
 @pytest.mark.parametrize(
     ("scope", "output_root"),
-    [("full", "extra/output/production"), ("smoke", "extra/output/smoke")],
+    [("full", "output/production"), ("smoke", "output/smoke")],
 )
 def test_a_snapshot_restores_into_the_output_root_of_its_scope(
     tmp_path: Path,
@@ -512,7 +512,7 @@ def test_each_published_release_downloads_its_own_outputs(
         assert result.exit_code == 0, result.output
 
     for release_id, plot in [("2026-10", b"October"), ("2026-11", b"Nov")]:
-        destination_root = tmp_path / release_id / "extra/output"
+        destination_root = tmp_path / release_id / "output"
         result = download(transport, release_id, destination_root)
         assert result.exit_code == 0, result.output
         assert (destination_root / PLOT).read_bytes() == plot
@@ -534,7 +534,7 @@ def test_a_published_release_is_not_replaced_by_publishing_again(
 
     assert result.exit_code != 0
     assert "2026-10" in str(result.exception)
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
     download(transport, "2026-10", destination_root)
     assert (destination_root / PLOT).read_bytes() == b"first"
 
@@ -544,7 +544,7 @@ def test_download_refuses_to_overwrite_an_existing_local_output(
 ) -> None:
     transport = FakeReleaseTransport()
     invoke(transport, "publish", str(prepare_package(tmp_path, "2026-10")))
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
     existing = destination_root / TRANSFORMED_TABLE
     existing.parent.mkdir(parents=True)
     existing.write_bytes(b"my own results")
@@ -564,7 +564,7 @@ def test_download_with_overwrite_replaces_an_existing_local_output(
     transport = FakeReleaseTransport()
     package_dir = prepare_package(tmp_path, "2026-10")
     invoke(transport, "publish", str(package_dir))
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
     existing = destination_root / TRANSFORMED_TABLE
     existing.parent.mkdir(parents=True)
     existing.write_bytes(b"my own results")
@@ -593,7 +593,7 @@ def test_downloaded_outputs_keep_the_snapshot_directories_and_mtimes(
         backdated = 1_700_000_000 + offset
         os.utime(path, (backdated, backdated))
     invoke(transport, "publish", str(package_dir))
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(transport, "2026-10", destination_root)
 

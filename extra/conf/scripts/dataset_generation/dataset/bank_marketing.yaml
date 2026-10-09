@@ -1,3 +1,0 @@
-class_name: "BankMarketingDataset"
-kwargs:
-  path: "extra/data/misc/bank-marketing.csv"

@@ -12,16 +12,16 @@ pytestmark = pytest.mark.optional
 DATASETS_TO_TEST = [
     ("CubeNMDataset", {"n_samples": 10, "seed": 42}),
     ("CubeDataset", {"n_samples": 10, "seed": 42}),
-    ("DiabetesDataset", {"root": "extra/data/misc/diabetes.csv"}),
-    ("MiniBooNEDataset", {"root": "extra/data/misc/miniboone.csv"}),
-    ("PhysionetDataset", {"root": "extra/data/misc/physionet.csv"}),
+    ("DiabetesDataset", {"root": "data/misc/diabetes.csv"}),
+    ("MiniBooNEDataset", {"root": "data/misc/miniboone.csv"}),
+    ("PhysionetDataset", {"root": "data/misc/physionet.csv"}),
     # No {(Fashion)MNISTDataset, ImagenetteDataset} because of image data and large size
-    ("BankMarketingDataset", {"path": "extra/data/misc/bank-marketing.csv"}),
-    ("CKDDataset", {"path": "extra/data/misc/chronic_kidney_disease.csv"}),
-    ("ACTG175Dataset", {"path": "extra/data/misc/actg.csv"}),
+    ("BankMarketingDataset", {"path": "data/misc/bank-marketing.csv"}),
+    ("CKDDataset", {"path": "data/misc/chronic_kidney_disease.csv"}),
+    ("ACTG175Dataset", {"path": "data/misc/actg.csv"}),
 ]
 
-# Datasets that require manually placing local files in extra/data/misc.
+# Datasets that require manually placing local files in data/misc.
 # Other datasets with path/root arguments are expected to auto-fetch.
 MANUAL_LOCAL_ONLY_DATASETS = {
     "DiabetesDataset",

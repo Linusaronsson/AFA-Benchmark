@@ -1,7 +1,7 @@
 # Create output snapshots
 
 For a [maintainer](../explanation/user_types.md#maintainer): copy
-everything the pipeline wrote under `extra/output/production` to a folder outside the
+everything the pipeline wrote under `output/production` to a folder outside the
 repository. [What a snapshot holds and why](../explanation/output_snapshots.md).
 To put it back, see [restore an output snapshot](restore_an_output_snapshot.md).
 

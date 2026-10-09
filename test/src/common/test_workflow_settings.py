@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).parents[3]
 
 @pytest.mark.parametrize("profile", ["all", "kdd26"])
 def test_shipped_configs_load(profile: str) -> None:
-    profile_file = REPO_ROOT / "extra/workflow/profiles/config" / profile
+    profile_file = REPO_ROOT / "workflow/profiles/config" / profile
     configfiles = yaml.safe_load((profile_file / "config.yaml").read_text())[
         "configfile"
     ]
@@ -43,13 +43,13 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.smoke_test is False
     assert settings.use_wandb is True
     assert settings.initializer == "cold"
-    assert settings.output_root == "extra/output/production"
+    assert settings.output_root == "output/production"
 
 
 def test_smoke_test_writes_under_its_own_output_root() -> None:
     settings = load_config(_config() | {"smoke_test": True})
 
-    assert settings.output_root == "extra/output/smoke"
+    assert settings.output_root == "output/smoke"
 
 
 @pytest.mark.parametrize("smoke_test", [False, True])
@@ -64,16 +64,14 @@ def test_an_explicit_output_root_wins(*, smoke_test: bool) -> None:
 @pytest.mark.parametrize(
     ("smoke_test", "output_root"),
     [
-        (True, "extra/output/production"),
-        (True, "extra/output/production/"),
-        (True, str(Path("extra/output/production").resolve())),
-        (True, "extra/output/production/nested"),
-        (True, "extra/output"),
-        (True, "extra"),
-        (False, "extra/output/smoke"),
-        (False, "extra/output/smoke/nested"),
-        (False, "extra/output"),
-        (False, "extra"),
+        (True, "output/production"),
+        (True, "output/production/"),
+        (True, str(Path("output/production").resolve())),
+        (True, "output/production/nested"),
+        (True, "output"),
+        (False, "output/smoke"),
+        (False, "output/smoke/nested"),
+        (False, "output"),
     ],
 )
 def test_an_output_root_cannot_overlap_the_other_kind_of_run(
@@ -88,10 +86,10 @@ def test_an_output_root_cannot_overlap_the_other_kind_of_run(
 @pytest.mark.parametrize(
     ("smoke_test", "output_root"),
     [
-        (True, "extra/output/smoke/nested"),
-        (False, "extra/output/production/nested"),
+        (True, "output/smoke/nested"),
+        (False, "output/production/nested"),
         (True, "/scratch/afabench/output"),
-        (False, "extra/output_elsewhere"),
+        (False, "output_elsewhere"),
     ],
 )
 def test_an_output_root_apart_from_the_other_kind_of_run_is_allowed(
@@ -105,7 +103,7 @@ def test_an_output_root_apart_from_the_other_kind_of_run_is_allowed(
 def test_aaco_eval_batch_size_is_pinned_per_dataset() -> None:
     """AACO batches its acquisition, so all.yaml pins its eval batch size."""
     method_options = yaml.safe_load(
-        (REPO_ROOT / "extra/workflow/conf/method_options/all.yaml").read_text()
+        (REPO_ROOT / "workflow/conf/method_options/all.yaml").read_text()
     )["method_options"]
     config = _config(
         method_options=method_options,
@@ -391,12 +389,12 @@ def test_evaluation_run_is_seeded_with_its_dataset_realization_index(
     [
         (
             "alpha",
-            "extra/output/trained_classifiers/initializer-cold/"
+            "output/trained_classifiers/initializer-cold/"
             "dataset-cube+realization_index-2.bundle",
         ),
         (
             "beta",
-            "extra/output/trained_classifiers/initializer-cold/"
+            "output/trained_classifiers/initializer-cold/"
             "method-beta+dataset-cube+realization_index-2.bundle",
         ),
     ],
@@ -405,9 +403,7 @@ def test_classifier_bundle_is_the_built_in_one_if_the_method_has_one(
     method: str, bundle: str
 ) -> None:
     settings = load_config(_compared_methods_config())
-    layout = OutputLayout(
-        root="extra/output", initializer="cold", eval_split="test"
-    )
+    layout = OutputLayout(root="output", initializer="cold", eval_split="test")
 
     assert (
         settings.classifier_bundle(

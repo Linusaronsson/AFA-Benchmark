@@ -50,9 +50,7 @@ SMOKE_ARTIFACTS_SHOWN = 5
 JOB_DURATION_TABLE_FILENAME = "release_job_duration_table.parquet"
 # Maintainers' redistribution reviews, relative to the checkout. A dataset
 # key it does not list is unreviewed.
-DATASET_REDISTRIBUTION_FILE = Path(
-    "extra/conf/release/dataset_redistribution.yaml"
-)
+DATASET_REDISTRIBUTION_FILE = Path("conf/release/dataset_redistribution.yaml")
 
 
 class ReleaseScope(StrEnum):

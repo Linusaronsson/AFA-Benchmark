@@ -298,7 +298,7 @@ def produce_separate_plots(
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/plotting/plot_eval_actions",
+    config_path="../../conf/scripts/plotting/plot_eval_actions",
     config_name="config",
 )
 def main(cfg: PlotEvalActionsConfig) -> None:

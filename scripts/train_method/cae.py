@@ -18,7 +18,7 @@ from afabench.fit.run import fit_run, save_result
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train_method/cae",
+    config_path="../../conf/scripts/train_method/cae",
     config_name="config",
 )
 def main(cfg: CAETrainingConfig) -> None:

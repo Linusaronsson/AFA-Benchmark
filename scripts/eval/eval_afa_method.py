@@ -146,7 +146,7 @@ class AFAEvaluator:
             self._wandb_run = wandb.init(
                 job_type="evaluation",
                 config=asdict(self._cfg),
-                dir="extra/logs/wandb",
+                dir="logs/wandb",
             )
             log.info(
                 f"W&B run initialized: {self._wandb_run.name} ({self._wandb_run.id})"
@@ -315,7 +315,7 @@ class AFAEvaluator:
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/eval",
+    config_path="../../conf/scripts/eval",
     config_name="config",
 )
 def main(cfg: EvalConfig) -> None:

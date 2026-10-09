@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train_method/ol",
+    config_path="../../conf/scripts/train_method/ol",
     config_name="config",
 )
 def main(cfg: OLTrainConfig) -> None:

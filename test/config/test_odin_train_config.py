@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 
 def test_odin_train_config_composes_for_workflow_overrides() -> None:
-    config_dir = Path("extra/conf/scripts/train_method/odin").resolve()
+    config_dir = Path("conf/scripts/train_method/odin").resolve()
 
     with initialize_config_dir(
         version_base=None,

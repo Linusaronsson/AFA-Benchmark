@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 def quick_view(
     bundle_path: Path,
-    output_file: str = "extra/visualizations/synthetic_mnist/quick_view.png",
+    output_file: str = "visualizations/synthetic_mnist/quick_view.png",
 ) -> None:
     """Show a quick sample of images from each class."""
     # Load the dataset bundle
@@ -96,8 +96,8 @@ def main() -> None:
     parser.add_argument(
         "--output",
         type=str,
-        default="extra/visualizations/synthetic_mnist/quick_view.png",
-        help="Output filename for the visualization (default: extra/visualizations/synthetic_mnist/quick_view.png)",
+        default="visualizations/synthetic_mnist/quick_view.png",
+        help="Output filename for the visualization (default: visualizations/synthetic_mnist/quick_view.png)",
     )
 
     args = parser.parse_args()

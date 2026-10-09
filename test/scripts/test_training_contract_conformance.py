@@ -34,7 +34,7 @@ from afabench.datasets.datasets import CubeDataset
 from afabench.testing.provenance import placeholder_provenance
 
 REPO_ROOT = Path(__file__).parents[2]
-WORKFLOW_CONF = REPO_ROOT / "extra/workflow/conf"
+WORKFLOW_CONF = REPO_ROOT / "workflow/conf"
 METHOD_OPTIONS: Mapping[str, Mapping[str, object]] = OmegaConf.to_container(  # pyright: ignore[reportAssignmentType]
     OmegaConf.load(WORKFLOW_CONF / "method_options/all.yaml")["method_options"]
 )
@@ -66,7 +66,7 @@ def _method_cases() -> list[ParameterSet]:
 
 
 def _load_renderer() -> ModuleType:
-    module_path = REPO_ROOT / "extra/workflow/src/contract_arguments.py"
+    module_path = REPO_ROOT / "workflow/src/contract_arguments.py"
     spec = importlib.util.spec_from_file_location(
         "workflow_contract_arguments", module_path
     )

@@ -95,7 +95,7 @@ other two helpers:
 # scripts/train_method/random_dummy.py
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train_method/random_dummy",
+    config_path="../../conf/scripts/train_method/random_dummy",
     config_name="config",
 )
 def main(cfg: RandomDummyTrainConfig) -> None:
@@ -121,16 +121,16 @@ Nothing here is Hydra-specific except `@hydra.main` and `OmegaConf.to_object`;
 section 5 covers skipping both.
 
 The YAML config wires in the contract's Hydra groups. See
-`extra/conf/components/README.md` for how `initializer`, `unmasker` and
+`conf/components/README.md` for how `initializer`, `unmasker` and
 `dataset_key` become plain top-level groups instead of Hydra's usual nested
 paths:
 
 ```yaml
-# extra/conf/scripts/train_method/random_dummy/config.yaml
+# conf/scripts/train_method/random_dummy/config.yaml
 hydra:
   searchpath:
-    - file://extra/conf
-    - file://extra/conf/global
+    - file://conf
+    - file://conf/global
 
 defaults:
   - train_random_dummy
@@ -171,7 +171,7 @@ pretrained model can be shared by several method names. For example,
 model:
 
 ```yaml
-# extra/workflow/conf/pretrain_mappings/all.yaml
+# workflow/conf/pretrain_mappings/all.yaml
 pretrain_mapping:
   pvae:
     pretrain_script_name: "odin"
@@ -179,7 +179,7 @@ pretrain_mapping:
 ```
 
 ```yaml
-# extra/workflow/conf/method_options/all.yaml
+# workflow/conf/method_options/all.yaml
 method_options:
   eddi_builtin:
     pretrained_model_name: "pvae"
@@ -205,7 +205,7 @@ Hyperparameters beyond the contract are entirely the method author's choice
 convention, recommended as the default: a Hydra experiment file per dataset
 key, selected automatically through `optional experiment@_global_:
 ${dataset_key}` in the root config (already present in the YAML in section
-2), so `extra/conf/scripts/train_method/<method>/experiment/<dataset
+2), so `conf/scripts/train_method/<method>/experiment/<dataset
 key>.yaml` only needs to exist for the dataset keys that need
 non-default values.
 
@@ -255,7 +255,7 @@ handling — is on you, exactly as it would be for any other script.
 ## 6. Registering with the pipeline
 
 The pipeline doesn't yet know your method exists even once its scripts work
-standalone. Four config groups under `extra/workflow/conf/` wire it in,
+standalone. Four config groups under `workflow/conf/` wire it in,
 keyed by a pipeline-level method name (distinct from your training script's
 file name):
 
@@ -306,7 +306,7 @@ registration the bundle system needs (section 2 and
 registry.
 
 To also show up in plots, add it to `method_name_mapping` in
-`extra/conf/scripts/plotting/common/default.yaml`.
+`conf/scripts/plotting/common/default.yaml`.
 
 ## 7. Testing
 
@@ -334,7 +334,7 @@ Run the pipeline locally with only your new method and a couple of datasets:
 
 ```shell
 uv run snakemake \
-    --profile extra/workflow/profiles/config/all \
+    --profile workflow/profiles/config/all \
     all \
     --config \
       "methods=[example_method]" \

@@ -36,10 +36,10 @@ the per-dataset hyperparameter file.
 | ----- | ----- | ------------------------ |
 | Entry-point scripts | 13 `scripts/train_method/*.py`, 6 `scripts/pretrain_model/*.py` (2,362 lines) | each reads the fields off its own config type |
 | Config dataclasses | 17 classes in `afabench/components/methods/**/config.py` (12 training, 5 pretraining; AACO pretraining reused `AACOTrainConfig` at this snapshot, since split into `AACOPretrainConfig`) | 201 field declarations |
-| Hydra root configs | 19 `extra/conf/scripts/{train_method,pretrain_model}/*/config.yaml` (808 lines) | 11 contract keys in each of 19 files, `pretrained_model_bundle_path` in 8 |
+| Hydra root configs | 19 `conf/scripts/{train_method,pretrain_model}/*/config.yaml` (808 lines) | 11 contract keys in each of 19 files, `pretrained_model_bundle_path` in 8 |
 | Hydra experiment files | 115 training + 64 pretraining `experiment/<dataset>.yaml` | 58 hardcode `hard_budget` (see below) |
-| Snakemake rules | `extra/workflow/snakefiles/rules/training.smk` | 3 rules with the same shell body: `pretrain_model`, `train_method_with_pretrained_model`, `train_method_without_pretrained_model` |
-| Workflow config | `extra/workflow/src/config.py` (since moved to `afabench/core/workflow_settings.py`), `conf/method_options/*.yaml`, `conf/pretrain_mappings/*.yaml` | method → script name, pretrained model name, free-form `method_specific_params` / `pretrain_params` strings |
+| Snakemake rules | `workflow/snakefiles/rules/training.smk` | 3 rules with the same shell body: `pretrain_model`, `train_method_with_pretrained_model`, `train_method_without_pretrained_model` |
+| Workflow config | `workflow/src/config.py` (since moved to `afabench/core/workflow_settings.py`), `conf/method_options/*.yaml`, `conf/pretrain_mappings/*.yaml` | method → script name, pretrained model name, free-form `method_specific_params` / `pretrain_params` strings |
 | Tutorial | `docs/how-to/add_method.md` (390 lines) | restates the contract fields and both YAML skeletons |
 
 Per-field count in the 17 config dataclasses:
@@ -100,7 +100,7 @@ the script copies one onto the other:
 
 - `scripts/train_method/jafa.py:42`, `odin.py:43`, `ol.py:97`:
   `cfg.mdp.hard_budget = cfg.hard_budget`
-- `extra/conf/scripts/train_method/{jafa,odin,ol}/config.yaml`:
+- `conf/scripts/train_method/{jafa,odin,ol}/config.yaml`:
   `mdp.hard_budget: ???` plus a top-level `hard_budget: null` under
   "Alias arguments, only to implement interface assumed by snakemake".
 
@@ -169,17 +169,17 @@ Adding a method with a pretraining stage touches:
 2. `scripts/train_method/<m>.py`
 3. `afabench/components/methods/<family>/<m>/config.py` (two dataclasses that
    re-declare the contract)
-4. `extra/conf/scripts/pretrain_model/<m>/config.yaml`
-5. `extra/conf/scripts/train_method/<m>/config.yaml`
-6. `extra/conf/scripts/pretrain_model/<m>/experiment/<dataset>.yaml` per
+4. `conf/scripts/pretrain_model/<m>/config.yaml`
+5. `conf/scripts/train_method/<m>/config.yaml`
+6. `conf/scripts/pretrain_model/<m>/experiment/<dataset>.yaml` per
    dataset that differs
-7. `extra/conf/scripts/train_method/<m>/experiment/<dataset>.yaml` per
+7. `conf/scripts/train_method/<m>/experiment/<dataset>.yaml` per
    dataset that differs
-8. `extra/workflow/conf/pretrain_mappings/{all,kdd26}.yaml`
-9. `extra/workflow/conf/method_options/{all,kdd26}.yaml`
-10. `extra/workflow/conf/methods/*.yaml`
-11. `extra/workflow/conf/soft_budget_params/*.yaml`
-12. `extra/workflow/conf/method_sets/*.yaml`
+8. `workflow/conf/pretrain_mappings/{all,kdd26}.yaml`
+9. `workflow/conf/method_options/{all,kdd26}.yaml`
+10. `workflow/conf/methods/*.yaml`
+11. `workflow/conf/soft_budget_params/*.yaml`
+12. `workflow/conf/method_sets/*.yaml`
 13. `afabench/core/registry.py` (method class and any classifier class)
 14. The method package itself
 
@@ -207,7 +207,7 @@ print(n, sum(cnt.values()), dict(cnt))
 EOF
 
 # Experiment files and distinct contents per entry point
-cd extra/conf/scripts
+cd conf/scripts
 for m in {train_method,pretrain_model}/*/; do
   files=$(ls "$m"experiment/*.yaml 2>/dev/null)
   echo "$m $(echo "$files" | grep -c .)" \

@@ -18,7 +18,7 @@ class WandbInitSpy:
         dir: str,  # noqa: A002
     ) -> object:
         assert job_type == "evaluation"
-        assert dir == "extra/logs/wandb"
+        assert dir == "logs/wandb"
         self.config = config
         return WandbRunStub()
 

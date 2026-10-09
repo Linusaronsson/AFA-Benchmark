@@ -49,7 +49,7 @@ def test_mixed_submissions_map_to_site_allocations(
 
     result = workflow.run(
         "--workflow-profile",
-        str(tmp_path / "extra/workflow/profiles" / profile),
+        str(tmp_path / "workflow/profiles" / profile),
         "--slurm-init-seconds-before-status-checks",
         "0",
         "--seconds-between-status-checks",
@@ -138,7 +138,7 @@ def test_first_submissions_of_one_rule_use_cpu_and_gpu_allocations(
     result = workflow.submit_first_wave(
         2,
         "--workflow-profile",
-        str(tmp_path / "extra/workflow/profiles" / profile),
+        str(tmp_path / "workflow/profiles" / profile),
         target="all_train_methods",
     )
 
@@ -299,7 +299,7 @@ def test_legacy_device_retains_site_defaults_and_local_cpu_execution(
         "--executor",
         "local",
         "--workflow-profile",
-        str(tmp_path / "extra/workflow/profiles/vera"),
+        str(tmp_path / "workflow/profiles/vera"),
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
@@ -392,7 +392,7 @@ def test_evaluation_only_validates_the_selected_stage(tmp_path: Path) -> None:
         "--forcerun",
         "eval_method",
         "--snakefile",
-        "extra/workflow/snakefiles/orchestration/pipeline_no_train.smk",
+        "workflow/snakefiles/orchestration/pipeline_no_train.smk",
     )
 
     assert result.returncode == 0, result.stdout + result.stderr

@@ -30,18 +30,18 @@ locally with 8 CPU cores, execute this command from the repo root:
 
 ```shell
 uv run snakemake \
-    -s extra/workflow/snakefiles/orchestration/pipeline.smk \
+    -s workflow/snakefiles/orchestration/pipeline.smk \
     all \
     --configfile \
-      extra/workflow/conf/eval_hard_budgets/all.yaml \
-      extra/workflow/conf/methods/all.yaml \
-      extra/workflow/conf/method_sets/all.yaml \
-      extra/workflow/conf/method_options/all.yaml \
-      extra/workflow/conf/pretrain_mappings/all.yaml \
-      extra/workflow/conf/soft_budget_params/all.yaml \
-      extra/workflow/conf/unmaskers/all.yaml \
-      extra/workflow/conf/classifier_names/all.yaml \
-      extra/workflow/conf/datasets/all.yaml \
+      workflow/conf/eval_hard_budgets/all.yaml \
+      workflow/conf/methods/all.yaml \
+      workflow/conf/method_sets/all.yaml \
+      workflow/conf/method_options/all.yaml \
+      workflow/conf/pretrain_mappings/all.yaml \
+      workflow/conf/soft_budget_params/all.yaml \
+      workflow/conf/unmaskers/all.yaml \
+      workflow/conf/classifier_names/all.yaml \
+      workflow/conf/datasets/all.yaml \
     --jobs 8
 ```
 
@@ -106,12 +106,12 @@ for accurate diagnosis with minimal cost. See the following survey for details: 
 ## Project structure
 - `afabench`: Main package.
 - `docs`: Documentation.
-- `extra`: Saved methods, data, logs and so on, non-source code files.
-    - `conf`: This is where all the **script** configuration files are. Each configuration file
-      corresponds to a class in `config_classes.py`.
-    - `data`: Where miscellaneous files for datasets (e.g., CSVs, custom generated costs, etc.) are stored.
-    - `workflow`: Snakemake workflows for running the full pipeline.
-    - `output`: Folder where outputs from the snakemake pipeline are stored.
+- `conf`: All the **script** configuration files. Each configuration file
+  corresponds to a class in `config_classes.py`.
+- `data`: Miscellaneous files for datasets (e.g., CSVs, custom generated costs, etc.).
+- `workflow`: Snakemake workflows for running the full pipeline.
+- `output`: Outputs from the Snakemake pipeline (gitignored).
+- `logs`: W&B, Lightning and Hydra logs (gitignored).
 - `scripts/`: Folder of scripts, many of which are called from the snakemake pipeline.
 - `test`: Tests.
   - `src`: Tests related to library code in `afabench`.

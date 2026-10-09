@@ -1,7 +1,7 @@
 """
 The Snakemake renderer turns the training contract into command-line arguments.
 
-`extra/workflow/src/contract_arguments.py` reads the field names from the
+`workflow/src/contract_arguments.py` reads the field names from the
 contract dataclasses in `afabench.fit.contract`, which the Snakefile
 imports at parse time.
 """
@@ -42,7 +42,7 @@ TRAINING_VALUES = {
 
 
 def _load_contract_arguments_module() -> ModuleType:
-    module_path = REPO_ROOT / "extra/workflow/src/contract_arguments.py"
+    module_path = REPO_ROOT / "workflow/src/contract_arguments.py"
     spec = importlib.util.spec_from_file_location(
         "workflow_contract_arguments", module_path
     )
@@ -137,7 +137,7 @@ def test_pretraining_contract_rejects_training_only_fields(
 
 
 def test_every_workflow_dataset_has_a_dataset_key_config() -> None:
-    dataset_lists = (REPO_ROOT / "extra/workflow/conf/datasets").glob("*.yaml")
+    dataset_lists = (REPO_ROOT / "workflow/conf/datasets").glob("*.yaml")
     dataset_keys = {
         dataset_key
         for dataset_list in dataset_lists
@@ -148,9 +148,7 @@ def test_every_workflow_dataset_has_a_dataset_key_config() -> None:
         dataset_key
         for dataset_key in dataset_keys
         if not (
-            REPO_ROOT
-            / "extra/conf/components/dataset_key"
-            / f"{dataset_key}.yaml"
+            REPO_ROOT / "conf/components/dataset_key" / f"{dataset_key}.yaml"
         ).is_file()
     }
 

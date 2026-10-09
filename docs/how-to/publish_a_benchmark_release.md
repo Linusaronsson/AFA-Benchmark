@@ -23,7 +23,7 @@ Instead of `hf auth login`, the token can be in `HF_TOKEN`. Instead of
 Only datasets whose bundles may be published publicly can be in an
 official release. For each dataset of the run, read its source's licence
 or terms and record the review in
-`extra/conf/release/dataset_redistribution.yaml` (format in the file's
+`conf/release/dataset_redistribution.yaml` (format in the file's
 header; [what a review covers](../reference/release_manifest.md#dataset-redistribution)).
 A dataset without an entry is `unreviewed`.
 
@@ -39,7 +39,7 @@ built across several runs, that is the configuration of the final run:
 ```shell
 uv run python scripts/release/snapshot.py save /path/to/2026-10-kdd26 \
     --release-id 2026-10-kdd26 --scope full \
-    --profile extra/workflow/profiles/config/kdd26
+    --profile workflow/profiles/config/kdd26
 ```
 
 This also writes `/path/to/2026-10-kdd26/release_manifest.json`, indexing
@@ -90,8 +90,8 @@ Add an entry for the release at the top of
 format given there. To find the changes since the previous release:
 
 1. Review `git log <previous commit>..<new commit>` for each producing
-   commit `save` printed, especially changes under `extra/conf/`,
-   `extra/workflow/`, `afabench/` and `scripts/`.
+   commit `save` printed, especially changes under `conf/`,
+   `workflow/`, `afabench/` and `scripts/`.
 2. Compare the two manifests' `workflow_config.merged`, and the
    `resolved_config` of corresponding artifacts' provenance records.
 3. Sort each change into a compatibility change or a result-affecting

@@ -18,9 +18,7 @@ from afabench.core.output_layout import (
     pretrain_seed_in_folder,
 )
 
-LAYOUT = OutputLayout(
-    root="extra/output", initializer="cold", eval_split="test"
-)
+LAYOUT = OutputLayout(root="output", initializer="cold", eval_split="test")
 
 
 def test_dataset_bundle() -> None:
@@ -28,20 +26,18 @@ def test_dataset_bundle() -> None:
         LAYOUT.dataset_bundle(
             dataset="cube", dataset_realization_index=1, split="val"
         )
-        == "extra/output/datasets/cube/1/val.bundle"
+        == "output/datasets/cube/1/val.bundle"
     )
 
 
 def test_dataset_folder_holds_every_realization() -> None:
-    assert (
-        LAYOUT.dataset_folder(dataset="cube") == "extra/output/datasets/cube"
-    )
+    assert LAYOUT.dataset_folder(dataset="cube") == "output/datasets/cube"
 
 
 def test_dataset_generation_job_record() -> None:
     assert (
         LAYOUT.dataset_generation_job_record(dataset="cube")
-        == "extra/output/datasets/cube/dataset_generation.job_record.json"
+        == "output/datasets/cube/dataset_generation.job_record.json"
     )
 
 
@@ -54,7 +50,7 @@ def test_external_classifier_bundle() -> None:
         LAYOUT.classifier_bundle(
             dataset="cube", dataset_realization_index=1, method=None
         )
-        == "extra/output/trained_classifiers/initializer-cold/"
+        == "output/trained_classifiers/initializer-cold/"
         "dataset-cube+realization_index-1.bundle"
     )
 
@@ -64,7 +60,7 @@ def test_built_in_classifier_bundle() -> None:
         LAYOUT.classifier_bundle(
             dataset="cube", dataset_realization_index=1, method="beta"
         )
-        == "extra/output/trained_classifiers/initializer-cold/"
+        == "output/trained_classifiers/initializer-cold/"
         "method-beta+dataset-cube+realization_index-1.bundle"
     )
 
@@ -74,13 +70,13 @@ def test_classifier_job_record_sits_beside_its_bundle() -> None:
         LAYOUT.classifier_job_record(
             dataset="cube", dataset_realization_index=1, method="beta"
         )
-        == "extra/output/trained_classifiers/initializer-cold/"
+        == "output/trained_classifiers/initializer-cold/"
         "method-beta+dataset-cube+realization_index-1.job_record.json"
     )
 
 
 PRETRAINED_MODEL_FOLDER = (
-    "extra/output/pretrained_models/initializer-cold/shared/"
+    "output/pretrained_models/initializer-cold/shared/"
     "dataset-cube+realization_index-1/pretrain_seed-1/"
 )
 
@@ -142,7 +138,7 @@ ALPHA_RUN_FOLDER = (
 def test_method_bundle_with_pretraining_stage() -> None:
     assert (
         LAYOUT.method_bundle(BETA_RUN)
-        == "extra/output/trained_methods/initializer-cold/"
+        == "output/trained_methods/initializer-cold/"
         f"{BETA_RUN_FOLDER}method.bundle"
     )
 
@@ -150,7 +146,7 @@ def test_method_bundle_with_pretraining_stage() -> None:
 def test_method_bundle_without_pretraining_stage() -> None:
     assert (
         LAYOUT.method_bundle(ALPHA_RUN)
-        == "extra/output/trained_methods/initializer-cold/"
+        == "output/trained_methods/initializer-cold/"
         f"{ALPHA_RUN_FOLDER}method.bundle"
     )
 
@@ -158,7 +154,7 @@ def test_method_bundle_without_pretraining_stage() -> None:
 def test_training_job_record() -> None:
     assert (
         LAYOUT.training_job_record(ALPHA_RUN)
-        == "extra/output/trained_methods/initializer-cold/"
+        == "output/trained_methods/initializer-cold/"
         f"{ALPHA_RUN_FOLDER}method.job_record.json"
     )
 
@@ -189,7 +185,7 @@ ALPHA_EVALUATION_FOLDER = (
 def test_raw_evaluation_table_of_hard_budget_run() -> None:
     assert (
         LAYOUT.raw_evaluation_table(BETA_EVALUATION)
-        == f"extra/output/eval_results/{BETA_EVALUATION_FOLDER}"
+        == f"output/eval_results/{BETA_EVALUATION_FOLDER}"
         "eval_data.parquet"
     )
 
@@ -197,7 +193,7 @@ def test_raw_evaluation_table_of_hard_budget_run() -> None:
 def test_raw_evaluation_table_of_soft_budget_run() -> None:
     assert (
         LAYOUT.raw_evaluation_table(ALPHA_EVALUATION)
-        == f"extra/output/eval_results/{ALPHA_EVALUATION_FOLDER}"
+        == f"output/eval_results/{ALPHA_EVALUATION_FOLDER}"
         "eval_data.parquet"
     )
 
@@ -205,7 +201,7 @@ def test_raw_evaluation_table_of_soft_budget_run() -> None:
 def test_transformed_evaluation_table() -> None:
     assert (
         LAYOUT.transformed_evaluation_table(ALPHA_EVALUATION)
-        == f"extra/output/eval_results_transformed/{ALPHA_EVALUATION_FOLDER}"
+        == f"output/eval_results_transformed/{ALPHA_EVALUATION_FOLDER}"
         "eval_data.parquet"
     )
 
@@ -213,7 +209,7 @@ def test_transformed_evaluation_table() -> None:
 def test_evaluation_job_record_sits_beside_its_table() -> None:
     assert (
         LAYOUT.evaluation_job_record(BETA_EVALUATION)
-        == f"extra/output/eval_results/{BETA_EVALUATION_FOLDER}"
+        == f"output/eval_results/{BETA_EVALUATION_FOLDER}"
         "eval_data.job_record.json"
     )
 
@@ -221,14 +217,14 @@ def test_evaluation_job_record_sits_beside_its_table() -> None:
 def test_transformation_job_record_sits_beside_its_table() -> None:
     assert (
         LAYOUT.transformation_job_record(BETA_EVALUATION)
-        == f"extra/output/eval_results_transformed/{BETA_EVALUATION_FOLDER}"
+        == f"output/eval_results_transformed/{BETA_EVALUATION_FOLDER}"
         "eval_data.job_record.json"
     )
 
 
 def test_wildcards_give_a_rule_pattern() -> None:
     assert LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()) == (
-        "extra/output/eval_results/eval_split-test/initializer-cold/"
+        "output/eval_results/eval_split-test/initializer-cold/"
         "{method}/dataset-{dataset}+"
         "realization_index-{dataset_realization_index}/{pretrain_folder}/"
         "train_seed-{train_seed}+train_hard_budget-{train_hard_budget}+"
@@ -242,7 +238,7 @@ def test_wildcards_of_one_pretrain_folder_kind() -> None:
     run = TrainingRun.wildcards(pretrain_folder=pretrain_seed_folder(None))
 
     assert LAYOUT.training_job_record(run) == (
-        "extra/output/trained_methods/initializer-cold/"
+        "output/trained_methods/initializer-cold/"
         "{method}/dataset-{dataset}+"
         "realization_index-{dataset_realization_index}/NO_PRETRAIN/"
         "train_seed-{train_seed}+train_hard_budget-{train_hard_budget}+"

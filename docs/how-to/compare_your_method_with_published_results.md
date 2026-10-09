@@ -30,7 +30,7 @@ method_options:
 ```
 
 To make the method appear in plots, add it to
-`extra/conf/scripts/plotting/common/default.yaml`:
+`conf/scripts/plotting/common/default.yaml`:
 
 - `method_name_mapping`: its display name;
 - `method_policy_family_mapping`: its colour family, an existing one or a
@@ -38,7 +38,7 @@ To make the method appear in plots, add it to
 
 ## 2. Download the release
 
-Download into the fork's `extra/output/production`:
+Download into the fork's `output/production`:
 
 ```shell
 uv run python scripts/release/snapshot.py download --repo-id <repo_id> \
@@ -69,12 +69,12 @@ The command prints what the release lacks of your selection. All options:
 ## 3. Check the release's provenance
 
 `download` restores the release's manifest to
-`extra/output/production/release_manifest.json`. Each of its `evaluations` and `bundles`
+`output/production/release_manifest.json`. Each of its `evaluations` and `bundles`
 entries has the `code.commit` that produced it; list them with
 
 ```shell
 jq -r '[.evaluations[], .bundles[]] | .[].code.commit' \
-    extra/output/production/release_manifest.json | sort -u
+    output/production/release_manifest.json | sort -u
 ```
 
 Compare those commits with your fork's history, and read the [release notes](../reference/release_notes.md) for
@@ -88,9 +88,9 @@ file still loads ([why](../explanation/benchmark_releases.md#compatibility-and-c
 Keep the configuration of each release you compare with in its own folder:
 
 ```shell
-mkdir -p extra/workflow/conf/comparisons/<release_id>
-jq .workflow_config.merged extra/output/production/release_manifest.json \
-    > extra/workflow/conf/comparisons/<release_id>/release.json
+mkdir -p workflow/conf/comparisons/<release_id>
+jq .workflow_config.merged output/production/release_manifest.json \
+    > workflow/conf/comparisons/<release_id>/release.json
 ```
 
 `release.json` is the release's own workflow configuration, so the
@@ -122,16 +122,16 @@ soft_budget_params:
 and adds to `method_options` and `soft_budget_params`.
 
 If you compare with a smoke release, label the plots: set `caption` in
-`extra/conf/scripts/plotting/common/default.yaml`, for example to
+`conf/scripts/plotting/common/default.yaml`, for example to
 `"Workflow demonstration from smoke runs, not scientific results"`.
 
 ## 5. Check the plan
 
 ```shell
 uv run snakemake \
-    --snakefile extra/workflow/snakefiles/orchestration/pipeline.smk \
-    --configfile extra/workflow/conf/comparisons/<release_id>/release.json \
-                 extra/workflow/conf/comparisons/<release_id>/comparison.yaml \
+    --snakefile workflow/snakefiles/orchestration/pipeline.smk \
+    --configfile workflow/conf/comparisons/<release_id>/release.json \
+                 workflow/conf/comparisons/<release_id>/comparison.yaml \
     --cores 4 --dry-run all
 ```
 
@@ -148,7 +148,7 @@ If it lists `dataset_generation` or `train_classifier`, a
 workflow produce a different one.
 
 If it fails with a `MissingInputException`, the named published table is
-not in `extra/output/production`. Either you did not download it, or the release does
+not in `output/production`. Either you did not download it, or the release does
 not have it: a dataset, dataset realization, budget or evaluation split your
 configuration asks for but the release lacks. Download it, or remove that
 setting from `comparison.yaml`.
@@ -158,20 +158,20 @@ setting from `comparison.yaml`.
 Run the same command without `--dry-run`. The plots end up in:
 
 ```text
-extra/output/production/plot_results/eval_split-<split>/initializer-<init>/eval_perf/
+output/production/plot_results/eval_split-<split>/initializer-<init>/eval_perf/
     method_set-my_comparison+classifier_type-<builtin|external>/<dataset set>/
         hard_budget_normal.{pdf,svg}   hard_budget_traj.{pdf,svg}
         soft_budget_lines.{pdf,svg}    soft_budget_2d_errors.{pdf,svg}
 ```
 
 and the tables they plot in
-`extra/output/production/merged_results/eval_split-<split>/initializer-<init>/eval_perf/method_set-my_comparison+*.parquet`.
+`output/production/merged_results/eval_split-<split>/initializer-<init>/eval_perf/method_set-my_comparison+*.parquet`.
 
 ## Download more later
 
 `download` writes nothing if a file it would write already exists, and
 lists the conflicts. A second download into the same fork, for example of
-more datasets, needs `--overwrite`, if only for `extra/output/production/release_manifest.json`.
+more datasets, needs `--overwrite`, if only for `output/production/release_manifest.json`.
 
 Use one release per output tree. To compare with another release, use a
 separate clone, since the restored manifest describes one release and

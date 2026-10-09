@@ -52,7 +52,7 @@ def collected_run(tmp_path_factory: pytest.TempPathFactory) -> CollectedRun:
         REPO_ROOT / "scripts/plotting/plot_total_time.py",
         root / "scripts/plotting/plot_total_time.py",
     )
-    shutil.copytree(REPO_ROOT / "extra/conf", root / "extra/conf")
+    shutil.copytree(REPO_ROOT / "conf", root / "conf")
     beta = root / "scripts/train_method/beta.py"
     script = beta.read_text()
     beta.write_text("import sys\nsys.exit(3)\n")
@@ -63,7 +63,7 @@ def collected_run(tmp_path_factory: pytest.TempPathFactory) -> CollectedRun:
     result = workflow.run("--executor", "local", target="all")
 
     assert result.returncode == 0, result.stdout + result.stderr
-    output = root / "extra/output/smoke"
+    output = root / "output/smoke"
     return CollectedRun(
         output=output, table=load_job_duration_table(output / TABLE)
     )

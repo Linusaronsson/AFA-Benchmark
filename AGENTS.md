@@ -2,7 +2,8 @@
 
 AFABench: a benchmark of active feature acquisition (AFA) methods. Library
 code is in `afabench/`, pipeline entry points in `scripts/`, Hydra configs,
-Snakemake workflows and outputs in `extra/`, tests in `test/`.
+Snakemake workflows in `workflow/`, pipeline outputs in `output/`, tests in
+`test/`.
 
 ## Quality gate
 
@@ -36,10 +37,10 @@ markers `optional`, `pipeline` and `workflow` are deselected by default
   class saved as a bundle needs an entry in `REGISTERED_CLASSES` in
   `afabench/core/registry.py`, or `load_bundle` cannot rebuild it.
 - **Hydra configs**: script configs live under
-  `extra/conf/scripts/<script_group>/<script_name>/`, shared groups under
-  `extra/conf/components/`. Read `extra/conf/components/README.md` before
+  `conf/scripts/<script_group>/<script_name>/`, shared groups under
+  `conf/components/`. Read `conf/components/README.md` before
   changing defaults lists or how the pipeline passes overrides.
-- **Snakemake**: when editing `extra/workflow/snakefiles/orchestration/`,
+- **Snakemake**: when editing `workflow/snakefiles/orchestration/`,
   update the docstring at the top of the file (config arguments, required
   files, usage examples).
 - **Docs**: before writing, splitting or moving a page in `docs/`, read

@@ -1,0 +1,23 @@
+hydra:
+  searchpath:
+    - file://conf
+    - file://conf/components
+    - file://conf/global
+
+defaults:
+  - plot_total_time
+  - hydra: custom
+  - /scripts/plotting/common@plotting: default
+  - _self_
+  - optional experiment@_global_: null
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+
+output_folder: ???
+input: ???
+methods: ???
+pretrained_models: {}
+initializer_tag: ???
+eval_dataset_split: ???
+formats:
+  - pdf

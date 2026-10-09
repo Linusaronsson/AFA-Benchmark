@@ -129,7 +129,7 @@ def publish(
     configfile.write_text(yaml.safe_dump({"smoke_test": smoke_test}))
     # Every dataset is reviewed as permitted, so official releases publish.
     checkout = tmp_path / f"{release_id}-checkout"
-    review_file = checkout / "extra/conf/release/dataset_redistribution.yaml"
+    review_file = checkout / "conf/release/dataset_redistribution.yaml"
     review_file.parent.mkdir(parents=True)
     review = {
         "status": "permitted",
@@ -232,7 +232,7 @@ def test_default_download_takes_the_latest_full_release_not_a_newer_partial(
             scope=scope,
             created_at=created_at,
         )
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(transport, destination_root, "--all")
 
@@ -247,7 +247,7 @@ def test_default_download_without_a_full_release_names_the_partial_ones(
 ) -> None:
     transport = FakeReleaseTransport()
     publish(tmp_path, transport, "2026-11-partial", scope="partial")
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(transport, destination_root, "--all")
 
@@ -279,7 +279,7 @@ def test_older_and_partial_releases_download_when_named(
         ("2026-09-full", "full"),
         ("2026-11-partial", "partial"),
     ]:
-        destination_root = tmp_path / release_id / "fork/extra/output"
+        destination_root = tmp_path / release_id / "fork/output"
         result = download(transport, destination_root, release_id, "--all")
         assert result.exit_code == 0, result.output
         assert restored_release_id(destination_root) == release_id
@@ -322,7 +322,7 @@ def test_a_release_published_during_a_download_is_not_mixed_in(
             )
 
     transport.before_download = publish_newer_release
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(transport, destination_root, *selection)
 
@@ -364,7 +364,7 @@ def test_results_only_selection_fetches_no_bundle(tmp_path: Path) -> None:
     transport = FakeReleaseTransport()
     publish(tmp_path, transport, "2026-10-full")
     requested = requested_paths(transport)
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(
         transport,
@@ -403,7 +403,7 @@ def test_shared_prerequisites_download_without_afa_method_bundles(
     transport = FakeReleaseTransport()
     publish(tmp_path, transport, "2026-10-full")
     requested = requested_paths(transport)
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(
         transport,
@@ -440,7 +440,7 @@ def test_method_bundles_follow_the_selected_budget_setting(
 ) -> None:
     transport = FakeReleaseTransport()
     publish(tmp_path, transport, "2026-10-full")
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(
         transport,
@@ -473,7 +473,7 @@ def test_model_bundles_come_with_the_job_records_of_their_jobs(
 ) -> None:
     transport = FakeReleaseTransport()
     publish(tmp_path, transport, "2026-10-full", job_records=True)
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(
         transport,
@@ -528,7 +528,7 @@ def test_missing_coverage_is_reported_and_not_taken_from_another_release(
         created_at="2026-11-01T00:00:00+00:00",
         omit=[missing_table],
     )
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(
         transport,
@@ -564,7 +564,7 @@ def test_selection_the_release_does_not_cover_downloads_nothing(
 ) -> None:
     transport = FakeReleaseTransport()
     publish(tmp_path, transport, "2026-10-full")
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(
         transport,
@@ -597,7 +597,7 @@ def test_selective_download_refuses_to_overwrite_an_existing_output(
 ) -> None:
     transport = FakeReleaseTransport()
     package_dir = publish(tmp_path, transport, "2026-10-full")
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
     existing = destination_root / "eval_results_transformed" / alpha_table(0)
     existing.parent.mkdir(parents=True)
     existing.write_bytes(b"my own results")
@@ -647,7 +647,7 @@ def test_download_needs_either_all_or_a_category_selection(
     transport = FakeReleaseTransport()
     publish(tmp_path, transport, "2026-10-full")
     requested = requested_paths(transport)
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(transport, destination_root, *arguments)
 
@@ -668,7 +668,7 @@ def test_selected_payloads_of_a_smoke_release_keep_smoke_provenance(
         scope="smoke",
         smoke_test=True,
     )
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(
         transport,
@@ -698,7 +698,7 @@ def test_latest_is_not_a_smoke_release_and_not_a_release_id(
     publish(tmp_path, transport, "smoke-check", scope="smoke", smoke_test=True)
 
     result = download(
-        transport, tmp_path / "fork/extra/output", "--smoke-release", "--all"
+        transport, tmp_path / "fork/output", "--smoke-release", "--all"
     )
     published = publish_reserved_release_id(tmp_path, transport)
 
@@ -730,7 +730,7 @@ def test_selected_outputs_keep_their_published_mtimes(tmp_path: Path) -> None:
     # Snakemake judges restored outputs, bundle folders included, by mtime.
     transport = FakeReleaseTransport()
     package_dir = publish(tmp_path, transport, "2026-10-full", backdate=True)
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(
         transport,
@@ -774,7 +774,7 @@ def test_inputs_the_release_lacks_are_reported_for_their_category(
 
     tables_only = download(
         transport,
-        tmp_path / "tables/extra/output",
+        tmp_path / "tables/output",
         "2026-11-partial",
         "--payload-category",
         "transformed_evaluation_table",
@@ -782,7 +782,7 @@ def test_inputs_the_release_lacks_are_reported_for_their_category(
     )
     prerequisites = download(
         transport,
-        tmp_path / "prerequisites/extra/output",
+        tmp_path / "prerequisites/output",
         "2026-11-partial",
         "--payload-category",
         "dataset_bundle",
@@ -795,11 +795,11 @@ def test_inputs_the_release_lacks_are_reported_for_their_category(
     assert "Missing from release" not in tables_only.output
     assert prerequisites.exit_code == 0, prerequisites.output
     assert (
-        f"classifier_bundle extra/output/{EXTERNAL_CLASSIFIER}, classifier "
+        f"classifier_bundle output/{EXTERNAL_CLASSIFIER}, classifier "
         "input of eval_results/" in prerequisites.output
     )
     # The training splits are still reached through the method bundles.
-    assert restored_bundles(tmp_path / "prerequisites/extra/output") == {
+    assert restored_bundles(tmp_path / "prerequisites/output") == {
         dataset_bundle("cube", 1, split) for split in ["train", "val", "test"]
     }
 
@@ -815,7 +815,7 @@ def test_the_job_duration_table_downloads_inside_the_output_root(
         tmp_path, transport, "2026-10-full", job_records=True
     )
     requested = requested_paths(transport)
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     result = download(transport, destination_root, *selection)
 
@@ -834,7 +834,7 @@ def test_a_release_without_a_job_duration_table_reports_it_missing(
 ) -> None:
     transport = FakeReleaseTransport()
     publish(tmp_path, transport, "2026-10-full")
-    destination_root = tmp_path / "fork/extra/output"
+    destination_root = tmp_path / "fork/output"
 
     alone = download(
         transport,

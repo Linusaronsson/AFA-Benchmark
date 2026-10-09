@@ -13,7 +13,7 @@ root.
 
 Each record is a declared output of its rule, named after the artifact with
 `.job_record.json` in place of the artifact's suffix. Paths are relative to
-the output root: `extra/output/production/`, or `extra/output/smoke/` for a smoke test
+the output root: `output/production/`, or `output/smoke/` for a smoke test
 (see [`output_root`](pipeline_configuration.md#output_root)); `<tag>` is `initializer-<initializer>`,
 `<training>` the training run's folder
 (`<method>/dataset-<key>+realization_index-<k>/<pretrain folder>/train_seed-<s>+train_hard_budget-<b>+train_soft_budget_param-<p>`)
@@ -63,7 +63,7 @@ python -m afabench.core.job_record --record <path> \
 `--record` is where a completed job's record goes, `--failed-record` the
 path a failed or timed-out job's record is named after. Each identity field
 below has an option of the same name with `-` for `_` (`--dataset-key`); an
-omitted option records `null`. `extra/workflow/src/job_records.py`
+omitted option records `null`. `workflow/src/job_records.py`
 renders the options from the job's wildcards and its final Snakemake
 resources, after profile defaults and `--set-resources` overrides.
 

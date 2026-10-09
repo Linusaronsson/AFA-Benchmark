@@ -1,0 +1,35 @@
+hydra:
+  searchpath:
+    - file://conf
+    - file://conf/components
+    - file://conf/global
+
+defaults:
+  - train_l2m
+  - hydra: custom
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
+  - _self_
+  - optional experiment@_global_: ${dataset_key}
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+# Paper hyperparameters for MiniBooNE (arXiv:2510.12624, Tables 2 and 3,
+# Appendix A.5.6), the family default for every dataset. The architecture
+# comes from the pretrained model bundle.
+
+# Set per method name in the method options: real or synthetic, the same as
+# the pretrained model's.
+feature_source: ???
+batch_size: 8 # tasks per step
+sequence_length: 1000
+n_steps: 50000
+policy_lr: 1e-4
+backbone_lr: 1e-5
+temperature: 0.1
+checkpoint_interval: 200 # not stated by the paper
+n_validation_tasks: 64 # not stated by the paper
+missingness_cap: 0.5
+context_set_size: 900 # this benchmark's choice; the paper varies it

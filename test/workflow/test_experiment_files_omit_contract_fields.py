@@ -5,7 +5,7 @@ Snakemake always overrides contract fields on the command line, so a
 contract field set in an experiment YAML is dead in the pipeline and only
 misleads a developer running the script by hand (see
 `docs/explanation/training_contract_inventory.md`, issue #43). This test covers every
-method under `extra/conf/scripts/`. `NOT_YET_PORTED` lists the methods whose
+method under `conf/scripts/`. `NOT_YET_PORTED` lists the methods whose
 experiment files are known to still set contract fields, pending their
 training-contract port (see the open "Port ... to the training contract
 helpers" issues); their cases are `xfail(strict=True)` so a forgotten
@@ -22,7 +22,7 @@ from omegaconf import OmegaConf
 from afabench.fit.contract import PretrainingContract, TrainingContract
 
 REPO_ROOT = Path(__file__).parents[2]
-SCRIPTS_CONF = REPO_ROOT / "extra/conf/scripts"
+SCRIPTS_CONF = REPO_ROOT / "conf/scripts"
 
 _STAGE_CONTRACT_FIELDS = {
     "train_method": frozenset(f.name for f in fields(TrainingContract)),

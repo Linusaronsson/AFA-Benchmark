@@ -211,7 +211,7 @@ def get_plots(
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/plotting/plot_total_time",
+    config_path="../../conf/scripts/plotting/plot_total_time",
     config_name="config",
 )
 def main(cfg: PlotTotalTimeConfig) -> None:

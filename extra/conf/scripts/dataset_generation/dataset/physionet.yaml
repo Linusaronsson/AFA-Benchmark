@@ -1,3 +1,0 @@
-class_name: "PhysionetDataset"
-kwargs:
-  root: "extra/data/misc/physionet.csv"

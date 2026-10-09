@@ -24,7 +24,7 @@ def test_an_estimate_of_a_recorded_run_matches_every_job_exactly(
         "--executor",
         "local",
         "--workflow-profile",
-        str(tmp_path / "extra/workflow/profiles/mixed-gres"),
+        str(tmp_path / "workflow/profiles/mixed-gres"),
         # Replaces the profile's set-resources: training gets its default
         # of 1 CPU.
         "--set-resources",

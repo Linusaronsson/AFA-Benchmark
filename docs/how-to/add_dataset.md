@@ -135,7 +135,7 @@ If your dataset is synthetic and should vary by dataset realization, make `accep
 
 ### 2. Create an entry in dataset generation config
 
-Create a config file in `extra/conf/scripts/dataset_generation/dataset/` (e.g., `my_dataset.yaml`) to specify how the dataset should be generated:
+Create a config file in `conf/scripts/dataset_generation/dataset/` (e.g., `my_dataset.yaml`) to specify how the dataset should be generated:
 
 ```yaml
 class_name: "MyDataset"
@@ -161,7 +161,7 @@ This allows the dataset generation script and methods to deserialize your datase
 
 ### 4. Add to the Snakemake pipeline
 
-List your dataset in one of the dataset configuration files in `extra/workflow/conf/datasets/`. For example, in `extra/workflow/conf/datasets/all.yaml`:
+List your dataset in one of the dataset configuration files in `workflow/conf/datasets/`. For example, in `workflow/conf/datasets/all.yaml`:
 
 ```yaml
 datasets:
@@ -169,11 +169,11 @@ datasets:
   # ... other datasets ...
 ```
 
-The pipeline will generate `train.bundle`, `val.bundle`, and `test.bundle` under `extra/output/production/datasets/my_dataset/{dataset_realization_index}/` for each selected dataset realization.
+The pipeline will generate `train.bundle`, `val.bundle`, and `test.bundle` under `output/production/datasets/my_dataset/{dataset_realization_index}/` for each selected dataset realization.
 
 ### 5. Add a readable name
 
-(Optional but recommended) Add a display name to `dataset_name_mapping` in `extra/conf/scripts/plotting/common/default.yaml`:
+(Optional but recommended) Add a display name to `dataset_name_mapping` in `conf/scripts/plotting/common/default.yaml`:
 
 ```yaml
 dataset_name_mapping:
@@ -183,7 +183,7 @@ dataset_name_mapping:
 
 ### 6. Add to dataset sets
 
-(Optional but recommended) Add your dataset to one or more *dataset sets* in `dataset_sets` in `extra/conf/scripts/plotting/common/default.yaml`. Dataset sets group datasets for organized plotting:
+(Optional but recommended) Add your dataset to one or more *dataset sets* in `dataset_sets` in `conf/scripts/plotting/common/default.yaml`. Dataset sets group datasets for organized plotting:
 
 ```yaml
 dataset_sets:

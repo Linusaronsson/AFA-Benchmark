@@ -41,9 +41,7 @@ REPO_ROOT = Path(__file__).parents[2]
 PROFILE_CONFIGFILES = [
     REPO_ROOT / path
     for path in yaml.safe_load(
-        (
-            REPO_ROOT / "extra/workflow/profiles/config/all/config.yaml"
-        ).read_text()
+        (REPO_ROOT / "workflow/profiles/config/all/config.yaml").read_text()
     )["configfile"]
 ]
 SMOKE_SELECTION: dict[str, Any] = {
@@ -76,9 +74,9 @@ CPU = torch.device("cpu")
 
 
 def workspace(root: Path) -> Path:
-    """Make a checkout-shaped directory whose `extra/output/smoke` starts empty."""
-    (root / "extra").mkdir(parents=True)
-    for path in ["scripts", "extra/conf", "extra/data", "extra/workflow"]:
+    """Make a checkout-shaped directory whose `output/smoke` starts empty."""
+    root.mkdir(parents=True)
+    for path in ["scripts", "conf", "data", "workflow"]:
         (root / path).symlink_to(REPO_ROOT / path)
     return root
 
@@ -97,7 +95,7 @@ def snakemake(
             "-m",
             "snakemake",
             "--snakefile",
-            "extra/workflow/snakefiles/orchestration/pipeline.smk",
+            "workflow/snakefiles/orchestration/pipeline.smk",
             "--configfile",
             *(str(path) for path in configfiles),
             "--cores",
@@ -141,7 +139,7 @@ def restored(
             "save",
             str(snapshot_dir),
             "--source-root",
-            str(completed / "extra/output/smoke"),
+            str(completed / "output/smoke"),
             *(
                 argument
                 for path in configfiles
@@ -163,13 +161,13 @@ def restored(
             "restore",
             str(snapshot_dir),
             "--destination-root",
-            str(fresh / "extra/output/smoke"),
+            str(fresh / "output/smoke"),
         ],
     )
     assert restore.exit_code == 0, restore.output
     assert "Unreviewed dataset redistribution: cube" in restore.output
     manifest = read_release_manifest(
-        fresh / "extra/output/smoke/release_manifest.json"
+        fresh / "output/smoke/release_manifest.json"
     )
     return completed, fresh, configfiles, manifest
 
@@ -232,9 +230,9 @@ def test_smoke_release_retains_the_provenance_of_its_bundles(
     assert method.method_name == "gdfs"
     assert method.smoke_test is True
     assert method.seed == 0
-    contract = read_manifest(fresh / "extra/output/smoke" / GDFS_METHOD)[
-        "metadata"
-    ]["contract"]
+    contract = read_manifest(fresh / "output/smoke" / GDFS_METHOD)["metadata"][
+        "contract"
+    ]
     assert contract["unmasker"]["class_name"] == "DirectUnmasker"
     assert contract["initializer"]["class_name"] == "RandomInitializer"
     by_hash = {bundle.content_hash: bundle.path for bundle in manifest.bundles}
@@ -270,20 +268,20 @@ def test_restored_bundles_load_through_the_native_loaders(
 
     for bundle in manifest.bundles:
         loaded = load_native(
-            fresh / "extra/output/smoke" / bundle.path, bundle.category
+            fresh / "output/smoke" / bundle.path, bundle.category
         )
         assert type(loaded).__name__ == bundle.class_name
     original_test_split = cast(
         "AFADataset",
         load_native(
-            completed / "extra/output/smoke/datasets/cube/0/test.bundle",
+            completed / "output/smoke/datasets/cube/0/test.bundle",
             PayloadCategory.DATASET_BUNDLE,
         ),
     )
     restored_test_split = cast(
         "AFADataset",
         load_native(
-            fresh / "extra/output/smoke/datasets/cube/0/test.bundle",
+            fresh / "output/smoke/datasets/cube/0/test.bundle",
             PayloadCategory.DATASET_BUNDLE,
         ),
     )
@@ -300,7 +298,7 @@ def test_restored_bundles_reproduce_a_smoke_evaluation(
     restored: tuple[Path, Path, list[Path], ReleaseManifest],
 ) -> None:
     completed, fresh, _, _ = restored
-    output = "extra/output/smoke"
+    output = "output/smoke"
     save_path = fresh / "rerun/eval_data.parquet"
 
     evaluation = subprocess.run(
@@ -332,7 +330,7 @@ def test_restored_bundles_reproduce_a_smoke_evaluation(
     assert evaluation.returncode == 0, evaluation.stdout + evaluation.stderr
     pd.testing.assert_frame_equal(
         pd.read_parquet(save_path),
-        pd.read_parquet(completed / "extra/output/smoke" / GDFS_RAW_TABLE),
+        pd.read_parquet(completed / "output/smoke" / GDFS_RAW_TABLE),
     )
 
 
@@ -341,14 +339,14 @@ def test_snakemake_retrains_only_a_missing_bundle_from_restored_inputs(
     restored: tuple[Path, Path, list[Path], ReleaseManifest],
 ) -> None:
     _, fresh, configfiles, _ = restored
-    method_bundle = fresh / "extra/output/smoke" / GDFS_METHOD
+    method_bundle = fresh / "output/smoke" / GDFS_METHOD
     for path in sorted(method_bundle.rglob("*"), reverse=True):
         if path.is_file():
             path.unlink()
         else:
             path.rmdir()
     method_bundle.rmdir()
-    target = f"extra/output/smoke/{GDFS_METHOD}"
+    target = f"output/smoke/{GDFS_METHOD}"
 
     plan = snakemake(fresh, configfiles, "--dry-run", target)
     run = snakemake(fresh, configfiles, target)

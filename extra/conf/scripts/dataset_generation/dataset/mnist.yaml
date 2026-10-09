@@ -1,6 +1,0 @@
-class_name: "MNISTDataset"
-kwargs:
-  train: True # Use training set as base
-  transform: null # Will use default ToTensor()
-  download: True
-  root: "extra/data/misc"

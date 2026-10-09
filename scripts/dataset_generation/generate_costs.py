@@ -2,7 +2,7 @@
 Generate per-feature acquisition costs for tabular datasets.
 
 Writes:
-  extra/data/misc/feature_costs/{dataset_key}.csv
+  data/misc/feature_costs/{dataset_key}.csv
 
 Modes:
 - uniform: uniform random costs in [low, high]
@@ -22,7 +22,7 @@ from typing import Final
 
 import torch
 
-DEFAULT_OUTDIR: Final[Path] = Path("extra/data/misc/feature_costs")
+DEFAULT_OUTDIR: Final[Path] = Path("data/misc/feature_costs")
 
 ERR_NUM_FEATURES_POSITIVE: Final[str] = "--num-features must be > 0"
 ERR_CUBE_RANDOM_ORDERED_RANGES: Final[str] = (

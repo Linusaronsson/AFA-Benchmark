@@ -26,7 +26,7 @@ def imported_modules(path: Path) -> set[str]:
 def test_no_pipeline_code_imports_the_release_host() -> None:
     offenders = [
         path.relative_to(REPO_ROOT)
-        for directory in ["afabench", "scripts", "extra/workflow"]
+        for directory in ["afabench", "scripts", "workflow"]
         for path in sorted((REPO_ROOT / directory).rglob("*.py"))
         if path.relative_to(REPO_ROOT) not in ALLOWED
         and any(

@@ -342,12 +342,12 @@ def test_bundles_are_indexed_from_their_records(tmp_path: Path) -> None:
     assert method["size_bytes"] > 0
     # Inputs keep the path the job was given; they link by content hash.
     assert [(entry["role"], entry["path"]) for entry in method["inputs"]] == [
-        ("train_dataset", "extra/output/datasets/cube/0/train.bundle"),
-        ("val_dataset", "extra/output/datasets/cube/0/val.bundle"),
-        ("classifier", f"extra/output/{classifier_bundle('cube', 0, 'beta')}"),
+        ("train_dataset", "output/datasets/cube/0/train.bundle"),
+        ("val_dataset", "output/datasets/cube/0/val.bundle"),
+        ("classifier", f"output/{classifier_bundle('cube', 0, 'beta')}"),
         (
             "pretrained_model",
-            "extra/output/pretrained_models/initializer-cold/shared/"
+            "output/pretrained_models/initializer-cold/shared/"
             "dataset-cube+realization_index-0/pretrain_seed-0/model.bundle",
         ),
     ]
@@ -592,11 +592,11 @@ def test_inputs_link_by_content_hash_and_report_regenerated_bundles(
     assert result.exit_code == 0, result.output
     assert "Inputs no bundle of the release matches" in result.output
     assert (
-        f"classifier extra/output/{EXTERNAL_CLASSIFIER} of {ALPHA_METHOD}"
+        f"classifier output/{EXTERNAL_CLASSIFIER} of {ALPHA_METHOD}"
         in result.output
     )
     assert (
-        f"classifier extra/output/{EXTERNAL_CLASSIFIER} of "
+        f"classifier output/{EXTERNAL_CLASSIFIER} of "
         f"eval_results/{ALPHA_HARD}" in result.output
     )
 
@@ -727,7 +727,7 @@ def restore(tmp_path: Path) -> Result:
             "restore",
             str(tmp_path / "snapshot"),
             "--destination-root",
-            str(tmp_path / "checkout/extra/output"),
+            str(tmp_path / "checkout/output"),
         ],
     )
 
@@ -740,19 +740,17 @@ def test_restore_puts_the_manifest_inside_the_restored_root(
     result = restore(tmp_path)
 
     assert result.exit_code == 0, result.output
-    assert [path.name for path in (tmp_path / "checkout/extra").iterdir()] == [
+    assert [path.name for path in (tmp_path / "checkout").iterdir()] == [
         "output"
     ]
-    restored = tmp_path / "checkout/extra/output/release_manifest.json"
+    restored = tmp_path / "checkout/output/release_manifest.json"
     assert str(restored) in result.output
     assert "2026-10-cube" in result.output
     assert (
         restored.read_bytes()
         == (tmp_path / "snapshot/release_manifest.json").read_bytes()
     )
-    assert (
-        tmp_path / "checkout/extra/output/eval_results" / ALPHA_HARD
-    ).is_file()
+    assert (tmp_path / "checkout/output/eval_results" / ALPHA_HARD).is_file()
     manifest = read_release_manifest(restored)
     assert manifest.scope is ReleaseScope.PARTIAL
     assert manifest.evaluations[0].method_name == "alpha"
@@ -765,9 +763,7 @@ def test_restore_puts_the_job_duration_table_beside_the_manifest(
     write_catalog(source_root, Catalog(methods=[ALPHA]))
     write_job_record(source_root, ALPHA_METHOD_RECORD)
     assert save(tmp_path).exit_code == 0
-    restored = (
-        tmp_path / "checkout/extra/output/release_job_duration_table.parquet"
-    )
+    restored = tmp_path / "checkout/output/release_job_duration_table.parquet"
     restored.parent.mkdir(parents=True)
     restored.write_text("pre-existing")
 
@@ -793,7 +789,7 @@ def test_a_restored_root_saves_as_a_new_release_without_the_old_files(
     write_job_record(tmp_path / "source", ALPHA_METHOD_RECORD)
     assert save(tmp_path).exit_code == 0
     assert restore(tmp_path).exit_code == 0
-    checkout_root = tmp_path / "checkout/extra/output"
+    checkout_root = tmp_path / "checkout/output"
     configfile = write_configfile(tmp_path / "run.yaml")
 
     saved = runner.invoke(
@@ -817,7 +813,7 @@ def test_a_restored_root_saves_as_a_new_release_without_the_old_files(
             "restore",
             str(tmp_path / "rerelease"),
             "--destination-root",
-            str(tmp_path / "fresh/extra/output"),
+            str(tmp_path / "fresh/output"),
         ],
     )
 
@@ -828,7 +824,7 @@ def test_a_restored_root_saves_as_a_new_release_without_the_old_files(
     assert (saved_output / "eval_results" / ALPHA_HARD).is_file()
     assert restored.exit_code == 0, restored.output
     manifest = read_release_manifest(
-        tmp_path / "fresh/extra/output/release_manifest.json"
+        tmp_path / "fresh/output/release_manifest.json"
     )
     assert manifest.release_id == "2026-11-cube"
 
@@ -837,7 +833,7 @@ def test_restore_refuses_an_existing_manifest_and_restores_nothing(
     tmp_path: Path,
 ) -> None:
     save_catalog(tmp_path)
-    existing = tmp_path / "checkout/extra/output/release_manifest.json"
+    existing = tmp_path / "checkout/output/release_manifest.json"
     existing.parent.mkdir(parents=True)
     existing.write_text("pre-existing")
 
@@ -845,7 +841,7 @@ def test_restore_refuses_an_existing_manifest_and_restores_nothing(
 
     assert result.exit_code != 0
     assert existing.read_text() == "pre-existing"
-    assert not (tmp_path / "checkout/extra/output/eval_results").exists()
+    assert not (tmp_path / "checkout/output/eval_results").exists()
 
 
 @pytest.mark.parametrize("version", [2, 99])
@@ -862,7 +858,7 @@ def test_restore_refuses_another_manifest_version(
 
     assert result.exit_code != 0
     assert f"version {version}" in str(result.exception)
-    assert not (tmp_path / "checkout/extra/output").exists()
+    assert not (tmp_path / "checkout/output").exists()
 
 
 def test_save_refuses_an_existing_manifest_and_copies_nothing(

@@ -38,7 +38,9 @@ Single-context repo:
 ├── docs/adr/            ← architecture decision records
 ├── afabench/            ← library code
 ├── scripts/             ← pipeline entry points
-└── extra/               ← configs, workflows, data, outputs
+├── conf/                ← Hydra configs
+├── workflow/            ← Snakemake workflows
+└── data/, logs/, output/ ← generated or miscellaneous files (gitignored)
 ```
 
 ## Use the glossary's vocabulary

@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Relative to the working directory, which the pipeline runs from the
 # repository root. A dataset key without a file here has unit feature costs.
-FEATURE_COSTS_DIR = Path("extra/data/misc/feature_costs")
+FEATURE_COSTS_DIR = Path("data/misc/feature_costs")
 
 type Features = Float[torch.Tensor, "*batch *feature_shape"]
 # MaskedFeatures are similar to Features, but are 0 where FeatureMask is False

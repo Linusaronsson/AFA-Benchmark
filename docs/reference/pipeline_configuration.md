@@ -6,7 +6,7 @@ The whole pipeline is executable with the following command:
 ```shell
 WANDB_PROJECT=afabench \
   uv run snakemake \
-    --profile extra/workflow/profiles/config/all \
+    --profile workflow/profiles/config/all \
     all \
     --jobs 8
 ```
@@ -16,12 +16,12 @@ This will attempt to run 8 jobs in parallel locally on your computer, in order t
 ## Configuration overview
 
 Configuration files are organized into subdirectories under
-`extra/workflow/conf/`. Each subdirectory contains multiple named variants
+`workflow/conf/`. Each subdirectory contains multiple named variants
 (e.g., `all.yaml`, `kdd26.yaml`). The command above uses the
-`extra/workflow/profiles/config/all` profile, which bundles the commonly used
+`workflow/profiles/config/all` profile, which bundles the commonly used
 `all.yaml` config files and the pipeline Snakefile, and runs every job on
-CPU. `extra/workflow/profiles/config/kdd26` bundles the `kdd26.yaml` files
-together with `extra/workflow/conf/execution/kdd26.yaml`, which runs
+CPU. `workflow/profiles/config/kdd26` bundles the `kdd26.yaml` files
+together with `workflow/conf/execution/kdd26.yaml`, which runs
 classifiers, pretrained models and some methods on GPU; it is meant for the
 SLURM command in [Run the pipeline](../how-to/run_the_pipeline.md).
 Below we discuss the meaning of each configuration group.
@@ -65,7 +65,7 @@ A mapping, given in a config file, that declares per job whether it runs on
 `training` and `evaluation`, overrides per method and stage, and overrides
 per named pretrained model. Unspecified stages run on CPU. The resolved choice is both
 the script's `device` argument and, under SLURM, the CPU or GPU allocation.
-`extra/workflow/conf/execution/` holds the shipped declarations. The format,
+`workflow/conf/execution/` holds the shipped declarations. The format,
 from `execution/kdd26.yaml`:
 
 ```yaml
@@ -127,25 +127,25 @@ Enables smoke testing mode, where each script runs as fast as possible while sti
 
 - **Default:** `false`
 - **Example:** `smoke_test=true` for quick validation runs
-- **Note:** A smoke test writes under its own output root, `extra/output/smoke` by default (see [`output_root`](#output_root))
+- **Note:** A smoke test writes under its own output root, `output/smoke` by default (see [`output_root`](#output_root))
 
 ### `output_root`
 
 The output root the run writes all its bundles, evaluation tables, job records, merged results and plots under. A smoke test has its own, so its outputs never satisfy a real run and a real run after a smoke test still runs every job.
 
-- **Default:** `extra/output/production`, or `extra/output/smoke` with `smoke_test=true`
+- **Default:** `output/production`, or `output/smoke` with `smoke_test=true`
 - **Example:** `output_root=/scratch/afabench/output`
-- **Note:** An `output_root` that is, contains or lies inside the other kind of run's default root is a config error, for example `smoke_test=true` with `output_root=extra/output/production`, or `output_root=extra/output`
+- **Note:** An `output_root` that is, contains or lies inside the other kind of run's default root is a config error, for example `smoke_test=true` with `output_root=output/production`, or `output_root=output`
 
 ## Datasets
 
-The `extra/workflow/conf/datasets/` directory contains dataset configuration files. Each file specifies which datasets are used in the pipeline.
+The `workflow/conf/datasets/` directory contains dataset configuration files. Each file specifies which datasets are used in the pipeline.
 
 ## Unmaskers
 
-`extra/workflow/conf/unmaskers/` contains files that map datasets to unmaskers. The values correspond to files in `extra/conf/components/unmasker/`.
+`workflow/conf/unmaskers/` contains files that map datasets to unmaskers. The values correspond to files in `conf/components/unmasker/`.
 
-For example, if `extra/workflow/conf/unmaskers/all.yaml` contains
+For example, if `workflow/conf/unmaskers/all.yaml` contains
 ```yaml
 unmaskers:
   default: direct
@@ -153,7 +153,7 @@ unmaskers:
 ```
 then `imagenette` will use a patch-based unmasker while all other datasets will have the "normal" unmasker that maps actions directly to features.
 
-`extra/conf/components/unmasker/224x224_to_14x14.yaml` contains the details about this specific unmasker:
+`conf/components/unmasker/224x224_to_14x14.yaml` contains the details about this specific unmasker:
 ```yaml
 class_name: "ImagePatchUnmasker"
 kwargs:
@@ -164,9 +164,9 @@ kwargs:
 
 ## Hard budgets
 
-`extra/workflow/conf/eval_hard_budgets/` determines what hard budgets are used for each dataset **during evaluation**. Methods are free to use different budgets during training, see [below](#methods-and-their-soft-budget-parameters).
+`workflow/conf/eval_hard_budgets/` determines what hard budgets are used for each dataset **during evaluation**. Methods are free to use different budgets during training, see [below](#methods-and-their-soft-budget-parameters).
 
-For example, a file in `extra/workflow/conf/eval_hard_budgets/` might contain
+For example, a file in `workflow/conf/eval_hard_budgets/` might contain
 ```yaml
 eval_hard_budgets:
   default: [5, 10, 15]
@@ -179,18 +179,18 @@ Note that the `default` setting is used for all unlisted datasets, and that the 
 ## Methods and their soft-budget parameters
 
 The methods require the most configuration, and use the directories
-- `extra/workflow/conf/methods/`
-- `extra/workflow/conf/method_sets/`
-- `extra/workflow/conf/pretrain_mappings/`
-- `extra/workflow/conf/method_options/`
-- `extra/workflow/conf/soft_budget_params/`
+- `workflow/conf/methods/`
+- `workflow/conf/method_sets/`
+- `workflow/conf/pretrain_mappings/`
+- `workflow/conf/method_options/`
+- `workflow/conf/soft_budget_params/`
 
 `methods/` contains files listing which methods are included in the pipeline.
 
 `method_sets/` contains files that define *method sets*, which group related methods to prevent cluttered plots when visualizing results. Each method set gets its own separate plot.
 
 Some methods require a pretraining stage. For such methods,
-`pretrain_mappings/` provides the mapping to the pretraining script. For example, a file in `extra/workflow/conf/pretrain_mappings/` with contents
+`pretrain_mappings/` provides the mapping to the pretraining script. For example, a file in `workflow/conf/pretrain_mappings/` with contents
 ```yaml
 pretrain_mapping:
   pvae:
@@ -199,7 +199,7 @@ pretrain_mapping:
 ```
 will define a model `pvae` which is produced by the `scripts/pretrain_model/odin.py` script. This can later be reused across different methods.
 
-For example, a file in `extra/workflow/conf/method_options/` contains miscellaneous options for each method. An example configuration:
+For example, a file in `workflow/conf/method_options/` contains miscellaneous options for each method. An example configuration:
 ```yaml
 method_options:
   eddi_external:
@@ -253,7 +253,7 @@ Each error names the method and the key or value at fault:
   `pretrained_model_nme`, or a missing `train_script_name`, is rejected, for
   every entry, whether or not the method is selected.
 - An ignored dataset must be a dataset key, a file in
-  `extra/conf/components/dataset_key/`. It need not be in this run's
+  `conf/components/dataset_key/`. It need not be in this run's
   `datasets`, which only selects what runs.
 - `eval_batch_size`, when a mapping, needs a `default`.
 - A `pretrain_mapping` entry takes only `pretrain_script_name`, which it
@@ -264,11 +264,11 @@ Each error names the method and the key or value at fault:
   `method_options` entry and a `soft_budget_params` entry, and its
   `pretrained_model_name`, if any, must be a key of `pretrain_mapping`.
 
-Lastly, files in `extra/workflow/conf/soft_budget_params/` contain the per-dataset soft-budget parameters for each method. Each soft-budget parameter is represented as a tuple `(train_soft_budget_param, eval_soft_budget_param)`. While the `default` key **can** be used, it is recommended to tune the values for each dataset due to sensitivity issues.
+Lastly, files in `workflow/conf/soft_budget_params/` contain the per-dataset soft-budget parameters for each method. Each soft-budget parameter is represented as a tuple `(train_soft_budget_param, eval_soft_budget_param)`. While the `default` key **can** be used, it is recommended to tune the values for each dataset due to sensitivity issues.
 
 ## Classifiers
 
-During evaluation, we need predictions from an *external* classifier. Files in `extra/workflow/conf/classifier_names/` determine which classifier is used for which dataset. You can edit these mappings to test different classifiers on your datasets. For example,
+During evaluation, we need predictions from an *external* classifier. Files in `workflow/conf/classifier_names/` determine which classifier is used for which dataset. You can edit these mappings to test different classifiers on your datasets. For example,
 ```yaml
 classifier_names:
   default: "masked_mlp_classifier"
@@ -278,7 +278,7 @@ will use a vision transformer for the `imagenette` dataset but a normal `MLP` cl
 
 ## Running specific steps of the pipeline
 
-The whole point of Snakemake is to run jobs maximally parallelized. Still, there might be good reasons for only running specific steps across all methods. For example, perhaps all methods need to be pretrained and trained without being evaluated. For this, we provide various `all_X` rules in `extra/workflow/snakefiles/rules/helpers.smk`. These rules should replace the `all` rule from the command at the beginning of this document.
+The whole point of Snakemake is to run jobs maximally parallelized. Still, there might be good reasons for only running specific steps across all methods. For example, perhaps all methods need to be pretrained and trained without being evaluated. For this, we provide various `all_X` rules in `workflow/snakefiles/rules/helpers.smk`. These rules should replace the `all` rule from the command at the beginning of this document.
 
 The currently available `all_X` rules are:
 
@@ -293,5 +293,5 @@ The currently available `all_X` rules are:
 To use one of these rules, replace `all` with the desired rule name in the command above. For example, to only generate datasets and train classifiers without training methods, use:
 
 ```shell
-uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk all_train_classifiers ...
+uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk all_train_classifiers ...
 ```

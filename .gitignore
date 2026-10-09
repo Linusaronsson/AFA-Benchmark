@@ -179,16 +179,13 @@ cython_debug/
 .pypirc
 
 # Logs
-/extra/logs
-
-# Wandb folders
-/extra/wandb
+/logs
 
 # Everything that the snakefiles produce
-/extra/output
+/output
 
 # Data
-/extra/data
+/data
 
 # Temporary folder for storing intermediate files
 /tmp

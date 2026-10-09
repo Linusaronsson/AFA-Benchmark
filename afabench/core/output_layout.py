@@ -24,8 +24,8 @@ type PathValue = str | int | float
 
 # The output root of a production run, and of a smoke test unless the
 # workflow config's `output_root` says otherwise.
-PRODUCTION_OUTPUT_ROOT = "extra/output/production"
-SMOKE_OUTPUT_ROOT = "extra/output/smoke"
+PRODUCTION_OUTPUT_ROOT = "output/production"
+SMOKE_OUTPUT_ROOT = "output/smoke"
 
 
 def default_output_root(*, smoke_test: bool) -> str:

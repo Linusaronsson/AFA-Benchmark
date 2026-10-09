@@ -50,7 +50,7 @@ The manifest contains essential information for reconstructing the object, optio
         "inputs": [
             {
                 "role": "train_dataset",
-                "path": "extra/output/production/datasets/cube/0/train.bundle",
+                "path": "output/production/datasets/cube/0/train.bundle",
                 "class_name": "CubeDataset",
                 "content_hash": "sha256:9f2c..."
             }

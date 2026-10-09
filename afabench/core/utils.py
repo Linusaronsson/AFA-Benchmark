@@ -67,7 +67,7 @@ def initialize_wandb_run(
         "config": cfg,
         "job_type": job_type,
         "tags": tags,
-        "dir": "extra/logs/wandb",
+        "dir": "logs/wandb",
     }
     if group:
         init_kwargs["group"] = group

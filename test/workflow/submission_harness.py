@@ -36,7 +36,7 @@ class WorkflowHarness:
         self.output = root / (
             SMOKE_OUTPUT_ROOT if smoke_test else PRODUCTION_OUTPUT_ROOT
         )
-        shutil.copytree(REPO_ROOT / "extra/workflow", root / "extra/workflow")
+        shutil.copytree(REPO_ROOT / "workflow", root / "workflow")
         # Cheap enough to run for real, unlike the stubbed stage scripts
         (root / "scripts/misc").mkdir(parents=True)
         shutil.copyfile(
@@ -196,7 +196,7 @@ class WorkflowHarness:
             "--profile",
             "none",
             "--snakefile",
-            "extra/workflow/snakefiles/orchestration/pipeline.smk",
+            "workflow/snakefiles/orchestration/pipeline.smk",
             "--configfile",
             str(config_path),
         ]

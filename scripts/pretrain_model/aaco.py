@@ -10,7 +10,7 @@ from afabench.fit.run import fit_run, save_result
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/pretrain_model/aaco",
+    config_path="../../conf/scripts/pretrain_model/aaco",
     config_name="config",
 )
 def main(cfg: AACOPretrainConfig) -> None:

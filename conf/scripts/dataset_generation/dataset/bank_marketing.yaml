@@ -1,0 +1,3 @@
+class_name: "BankMarketingDataset"
+kwargs:
+  path: "data/misc/bank-marketing.csv"

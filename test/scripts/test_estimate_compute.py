@@ -138,9 +138,7 @@ def test_a_restored_release_table_is_named_by_its_release(
     write_job_record(workflow / "source", ALPHA_METHOD_RECORD)
     assert save(workflow).exit_code == 0
     assert restore(workflow).exit_code == 0
-    table = (
-        workflow / "checkout/extra/output/release_job_duration_table.parquet"
-    )
+    table = workflow / "checkout/output/release_job_duration_table.parquet"
 
     result = estimate("--job-durations", str(table))
 
@@ -159,9 +157,7 @@ def test_a_table_left_from_another_release_is_not_named_by_the_manifest(
     write_job_record(workflow / "source", ALPHA_METHOD_RECORD)
     assert save(workflow).exit_code == 0
     assert restore(workflow).exit_code == 0
-    table = (
-        workflow / "checkout/extra/output/release_job_duration_table.parquet"
-    )
+    table = workflow / "checkout/output/release_job_duration_table.parquet"
     # As a download of another release with --overwrite leaves it
     write_job_duration_table(workflow / PRODUCTION_OUTPUT_ROOT, table)
 

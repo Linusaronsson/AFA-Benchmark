@@ -2,7 +2,7 @@
 
 `release_manifest.json` is written beside a snapshot's `output/` tree by
 `snapshot.py save --release-id` and restored inside the output root, to
-`extra/output/production/release_manifest.json` by default
+`output/production/release_manifest.json` by default
 ([command](snapshot_command.md)). It identifies a benchmark release and
 indexes its artifacts, so that a download can choose what to fetch without
 reading every artifact first. The index is generated from the artifacts'
@@ -169,7 +169,7 @@ Pretrained-model and AFA-method bundles are restored together with the
 
 Bundles are the inference format the evaluator loads. Intermediate training
 checkpoints, such as the Lightning checkpoints of classifier training, are
-written under `extra/logs/`, outside the output root, so they are never in
+written under `logs/`, outside the output root, so they are never in
 a snapshot: they serve resuming or debugging one training run, are not
 loadable by `load_bundle`, and are not a reusable payload.
 
@@ -184,7 +184,7 @@ as `release_job_duration_table.parquet`. It is not the copy the
 `collect_job_records` rule wrote to `merged_results/`, which is only as
 recent as that rule's last run; that copy stays in the output tree like any
 merged table. `restore` and `download` put the table beside the restored
-manifest, at `extra/output/production/release_job_duration_table.parquet`
+manifest, at `output/production/release_job_duration_table.parquet`
 by default.
 
 It lives outside `merged_results/` because the workflow rebuilds
@@ -214,7 +214,7 @@ other folder. Its records are already rows of the job duration table, whose
 
 Being able to generate a dataset bundle grants no right to publish it. Each
 dataset key any record names is recorded in `dataset_redistribution` from the
-maintainers' reviews in `extra/conf/release/dataset_redistribution.yaml` of
+maintainers' reviews in `conf/release/dataset_redistribution.yaml` of
 the checkout. That file ships empty, so every dataset is `unreviewed`, and
 `save`, `restore`, `publish` and `download` print the unreviewed and
 restricted keys. Only a `permitted` dataset's bundles may be published;
@@ -228,7 +228,7 @@ What a dataset bundle holds decides what the review covers:
 - Synthetic datasets (CUBE and its variants, synthetic MNIST) are generated
   by this repository's code; their bundles hold generated tensors.
 - Tabular datasets come from third parties: diabetes, MiniBooNE and
-  PhysioNet from the CSV files in `extra/data/misc/`, ACTG, CKD and bank
+  PhysioNet from the CSV files in `data/misc/`, ACTG, CKD and bank
   marketing from the UCI repository. Their bundles hold the preprocessed
   data itself.
 - MNIST and Fashion-MNIST bundles hold the downloaded data; Imagenette

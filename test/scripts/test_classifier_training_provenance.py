@@ -21,9 +21,7 @@ from afabench.testing.provenance import placeholder_provenance
 from scripts.train_classifier.masked_mlp_classifier import main
 
 REPO_ROOT = Path(__file__).parents[2]
-CONFIG_DIR = (
-    REPO_ROOT / "extra/conf/scripts/train_classifier/masked_mlp_classifier"
-)
+CONFIG_DIR = REPO_ROOT / "conf/scripts/train_classifier/masked_mlp_classifier"
 SEED = 5
 
 

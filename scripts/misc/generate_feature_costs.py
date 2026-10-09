@@ -49,7 +49,7 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--config-dir",
-        default="extra/conf/scripts/dataset_generation/dataset",
+        default="conf/scripts/dataset_generation/dataset",
         help="Directory with dataset generation YAML configs.",
     )
     parser.add_argument(
@@ -62,7 +62,7 @@ def _parse_args() -> argparse.Namespace:
         "--output",
         help=(
             "Output CSV path. Defaults to "
-            "extra/data/misc/feature_costs/{dataset}.csv."
+            "data/misc/feature_costs/{dataset}.csv."
         ),
     )
     parser.add_argument(
@@ -147,7 +147,7 @@ def main() -> None:
     output_path = (
         Path(args.output)
         if args.output is not None
-        else Path("extra/data/misc/feature_costs") / f"{args.dataset}.csv"
+        else Path("data/misc/feature_costs") / f"{args.dataset}.csv"
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savetxt(output_path, costs, delimiter=",", fmt="%.6f")

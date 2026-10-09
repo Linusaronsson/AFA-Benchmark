@@ -16,7 +16,7 @@ from test.workflow.test_compute_estimate_planning import (
 )
 from test.workflow.test_cpu_processing_execution import processing_workflow
 
-# Membership of the retired extra/workflow/conf/methods/gpu.yaml, whose
+# Membership of the retired workflow/conf/methods/gpu.yaml, whose
 # methods were trained and evaluated in the separate GPU invocation.
 FORMER_GPU_METHODS = {
     "jafa",
@@ -27,7 +27,7 @@ FORMER_GPU_METHODS = {
     "eddi_external",
     "dime",
 }
-# Membership of the retired extra/workflow/conf/methods/cpu.yaml.
+# Membership of the retired workflow/conf/methods/cpu.yaml.
 FORMER_CPU_METHODS = {
     "ol_without_mask",
     "ol_with_mask",
@@ -69,13 +69,13 @@ def planned_jobs(output: str) -> list[dict[str, str]]:
 
 # The documented cluster invocations of the two scientific presets.
 CLUSTER_PRESETS = {
-    "kdd26": ["--profile", "extra/workflow/profiles/config/kdd26"],
-    "all": ["--profile", "extra/workflow/profiles/config/all_cluster"],
+    "kdd26": ["--profile", "workflow/profiles/config/kdd26"],
+    "all": ["--profile", "workflow/profiles/config/all_cluster"],
 }
 SMALL_SELECTION = [
     "datasets=[cube]",
     "dataset_realization_indices=[0]",
-    "execution_site_file=extra/workflow/profiles/mixed-gres/site.yaml",
+    "execution_site_file=workflow/profiles/mixed-gres/site.yaml",
 ]
 
 
@@ -90,13 +90,13 @@ def test_cluster_preset_declares_former_six_stage_hardware(
     tmp_path: Path, preset: str, methods: set[str]
 ) -> None:
     workflow = WorkflowHarness(tmp_path)
-    shutil.rmtree(tmp_path / "extra/output/smoke")
+    shutil.rmtree(tmp_path / "output/smoke")
 
     result = workflow.run_invocation(
         CLUSTER_PRESETS[preset],
         "--dry-run",
         "--workflow-profile",
-        "extra/workflow/profiles/mixed-gres",
+        "workflow/profiles/mixed-gres",
         "--config",
         *SMALL_SELECTION,
     )
@@ -129,10 +129,10 @@ def test_cluster_preset_declares_former_six_stage_hardware(
 
 def test_local_all_preset_runs_every_job_on_cpu(tmp_path: Path) -> None:
     workflow = WorkflowHarness(tmp_path)
-    shutil.rmtree(tmp_path / "extra/output/smoke")
+    shutil.rmtree(tmp_path / "output/smoke")
 
     result = workflow.run_invocation(
-        ["--profile", "extra/workflow/profiles/config/all"],
+        ["--profile", "workflow/profiles/config/all"],
         "--dry-run",
         "--config",
         "datasets=[cube]",
@@ -166,7 +166,7 @@ def test_alvis_profile_plans_cuda_methods_and_cpu_processing(
     result = workflow.run(
         "--dry-run",
         "--workflow-profile",
-        str(tmp_path / "extra/workflow/profiles/alvis"),
+        str(tmp_path / "workflow/profiles/alvis"),
         target="all",
     )
 
@@ -195,7 +195,7 @@ REALIZATIONS = ["0", "1"]
 
 def full_benchmark_workflow(root: Path) -> WorkflowHarness:
     workflow = processing_workflow(root)
-    shutil.rmtree(root / "extra/output/smoke")
+    shutil.rmtree(root / "output/smoke")
     workflow.config.update(
         {
             "methods": METHODS,
@@ -329,7 +329,7 @@ def full_graph_run(tmp_path_factory: pytest.TempPathFactory) -> FullGraphRun:
     workflow = full_benchmark_workflow(root)
     result = workflow.run(
         "--workflow-profile",
-        str(root / "extra/workflow/profiles/mixed-gres"),
+        str(root / "workflow/profiles/mixed-gres"),
         "--slurm-init-seconds-before-status-checks",
         "0",
         "--seconds-between-status-checks",
@@ -361,7 +361,7 @@ def test_full_graph_submits_every_job_once(
     assert len(full_graph_run.calls) == len(comments) - 1
     plots = (
         full_graph_run.root
-        / "extra/output/smoke/plot_results/eval_split-test/initializer-cold"
+        / "output/smoke/plot_results/eval_split-test/initializer-cold"
     )
     assert len(list(plots.rglob("fixture.svg"))) == 4
 
@@ -374,7 +374,7 @@ def test_full_graph_plan_matches_its_submissions(
 
     plan = workflow.plan(
         "--workflow-profile",
-        str(tmp_path / "extra/workflow/profiles/mixed-gres"),
+        str(tmp_path / "workflow/profiles/mixed-gres"),
         target="all",
     )
 
@@ -413,7 +413,7 @@ def test_full_graph_job_records_carry_submitted_allocations(
 ) -> None:
     records = [
         json.loads(path.read_text())
-        for path in (full_graph_run.root / "extra/output/smoke").rglob(
+        for path in (full_graph_run.root / "output/smoke").rglob(
             "*.job_record.json"
         )
     ]
@@ -500,7 +500,7 @@ def test_full_graph_preserves_contract_and_shared_prerequisites(
         if script.endswith("pretrain_model/shared.py")
     }
     assert shared == {
-        k: "extra/output/smoke/pretrained_models/initializer-cold/shared/"
+        k: "output/smoke/pretrained_models/initializer-cold/shared/"
         f"dataset-cube+realization_index-{k}/pretrain_seed-{k}/model.bundle"
         for k in REALIZATIONS
     }
@@ -532,7 +532,7 @@ def test_full_graph_trains_classifiers_per_dataset_realization(
     assert set(classifiers) == {
         (
             f"train_classifier/{script}.py",
-            "extra/output/smoke/trained_classifiers/initializer-cold/"
+            "output/smoke/trained_classifiers/initializer-cold/"
             f"{owner}dataset-cube+realization_index-{k}.bundle",
         )
         for script, owner in [
@@ -544,10 +544,10 @@ def test_full_graph_trains_classifiers_per_dataset_realization(
     for args in classifiers.values():
         k = realization_of(args)
         assert args["train_dataset_path"] == (
-            f"extra/output/smoke/datasets/cube/{k}/train.bundle"
+            f"output/smoke/datasets/cube/{k}/train.bundle"
         )
         assert args["val_dataset_path"] == (
-            f"extra/output/smoke/datasets/cube/{k}/val.bundle"
+            f"output/smoke/datasets/cube/{k}/val.bundle"
         )
         assert args["seed"] == k
 
@@ -574,7 +574,7 @@ def test_full_graph_hands_each_stage_its_realizations_classifier(
             else ""
         )
         assert args["classifier_bundle_path"] == (
-            "extra/output/smoke/trained_classifiers/initializer-cold/"
+            "output/smoke/trained_classifiers/initializer-cold/"
             f"{owner}dataset-cube+realization_index-{k}.bundle"
         ), (script, args["save_path"])
 
@@ -591,7 +591,7 @@ def test_cli_config_without_site_file_fails_before_submission(
 
     result = workflow.run(
         "--workflow-profile",
-        "extra/workflow/profiles/mixed-gres",
+        "workflow/profiles/mixed-gres",
         "--config",
         "smoke_test=True",
         target="all_train_methods",
@@ -613,10 +613,10 @@ def test_cli_config_with_repeated_site_file_keeps_site_allocations(
     result = workflow.submit_first_wave(
         2,
         "--workflow-profile",
-        "extra/workflow/profiles/mixed-gres",
+        "workflow/profiles/mixed-gres",
         "--config",
         "smoke_test=True",
-        "execution_site_file=extra/workflow/profiles/mixed-gres/site.yaml",
+        "execution_site_file=workflow/profiles/mixed-gres/site.yaml",
         target="all_train_methods",
     )
 
@@ -654,7 +654,7 @@ def test_cluster_preset_submits_declared_hardware(
     result = workflow.run_invocation(
         CLUSTER_PRESETS[preset],
         "--workflow-profile",
-        "extra/workflow/profiles/mixed-gres",
+        "workflow/profiles/mixed-gres",
         # Submit each dependency wave at once; the plugin waits per wave.
         "--jobs",
         "100",
@@ -708,7 +708,6 @@ def test_local_cpu_smoke_runs_the_same_full_graph(tmp_path: Path) -> None:
             assert args["device"] == "cpu", script
             assert args["smoke_test"] == "True", script
     plots = (
-        tmp_path
-        / "extra/output/smoke/plot_results/eval_split-test/initializer-cold"
+        tmp_path / "output/smoke/plot_results/eval_split-test/initializer-cold"
     )
     assert len(list(plots.rglob("fixture.svg"))) == 4

@@ -64,7 +64,7 @@ compatibility enforcement." The rerun triggers metadata restores are
 exactly that enforcement, pointed in the wrong direction for this
 project's two journeys:
 
-- Every pipeline rule in `extra/workflow/snakefiles/` is a `shell:` rule
+- Every pipeline rule in `workflow/snakefiles/` is a `shell:` rule
   that invokes an external script (`afabench`'s training, evaluation and
   dataset-generation code lives in separate files executed as
   subprocesses, not inlined as Snakemake `run:`/`script:` blocks). For a

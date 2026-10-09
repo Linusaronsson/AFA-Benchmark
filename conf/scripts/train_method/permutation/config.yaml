@@ -1,0 +1,17 @@
+hydra:
+  searchpath:
+    - file://conf
+    - file://conf/components
+    - file://conf/global
+
+defaults:
+  - train_permutation
+  - hydra: custom
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
+  - _self_
+  - optional experiment@_global_: ${dataset_key}
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm

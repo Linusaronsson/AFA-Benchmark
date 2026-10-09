@@ -65,8 +65,8 @@ for a chosen device.
 With the original scientific config files combined in `benchmark.yaml`:
 
 ```sh
-uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
-  --workflow-profile extra/workflow/profiles/mixed-gres \
+uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk \
+  --workflow-profile workflow/profiles/mixed-gres \
   --configfile benchmark.yaml execution.yaml -n -p all_eval_methods
 ```
 

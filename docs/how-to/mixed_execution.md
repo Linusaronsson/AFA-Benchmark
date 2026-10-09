@@ -39,7 +39,7 @@ evaluation need not agree. There is no automatic CPU fallback.
 
 ## Site allocation is separate
 
-Adapt `extra/workflow/profiles/mixed-gres/` or `mixed-gpus/`. Both are illustrative,
+Adapt `workflow/profiles/mixed-gres/` or `mixed-gpus/`. Both are illustrative,
 not verified allocations on any real cluster. The profile passes a scalar
 `execution_site_file` path; its `site.yaml` owns partitions, accounts and GPU
 request syntax. Paths are relative to the invocation working directory; run from
@@ -94,8 +94,8 @@ new portable execution file. For example, with those scientific definitions
 combined in `benchmark.yaml` and the execution mapping in `execution.yaml`:
 
 ```sh
-uv run snakemake -s extra/workflow/snakefiles/orchestration/pipeline.smk \
-  --workflow-profile extra/workflow/profiles/mixed-gres \
+uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk \
+  --workflow-profile workflow/profiles/mixed-gres \
   --configfile benchmark.yaml execution.yaml \
   -n -p all_eval_methods
 ```

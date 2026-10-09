@@ -197,7 +197,7 @@ def test_raw_tables_round_trip_values_nulls_schema_and_histories(
     pq.write_table(table, raw_path)
     save_smoke(tmp_path, source_root)
 
-    destination_root = tmp_path / "checkout/extra/output"
+    destination_root = tmp_path / "checkout/output"
     restore(tmp_path / "snapshot", destination_root)
 
     restored = pq.read_table(destination_root / ALPHA_RAW_TABLE)
@@ -284,7 +284,7 @@ def test_reviewed_datasets_record_the_review_from_the_checkout(
         "reviewed_by": "maintainer",
         "notes": None,
     }
-    review_file = checkout / "extra/conf/release/dataset_redistribution.yaml"
+    review_file = checkout / "conf/release/dataset_redistribution.yaml"
     review_file.parent.mkdir(parents=True)
     review_file.write_text(yaml.safe_dump({"datasets": {"cube": review}}))
 
@@ -362,7 +362,7 @@ def test_release_transport_carries_bundles_and_redistribution_warnings(
     write_catalog(source_root, SMOKE)
     save_smoke(tmp_path, source_root)
     transport = FakeReleaseTransport()
-    destination_root = tmp_path / "checkout/extra/output"
+    destination_root = tmp_path / "checkout/output"
 
     published = runner.invoke(
         app,
@@ -389,7 +389,7 @@ def test_release_transport_carries_bundles_and_redistribution_warnings(
             if file.is_file():
                 assert restored.read_bytes() == file.read_bytes()
     manifest = read_release_manifest(
-        tmp_path / "checkout/extra/output/release_manifest.json"
+        tmp_path / "checkout/output/release_manifest.json"
     )
     assert {TRAIN, ALPHA_METHOD} <= {
         bundle.path for bundle in manifest.bundles

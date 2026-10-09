@@ -12,7 +12,7 @@ def prerequisite_workflow(root: Path) -> WorkflowHarness:
     workflow = WorkflowHarness(root)
     shutil.rmtree(
         root
-        / "extra/output/smoke/trained_classifiers/initializer-cold/dataset-cube+realization_index-0.bundle"
+        / "output/smoke/trained_classifiers/initializer-cold/dataset-cube+realization_index-0.bundle"
     )
     workflow.config["method_options"] = {
         "alpha": {
@@ -293,7 +293,7 @@ def test_independent_prerequisites_submit_once_with_matching_script_devices(
 
     result = workflow.run(
         "--workflow-profile",
-        str(tmp_path / "extra/workflow/profiles" / profile),
+        str(tmp_path / "workflow/profiles" / profile),
         "--slurm-init-seconds-before-status-checks",
         "0",
         "--seconds-between-status-checks",

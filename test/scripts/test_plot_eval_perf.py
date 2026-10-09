@@ -311,7 +311,7 @@ def test_l2m_feature_priors_have_distinct_colors_in_every_scheme() -> None:
         OmegaConf.merge(
             OmegaConf.structured(PlottingDisplayConfig),
             OmegaConf.load(
-                REPO_ROOT / "extra/conf/scripts/plotting/common/default.yaml"
+                REPO_ROOT / "conf/scripts/plotting/common/default.yaml"
             ),
         )
     )

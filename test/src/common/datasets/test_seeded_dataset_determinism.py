@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from afabench.core.types import AFADataset
 
 DATASET_CONFIGS = (
-    Path(__file__).parents[4] / "extra/conf/scripts/dataset_generation/dataset"
+    Path(__file__).parents[4] / "conf/scripts/dataset_generation/dataset"
 )
 # Small enough to keep the test fast; the classes take any sample count.
 N_SAMPLES = 100

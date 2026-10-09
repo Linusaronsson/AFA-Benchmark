@@ -8,7 +8,7 @@ from afabench.datasets.datasets import ImagenetteDataset
 
 def make_imagenette_dataset(indices: list[int]) -> ImagenetteDataset:
     dataset = ImagenetteDataset.__new__(ImagenetteDataset)
-    dataset.data_root = "extra/data/"
+    dataset.data_root = "data/"
     dataset.variant_dir = "imagenette2-320"
     dataset.load_subdirs = ("train",)
     dataset.image_size = 224

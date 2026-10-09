@@ -17,10 +17,10 @@ Issues and specs for this repo live as GitHub issues on
 - **Name datasets by dataset key** (`cube_nm`, `fashion_mnist`,
   `imagenette`, and so on) and methods by pipeline method name
   (`eddi_external`, `odin_model_based`, `ol_with_mask`, and so on) so the
-  issue maps directly onto configs under `extra/workflow/conf/`.
+  issue maps directly onto configs under `workflow/conf/`.
 - **Paper linkage.** The repo accompanies the KDD '26 paper
   (arXiv:2508.14734). The `kdd26` config variants under
-  `extra/workflow/conf/` reproduce the paper; an issue that changes paper
+  `workflow/conf/` reproduce the paper; an issue that changes paper
   results should say so explicitly.
 - **Quality gate.** Every implementation ticket is done only when `just qa`
   passes; say so in acceptance criteria rather than listing individual lint

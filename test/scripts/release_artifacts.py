@@ -154,7 +154,7 @@ def bundle_input(root: Path, role: InputRole, path: str) -> ProvenanceInput:
     manifest = json.loads((root / path / "manifest.json").read_text())
     return ProvenanceInput(
         role=role,
-        path=f"extra/output/{path}",
+        path=f"output/{path}",
         class_name=manifest["class_name"],
         content_hash=manifest.get("content_hash"),
     )

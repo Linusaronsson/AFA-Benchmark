@@ -46,12 +46,12 @@ log = logging.getLogger(__name__)
 
 def _lightning_log_dir(save_path: str) -> Path:
     save_path_parts = Path(save_path).with_suffix("").parts
-    return Path("extra/logs/lightning/train_classifier", *save_path_parts)
+    return Path("logs/lightning/train_classifier", *save_path_parts)
 
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/train_classifier/masked_mlp_classifier",
+    config_path="../../conf/scripts/train_classifier/masked_mlp_classifier",
     config_name="config",
 )
 def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
@@ -143,7 +143,7 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     log_dir = _lightning_log_dir(cfg.save_path)
     log_dir.mkdir(parents=True, exist_ok=True)
     trainer_logger = (
-        WandbLogger(save_dir="extra/logs/wandb")
+        WandbLogger(save_dir="logs/wandb")
         if cfg.use_wandb
         else CSVLogger(save_dir=str(log_dir), name="masked_mlp_classifier")
     )

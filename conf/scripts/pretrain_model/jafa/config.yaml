@@ -1,0 +1,33 @@
+hydra:
+  searchpath:
+    - file://conf
+    - file://conf/components
+    - file://conf/global
+
+defaults:
+  - pretrain_jafa
+  - hydra: custom
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
+  - /components/masked_pretraining@_global_: default
+  - _self_
+  - optional experiment@_global_: ${dataset_key}
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+
+supervised_learning:
+  early_stopping_min_delta: 1e-2
+
+lr: 1e-3
+encoder:
+  output_size: 16 # jafa paper
+  reading_block_cells: [32, 32] # jafa paper
+  writing_block_cells: [32, 32] # not specified by jafa paper, assume it is the same as reading_block_cells
+  memory_size: 16 # jafa paper
+  processing_steps: 5 # original set encoding paper
+  dropout: 0.0
+classifier:
+  num_cells: [32, 32] # jafa paper (cube dataset)

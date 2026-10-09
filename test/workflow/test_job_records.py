@@ -194,7 +194,7 @@ def recorded_run(tmp_path_factory: pytest.TempPathFactory) -> RecordedRun:
     # takes minutes for this graph.
     result = workflow.run(
         "--workflow-profile",
-        str(root / "extra/workflow/profiles/mixed-gres"),
+        str(root / "workflow/profiles/mixed-gres"),
         "--executor",
         "local",
         "--set-resources",
@@ -297,7 +297,7 @@ def test_another_allocation_reruns_no_recorded_job(
     root = recorded_run.workflow.root
     result = recorded_run.workflow.run(
         "--workflow-profile",
-        str(root / "extra/workflow/profiles/mixed-gres"),
+        str(root / "workflow/profiles/mixed-gres"),
         "--executor",
         "local",
         "--dry-run",
@@ -333,7 +333,7 @@ def test_a_real_run_after_a_smoke_run_plans_every_job(
         workflow.config = {**workflow.config, "smoke_test": False}
         result = workflow.run(
             "--workflow-profile",
-            str(workflow.root / "extra/workflow/profiles/mixed-gres"),
+            str(workflow.root / "workflow/profiles/mixed-gres"),
             "--dry-run",
             "--quiet",
             "rules",

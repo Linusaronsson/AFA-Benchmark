@@ -1,0 +1,31 @@
+executor: slurm
+jobs: 9001
+latency-wait: 30 # seconds
+
+default-resources:
+  # slurm_constraint: ICELAKE
+  runtime: 120 # minutes
+  cpus_per_task: 1
+  mem_mb: 4000
+
+set-resources:
+  pretrain_model:
+    runtime: 6000 # 100 hours
+    cpus_per_task: 8
+  train_method:
+    runtime: 6000 # 100 hours
+    cpus_per_task: 8
+  eval_method:
+    runtime: 6000 # 100 hours
+    cpus_per_task: 8
+
+  # Although the merged eval dataframes "only" take up less than 1Gb, opening them can use a lot more
+  split_by_classifier_type:
+    cpus_per_task: 10
+  plot_eval_perf:
+    cpus_per_task: 10
+  plot_eval_actions:
+    cpus_per_task: 10
+
+config:
+  execution_site_file: workflow/profiles/vera/site.yaml

@@ -123,7 +123,7 @@ def generate_and_save_split(
 
 @hydra.main(
     version_base=None,
-    config_path="../../extra/conf/scripts/dataset_generation",
+    config_path="../../conf/scripts/dataset_generation",
     config_name="config",
 )
 def main(cfg: DatasetGenerationConfig) -> None:

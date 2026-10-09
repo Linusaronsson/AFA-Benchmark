@@ -1,0 +1,30 @@
+hydra:
+  searchpath:
+    - file://conf
+    - file://conf/components
+    - file://conf/global
+
+defaults:
+  - eval
+  - hydra: custom
+  - initializer: ???
+  - unmasker: ???
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+  - _self_
+
+method_bundle_path: ???
+# unmasker set as component
+# initializer set as component
+dataset_bundle_path: ???
+save_path: ???
+classifier_bundle_path: null
+seed: null
+device: "cpu"
+eval_only_n_samples: null
+batch_size: 1
+hard_budget: null
+soft_budget_param: null
+use_wandb: false
+smoke_test: false

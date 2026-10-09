@@ -1,3 +1,0 @@
-class_name: "CKDDataset"
-kwargs:
-  path: "extra/data/misc/chronic_kidney_disease.csv"

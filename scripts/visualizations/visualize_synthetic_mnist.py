@@ -148,7 +148,7 @@ def analyze_noise_vs_pattern_from_bundle(bundle_path: Path) -> None:
 
 
 def save_sample_images_from_bundle(
-    bundle_path: Path, save_dir: str = "extra/visualizations/synthetic_mnist"
+    bundle_path: Path, save_dir: str = "visualizations/synthetic_mnist"
 ) -> None:
     """Save sample images to disk for further inspection."""
     save_path = Path(save_dir)
