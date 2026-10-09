@@ -129,7 +129,7 @@ def _are_instances_of(
     )
 
 
-@pytest.mark.pipeline
+@pytest.mark.optional
 def test_context_set_is_validation_instances_drawn_with_the_contract_seed(
     tmp_path: Path,
 ) -> None:
@@ -163,7 +163,7 @@ def test_training_rejects_validation_split_smaller_than_context_set(
         train_l2m(cfg, inputs=load_inputs(cfg))
 
 
-@pytest.mark.pipeline
+@pytest.mark.optional
 def test_training_never_reads_train_labels(tmp_path: Path) -> None:
     dataset = CubeDataset(n_samples=64, seed=0)
     relabelled = CubeDataset(n_samples=64, seed=0)

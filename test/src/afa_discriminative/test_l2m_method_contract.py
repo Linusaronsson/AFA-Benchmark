@@ -38,33 +38,53 @@ def _make_method() -> L2MAFAMethod:
 
 def test_l2m_act_excludes_performed_selections_without_stop() -> None:
     method = _make_method()
-    with torch.no_grad():
-        method.model.policy_head.weight.zero_()
-        method.model.policy_head.bias.copy_(torch.tensor([9.0, 5.0, 1.0]))
-    features = torch.zeros(2, 3)
-    mask = torch.zeros(2, 3, dtype=torch.bool)
-    performed = torch.tensor([[True, False, False], [True, True, False]])
+    # Every selection mask over three features with a selection left.
+    performed = torch.tensor(
+        [
+            [False, False, False],
+            [True, False, False],
+            [False, True, False],
+            [False, False, True],
+            [True, True, False],
+            [True, False, True],
+            [False, True, True],
+        ]
+    )
+    features = torch.randn(
+        len(performed), 3, generator=torch.Generator().manual_seed(0)
+    )
+    mask = torch.zeros_like(performed)
 
-    actions = method.act(features, mask, selection_mask=performed)
+    actions = method.act(features, mask, selection_mask=performed).squeeze(-1)
 
-    assert torch.equal(actions, torch.tensor([[2], [3]]))
+    # Action k selects feature k - 1; action 0 would stop.
+    assert torch.all((actions >= 1) & (actions <= 3))
+    assert not performed.gather(1, (actions - 1).unsqueeze(-1)).any()
+    # Where one selection is left, act must make it.
+    assert torch.equal(actions[4:], torch.tensor([3, 2, 1]))
 
 
-def test_l2m_predict_returns_binary_logits_and_ignores_query_labels() -> None:
+def test_l2m_predict_returns_classifier_logits_and_ignores_query_labels() -> (
+    None
+):
     method = _make_method()
-    with torch.no_grad():
-        method.model.classifier_head.weight.zero_()
-        method.model.classifier_head.bias.copy_(torch.tensor([-3.0, 2.0]))
-    features = torch.zeros(2, 3)
-    mask = torch.zeros_like(features, dtype=torch.bool)
+    features = torch.tensor([[0.5, 0.0, -1.0], [0.0, 2.0, 0.0]])
+    mask = features != 0
 
     prediction = method.predict(features, mask, label=torch.eye(2))
 
     assert method.has_builtin_classifier
     assert method.output_kind == "logits"
-    torch.testing.assert_close(
-        prediction, torch.tensor([[-3.0, 2.0], [-3.0, 2.0]])
-    )
+    torch.testing.assert_close(prediction, method.predict(features, mask))
+    # The model's classifier logits for the queries after the context set.
+    with torch.no_grad():
+        expected, _ = method.model(
+            torch.cat((method.context_features, features)),
+            torch.cat((torch.ones(2, 3, dtype=torch.bool), mask)),
+            torch.cat((method.context_labels, torch.eye(2))),
+            n_context=2,
+        )
+    torch.testing.assert_close(prediction, expected)
 
 
 def test_l2m_query_batching_does_not_change_actions_or_predictions() -> None:
