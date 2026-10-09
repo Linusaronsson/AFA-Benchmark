@@ -123,7 +123,8 @@ _Avoid_: Algorithm, model, approach
 **Action**:
 The policy's output at a time step: either stop, or a request to reveal one
 feature group. Action 0 is stop; action i > 0 is selection i - 1.
-_Avoid_: Query, move, decision
+_Avoid_: Query (alone; a query instance is an instance, not an action),
+move, decision
 
 **Stop action**:
 The action that ends the episode and triggers the final prediction.
@@ -229,11 +230,22 @@ term)
 
 **Task prior**:
 The distribution that an in-context method's fit stages draw their
-training tasks from: a feature distribution together with a labelling
-function. The features may be real instances of a dataset or synthetic;
-the labelling function is always synthetic.
+training tasks from: a feature source together with a labelling function.
+The feature source may be real or synthetic; the labelling function is
+always synthetic.
 _Avoid_: Pretraining prior, synthetic prior (ambiguous about which half is
 synthetic), BNN prior (one choice of labelling function)
+
+**Feature source**:
+The feature distribution of a task prior: either **real**, instances drawn
+from the pretraining pool, or **synthetic**, uniform draws from a fixed
+box of feature values (the **uniform box**).
+_Avoid_: Feature prior (survives only in method names)
+
+**Pretraining pool**:
+The train-split instances that a real feature source draws its instances
+from. Only their features are used; their labels are discarded.
+_Avoid_: Pretraining set, pretraining data
 
 **Context set**:
 The fixed set of labelled instances that an in-context method receives at
@@ -242,6 +254,11 @@ validation split, so it is disjoint from the pretraining pool and from the
 evaluated instances.
 _Avoid_: Context (alone; CUBE-NM has a context feature), historical data,
 shots, support set
+
+**Query instance**:
+An instance that an in-context method acts on and predicts for at
+evaluation, as opposed to the context set it conditions on.
+_Avoid_: Query (alone; reads as an action), test point
 
 ### Datasets
 
