@@ -169,3 +169,17 @@ def test_rejects_a_label_shape_with_fewer_than_two_classes() -> None:
             label_shape=torch.Size([1]),
             seed=0,
         )
+
+
+def test_rejects_a_task_shorter_than_one_context_instance_and_one_query() -> (
+    None
+):
+    with pytest.raises(ValueError, match="sequence_length=1"):
+        sample_task(
+            "synthetic",
+            n_features=3,
+            sequence_length=1,
+            label_shape=torch.Size([2]),
+            missingness_cap=0.5,
+            seed=0,
+        )

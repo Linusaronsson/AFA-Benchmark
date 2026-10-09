@@ -87,8 +87,11 @@ def sample_task(
     module docstring), defaulting to the paper's 0.5. A cap of 0 leaves
     every feature observed.
     """
-    if sequence_length < 1:
-        msg = f"sequence_length={sequence_length} must be at least 1"
+    if sequence_length < 2:
+        msg = (
+            f"sequence_length={sequence_length} must be at least 2, "
+            "for one context instance and one query"
+        )
         raise ValueError(msg)
     if not 0.0 <= missingness_cap <= 1.0:
         msg = f"missingness_cap={missingness_cap} must be in [0, 1]"
@@ -154,7 +157,7 @@ def _sample_features(
 def _sample_bnn_labels(
     features: TaskFeatures, n_classes: int, generator: torch.Generator
 ) -> TaskLabels:
-    sequence_length, n_features = features.shape
+    n_features = features.shape[1]
 
     n_clusters = int(
         torch.randint(
@@ -167,11 +170,10 @@ def _sample_bnn_labels(
     # Cluster centers are drawn around the task's own feature statistics,
     # so the Gaussian is well-scaled whether features come from the real
     # pool or the synthetic box (paper does not parameterize the Gaussian).
-    center_mean = features.mean(dim=0)
-    center_std = features.std(dim=0) if sequence_length > 1 else None
-    if center_std is None or bool((center_std == 0).all()):
-        center_std = torch.ones(n_features)
-    centers = center_mean + center_std * torch.randn(
+    # A constant feature puts every center at its value, so it does not
+    # separate clusters; if every feature is constant, all instances fall
+    # in the first cluster.
+    centers = features.mean(dim=0) + features.std(dim=0) * torch.randn(
         n_clusters, n_features, generator=generator
     )
     cluster_ids = torch.cdist(features, centers).argmin(dim=-1)
