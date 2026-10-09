@@ -11,7 +11,11 @@ from typing import Self, override
 
 import torch
 
-from afabench.components.methods.discriminative.l2m.models import L2MModel
+from afabench.components.methods.discriminative.l2m.models import (
+    ClassifierLogits,
+    L2MModel,
+    PolicyLogits,
+)
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.types import (
     AFAAction,
@@ -121,7 +125,7 @@ class L2MAFAMethod(AFAMethod):
 
     def _query_logits(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[ClassifierLogits, PolicyLogits]:
         if (
             masked_features.ndim != 2
             or masked_features.shape[1] != self.model.n_features

@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 import torch
+from jaxtyping import Float
 
 from afabench.components.methods.discriminative.l2m.models import (
     TaskFeatures,
@@ -26,6 +27,10 @@ from afabench.components.methods.discriminative.l2m.models import (
     TaskMask,
 )
 from afabench.core.types import Features
+
+type LabelLogits = Float[torch.Tensor, "sequence n_classes"]
+type UniformDraw = Float[torch.Tensor, "*shape"]
+type Prevalence = Float[torch.Tensor, ""]
 
 
 class FeatureSource(StrEnum):
@@ -78,7 +83,7 @@ def sample_task(
     n_features: int,
     sequence_length: int,
     label_shape: torch.Size,
-    missingness_cap: float = 0.5,
+    missingness_cap: float,
     feature_pool: Features | None = None,
     seed: int,
 ) -> Task:
@@ -89,9 +94,8 @@ def sample_task(
     (`l2m_real_feature_prior`) or the uniform box on [-2, 2]
     (`l2m_synthetic_feature_prior`). Real-pool tasks draw instances
     without replacement within the task. `missingness_cap`
-    bounds the per-feature MCAR missing rate (maintainer decision; see the
-    module docstring), defaulting to the paper's 0.5. A cap of 0 leaves
-    every feature observed.
+    bounds the per-feature MCAR missing rate (see the module docstring). A
+    cap of 0 leaves every feature observed.
     """
     if sequence_length < 2:
         msg = (
@@ -235,14 +239,14 @@ def _uniform(
     shape: tuple[int, ...],
     bounds: tuple[float, float],
     generator: torch.Generator,
-) -> torch.Tensor:
+) -> UniformDraw:
     low, high = bounds
     return low + (high - low) * torch.rand(shape, generator=generator)
 
 
 def _shift_to_match_prevalence(
-    logits: torch.Tensor, prevalence: torch.Tensor
-) -> torch.Tensor:
+    logits: LabelLogits, prevalence: Prevalence
+) -> LabelLogits:
     """Bisect for the bias on logit 1 whose mean sigmoid hits `prevalence`."""
     diff = logits[:, 1] - logits[:, 0]
     low = torch.full((), -_PREVALENCE_BIAS_RADIUS)

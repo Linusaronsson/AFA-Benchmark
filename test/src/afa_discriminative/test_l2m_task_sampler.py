@@ -51,6 +51,7 @@ def test_labels_have_the_configured_label_shape() -> None:
         n_features=4,
         sequence_length=10,
         label_shape=torch.Size([5]),
+        missingness_cap=0.5,
         seed=0,
     )
 
@@ -119,6 +120,7 @@ def test_real_feature_source_requires_a_feature_pool() -> None:
             n_features=3,
             sequence_length=4,
             label_shape=torch.Size([2]),
+            missingness_cap=0.5,
             seed=0,
         )
 
@@ -130,6 +132,7 @@ def test_synthetic_feature_source_rejects_a_feature_pool() -> None:
             n_features=3,
             sequence_length=4,
             label_shape=torch.Size([2]),
+            missingness_cap=0.5,
             feature_pool=torch.zeros(5, 3),
             seed=0,
         )
@@ -144,6 +147,7 @@ def test_real_feature_source_rejects_a_pool_smaller_than_the_sequence() -> (
             n_features=3,
             sequence_length=4,
             label_shape=torch.Size([2]),
+            missingness_cap=0.5,
             feature_pool=torch.zeros(3, 3),
             seed=0,
         )
@@ -168,6 +172,7 @@ def test_rejects_a_label_shape_with_fewer_than_two_classes() -> None:
             n_features=3,
             sequence_length=4,
             label_shape=torch.Size([1]),
+            missingness_cap=0.5,
             seed=0,
         )
 

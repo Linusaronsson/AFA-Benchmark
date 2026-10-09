@@ -50,7 +50,10 @@ from afabench.components.methods.discriminative.l2m.config import (
 from afabench.components.methods.discriminative.l2m.fit_loop import (
     fit_on_task_prior,
 )
-from afabench.components.methods.discriminative.l2m.models import L2MModel
+from afabench.components.methods.discriminative.l2m.models import (
+    L2MModel,
+    PolicyLogits,
+)
 from afabench.components.methods.discriminative.l2m.task_batches import (
     TaskBatch,
 )
@@ -217,7 +220,7 @@ def _one_step_loss(
 
 
 def _straight_through_gumbel_softmax(
-    logits: QueryActions,
+    logits: PolicyLogits,
     *,
     temperature: float,
     generator: torch.Generator | None,

@@ -39,11 +39,11 @@ class L2MModel(nn.Module):
         n_features: int,
         n_classes: int,
         *,
-        model_dim: int = 256,
-        embedding_depth: int = 4,
-        n_layers: int = 6,
-        n_heads: int = 4,
-        feedforward_dim: int = 512,
+        model_dim: int,
+        embedding_depth: int,
+        n_layers: int,
+        n_heads: int,
+        feedforward_dim: int,
     ) -> None:
         super().__init__()
         self.architecture: dict[str, int] = {
