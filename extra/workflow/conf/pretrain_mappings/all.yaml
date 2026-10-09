@@ -36,6 +36,14 @@ pretrain_mapping:
     pretrain_script_name: "dime"
     pretrain_params: []
 
+  l2m_real_feature_prior:
+    pretrain_script_name: "l2m"
+    pretrain_params: ["feature_source=real"]
+
+  l2m_synthetic_feature_prior:
+    pretrain_script_name: "l2m"
+    pretrain_params: ["feature_source=synthetic"]
+
   # Example: If you need a variant with specific parameters
   # pvae_custom:
   #   pretrain_script_name: "odin"
