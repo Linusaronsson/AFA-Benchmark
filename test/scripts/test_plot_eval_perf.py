@@ -4,9 +4,15 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from omegaconf import OmegaConf
 
 from afabench.plotting.config import PlottingDisplayConfig
-from scripts.plotting.plot_eval_perf import EvaluationPlotter
+from scripts.plotting.plot_eval_perf import (
+    EvaluationPlotter,
+    get_method_color_mapping,
+)
+
+REPO_ROOT = Path(__file__).parents[2]
 
 # The (ddof=1) standard deviation of two values `d` apart is d * SQRT_HALF
 SQRT_HALF = 0.5**0.5
@@ -298,3 +304,24 @@ def test_caption_labels_every_plot(
     # Matplotlib keeps each text of an SVG as a comment beside its glyphs.
     for plot in plots:
         assert f"<!-- {caption} -->" in plot.read_text(), plot.name
+
+
+def test_l2m_feature_priors_have_distinct_colors_in_every_scheme() -> None:
+    display = OmegaConf.to_object(
+        OmegaConf.merge(
+            OmegaConf.structured(PlottingDisplayConfig),
+            OmegaConf.load(
+                REPO_ROOT / "extra/conf/scripts/plotting/common/default.yaml"
+            ),
+        )
+    )
+    assert isinstance(display, PlottingDisplayConfig)
+
+    for scheme in display.method_family_color_schemes:
+        colors = get_method_color_mapping(
+            replace(display, active_method_color_scheme=scheme)
+        )
+        assert (
+            colors["l2m_real_feature_prior"]
+            != colors["l2m_synthetic_feature_prior"]
+        ), scheme
