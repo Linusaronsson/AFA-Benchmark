@@ -8,7 +8,7 @@ from afabench.components.methods.discriminative.l2m.task_sampler import (
 )
 
 
-def test_real_feature_source_draws_rows_of_the_pool() -> None:
+def test_real_feature_source_draws_instances_of_the_pool() -> None:
     pool = torch.arange(5 * 3, dtype=torch.float32).reshape(5, 3)
 
     task = sample_task(
@@ -22,12 +22,11 @@ def test_real_feature_source_draws_rows_of_the_pool() -> None:
     )
 
     assert task.features.shape == (4, 3)
-    pool_rows = {tuple(row.tolist()) for row in pool}
-    for row in task.features:
-        assert tuple(row.tolist()) in pool_rows
+    pool_instances = {tuple(instance.tolist()) for instance in pool}
+    instances = [tuple(instance.tolist()) for instance in task.features]
+    assert set(instances) <= pool_instances
     # Without replacement within a task.
-    rows = [tuple(row.tolist()) for row in task.features]
-    assert len(set(rows)) == len(rows)
+    assert len(set(instances)) == len(instances)
 
 
 def test_synthetic_feature_source_stays_within_the_uniform_box() -> None:

@@ -80,7 +80,7 @@ def _config(
         sequence_length=12,
         batch_size=2,
         n_steps=2,
-        selector_lr=1e-3,
+        policy_lr=1e-3,
         backbone_lr=1e-4,
         temperature=0.1,
         checkpoint_interval=1,
@@ -118,15 +118,19 @@ def test_training_returns_method_without_saving_and_bundle_keeps_context(
     )
 
 
-def _rows_of(matrix: torch.Tensor, rows: torch.Tensor) -> bool:
+def _are_instances_of(
+    instances: torch.Tensor, dataset_instances: torch.Tensor
+) -> bool:
     return all(
-        any(torch.equal(row, candidate) for candidate in matrix)
-        for row in rows
+        any(
+            torch.equal(instance, candidate) for candidate in dataset_instances
+        )
+        for instance in instances
     )
 
 
 @pytest.mark.pipeline
-def test_context_set_is_validation_rows_drawn_with_the_contract_seed(
+def test_context_set_is_validation_instances_drawn_with_the_contract_seed(
     tmp_path: Path,
 ) -> None:
     val_dataset = CubeDataset(n_samples=32, seed=1)
@@ -137,9 +141,9 @@ def test_context_set_is_validation_rows_drawn_with_the_contract_seed(
         cfg = _config(tmp_path / name, val_dataset=val_dataset, seed=seed)
         method = train_l2m(cfg, inputs=load_inputs(cfg))
         context_sets[name] = (method.context_features, method.context_labels)
-        assert _rows_of(
-            torch.cat((val_features, val_labels), dim=1),
+        assert _are_instances_of(
             torch.cat(context_sets[name], dim=1),
+            torch.cat((val_features, val_labels), dim=1),
         )
 
     assert torch.equal(context_sets["a"][0], context_sets["b"][0])

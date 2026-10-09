@@ -79,9 +79,10 @@ def sample_task(
     """
     Draw one reproducible task from the task prior (paper A.5.2, A.5.3).
 
-    `feature_source` selects real pool rows (`l2m_real_feature_prior`) or
-    the uniform box on [-2, 2] (`l2m_synthetic_feature_prior`). Real-pool
-    tasks draw rows without replacement within the task. `missingness_cap`
+    `feature_source` selects instances of the real pool
+    (`l2m_real_feature_prior`) or the uniform box on [-2, 2]
+    (`l2m_synthetic_feature_prior`). Real-pool tasks draw instances
+    without replacement within the task. `missingness_cap`
     bounds the per-feature MCAR missing rate (maintainer decision; see the
     module docstring), defaulting to the paper's 0.5. A cap of 0 leaves
     every feature observed.
@@ -135,9 +136,9 @@ def _sample_features(
             raise ValueError(msg)
         if feature_pool.shape[0] < sequence_length:
             msg = (
-                f"feature_pool has {feature_pool.shape[0]} rows, fewer "
-                f"than sequence_length={sequence_length}; a task draws "
-                "rows without replacement"
+                f"feature_pool has {feature_pool.shape[0]} instances, "
+                f"fewer than sequence_length={sequence_length}; a task "
+                "draws instances without replacement"
             )
             raise ValueError(msg)
         indices = torch.randperm(feature_pool.shape[0], generator=generator)

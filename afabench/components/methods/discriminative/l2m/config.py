@@ -49,7 +49,7 @@ class L2MTrainingConfig(TrainingContract):
     n_steps: int
     # Policy head learning rate, and the lower one of the backbone and the
     # built-in classifier it is fine-tuned with.
-    selector_lr: float
+    policy_lr: float
     backbone_lr: float
     # Fixed straight-through Gumbel-softmax temperature.
     temperature: float

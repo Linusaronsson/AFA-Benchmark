@@ -107,7 +107,7 @@ def train_l2m(
         )
         raise ValueError(msg)
     optimizer = _two_rate_optimizer(
-        model, selector_lr=cfg.selector_lr, backbone_lr=cfg.backbone_lr
+        model, policy_lr=cfg.policy_lr, backbone_lr=cfg.backbone_lr
     )
 
     best_loss = torch.inf
@@ -207,14 +207,14 @@ def _check_config(cfg: L2MTrainingConfig, inputs: FitInputs) -> None:
 
 
 def _two_rate_optimizer(
-    model: L2MModel, *, selector_lr: float, backbone_lr: float
+    model: L2MModel, *, policy_lr: float, backbone_lr: float
 ) -> torch.optim.Optimizer:
-    """Adam: the policy head at `selector_lr`, the rest at `backbone_lr`."""
+    """Adam: the policy head at `policy_lr`, the rest at `backbone_lr`."""
     policy_parameters = list(model.policy_head.parameters())
     policy_parameter_ids = {id(parameter) for parameter in policy_parameters}
     return torch.optim.Adam(
         [
-            {"params": policy_parameters, "lr": selector_lr},
+            {"params": policy_parameters, "lr": policy_lr},
             {
                 "params": [
                     parameter

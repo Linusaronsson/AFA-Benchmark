@@ -193,7 +193,7 @@ class L2MAFAMethod(AFAMethod):
                     f"match policy logits shape {logits.shape}"
                 )
                 raise ValueError(msg)
-            # Evaluation removes stopped rows, not exhausted rows. Require
+            # Evaluation removes stopped instances, not exhausted ones. Require
             # a sub-full hard budget instead of repeating a selection.
             if performed.all(dim=-1).any():
                 msg = (
