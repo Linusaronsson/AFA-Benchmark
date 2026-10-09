@@ -89,8 +89,8 @@ def test_pretraining_returns_model_without_saving(
     mask = torch.rand(5, result.n_features) < 0.5
     labels = torch.eye(result.n_classes)[torch.tensor([0, 1, 2, 0, 0])]
     with torch.no_grad():
-        expected = result(features, mask, labels, n_context=3)
-        actual = restored(features, mask, labels, n_context=3)
+        expected = result(features, mask, labels, context_set_size=3)
+        actual = restored(features, mask, labels, context_set_size=3)
     assert torch.equal(actual[0], expected[0])
     assert torch.equal(actual[1], expected[1])
 

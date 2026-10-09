@@ -13,8 +13,8 @@ Choices where the paper is ambiguous, or where this port departs from it:
   forward pass rather than one per mask size: a size drawn uniformly from
   none to all of the query's retrospectively available features, then a
   uniformly random subset of that size.
-- The paper sums the loss over context sizes using training-only target
-  points. Here each step draws one context size, uniform on 1 to
+- The paper sums the loss over context set sizes using training-only target
+  points. Here each step draws one context set size, uniform on 1 to
   `sequence_length - 1` and shared by the step's tasks, and the remaining
   instances are queries. The loss is the cross-entropy averaged over the
   step's queries.
@@ -87,9 +87,12 @@ def pretrain_l2m(
 def _query_loss(model: L2MModel, batch: TaskBatch) -> torch.Tensor:
     batch = batch.to(model.device)
     logits, _ = model(
-        batch.features, batch.mask, batch.labels, n_context=batch.n_context
+        batch.features,
+        batch.mask,
+        batch.labels,
+        context_set_size=batch.context_set_size,
     )
-    targets = batch.labels[:, batch.n_context :].argmax(dim=-1)
+    targets = batch.labels[:, batch.context_set_size :].argmax(dim=-1)
     return F.cross_entropy(logits.flatten(0, 1), targets.flatten())
 
 

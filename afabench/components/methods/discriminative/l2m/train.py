@@ -183,9 +183,13 @@ def _one_step_loss(
     """
     batch = batch.to(model.device)
     features, mask, labels = batch.features, batch.mask, batch.labels
-    n_context = batch.n_context
-    _, policy_logits = model(features, mask, labels, n_context=n_context)
-    selectable = batch.available[:, n_context:] & ~mask[:, n_context:]
+    context_set_size = batch.context_set_size
+    _, policy_logits = model(
+        features, mask, labels, context_set_size=context_set_size
+    )
+    selectable = (
+        batch.available[:, context_set_size:] & ~mask[:, context_set_size:]
+    )
     has_selection = selectable.any(dim=-1)
     # Queries without a selection get a harmless uniform policy and are
     # weighted out of the loss below.
@@ -202,17 +206,17 @@ def _one_step_loss(
         )
     acquired_mask = torch.cat(
         (
-            mask[:, :n_context].to(features.dtype),
-            mask[:, n_context:].to(features.dtype) + action,
+            mask[:, :context_set_size].to(features.dtype),
+            mask[:, context_set_size:].to(features.dtype) + action,
         ),
         dim=1,
     )
     classifier_logits, _ = model(
-        features, acquired_mask, labels, n_context=n_context
+        features, acquired_mask, labels, context_set_size=context_set_size
     )
     query_losses = F.cross_entropy(
         classifier_logits.flatten(0, 1),
-        labels[:, n_context:].argmax(dim=-1).flatten(),
+        labels[:, context_set_size:].argmax(dim=-1).flatten(),
         reduction="none",
     )
     weights = has_selection.flatten().to(query_losses.dtype)

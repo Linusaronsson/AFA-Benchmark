@@ -117,7 +117,7 @@ class L2MModel(nn.Module):
         mask: TaskMask,
         labels: TaskLabels,
         *,
-        n_context: int,
+        context_set_size: int,
     ) -> tuple[ClassifierLogits, PolicyLogits]:
         if (
             features.ndim not in (2, 3)
@@ -139,9 +139,9 @@ class L2MModel(nn.Module):
             msg = f"labels shape {labels.shape} must be {expected_labels}"
             raise ValueError(msg)
         sequence_length = features.shape[-2]
-        if not 1 <= n_context < sequence_length:
+        if not 1 <= context_set_size < sequence_length:
             msg = (
-                f"n_context={n_context} must be between 1 and "
+                f"context_set_size={context_set_size} must be between 1 and "
                 f"sequence length minus one ({sequence_length - 1})"
             )
             raise ValueError(msg)
@@ -152,8 +152,8 @@ class L2MModel(nn.Module):
             labels = labels.unsqueeze(0)
         encoded_labels = torch.cat(
             (
-                labels[:, :n_context],
-                torch.zeros_like(labels[:, n_context:]),
+                labels[:, :context_set_size],
+                torch.zeros_like(labels[:, context_set_size:]),
             ),
             dim=1,
         )
@@ -173,8 +173,10 @@ class L2MModel(nn.Module):
             dtype=torch.bool,
             device=features.device,
         )
-        attention_mask[:, :n_context] = False
-        queries = self.encoder(embedded, mask=attention_mask)[:, n_context:]
+        attention_mask[:, :context_set_size] = False
+        queries = self.encoder(embedded, mask=attention_mask)[
+            :, context_set_size:
+        ]
         classifier_logits = self.classifier_head(queries)
         policy_logits = self.policy_head(queries)
         if unbatched:

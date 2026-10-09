@@ -48,7 +48,7 @@ class TaskBatch:
     mask: TaskMask
     labels: TaskLabels
     available: AvailableFeatures
-    n_context: int
+    context_set_size: int
 
     def to(self, device: torch.device) -> Self:
         return replace(
@@ -73,7 +73,7 @@ def draw_task_batch(
     keep_one_unacquired: bool = False,
 ) -> TaskBatch:
     """
-    Draw `n_tasks` tasks with one context size, uniform on 1 to N - 1.
+    Draw `n_tasks` tasks with one context set size, uniform on 1 to N - 1.
 
     With `keep_one_unacquired`, a query never has every available feature
     acquired, so the policy stage always has a selection to make.
@@ -91,14 +91,16 @@ def draw_task_batch(
         for _ in range(n_tasks)
     ]
     available = torch.stack([task.feature_mask for task in tasks]).bool()
-    n_context = int(torch.randint(1, sequence_length, (), generator=generator))
+    context_set_size = int(
+        torch.randint(1, sequence_length, (), generator=generator)
+    )
     return TaskBatch(
         features=torch.stack([task.features for task in tasks]),
         mask=torch.cat(
             (
-                available[:, :n_context],
+                available[:, :context_set_size],
                 random_acquisition_mask(
-                    available[:, n_context:],
+                    available[:, context_set_size:],
                     generator,
                     keep_one_unacquired=keep_one_unacquired,
                 ),
@@ -107,7 +109,7 @@ def draw_task_batch(
         ),
         labels=torch.stack([task.labels for task in tasks]),
         available=available,
-        n_context=n_context,
+        context_set_size=context_set_size,
     )
 
 

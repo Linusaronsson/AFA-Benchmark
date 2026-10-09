@@ -82,7 +82,7 @@ def test_l2m_predict_returns_classifier_logits_and_ignores_query_labels() -> (
             torch.cat((method.context_features, features)),
             torch.cat((torch.ones(2, 3, dtype=torch.bool), mask)),
             torch.cat((method.context_labels, torch.eye(2))),
-            n_context=2,
+            context_set_size=2,
         )
     torch.testing.assert_close(prediction, expected)
 
@@ -176,7 +176,7 @@ def test_l2m_model_batch_of_tasks_preserves_mask_gradients() -> None:
     mask.requires_grad_()
     labels = torch.tensor([[[1.0, 0.0], [0.0, 1.0], [1.0, 0.0]]] * 2)
 
-    classifier, policy = model(features, mask, labels, n_context=2)
+    classifier, policy = model(features, mask, labels, context_set_size=2)
     assert classifier.shape == (2, 1, 2)
     assert policy.shape == (2, 1, 3)
     torch.nn.functional.cross_entropy(
@@ -196,7 +196,7 @@ def test_l2m_model_context_order_and_query_labels_do_not_leak() -> None:
     )
     mask = torch.tensor([[True, True, True]] * 2 + [[True, False, False]])
     labels = torch.tensor([[1.0, 0.0], [0.0, 1.0], [1.0, 0.0]])
-    classifier, policy = model(features, mask, labels, n_context=2)
+    classifier, policy = model(features, mask, labels, context_set_size=2)
 
     permuted = torch.tensor([1, 0, 2])
     reordered_labels = labels[permuted].clone()
@@ -204,7 +204,10 @@ def test_l2m_model_context_order_and_query_labels_do_not_leak() -> None:
     reordered_features = features[permuted].clone()
     reordered_features[-1, 1:] = 500  # Unobserved values must be ignored.
     reordered_classifier, reordered_policy = model(
-        reordered_features, mask[permuted], reordered_labels, n_context=2
+        reordered_features,
+        mask[permuted],
+        reordered_labels,
+        context_set_size=2,
     )
 
     torch.testing.assert_close(classifier, reordered_classifier)
@@ -233,27 +236,29 @@ def test_l2m_model_bundle_rebuilds_architecture_and_both_heads(
 
     assert isinstance(restored, L2MModel)
     assert restored.architecture == model.architecture
-    classifier, policy = restored(features, mask, labels, n_context=1)
+    classifier, policy = restored(features, mask, labels, context_set_size=1)
     assert classifier.shape == (1, 4)
     assert policy.shape == (1, 3)
     expected_classifier, expected_policy = model(
-        features, mask, labels, n_context=1
+        features, mask, labels, context_set_size=1
     )
     assert torch.equal(classifier, expected_classifier)
     assert torch.equal(policy, expected_policy)
 
 
-@pytest.mark.parametrize("n_context", [-1, 0, 3, 4])
+@pytest.mark.parametrize("context_set_size", [-1, 0, 3, 4])
 def test_l2m_model_requires_nonempty_context_and_queries(
-    n_context: int,
+    context_set_size: int,
 ) -> None:
     model = _make_model()
-    with pytest.raises(ValueError, match=f"n_context={n_context}"):
+    with pytest.raises(
+        ValueError, match=f"context_set_size={context_set_size}"
+    ):
         model(
             torch.zeros(3, 3),
             torch.ones(3, 3),
             torch.zeros(3, 2),
-            n_context=n_context,
+            context_set_size=context_set_size,
         )
 
 
@@ -278,7 +283,7 @@ def test_l2m_model_rejects_incompatible_task_shapes(
             torch.zeros(feature_shape),
             torch.ones(mask_shape),
             torch.zeros(label_shape),
-            n_context=1,
+            context_set_size=1,
         )
 
 

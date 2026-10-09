@@ -165,7 +165,7 @@ class L2MAFAMethod(AFAMethod):
             )
         )
         return self.model(
-            features, mask, labels, n_context=len(self.context_features)
+            features, mask, labels, context_set_size=len(self.context_features)
         )
 
     @property
