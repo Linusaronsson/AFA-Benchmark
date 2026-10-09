@@ -29,3 +29,9 @@ execution:
     dime:
       training: cuda
       evaluation: cuda
+    l2m_real_feature_prior:
+      training: cuda
+      evaluation: cuda
+    l2m_synthetic_feature_prior:
+      training: cuda
+      evaluation: cuda

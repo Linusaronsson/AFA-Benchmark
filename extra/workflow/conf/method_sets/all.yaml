@@ -22,6 +22,9 @@ method_sets:
   eddi:
     - eddi_builtin
     - eddi_external
+  l2m:
+    - l2m_real_feature_prior
+    - l2m_synthetic_feature_prior
   # Methods that we compare heatmaps for
   heatmap_comparison:
     - ol_with_mask

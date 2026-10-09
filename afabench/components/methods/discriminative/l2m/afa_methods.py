@@ -29,6 +29,12 @@ class L2MAFAMethod(AFAMethod):
     """
     Fixed context set and a direct-selection policy with no stop action.
 
+    An in-context method after Kobayashi et al., arXiv:2510.12624, ported
+    independently of the authors' code. Departures from the paper: a
+    context instance is never queried, because the context set comes from
+    the validation split and queries from the test split, and the
+    pretraining pool is the whole train split rather than 5000 instances.
+
     Evaluation must use a hard budget below the number of selections.
     Exhausted selections raise rather than invent a stop or repeat action.
     """

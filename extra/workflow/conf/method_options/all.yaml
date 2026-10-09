@@ -68,6 +68,34 @@ method_options:
         2: 20
         4: 20
         7: 20
+  l2m_real_feature_prior:
+    pretrained_model_name: "l2m_real_feature_prior"
+    train_script_name: "l2m"
+    method_specific_params:
+      - "feature_source=real"
+    # Queries attend to the stored context set only, never to each other, so
+    # the batch size is a throughput knob only and does not change results.
+    eval_batch_size: &l2m_eval_batch_size
+      default: 128
+    # Hard-budget setting on miniboone only. L2M has no stop action and its
+    # policy training does not depend on the budget, so one trained policy
+    # serves every evaluation budget.
+    eval_to_train_hard_budget_mapping: &l2m_eval_to_train_hard_budget_mapping
+      miniboone:
+        5: 15
+        10: 15
+        15: 15
+    hard_budget_ignored_datasets: &l2m_ignored_datasets [actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise, cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist, imagenette, mnist, physionet, synthetic_mnist, synthetic_mnist_without_noise]
+    soft_budget_ignored_datasets: *l2m_ignored_datasets
+  l2m_synthetic_feature_prior:
+    pretrained_model_name: "l2m_synthetic_feature_prior"
+    train_script_name: "l2m"
+    method_specific_params:
+      - "feature_source=synthetic"
+    eval_batch_size: *l2m_eval_batch_size
+    eval_to_train_hard_budget_mapping: *l2m_eval_to_train_hard_budget_mapping
+    hard_budget_ignored_datasets: *l2m_ignored_datasets
+    soft_budget_ignored_datasets: *l2m_ignored_datasets
   cae:
     train_script_name: "cae"
     eval_to_train_hard_budget_mapping:

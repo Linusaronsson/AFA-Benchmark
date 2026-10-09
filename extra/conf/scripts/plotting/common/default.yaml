@@ -14,6 +14,8 @@ method_name_mapping:
   odin_model_free: ODIN(model-free)
   aaco: AACO
   aaco_nn: AACO(NN)
+  l2m_real_feature_prior: L2M
+  l2m_synthetic_feature_prior: L2M(synthetic prior)
   permutation: PT
   cae: CAE
   random_dummy: Random
@@ -31,6 +33,8 @@ method_policy_family_mapping:
   odin_model_free: odin
   aaco: aaco
   aaco_nn: aaco
+  l2m_real_feature_prior: l2m
+  l2m_synthetic_feature_prior: l2m
   permutation: static
   cae: static
   random_dummy: dummy
@@ -47,6 +51,7 @@ method_family_color_schemes:
     aaco: '#CC6677'
     static: '#882255'
     dummy: '#AA4499'
+    l2m: '#000000'
   colorbrewer_set1:
     eddi: '#E41A1C'
     gdfs: '#377EB8'
@@ -57,6 +62,7 @@ method_family_color_schemes:
     aaco: '#A65628'
     static: '#F781BF'
     dummy: '#999999'
+    l2m: '#000000'
   colorbrewer_set2:
     eddi: '#66C2A5'
     gdfs: '#FC8D62'
@@ -67,6 +73,7 @@ method_family_color_schemes:
     aaco: '#E5C494'
     static: '#B3B3B3'
     dummy: '#B3B3B3'
+    l2m: '#000000'
   colorbrewer_dark2:
     eddi: '#1B9E77'
     gdfs: '#D95F02'
@@ -77,6 +84,7 @@ method_family_color_schemes:
     aaco: '#A6761D'
     static: '#666666'
     dummy: '#666666'
+    l2m: '#000000'
 
 active_method_color_scheme: colorbrewer_dark2
 

@@ -27,52 +27,24 @@ Choices where the paper is ambiguous, or where this port departs from it:
 
 import logging
 from collections.abc import Callable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from functools import partial
 
 import torch
-from jaxtyping import Bool
 from torch.nn import functional as F
 
 from afabench.components.methods.discriminative.l2m.config import (
     L2MPretrainingConfig,
 )
-from afabench.components.methods.discriminative.l2m.models import (
-    L2MModel,
-    TaskFeatures,
-    TaskLabels,
-    TaskMask,
+from afabench.components.methods.discriminative.l2m.models import L2MModel
+from afabench.components.methods.discriminative.l2m.task_batches import (
+    TaskBatch,
+    draw_task_batch,
+    parse_feature_source,
 )
-from afabench.components.methods.discriminative.l2m.task_sampler import (
-    FeatureSource,
-    sample_task,
-)
-from afabench.core.types import Features
 from afabench.fit.inputs import FitInputs
 
 log = logging.getLogger(__name__)
-
-type AvailableFeatures = Bool[torch.Tensor, "tasks queries n_features"]
-type AcquisitionMask = Bool[torch.Tensor, "tasks queries n_features"]
-
-# Task seeds are drawn from one generator per run, so the held-out tasks
-# and the training tasks are distinct draws from the task prior.
-_TASK_SEED_BOUND = 2**62
-
-
-@dataclass(frozen=True, kw_only=True)
-class _TaskBatch:
-    """
-    Tasks of one step, with the context set first and queries last.
-
-    `mask` holds the retrospective missingness mask of context instances
-    and the random acquisition mask of queries.
-    """
-
-    features: TaskFeatures
-    mask: TaskMask
-    labels: TaskLabels
-    n_context: int
 
 
 def pretrain_l2m(
@@ -81,7 +53,7 @@ def pretrain_l2m(
     *,
     inputs: FitInputs,
 ) -> L2MModel:
-    feature_source = _feature_source(cfg.feature_source)
+    feature_source = parse_feature_source(cfg.feature_source)
     if cfg.sequence_length < 2:
         msg = (
             f"sequence_length={cfg.sequence_length} must be at least 2, "
@@ -97,7 +69,7 @@ def pretrain_l2m(
     n_features = train_dataset.feature_shape.numel()
     features, _ = train_dataset.get_all_data()
     draw_batch = partial(
-        _draw_task_batch,
+        draw_task_batch,
         feature_source=feature_source,
         feature_pool=features.reshape(len(features), n_features)
         if feature_source == "real"
@@ -175,66 +147,7 @@ def pretrain_l2m(
     return model.cpu().eval()
 
 
-def _feature_source(value: str) -> FeatureSource:
-    if value in ("real", "synthetic"):
-        return value
-    msg = f"feature_source must be 'real' or 'synthetic'; got {value!r}"
-    raise ValueError(msg)
-
-
-def _draw_task_batch(
-    n_tasks: int,
-    generator: torch.Generator,
-    *,
-    feature_source: FeatureSource,
-    feature_pool: Features | None,
-    n_features: int,
-    label_shape: torch.Size,
-    sequence_length: int,
-    missingness_cap: float,
-) -> _TaskBatch:
-    tasks = [
-        sample_task(
-            feature_source,
-            n_features=n_features,
-            sequence_length=sequence_length,
-            label_shape=label_shape,
-            missingness_cap=missingness_cap,
-            feature_pool=feature_pool,
-            seed=int(torch.randint(_TASK_SEED_BOUND, (), generator=generator)),
-        )
-        for _ in range(n_tasks)
-    ]
-    available = torch.stack([task.feature_mask for task in tasks]).bool()
-    n_context = int(torch.randint(1, sequence_length, (), generator=generator))
-    return _TaskBatch(
-        features=torch.stack([task.features for task in tasks]),
-        mask=torch.cat(
-            (
-                available[:, :n_context],
-                _random_acquisition_mask(available[:, n_context:], generator),
-            ),
-            dim=1,
-        ),
-        labels=torch.stack([task.labels for task in tasks]),
-        n_context=n_context,
-    )
-
-
-def _random_acquisition_mask(
-    available: AvailableFeatures, generator: torch.Generator
-) -> AcquisitionMask:
-    scores = torch.rand(available.shape, generator=generator)
-    # Available features rank first, in random order.
-    ranks = scores.masked_fill(~available, 2.0).argsort(-1).argsort(-1)
-    n_available = available.sum(dim=-1, keepdim=True)
-    sizes = (
-        torch.rand(n_available.shape, generator=generator) * (n_available + 1)
-    ).floor()
-    return ranks < sizes
-
-
-def _query_loss(model: L2MModel, batch: _TaskBatch) -> torch.Tensor:
+def _query_loss(model: L2MModel, batch: TaskBatch) -> torch.Tensor:
     logits, _ = model(
         batch.features.to(model.device),
         batch.mask.to(model.device),
