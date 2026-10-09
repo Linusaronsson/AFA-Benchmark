@@ -25,6 +25,12 @@ from afabench.core.types import (
 )
 
 
+def require_direct_unmasker(unmasker: UnmaskerConfig) -> None:
+    if unmasker.class_name != "DirectUnmasker":
+        msg = f"L2M requires DirectUnmasker; got {unmasker.class_name!r}"
+        raise ValueError(msg)
+
+
 class L2MAFAMethod(AFAMethod):
     """
     Fixed context set and a direct-selection policy with no stop action.
@@ -47,9 +53,7 @@ class L2MAFAMethod(AFAMethod):
         *,
         unmasker: UnmaskerConfig,
     ) -> None:
-        if unmasker.class_name != "DirectUnmasker":
-            msg = f"L2M requires DirectUnmasker; got {unmasker.class_name!r}"
-            raise ValueError(msg)
+        require_direct_unmasker(unmasker)
         if (
             context_features.ndim != 2
             or context_features.shape[0] == 0

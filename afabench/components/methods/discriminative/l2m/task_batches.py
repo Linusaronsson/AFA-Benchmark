@@ -8,7 +8,8 @@ retrospectively available features, the affordable reading of the paper's
 Algorithms 1 and 2 (arXiv:2510.12624), which visit every mask size.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from typing import Self
 
 import torch
 from jaxtyping import Bool
@@ -48,6 +49,15 @@ class TaskBatch:
     labels: TaskLabels
     available: AvailableFeatures
     n_context: int
+
+    def to(self, device: torch.device) -> Self:
+        return replace(
+            self,
+            features=self.features.to(device),
+            mask=self.mask.to(device),
+            labels=self.labels.to(device),
+            available=self.available.to(device),
+        )
 
 
 def draw_task_batch(

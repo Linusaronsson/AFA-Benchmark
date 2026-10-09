@@ -25,7 +25,6 @@ Choices where the paper is ambiguous, or where this port departs from it:
 - The learning rate warms up linearly, then decays linearly towards zero.
 """
 
-import logging
 from collections.abc import Callable
 from dataclasses import asdict
 from functools import partial
@@ -36,17 +35,14 @@ from torch.nn import functional as F
 from afabench.components.methods.discriminative.l2m.config import (
     L2MPretrainingConfig,
 )
+from afabench.components.methods.discriminative.l2m.fit_loop import (
+    fit_on_task_prior,
+)
 from afabench.components.methods.discriminative.l2m.models import L2MModel
 from afabench.components.methods.discriminative.l2m.task_batches import (
     TaskBatch,
-    draw_task_batch,
-)
-from afabench.components.methods.discriminative.l2m.task_sampler import (
-    FeatureSource,
 )
 from afabench.fit.inputs import FitInputs
-
-log = logging.getLogger(__name__)
 
 
 def pretrain_l2m(
@@ -55,110 +51,44 @@ def pretrain_l2m(
     *,
     inputs: FitInputs,
 ) -> L2MModel:
-    if cfg.sequence_length < 2:
-        msg = (
-            f"sequence_length={cfg.sequence_length} must be at least 2, "
-            "for one context instance and one query"
-        )
-        raise ValueError(msg)
-    if cfg.n_steps < 1:
-        msg = f"n_steps={cfg.n_steps} must be at least 1"
-        raise ValueError(msg)
     device = torch.device(cfg.device)
-
     train_dataset = inputs.train_dataset()
-    n_features = train_dataset.feature_shape.numel()
-    features, _ = train_dataset.get_all_data()
-    draw_batch = partial(
-        draw_task_batch,
-        feature_source=cfg.feature_source,
-        feature_pool=features.reshape(len(features), n_features)
-        if cfg.feature_source is FeatureSource.real
-        else None,
-        n_features=n_features,
-        label_shape=train_dataset.label_shape,
-        sequence_length=cfg.sequence_length,
-        missingness_cap=cfg.missingness_cap,
-    )
-    generator = torch.Generator().manual_seed(cfg.seed)
-    validation_batches = [
-        draw_batch(
-            min(cfg.batch_size, cfg.n_validation_tasks - start), generator
-        )
-        for start in range(0, cfg.n_validation_tasks, cfg.batch_size)
-    ]
-
     model = L2MModel(
-        n_features,
+        train_dataset.feature_shape.numel(),
         train_dataset.label_shape.numel(),
         **asdict(cfg.architecture),
     ).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(
+    fit_on_task_prior(
+        model,
         optimizer,
-        partial(
-            _learning_rate_factor,
-            warmup_steps=cfg.warmup_steps,
-            n_steps=cfg.n_steps,
+        cfg,
+        stage="pretrain",
+        train_dataset=train_dataset,
+        generator=torch.Generator().manual_seed(cfg.seed),
+        training_loss=partial(_query_loss, model),
+        validation_loss=partial(_query_loss, model),
+        keep_one_unacquired=False,
+        scheduler=torch.optim.lr_scheduler.LambdaLR(
+            optimizer,
+            partial(
+                _learning_rate_factor,
+                warmup_steps=cfg.warmup_steps,
+                n_steps=cfg.n_steps,
+            ),
         ),
+        metric_logger=metric_logger,
     )
-
-    best_loss = torch.inf
-    best_state: dict[str, torch.Tensor] | None = None
-    for step in range(1, cfg.n_steps + 1):
-        model.train()
-        loss = _query_loss(model, draw_batch(cfg.batch_size, generator))
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
-        if step % cfg.checkpoint_interval and step != cfg.n_steps:
-            continue
-
-        model.eval()
-        with torch.no_grad():
-            validation_loss = sum(
-                float(_query_loss(model, batch))
-                for batch in validation_batches
-            ) / len(validation_batches)
-        log.info(
-            "L2M pretraining step %d: train loss %.4f, validation loss %.4f",
-            step,
-            float(loss),
-            validation_loss,
-        )
-        if metric_logger is not None:
-            metric_logger(
-                {
-                    "l2m_pretrain/step": float(step),
-                    "l2m_pretrain/train_loss": float(loss),
-                    "l2m_pretrain/val_loss": validation_loss,
-                }
-            )
-        if best_state is None or validation_loss < best_loss:
-            best_loss = validation_loss
-            best_state = {
-                name: tensor.detach().clone()
-                for name, tensor in model.state_dict().items()
-            }
-
-    # The last step always checkpoints, and there is at least one step.
-    assert best_state is not None
-    model.load_state_dict(best_state)
     return model.cpu().eval()
 
 
 def _query_loss(model: L2MModel, batch: TaskBatch) -> torch.Tensor:
+    batch = batch.to(model.device)
     logits, _ = model(
-        batch.features.to(model.device),
-        batch.mask.to(model.device),
-        batch.labels.to(model.device),
-        n_context=batch.n_context,
+        batch.features, batch.mask, batch.labels, n_context=batch.n_context
     )
     targets = batch.labels[:, batch.n_context :].argmax(dim=-1)
-    return F.cross_entropy(
-        logits.flatten(0, 1), targets.flatten().to(model.device)
-    )
+    return F.cross_entropy(logits.flatten(0, 1), targets.flatten())
 
 
 def _learning_rate_factor(

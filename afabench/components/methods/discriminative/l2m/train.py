@@ -33,7 +33,6 @@ Reading of Algorithm 2, where the paper is ambiguous:
 - Learning rates are constant, as the paper states for this stage.
 """
 
-import logging
 from collections.abc import Callable
 from functools import partial
 
@@ -43,22 +42,20 @@ from torch.nn import functional as F
 
 from afabench.components.methods.discriminative.l2m.afa_methods import (
     L2MAFAMethod,
+    require_direct_unmasker,
 )
 from afabench.components.methods.discriminative.l2m.config import (
     L2MTrainingConfig,
 )
+from afabench.components.methods.discriminative.l2m.fit_loop import (
+    fit_on_task_prior,
+)
 from afabench.components.methods.discriminative.l2m.models import L2MModel
 from afabench.components.methods.discriminative.l2m.task_batches import (
     TaskBatch,
-    draw_task_batch,
-)
-from afabench.components.methods.discriminative.l2m.task_sampler import (
-    FeatureSource,
 )
 from afabench.core.types import Features, Label
 from afabench.fit.inputs import FitInputs
-
-log = logging.getLogger(__name__)
 
 type QueryActions = Float[torch.Tensor, "tasks queries n_features"]
 
@@ -75,27 +72,6 @@ def train_l2m(
     val_dataset = inputs.val_dataset()
     n_features = train_dataset.feature_shape.numel()
 
-    features, _ = train_dataset.get_all_data()
-    draw_batch = partial(
-        draw_task_batch,
-        feature_source=cfg.feature_source,
-        feature_pool=features.reshape(len(features), n_features)
-        if cfg.feature_source is FeatureSource.real
-        else None,
-        n_features=n_features,
-        label_shape=train_dataset.label_shape,
-        sequence_length=cfg.sequence_length,
-        missingness_cap=cfg.missingness_cap,
-        keep_one_unacquired=True,
-    )
-    generator = torch.Generator().manual_seed(cfg.seed)
-    validation_batches = [
-        draw_batch(
-            min(cfg.batch_size, cfg.n_validation_tasks - start), generator
-        )
-        for start in range(0, cfg.n_validation_tasks, cfg.batch_size)
-    ]
-
     model = inputs.pretrained_model(L2MModel).to(device)
     if (model.n_features, model.n_classes) != (
         n_features,
@@ -107,56 +83,28 @@ def train_l2m(
             f"and {train_dataset.label_shape.numel()}"
         )
         raise ValueError(msg)
-    optimizer = _two_rate_optimizer(
-        model, policy_lr=cfg.policy_lr, backbone_lr=cfg.backbone_lr
-    )
-
-    best_loss = torch.inf
-    best_state: dict[str, torch.Tensor] | None = None
-    for step in range(1, cfg.n_steps + 1):
-        model.train()
-        loss = _one_step_loss(
+    # The Gumbel noise is drawn from the generator of the tasks.
+    generator = torch.Generator().manual_seed(cfg.seed)
+    fit_on_task_prior(
+        model,
+        _two_rate_optimizer(
+            model, policy_lr=cfg.policy_lr, backbone_lr=cfg.backbone_lr
+        ),
+        cfg,
+        stage="train",
+        train_dataset=train_dataset,
+        generator=generator,
+        training_loss=partial(
+            _one_step_loss,
             model,
-            draw_batch(cfg.batch_size, generator),
             temperature=cfg.temperature,
             generator=generator,
-        )
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        if step % cfg.checkpoint_interval and step != cfg.n_steps:
-            continue
-
-        model.eval()
-        with torch.no_grad():
-            validation_loss = sum(
-                float(_one_step_loss(model, batch, temperature=None))
-                for batch in validation_batches
-            ) / len(validation_batches)
-        log.info(
-            "L2M training step %d: train loss %.4f, validation loss %.4f",
-            step,
-            float(loss),
-            validation_loss,
-        )
-        if metric_logger is not None:
-            metric_logger(
-                {
-                    "l2m_train/step": float(step),
-                    "l2m_train/train_loss": float(loss),
-                    "l2m_train/val_loss": validation_loss,
-                }
-            )
-        if best_state is None or validation_loss < best_loss:
-            best_loss = validation_loss
-            best_state = {
-                name: tensor.detach().clone()
-                for name, tensor in model.state_dict().items()
-            }
-
-    # The last step always checkpoints, and there is at least one step.
-    assert best_state is not None
-    model.load_state_dict(best_state)
+        ),
+        validation_loss=partial(_one_step_loss, model, temperature=None),
+        keep_one_unacquired=True,
+        scheduler=None,
+        metric_logger=metric_logger,
+    )
     context_features, context_labels = _draw_context_set(
         val_dataset.get_all_data(),
         n_features=n_features,
@@ -172,18 +120,7 @@ def train_l2m(
 
 
 def _check_config(cfg: L2MTrainingConfig, inputs: FitInputs) -> None:
-    if cfg.unmasker.class_name != "DirectUnmasker":
-        msg = f"L2M requires DirectUnmasker; got {cfg.unmasker.class_name!r}"
-        raise ValueError(msg)
-    if cfg.sequence_length < 2:
-        msg = (
-            f"sequence_length={cfg.sequence_length} must be at least 2, "
-            "for one context instance and one query"
-        )
-        raise ValueError(msg)
-    if cfg.n_steps < 1:
-        msg = f"n_steps={cfg.n_steps} must be at least 1"
-        raise ValueError(msg)
+    require_direct_unmasker(cfg.unmasker)
     if cfg.context_set_size < 1:
         msg = f"context_set_size={cfg.context_set_size} must be at least 1"
         raise ValueError(msg)
@@ -241,15 +178,11 @@ def _one_step_loss(
     With a temperature the action is a straight-through Gumbel-softmax
     sample; without one it is the argmax, for validation.
     """
-    device = model.device
-    features = batch.features.to(device)
-    mask = batch.mask.to(device)
-    labels = batch.labels.to(device)
+    batch = batch.to(model.device)
+    features, mask, labels = batch.features, batch.mask, batch.labels
     n_context = batch.n_context
     _, policy_logits = model(features, mask, labels, n_context=n_context)
-    selectable = (
-        batch.available[:, n_context:] & ~batch.mask[:, n_context:]
-    ).to(device)
+    selectable = batch.available[:, n_context:] & ~mask[:, n_context:]
     has_selection = selectable.any(dim=-1)
     # Queries without a selection get a harmless uniform policy and are
     # weighted out of the loss below.
