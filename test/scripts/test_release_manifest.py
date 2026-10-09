@@ -732,7 +732,7 @@ def restore(tmp_path: Path) -> Result:
     )
 
 
-def test_restore_keeps_manifest_beside_the_restored_root(
+def test_restore_puts_the_manifest_inside_the_restored_root(
     tmp_path: Path,
 ) -> None:
     save_catalog(tmp_path)
@@ -740,7 +740,10 @@ def test_restore_keeps_manifest_beside_the_restored_root(
     result = restore(tmp_path)
 
     assert result.exit_code == 0, result.output
-    restored = tmp_path / "checkout/extra/release_manifest.json"
+    assert [path.name for path in (tmp_path / "checkout/extra").iterdir()] == [
+        "output"
+    ]
+    restored = tmp_path / "checkout/extra/output/release_manifest.json"
     assert str(restored) in result.output
     assert "2026-10-cube" in result.output
     assert (
@@ -755,15 +758,16 @@ def test_restore_keeps_manifest_beside_the_restored_root(
     assert manifest.evaluations[0].method_name == "alpha"
 
 
-def test_restore_keeps_the_job_duration_table_beside_the_manifest(
+def test_restore_puts_the_job_duration_table_beside_the_manifest(
     tmp_path: Path,
 ) -> None:
-    # Outside the output root, so the pipeline's next run cannot rewrite it.
     source_root = tmp_path / "source"
     write_catalog(source_root, Catalog(methods=[ALPHA]))
     write_job_record(source_root, ALPHA_METHOD_RECORD)
     assert save(tmp_path).exit_code == 0
-    restored = tmp_path / "checkout/extra/release_job_duration_table.parquet"
+    restored = (
+        tmp_path / "checkout/extra/output/release_job_duration_table.parquet"
+    )
     restored.parent.mkdir(parents=True)
     restored.write_text("pre-existing")
 
@@ -782,11 +786,58 @@ def test_restore_keeps_the_job_duration_table_beside_the_manifest(
     )
 
 
+def test_a_restored_root_saves_as_a_new_release_without_the_old_files(
+    tmp_path: Path,
+) -> None:
+    write_catalog(tmp_path / "source", Catalog(methods=[ALPHA]))
+    write_job_record(tmp_path / "source", ALPHA_METHOD_RECORD)
+    assert save(tmp_path).exit_code == 0
+    assert restore(tmp_path).exit_code == 0
+    checkout_root = tmp_path / "checkout/extra/output"
+    configfile = write_configfile(tmp_path / "run.yaml")
+
+    saved = runner.invoke(
+        app,
+        [
+            "save",
+            str(tmp_path / "rerelease"),
+            "--source-root",
+            str(checkout_root),
+            "--configfile",
+            str(configfile),
+            "--release-id",
+            "2026-11-cube",
+            "--scope",
+            "partial",
+        ],
+    )
+    restored = runner.invoke(
+        app,
+        [
+            "restore",
+            str(tmp_path / "rerelease"),
+            "--destination-root",
+            str(tmp_path / "fresh/extra/output"),
+        ],
+    )
+
+    assert saved.exit_code == 0, saved.output
+    saved_output = tmp_path / "rerelease/output"
+    assert not (saved_output / "release_manifest.json").exists()
+    assert not (saved_output / "release_job_duration_table.parquet").exists()
+    assert (saved_output / "eval_results" / ALPHA_HARD).is_file()
+    assert restored.exit_code == 0, restored.output
+    manifest = read_release_manifest(
+        tmp_path / "fresh/extra/output/release_manifest.json"
+    )
+    assert manifest.release_id == "2026-11-cube"
+
+
 def test_restore_refuses_an_existing_manifest_and_restores_nothing(
     tmp_path: Path,
 ) -> None:
     save_catalog(tmp_path)
-    existing = tmp_path / "checkout/extra/release_manifest.json"
+    existing = tmp_path / "checkout/extra/output/release_manifest.json"
     existing.parent.mkdir(parents=True)
     existing.write_text("pre-existing")
 
@@ -794,7 +845,7 @@ def test_restore_refuses_an_existing_manifest_and_restores_nothing(
 
     assert result.exit_code != 0
     assert existing.read_text() == "pre-existing"
-    assert not (tmp_path / "checkout/extra/output").exists()
+    assert not (tmp_path / "checkout/extra/output/eval_results").exists()
 
 
 @pytest.mark.parametrize("version", [2, 99])

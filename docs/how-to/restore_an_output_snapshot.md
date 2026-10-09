@@ -2,7 +2,7 @@
 
 For a [maintainer](../explanation/user_types.md#maintainer): put a saved
 [output snapshot](../explanation/output_snapshots.md) back under
-`extra/output`, where Snakemake reuses it instead of producing it again.
+`extra/output/production`, where Snakemake reuses it instead of producing it again.
 
 ## 1. Restore the snapshot
 
@@ -10,9 +10,10 @@ For a [maintainer](../explanation/user_types.md#maintainer): put a saved
 uv run python scripts/release/snapshot.py restore /path/to/snapshot-dir
 ```
 
-The outputs are copied back to `extra/output`, or to `extra/output_smoke` if
-the snapshot's release manifest has scope `smoke`, and a release manifest, if
-the snapshot has one, to `extra/release_manifest.json`. If any of these
+The outputs are copied back to `extra/output/production`, or to
+`extra/output/smoke` if the snapshot's release manifest has scope `smoke`.
+The release manifest, if the snapshot has one, goes inside that root, to
+`release_manifest.json`. If any of these
 files already exists, nothing is copied and the conflicts are listed; add
 `--overwrite` to replace them.
 

@@ -195,7 +195,7 @@ def test_published_release_downloads_with_native_tables_and_plots(
         table = pd.read_parquet(destination_root / path)
         assert table["afa_method"].unique().tolist() == ["alpha"]
     manifest = read_release_manifest(
-        destination_root.parent / "release_manifest.json"
+        destination_root / "release_manifest.json"
     )
     assert manifest.release_id == "2026-10-cube"
     assert manifest.evaluations[0].raw_path == RAW_TABLE
@@ -409,7 +409,7 @@ def test_smoke_provenance_survives_a_smoke_release_round_trip(
     assert published.exit_code == 0, published.output
     assert downloaded.exit_code == 0, downloaded.output
     restored = read_release_manifest(
-        destination_root.parent / "release_manifest.json"
+        destination_root / "release_manifest.json"
     )
     assert restored == read_release_manifest(
         package_dir / "release_manifest.json"
@@ -450,7 +450,7 @@ def test_smoke_release_flag_does_not_publish_an_official_package(
 
 @pytest.mark.parametrize(
     ("scope", "output_root"),
-    [("full", "extra/output"), ("smoke", "extra/output_smoke")],
+    [("full", "extra/output/production"), ("smoke", "extra/output/smoke")],
 )
 def test_a_release_downloads_into_the_output_root_of_its_scope(
     tmp_path: Path,
@@ -473,14 +473,15 @@ def test_a_release_downloads_into_the_output_root_of_its_scope(
 
     assert result.exit_code == 0, result.output
     assert (fork / output_root / PLOT).read_bytes() == b"%PDF-1.4 plot"
-    assert sorted(path.name for path in (fork / "extra").iterdir()) == sorted(
-        [Path(output_root).name, "release_manifest.json"]
-    )
+    assert [path.name for path in (fork / "extra/output").iterdir()] == [
+        Path(output_root).name
+    ]
+    assert (fork / output_root / "release_manifest.json").is_file()
 
 
 @pytest.mark.parametrize(
     ("scope", "output_root"),
-    [("full", "extra/output"), ("smoke", "extra/output_smoke")],
+    [("full", "extra/output/production"), ("smoke", "extra/output/smoke")],
 )
 def test_a_snapshot_restores_into_the_output_root_of_its_scope(
     tmp_path: Path,
@@ -516,7 +517,7 @@ def test_each_published_release_downloads_its_own_outputs(
         assert result.exit_code == 0, result.output
         assert (destination_root / PLOT).read_bytes() == plot
         manifest = read_release_manifest(
-            destination_root.parent / "release_manifest.json"
+            destination_root / "release_manifest.json"
         )
         assert manifest.release_id == release_id
 
@@ -554,7 +555,7 @@ def test_download_refuses_to_overwrite_an_existing_local_output(
     assert str(existing) in str(result.exception)
     assert existing.read_bytes() == b"my own results"
     assert not (destination_root / RAW_TABLE).exists()
-    assert not (destination_root.parent / "release_manifest.json").exists()
+    assert not (destination_root / "release_manifest.json").exists()
 
 
 def test_download_with_overwrite_replaces_an_existing_local_output(

@@ -3,11 +3,14 @@ Save and restore a verbatim copy of the pipeline's output root.
 
 A snapshot may carry a release manifest beside its `output/` tree
 (`afabench.release.manifest`), and the release's job duration table beside
-that. Restore puts them beside the restored root, so the snapshot layout is
-mirrored: `<root>/../release_manifest.json`.
+that. Restore puts them inside the restored root instead,
+`<root>/release_manifest.json`, so a checkout's smoke and production output
+roots each keep their own. Save leaves them out of the copied root: a new
+release gets its own manifest, never the one restored before.
 """
 
 import shutil
+from collections.abc import Sequence
 from pathlib import Path
 
 from afabench.release.manifest import (
@@ -18,6 +21,7 @@ from afabench.release.manifest import (
 )
 
 SNAPSHOT_OUTPUT_SUBDIR = "output"
+RELEASE_FILENAMES = (RELEASE_MANIFEST_FILENAME, JOB_DURATION_TABLE_FILENAME)
 
 
 def save_snapshot(
@@ -42,6 +46,7 @@ def save_snapshot(
         source_root,
         snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR,
         overwrite=overwrite,
+        skip=[source_root / name for name in RELEASE_FILENAMES],
     )
     if manifest is not None:
         write_release_manifest(manifest, manifest_path)
@@ -58,11 +63,11 @@ def restore_snapshot(
     """
     Copy every file from `snapshot_dir/output` into `destination_root`.
 
-    The release manifest and job duration table, if any, go beside it.
+    The release manifest and job duration table, if any, go inside it.
     """
     release_files = [
-        (snapshot_dir / name, destination_root.parent / name)
-        for name in [RELEASE_MANIFEST_FILENAME, JOB_DURATION_TABLE_FILENAME]
+        (snapshot_dir / name, destination_root / name)
+        for name in RELEASE_FILENAMES
         if (snapshot_dir / name).is_file()
     ]
     for _, restored in release_files:
@@ -78,7 +83,7 @@ def restore_snapshot(
 
 
 def restored_manifest_location(destination_root: Path) -> Path:
-    return destination_root.parent / RELEASE_MANIFEST_FILENAME
+    return destination_root / RELEASE_MANIFEST_FILENAME
 
 
 def _refuse_existing(path: Path, *, overwrite: bool) -> None:
@@ -88,12 +93,20 @@ def _refuse_existing(path: Path, *, overwrite: bool) -> None:
 
 
 def _verbatim_copy(
-    source: Path, destination: Path, *, overwrite: bool
+    source: Path,
+    destination: Path,
+    *,
+    overwrite: bool,
+    skip: Sequence[Path] = (),
 ) -> None:
     if not source.is_dir():
         msg = f"Source root does not exist: {source}"
         raise FileNotFoundError(msg)
-    files = [path for path in source.rglob("*") if path.is_file()]
+    files = [
+        path
+        for path in source.rglob("*")
+        if path.is_file() and path not in skip
+    ]
     if not files:
         msg = f"Source root is empty: {source}"
         raise FileNotFoundError(msg)

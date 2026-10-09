@@ -1,7 +1,8 @@
 # Release manifest
 
 `release_manifest.json` is written beside a snapshot's `output/` tree by
-`snapshot.py save --release-id` and restored to `extra/release_manifest.json`
+`snapshot.py save --release-id` and restored inside the output root, to
+`extra/output/production/release_manifest.json` by default
 ([command](snapshot_command.md)). It identifies a benchmark release and
 indexes its artifacts, so that a download can choose what to fetch without
 reading every artifact first. The index is generated from the artifacts'
@@ -183,9 +184,10 @@ as `release_job_duration_table.parquet`. It is not the copy the
 `collect_job_records` rule wrote to `merged_results/`, which is only as
 recent as that rule's last run; that copy stays in the output tree like any
 merged table. `restore` and `download` put the table beside the restored
-manifest, at `extra/release_job_duration_table.parquet` by default.
+manifest, at `extra/output/production/release_job_duration_table.parquet`
+by default.
 
-It lives outside `output/` because the workflow rebuilds
+It lives outside `merged_results/` because the workflow rebuilds
 `merged_results/job_duration_table.parquet` from the local output root on
 every `all` run: a release table restored there would be replaced by the
 adopter's own records. Beside the manifest it stays the release's table, so

@@ -63,7 +63,7 @@ def collected_run(tmp_path_factory: pytest.TempPathFactory) -> CollectedRun:
     result = workflow.run("--executor", "local", target="all")
 
     assert result.returncode == 0, result.stdout + result.stderr
-    output = root / "extra/output_smoke"
+    output = root / "extra/output/smoke"
     return CollectedRun(
         output=output, table=load_job_duration_table(output / TABLE)
     )

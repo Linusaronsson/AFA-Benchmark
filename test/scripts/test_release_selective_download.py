@@ -88,6 +88,7 @@ FAILED_JOB_RECORD = "failed_job_records/" + JOB_RECORD.replace(
     "method.job_record.json",
     "method.20261001T000000000000Z-1a2b3c4d.job_record.json",
 )
+RELEASE_MANIFEST = "release_manifest.json"
 TABLE = "release_job_duration_table.parquet"
 
 
@@ -161,7 +162,7 @@ def publish(
     assert saved.exit_code == 0, saved.output
     # Synthetic creation times order the catalog independently of how fast
     # the test saves its packages.
-    manifest_path = package_dir / "release_manifest.json"
+    manifest_path = package_dir / RELEASE_MANIFEST
     manifest = json.loads(manifest_path.read_text())
     manifest["created_at"] = created_at
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
@@ -193,15 +194,17 @@ def download(
 
 
 def restored_release_id(destination_root: Path) -> str:
-    manifest_path = destination_root.parent / "release_manifest.json"
+    manifest_path = destination_root / RELEASE_MANIFEST
     return read_release_manifest(manifest_path).release_id
 
 
 def restored_files(destination_root: Path) -> set[str]:
+    """Return the restored outputs, leaving out the release's own files."""
+    release_files = {RELEASE_MANIFEST, TABLE}
     return {
         path.relative_to(destination_root).as_posix()
         for path in destination_root.rglob("*")
-        if path.is_file()
+        if path.is_file() and path.name not in release_files
     }
 
 
@@ -615,7 +618,7 @@ def test_selective_download_refuses_to_overwrite_an_existing_output(
     assert restored_files(destination_root) == {
         existing.relative_to(destination_root).as_posix()
     }
-    assert not (destination_root.parent / "release_manifest.json").exists()
+    assert not (destination_root / RELEASE_MANIFEST).exists()
 
     replaced = download(transport, destination_root, *selection, "--overwrite")
 
@@ -679,12 +682,8 @@ def test_selected_payloads_of_a_smoke_release_keep_smoke_provenance(
     )
 
     assert result.exit_code == 0, result.output
-    restored = read_release_manifest(
-        destination_root.parent / "release_manifest.json"
-    )
-    assert restored == read_release_manifest(
-        package_dir / "release_manifest.json"
-    )
+    restored = read_release_manifest(destination_root / RELEASE_MANIFEST)
+    assert restored == read_release_manifest(package_dir / RELEASE_MANIFEST)
     assert "scope smoke, execution smoke" in result.output
     assert all(
         path.startswith("eval_results/")
@@ -808,7 +807,7 @@ def test_inputs_the_release_lacks_are_reported_for_their_category(
 @pytest.mark.parametrize(
     "selection", [["--payload-category", "job_duration_table"], ["--all"]]
 )
-def test_the_job_duration_table_downloads_beside_the_manifest(
+def test_the_job_duration_table_downloads_inside_the_output_root(
     tmp_path: Path, selection: list[str]
 ) -> None:
     transport = FakeReleaseTransport()
@@ -821,12 +820,12 @@ def test_the_job_duration_table_downloads_beside_the_manifest(
     result = download(transport, destination_root, *selection)
 
     assert result.exit_code == 0, result.output
-    table = destination_root.parent / TABLE
+    table = destination_root / TABLE
     assert table.read_bytes() == (package_dir / TABLE).read_bytes()
     assert f"Job duration table: {table}" in result.output
     assert restored_release_id(destination_root) == "2026-10-full"
     if selection != ["--all"]:
-        assert not destination_root.exists()
+        assert restored_files(destination_root) == set()
         assert not [path for path in requested if "/output/" in path]
 
 
@@ -863,4 +862,4 @@ def test_a_release_without_a_job_duration_table_reports_it_missing(
         "Missing from release 2026-10-full:\n"
         "  job_duration_table: not in the release" in with_tables.output
     )
-    assert not (destination_root.parent / TABLE).exists()
+    assert not (destination_root / TABLE).exists()

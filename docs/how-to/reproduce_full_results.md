@@ -153,7 +153,7 @@ The `--config` note and the copy-a-preset override above apply here too.
   if your site allows it, or follow site policy for long-running controllers.
   The controller only plans and submits; all jobs, including visualization, are
   submitted to compute nodes.
-- The repository, the `uv` environment, inputs and `extra/output/` must be on
+- The repository, the `uv` environment, inputs and `extra/output/production/` must be on
   a filesystem shared by the submit host and all compute nodes.
 - Dispatching jobs across separate clusters is not supported. Nothing in the
   workflow checks that the partitions, accounts or GPUs in your site profile
@@ -182,7 +182,7 @@ job resolved to CPU. Smoke-test settings make the scripts fast; the resulting
 metrics only show that the pipeline runs and are not meaningful benchmark
 results.
 Everything the smoke test writes goes under its own output root,
-`extra/output_smoke`, never `extra/output`, so a real run afterwards still runs
+`extra/output/smoke`, never `extra/output/production`, so a real run afterwards still runs
 every job.
 
 ## Migrating from the six-invocation workflow

@@ -43,13 +43,13 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.smoke_test is False
     assert settings.use_wandb is True
     assert settings.initializer == "cold"
-    assert settings.output_root == "extra/output"
+    assert settings.output_root == "extra/output/production"
 
 
 def test_smoke_test_writes_under_its_own_output_root() -> None:
     settings = load_config(_config() | {"smoke_test": True})
 
-    assert settings.output_root == "extra/output_smoke"
+    assert settings.output_root == "extra/output/smoke"
 
 
 @pytest.mark.parametrize("smoke_test", [False, True])
@@ -62,16 +62,44 @@ def test_an_explicit_output_root_wins(*, smoke_test: bool) -> None:
 
 
 @pytest.mark.parametrize(
-    "output_root",
-    ["extra/output", "extra/output/", str(Path("extra/output").resolve())],
+    ("smoke_test", "output_root"),
+    [
+        (True, "extra/output/production"),
+        (True, "extra/output/production/"),
+        (True, str(Path("extra/output/production").resolve())),
+        (True, "extra/output/production/nested"),
+        (True, "extra/output"),
+        (True, "extra"),
+        (False, "extra/output/smoke"),
+        (False, "extra/output/smoke/nested"),
+        (False, "extra/output"),
+        (False, "extra"),
+    ],
 )
-def test_smoke_test_cannot_write_into_the_production_output_root(
-    output_root: str,
+def test_an_output_root_cannot_overlap_the_other_kind_of_run(
+    *, smoke_test: bool, output_root: str
 ) -> None:
-    config = _config() | {"smoke_test": True, "output_root": output_root}
+    config = _config() | {"smoke_test": smoke_test, "output_root": output_root}
 
-    with pytest.raises(ValueError, match=r"smoke_test.*output_root"):
+    with pytest.raises(ValueError, match=r"output_root"):
         load_config(config)
+
+
+@pytest.mark.parametrize(
+    ("smoke_test", "output_root"),
+    [
+        (True, "extra/output/smoke/nested"),
+        (False, "extra/output/production/nested"),
+        (True, "/scratch/afabench/output"),
+        (False, "extra/output_elsewhere"),
+    ],
+)
+def test_an_output_root_apart_from_the_other_kind_of_run_is_allowed(
+    *, smoke_test: bool, output_root: str
+) -> None:
+    config = _config() | {"smoke_test": smoke_test, "output_root": output_root}
+
+    assert load_config(config).output_root == output_root
 
 
 def test_aaco_eval_batch_size_is_pinned_per_dataset() -> None:

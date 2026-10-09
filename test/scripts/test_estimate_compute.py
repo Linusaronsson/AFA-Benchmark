@@ -17,6 +17,7 @@ from typer.testing import CliRunner
 
 from afabench.core.job_duration_table import write_job_duration_table
 from afabench.core.job_record import JobIdentity
+from afabench.core.output_layout import PRODUCTION_OUTPUT_ROOT
 from scripts.compute_estimate.estimate_compute import app
 from test import job_record_examples
 from test.scripts.release_artifacts import (
@@ -52,7 +53,7 @@ rule train_method:
 def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Write a workflow whose alpha job has a job record and beta none."""
     (tmp_path / "Snakefile").write_text(SNAKEFILE)
-    output_root = tmp_path / "extra/output"
+    output_root = tmp_path / PRODUCTION_OUTPUT_ROOT
     output_root.mkdir(parents=True)
     job_record_examples.write_job_record(
         output_root / "alpha.job_record.json",
@@ -101,8 +102,8 @@ def test_job_durations_can_come_from_a_job_duration_table(
     workflow: Path,
 ) -> None:
     table = workflow / "release/job_duration_table.parquet"
-    write_job_duration_table(workflow / "extra/output", table)
-    shutil.rmtree(workflow / "extra/output")
+    write_job_duration_table(workflow / PRODUCTION_OUTPUT_ROOT, table)
+    shutil.rmtree(workflow / PRODUCTION_OUTPUT_ROOT)
 
     result = estimate("--job-durations", str(table))
 
@@ -122,7 +123,7 @@ def test_a_missing_job_duration_source_is_refused() -> None:
 def test_without_an_output_root_every_job_is_unestimated(
     workflow: Path,
 ) -> None:
-    shutil.rmtree(workflow / "extra/output")
+    shutil.rmtree(workflow / PRODUCTION_OUTPUT_ROOT)
 
     result = estimate()
 
@@ -137,7 +138,9 @@ def test_a_restored_release_table_is_named_by_its_release(
     write_job_record(workflow / "source", ALPHA_METHOD_RECORD)
     assert save(workflow).exit_code == 0
     assert restore(workflow).exit_code == 0
-    table = workflow / "checkout/extra/release_job_duration_table.parquet"
+    table = (
+        workflow / "checkout/extra/output/release_job_duration_table.parquet"
+    )
 
     result = estimate("--job-durations", str(table))
 
@@ -156,9 +159,11 @@ def test_a_table_left_from_another_release_is_not_named_by_the_manifest(
     write_job_record(workflow / "source", ALPHA_METHOD_RECORD)
     assert save(workflow).exit_code == 0
     assert restore(workflow).exit_code == 0
-    table = workflow / "checkout/extra/release_job_duration_table.parquet"
+    table = (
+        workflow / "checkout/extra/output/release_job_duration_table.parquet"
+    )
     # As a download of another release with --overwrite leaves it
-    write_job_duration_table(workflow / "extra/output", table)
+    write_job_duration_table(workflow / PRODUCTION_OUTPUT_ROOT, table)
 
     result = estimate("--job-durations", str(table))
 

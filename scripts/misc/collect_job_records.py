@@ -5,8 +5,9 @@ Run by the pipeline's `collect_job_records` rule; see
 `afabench.core.job_duration_table` and `docs/reference/job_records.md`.
 
 Usage:
-    python scripts/misc/collect_job_records.py --output-root extra/output \
-        --output extra/output/merged_results/job_duration_table.parquet
+    python scripts/misc/collect_job_records.py \
+        --output-root extra/output/production \
+        --output extra/output/production/merged_results/job_duration_table.parquet
 """
 
 from pathlib import Path

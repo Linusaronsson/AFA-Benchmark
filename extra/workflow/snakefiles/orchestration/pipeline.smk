@@ -33,10 +33,11 @@ Runtime filters (--config, select subsets to run):
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests, under their own
         output root
-    output_root (str, default='extra/output', or 'extra/output_smoke' with
-        smoke_test=true): Where the run writes its bundles, evaluation
-        tables, job records, merged results and plots. A smoke test cannot
-        write into extra/output, so its outputs never satisfy a real run.
+    output_root (str, default='extra/output/production', or
+        'extra/output/smoke' with smoke_test=true): Where the run writes its
+        bundles, evaluation tables, job records, merged results and plots.
+        It cannot overlap the other kind of run's default root, so smoke
+        outputs never satisfy a real run.
     initializer (str, default='cold'): Initialization strategy, a file in
         extra/conf/components/initializer/
     eval_dataset_split (str, default='test'): Dataset split for evaluation
@@ -101,12 +102,13 @@ Usage:
         snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
             --config "datasets=[cube]" "dataset_realization_indices=[0]" \
             smoke_test=true use_wandb=false
-    It writes under extra/output_smoke, so a later real run still runs every
+    It writes under extra/output/smoke, so a later real run still runs every
     job.
     See docs/how-to/reproduce_full_results.md and slurm_integration.md.
     Add a method to published baselines: download the baselines'
-    transformed tables and the shared prerequisites into extra/output, then
-    run only the new method's missing work and the comparison plots:
+    transformed tables and the shared prerequisites into
+    extra/output/production, then run only the new method's missing work
+    and the comparison plots:
         snakemake --profile extra/workflow/profiles/config/all all --jobs 8 \
             --config "methods=[my_method]" \
                 "reference_methods=[random_dummy, gdfs]" \

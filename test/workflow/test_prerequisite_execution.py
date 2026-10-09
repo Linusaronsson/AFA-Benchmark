@@ -12,7 +12,7 @@ def prerequisite_workflow(root: Path) -> WorkflowHarness:
     workflow = WorkflowHarness(root)
     shutil.rmtree(
         root
-        / "extra/output_smoke/trained_classifiers/initializer-cold/dataset-cube+realization_index-0.bundle"
+        / "extra/output/smoke/trained_classifiers/initializer-cold/dataset-cube+realization_index-0.bundle"
     )
     workflow.config["method_options"] = {
         "alpha": {

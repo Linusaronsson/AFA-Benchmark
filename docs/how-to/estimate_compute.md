@@ -26,9 +26,9 @@ GPUs your site profile will request.
 ## 2. Choose the job durations
 
 - **From your own runs**: by default the estimate reads every job record
-  under `extra/output/`, including those of a run that is still going. Use
+  under `extra/output/production/`, including those of a run that is still going. Use
   this to estimate what is left of a run. Smoke tests write their job
-  records under `extra/output_smoke/` instead, so they do not end up here.
+  records under `extra/output/smoke/` instead, so they do not end up here.
 - **From a benchmark release**: download the release's job duration
   table alone:
 
@@ -37,10 +37,10 @@ GPUs your site profile will request.
       --repo-id <repo_id> --payload-category job_duration_table
   ```
 
-  It lands at `extra/release_job_duration_table.parquet`, beside the
-  release manifest, where the pipeline never rewrites it
+  It lands at `extra/output/production/release_job_duration_table.parquet`,
+  beside the release manifest, where the pipeline never rewrites it
   ([`download`](../reference/snapshot_command.md#download)). Pass it with
-  `--job-durations extra/release_job_duration_table.parquet`.
+  `--job-durations extra/output/production/release_job_duration_table.parquet`.
 
 The durations are used as measured: they are not scaled to your hardware.
 The report names the SLURM clusters, hosts, CPU models and GPU models
@@ -50,7 +50,7 @@ slower.
 ## 3. Run the estimate
 
 ```shell
-just estimate-compute [--job-durations extra/release_job_duration_table.parquet] \
+just estimate-compute [--job-durations extra/output/production/release_job_duration_table.parquet] \
     --profile extra/workflow/profiles/config/kdd26 \
     --workflow-profile extra/workflow/profiles/<your_site> all
 ```
@@ -82,7 +82,7 @@ launch:
   [SLURM integration](slurm_integration.md)), and pass the same arguments
   to the estimate and to the real run.
 - **Failed**: find the failed job in Snakemake's output of that run, and
-  its job record under `extra/output/failed_job_records/`; fix the cause,
+  its job record under `extra/output/production/failed_job_records/`; fix the cause,
   or the jobs will fail again.
 
 ## 6. Break the estimate down

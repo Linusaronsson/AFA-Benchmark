@@ -90,7 +90,7 @@ def test_cluster_preset_declares_former_six_stage_hardware(
     tmp_path: Path, preset: str, methods: set[str]
 ) -> None:
     workflow = WorkflowHarness(tmp_path)
-    shutil.rmtree(tmp_path / "extra/output_smoke")
+    shutil.rmtree(tmp_path / "extra/output/smoke")
 
     result = workflow.run_invocation(
         CLUSTER_PRESETS[preset],
@@ -129,7 +129,7 @@ def test_cluster_preset_declares_former_six_stage_hardware(
 
 def test_local_all_preset_runs_every_job_on_cpu(tmp_path: Path) -> None:
     workflow = WorkflowHarness(tmp_path)
-    shutil.rmtree(tmp_path / "extra/output_smoke")
+    shutil.rmtree(tmp_path / "extra/output/smoke")
 
     result = workflow.run_invocation(
         ["--profile", "extra/workflow/profiles/config/all"],
@@ -195,7 +195,7 @@ REALIZATIONS = ["0", "1"]
 
 def full_benchmark_workflow(root: Path) -> WorkflowHarness:
     workflow = processing_workflow(root)
-    shutil.rmtree(root / "extra/output_smoke")
+    shutil.rmtree(root / "extra/output/smoke")
     workflow.config.update(
         {
             "methods": METHODS,
@@ -361,7 +361,7 @@ def test_full_graph_submits_every_job_once(
     assert len(full_graph_run.calls) == len(comments) - 1
     plots = (
         full_graph_run.root
-        / "extra/output_smoke/plot_results/eval_split-test/initializer-cold"
+        / "extra/output/smoke/plot_results/eval_split-test/initializer-cold"
     )
     assert len(list(plots.rglob("fixture.svg"))) == 4
 
@@ -413,7 +413,7 @@ def test_full_graph_job_records_carry_submitted_allocations(
 ) -> None:
     records = [
         json.loads(path.read_text())
-        for path in (full_graph_run.root / "extra/output_smoke").rglob(
+        for path in (full_graph_run.root / "extra/output/smoke").rglob(
             "*.job_record.json"
         )
     ]
@@ -500,7 +500,7 @@ def test_full_graph_preserves_contract_and_shared_prerequisites(
         if script.endswith("pretrain_model/shared.py")
     }
     assert shared == {
-        k: "extra/output_smoke/pretrained_models/initializer-cold/shared/"
+        k: "extra/output/smoke/pretrained_models/initializer-cold/shared/"
         f"dataset-cube+realization_index-{k}/pretrain_seed-{k}/model.bundle"
         for k in REALIZATIONS
     }
@@ -532,7 +532,7 @@ def test_full_graph_trains_classifiers_per_dataset_realization(
     assert set(classifiers) == {
         (
             f"train_classifier/{script}.py",
-            "extra/output_smoke/trained_classifiers/initializer-cold/"
+            "extra/output/smoke/trained_classifiers/initializer-cold/"
             f"{owner}dataset-cube+realization_index-{k}.bundle",
         )
         for script, owner in [
@@ -544,10 +544,10 @@ def test_full_graph_trains_classifiers_per_dataset_realization(
     for args in classifiers.values():
         k = realization_of(args)
         assert args["train_dataset_path"] == (
-            f"extra/output_smoke/datasets/cube/{k}/train.bundle"
+            f"extra/output/smoke/datasets/cube/{k}/train.bundle"
         )
         assert args["val_dataset_path"] == (
-            f"extra/output_smoke/datasets/cube/{k}/val.bundle"
+            f"extra/output/smoke/datasets/cube/{k}/val.bundle"
         )
         assert args["seed"] == k
 
@@ -574,7 +574,7 @@ def test_full_graph_hands_each_stage_its_realizations_classifier(
             else ""
         )
         assert args["classifier_bundle_path"] == (
-            "extra/output_smoke/trained_classifiers/initializer-cold/"
+            "extra/output/smoke/trained_classifiers/initializer-cold/"
             f"{owner}dataset-cube+realization_index-{k}.bundle"
         ), (script, args["save_path"])
 
@@ -709,6 +709,6 @@ def test_local_cpu_smoke_runs_the_same_full_graph(tmp_path: Path) -> None:
             assert args["smoke_test"] == "True", script
     plots = (
         tmp_path
-        / "extra/output_smoke/plot_results/eval_split-test/initializer-cold"
+        / "extra/output/smoke/plot_results/eval_split-test/initializer-cold"
     )
     assert len(list(plots.rglob("fixture.svg"))) == 4

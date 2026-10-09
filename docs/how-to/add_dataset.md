@@ -169,7 +169,7 @@ datasets:
   # ... other datasets ...
 ```
 
-The pipeline will generate `train.bundle`, `val.bundle`, and `test.bundle` under `extra/output/datasets/my_dataset/{dataset_realization_index}/` for each selected dataset realization.
+The pipeline will generate `train.bundle`, `val.bundle`, and `test.bundle` under `extra/output/production/datasets/my_dataset/{dataset_realization_index}/` for each selected dataset realization.
 
 ### 5. Add a readable name
 

@@ -13,7 +13,7 @@ root.
 
 Each record is a declared output of its rule, named after the artifact with
 `.job_record.json` in place of the artifact's suffix. Paths are relative to
-the output root: `extra/output/`, or `extra/output_smoke/` for a smoke test
+the output root: `extra/output/production/`, or `extra/output/smoke/` for a smoke test
 (see [`output_root`](pipeline_configuration.md#output_root)); `<tag>` is `initializer-<initializer>`,
 `<training>` the training run's folder
 (`<method>/dataset-<key>+realization_index-<k>/<pretrain folder>/train_seed-<s>+train_hard_budget-<b>+train_soft_budget_param-<p>`)

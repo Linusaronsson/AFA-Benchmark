@@ -197,7 +197,7 @@ def journey(tmp_path_factory: pytest.TempPathFactory) -> Journey:
             "save",
             str(package),
             "--source-root",
-            str(result.published / "extra/output_smoke"),
+            str(result.published / "extra/output/smoke"),
             *(
                 argument
                 for path in baseline_configfiles
@@ -225,7 +225,7 @@ def journey(tmp_path_factory: pytest.TempPathFactory) -> Journey:
         RELEASE_ID,
         "--smoke-release",
         "--destination-root",
-        str(result.forked / "extra/output_smoke"),
+        str(result.forked / "extra/output/smoke"),
         "--payload-category",
         "transformed_evaluation_table",
         "--payload-category",
@@ -236,13 +236,15 @@ def journey(tmp_path_factory: pytest.TempPathFactory) -> Journey:
         "pretrained_model_bundle",
     )
     assert downloaded.exit_code == 0, downloaded.output
-    result.downloaded = files_and_mtimes(result.forked / "extra/output_smoke")
+    result.downloaded = files_and_mtimes(result.forked / "extra/output/smoke")
 
     release_config = tmp_path / "release_config.json"
     release_config.write_text(
         json.dumps(
             json.loads(
-                (result.forked / "extra/release_manifest.json").read_text()
+                (
+                    result.forked / "extra/output/smoke/release_manifest.json"
+                ).read_text()
             )["workflow_config"]["merged"]
         )
     )
@@ -269,7 +271,7 @@ def test_fork_downloads_shared_prerequisites_but_no_baseline_bundle(
         path for path in downloaded if path.startswith("eval_results/")
     ]
     manifest = read_release_manifest(
-        journey.forked / "extra/release_manifest.json"
+        journey.forked / "extra/output/smoke/release_manifest.json"
     )
     assert manifest.release_id == RELEASE_ID
     assert manifest.execution_mode is ExecutionMode.SMOKE
@@ -290,7 +292,7 @@ def test_adding_a_method_runs_only_its_missing_work(journey: Journey) -> None:
     assert finished == {
         rule: count for rule, count in ADOPTER_JOBS.items() if rule != "total"
     }, executed
-    output = journey.forked / "extra/output_smoke"
+    output = journey.forked / "extra/output/smoke"
     for method in ["random_dummy", "gdfs"]:
         assert not (output / f"trained_methods/{TAG}/{method}").exists()
         assert not (
@@ -304,14 +306,14 @@ def test_adding_a_method_reuses_the_downloaded_shared_prerequisites(
     journey: Journey,
 ) -> None:
     assert journey.run.returncode == 0
-    after = files_and_mtimes(journey.forked / "extra/output_smoke")
+    after = files_and_mtimes(journey.forked / "extra/output/smoke")
 
     # Every downloaded file is still there, untouched.
     assert {path: after[path] for path in journey.downloaded} == (
         journey.downloaded
     )
     trained = next(
-        (journey.forked / f"extra/output_smoke/trained_methods/{TAG}").glob(
+        (journey.forked / f"extra/output/smoke/trained_methods/{TAG}").glob(
             "gdfs_adopter/**/method.bundle"
         )
     )
@@ -322,7 +324,7 @@ def test_adding_a_method_reuses_the_downloaded_shared_prerequisites(
     for prerequisite in SHARED_PREREQUISITES:
         if prerequisite.endswith("test.bundle"):
             continue
-        assert f"extra/output_smoke/{prerequisite}" in inputs, prerequisite
+        assert f"extra/output/smoke/{prerequisite}" in inputs, prerequisite
 
 
 @pytest.mark.pipeline
@@ -330,7 +332,7 @@ def test_comparison_holds_each_baseline_row_once_and_keeps_budgets_apart(
     journey: Journey,
 ) -> None:
     assert journey.run.returncode == 0
-    output = journey.forked / "extra/output_smoke"
+    output = journey.forked / "extra/output/smoke"
     merged = pd.read_parquet(
         output / f"merged_results/{EVAL_PERF}/{COMPARISON}+all.parquet"
     )
@@ -340,7 +342,7 @@ def test_comparison_holds_each_baseline_row_once_and_keeps_budgets_apart(
         "gdfs",
         "gdfs_adopter",
     }
-    published = journey.published / "extra/output_smoke"
+    published = journey.published / "extra/output/smoke"
     for method in ["random_dummy", "gdfs"]:
         restored = pd.concat(
             pd.read_parquet(path)
@@ -375,7 +377,7 @@ def test_comparison_plots_show_both_and_are_labelled_demonstrations(
 ) -> None:
     assert journey.run.returncode == 0
     plot = (
-        journey.forked / f"extra/output_smoke/plot_results/{EVAL_PERF}/"
+        journey.forked / f"extra/output/smoke/plot_results/{EVAL_PERF}/"
         f"{COMPARISON}+classifier_type-external/all/hard_budget_normal.svg"
     ).read_text()
 
@@ -405,7 +407,7 @@ def test_results_only_journey_needs_no_afabench_loading(
     )
 
     assert downloaded.exit_code == 0, downloaded.output
-    manifest = json.loads((tmp_path / "release_manifest.json").read_text())
+    manifest = json.loads((destination / "release_manifest.json").read_text())
     for table in manifest["evaluations"]:
         for key in ["raw_path", "transformed_path"]:
             # The host stores each table as an ordinary file, so a plain

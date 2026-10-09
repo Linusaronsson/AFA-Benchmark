@@ -35,16 +35,18 @@ as Snakemake does.
 ## `save`
 
 ```shell
-snapshot.py save SNAPSHOT_DIR [--source-root extra/output] [--overwrite]
+snapshot.py save SNAPSHOT_DIR [--source-root extra/output/production] [--overwrite]
     [--release-id ID --scope full|partial|smoke CONFIGURATION OPTIONS]
     [--checkout .]
 ```
 
-A smoke test's outputs are under `extra/output_smoke`: pass
-`--source-root extra/output_smoke` to save them.
+A smoke test's outputs are under `extra/output/smoke`: pass
+`--source-root extra/output/smoke` to save them.
 
 Copies every file and directory under the source root to
-`SNAPSHOT_DIR/output`, keeping file and directory modification times. A
+`SNAPSHOT_DIR/output`, keeping file and directory modification times,
+except a restored release's `release_manifest.json` and
+`release_job_duration_table.parquet` at the top of the source root. A
 missing or empty source root is an error.
 
 With `--release-id`, also writes `SNAPSHOT_DIR/release_manifest.json`
@@ -86,25 +88,28 @@ Transformed tables carry their evaluation's record; the commits of transformatio
 snapshot.py restore SNAPSHOT_DIR [--destination-root ROOT] [--overwrite]
 ```
 
-The destination root defaults to `extra/output`, or `extra/output_smoke`
-when the snapshot's release manifest has scope `smoke`, so smoke outputs
-never satisfy a production run.
+The destination root defaults to `extra/output/production`, or
+`extra/output/smoke` when the snapshot's release manifest has scope
+`smoke`, so smoke outputs never satisfy a production run.
 
 Copies `SNAPSHOT_DIR/output` into the destination root, keeping
-modification times, and the snapshot's release manifest, if any, to
-`release_manifest.json` beside the destination root
-(`extra/release_manifest.json` by default), and its job duration table, if
-any, to `release_job_duration_table.parquet` beside it. A manifest whose
+modification times, and the snapshot's release manifest and job duration
+table, if any, into the destination root itself, as
+`release_manifest.json` and `release_job_duration_table.parquet`. In a
+snapshot they sit beside `output/`; in a checkout they sit inside the
+root, so the smoke and production output roots each keep their own
+release's files. `save` leaves these two files out when it copies a
+source root, so a new release never carries a restored one's. A manifest whose
 `manifest_version` this checkout does not read is refused before anything
 is restored.
 
 ## `inventory`
 
 ```shell
-snapshot.py inventory [--source-root extra/output]
+snapshot.py inventory [--source-root extra/output/production]
 ```
 
-Pass `--source-root extra/output_smoke` for a smoke test's outputs.
+Pass `--source-root extra/output/smoke` for a smoke test's outputs.
 
 Prints the execution mode of the source root's artifacts and, per
 [payload category](release_manifest.md#payload-categories), how many
@@ -153,8 +158,8 @@ snapshot.py download [RELEASE] --repo-id REPO
     [--destination-root ROOT] [--overwrite] [--smoke-release]
 ```
 
-The destination root defaults to `extra/output`, or `extra/output_smoke`
-with `--smoke-release`.
+The destination root defaults to `extra/output/production`, or
+`extra/output/smoke` with `--smoke-release`.
 
 Downloads one release and restores it as `restore` does, then prints its
 scope, execution mode and workflow configuration. A public
@@ -219,7 +224,7 @@ Downloaded 6 file(s) and 1 folder(s).
 Missing from release 2026-11-partial:
   dataset 'physionet': no evaluation of the release matches
   transformed_evaluation_table of the evaluation eval_results/...: not in the release
-  classifier_bundle extra/output/trained_classifiers/..., classifier input of eval_results/...: not in the release
+  classifier_bundle extra/output/production/trained_classifiers/..., classifier input of eval_results/...: not in the release
 ```
 
 An input is reported only if its category is named; a

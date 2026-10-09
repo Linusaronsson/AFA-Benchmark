@@ -11,9 +11,9 @@ failed or timed out before. See `afabench.compute_estimate` and
 
 Options, before or among the Snakemake arguments:
     --job-durations PATH  A job duration table, or an output root of job
-                          records (default: extra/output, the production
-                          output root; a smoke test's job records are under
-                          extra/output_smoke).
+                          records (default: extra/output/production; a
+                          smoke test's job records are under
+                          extra/output/smoke).
     --by COLUMN           Group the totals by these job columns instead,
                           repeatable (e.g. --by name --by dataset_key).
     --output CSV          Also write each planned job's estimate here.
@@ -24,7 +24,8 @@ Usage:
         --profile extra/workflow/profiles/config/kdd26 \
         --workflow-profile extra/workflow/profiles/<site> all
     just estimate-compute \
-        --job-durations extra/release_job_duration_table.parquet \
+        --job-durations \
+            extra/output/production/release_job_duration_table.parquet \
         --by name --output estimate.csv <Snakemake arguments>
 """
 

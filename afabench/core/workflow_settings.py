@@ -18,8 +18,6 @@ from typing import Any
 import dacite
 
 from afabench.core.output_layout import (
-    PRODUCTION_OUTPUT_ROOT,
-    SMOKE_OUTPUT_ROOT,
     EvaluationRun,
     OutputLayout,
     PathValue,
@@ -439,24 +437,30 @@ def _parse_strictly[T](
 
 def _output_root(output_root: str | None, *, smoke_test: bool) -> str:
     """
-    Resolve the run's output root, refusing a smoke test into production.
+    Resolve the run's output root, apart from the other kind of run's.
 
-    A smoke test in the production output root would leave smoke artifacts
-    that a later real run takes as its own and skips their jobs.
+    A smoke test whose outputs share a tree with production would leave
+    smoke artifacts that a later real run takes as its own and skips their
+    jobs, and the reverse would mix production artifacts into a smoke
+    release.
     """
     if output_root is None:
         return default_output_root(smoke_test=smoke_test)
+    other = default_output_root(smoke_test=not smoke_test)
     # Relative paths are relative to the checkout, Snakemake's working
     # directory.
-    if (
-        smoke_test
-        and Path(output_root).resolve()
-        == Path(PRODUCTION_OUTPUT_ROOT).resolve()
-    ):
+    resolved, other_resolved = (
+        Path(output_root).resolve(),
+        Path(other).resolve(),
+    )
+    if resolved.is_relative_to(
+        other_resolved
+    ) or other_resolved.is_relative_to(resolved):
+        own = default_output_root(smoke_test=smoke_test)
         message = (
-            f"smoke_test=true cannot write into output_root={output_root}, "
-            "the production output root; omit output_root to use "
-            f"{SMOKE_OUTPUT_ROOT}."
+            f"smoke_test={str(smoke_test).lower()} cannot write into "
+            f"output_root={output_root}, which overlaps {other}; omit "
+            f"output_root to use {own}."
         )
         raise ValueError(message)
     return output_root

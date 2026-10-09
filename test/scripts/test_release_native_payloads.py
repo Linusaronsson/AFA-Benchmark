@@ -389,7 +389,7 @@ def test_release_transport_carries_bundles_and_redistribution_warnings(
             if file.is_file():
                 assert restored.read_bytes() == file.read_bytes()
     manifest = read_release_manifest(
-        tmp_path / "checkout/extra/release_manifest.json"
+        tmp_path / "checkout/extra/output/release_manifest.json"
     )
     assert {TRAIN, ALPHA_METHOD} <= {
         bundle.path for bundle in manifest.bundles

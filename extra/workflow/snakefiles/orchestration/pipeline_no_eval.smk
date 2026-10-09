@@ -25,10 +25,11 @@ Runtime filters (--config, select subsets to run):
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests, under their own
         output root
-    output_root (str, default='extra/output', or 'extra/output_smoke' with
-        smoke_test=true): Where the run writes its bundles, evaluation
-        tables, job records, merged results and plots. A smoke test cannot
-        write into extra/output, so its outputs never satisfy a real run.
+    output_root (str, default='extra/output/production', or
+        'extra/output/smoke' with smoke_test=true): Where the run writes its
+        bundles, evaluation tables, job records, merged results and plots.
+        It cannot overlap the other kind of run's default root, so smoke
+        outputs never satisfy a real run.
     initializer (str, default='cold'): Initialization strategy
     eval_dataset_split (str, default='test'): Dataset split for existing
         evaluation outputs
