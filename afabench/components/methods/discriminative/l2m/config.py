@@ -10,6 +10,13 @@ from afabench.fit.contract import (
 )
 
 
+def _require_a_validation_task(n_validation_tasks: int) -> None:
+    # The checkpoint is chosen by the loss on the held-out validation tasks.
+    if n_validation_tasks < 1:
+        msg = f"n_validation_tasks={n_validation_tasks} must be at least 1"
+        raise ValueError(msg)
+
+
 # Not frozen: OmegaConf would make the nested node read-only.
 @dataclass(kw_only=True)
 class L2MArchitectureConfig:
@@ -37,6 +44,9 @@ class L2MPretrainingConfig(PretrainingContract):
     n_validation_tasks: int
     missingness_cap: float
 
+    def __post_init__(self) -> None:
+        _require_a_validation_task(self.n_validation_tasks)
+
 
 store_contract_config(name="pretrain_l2m", config_class=L2MPretrainingConfig)
 
@@ -60,6 +70,9 @@ class L2MTrainingConfig(TrainingContract):
     missingness_cap: float
     # Validation-split instances stored in the method bundle.
     context_set_size: int
+
+    def __post_init__(self) -> None:
+        _require_a_validation_task(self.n_validation_tasks)
 
 
 store_contract_config(name="train_l2m", config_class=L2MTrainingConfig)

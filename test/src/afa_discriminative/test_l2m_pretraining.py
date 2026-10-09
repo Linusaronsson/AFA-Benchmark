@@ -1,5 +1,6 @@
 """L2M pretraining returns the pretrained model; the caller saves it."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -110,3 +111,16 @@ def test_pretraining_never_reads_train_labels(tmp_path: Path) -> None:
         models[0].parameters(), models[1].parameters(), strict=True
     ):
         assert torch.equal(original, other)
+
+
+@pytest.mark.parametrize("n_validation_tasks", [0, -1])
+def test_pretraining_config_requires_a_validation_task(
+    tmp_path: Path, n_validation_tasks: int
+) -> None:
+    cfg = _config(
+        tmp_path, CubeDataset(n_samples=64, seed=0), FeatureSource.real
+    )
+    with pytest.raises(
+        ValueError, match=f"n_validation_tasks={n_validation_tasks}"
+    ):
+        replace(cfg, n_validation_tasks=n_validation_tasks)

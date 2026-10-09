@@ -1,5 +1,6 @@
 """L2M training returns the method with its context set; the caller saves."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -164,6 +165,17 @@ def test_training_rejects_validation_split_smaller_than_context_set(
     )
     with pytest.raises(ValueError, match=r"7 instances.*context_set_size=8"):
         train_l2m(cfg, inputs=load_inputs(cfg))
+
+
+@pytest.mark.parametrize("n_validation_tasks", [0, -1])
+def test_training_config_requires_a_validation_task(
+    tmp_path: Path, n_validation_tasks: int
+) -> None:
+    cfg = _config(tmp_path)
+    with pytest.raises(
+        ValueError, match=f"n_validation_tasks={n_validation_tasks}"
+    ):
+        replace(cfg, n_validation_tasks=n_validation_tasks)
 
 
 @pytest.mark.optional
