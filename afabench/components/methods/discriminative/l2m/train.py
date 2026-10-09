@@ -5,28 +5,28 @@ The pretrained `L2MModel` from `pretrain_l2m` is loaded and its policy head
 trained with straight-through Gumbel-softmax at a fixed temperature, while
 the backbone and the built-in classifier are fine-tuned at a lower learning
 rate (paper Appendix A.5.6). Tasks come from the task prior through
-`sample_task`; of the train split only the features are used, as the real
-feature source's pool. Afterwards the context set is drawn from the
-validation split with the contract seed and packaged with the model as an
-`L2MAFAMethod`.
+`sample_task`; of the train split only the features are used, as the
+pretraining pool of the real feature source. Afterwards the context set is
+drawn from the validation split with the contract seed and packaged with
+the model as an `L2MAFAMethod`.
 
 Reading of Algorithm 2, where the paper is ambiguous:
 
 - The state advances by a random available feature (line 9), not by the
-  policy's action: each query gets one random acquisition mask over its
-  retrospectively available features, leaving at least one unacquired, as
-  `pretrain_l2m` does for Algorithm 1. The straight-through action only
-  builds the one-step loss (line 8): the acquisition mask plus the one-hot
+  policy's action: each query instance gets one random feature mask over
+  its retrospectively available features, leaving at least one unacquired,
+  as `pretrain_l2m` does for Algorithm 1. The straight-through action only
+  builds the one-step loss (line 8): the feature mask plus the one-hot
   action is the input of a second forward pass, whose classifier
-  cross-entropy on the query's label is the loss. Gradients reach the
-  policy through the relaxed action in the mask.
+  cross-entropy on the query instance's label is the loss. Gradients reach
+  the policy through the relaxed action in the mask.
 - The policy is blocked on retrospectively missing features (paper
   Definition 4.1) and, the safe choice the paper leaves unstated, on
   features already acquired.
 - The one-step loss is the only loss; the classifier's loss on the current
   state is not added.
-- Queries whose available features are all acquired have no transition and
-  are left out of the loss.
+- Query instances whose available features are all acquired have no
+  transition and are left out of the loss.
 - The paper states no checkpoint rule for the policy. The checkpoint is
   chosen every `checkpoint_interval` steps on a fixed set of held-out tasks
   from the task prior, by the one-step loss of the argmax action.
@@ -60,7 +60,7 @@ from afabench.components.methods.discriminative.l2m.task_batches import (
 from afabench.core.types import Features, Label
 from afabench.fit.inputs import FitInputs
 
-type QueryActions = Float[torch.Tensor, "tasks queries n_features"]
+type QueryActions = Float[torch.Tensor, "tasks query_instances n_features"]
 
 
 def train_l2m(
@@ -191,8 +191,8 @@ def _one_step_loss(
         batch.available[:, context_set_size:] & ~mask[:, context_set_size:]
     )
     has_selection = selectable.any(dim=-1)
-    # Queries without a selection get a harmless uniform policy and are
-    # weighted out of the loss below.
+    # Query instances without a selection get a harmless uniform policy and
+    # are weighted out of the loss below.
     blocked_logits = policy_logits.masked_fill(
         ~(selectable | ~has_selection.unsqueeze(-1)), -torch.inf
     )

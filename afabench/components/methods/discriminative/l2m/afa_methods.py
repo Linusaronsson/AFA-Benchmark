@@ -42,16 +42,18 @@ class L2MAFAMethod(AFAMethod):
     In-Context Active Feature Acquisition", arXiv:2510.12624, ported
     independently of the authors' code. Departures from the paper:
 
-    - A context instance is never queried, because the context set comes
-      from the validation split and queries from the test split.
+    - A context instance is never a query instance, because the context set
+      comes from the validation split and query instances from the test
+      split.
     - The pretraining pool is the whole train split rather than 5000
       instances.
     - Features are not normalized within each task; the paper normalizes
       each feature with its mean and variance within the task sequence.
-    - Both fit stages give each query one random acquisition mask rather
-      than visiting every mask size (`task_batches`).
-    - There are no target points: both fit stages use the context/query
-      attention layout of evaluation (`L2MModel`).
+    - Both fit stages give each query instance one random feature mask
+      rather than visiting every mask size (`task_batches`).
+    - There are no target points: both fit stages use the attention layout
+      of evaluation, where query instances read only the context set
+      (`L2MModel`).
 
     Evaluation must use a hard budget below the number of selections.
     Exhausted selections raise rather than invent a stop or repeat action.
@@ -213,8 +215,9 @@ class L2MAFAMethod(AFAMethod):
             # a sub-full hard budget instead of repeating a selection.
             if performed.all(dim=-1).any():
                 msg = (
-                    "L2M selections are exhausted for at least one query; "
-                    "use a hard budget below the number of selections"
+                    "L2M selections are exhausted for at least one query "
+                    "instance; use a hard budget below the number of "
+                    "selections"
                 )
                 raise ValueError(msg)
             return (

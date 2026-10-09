@@ -73,8 +73,9 @@ method_options:
     train_script_name: "l2m"
     method_specific_params:
       - "feature_source=real"
-    # Queries attend to the stored context set only, never to each other, so
-    # the batch size is a throughput knob only and does not change results.
+    # Query instances attend to the stored context set only, never to each
+    # other, so the batch size is a throughput knob only and does not change
+    # results.
     eval_batch_size: &l2m_eval_batch_size
       default: 128
     # Hard-budget setting on miniboone only. L2M has no stop action and its

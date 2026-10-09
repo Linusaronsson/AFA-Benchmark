@@ -1,8 +1,9 @@
 """
 Independent L2M encoder from Kobayashi et al., arXiv:2510.12624.
 
-The specification's context/query attention layout is used in both fit
-stages and evaluation, rather than the paper's training-only target points.
+The specification's attention layout, where query instances read only the
+context set, is used in both fit stages and evaluation, rather than the
+paper's training-only target points.
 There are no positional embeddings or stop logits.
 """
 
@@ -19,8 +20,8 @@ type TaskMask = (
     | Float[torch.Tensor, "*tasks sequence n_features"]
 )
 type TaskLabels = Float[torch.Tensor, "*tasks sequence n_classes"]
-type ClassifierLogits = Float[torch.Tensor, "*tasks queries n_classes"]
-type PolicyLogits = Float[torch.Tensor, "*tasks queries n_features"]
+type ClassifierLogits = Float[torch.Tensor, "*tasks query_instances n_classes"]
+type PolicyLogits = Float[torch.Tensor, "*tasks query_instances n_features"]
 
 
 class L2MModel(nn.Module):
@@ -28,8 +29,9 @@ class L2MModel(nn.Module):
     Joint encoder with public classifier and policy heads.
 
     Forward accepts a sequence, or a batch of task sequences, with the
-    labelled context set first and queries last. It returns logits for
-    queries only. Query labels are always zeroed to prevent label leakage.
+    labelled context set first and query instances last. It returns logits
+    for query instances only, whose labels are always zeroed to prevent
+    label leakage.
     Float masks are supported for straight-through acquisition gradients.
     Embedding depth counts the input projection and residual linear layers.
     """
@@ -166,7 +168,8 @@ class L2MModel(nn.Module):
             embedded = embedded + layer(embedded)
         sequence_length = features.shape[1]
         # Every instance can read the context set; no instance can read a
-        # query. Residual connections retain each query's own observation.
+        # query instance. Residual connections retain each query instance's
+        # own observation.
         attention_mask = torch.ones(
             sequence_length,
             sequence_length,
@@ -174,11 +177,11 @@ class L2MModel(nn.Module):
             device=features.device,
         )
         attention_mask[:, :context_set_size] = False
-        queries = self.encoder(embedded, mask=attention_mask)[
+        query_encodings = self.encoder(embedded, mask=attention_mask)[
             :, context_set_size:
         ]
-        classifier_logits = self.classifier_head(queries)
-        policy_logits = self.policy_head(queries)
+        classifier_logits = self.classifier_head(query_encodings)
+        policy_logits = self.policy_head(query_encodings)
         if unbatched:
             return classifier_logits.squeeze(0), policy_logits.squeeze(0)
         return classifier_logits, policy_logits

@@ -76,7 +76,8 @@ def test_l2m_predict_returns_classifier_logits_and_ignores_query_labels() -> (
     assert method.has_builtin_classifier
     assert method.output_kind == "logits"
     torch.testing.assert_close(prediction, method.predict(features, mask))
-    # The model's classifier logits for the queries after the context set.
+    # The model's classifier logits for the query instances after the context
+    # set.
     with torch.no_grad():
         expected, _ = method.model(
             torch.cat((method.context_features, features)),
@@ -247,7 +248,7 @@ def test_l2m_model_bundle_rebuilds_architecture_and_both_heads(
 
 
 @pytest.mark.parametrize("context_set_size", [-1, 0, 3, 4])
-def test_l2m_model_requires_nonempty_context_and_queries(
+def test_l2m_model_requires_nonempty_context_set_and_query_instances(
     context_set_size: int,
 ) -> None:
     model = _make_model()
@@ -348,7 +349,7 @@ def test_l2m_model_rejects_invalid_architecture(
         ((2, 3), (3,), "feature_mask"),
     ],
 )
-def test_l2m_predict_rejects_incompatible_query_shapes(
+def test_l2m_predict_rejects_incompatible_query_instance_shapes(
     feature_shape: tuple[int, ...],
     mask_shape: tuple[int, ...],
     bad_input: str,

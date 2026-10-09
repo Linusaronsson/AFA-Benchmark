@@ -2,28 +2,29 @@
 L2M pretraining stage: paper Algorithm 1 (arXiv:2510.12624).
 
 The built-in classifier of `L2MModel` learns to predict the labels of
-queries from a context set, on tasks drawn from the task prior with
+query instances from a context set, on tasks drawn from the task prior with
 `sample_task`. Of the train split only the features are used, as the
 pretraining pool of the real feature source; its labels are discarded.
 
 Choices where the paper is ambiguous, or where this port departs from it:
 
-- Algorithm 1 visits every acquisition mask size of every query. Each
-  query here gets one random acquisition mask instead, so a task costs one
-  forward pass rather than one per mask size: a size drawn uniformly from
-  none to all of the query's retrospectively available features, then a
-  uniformly random subset of that size.
+- Algorithm 1 visits every feature mask size of every query instance.
+  Each query instance here gets one random feature mask instead, so a task
+  costs one forward pass rather than one per mask size: a size drawn
+  uniformly from none to all of the query instance's retrospectively
+  available features, then a uniformly random subset of that size.
 - The paper sums the loss over context set sizes using training-only target
   points. Here each step draws one context set size, uniform on 1 to
   `sequence_length - 1` and shared by the step's tasks, and the remaining
-  instances are queries. The loss is the cross-entropy averaged over the
-  step's queries.
+  instances are query instances. The loss is the cross-entropy averaged
+  over the step's query instances.
 - The checkpoint is chosen on a fixed set of held-out tasks from the same
   task prior, as in the paper, which does not state how many.
 - Features are not normalized within each task, unlike the paper. The
   paper does not say which statistics normalize the context set and
-  queries at evaluation, where queries are only partly observed, and the
-  MiniBooNE loader already z-normalizes every feature over the dataset.
+  query instances at evaluation, where query instances are only partly
+  observed, and the MiniBooNE loader already z-normalizes every feature
+  over the dataset.
 - The learning rate warms up linearly, then decays linearly towards zero.
 """
 

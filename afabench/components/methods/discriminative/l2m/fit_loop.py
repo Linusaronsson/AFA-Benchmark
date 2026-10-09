@@ -3,9 +3,10 @@ The fit loop shared by L2M's two fit stages.
 
 Both `pretrain_l2m` and `train_l2m` train on batches of tasks from the
 task prior, drawn with `draw_task_batch`. Of the train split only the
-features are used, as the pool of the real feature source. The state kept
-is the one with the lowest loss on a fixed set of held-out tasks from the
-same prior, checked every `checkpoint_interval` steps and at the last step.
+features are used, as the pretraining pool of the real feature source.
+The state kept is the one with the lowest loss on a fixed set of held-out
+tasks from the same prior, checked every `checkpoint_interval` steps and at
+the last step.
 """
 
 import logging

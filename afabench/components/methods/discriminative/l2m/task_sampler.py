@@ -90,17 +90,17 @@ def sample_task(
     """
     Draw one reproducible task from the task prior (paper A.5.2, A.5.3).
 
-    `feature_source` selects instances of the real pool
+    `feature_source` selects instances of the pretraining pool
     (`l2m_real_feature_prior`) or the uniform box on [-2, 2]
-    (`l2m_synthetic_feature_prior`). Real-pool tasks draw instances
-    without replacement within the task. `missingness_cap`
-    bounds the per-feature MCAR missing rate (see the module docstring). A
-    cap of 0 leaves every feature observed.
+    (`l2m_synthetic_feature_prior`). Tasks from the pretraining pool draw
+    instances without replacement within the task. `missingness_cap` bounds
+    the per-feature MCAR missing rate (see the module docstring). A cap of 0
+    leaves every feature observed.
     """
     if sequence_length < 2:
         msg = (
             f"sequence_length={sequence_length} must be at least 2, "
-            "for one context instance and one query"
+            "for one context instance and one query instance"
         )
         raise ValueError(msg)
     if not 0.0 <= missingness_cap <= 1.0:

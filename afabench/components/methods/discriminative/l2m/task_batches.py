@@ -3,9 +3,9 @@ Batches of task-prior tasks shared by L2M's two fit stages.
 
 Both `pretrain_l2m` and `train_l2m` consume tasks only through
 `sample_task`, assembled here into batches with the context set first and
-queries last. Each query gets one random acquisition mask over its
-retrospectively available features, the affordable reading of the paper's
-Algorithms 1 and 2 (arXiv:2510.12624), which visit every mask size.
+query instances last. Each query instance gets one random feature mask
+over its retrospectively available features, the affordable reading of the
+paper's Algorithms 1 and 2 (arXiv:2510.12624), which visit every mask size.
 """
 
 from dataclasses import dataclass, replace
@@ -26,8 +26,10 @@ from afabench.components.methods.discriminative.l2m.task_sampler import (
 from afabench.core.types import Features
 
 type AvailableFeatures = Bool[torch.Tensor, "tasks sequence n_features"]
-type QueryAvailableFeatures = Bool[torch.Tensor, "tasks queries n_features"]
-type AcquisitionMask = Bool[torch.Tensor, "tasks queries n_features"]
+type QueryAvailableFeatures = Bool[
+    torch.Tensor, "tasks query_instances n_features"
+]
+type QueryFeatureMask = Bool[torch.Tensor, "tasks query_instances n_features"]
 
 # Task seeds are drawn from one generator per run, so the held-out tasks
 # and the training tasks are distinct draws from the task prior.
@@ -37,10 +39,10 @@ TASK_SEED_BOUND = 2**62
 @dataclass(frozen=True, kw_only=True)
 class TaskBatch:
     """
-    Tasks of one step, with the context set first and queries last.
+    Tasks of one step, with the context set first and query instances last.
 
     `mask` holds the retrospective missingness mask of context instances
-    and the random acquisition mask of queries; `available` holds the
+    and the random feature mask of query instances; `available` holds the
     retrospective missingness mask of every instance.
     """
 
@@ -75,8 +77,8 @@ def draw_task_batch(
     """
     Draw `n_tasks` tasks with one context set size, uniform on 1 to N - 1.
 
-    With `keep_one_unacquired`, a query never has every available feature
-    acquired, so the policy stage always has a selection to make.
+    With `keep_one_unacquired`, a query instance never has every available
+    feature acquired, so the policy stage always has a selection to make.
     """
     tasks = [
         sample_task(
@@ -99,7 +101,7 @@ def draw_task_batch(
         mask=torch.cat(
             (
                 available[:, :context_set_size],
-                random_acquisition_mask(
+                random_feature_mask(
                     available[:, context_set_size:],
                     generator,
                     keep_one_unacquired=keep_one_unacquired,
@@ -113,14 +115,14 @@ def draw_task_batch(
     )
 
 
-def random_acquisition_mask(
+def random_feature_mask(
     available: QueryAvailableFeatures,
     generator: torch.Generator,
     *,
     keep_one_unacquired: bool = False,
-) -> AcquisitionMask:
+) -> QueryFeatureMask:
     """
-    Acquire a uniformly random subset of each query's available features.
+    Acquire a random subset of each query instance's available features.
 
     The subset size is uniform from none to all available features, or to
     all but one with `keep_one_unacquired`.
