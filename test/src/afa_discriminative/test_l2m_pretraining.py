@@ -14,6 +14,9 @@ from afabench.components.methods.discriminative.l2m.models import L2MModel
 from afabench.components.methods.discriminative.l2m.pretrain import (
     pretrain_l2m,
 )
+from afabench.components.methods.discriminative.l2m.task_sampler import (
+    FeatureSource,
+)
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.datasets.datasets import CubeDataset
@@ -29,7 +32,7 @@ def _save_dataset(dataset: CubeDataset, path: Path) -> str:
 
 
 def _config(
-    tmp_path: Path, train_dataset: CubeDataset, feature_source: str
+    tmp_path: Path, train_dataset: CubeDataset, feature_source: FeatureSource
 ) -> L2MPretrainingConfig:
     return L2MPretrainingConfig(
         train_dataset_bundle_path=_save_dataset(
@@ -66,9 +69,9 @@ def _config(
     )
 
 
-@pytest.mark.parametrize("feature_source", ["real", "synthetic"])
+@pytest.mark.parametrize("feature_source", list(FeatureSource))
 def test_pretraining_returns_model_without_saving(
-    tmp_path: Path, feature_source: str
+    tmp_path: Path, feature_source: FeatureSource
 ) -> None:
     cfg = _config(tmp_path, CubeDataset(n_samples=64, seed=0), feature_source)
 
@@ -99,7 +102,7 @@ def test_pretraining_never_reads_train_labels(tmp_path: Path) -> None:
     models = []
     for name, train_dataset in [("a", dataset), ("b", relabelled)]:
         (tmp_path / name).mkdir()
-        cfg = _config(tmp_path / name, train_dataset, "real")
+        cfg = _config(tmp_path / name, train_dataset, FeatureSource.real)
         torch.manual_seed(0)
         models.append(pretrain_l2m(cfg, inputs=load_inputs(cfg)))
 

@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from afabench.components.methods.discriminative.l2m.task_sampler import (
+    FeatureSource,
     sample_task,
 )
 
@@ -12,7 +13,7 @@ def test_real_feature_source_draws_instances_of_the_pool() -> None:
     pool = torch.arange(5 * 3, dtype=torch.float32).reshape(5, 3)
 
     task = sample_task(
-        "real",
+        FeatureSource.real,
         n_features=3,
         sequence_length=4,
         label_shape=torch.Size([2]),
@@ -31,7 +32,7 @@ def test_real_feature_source_draws_instances_of_the_pool() -> None:
 
 def test_synthetic_feature_source_stays_within_the_uniform_box() -> None:
     task = sample_task(
-        "synthetic",
+        FeatureSource.synthetic,
         n_features=6,
         sequence_length=50,
         label_shape=torch.Size([2]),
@@ -46,7 +47,7 @@ def test_synthetic_feature_source_stays_within_the_uniform_box() -> None:
 
 def test_labels_have_the_configured_label_shape() -> None:
     task = sample_task(
-        "synthetic",
+        FeatureSource.synthetic,
         n_features=4,
         sequence_length=10,
         label_shape=torch.Size([5]),
@@ -61,7 +62,7 @@ def test_labels_have_the_configured_label_shape() -> None:
 def test_missingness_cap_zero_leaves_every_feature_observed() -> None:
     for seed in range(5):
         task = sample_task(
-            "synthetic",
+            FeatureSource.synthetic,
             n_features=8,
             sequence_length=20,
             label_shape=torch.Size([2]),
@@ -78,7 +79,7 @@ def test_missing_frequency_per_feature_never_exceeds_the_cap() -> None:
     total = 0
     for seed in range(200):
         task = sample_task(
-            "synthetic",
+            FeatureSource.synthetic,
             n_features=n_features,
             sequence_length=5,
             label_shape=torch.Size([2]),
@@ -94,7 +95,7 @@ def test_missing_frequency_per_feature_never_exceeds_the_cap() -> None:
 
 def test_same_seed_reproduces_task_different_seed_differs() -> None:
     kwargs = {
-        "feature_source": "synthetic",
+        "feature_source": FeatureSource.synthetic,
         "n_features": 4,
         "sequence_length": 10,
         "label_shape": torch.Size([2]),
@@ -114,7 +115,7 @@ def test_same_seed_reproduces_task_different_seed_differs() -> None:
 def test_real_feature_source_requires_a_feature_pool() -> None:
     with pytest.raises(ValueError, match="feature_pool"):
         sample_task(
-            "real",
+            FeatureSource.real,
             n_features=3,
             sequence_length=4,
             label_shape=torch.Size([2]),
@@ -125,7 +126,7 @@ def test_real_feature_source_requires_a_feature_pool() -> None:
 def test_synthetic_feature_source_rejects_a_feature_pool() -> None:
     with pytest.raises(ValueError, match="feature_pool"):
         sample_task(
-            "synthetic",
+            FeatureSource.synthetic,
             n_features=3,
             sequence_length=4,
             label_shape=torch.Size([2]),
@@ -139,7 +140,7 @@ def test_real_feature_source_rejects_a_pool_smaller_than_the_sequence() -> (
 ):
     with pytest.raises(ValueError, match="sequence_length"):
         sample_task(
-            "real",
+            FeatureSource.real,
             n_features=3,
             sequence_length=4,
             label_shape=torch.Size([2]),
@@ -151,7 +152,7 @@ def test_real_feature_source_rejects_a_pool_smaller_than_the_sequence() -> (
 def test_rejects_missingness_cap_outside_unit_interval() -> None:
     with pytest.raises(ValueError, match="missingness_cap"):
         sample_task(
-            "synthetic",
+            FeatureSource.synthetic,
             n_features=3,
             sequence_length=4,
             label_shape=torch.Size([2]),
@@ -163,7 +164,7 @@ def test_rejects_missingness_cap_outside_unit_interval() -> None:
 def test_rejects_a_label_shape_with_fewer_than_two_classes() -> None:
     with pytest.raises(ValueError, match="label_shape"):
         sample_task(
-            "synthetic",
+            FeatureSource.synthetic,
             n_features=3,
             sequence_length=4,
             label_shape=torch.Size([1]),
@@ -176,7 +177,7 @@ def test_rejects_a_task_shorter_than_one_context_instance_and_one_query() -> (
 ):
     with pytest.raises(ValueError, match="sequence_length=1"):
         sample_task(
-            "synthetic",
+            FeatureSource.synthetic,
             n_features=3,
             sequence_length=1,
             label_shape=torch.Size([2]),

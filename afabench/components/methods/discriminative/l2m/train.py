@@ -51,7 +51,9 @@ from afabench.components.methods.discriminative.l2m.models import L2MModel
 from afabench.components.methods.discriminative.l2m.task_batches import (
     TaskBatch,
     draw_task_batch,
-    parse_feature_source,
+)
+from afabench.components.methods.discriminative.l2m.task_sampler import (
+    FeatureSource,
 )
 from afabench.core.types import Features, Label
 from afabench.fit.inputs import FitInputs
@@ -67,7 +69,6 @@ def train_l2m(
     *,
     inputs: FitInputs,
 ) -> L2MAFAMethod:
-    feature_source = parse_feature_source(cfg.feature_source)
     _check_config(cfg, inputs)
     device = torch.device(cfg.device)
     train_dataset = inputs.train_dataset()
@@ -77,9 +78,9 @@ def train_l2m(
     features, _ = train_dataset.get_all_data()
     draw_batch = partial(
         draw_task_batch,
-        feature_source=feature_source,
+        feature_source=cfg.feature_source,
         feature_pool=features.reshape(len(features), n_features)
-        if feature_source == "real"
+        if cfg.feature_source is FeatureSource.real
         else None,
         n_features=n_features,
         label_shape=train_dataset.label_shape,

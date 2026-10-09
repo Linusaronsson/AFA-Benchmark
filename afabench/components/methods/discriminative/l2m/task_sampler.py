@@ -16,7 +16,7 @@ here is documented at the point it is used.
 """
 
 from dataclasses import dataclass
-from typing import Literal
+from enum import StrEnum
 
 import torch
 
@@ -27,7 +27,13 @@ from afabench.components.methods.discriminative.l2m.models import (
 )
 from afabench.core.types import Features
 
-type FeatureSource = Literal["real", "synthetic"]
+
+class FeatureSource(StrEnum):
+    """Where a task's features come from; config values are the names."""
+
+    real = "real"
+    synthetic = "synthetic"
+
 
 # The uniform box is this benchmark's own choice for the synthetic feature
 # source; the paper does not describe it.
@@ -118,40 +124,40 @@ def _sample_features(
     sequence_length: int,
     generator: torch.Generator,
 ) -> TaskFeatures:
-    if feature_source == "synthetic":
-        if feature_pool is not None:
-            msg = "feature_pool must be None for the synthetic feature source"
-            raise ValueError(msg)
-        unit = torch.rand(sequence_length, n_features, generator=generator)
-        return (
-            _SYNTHETIC_FEATURE_LOW
-            + (_SYNTHETIC_FEATURE_HIGH - _SYNTHETIC_FEATURE_LOW) * unit
-        )
-    if feature_source == "real":
-        if feature_pool is None:
-            msg = "feature_pool is required for the real feature source"
-            raise ValueError(msg)
-        if feature_pool.ndim != 2 or feature_pool.shape[1] != n_features:
-            msg = (
-                f"feature_pool shape {tuple(feature_pool.shape)} must be "
-                f"(pool_size, {n_features})"
+    match feature_source:
+        case FeatureSource.synthetic:
+            if feature_pool is not None:
+                msg = (
+                    "feature_pool must be None for the synthetic feature "
+                    "source"
+                )
+                raise ValueError(msg)
+            unit = torch.rand(sequence_length, n_features, generator=generator)
+            return (
+                _SYNTHETIC_FEATURE_LOW
+                + (_SYNTHETIC_FEATURE_HIGH - _SYNTHETIC_FEATURE_LOW) * unit
             )
-            raise ValueError(msg)
-        if feature_pool.shape[0] < sequence_length:
-            msg = (
-                f"feature_pool has {feature_pool.shape[0]} instances, "
-                f"fewer than sequence_length={sequence_length}; a task "
-                "draws instances without replacement"
+        case FeatureSource.real:
+            if feature_pool is None:
+                msg = "feature_pool is required for the real feature source"
+                raise ValueError(msg)
+            if feature_pool.ndim != 2 or feature_pool.shape[1] != n_features:
+                msg = (
+                    f"feature_pool shape {tuple(feature_pool.shape)} must be "
+                    f"(pool_size, {n_features})"
+                )
+                raise ValueError(msg)
+            if feature_pool.shape[0] < sequence_length:
+                msg = (
+                    f"feature_pool has {feature_pool.shape[0]} instances, "
+                    f"fewer than sequence_length={sequence_length}; a task "
+                    "draws instances without replacement"
+                )
+                raise ValueError(msg)
+            indices = torch.randperm(
+                feature_pool.shape[0], generator=generator
             )
-            raise ValueError(msg)
-        indices = torch.randperm(feature_pool.shape[0], generator=generator)
-        return feature_pool[indices[:sequence_length]].clone()
-    # feature_source is typed as a Literal, but Hydra and other external
-    # callers pass plain strings with no runtime enforcement.
-    msg = (  # pyright: ignore[reportUnreachable]
-        f"feature_source must be 'real' or 'synthetic'; got {feature_source!r}"
-    )
-    raise ValueError(msg)
+            return feature_pool[indices[:sequence_length]].clone()
 
 
 def _sample_bnn_labels(

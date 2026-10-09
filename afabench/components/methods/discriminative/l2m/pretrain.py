@@ -40,7 +40,9 @@ from afabench.components.methods.discriminative.l2m.models import L2MModel
 from afabench.components.methods.discriminative.l2m.task_batches import (
     TaskBatch,
     draw_task_batch,
-    parse_feature_source,
+)
+from afabench.components.methods.discriminative.l2m.task_sampler import (
+    FeatureSource,
 )
 from afabench.fit.inputs import FitInputs
 
@@ -53,7 +55,6 @@ def pretrain_l2m(
     *,
     inputs: FitInputs,
 ) -> L2MModel:
-    feature_source = parse_feature_source(cfg.feature_source)
     if cfg.sequence_length < 2:
         msg = (
             f"sequence_length={cfg.sequence_length} must be at least 2, "
@@ -70,9 +71,9 @@ def pretrain_l2m(
     features, _ = train_dataset.get_all_data()
     draw_batch = partial(
         draw_task_batch,
-        feature_source=feature_source,
+        feature_source=cfg.feature_source,
         feature_pool=features.reshape(len(features), n_features)
-        if feature_source == "real"
+        if cfg.feature_source is FeatureSource.real
         else None,
         n_features=n_features,
         label_shape=train_dataset.label_shape,

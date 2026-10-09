@@ -13,6 +13,9 @@ from afabench.components.methods.discriminative.l2m.config import (
     L2MTrainingConfig,
 )
 from afabench.components.methods.discriminative.l2m.models import L2MModel
+from afabench.components.methods.discriminative.l2m.task_sampler import (
+    FeatureSource,
+)
 from afabench.components.methods.discriminative.l2m.train import train_l2m
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
@@ -76,7 +79,7 @@ def _config(
         ),
         hard_budget=hard_budget,
         soft_budget_param=None,
-        feature_source="real",
+        feature_source=FeatureSource.real,
         sequence_length=12,
         batch_size=2,
         n_steps=2,

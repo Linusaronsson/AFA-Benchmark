@@ -50,13 +50,6 @@ class TaskBatch:
     n_context: int
 
 
-def parse_feature_source(value: str) -> FeatureSource:
-    if value in ("real", "synthetic"):
-        return value
-    msg = f"feature_source must be 'real' or 'synthetic'; got {value!r}"
-    raise ValueError(msg)
-
-
 def draw_task_batch(
     n_tasks: int,
     generator: torch.Generator,

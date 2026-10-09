@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 
+from afabench.components.methods.discriminative.l2m.task_sampler import (
+    FeatureSource,
+)
 from afabench.fit.contract import (
     PretrainingContract,
     TrainingContract,
@@ -21,9 +24,8 @@ class L2MArchitectureConfig:
 
 @dataclass(frozen=True, kw_only=True)
 class L2MPretrainingConfig(PretrainingContract):
-    # "real" or "synthetic", see `sample_task`. A plain string because
-    # OmegaConf structured configs reject `Literal` fields.
-    feature_source: str
+    # See `sample_task`.
+    feature_source: FeatureSource
     architecture: L2MArchitectureConfig
     # Tasks per step, and instances per task.
     batch_size: int
@@ -42,7 +44,7 @@ store_contract_config(name="pretrain_l2m", config_class=L2MPretrainingConfig)
 @dataclass(frozen=True, kw_only=True)
 class L2MTrainingConfig(TrainingContract):
     # The same feature source as the pretrained model's, see `sample_task`.
-    feature_source: str
+    feature_source: FeatureSource
     # Tasks per step, and instances per task.
     batch_size: int
     sequence_length: int
