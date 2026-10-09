@@ -26,7 +26,11 @@ truth is the `PretrainingContract` / `TrainingContract` dataclasses in
 `afabench/fit/contract.py`. Both extend `BaseContract` and are
 independent of each other: `TrainingContract` has the pretrained-model path
 and the budgets, which `PretrainingContract` doesn't, but the two stages are
-free to diverge further. Read that file before writing a new method's config.
+free to diverge further. A method whose stages share logic still gives
+each stage its own config class (AACO's `AACOPretrainConfig` and
+`AACOTrainConfig`) and passes stage-specific values such as budgets to the
+shared code as arguments, because the pretraining stage passes no
+`method_name` or budgets. Read that file before writing a new method's config.
 
 ## 2. Minimal method
 

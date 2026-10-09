@@ -35,7 +35,7 @@ the per-dataset hyperparameter file.
 | Layer | Files | Contract re-declarations |
 | ----- | ----- | ------------------------ |
 | Entry-point scripts | 13 `scripts/train_method/*.py`, 6 `scripts/pretrain_model/*.py` (2,362 lines) | each reads the fields off its own config type |
-| Config dataclasses | 17 classes in `afabench/components/methods/**/config.py` (12 training, 5 pretraining; AACO pretraining reuses `AACOTrainConfig`) | 201 field declarations |
+| Config dataclasses | 17 classes in `afabench/components/methods/**/config.py` (12 training, 5 pretraining; AACO pretraining reused `AACOTrainConfig` at this snapshot, since split into `AACOPretrainConfig`) | 201 field declarations |
 | Hydra root configs | 19 `extra/conf/scripts/{train_method,pretrain_model}/*/config.yaml` (808 lines) | 11 contract keys in each of 19 files, `pretrained_model_bundle_path` in 8 |
 | Hydra experiment files | 115 training + 64 pretraining `experiment/<dataset>.yaml` | 58 hardcode `hard_budget` (see below) |
 | Snakemake rules | `extra/workflow/snakefiles/rules/training.smk` | 3 rules with the same shell body: `pretrain_model`, `train_method_with_pretrained_model`, `train_method_without_pretrained_model` |
