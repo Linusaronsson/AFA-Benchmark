@@ -7,9 +7,9 @@ difference. Independently reimplemented from the paper, not from the
 authors' unlicensed repository.
 
 Missingness is MCAR: each feature's missing rate is drawn independently of
-the features themselves, per the maintainer's decision overriding the
-paper's MAR mechanism for MiniBooNE (which the paper only defines in terms
-of baseline covariates MiniBooNE does not have).
+the features themselves, as in the paper's MiniBooNE setup (Table 2). The
+maintainer chose this over the specification's MAR mechanism, which the
+paper defines only in terms of baseline covariates MiniBooNE does not have.
 
 The paper leaves several task-prior parameters unstated; each choice made
 here is documented at the point it is used.

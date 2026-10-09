@@ -20,8 +20,10 @@ Choices where the paper is ambiguous, or where this port departs from it:
   step's queries.
 - The checkpoint is chosen on a fixed set of held-out tasks from the same
   task prior, as in the paper, which does not state how many.
-- Features are not normalized within each task, unlike the paper, because
-  `L2MAFAMethod` does not normalize them at evaluation either.
+- Features are not normalized within each task, unlike the paper. The
+  paper does not say which statistics normalize the context set and
+  queries at evaluation, where queries are only partly observed, and the
+  MiniBooNE loader already z-normalizes every feature over the dataset.
 - The learning rate warms up linearly, then decays linearly towards zero.
 """
 
