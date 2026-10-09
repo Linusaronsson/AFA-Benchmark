@@ -61,7 +61,11 @@ GPU-hours.
   provenance. The table is a file beside the manifest, not in `output/`:
   the pipeline rebuilds `merged_results/job_duration_table.parquet` from
   the local output root on every `all` run and would replace a restored
-  release table there. Job records do not set the release's
+  release table there. _Amended by #87: this is the package layout. A
+  checkout restores the manifest and table to the top of the output root
+  instead, so a smoke and a production output root each keep their own
+  release's; that is still outside `merged_results/`, and `save` leaves
+  both out of the copied root._ Job records do not set the release's
   `execution_mode`; the table carries its own smoke flag, so a failed smoke
   attempt left among the failed records does not block a production
   release.

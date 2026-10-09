@@ -47,7 +47,9 @@ rebuilding it from the same output tree gives the same result.
   artifact. `execution_mode` is `smoke` if any record has `smoke_test`.
   Dataset generation has no smoke mode and always records production, so
   a smoke run's tree holds both kinds; a `full` or `partial` release
-  cannot hold a smoke artifact.
+  cannot hold a smoke artifact. _Amended by #87: a smoke run writes under
+  its own output root, apart from the production one, so its
+  production-mode dataset bundles never stand in for a real run's._
 - **An index**: one entry per bundle and per evaluation (its raw and
   transformed tables, paired by equal records). An entry holds a
   projection of the record: stage, code commit and dirty flag, seed, smoke
