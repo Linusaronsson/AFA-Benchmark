@@ -220,6 +220,29 @@ A method with trivial behavior (random or sequential selection) used as a
 sanity check and lower bound.
 _Avoid_: Baseline (static methods are also baselines), toy method
 
+**In-context method**:
+An AFA method whose fit stages learn from tasks drawn from a task prior and
+whose policy and classifier condition on a context set at evaluation, with
+no per-dataset fitting on real labels.
+_Avoid_: Meta-learning method, foundation model, meta-AFA method (paper
+term)
+
+**Task prior**:
+The distribution that an in-context method's fit stages draw their
+training tasks from: a feature distribution together with a labelling
+function. The features may be real instances of a dataset or synthetic;
+the labelling function is always synthetic.
+_Avoid_: Pretraining prior, synthetic prior (ambiguous about which half is
+synthetic), BNN prior (one choice of labelling function)
+
+**Context set**:
+The fixed set of labelled instances that an in-context method receives at
+evaluation in place of fitting on real labels. It is drawn from the
+validation split, so it is disjoint from the pretraining pool and from the
+evaluated instances.
+_Avoid_: Context (alone; CUBE-NM has a context feature), historical data,
+shots, support set
+
 ### Datasets
 
 **Dataset key**:
