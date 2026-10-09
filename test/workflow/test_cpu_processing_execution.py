@@ -147,7 +147,7 @@ def test_full_graph_processing_is_cpu_only(
     result = workflow.run(
         "--dry-run",
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles/mixed-gres"),
+        str(tmp_path / "workflow/profiles/site/examples/mixed-gres"),
         "--default-resources",
         "gpu=2",
         "gres=gpu:T4:2",
@@ -220,7 +220,7 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
 
     result = workflow.run(
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles" / profile),
+        str(tmp_path / "workflow/profiles/site/examples" / profile),
         "--default-resources",
         "runtime=135",
         "mem_mb=4500",
@@ -356,7 +356,7 @@ def test_processing_variants_use_cpu_site_mapping(
         "--snakefile",
         f"workflow/snakefiles/orchestration/{variant}.smk",
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles/mixed-gres"),
+        str(tmp_path / "workflow/profiles/site/examples/mixed-gres"),
         "--default-resources",
         "gpu=1",
         target="all",

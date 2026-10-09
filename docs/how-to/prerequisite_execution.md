@@ -66,7 +66,7 @@ With the original scientific config files combined in `benchmark.yaml`:
 
 ```sh
 uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk \
-  --workflow-profile workflow/profiles/mixed-gres \
+  --workflow-profile workflow/profiles/site/examples/mixed-gres \
   --configfile benchmark.yaml execution.yaml -n -p all_eval_methods
 ```
 

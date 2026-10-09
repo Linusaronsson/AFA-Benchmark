@@ -1,0 +1,8 @@
+# Every job on CPU, for local runs and smoke tests without GPUs. Select it with
+# --config execution_file=workflow/profiles/execution/cpu.yaml.
+execution:
+  defaults:
+    classifier_training: cpu
+    pretraining: cpu
+    training: cpu
+    evaluation: cpu

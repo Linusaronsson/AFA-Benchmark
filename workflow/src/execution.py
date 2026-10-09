@@ -33,6 +33,9 @@ PROCESSING_STAGES = {
     "aggregation",
     "visualization",
 }
+DEFAULT_EXECUTION_FILE = (
+    Path(__file__).parents[1] / "profiles" / "execution" / "default.yaml"
+)
 ALLOCATION_RESOURCES: dict[str, int | str] = {
     "slurm_partition": "",
     "slurm_account": "",
@@ -83,7 +86,15 @@ class ExecutionPolicy:
             raise ValueError(message)
         # Called per job: the executor is unknown while the Snakefile parses.
         self.submits_to_cluster = submits_to_cluster
-        self.execution = _mapping(config.get("execution", {}), "execution")
+        execution = config.get("execution")
+        if execution is None and "device" not in config:
+            execution_file = Path(
+                str(config.get("execution_file", DEFAULT_EXECUTION_FILE))
+            )
+            execution = _mapping(
+                yaml.safe_load(execution_file.read_text()), "execution_file"
+            ).get("execution")
+        self.execution = _mapping(execution or {}, "execution")
         _known_keys(
             self.execution,
             {"defaults", "methods", "pretrained_models"},

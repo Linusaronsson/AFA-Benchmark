@@ -39,7 +39,7 @@ built across several runs, that is the configuration of the final run:
 ```shell
 uv run python scripts/release/snapshot.py save /path/to/2026-10-kdd26 \
     --release-id 2026-10-kdd26 --scope full \
-    --profile workflow/profiles/config/kdd26
+    --profile workflow/profiles/pipeline/kdd26
 ```
 
 This also writes `/path/to/2026-10-kdd26/release_manifest.json`, indexing

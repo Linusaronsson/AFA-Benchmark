@@ -64,7 +64,7 @@ def test_planned_jobs_match_the_submitted_jobs_and_allocations(
 ) -> None:
     workflow = WorkflowHarness(tmp_path)
     workflow.config["execution"] = {"methods": {"alpha": {"training": "cuda"}}}
-    profile = str(tmp_path / "workflow/profiles/mixed-gres")
+    profile = str(tmp_path / "workflow/profiles/site/examples/mixed-gres")
 
     plan = workflow.plan(
         "--workflow-profile", profile, target="all_train_methods"
@@ -118,7 +118,7 @@ def test_set_resources_overrides_are_reflected_in_the_planned_allocation(
 
     plan = workflow.plan(
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles/mixed-gres"),
+        str(tmp_path / "workflow/profiles/site/examples/mixed-gres"),
         "--set-resources",
         "train_method:cpus_per_task=3",
         target="all_train_methods",

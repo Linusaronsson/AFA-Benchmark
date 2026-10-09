@@ -15,8 +15,11 @@ Runtime filters (--config, select subsets to run):
         random seeds
     device (str, default='cpu'): Deprecated global option, ignored by CPU-only
         processing; cannot be combined with execution.
-    execution (mapping, default={}): Per-stage CPU/cuda policy for computational jobs;
+    execution (mapping, default=the execution_file's mapping): Per-stage CPU/cuda policy for computational jobs;
         processing stages are fixed CPU-only and cannot be overridden.
+    execution_file (str, default='workflow/profiles/execution/default.yaml'):
+        YAML file holding the execution mapping; use
+        workflow/profiles/execution/cpu.yaml to run every job on CPU.
     execution_site_file (str, required for SLURM submission): Profile-owned
         YAML allocation map; submitting without one fails before any job.
         Alternatively provide execution_site in a configuration file. A CLI
@@ -55,7 +58,7 @@ Required files and usage:
     scientific YAML configuration, and, for SLURM submission, the
     profile-owned site.yaml allocation map. No trained scripts are dispatched.
     snakemake -s workflow/snakefiles/orchestration/pipeline_no_eval.smk \
-        --workflow-profile workflow/profiles/mixed-gres \
+        --workflow-profile workflow/profiles/site/examples/mixed-gres \
         --configfile <scientific.yaml> -n -p all
     Remove -n to submit processing jobs from an authorized shared-filesystem
     SLURM controller. Omit the cluster profile for ordinary local CPU use.

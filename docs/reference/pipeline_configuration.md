@@ -6,9 +6,10 @@ The whole pipeline is executable with the following command:
 ```shell
 WANDB_PROJECT=afabench \
   uv run snakemake \
-    --profile workflow/profiles/config/all \
+    --profile workflow/profiles/pipeline/all \
     all \
-    --jobs 8
+    --jobs 8 \
+    --config execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](../how-to/slurm_integration.md).
@@ -18,12 +19,13 @@ This will attempt to run 8 jobs in parallel locally on your computer, in order t
 Configuration files are organized into subdirectories under
 `workflow/conf/`. Each subdirectory contains multiple named variants
 (e.g., `all.yaml`, `kdd26.yaml`). The command above uses the
-`workflow/profiles/config/all` profile, which bundles the commonly used
-`all.yaml` config files and the pipeline Snakefile, and runs every job on
-CPU. `workflow/profiles/config/kdd26` bundles the `kdd26.yaml` files
-together with `workflow/conf/execution/kdd26.yaml`, which runs
-classifiers, pretrained models and some methods on GPU; it is meant for the
-SLURM command in [Run the pipeline](../how-to/run_the_pipeline.md).
+`workflow/profiles/pipeline/all` profile, which bundles the commonly used
+`all.yaml` config files and the pipeline Snakefile.
+`workflow/profiles/pipeline/kdd26` bundles the `kdd26.yaml` files. Pipeline
+profiles say only what to run; where to run it is a site profile under
+`workflow/profiles/site/`, and which jobs use a GPU is the execution file
+under `workflow/profiles/execution/`
+([Run the pipeline](../how-to/run_the_pipeline.md)).
 Below we discuss the meaning of each configuration group.
 
 ## Runtime configuration options
@@ -60,13 +62,17 @@ transformations, aggregation and visualization always run on CPU regardless.
 
 ### `execution`
 
-A mapping, given in a config file, that declares per job whether it runs on
+A mapping that declares per job whether it runs on
 `cpu` or `cuda`: pipeline stage defaults for `classifier_training`, `pretraining`,
 `training` and `evaluation`, overrides per method and stage, and overrides
 per named pretrained model. Unspecified stages run on CPU. The resolved choice is both
 the script's `device` argument and, under SLURM, the CPU or GPU allocation.
-`workflow/conf/execution/` holds the shipped declarations. The format,
-from `execution/kdd26.yaml`:
+It is read from the file named by `execution_file`, by default
+`workflow/profiles/execution/default.yaml`; `execution/cpu.yaml` runs every
+job on CPU. A mapping given inline in a config file takes precedence over the
+file, and an explicit deprecated `device` disables the file. Entries for
+methods a run does not select are ignored. The format, from
+`execution/default.yaml`:
 
 ```yaml
 execution:

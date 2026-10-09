@@ -18,7 +18,7 @@ from afabench.core.output_layout import (
 
 REPO_ROOT = Path(__file__).parents[2]
 ESTIMATE_COMPUTE = REPO_ROOT / "scripts/compute_estimate/estimate_compute.py"
-# Cluster submission needs a site map; this one mirrors profiles/mixed-gres.
+# Cluster submission needs a site map; this one mirrors profiles/site/examples/mixed-gres.
 SITE = {
     "cpu": {"slurm_partition": "cpu-queue", "slurm_account": "cpu-account"},
     "gpu": {
@@ -60,6 +60,7 @@ class WorkflowHarness:
             "classifier_names": {"default": "masked_mlp_classifier"},
             "use_wandb": False,
             "smoke_test": smoke_test,
+            "execution_file": "workflow/profiles/execution/cpu.yaml",
         }
         for split in ["train", "val", "test"]:
             (self.output / f"datasets/cube/0/{split}.bundle").mkdir(

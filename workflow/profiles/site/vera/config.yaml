@@ -28,4 +28,4 @@ set-resources:
     cpus_per_task: 10
 
 config:
-  execution_site_file: workflow/profiles/vera/site.yaml
+  execution_site_file: workflow/profiles/site/vera/site.yaml

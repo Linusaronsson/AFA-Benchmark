@@ -334,10 +334,11 @@ Run the pipeline locally with only your new method and a couple of datasets:
 
 ```shell
 uv run snakemake \
-    --profile workflow/profiles/config/all \
+    --profile workflow/profiles/pipeline/all \
     all \
     --config \
       "methods=[example_method]" \
       "datasets=[cube, actg]" \
+      execution_file=workflow/profiles/execution/cpu.yaml \
     --jobs 8
 ```

@@ -15,8 +15,8 @@ Take the Snakemake arguments of the real run, for example from
 [run the pipeline](run_the_pipeline.md):
 
 ```shell
---profile workflow/profiles/config/kdd26 \
---workflow-profile workflow/profiles/<your_site> all
+--profile workflow/profiles/pipeline/kdd26 \
+--workflow-profile workflow/profiles/site/<your_site> all
 ```
 
 Include every `--config`, `--set-resources` and target exactly as you will
@@ -51,8 +51,8 @@ slower.
 
 ```shell
 just estimate-compute [--job-durations output/production/release_job_duration_table.parquet] \
-    --profile workflow/profiles/config/kdd26 \
-    --workflow-profile workflow/profiles/<your_site> all
+    --profile workflow/profiles/pipeline/kdd26 \
+    --workflow-profile workflow/profiles/site/<your_site> all
 ```
 
 Nothing is submitted or run. Jobs whose outputs already exist are not

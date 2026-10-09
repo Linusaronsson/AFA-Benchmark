@@ -21,8 +21,8 @@ Options, before or among the Snakemake arguments:
 
 Usage:
     just estimate-compute \
-        --profile workflow/profiles/config/kdd26 \
-        --workflow-profile workflow/profiles/<site> all
+        --profile workflow/profiles/pipeline/kdd26 \
+        --workflow-profile workflow/profiles/site/<site> all
     just estimate-compute \
         --job-durations \
             output/production/release_job_duration_table.parquet \

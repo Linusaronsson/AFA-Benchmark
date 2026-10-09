@@ -41,7 +41,7 @@ REPO_ROOT = Path(__file__).parents[2]
 PROFILE_CONFIGFILES = [
     REPO_ROOT / path
     for path in yaml.safe_load(
-        (REPO_ROOT / "workflow/profiles/config/all/config.yaml").read_text()
+        (REPO_ROOT / "workflow/profiles/pipeline/all/config.yaml").read_text()
     )["configfile"]
 ]
 SMOKE_SELECTION: dict[str, Any] = {
@@ -55,6 +55,7 @@ SMOKE_SELECTION: dict[str, Any] = {
     },
     "use_wandb": False,
     "smoke_test": True,
+    "execution_file": "workflow/profiles/execution/cpu.yaml",
 }
 TAG = "initializer-cold"
 GDFS_METHOD = (

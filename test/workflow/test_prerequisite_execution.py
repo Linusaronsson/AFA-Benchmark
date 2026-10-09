@@ -293,7 +293,7 @@ def test_independent_prerequisites_submit_once_with_matching_script_devices(
 
     result = workflow.run(
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles" / profile),
+        str(tmp_path / "workflow/profiles/site/examples" / profile),
         "--slurm-init-seconds-before-status-checks",
         "0",
         "--seconds-between-status-checks",

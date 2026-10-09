@@ -15,4 +15,4 @@ set-resources:
     runtime: 600 # 10 hours
 
 config:
-  execution_site_file: workflow/profiles/alvis/site.yaml
+  execution_site_file: workflow/profiles/site/alvis/site.yaml

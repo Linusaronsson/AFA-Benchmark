@@ -19,12 +19,17 @@ Runtime filters (--config, select subsets to run):
     dataset_realization_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
     device (str, default='cpu'): Deprecated invocation-wide device for
         computational jobs, with a warning. Cannot be combined with execution.
-    execution (mapping, default={}): CPU/cuda defaults for the pipeline
+    execution_file (str, default='workflow/profiles/execution/default.yaml'):
+        YAML file holding the execution mapping below. Use
+        workflow/profiles/execution/cpu.yaml to run every job on CPU, as
+        local runs without GPUs need. Ignored when execution or the
+        deprecated device is given.
+    execution (mapping, default=the execution_file's mapping): CPU/cuda defaults for the pipeline
         stages classifier_training, pretraining, training and evaluation.
         methods.<name> overrides training, evaluation and method-specific
         classifier_training; pretrained_models overrides pretraining by named
         model. External classifiers use only the classifier_training default. Overrides take precedence over defaults.
-        Shipped declarations: workflow/conf/execution/{kdd26,all}.yaml.
+        Shipped declarations: workflow/profiles/execution/{default,cpu}.yaml.
     execution_site_file (str, required for SLURM submission): Profile-owned
         YAML allocation map; submitting without one fails before any job.
         Alternatively provide execution_site in a configuration file. A CLI
@@ -92,16 +97,16 @@ Execution configuration and required files:
 Usage:
     Full benchmark, one invocation from an authorized SLURM submit host of a
     single cluster, with the repository, environment and outputs on a shared
-    filesystem (config/kdd26 bundles execution/kdd26.yaml):
-        snakemake --profile workflow/profiles/config/kdd26 \
-            --workflow-profile workflow/profiles/<site> -n -p all
+    filesystem (execution/default.yaml places the GPU jobs):
+        snakemake --profile workflow/profiles/pipeline/kdd26 \
+            --workflow-profile workflow/profiles/site/<site> -n -p all
     Inspect the planned resources and device arguments, then remove -n -p.
-    Full method set: use --profile workflow/profiles/config/all_cluster
-    (bundles execution/all.yaml) instead. Local CPU smoke test without SLURM
-    or GPUs (config/all has no execution file, so every job runs on CPU):
-        snakemake --profile workflow/profiles/config/all all --jobs 8 \
+    Full method set: use --profile workflow/profiles/pipeline/all instead.
+    Local CPU smoke test without SLURM or GPUs:
+        snakemake --profile workflow/profiles/pipeline/all all --jobs 8 \
             --config "datasets=[cube]" "dataset_realization_indices=[0]" \
-            smoke_test=true use_wandb=false
+            smoke_test=true use_wandb=false \
+            execution_file=workflow/profiles/execution/cpu.yaml
     It writes under output/smoke, so a later real run still runs every
     job.
     See docs/how-to/run_the_pipeline.md and slurm_integration.md.
@@ -109,10 +114,11 @@ Usage:
     transformed tables and the shared prerequisites into
     output/production, then run only the new method's missing work
     and the comparison plots:
-        snakemake --profile workflow/profiles/config/all all --jobs 8 \
+        snakemake --profile workflow/profiles/pipeline/all all --jobs 8 \
             --config "methods=[my_method]" \
                 "reference_methods=[random_dummy, gdfs]" \
-                "datasets=[cube]" "dataset_realization_indices=[0]"
+                "datasets=[cube]" "dataset_realization_indices=[0]" \
+                execution_file=workflow/profiles/execution/cpu.yaml
     See docs/how-to/compare_your_method_with_published_results.md.
 
 CPU-only processing:

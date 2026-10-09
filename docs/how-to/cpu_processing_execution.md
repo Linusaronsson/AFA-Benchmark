@@ -13,7 +13,7 @@ CPU-native scripts do not receive an invented `device` argument.
 
 For mixed-device SLURM runs, configure the profile-owned `execution_site.cpu`
 partition/account to an authorized CPU allocation, as illustrated by
-`workflow/profiles/mixed-gres/site.yaml` and `mixed-gpus/site.yaml`.
+`workflow/profiles/site/examples/mixed-gres/site.yaml` and `mixed-gpus/site.yaml`.
 Processing rules explicitly clear `gpu`, `gpu_model` and `gres`, including GPU
 requests inherited from the profile's default resources, and take `slurm_extra`
 from the CPU allocation. A CPU site mapping that requests GPUs, also through its
@@ -39,7 +39,7 @@ as usual. Processing needs no extra portable hardware configuration:
 
 ```sh
 uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk \
-  --workflow-profile workflow/profiles/mixed-gres \
+  --workflow-profile workflow/profiles/site/examples/mixed-gres \
   --configfile benchmark.yaml execution.yaml -n -p all
 ```
 

@@ -20,7 +20,7 @@ REPO_ROOT = Path(__file__).parents[3]
 
 @pytest.mark.parametrize("profile", ["all", "kdd26"])
 def test_shipped_configs_load(profile: str) -> None:
-    profile_file = REPO_ROOT / "workflow/profiles/config" / profile
+    profile_file = REPO_ROOT / "workflow/profiles/pipeline" / profile
     configfiles = yaml.safe_load((profile_file / "config.yaml").read_text())[
         "configfile"
     ]

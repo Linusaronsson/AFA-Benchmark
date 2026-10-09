@@ -49,7 +49,7 @@ def test_mixed_submissions_map_to_site_allocations(
 
     result = workflow.run(
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles" / profile),
+        str(tmp_path / "workflow/profiles/site/examples" / profile),
         "--slurm-init-seconds-before-status-checks",
         "0",
         "--seconds-between-status-checks",
@@ -138,7 +138,7 @@ def test_first_submissions_of_one_rule_use_cpu_and_gpu_allocations(
     result = workflow.submit_first_wave(
         2,
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles" / profile),
+        str(tmp_path / "workflow/profiles/site/examples" / profile),
         target="all_train_methods",
     )
 
@@ -299,7 +299,7 @@ def test_legacy_device_retains_site_defaults_and_local_cpu_execution(
         "--executor",
         "local",
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles/vera"),
+        str(tmp_path / "workflow/profiles/site/vera"),
     )
 
     assert result.returncode == 0, result.stdout + result.stderr

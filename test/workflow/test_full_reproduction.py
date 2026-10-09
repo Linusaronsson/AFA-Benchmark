@@ -69,13 +69,13 @@ def planned_jobs(output: str) -> list[dict[str, str]]:
 
 # The documented cluster invocations of the two scientific presets.
 CLUSTER_PRESETS = {
-    "kdd26": ["--profile", "workflow/profiles/config/kdd26"],
-    "all": ["--profile", "workflow/profiles/config/all_cluster"],
+    "kdd26": ["--profile", "workflow/profiles/pipeline/kdd26"],
+    "all": ["--profile", "workflow/profiles/pipeline/all"],
 }
 SMALL_SELECTION = [
     "datasets=[cube]",
     "dataset_realization_indices=[0]",
-    "execution_site_file=workflow/profiles/mixed-gres/site.yaml",
+    "execution_site_file=workflow/profiles/site/examples/mixed-gres/site.yaml",
 ]
 
 
@@ -96,7 +96,7 @@ def test_cluster_preset_declares_former_six_stage_hardware(
         CLUSTER_PRESETS[preset],
         "--dry-run",
         "--workflow-profile",
-        "workflow/profiles/mixed-gres",
+        "workflow/profiles/site/examples/mixed-gres",
         "--config",
         *SMALL_SELECTION,
     )
@@ -127,17 +127,18 @@ def test_cluster_preset_declares_former_six_stage_hardware(
             )
 
 
-def test_local_all_preset_runs_every_job_on_cpu(tmp_path: Path) -> None:
+def test_cpu_execution_file_runs_every_job_on_cpu(tmp_path: Path) -> None:
     workflow = WorkflowHarness(tmp_path)
     shutil.rmtree(tmp_path / "output/smoke")
 
     result = workflow.run_invocation(
-        ["--profile", "workflow/profiles/config/all"],
+        ["--profile", "workflow/profiles/pipeline/all"],
         "--dry-run",
         "--config",
         "datasets=[cube]",
         "dataset_realization_indices=[0]",
         "smoke_test=True",
+        "execution_file=workflow/profiles/execution/cpu.yaml",
     )
 
     output = result.stdout + result.stderr
@@ -166,7 +167,7 @@ def test_alvis_profile_plans_cuda_methods_and_cpu_processing(
     result = workflow.run(
         "--dry-run",
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles/alvis"),
+        str(tmp_path / "workflow/profiles/site/alvis"),
         target="all",
     )
 
@@ -329,7 +330,7 @@ def full_graph_run(tmp_path_factory: pytest.TempPathFactory) -> FullGraphRun:
     workflow = full_benchmark_workflow(root)
     result = workflow.run(
         "--workflow-profile",
-        str(root / "workflow/profiles/mixed-gres"),
+        str(root / "workflow/profiles/site/examples/mixed-gres"),
         "--slurm-init-seconds-before-status-checks",
         "0",
         "--seconds-between-status-checks",
@@ -374,7 +375,7 @@ def test_full_graph_plan_matches_its_submissions(
 
     plan = workflow.plan(
         "--workflow-profile",
-        str(tmp_path / "workflow/profiles/mixed-gres"),
+        str(tmp_path / "workflow/profiles/site/examples/mixed-gres"),
         target="all",
     )
 
@@ -591,7 +592,7 @@ def test_cli_config_without_site_file_fails_before_submission(
 
     result = workflow.run(
         "--workflow-profile",
-        "workflow/profiles/mixed-gres",
+        "workflow/profiles/site/examples/mixed-gres",
         "--config",
         "smoke_test=True",
         target="all_train_methods",
@@ -613,10 +614,10 @@ def test_cli_config_with_repeated_site_file_keeps_site_allocations(
     result = workflow.submit_first_wave(
         2,
         "--workflow-profile",
-        "workflow/profiles/mixed-gres",
+        "workflow/profiles/site/examples/mixed-gres",
         "--config",
         "smoke_test=True",
-        "execution_site_file=workflow/profiles/mixed-gres/site.yaml",
+        "execution_site_file=workflow/profiles/site/examples/mixed-gres/site.yaml",
         target="all_train_methods",
     )
 
@@ -654,7 +655,7 @@ def test_cluster_preset_submits_declared_hardware(
     result = workflow.run_invocation(
         CLUSTER_PRESETS[preset],
         "--workflow-profile",
-        "workflow/profiles/mixed-gres",
+        "workflow/profiles/site/examples/mixed-gres",
         # Submit each dependency wave at once; the plugin waits per wave.
         "--jobs",
         "100",
@@ -695,6 +696,7 @@ def test_cluster_preset_submits_declared_hardware(
 def test_local_cpu_smoke_runs_the_same_full_graph(tmp_path: Path) -> None:
     workflow = full_benchmark_workflow(tmp_path)
     del workflow.config["execution"]
+    workflow.config["execution_file"] = "workflow/profiles/execution/cpu.yaml"
 
     result = workflow.run("--executor", "local", target="all")
 

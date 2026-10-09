@@ -14,4 +14,4 @@ set-resources:
     runtime: 600
     cpus_per_task: 8
 config:
-  execution_site_file: workflow/profiles/mixed-gres/site.yaml
+  execution_site_file: workflow/profiles/site/examples/mixed-gpus/site.yaml

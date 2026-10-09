@@ -15,8 +15,11 @@ Runtime filters (--config, select subsets to run):
         random seeds
     device (str, default='cpu'): Deprecated invocation-wide device for
         evaluation, with a warning; cannot be combined with execution.
-    execution (mapping, default={}): CPU/cuda stage defaults and method/stage
+    execution (mapping, default=the execution_file's mapping): CPU/cuda stage defaults and method/stage
         overrides for training and evaluation. Overrides take precedence.
+    execution_file (str, default='workflow/profiles/execution/default.yaml'):
+        YAML file holding the execution mapping; use
+        workflow/profiles/execution/cpu.yaml to run every job on CPU.
     execution_site_file (str, required for SLURM submission): Profile-owned
         YAML allocation map; submitting without one fails before any job.
         Alternatively provide execution_site in a configuration file. A CLI
@@ -49,8 +52,8 @@ Job records:
 
 Usage (add existing scientific --configfile inputs):
     snakemake -s workflow/snakefiles/orchestration/pipeline_no_train.smk \
-        --workflow-profile workflow/profiles/mixed-gres \
-        --configfile <scientific.yaml> <execution.yaml> -n -p all_eval_methods
+        --workflow-profile workflow/profiles/site/examples/mixed-gres \
+        --configfile <scientific.yaml> -n -p all_eval_methods
     Remove -n to submit from an authorized SLURM controller with shared files.
 
 CPU-only processing:

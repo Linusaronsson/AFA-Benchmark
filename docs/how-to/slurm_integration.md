@@ -3,29 +3,29 @@
 The pipeline submits jobs through
 [Snakemake's SLURM executor plugin](https://snakemake.github.io/snakemake-plugin-catalog/plugins/executor/slurm.html)
 (Snakemake 9.12.0, plugin 1.8.0 in `uv.lock`). A cluster's settings live in a
-workflow profile, `workflow/profiles/<site>/`, passed with
+workflow profile, `workflow/profiles/site/<site>/`, passed with
 `--workflow-profile`. For the full benchmark command, see
 [Run the pipeline](run_the_pipeline.md).
 
 ## Portable execution versus site allocation
 
-The benchmark's execution files (`workflow/conf/execution/`) only say
+The benchmark's execution file (`workflow/profiles/execution/default.yaml`) only says
 whether each job runs on `cpu` or `cuda`. The site profile maps those two
 kinds of execution to SLURM allocations, so the same execution file works on
 any cluster:
 
 ```text
-workflow/profiles/<site>/
+workflow/profiles/site/<site>/
     config.yaml   # executor, sizing, and the path of site.yaml
     site.yaml     # CPU and GPU partitions, accounts and GPU request syntax
 ```
 
 ## Example profiles
 
-| Profile | Purpose |
+| Profile (under `workflow/profiles/site/`) | Purpose |
 | --- | --- |
-| `mixed-gres/` | Illustrative mixed CPU/GPU site requesting GPUs as `--gres=gpu:T4:1` |
-| `mixed-gpus/` | Illustrative mixed CPU/GPU site requesting GPUs as `--gpus=a100:1` |
+| `examples/mixed-gres/` | Illustrative mixed CPU/GPU site requesting GPUs as `--gres=gpu:T4:1` |
+| `examples/mixed-gpus/` | Illustrative mixed CPU/GPU site requesting GPUs as `--gpus=a100:1` |
 | `vera/` | Our team's CPU cluster; its site map has only a CPU allocation, so `cuda` jobs fail before submission |
 | `alvis/` | Our team's GPU cluster; `cuda` jobs request `--gres=gpu:T4:1` |
 
@@ -41,12 +41,12 @@ work for you unchanged.
 
 ## Adapting a profile to your site
 
-1. Copy `mixed-gres/` or `mixed-gpus/` to `workflow/profiles/<site>/`.
+1. Copy `site/examples/mixed-gres/` or `site/examples/mixed-gpus/` to `workflow/profiles/site/<site>/`.
 2. In `<site>/config.yaml`, point `execution_site_file` at your copy:
 
    ```yaml
    config:
-     execution_site_file: workflow/profiles/<site>/site.yaml
+     execution_site_file: workflow/profiles/site/<site>/site.yaml
    ```
 
    The path is relative to the directory you run Snakemake from (the
@@ -88,8 +88,8 @@ work for you unchanged.
 
    ```shell
    uv run snakemake \
-       --profile workflow/profiles/config/kdd26 \
-       --workflow-profile workflow/profiles/<site> \
+       --profile workflow/profiles/pipeline/kdd26 \
+       --workflow-profile workflow/profiles/site/<site> \
        -n -p all
    ```
 
@@ -101,7 +101,7 @@ nested profile config in the remote job wrapper.
 > **`--config` on the command line replaces the site profile's `config`.**
 > Any `--config` drops `execution_site_file`, and the submission then fails
 > before any job is submitted. Whenever you pass `--config`, also pass
-> `execution_site_file=workflow/profiles/<site>/site.yaml`.
+> `execution_site_file=workflow/profiles/site/<site>/site.yaml`.
 
 ## A site map is required for SLURM
 

@@ -10,4 +10,3 @@ configfile:
   - workflow/conf/unmaskers/kdd26.yaml
   - workflow/conf/classifier_names/kdd26.yaml
   - workflow/conf/datasets/kdd26.yaml
-  - workflow/conf/execution/kdd26.yaml

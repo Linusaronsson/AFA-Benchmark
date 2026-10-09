@@ -11,15 +11,29 @@ narrows or changes it for one run.
 
 ## 1. Choose a preset
 
-| Preset | Hardware | Use it for |
-| --- | --- | --- |
-| `--profile workflow/profiles/config/kdd26` | Bundles `workflow/conf/execution/kdd26.yaml`: classifiers, pretrained models and some methods on GPU | Cluster reproduction of the KDD '26 results |
-| `--profile workflow/profiles/config/all_cluster` | Bundles `workflow/conf/execution/all.yaml`: classifiers, pretrained models and some methods on GPU | Cluster runs of the full method set |
-| `--profile workflow/profiles/config/all` | No execution file: every job runs on CPU | Local runs and smoke tests, no GPU or SLURM needed |
+Three kinds of configuration are chosen independently:
 
-> **`config/all` never requests a GPU.** Do not use it for a mixed-device
-> cluster run; it would train every method on CPU. Use `config/kdd26` or
-> `config/all_cluster`.
+| Kind | Chosen with | Says | Changes |
+| --- | --- | --- | --- |
+| Pipeline profile | `--profile workflow/profiles/pipeline/<name>` | What to run: datasets, methods, budgets | Often |
+| Execution file | `--config execution_file=<path>` | Which stages and methods run on CPU or GPU | Set once |
+| Site profile | `--workflow-profile workflow/profiles/site/<name>` | Where to run: SLURM partitions, accounts, resources | When you change cluster |
+
+| Pipeline profile | Use it for |
+| --- | --- |
+| `pipeline/kdd26` | Reproducing the KDD '26 results |
+| `pipeline/all` | The full method set |
+
+The execution file defaults to `workflow/profiles/execution/default.yaml`,
+which puts classifiers, pretrained models and some methods on GPU. A machine
+without GPUs, or a smoke test, must instead run every job on CPU:
+
+```shell
+--config execution_file=workflow/profiles/execution/cpu.yaml
+```
+
+> **Without `execution_file=.../cpu.yaml`, a local run requests GPU jobs.**
+> Use the CPU file for local runs and smoke tests without a GPU or SLURM.
 
 Each preset is a list of config files under `workflow/conf/`: which
 datasets, methods, hard budgets and soft-budget parameters to run. They are
@@ -34,24 +48,25 @@ command:
 
 ```shell
 uv run snakemake \
-    --profile workflow/profiles/config/kdd26 \
-    --workflow-profile workflow/profiles/<your_site> \
+    --profile workflow/profiles/pipeline/kdd26 \
+    --workflow-profile workflow/profiles/site/<your_site> \
     -n -p all
 ```
 
 Then remove `-n -p` to submit. The `<your_site>` profile maps CPU and GPU
 execution to your cluster's partitions, accounts and GPU request syntax;
-adapt it from `mixed-gres` or `mixed-gpus` as described in
+adapt it from `site/examples/mixed-gres` or `site/examples/mixed-gpus` as described in
 [SLURM integration](slurm_integration.md).
 
-On a workstation, use the CPU-only preset and say how many jobs run in
+On a workstation, use the CPU execution file and say how many jobs run in
 parallel:
 
 ```shell
 uv run snakemake \
-    --profile workflow/profiles/config/all \
+    --profile workflow/profiles/pipeline/all \
     all \
-    --jobs 8
+    --jobs 8 \
+    --config execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 Snakemake only runs jobs whose outputs are missing or out of date, so
@@ -66,7 +81,7 @@ running the same command again resumes an interrupted run.
 > ```shell
 >     --config \
 >       ... \
->       execution_site_file=workflow/profiles/<your_site>/site.yaml
+>       execution_site_file=workflow/profiles/site/<your_site>/site.yaml
 > ```
 
 The sections below each add `--config` values to the base command. They
@@ -120,12 +135,12 @@ whichever other indices you choose.
 
 ## Run a smoke test
 
-To check that the pipeline executes, without SLURM or a GPU, run the CPU-only
-preset with `smoke_test=true` and a small selection:
+To check that the pipeline executes, without SLURM or a GPU, run with the CPU
+execution file and `smoke_test=true` and a small selection:
 
 ```shell
 uv run snakemake \
-    --profile workflow/profiles/config/all \
+    --profile workflow/profiles/pipeline/all \
     all \
     --jobs 8 \
     --config \
@@ -133,15 +148,16 @@ uv run snakemake \
       "dataset_realization_indices=[0]" \
       "methods=[random_dummy,gdfs]" \
       smoke_test=true \
-      use_wandb=false
+      use_wandb=false \
+      execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 Smoke-test settings make every script fast; the resulting metrics only show
 that the pipeline runs and are not benchmark results. A smoke test writes
 under its own output root, `output/smoke`, never
 `output/production`, so a real run afterwards still runs every job.
-`smoke_test=true` also works with a cluster preset, to check the submissions
-themselves.
+`smoke_test=true` also works with a site profile and the default execution
+file, to check the submissions themselves.
 
 ## Change the hard budgets
 
@@ -221,19 +237,19 @@ preset's list of config files instead of adding to it, so copy the preset
 and edit the copy:
 
 ```shell
-cp -r workflow/profiles/config/kdd26 workflow/profiles/config/my_run
+cp -r workflow/profiles/pipeline/kdd26 workflow/profiles/pipeline/my_run
 cp workflow/conf/soft_budget_params/kdd26.yaml \
    workflow/conf/soft_budget_params/my_run.yaml
-# In profiles/config/my_run/config.yaml, replace soft_budget_params/kdd26.yaml
+# In profiles/pipeline/my_run/config.yaml, replace soft_budget_params/kdd26.yaml
 # with soft_budget_params/my_run.yaml; then edit soft_budget_params/my_run.yaml.
 uv run snakemake \
-    --profile workflow/profiles/config/my_run \
-    --workflow-profile workflow/profiles/<your_site> \
+    --profile workflow/profiles/pipeline/my_run \
+    --workflow-profile workflow/profiles/site/<your_site> \
     -n -p all
 ```
 
-The same works for any file the preset lists, including its execution file,
-for example to train one more method on GPU
+The same works for any file the preset lists. To train one more method on
+GPU, edit `workflow/profiles/execution/default.yaml`
 ([per-method execution](mixed_execution.md)). The shipped
 `soft_budget_params/{fast,single,none}.yaml` and
 `eval_hard_budgets/{fast,single,none}.yaml` are ready-made variants, but the
@@ -247,8 +263,8 @@ hard-budget setting with custom budgets, on a cluster:
 
 ```shell
 uv run snakemake \
-    --profile workflow/profiles/config/kdd26 \
-    --workflow-profile workflow/profiles/<your_site> \
+    --profile workflow/profiles/pipeline/kdd26 \
+    --workflow-profile workflow/profiles/site/<your_site> \
     -n -p all \
     --config \
       "methods=[gdfs,dime]" \
@@ -256,7 +272,7 @@ uv run snakemake \
       "dataset_realization_indices=[0,1]" \
       "eval_hard_budgets={cube: [3, 5], mnist: [10, 20]}" \
       "soft_budget_params={gdfs: {cube: [], mnist: []}, dime: {cube: [], mnist: []}}" \
-      execution_site_file=workflow/profiles/<your_site>/site.yaml
+      execution_site_file=workflow/profiles/site/<your_site>/site.yaml
 ```
 
 ## Inspect planned work

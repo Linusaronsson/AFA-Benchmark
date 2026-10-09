@@ -9,7 +9,9 @@ command in [Run the pipeline](run_the_pipeline.md).
 
 ## Portable execution configuration
 
-Put execution choices in a YAML config file, separate from method options:
+Put execution choices in a YAML file, separate from method options. The
+shipped one is `workflow/profiles/execution/default.yaml`; edit it or point
+`execution_file` at your own:
 
 ```yaml
 execution:
@@ -39,7 +41,7 @@ evaluation need not agree. There is no automatic CPU fallback.
 
 ## Site allocation is separate
 
-Adapt `workflow/profiles/mixed-gres/` or `mixed-gpus/`. Both are illustrative,
+Adapt `workflow/profiles/site/examples/mixed-gres/` or `mixed-gpus/`. Both are illustrative,
 not verified allocations on any real cluster. The profile passes a scalar
 `execution_site_file` path; its `site.yaml` owns partitions, accounts and GPU
 request syntax. Paths are relative to the invocation working directory; run from
@@ -89,14 +91,15 @@ availability or a script's support for a chosen device.
 
 ## Invocation and migration
 
-From the repository root, supply the existing scientific config files plus the
-new portable execution file. For example, with those scientific definitions
-combined in `benchmark.yaml` and the execution mapping in `execution.yaml`:
+From the repository root, supply the existing scientific config files; the
+execution mapping comes from `workflow/profiles/execution/default.yaml`
+(select another file with `--config execution_file=<path>`). For example, with
+those scientific definitions combined in `benchmark.yaml`:
 
 ```sh
 uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk \
-  --workflow-profile workflow/profiles/mixed-gres \
-  --configfile benchmark.yaml execution.yaml \
+  --workflow-profile workflow/profiles/site/examples/mixed-gres \
+  --configfile benchmark.yaml \
   -n -p all_eval_methods
 ```
 
@@ -105,7 +108,8 @@ to both CPU and GPU allocations and a shared filesystem for inputs, repository,
 software environment and outputs. This is one dependency graph, not cross-cluster
 dispatch. `pipeline_no_train.smk` uses the same evaluation routing for existing
 trained bundles. Local CPU use needs no site profile: omit `--workflow-profile`,
-use CPU execution choices, and pass `--cores` and `--config smoke_test=True`.
+pass `--config execution_file=workflow/profiles/execution/cpu.yaml` and
+`smoke_test=True`, and `--cores`.
 
 An explicit global `device` remains supported with a visible deprecation
 message in invocations without `execution`. **Any** combination of global
