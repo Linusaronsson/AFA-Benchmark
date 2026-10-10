@@ -305,6 +305,15 @@ uv run snakemake \
   computational scripts and, on a site whose jobs run in an image, the
   `apptainer exec` prefix. The job counts at the end summarize the graph.
   Check them after every `--config` change.
+- Every invocation first prints the resolved configuration: output root,
+  initializer, dataset realizations, datasets with their unmasker and
+  classifier, methods with their classifier and pretrained model, method
+  sets, and the hard budgets and soft-budget parameters of every method on
+  every dataset.
+- For only that and the job counts, replace `-n -p all` with
+  `all -n -q rules`. Put the target before `-q`: `-q` takes any number of
+  values, so in `-n -q rules all` it swallows `all` and Snakemake plans the
+  default target instead. Plain `-q` hides the job counts too.
 - Replace `all` with a narrower target such as `all_train_classifiers`,
   `all_pretrain_models`, `all_train_methods` or `all_eval_methods` to inspect
   or run only part of the graph. These are subsets of the same graph, not

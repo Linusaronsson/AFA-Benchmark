@@ -89,10 +89,11 @@ def test_an_image_wraps_the_command_and_nothing_else(tmp_path: Path) -> None:
         prefix.sub("", command).replace(str(imaged.root), "<root>")
         for command in imaged_commands
     ]
-    assert unwrapped == [
+    # A dry run lists jobs in no fixed order.
+    assert sorted(unwrapped) == sorted(
         command.replace(str(plain.root), "<root>")
         for command in shell_commands(plain_result.stdout)
-    ]
+    )
 
 
 def test_a_worktrees_git_directory_is_bound_too(tmp_path: Path) -> None:

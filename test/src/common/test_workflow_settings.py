@@ -413,6 +413,37 @@ def test_classifier_bundle_is_the_built_in_one_if_the_method_has_one(
     )
 
 
+def test_summary_lists_what_the_run_covers() -> None:
+    config = _compared_methods_config()
+    config["method_options"]["beta"] |= {  # type: ignore[index]
+        "use_max_hard_budget_when_training_soft_budget": True,
+        "eval_to_train_hard_budget_mapping": {"cube": {1: 3}},
+    }
+
+    summary = load_config(config).summary()
+
+    for line in [
+        "  dataset realizations: 0, 1, 2, 3, 4",
+        "    cube: unmasker direct, classifier masked_mlp_classifier",
+        "    alpha: train script alpha, external classifier, "
+        "no pretrained model",
+        "    beta: train script beta, built-in classifier beta_classifier, "
+        "pretrained model shared",
+        "  reference methods: gamma",
+    ]:
+        assert line in summary.splitlines()
+    assert (
+        "    beta on cube:\n"
+        "      hard budgets: 1 (trained at 3)\n"
+        "      soft-budget parameters (trained at hard budget 3): 0.1 -> 0.2\n"
+    ) in summary
+    assert (
+        "    gamma on cube:\n"
+        "      hard budgets: 1\n"
+        "      soft-budget parameters: 0.1 -> 0.2"
+    ) in summary
+
+
 def _config(
     *,
     method_options: dict[str, object] | None = None,

@@ -23,6 +23,9 @@ from images import ImageCommands
 from job_records import JobRecordCommands
 
 WORKFLOW_SETTINGS = load_config(config)
+# Jobs re-parse this file on their node; only the invocation prints.
+if workflow.is_main_process:
+    logger.info(WORKFLOW_SETTINGS.summary())
 EXECUTION = ExecutionPolicy(
     config,
     method_classifiers=WORKFLOW_SETTINGS.method_classifier_script_names,

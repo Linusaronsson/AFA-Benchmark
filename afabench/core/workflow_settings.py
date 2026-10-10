@@ -169,6 +169,101 @@ class WorkflowSettings:
             ),
         )
 
+    def summary(self) -> str:
+        """
+        Describe what this run covers, for a reader checking a dry run.
+
+        Each method is listed with its classifier and pretrained model, and
+        each method and dataset with the hard budgets it is evaluated at and
+        the soft-budget parameters it is trained and evaluated with.
+        """
+        lines = [
+            "Resolved workflow configuration:",
+            f"  output root: {self.output_root}",
+            f"  initializer: {self.initializer}",
+            f"  eval dataset split: {self.eval_dataset_split}",
+            f"  smoke test: {self.smoke_test}",
+            f"  W&B logging: {self.use_wandb}",
+            "  dataset realizations: "
+            + _join(self.dataset_realization_indices),
+            "  datasets:",
+            *(
+                f"    {dataset}: unmasker {self.unmaskers[dataset]}, "
+                f"classifier {self.classifier_names[dataset].script_name}"
+                for dataset in self.datasets
+            ),
+            "  methods:",
+            *(
+                f"    {method}: {self._method_description(method)}"
+                for method in self.methods
+            ),
+            f"  reference methods: {_join(self.reference_methods)}",
+            "  method sets:",
+            *(
+                f"    {name}: {_join(methods)}"
+                for name, methods in self.method_sets.items()
+            ),
+            "  budgets (hard budgets are eval budgets; soft-budget",
+            "  parameters are train -> eval):",
+        ]
+        for method in [*self.methods, *self.reference_methods]:
+            for dataset in self.datasets:
+                lines += [
+                    f"    {method} on {dataset}:",
+                    *(
+                        f"      {line}"
+                        for line in _describe_budgets(
+                            self.budget_params[method][dataset]
+                        )
+                    ),
+                ]
+        return "\n".join(lines)
+
+    def _method_description(self, method: str) -> str:
+        classifier = self.method_classifier_script_names.get(method)
+        pretrained_model = self.method_to_pretrained_model.get(method)
+        return ", ".join(
+            [
+                f"train script {self.method_train_script_names[method]}",
+                "external classifier"
+                if classifier is None
+                else f"built-in classifier {classifier}",
+                "no pretrained model"
+                if pretrained_model is None
+                else f"pretrained model {pretrained_model}",
+            ]
+        )
+
+
+def _join(values: Sequence[object]) -> str:
+    return ", ".join(str(value) for value in values) or "none"
+
+
+def _describe_budgets(
+    combinations: Sequence[BudgetCombination],
+) -> list[str]:
+    """Render a method's budget combinations on one dataset."""
+    hard: list[str] = []
+    soft: list[str] = []
+    # Every soft-budget run of a method on a dataset shares one train hard
+    # budget (see _create_budget_combinations).
+    soft_train_hard: set[BudgetParam] = set()
+    for train_hard, eval_hard, train_soft, eval_soft in combinations:
+        if eval_hard != "null":
+            hard.append(
+                str(eval_hard)
+                if train_hard == eval_hard
+                else f"{eval_hard} (trained at {train_hard})"
+            )
+        else:
+            soft.append(f"{train_soft} -> {eval_soft}")
+            soft_train_hard.add(train_hard)
+    soft_label = "soft-budget parameters"
+    if soft_train_hard - {"null"}:
+        train_hard_budgets = _join(sorted(soft_train_hard, key=str))
+        soft_label += f" (trained at hard budget {train_hard_budgets})"
+    return [f"hard budgets: {_join(hard)}", f"{soft_label}: {_join(soft)}"]
+
 
 def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     """Validate the merged Snakemake `config` and resolve its settings."""
