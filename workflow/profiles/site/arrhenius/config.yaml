@@ -12,6 +12,10 @@ latency-wait: 30 # seconds
 # reads this profile, so run it from the checkout root.
 shared-fs-usage: [persistence, input-output, sources, source-cache, storage-local-copies]
 precommand: export PATH=$PWD/containers/bin:$PATH
+# Snakemake creates its own image cache, used or not, in APPTAINER_CACHEDIR by
+# default, which Arrhenius sets to node-local /scratch/local, missing on the
+# login node.
+apptainer-prefix: .snakemake/apptainer
 
 default-resources:
   runtime: 120 # minutes
