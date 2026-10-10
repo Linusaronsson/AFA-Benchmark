@@ -422,16 +422,24 @@ def test_summary_lists_what_the_run_covers() -> None:
 
     summary = load_config(config).summary()
 
-    for line in [
-        "  dataset realizations: 0, 1, 2, 3, 4",
-        "    cube: unmasker direct, classifier masked_mlp_classifier",
-        "    alpha: train script alpha, external classifier, "
-        "no pretrained model",
-        "    beta: train script beta, built-in classifier beta_classifier, "
-        "pretrained model shared",
-        "  reference methods: gamma",
-    ]:
-        assert line in summary.splitlines()
+    assert "  dataset realizations: 0, 1, 2, 3, 4" in summary.splitlines()
+    assert "  reference methods: gamma" in summary.splitlines()
+    assert (
+        "  datasets:\n"
+        "    cube:\n"
+        "      unmasker: direct\n"
+        "      classifier: masked_mlp_classifier\n"
+    ) in summary
+    assert (
+        "    alpha:\n"
+        "      train script: alpha\n"
+        "      classifier: external\n"
+        "      pretrained model: none\n"
+        "    beta:\n"
+        "      train script: beta\n"
+        "      classifier: built-in beta_classifier\n"
+        "      pretrained model: shared\n"
+    ) in summary
     assert (
         "    beta on cube:\n"
         "      hard budgets: 1 (trained at 3)\n"

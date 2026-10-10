@@ -191,14 +191,26 @@ class WorkflowSettings:
             + _join(self.dataset_realization_indices),
             "  datasets:",
             *(
-                f"    {dataset}: unmasker {self.unmaskers[dataset]}, "
-                f"classifier {self.classifier_names[dataset].script_name}"
+                line
                 for dataset in self.datasets
+                for line in [
+                    f"    {dataset}:",
+                    f"      unmasker: {self.unmaskers[dataset]}",
+                    "      classifier: "
+                    + self.classifier_names[dataset].script_name,
+                ]
             ),
             "  methods:",
             *(
-                f"    {method}: {self._method_description(method)}"
+                line
                 for method in self.methods
+                for line in [
+                    f"    {method}:",
+                    *(
+                        f"      {line}"
+                        for line in self._describe_method(method)
+                    ),
+                ]
             ),
             f"  reference methods: {_join(self.reference_methods)}",
             "  method sets:",
@@ -222,20 +234,15 @@ class WorkflowSettings:
                 ]
         return "\n".join(lines)
 
-    def _method_description(self, method: str) -> str:
+    def _describe_method(self, method: str) -> list[str]:
         classifier = self.method_classifier_script_names.get(method)
         pretrained_model = self.method_to_pretrained_model.get(method)
-        return ", ".join(
-            [
-                f"train script {self.method_train_script_names[method]}",
-                "external classifier"
-                if classifier is None
-                else f"built-in classifier {classifier}",
-                "no pretrained model"
-                if pretrained_model is None
-                else f"pretrained model {pretrained_model}",
-            ]
-        )
+        return [
+            f"train script: {self.method_train_script_names[method]}",
+            "classifier: "
+            + ("external" if classifier is None else f"built-in {classifier}"),
+            f"pretrained model: {pretrained_model or 'none'}",
+        ]
 
 
 def _join(values: Sequence[object]) -> str:

@@ -45,7 +45,7 @@ def test_a_dry_run_prints_the_configuration_and_job_counts_only(
     output = result.stdout + result.stderr
     assert result.returncode == 0, output
     assert "Resolved workflow configuration:" in output
-    assert "Job stats:" in output
+    assert output.count("Job stats:") == 1
     assert "\nrule " not in output
     assert "Shell command:" not in output
 
