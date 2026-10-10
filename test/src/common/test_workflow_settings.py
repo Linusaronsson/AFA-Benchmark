@@ -422,8 +422,8 @@ def test_summary_lists_what_the_run_covers() -> None:
 
     summary = load_config(config).summary()
 
-    assert "  dataset realizations: 0, 1, 2, 3, 4" in summary.splitlines()
-    assert "  reference methods: gamma" in summary.splitlines()
+    assert "  dataset realizations: [0, 1, 2, 3, 4]" in summary.splitlines()
+    assert "  reference methods: [gamma]" in summary.splitlines()
     assert (
         "  datasets:\n"
         "    cube:\n"
@@ -442,13 +442,13 @@ def test_summary_lists_what_the_run_covers() -> None:
     ) in summary
     assert (
         "    beta on cube:\n"
-        "      hard budgets: 1 (trained at 3)\n"
-        "      soft-budget parameters (trained at hard budget 3): 0.1 -> 0.2\n"
+        "      hard budgets: [1 (trained at 3)]\n"
+        "      soft-budget parameters (trained at hard budgets [3]): [0.1 -> 0.2]\n"
     ) in summary
     assert (
         "    gamma on cube:\n"
-        "      hard budgets: 1\n"
-        "      soft-budget parameters: 0.1 -> 0.2"
+        "      hard budgets: [1]\n"
+        "      soft-budget parameters: [0.1 -> 0.2]"
     ) in summary
 
 

@@ -246,7 +246,7 @@ class WorkflowSettings:
 
 
 def _join(values: Sequence[object]) -> str:
-    return ", ".join(str(value) for value in values) or "none"
+    return "[" + ", ".join(str(value) for value in values) + "]"
 
 
 def _describe_budgets(
@@ -271,7 +271,7 @@ def _describe_budgets(
     soft_label = "soft-budget parameters"
     if soft_train_hard - {"null"}:
         train_hard_budgets = _join(sorted(soft_train_hard, key=str))
-        soft_label += f" (trained at hard budget {train_hard_budgets})"
+        soft_label += f" (trained at hard budgets {train_hard_budgets})"
     return [f"hard budgets: {_join(hard)}", f"{soft_label}: {_join(soft)}"]
 
 
