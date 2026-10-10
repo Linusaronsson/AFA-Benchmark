@@ -25,6 +25,11 @@ default-resources:
 
 # The partitions' time limit is 3 days.
 set-resources:
+  # One CPU's memory is too little for torch with CUDA on a GPU node.
+  train_classifier:
+    cpus_per_task: 8
+  train_classifier_for_method:
+    cpus_per_task: 8
   pretrain_model:
     runtime: 4320
     cpus_per_task: 8

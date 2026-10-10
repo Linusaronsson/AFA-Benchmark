@@ -5,6 +5,7 @@ import json
 import platform
 import re
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -92,6 +93,40 @@ def test_an_image_wraps_the_command_and_nothing_else(tmp_path: Path) -> None:
         command.replace(str(plain.root), "<root>")
         for command in shell_commands(plain_result.stdout)
     ]
+
+
+def test_a_worktrees_git_directory_is_bound_too(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    for args in [
+        ["init", "-q"],
+        [
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "initial",
+        ],
+        ["worktree", "add", "-q", str(tmp_path / "worktree")],
+    ]:
+        subprocess.run(
+            ["git", "-C", str(repository), *args],  # noqa: S607
+            check=True,
+        )
+    workflow = WorkflowHarness(tmp_path / "worktree")
+    with_images(workflow)
+
+    result = workflow.run("--dry-run")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    git = str((repository / ".git").resolve())
+    commands = shell_commands(result.stdout)
+    assert commands
+    assert all(f"--bind {git} " in command for command in commands)
 
 
 # Each job starts a nested Snakemake in the fake sbatch, so this takes ~10 s.

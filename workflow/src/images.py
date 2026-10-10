@@ -8,14 +8,15 @@ empty and the command is unchanged. Snakemake itself runs on the host, so it
 can submit jobs and call `srun` (docs/adr/0008).
 
 The image holds the locked environment without the project code, which is
-read from the checkout: the prefix binds the checkout, the working directory
-and the output root at their physical paths, because a path reached through a
-symlink is not visible in the image. An image built from another `uv.lock`
+read from the checkout: the prefix binds the checkout, its git directory, the
+working directory and the output root at their physical paths, because a path
+reached through a symlink is not visible in the image. An image built from another `uv.lock`
 fails the job before its script runs.
 """
 
 import functools
 import shlex
+import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Protocol
@@ -48,6 +49,33 @@ def check_image_lock(image: Path, lock: Path) -> None:
     if built_from.read_bytes() != lock.read_bytes():
         message = f"Image {image} was built from another uv.lock than {lock}; rebuild it with containers/build.sbatch"
         raise RuntimeError(message)
+
+
+@functools.cache
+def git_directory(checkout: Path) -> Path | None:
+    """
+    Return the checkout's git directory, or None outside a repository.
+
+    A git worktree keeps it outside the checkout, so it must be bound too, or
+    the provenance in the image records no commit.
+    """
+    try:
+        completed = subprocess.run(
+            [  # noqa: S607
+                "git",
+                "-C",
+                str(checkout),
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-common-dir",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    return Path(completed.stdout.strip()).resolve()
 
 
 def _outermost(paths: list[Path]) -> list[Path]:
@@ -100,9 +128,11 @@ class ImageCommands:
         arguments = ["apptainer", "exec"]
         if self.execution.hardware(stage, identity) == "gpu":
             arguments.append("--nv")
-        for path in _outermost(
-            [checkout, working_directory, Path(self.output_root).resolve()]
-        ):
+        binds = [checkout, working_directory, Path(self.output_root).resolve()]
+        git = git_directory(checkout)
+        if git is not None:
+            binds.append(git)
+        for path in _outermost(binds):
             arguments += ["--bind", str(path)]
         arguments += [
             "--pwd",
