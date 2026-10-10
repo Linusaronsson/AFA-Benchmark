@@ -33,6 +33,11 @@ Runtime filters (--config, select subsets to run):
         See docs/how-to/slurm_integration.md and
         docs/adr/0008-snakemake-on-the-host-scripts-in-the-image.md.
     use_wandb (bool, default=True): Enable W&B logging
+    list_jobs (bool, default=False): Print every job's messages (its rule
+        block, shell command, submission and completion) in the terminal,
+        not only the resolved configuration, job counts, progress and
+        errors. A real run's log file under .snakemake/log has them either
+        way (workflow/src/job_output.py).
     smoke_test (bool, default=False): Run smoke tests, under their own
         output root
     output_root (str, default='output/production', or

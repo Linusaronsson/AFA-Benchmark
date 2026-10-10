@@ -43,6 +43,11 @@ Runtime filters (--config, select subsets to run):
         See docs/how-to/slurm_integration.md and
         docs/adr/0008-snakemake-on-the-host-scripts-in-the-image.md.
     use_wandb (bool, default=True): Enable W&B logging
+    list_jobs (bool, default=False): Print every job's messages (its rule
+        block, shell command, submission and completion) in the terminal,
+        not only the resolved configuration, job counts, progress and
+        errors. A real run's log file under .snakemake/log has them either
+        way (workflow/src/job_output.py).
     smoke_test (bool, default=False): Run smoke tests, under their own
         output root
     output_root (str, default='output/production', or
@@ -107,7 +112,9 @@ Usage:
     filesystem (execution/default.yaml places the GPU jobs):
         snakemake --profile workflow/profiles/pipeline/kdd26 \
             --workflow-profile workflow/profiles/site/<site> -n -p all
-    Inspect the planned resources and device arguments, then remove -n -p.
+    It prints the resolved configuration and the job counts; pass
+    list_jobs=true to also list every job with its resources and device
+    arguments. Then remove -n -p.
     Full method set: use --profile workflow/profiles/pipeline/all instead.
     Local CPU smoke test without SLURM or GPUs:
         snakemake --profile workflow/profiles/pipeline/all all --jobs 8 \

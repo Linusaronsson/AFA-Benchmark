@@ -84,6 +84,9 @@ class WorkflowSettings:
     eval_dataset_split: str
     use_wandb: bool
     smoke_test: bool
+    # Whether the terminal shows every job's messages, not only the job
+    # counts and progress
+    list_jobs: bool
     # Where the run writes its artifacts and job records
     output_root: str
     # Only the pretrained models a selected method uses.
@@ -393,6 +396,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         eval_dataset_split=config.get("eval_dataset_split", "test"),
         use_wandb=config.get("use_wandb", True),
         smoke_test=smoke_test,
+        list_jobs=config.get("list_jobs", False),
         output_root=output_root,
         pretrain_names=pretrain_names,
         pretrain_script_names={

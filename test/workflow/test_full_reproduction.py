@@ -99,6 +99,7 @@ def test_cluster_pipeline_profile_declares_former_six_stage_hardware(
         "workflow/profiles/site/examples/mixed-gres",
         "--config",
         *SMALL_SELECTION,
+        "list_jobs=true",
     )
 
     output = result.stdout + result.stderr
@@ -139,6 +140,7 @@ def test_cpu_execution_file_runs_every_job_on_cpu(tmp_path: Path) -> None:
         "dataset_realization_indices=[0]",
         "smoke_test=True",
         "execution_file=workflow/profiles/execution/cpu.yaml",
+        "list_jobs=true",
     )
 
     output = result.stdout + result.stderr

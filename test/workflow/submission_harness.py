@@ -61,6 +61,8 @@ class WorkflowHarness:
             "use_wandb": False,
             "smoke_test": smoke_test,
             "execution_file": "workflow/profiles/execution/cpu.yaml",
+            # Tests read a dry run's job blocks.
+            "list_jobs": True,
         }
         for split in ["train", "val", "test"]:
             (self.output / f"datasets/cube/0/{split}.bundle").mkdir(

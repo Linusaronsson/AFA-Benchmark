@@ -85,13 +85,18 @@ they are unlikely to work for you unchanged.
    conflicting rule settings are rejected before submission. `slurm_extra`
    in `default-resources` is rejected as well, since every job's allocation
    would replace it.
-5. Check the result with a dry run and read the `resources:` lines:
+5. Check the result with a dry run and read the `resources:` lines.
+   `list_jobs=true` makes the dry run list every job, which it otherwise
+   leaves out. A `--config` on the command line replaces the site profile's,
+   so repeat `execution_site_file` beside it:
 
    ```shell
    uv run snakemake \
        --profile workflow/profiles/pipeline/kdd26 \
        --workflow-profile workflow/profiles/site/<site> \
-       -n -p all
+       -n -p all \
+       --config list_jobs=true \
+         execution_site_file=workflow/profiles/site/<site>/site.yaml
    ```
 
 `execution_site` can instead be given in a config file, but not together with

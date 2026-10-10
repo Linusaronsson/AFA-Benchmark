@@ -56,8 +56,8 @@ see [SLURM integration](slurm_integration.md).
 
 On a SLURM cluster, run from the repository root on an authorized submit host
 (see [where to run it](#where-to-run-it)). First inspect the planned work
-with a dry run (`-n`), which also prints every job's resources and script
-command:
+with a dry run (`-n`), which prints the resolved configuration and how many
+jobs of each rule would run:
 
 ```shell
 uv run snakemake \
@@ -88,6 +88,12 @@ uv run snakemake \
 
 Snakemake only runs jobs whose outputs are missing or out of date, so
 running the same command again resumes an interrupted run.
+
+A run prints the resolved configuration, how many jobs of each rule it runs,
+its progress (`N of M steps done`) and any job's error, but not every job's
+rule block, submission and completion. Those are in the log file under
+`.snakemake/log` whose path it prints at the end; `--config list_jobs=true`
+prints them in the terminal too.
 
 > **Repeat the site file whenever you add `--config`.** Snakemake replaces
 > the site profile's whole `config` section with the `--config` values, so
@@ -299,21 +305,20 @@ uv run snakemake \
 
 ## Inspect planned work
 
-- `-n -p` lists every job with its `resources:` line (`slurm_partition`,
-  `slurm_account`, `gpu`, `gres`, `gpu_model`, runtime, CPUs, memory) and
-  the script command, including the `device=` argument passed to
-  computational scripts and, on a site whose jobs run in an image, the
-  `apptainer exec` prefix. The job counts at the end summarize the graph.
-  Check them after every `--config` change.
-- Every invocation first prints the resolved configuration: output root,
-  initializer, dataset realizations, datasets with their unmasker and
-  classifier, methods with their classifier and pretrained model, method
-  sets, and the hard budgets and soft-budget parameters of every method on
-  every dataset.
-- For only that and the job counts, replace `-n -p all` with
-  `all -n -q rules`. Put the target before `-q`: `-q` takes any number of
-  values, so in `-n -q rules all` it swallows `all` and Snakemake plans the
-  default target instead. Plain `-q` hides the job counts too.
+- A dry run prints the resolved configuration (output root, initializer,
+  dataset realizations, datasets with their unmasker and classifier,
+  methods with their classifier and pretrained model, method sets, and the
+  hard budgets and soft-budget parameters of every method on every dataset),
+  then how many jobs of each rule would run. Check them after every
+  `--config` change.
+- To list every planned job too, add `list_jobs=true` to `--config`, with
+  `execution_site_file=workflow/profiles/site/<your_site>/site.yaml` beside
+  it: a `--config` on the command line replaces the site profile's. Each job
+  then shows its `resources:` line (`slurm_partition`, `slurm_account`,
+  `gpu`, `gres`, `gpu_model`, runtime, CPUs, memory) and, with `-p`, the
+  script command, including the `device=` argument passed to computational
+  scripts and, on a site whose jobs run in an image, the `apptainer exec`
+  prefix.
 - Replace `all` with a narrower target such as `all_train_classifiers`,
   `all_pretrain_models`, `all_train_methods` or `all_eval_methods` to inspect
   or run only part of the graph. These are subsets of the same graph, not

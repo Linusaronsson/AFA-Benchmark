@@ -135,6 +135,14 @@ Enables smoke testing mode, where each script runs as fast as possible while sti
 - **Example:** `smoke_test=true` for quick validation runs
 - **Note:** A smoke test writes under its own output root, `output/smoke` by default (see [`output_root`](#output_root))
 
+### `list_jobs`
+
+Prints every job's messages in the terminal: its rule block with its resources, and, with `-p`, its script command; in a real run also its submission and completion. Without it, the terminal shows only the resolved configuration, how many jobs of each rule run, progress (`N of M steps done`) and errors. A real run's log file under `.snakemake/log` keeps every job's messages either way.
+
+- **Default:** `false`
+- **Example:** `list_jobs=true` to check each job's partition, GPU request and `device=` argument
+- **Note:** A `--config` on the command line replaces the site profile's, so repeat `execution_site_file` beside it
+
 ### `output_root`
 
 The output root the run writes all its bundles, evaluation tables, job records, merged results and plots under. A smoke test has its own, so its outputs never satisfy a real run and a real run after a smoke test still runs every job.
