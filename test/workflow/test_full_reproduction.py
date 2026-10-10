@@ -67,8 +67,8 @@ def planned_jobs(output: str) -> list[dict[str, str]]:
     return jobs
 
 
-# The documented cluster invocations of the two scientific presets.
-CLUSTER_PRESETS = {
+# The documented cluster invocations of the two shipped pipeline profiles.
+CLUSTER_PIPELINE_PROFILES = {
     "kdd26": ["--profile", "workflow/profiles/pipeline/kdd26"],
     "all": ["--profile", "workflow/profiles/pipeline/all"],
 }
@@ -80,20 +80,20 @@ SMALL_SELECTION = [
 
 
 @pytest.mark.parametrize(
-    ("preset", "methods"),
+    ("pipeline_profile", "methods"),
     [
         ("all", FORMER_GPU_METHODS | FORMER_CPU_METHODS),
         ("kdd26", KDD26_METHODS),
     ],
 )
-def test_cluster_preset_declares_former_six_stage_hardware(
-    tmp_path: Path, preset: str, methods: set[str]
+def test_cluster_pipeline_profile_declares_former_six_stage_hardware(
+    tmp_path: Path, pipeline_profile: str, methods: set[str]
 ) -> None:
     workflow = WorkflowHarness(tmp_path)
     shutil.rmtree(tmp_path / "output/smoke")
 
     result = workflow.run_invocation(
-        CLUSTER_PRESETS[preset],
+        CLUSTER_PIPELINE_PROFILES[pipeline_profile],
         "--dry-run",
         "--workflow-profile",
         "workflow/profiles/site/examples/mixed-gres",
@@ -636,9 +636,9 @@ def test_cli_config_with_repeated_site_file_keeps_site_allocations(
 
 
 @pytest.mark.pipeline
-@pytest.mark.parametrize("preset", sorted(CLUSTER_PRESETS))
-def test_cluster_preset_submits_declared_hardware(
-    tmp_path: Path, preset: str
+@pytest.mark.parametrize("pipeline_profile", sorted(CLUSTER_PIPELINE_PROFILES))
+def test_cluster_pipeline_profile_submits_declared_hardware(
+    tmp_path: Path, pipeline_profile: str
 ) -> None:
     workflow = WorkflowHarness(tmp_path)
     (tmp_path / "scripts/pretrain_model").mkdir()
@@ -653,7 +653,7 @@ def test_cluster_preset_submits_declared_hardware(
         )
 
     result = workflow.run_invocation(
-        CLUSTER_PRESETS[preset],
+        CLUSTER_PIPELINE_PROFILES[pipeline_profile],
         "--workflow-profile",
         "workflow/profiles/site/examples/mixed-gres",
         # Submit each dependency wave at once; the plugin waits per wave.

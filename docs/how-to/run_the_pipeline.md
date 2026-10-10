@@ -6,27 +6,38 @@ The benchmark is one Snakemake dependency graph, from dataset generation
 through classifiers, pretrained models, method training and evaluation to
 the final plots. One invocation of its final target, `all`, runs every job
 whose inputs are ready, and under SLURM submits CPU and GPU jobs as their
-dependencies complete. A preset decides what the graph contains; `--config`
-narrows or changes it for one run.
+dependencies complete. The pipeline profile decides what the graph contains;
+`--config` narrows or changes it for one run.
 
-## 1. Choose a preset
+## 1. Choose the configuration
 
-Three kinds of configuration are chosen independently:
+A run combines three independent choices, all under `workflow/profiles/`:
 
-| Kind | Chosen with | Says | Changes |
+| Choice | Selected with | Decides | Needed |
 | --- | --- | --- | --- |
-| Pipeline profile | `--profile workflow/profiles/pipeline/<name>` | What to run: datasets, methods, budgets | Often |
-| Execution file | `--config execution_file=<path>` | Which stages and methods run on CPU or GPU | Set once |
-| Site profile | `--workflow-profile workflow/profiles/site/<name>` | Where to run: SLURM partitions, accounts, resources | When you change cluster |
+| Pipeline profile | `--profile workflow/profiles/pipeline/<name>` | What runs: datasets, methods, budgets | Always |
+| Execution file | `--config execution_file=<path>` | Which stages and methods run on CPU or GPU | Defaults to `execution/default.yaml` |
+| Site profile | `--workflow-profile workflow/profiles/site/<name>` | Where jobs run: SLURM partitions, accounts, resources | Only on a cluster |
 
-| Pipeline profile | Use it for |
+### Pipeline profile
+
+A pipeline profile is a Snakemake profile whose `config.yaml` lists one
+config file per configuration group under `workflow/conf/`: datasets,
+methods, method options, hard budgets, soft-budget parameters, unmaskers,
+classifiers and pretrained models. Together they are the whole pipeline
+configuration, described in
+[pipeline configuration](../reference/pipeline_configuration.md). Two ship:
+
+| Pipeline profile | Contains |
 | --- | --- |
-| `pipeline/kdd26` | Reproducing the KDD '26 results |
-| `pipeline/all` | The full method set |
+| `pipeline/all` | Every dataset and method, with their budgets |
+| `pipeline/kdd26` | The same configuration as the KDD '26 submission. The code has changed since, so it does not necessarily reproduce the submitted results |
 
-The execution file defaults to `workflow/profiles/execution/default.yaml`,
-which puts classifiers, pretrained models and some methods on GPU. A machine
-without GPUs, or a smoke test, must instead run every job on CPU:
+### Execution file
+
+The default, `workflow/profiles/execution/default.yaml`, puts classifiers,
+pretrained models and some methods on GPU. A machine without GPUs, or a
+smoke test, must instead run every job on CPU:
 
 ```shell
 --config execution_file=workflow/profiles/execution/cpu.yaml
@@ -35,9 +46,11 @@ without GPUs, or a smoke test, must instead run every job on CPU:
 > **Without `execution_file=.../cpu.yaml`, a local run requests GPU jobs.**
 > Use the CPU file for local runs and smoke tests without a GPU or SLURM.
 
-Each preset is a list of config files under `workflow/conf/`: which
-datasets, methods, hard budgets and soft-budget parameters to run. They are
-described in [pipeline configuration](../reference/pipeline_configuration.md).
+### Site profile
+
+A site profile maps CPU and GPU execution to one cluster's partitions,
+accounts and GPU request syntax. Running locally needs none. To write one,
+see [SLURM integration](slurm_integration.md).
 
 ## 2. Run the base command
 
@@ -48,14 +61,13 @@ command:
 
 ```shell
 uv run snakemake \
-    --profile workflow/profiles/pipeline/kdd26 \
+    --profile workflow/profiles/pipeline/all \
     --workflow-profile workflow/profiles/site/<your_site> \
     -n -p all
 ```
 
-Then remove `-n -p` to submit. The `<your_site>` profile maps CPU and GPU
-execution to your cluster's partitions, accounts and GPU request syntax;
-adapt it from `site/examples/mixed-gres` or `site/examples/mixed-gpus` as described in
+Then remove `-n -p` to submit. Adapt `<your_site>` from
+`site/examples/mixed-gres` or `site/examples/mixed-gpus` as described in
 [SLURM integration](slurm_integration.md).
 
 On a workstation, use the CPU execution file and say how many jobs run in
@@ -95,8 +107,9 @@ List the methods to train and evaluate:
     --config "methods=[gdfs,dime]"
 ```
 
-The list replaces the preset's `methods`. Every method needs an entry in the
-preset's `method_options` and `soft_budget_params` files. To compare your own
+The list replaces the pipeline profile's `methods`. Every method needs an
+entry in the pipeline profile's `method_options` and `soft_budget_params`
+files. To compare your own
 method with published methods without rerunning them, follow
 [compare your method with published results](compare_your_method_with_published_results.md)
 instead.
@@ -109,18 +122,18 @@ List the dataset keys to run:
     --config "datasets=[cube,mnist]"
 ```
 
-The list replaces the preset's `datasets`. Each key needs a file
+The list replaces the pipeline profile's `datasets`. Each key needs a file
 `conf/components/dataset_key/<key>.yaml`.
 
 ## Change the number of dataset realizations
 
 Results average over several
 [dataset realizations](../../CONTEXT.md). The default is five, indices
-`[0,1,2,3,4]`. Choose fewer for a quicker run, or more for tighter results:
+`[0,1,2,3,4]`. Choose fewer for a quicker run, or more, such as
+`[0,1,2,3,4,5,6,7,8,9]`, for tighter results. Two realizations:
 
 ```shell
     --config "dataset_realization_indices=[0,1]"
-    --config "dataset_realization_indices=[0,1,2,3,4,5,6,7,8,9]"
 ```
 
 Each index seeds its own dataset realization, so realization 2 is the same
@@ -165,7 +178,7 @@ file, to check the submissions themselves.
 ## Change the hard budgets
 
 The [hard budgets](../../CONTEXT.md) evaluated per dataset come from the
-preset's `eval_hard_budgets` file, for example:
+pipeline profile's `eval_hard_budgets` file, for example:
 
 ```yaml
 eval_hard_budgets:
@@ -182,9 +195,10 @@ dataset key:
 ```
 
 > **`--config` merges mappings key by key.** Datasets you do not name keep
-> the preset's budgets, and `default` only applies to datasets the preset
-> does not list. `"eval_hard_budgets={default: [2]}"` leaves `cube` at
-> `[3, 5, 10]` in every shipped preset. Name each dataset you run.
+> the pipeline profile's budgets, and `default` only applies to datasets the
+> pipeline profile does not list. `"eval_hard_budgets={default: [2]}"`
+> leaves `cube` at `[3, 5, 10]` in every shipped pipeline profile. Name each
+> dataset you run.
 
 To run only the [soft-budget setting](../../CONTEXT.md), give the datasets
 you run no hard budgets:
@@ -200,7 +214,7 @@ Methods train with the hard budget they are evaluated with, unless their
 ## Change the soft-budget parameters
 
 [Soft-budget parameters](../../CONTEXT.md) are set per method and dataset key
-in the preset's `soft_budget_params` file. Each entry is a pair
+in the pipeline profile's `soft_budget_params` file. Each entry is a pair
 `[train, eval]`; the pipeline trains one model per pair. `null` as the eval
 value means evaluation keeps the parameter the method was trained with:
 
@@ -220,7 +234,7 @@ Override the parameters of one method on one dataset:
 ```
 
 The same merging applies as for hard budgets: other methods, and datasets
-you do not name, keep the preset's values. To run only the
+you do not name, keep the pipeline profile's values. To run only the
 [hard-budget setting](../../CONTEXT.md), give each method you run an empty
 list for each dataset you run:
 
@@ -236,14 +250,14 @@ Most methods train soft-budget runs with no hard budget; methods with
 
 For a run you will repeat or publish, put the change in config files rather
 than on the command line. `--configfile` on the command line replaces the
-preset's list of config files instead of adding to it, so copy the preset
-and edit the copy:
+pipeline profile's list of config files instead of adding to it, so copy the
+pipeline profile and edit the copy:
 
 ```shell
-cp -r workflow/profiles/pipeline/kdd26 workflow/profiles/pipeline/my_run
-cp workflow/conf/soft_budget_params/kdd26.yaml \
+cp -r workflow/profiles/pipeline/all workflow/profiles/pipeline/my_run
+cp workflow/conf/soft_budget_params/all.yaml \
    workflow/conf/soft_budget_params/my_run.yaml
-# In profiles/pipeline/my_run/config.yaml, replace soft_budget_params/kdd26.yaml
+# In profiles/pipeline/my_run/config.yaml, replace soft_budget_params/all.yaml
 # with soft_budget_params/my_run.yaml; then edit soft_budget_params/my_run.yaml.
 uv run snakemake \
     --profile workflow/profiles/pipeline/my_run \
@@ -251,7 +265,7 @@ uv run snakemake \
     -n -p all
 ```
 
-The same works for any file the preset lists. To train one more method on
+The same works for any file the pipeline profile lists. To train one more method on
 GPU, edit `workflow/profiles/execution/default.yaml`
 ([per-method execution](mixed_execution.md)). The shipped
 `soft_budget_params/{fast,single,none}.yaml` and
@@ -266,7 +280,7 @@ hard-budget setting with custom budgets, on a cluster:
 
 ```shell
 uv run snakemake \
-    --profile workflow/profiles/pipeline/kdd26 \
+    --profile workflow/profiles/pipeline/all \
     --workflow-profile workflow/profiles/site/<your_site> \
     -n -p all \
     --config \

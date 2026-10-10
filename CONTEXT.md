@@ -480,6 +480,19 @@ The failed and timed-out job records of a planned job's job type. They give
 no job duration, but warn that the compute estimate of its jobs may be low.
 _Avoid_: Timeout history, failure count
 
+**Pipeline profile**:
+The configuration that decides what a pipeline run contains: one config file
+per configuration group (datasets, methods, method options, hard budgets,
+soft-budget parameters and the rest). It says nothing about where jobs run or
+on which device. `--config` narrows or changes it for one run.
+_Avoid_: Preset, pipeline config, experiment config
+
+**Execution file**:
+The configuration that declares which pipeline stages and methods run on CPU
+and which on GPU, independent of any computing site. A site profile then maps
+each declared device to an allocation.
+_Avoid_: Device config, hardware profile, execution profile
+
 **Site profile**:
 The configuration that places pipeline jobs on one computing site: its
 scheduler settings, its allocations and, where the site needs one, the image
