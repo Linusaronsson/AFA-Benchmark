@@ -1,9 +1,12 @@
 #!/bin/bash
-# Build containers/afabench.def into the image for this node's architecture.
+# Build containers/afabench.def into the image for this node's architecture,
+# and the host environment Snakemake runs in beside it.
 #
-# Writes <image_dir>/afabench-<arch>.sif, where <arch> is `uname -m`, so on a
-# cluster whose CPU and GPU nodes differ (Arrhenius: x86_64 and aarch64) submit
-# it once to each. Apptainer's cache and temporary directories live on
+# Writes <image_dir>/afabench-<arch>.sif, where <arch> is `uname -m`, and
+# <image_dir>/orchestration-<arch>-<lock hash>/, the orchestration dependency
+# group with its own Python, which containers/bin/python runs (ADR 0008). On
+# a cluster whose CPU and GPU nodes differ (Arrhenius: x86_64 and aarch64)
+# submit it once to each. Apptainer's cache and temporary directories live on
 # node-local storage and are removed on exit; only the finished image is
 # written to <image_dir>. The account and partition differ per architecture, so
 # they are given at submit time. Submit from the checkout root:
@@ -22,7 +25,8 @@ set -euo pipefail
 
 image_dir="$(realpath -m "${1:?image directory required}")"
 project_dir="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
-image="afabench-$(uname -m).sif"
+arch="$(uname -m)"
+image="afabench-$arch.sif"
 
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/afabench-image.XXXXXX")"
 trap 'rm -rf "$scratch"' EXIT
@@ -39,3 +43,25 @@ apptainer build --fakeroot "$scratch/$image" containers/afabench.def
 cp "$scratch/$image" "$image_dir/.$image.partial"
 mv "$image_dir/.$image.partial" "$image_dir/$image"
 ls -l "$image_dir/$image"
+
+# The orchestration environment, with the uv the image was built with, whose
+# binary is static. A new uv.lock gets a new directory, so building for it
+# leaves the environment of running jobs alone until it is complete; only
+# then are older ones removed. Rebuilding for the same uv.lock replaces it
+# in place.
+lock_hash="$(sha256sum uv.lock | cut -c 1-16)"
+environment="$image_dir/orchestration-$arch-$lock_hash"
+apptainer exec "$image_dir/$image" cat /usr/local/bin/uv > "$scratch/uv"
+chmod +x "$scratch/uv"
+rm -rf "$environment"
+UV_PROJECT_ENVIRONMENT="$environment/venv" \
+    UV_PYTHON_INSTALL_DIR="$environment/python" \
+    UV_PYTHON_PREFERENCE=only-managed \
+    UV_CACHE_DIR="$scratch/uv-cache" UV_LINK_MODE=copy \
+    "$scratch/uv" sync --frozen --only-group orchestration --no-install-project
+for old in "$image_dir/orchestration-$arch-"*; do
+    if [[ "$old" != "$environment" ]]; then
+        rm -rf "$old"
+    fi
+done
+"$environment/venv/bin/python" -m snakemake --version

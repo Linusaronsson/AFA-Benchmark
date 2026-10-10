@@ -75,6 +75,7 @@ class WorkflowHarness:
         self.bin = root / "bin"
         self.bin.mkdir()
         for name in [
+            "apptainer",
             "sbatch",
             "sacct",
             "sacctmgr",
@@ -247,6 +248,8 @@ class WorkflowHarness:
     def _environment(self) -> dict[str, str]:
         env = {
             **os.environ,
+            # As a shell started in the root sets it; profiles may expand it.
+            "PWD": str(self.root),
             "XDG_CONFIG_HOME": str(self.root / "xdg-config"),
             "PATH": f"{self.bin}:{Path(sys.executable).parent}:{os.environ['PATH']}",
             "CAPTURE": str(self.capture),

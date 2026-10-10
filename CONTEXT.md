@@ -480,6 +480,25 @@ The failed and timed-out job records of a planned job's job type. They give
 no job duration, but warn that the compute estimate of its jobs may be low.
 _Avoid_: Timeout history, failure count
 
+**Site profile**:
+The configuration that places pipeline jobs on one computing site: its
+scheduler settings, its allocations and, where the site needs one, the image
+jobs run in. Running locally needs no site profile.
+_Avoid_: Cluster config, cluster profile
+
+**Allocation**:
+The scheduler resources a site profile requests for a pipeline job, such as
+account, partition and GPUs. A site profile has one for CPU jobs and may have
+one for GPU jobs; a job's declared device selects which.
+_Avoid_: Resources (Snakemake's term covers runtime and memory too), partition
+
+**Image**:
+A single file holding the locked Python environment that pipeline jobs run
+in, without the project code, which jobs read from the checkout. An image
+serves one CPU architecture, and it goes stale when the locked dependencies
+change.
+_Avoid_: Container (an image while it runs), sif, environment
+
 **Contract**:
 The fixed set of inputs the pipeline gives a pretraining or training script,
 and the bundle it expects back at the save path. Each stage has its own

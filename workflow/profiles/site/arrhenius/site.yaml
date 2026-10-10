@@ -1,0 +1,12 @@
+# CPU nodes are x86_64 and GPU nodes aarch64 (GH200), so each allocation
+# names the image built for its nodes by containers/build.sbatch.
+execution_site:
+  cpu:
+    slurm_partition: cpu
+    slurm_account: naiss2026-4-1737-cpu
+    image: containers/afabench-x86_64.sif
+  gpu:
+    slurm_partition: gpu
+    slurm_account: naiss2026-4-1737-gpu
+    gpu: 1
+    image: containers/afabench-aarch64.sif

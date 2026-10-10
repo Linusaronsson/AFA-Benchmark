@@ -132,6 +132,7 @@ rule pretrain_model:
             pretrain_seed="{pretrain_seed}",
         ),
     params:
+        image=IMAGES.param("pretraining", lambda wc: wc.pretrained_model_name),
         job_record=JOB_RECORDS.param(
             "pretraining",
             lambda wc: wc.pretrained_model_name,
@@ -145,7 +146,7 @@ rule pretrain_model:
         **EXECUTION.allocation_resources("pretraining", lambda wc: wc.pretrained_model_name),
     shell:
         """
-        {params.job_record} \
+        {params.image}{params.job_record} \
         python scripts/pretrain_model/{params.script_name}.py \
             {params.contract} \
             {params.pretrain_params}
@@ -181,6 +182,7 @@ rule train_method:
     wildcard_constraints:
         pretrain_folder=PRETRAIN_FOLDER_PATTERN,
     params:
+        image=IMAGES.param("training", lambda wc: wc.method),
         job_record=JOB_RECORDS.param(
             "training", lambda wc: wc.method, name=lambda wc: wc.method
         ),
@@ -192,7 +194,7 @@ rule train_method:
         **EXECUTION.allocation_resources("training", lambda wc: wc.method),
     shell:
         """
-        {params.job_record} \
+        {params.image}{params.job_record} \
         python scripts/train_method/{params.script_name}.py \
             {params.contract} \
             {params.method_specific_params}

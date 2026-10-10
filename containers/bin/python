@@ -1,0 +1,21 @@
+#!/bin/bash
+# The host Python of this node's architecture, holding Snakemake.
+#
+# Snakemake runs on the host on a site whose jobs run in an image (ADR 0008),
+# but a cluster's nodes may differ in architecture (Arrhenius: x86_64 login
+# and CPU nodes, aarch64 GPU nodes). A site profile that puts this directory
+# on PATH, through --precommand, starts each job's Snakemake here; it runs
+# the orchestration environment that containers/build.sbatch built for this
+# architecture and this checkout's uv.lock, from $AFABENCH_IMAGE_DIR or this
+# directory's parent.
+
+set -euo pipefail
+
+checkout="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
+lock_hash="$(sha256sum "$checkout/uv.lock" | cut -c 1-16)"
+environment="${AFABENCH_IMAGE_DIR:-$checkout/containers}/orchestration-$(uname -m)-$lock_hash"
+if [[ ! -x "$environment/venv/bin/python" ]]; then
+    echo "No orchestration environment for $(uname -m) and this uv.lock at $environment; build it with containers/build.sbatch" >&2
+    exit 1
+fi
+exec "$environment/venv/bin/python" "$@"

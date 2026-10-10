@@ -33,6 +33,7 @@ PROCESSING_STAGES = {
     "aggregation",
     "visualization",
 }
+REPO_ROOT = Path(__file__).parents[2]
 DEFAULT_EXECUTION_FILE = (
     Path(__file__).parents[1] / "profiles" / "execution" / "default.yaml"
 )
@@ -44,6 +45,9 @@ ALLOCATION_RESOURCES: dict[str, int | str] = {
     "gpu_model": "",
     "slurm_extra": "",
 }
+# Allocation keys that are no SLURM resource: the image the job runs in
+# (workflow/src/images.py), relative to the repository root
+ALLOCATION_SETTINGS = {"image"}
 
 
 def _mapping(value: object, label: str) -> Mapping[str, object]:
@@ -202,8 +206,18 @@ class ExecutionPolicy:
             self.site.get(hardware, {}), f"execution_site.{hardware}"
         )
         _known_keys(
-            site, set(ALLOCATION_RESOURCES), f"execution_site.{hardware}"
+            site,
+            set(ALLOCATION_RESOURCES) | ALLOCATION_SETTINGS,
+            f"execution_site.{hardware}",
         )
+        if "image" in site:
+            image = site["image"]
+            if not isinstance(image, str) or not image:
+                message = f"execution_site.{hardware}.image must be a path: {image!r}"
+                raise ValueError(message)
+            if not (REPO_ROOT / image).is_file():
+                message = f"execution_site.{hardware}.image {image!r} does not exist under {REPO_ROOT}; build it with containers/build.sbatch"
+                raise ValueError(message)
         slurm_extra = site.get("slurm_extra", "")
         if not isinstance(slurm_extra, str) or any(
             re.match(r"--gres|--gpus|-G", argument)
@@ -233,12 +247,23 @@ class ExecutionPolicy:
             message = f"Invalid GPU allocation gpu_model: {gpu_model!r}"
             raise ValueError(message)
 
+    def hardware(self, stage: Stage, identity: str | None) -> Hardware:
+        """Return which allocation the job resolves to."""
+        return "gpu" if self.device(stage, identity) == "cuda" else "cpu"
+
+    def image(self, stage: Stage, identity: str | None) -> Path | None:
+        """Return the image the job's allocation names, if any."""
+        if not self.site:
+            return None
+        hardware = self.hardware(stage, identity)
+        self._validate_allocation(hardware, stage, identity)
+        image = _mapping(self.site[hardware], "execution_site").get("image")
+        return None if image is None else REPO_ROOT / str(image)
+
     def resource(
         self, name: str, stage: Stage, identity: str | None
     ) -> int | str:
-        hardware: Hardware = (
-            "gpu" if self.device(stage, identity) == "cuda" else "cpu"
-        )
+        hardware = self.hardware(stage, identity)
         if self.site:
             self._validate_allocation(hardware, stage, identity)
         elif self.submits_to_cluster():

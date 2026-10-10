@@ -59,6 +59,7 @@ rule train_classifier:
             method=None,
         ),
     params:
+        image=IMAGES.param("classifier_training", lambda wc: None),
         device=lambda wc, resources: EXECUTION.checked_device("classifier_training", None, resources),
         job_record=JOB_RECORDS.param(
             "classifier_training",
@@ -78,7 +79,7 @@ rule train_classifier:
         **EXECUTION.allocation_resources("classifier_training", lambda wc: None),
     shell:
         """
-        {params.job_record} \
+        {params.image}{params.job_record} \
         python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
@@ -120,6 +121,7 @@ rule train_classifier_for_method:
             method="{method}",
         ),
     params:
+        image=IMAGES.param("classifier_training", lambda wc: wc.method),
         device=lambda wc, resources: EXECUTION.checked_device("classifier_training", wc.method, resources),
         job_record=JOB_RECORDS.param(
             "classifier_training",
@@ -139,7 +141,7 @@ rule train_classifier_for_method:
         **EXECUTION.allocation_resources("classifier_training", lambda wc: wc.method),
     shell:
         """
-        {params.job_record} \
+        {params.image}{params.job_record} \
         python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \

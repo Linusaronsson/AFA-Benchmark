@@ -1,0 +1,43 @@
+# Run with containers/snakemake.sh instead of uv run snakemake, from the
+# checkout root, after building both images and orchestration environments
+# with containers/build.sbatch (docs/how-to/slurm_integration.md).
+executor: slurm
+jobs: 9001
+latency-wait: 30 # seconds
+
+# Each job's Snakemake runs on the host of its node's architecture, from
+# containers/bin/python; its scripts run in the allocation's image (ADR 0008).
+# Without software-deployment, jobs start `python` from PATH rather than the
+# login node's x86_64 interpreter. Snakemake expands $PWD and $PATH when it
+# reads this profile, so run it from the checkout root.
+shared-fs-usage: [persistence, input-output, sources, source-cache, storage-local-copies]
+precommand: export PATH=$PWD/containers/bin:$PATH
+
+default-resources:
+  runtime: 120 # minutes
+  cpus_per_task: 1
+  # Below both partitions' default per CPU, so GPU jobs fit on their share
+  mem_mb_per_cpu: 1400
+
+# The partitions' time limit is 3 days.
+set-resources:
+  pretrain_model:
+    runtime: 4320
+    cpus_per_task: 8
+  train_method:
+    runtime: 4320
+    cpus_per_task: 8
+  eval_method:
+    runtime: 4320
+    cpus_per_task: 8
+
+  # Although the merged eval dataframes "only" take up less than 1Gb, opening them can use a lot more
+  split_by_classifier_type:
+    cpus_per_task: 10
+  plot_eval_perf:
+    cpus_per_task: 10
+  plot_eval_actions:
+    cpus_per_task: 10
+
+config:
+  execution_site_file: workflow/profiles/site/arrhenius/site.yaml

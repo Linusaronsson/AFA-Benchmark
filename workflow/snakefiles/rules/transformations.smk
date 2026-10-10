@@ -39,6 +39,7 @@ rule transform_eval_data:
     wildcard_constraints:
         method=TRANSFORMED_METHOD_PATTERN,
     params:
+        image=IMAGES.param("transformation", lambda wc: "transform_eval_data"),
         job_record=JOB_RECORDS.param(
             "transformation",
             lambda wc: "transform_eval_data",
@@ -49,7 +50,7 @@ rule transform_eval_data:
         **EXECUTION.allocation_resources("transformation", lambda wc: "transform_eval_data"),
     shell:
         """
-        {params.job_record} \
+        {params.image}{params.job_record} \
         python scripts/misc/transform_eval_data_pipeline.py \
             --input_path {input} \
             --output_path {output.eval_table} \

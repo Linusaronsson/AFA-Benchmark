@@ -53,11 +53,23 @@ dev = [
   "pytest-watch>=4.2.0",
   "pytest-xdist>=3.8.0",
   "ruff>=0.14.8",
+  "visidata>=3.3",
+  { include-group = "orchestration" },
+]
+# What Snakemake needs to plan and submit the pipeline, without the
+# environment the stage scripts run in: the Snakefiles import only
+# afabench.core modules that need these. Sites that run the scripts in an
+# image install only this group on the host (ADR 0008).
+orchestration = [
+  "dacite>=1.9.2",
+  "hydra-core>=1.3.2",
+  "omegaconf>=2.3.0",
+  "pyyaml>=6.0",
   # estimate-compute plans through private Snakemake internals; widen only
   # after the planner's workflow tests pass on the new version (ADR 0007).
   "snakemake>=9.12.0,<9.13",
   "snakemake-executor-plugin-slurm>=1.8.0",
-  "visidata>=3.3",
+  "typer>=0.21.1",
 ]
 
 [build-system]

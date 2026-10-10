@@ -33,13 +33,14 @@ rule plot_eval_perf:
     output:
         directory(f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}"),
     params:
+        image=IMAGES.param("visualization", lambda wc: "plot_eval_perf"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_perf", resources),
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("visualization", lambda wc: "plot_eval_perf"),
     shell:
         """
-        python scripts/plotting/plot_eval_perf.py \
+        {params.image}python scripts/plotting/plot_eval_perf.py \
             input={input} output_folder={output} formats='[pdf,svg]'
         """
 
@@ -50,13 +51,14 @@ rule plot_eval_actions:
     output:
         directory(f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_actions/{{method_set}}+classifier_type-{{classifier_type}}"),
     params:
+        image=IMAGES.param("visualization", lambda wc: "plot_eval_actions"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_actions", resources),
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("visualization", lambda wc: "plot_eval_actions"),
     shell:
         """
-        python scripts/plotting/plot_eval_actions.py \
+        {params.image}python scripts/plotting/plot_eval_actions.py \
             input={input} output_folder={output} formats='[pdf,svg]'
         """
 
@@ -73,6 +75,7 @@ rule plot_time:
     output:
         directory(f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"),
     params:
+        image=IMAGES.param("visualization", lambda wc: "plot_time"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_time", resources),
         selection=_plot_time_selection(),
     resources:
@@ -80,7 +83,7 @@ rule plot_time:
         **EXECUTION.allocation_resources("visualization", lambda wc: "plot_time"),
     shell:
         """
-        python scripts/plotting/plot_total_time.py \
+        {params.image}python scripts/plotting/plot_total_time.py \
             input={input} output_folder={output} {params.selection} \
             formats='[pdf,svg]'
         """
