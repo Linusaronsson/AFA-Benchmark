@@ -120,10 +120,14 @@ class OutputLayout:
         """Where dataset generation writes every realization's bundles."""
         return self._path("datasets", f"{dataset}")
 
-    def dataset_generation_job_record(self, *, dataset: PathValue) -> str:
+    def dataset_generation_job_record(
+        self, *, dataset: PathValue, dataset_realization_index: PathValue
+    ) -> str:
+        """Sit in the realization's folder, beside the bundles of its splits."""
         return "/".join(
             [
                 self.dataset_folder(dataset=dataset),
+                f"{dataset_realization_index}",
                 "dataset_generation.job_record.json",
             ]
         )

@@ -286,7 +286,7 @@ GPU_JOBS = {
 }
 # Every job of the tiny full graph, each submitted exactly once.
 FULL_GRAPH_JOBS = {
-    "dataset_generation": 1,
+    "dataset_generation": 2,
     "train_classifier": 2,
     "train_classifier_for_method": 2,
     "pretrain_model": 4,
@@ -419,7 +419,7 @@ def test_full_graph_job_records_carry_submitted_allocations(
         )
     ]
     # Every job but aggregation and visualization leaves one.
-    assert len(records) == 33
+    assert len(records) == 34
     assert sum(record["device"] == "cuda" for record in records) == 8
     for record in records:
         method_job = record["stage"] in {"training", "evaluation"}

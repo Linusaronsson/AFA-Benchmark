@@ -16,7 +16,7 @@ from afabench.core.job_duration_table import (
 )
 from afabench.core.job_record import Allocation, JobIdentity, run_job
 
-DATASET_GENERATION = "datasets/cube/dataset_generation.job_record.json"
+DATASET_GENERATION = "datasets/cube/0/dataset_generation.job_record.json"
 TRAINING = (
     "trained_methods/initializer-cold/alpha/dataset-cube+realization_index-0/"
     "NO_PRETRAIN/train_seed-0+train_hard_budget-1+train_soft_budget_param-null"
@@ -57,7 +57,11 @@ def record_jobs(tmp_path: Path) -> RecordedJobs:
         output_root,
         DATASET_GENERATION,
         succeeds=True,
-        identity=JobIdentity(stage="dataset_generation", dataset_key="cube"),
+        identity=JobIdentity(
+            stage="dataset_generation",
+            dataset_key="cube",
+            dataset_realization_index=0,
+        ),
         allocation=Allocation(
             device="cpu", cpus=None, gpus=0, time_limit_minutes=None
         ),

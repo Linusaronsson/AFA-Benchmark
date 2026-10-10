@@ -47,7 +47,7 @@ Specifies which dataset realizations to run. This allows you to run a subset of 
 - **Default:** `[0,1,2,3,4]`
 - **Example:** `dataset_realization_indices=[0,1]` to run two dataset realizations
 - **Use case:** Use fewer dataset realizations for faster debugging, more for more robust results
-- **Note:** Adding an index later regenerates the existing dataset realizations and reruns their downstream jobs ([issue #96](https://github.com/Linusaronsson/AFA-Benchmark/issues/96))
+- **Note:** Adding an index later runs only the new dataset realizations' jobs; the existing ones are reused
 
 ### `device` (deprecated)
 

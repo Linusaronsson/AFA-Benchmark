@@ -22,7 +22,7 @@ and `<evaluation>` the evaluation's subfolder
 
 | Pipeline stage | Rule | Record |
 | --- | --- | --- |
-| `dataset_generation` | `dataset_generation` | `datasets/<key>/dataset_generation.job_record.json`, in the folder of all dataset realizations of `<key>`, which the job generates together |
+| `dataset_generation` | `dataset_generation` | `datasets/<key>/<k>/dataset_generation.job_record.json`, in the dataset realization's folder, beside the bundles of its splits |
 | `classifier_training` | `train_classifier`, `train_classifier_for_method` | `trained_classifiers/<tag>/[method-<method>+]dataset-<key>+realization_index-<k>.job_record.json` |
 | `pretraining` | `pretrain_model` | `pretrained_models/<tag>/<pretrained model>/dataset-<key>+realization_index-<k>/pretrain_seed-<s>/model.job_record.json` |
 | `training` | `train_method` | `trained_methods/<tag>/<training>/method.job_record.json` |
@@ -92,7 +92,7 @@ Records are flat, so that one record is one row of a table.
 | `stage` | Pipeline stage: `dataset_generation`, `classifier_training`, `pretraining`, `training`, `evaluation` or `transformation`. |
 | `name` | Method name for training, evaluation and transformation; pretrained-model name for pretraining; the classifier's script name for classifier training; null for dataset generation. |
 | `dataset_key` | Dataset key. |
-| `dataset_realization_index` | Dataset realization index; null for dataset generation, whose one job generates every dataset realization of the key. |
+| `dataset_realization_index` | Dataset realization index. |
 | `pretrain_seed` | Seed of the pretraining run the job is part of or depends on; null without pretraining. |
 | `train_seed` | Seed of the training run; for classifier training, the classifier's seed, which is its dataset realization index. |
 | `eval_seed` | Seed of the evaluation. |

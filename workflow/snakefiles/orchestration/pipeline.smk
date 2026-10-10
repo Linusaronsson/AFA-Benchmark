@@ -69,7 +69,7 @@ Job records:
     workflow/src/job_records.py. It writes a job record, a declared
     output named after the job's artifact with `.job_record.json` in place
     of its suffix (dataset generation: dataset_generation.job_record.json in
-    the dataset key's folder): the job's identity, job duration and resolved
+    the dataset realization's folder): the job's identity, job duration and resolved
     allocation (device, CPUs, GPUs, time limit). A job whose script fails, or that
     receives SLURM's time-limit SIGTERM, writes its record to the same path
     under the output root's failed_job_records/ instead, one record per attempt;

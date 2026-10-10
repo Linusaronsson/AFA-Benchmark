@@ -36,8 +36,10 @@ def test_dataset_folder_holds_every_realization() -> None:
 
 def test_dataset_generation_job_record() -> None:
     assert (
-        LAYOUT.dataset_generation_job_record(dataset="cube")
-        == "output/datasets/cube/dataset_generation.job_record.json"
+        LAYOUT.dataset_generation_job_record(
+            dataset="cube", dataset_realization_index=0
+        )
+        == "output/datasets/cube/0/dataset_generation.job_record.json"
     )
 
 
