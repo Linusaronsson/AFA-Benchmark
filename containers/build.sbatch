@@ -12,10 +12,13 @@
 # lock and the environment are written to <image_dir>. The account and partition differ per architecture, so
 # they are given at submit time. Submit from the checkout root:
 #
-#   sbatch -A <cpu-account> -p cpu --gpus 0 --output=<image_dir>/build-%j.log \
-#     containers/build.sbatch <image_dir>
-#   sbatch -A <gpu-account> -p gpu --gpus 1 --output=<image_dir>/build-%j.log \
-#     containers/build.sbatch <image_dir>
+#   sbatch -A <cpu-account> -p cpu --output=containers/build-%j.log \
+#     containers/build.sbatch containers
+#   sbatch -A <gpu-account> -p gpu --gpus 1 --output=containers/build-%j.log \
+#     containers/build.sbatch containers
+#
+# containers/ is the <image_dir> containers/run.sh and containers/bin/python
+# look in unless $AFABENCH_IMAGE_DIR is set.
 
 #SBATCH --job-name=afabench-image
 #SBATCH --cpus-per-task=8
@@ -24,7 +27,20 @@
 
 set -euo pipefail
 
-image_dir="$(realpath -m "${1:?image directory required}")"
+if [[ $# -ne 1 ]]; then
+    cat >&2 <<'USAGE'
+Usage: submit with sbatch from the checkout root, once per node architecture:
+
+  sbatch -A <cpu-account> -p cpu --output=containers/build-%j.log \
+      containers/build.sbatch containers
+  sbatch -A <gpu-account> -p gpu --gpus 1 --output=containers/build-%j.log \
+      containers/build.sbatch containers
+
+See "Run jobs in an image" in docs/how-to/slurm_integration.md.
+USAGE
+    exit 2
+fi
+image_dir="$(realpath -m "$1")"
 project_dir="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
 arch="$(uname -m)"
 image="afabench-$arch.sif"

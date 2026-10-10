@@ -15,7 +15,7 @@ set -euo pipefail
 checkout="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 image="${AFABENCH_IMAGE_DIR:-$checkout/containers}/afabench-$(uname -m).sif"
 if [[ ! -f "$image" ]]; then
-    echo "No image for $(uname -m) at $image; build it with containers/build.sbatch" >&2
+    echo "No image for $(uname -m) at $image; build it with containers/build.sbatch (docs/how-to/slurm_integration.md, \"Run jobs in an image\")" >&2
     exit 1
 fi
 

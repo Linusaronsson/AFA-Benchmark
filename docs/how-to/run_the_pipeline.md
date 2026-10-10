@@ -70,6 +70,11 @@ Then remove `-n -p` to submit. Adapt `<your_site>` from
 `site/examples/mixed-gres` or `site/examples/mixed-gpus` as described in
 [SLURM integration](slurm_integration.md).
 
+> **On a site whose jobs run in an image, such as `site/arrhenius`, use
+> `containers/snakemake.sh` instead of `uv run snakemake`** in every command
+> on this page. It needs the images and host environments built first; see
+> [run jobs in an image](slurm_integration.md#run-jobs-in-an-image).
+
 On a workstation, use the CPU execution file and say how many jobs run in
 parallel:
 
