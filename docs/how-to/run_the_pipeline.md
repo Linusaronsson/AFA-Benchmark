@@ -86,8 +86,8 @@ Snakemake only runs jobs whose outputs are missing or out of date, so
 running the same command again resumes an interrupted run.
 
 A run prints the resolved configuration, how many jobs of each rule it runs,
-its progress (`N of M steps done`) and any job's error, but not every job's
-rule block, submission and completion. Those are in the log file under
+its progress (`N of M steps done`), each finished job's rule and wildcards,
+and any job's error, but not every job's rule block and submission. Those are in the log file under
 `.snakemake/log` whose path it prints at the end; the override
 `list_jobs=true` prints them in the terminal too.
 

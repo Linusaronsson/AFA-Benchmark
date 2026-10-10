@@ -133,7 +133,7 @@ Enables smoke testing mode, where each script runs as fast as possible while sti
 
 ### `list_jobs`
 
-Prints every job's messages in the terminal: its rule block with its resources, and, in a dry run, its script command; in a real run also its submission and completion. Without it, the terminal shows only the resolved configuration, how many jobs of each rule run, progress (`N of M steps done`) and errors. A real run's log file under `.snakemake/log` keeps every job's messages either way.
+Prints every job's messages in the terminal: its rule block with its resources, and, in a dry run, its script command; in a real run also its submission and completion. Without it, the terminal shows only the resolved configuration, how many jobs of each rule run, progress (`N of M steps done`), each finished job's rule and wildcards, and errors. A real run's log file under `.snakemake/log` keeps every job's messages either way.
 
 - **Default:** `false`
 - **Example:** `list_jobs=true` to check each job's partition, GPU request and `device=` argument

@@ -2,8 +2,8 @@
 The terminal shows the resolved configuration, job counts and progress.
 
 It leaves out the messages of every job, in a dry run and a real run, unless
-`list_jobs=true`. Errors still reach it, and a real run's log file keeps
-everything.
+`list_jobs=true`, but for one line naming each finished job. Errors still
+reach it, and a real run's log file keeps everything.
 """
 
 import importlib.util
@@ -72,7 +72,10 @@ def test_a_run_prints_progress_and_logs_every_job(tmp_path: Path) -> None:
     assert result.returncode == 0, output
     assert "Job stats:" in output
     assert "steps (100%) done" in output
+    assert "Select jobs to execute" not in output
     assert job_messages(output) == []
+    assert "Finished train_method (" in output
+    assert "method=alpha" in output
     [log] = (tmp_path / ".snakemake/log").glob("*.snakemake.log")
     assert "    reason: " in log.read_text()
 
