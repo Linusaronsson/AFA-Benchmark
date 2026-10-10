@@ -4,13 +4,19 @@ Pipeline launcher: run the pipeline from its profiles and overrides.
 
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
-    workflow/run.py [<pipeline>] [--site <site>] [-n] [--target <rule>]
+    workflow/run.py [<pipeline>] [--site <site>] [-n | -e] [--target <rule>]
         [--jobs <n>] [key=value ...] [-- <Snakemake arguments>]
 
 It builds the one Snakemake command for them, adding what follows from the
 site profile: its site file, which Snakemake would otherwise drop from the
 site profile whenever overrides are passed, and the interpreter of a site
 whose jobs run in an image. See docs/adr/0009.
+
+With -e it runs the compute estimate of that invocation instead
+(scripts/compute_estimate/estimate_compute.py), which takes the same
+arguments and, with -e only, the estimate's options. On a site whose jobs
+run in an image, the estimate runs in the image: it needs both Snakemake and
+the libraries the orchestration environment lacks.
 
 It runs on a login node before any environment exists, like
 containers/submit_builds.py, so on the host's python3 (3.9 on Arrhenius)
@@ -33,10 +39,46 @@ from containers.submit_builds import read_site_yaml  # noqa: E402
 
 PIPELINE_PROFILES = "workflow/profiles/pipeline"
 SITE_PROFILES = "workflow/profiles/site"
+ESTIMATE_SCRIPT = "scripts/compute_estimate/estimate_compute.py"
+ESTIMATE_FLAGS = ("-e", "--estimate")
+# The estimate's own options, taken with -e only.
+ESTIMATE_OPTIONS = ("job_durations", "by", "output", "strict")
 
 
 class LauncherError(ValueError):
     """Launcher arguments that name no profile or contradict each other."""
+
+
+def launcher_command(
+    arguments: list[str], checkout: Path = REPO_ROOT
+) -> list[str]:
+    """Return the command the launcher runs for `arguments`."""
+    options = _parse(arguments)
+    if not options.estimate:
+        return snakemake_command(arguments, checkout)
+    if options.dry_run:
+        message = (
+            "-n and -e: an estimate runs no jobs either; give one of them"
+        )
+        raise LauncherError(message)
+    # Check the run's arguments, as the estimate will.
+    snakemake_arguments(arguments, checkout)
+    interpreter = ["uv", "run", "python"]
+    if options.site is not None and _names_an_image(
+        checkout,
+        f"{_profile(checkout, SITE_PROFILES, options.site)}/site.yaml",
+    ):
+        interpreter = ["containers/run.sh", "python"]
+    return [*interpreter, ESTIMATE_SCRIPT, *_without_estimate_flag(arguments)]
+
+
+def _without_estimate_flag(arguments: list[str]) -> list[str]:
+    split = arguments.index("--") if "--" in arguments else len(arguments)
+    return [
+        argument
+        for argument in arguments[:split]
+        if argument not in ESTIMATE_FLAGS
+    ] + arguments[split:]
 
 
 def snakemake_command(
@@ -66,7 +108,7 @@ def _invocation(
         # A second --config would replace the one carrying the site file.
         message = "--config after --: give pipeline profile overrides as key=value before --"
         raise LauncherError(message)
-    options = _parser().parse_intermixed_args(arguments)
+    options = _parse(arguments)
     pipeline, config = _pipeline_and_overrides(options.profile_and_overrides)
     interpreter = ["uv", "run", "snakemake"]
     profiles = ["--profile", _profile(checkout, PIPELINE_PROFILES, pipeline)]
@@ -106,6 +148,22 @@ def _pipeline_and_overrides(words: list[str]) -> tuple[str, list[str]]:
     return pipeline, list(words)
 
 
+def _parse(arguments: list[str]) -> argparse.Namespace:
+    """Parse the launcher's arguments, before any --."""
+    if "--" in arguments:
+        arguments = arguments[: arguments.index("--")]
+    options = _parser().parse_intermixed_args(arguments)
+    if not options.estimate:
+        for name in ESTIMATE_OPTIONS:
+            if getattr(options, name) not in (None, False):
+                flag = "--" + name.replace("_", "-")
+                message = (
+                    f"{flag} is an option of the compute estimate: add -e"
+                )
+                raise LauncherError(message)
+    return options
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="workflow/run.py",
@@ -129,12 +187,38 @@ def _parser() -> argparse.ArgumentParser:
         help="Plan the run and print its commands without running jobs",
     )
     parser.add_argument(
+        "-e",
+        "--estimate",
+        action="store_true",
+        help="Print the compute estimate of the run without running jobs",
+    )
+    parser.add_argument(
         "--target", default="all", help="The rule to run (default: all)"
     )
     parser.add_argument(
         "--jobs",
         type=int,
         help="How many jobs run at once locally; a site profile sets it for its cluster",
+    )
+    estimate = parser.add_argument_group(
+        "compute estimate options, with -e (docs/reference/estimate_compute_command.md)"
+    )
+    estimate.add_argument(
+        "--job-durations",
+        help="A job duration table, or an output root of job records (default: output/production)",
+    )
+    estimate.add_argument(
+        "--by",
+        action="append",
+        help="Group the totals by this job column; repeat for several",
+    )
+    estimate.add_argument(
+        "--output", help="Also write each planned job's estimate here as CSV"
+    )
+    estimate.add_argument(
+        "--strict",
+        action="store_true",
+        help="Exit with 1 when a planned job is unestimated",
     )
     return parser
 
@@ -169,7 +253,7 @@ def _names_an_image(checkout: Path, site_file: str) -> bool:
 
 def main(arguments: list[str]) -> int:
     try:
-        command = snakemake_command(arguments)
+        command = launcher_command(arguments)
     except LauncherError as error:
         print(f"workflow/run.py: error: {error}", file=sys.stderr)
         return 2

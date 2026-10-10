@@ -48,12 +48,18 @@ slower.
 
 ## 3. Run the estimate
 
-Give it the arguments you run the pipeline with:
+Add `-e` to the arguments you run the pipeline with, in place of any `-n`:
 
 ```shell
-just estimate-compute [--job-durations output/production/release_job_duration_table.parquet] \
-    kdd26 --site <your_site>
+workflow/run.py kdd26 --site <your_site> -e \
+    [--job-durations output/production/release_job_duration_table.parquet]
 ```
+
+On a site whose jobs run in an image, such as `arrhenius`, the estimate runs
+in the image of the host's architecture
+([run jobs in an image](slurm_integration.md#run-jobs-in-an-image)).
+`just estimate-compute <arguments without -e>` runs it from the uv
+environment instead.
 
 Nothing is submitted or run. Jobs whose outputs already exist are not
 planned, as in the real run. An invocation Snakemake would reject fails the

@@ -67,7 +67,9 @@ of each rule would run:
 workflow/run.py --site <your_site> -n
 ```
 
-Then remove `-n` to submit. Adapt `<your_site>` from
+Swap `-n` for `-e` to print the compute it will take instead
+([estimate the compute of a run](estimate_compute.md)). Then remove `-n` to
+submit. Adapt `<your_site>` from
 `examples/mixed-gres` or `examples/mixed-gpus` as described in
 [SLURM integration](slurm_integration.md). On a site whose jobs run in an
 image, such as `arrhenius`, build the images and host environments first;

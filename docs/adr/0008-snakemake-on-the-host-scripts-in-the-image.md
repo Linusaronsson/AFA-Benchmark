@@ -52,5 +52,9 @@ snakemake`, which runs the rule's command.
   lock's hash. Any `uv.lock` change, dev tools included, needs a rebuild.
 - The image param takes `resources` only so that Snakemake does not track
   it: adding, changing or rebuilding an image reruns no job.
+- The image holds the orchestration group too, for the compute estimate
+  (`workflow/run.py -e`) on the login node: it plans with Snakemake and
+  loads job records with pandas, which the orchestration environment lacks.
+  Pipeline jobs never start Snakemake in the image.
 - Job records and provenance records name no image. The commit fixes the
   locked dependencies, and the host the architecture.

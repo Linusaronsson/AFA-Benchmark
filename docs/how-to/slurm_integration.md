@@ -128,7 +128,7 @@ environment built beside each image
 
    Each job writes `containers/afabench-<arch>.sif`, the `uv.lock` it was
    built from beside it, and `containers/orchestration-<arch>-<lock hash>/`. Rebuild both after any
-   change to `uv.lock`: the pipeline refuses an image built from another
+   change to `uv.lock` or `containers/afabench.def`: the pipeline refuses an image built from another
    lock before submitting anything, and a job finds no host environment for
    it.
 3. In `<site>/config.yaml`, make each job start Snakemake from

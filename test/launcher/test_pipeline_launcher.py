@@ -1,10 +1,17 @@
-"""The Snakemake command the pipeline launcher (`workflow/run.py`) runs."""
+"""The command the pipeline launcher (`workflow/run.py`) runs."""
 
 from pathlib import Path
 
 import pytest
 
-from workflow.run import LauncherError, snakemake_arguments, snakemake_command
+from workflow.run import (
+    LauncherError,
+    launcher_command,
+    snakemake_arguments,
+    snakemake_command,
+)
+
+ESTIMATE_SCRIPT = "scripts/compute_estimate/estimate_compute.py"
 
 
 def test_runs_the_all_pipeline_profile_locally_by_default() -> None:
@@ -143,3 +150,89 @@ def test_a_site_file_without_allocations_is_refused(tmp_path: Path) -> None:
 
     with pytest.raises(LauncherError, match="execution_site"):
         snakemake_arguments(["--site", "broken"], checkout=tmp_path)
+
+
+def test_estimate_takes_the_arguments_of_the_run() -> None:
+    command = launcher_command(
+        ["-e", "methods=[dime]", "--target", "all_train_methods"]
+    )
+
+    assert command == [
+        "uv",
+        "run",
+        "python",
+        ESTIMATE_SCRIPT,
+        "methods=[dime]",
+        "--target",
+        "all_train_methods",
+    ]
+
+
+def test_estimate_on_a_site_whose_jobs_run_in_an_image_runs_in_the_image() -> (
+    None
+):
+    command = launcher_command(
+        ["--site", "arrhenius", "-e", "datasets=[cube]"]
+    )
+
+    assert command == [
+        "containers/run.sh",
+        "python",
+        ESTIMATE_SCRIPT,
+        "--site",
+        "arrhenius",
+        "datasets=[cube]",
+    ]
+
+
+def test_estimate_options_and_snakemake_arguments_reach_the_estimate() -> None:
+    command = launcher_command(
+        [
+            "--estimate",
+            "--job-durations",
+            "durations.parquet",
+            "--by",
+            "name",
+            "--by",
+            "dataset_key",
+            "--output",
+            "estimate.csv",
+            "--strict",
+            "--",
+            "--set-resources",
+            "train_method:gpu=1",
+        ]
+    )
+
+    assert command[4:] == [
+        "--job-durations",
+        "durations.parquet",
+        "--by",
+        "name",
+        "--by",
+        "dataset_key",
+        "--output",
+        "estimate.csv",
+        "--strict",
+        "--",
+        "--set-resources",
+        "train_method:gpu=1",
+    ]
+
+
+def test_without_estimate_the_launcher_runs_snakemake() -> None:
+    assert launcher_command(["-n"]) == snakemake_command(["-n"])
+
+
+def test_estimate_and_dry_run_exclude_each_other() -> None:
+    with pytest.raises(LauncherError, match=r"-n.*-e"):
+        launcher_command(["-n", "-e"])
+
+
+@pytest.mark.parametrize(
+    "option",
+    [["--job-durations", "x.parquet"], ["--by", "name"], ["--strict"]],
+)
+def test_estimate_options_need_estimate(option: list[str]) -> None:
+    with pytest.raises(LauncherError, match=option[0]):
+        launcher_command(option)
