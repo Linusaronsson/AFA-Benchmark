@@ -19,9 +19,10 @@ From: ghcr.io/astral-sh/uv:0.12.5-trixie-slim
 %post
     set -eu
     # Provenance records the checkout's commit through git; without it every
-    # run would silently record none.
+    # run would silently record none. ca-certificates is only a recommends of
+    # git, and W&B's Go core verifies TLS against the system store, not certifi.
     apt-get update
-    apt-get install -y --no-install-recommends git
+    apt-get install -y --no-install-recommends git ca-certificates
     rm -rf /var/lib/apt/lists/*
     cd /opt/afabench
     # pyproject.toml pins a patch release no distribution ships, so uv
