@@ -283,7 +283,8 @@ uv run snakemake \
 - `-n -p` lists every job with its `resources:` line (`slurm_partition`,
   `slurm_account`, `gpu`, `gres`, `gpu_model`, runtime, CPUs, memory) and
   the script command, including the `device=` argument passed to
-  computational scripts. The job counts at the end summarize the graph.
+  computational scripts and, on a site whose jobs run in an image, the
+  `apptainer exec` prefix. The job counts at the end summarize the graph.
   Check them after every `--config` change.
 - Replace `all` with a narrower target such as `all_train_classifiers`,
   `all_pretrain_models`, `all_train_methods` or `all_eval_methods` to inspect

@@ -25,6 +25,13 @@ Runtime filters (--config, select subsets to run):
         Alternatively provide execution_site in a configuration file. A CLI
         --config replaces the workflow profile's config, so repeat
         execution_site_file=<site>/site.yaml whenever passing --config.
+        An allocation may name an image (execution_site.<cpu|gpu>.image,
+        relative to the repository root): its jobs then run their
+        commands in it through apptainer exec, with --nv on GPU
+        allocations, while Snakemake stays on the host. The image must
+        exist and match uv.lock, or planning fails before submission.
+        See docs/how-to/slurm_integration.md and
+        docs/adr/0008-snakemake-on-the-host-scripts-in-the-image.md.
     use_wandb (bool, default=True): Enable W&B logging
     smoke_test (bool, default=False): Run smoke tests, under their own
         output root
