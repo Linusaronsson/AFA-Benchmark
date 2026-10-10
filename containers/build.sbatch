@@ -9,12 +9,18 @@
 # a cluster whose CPU and GPU nodes differ (Arrhenius: x86_64 and aarch64)
 # submit it once to each. Apptainer's cache and temporary directories live on
 # node-local storage and are removed on exit; only the finished image, its
-# lock and the environment are written to <image_dir>. The account and partition differ per architecture, so
-# they are given at submit time. Submit from the checkout root:
+# lock and the environment are written to <image_dir>. The account and
+# partition differ per architecture, so they are given at submit time;
+# containers/submit_builds.py submits it with those of each allocation of a
+# site profile that names an image:
+#
+#   python3 containers/submit_builds.py arrhenius
+#
+# which, for Arrhenius, submits from the checkout root:
 #
 #   sbatch -A <cpu-account> -p cpu --output=containers/build-%j.log \
 #     containers/build.sbatch containers
-#   sbatch -A <gpu-account> -p gpu --gpus 1 --output=containers/build-%j.log \
+#   sbatch -A <gpu-account> -p gpu --gpus=1 --output=containers/build-%j.log \
 #     containers/build.sbatch containers
 #
 # containers/ is the <image_dir> containers/run.sh and containers/bin/python
@@ -29,11 +35,16 @@ set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
     cat >&2 <<'USAGE'
-Usage: submit with sbatch from the checkout root, once per node architecture:
+Usage: submit with sbatch from the checkout root, once per node architecture,
+with the accounts and partitions of a site profile:
+
+  python3 containers/submit_builds.py <site>      (or: just build-images <site>)
+
+or by hand:
 
   sbatch -A <cpu-account> -p cpu --output=containers/build-%j.log \
       containers/build.sbatch containers
-  sbatch -A <gpu-account> -p gpu --gpus 1 --output=containers/build-%j.log \
+  sbatch -A <gpu-account> -p gpu --gpus=1 --output=containers/build-%j.log \
       containers/build.sbatch containers
 
 See "Run jobs in an image" in docs/how-to/slurm_integration.md.

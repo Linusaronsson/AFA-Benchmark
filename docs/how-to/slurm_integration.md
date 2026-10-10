@@ -114,22 +114,7 @@ The scripts run in the image, while Snakemake runs on the host from a small
 environment built beside each image
 ([ADR 0008](../adr/0008-snakemake-on-the-host-scripts-in-the-image.md)).
 
-1. Build the image and the host environment on a node of each architecture
-   your allocations use, from the checkout root. On Arrhenius:
-
-   ```shell
-   sbatch -A <cpu account> -p cpu --output=containers/build-%j.log \
-       containers/build.sbatch containers
-   sbatch -A <gpu account> -p gpu --gpus 1 --output=containers/build-%j.log \
-       containers/build.sbatch containers
-   ```
-
-   Each job writes `containers/afabench-<arch>.sif`, the `uv.lock` it was
-   built from beside it, and `containers/orchestration-<arch>-<lock hash>/`. Rebuild both after any
-   change to `uv.lock`: the pipeline refuses an image built from another
-   lock before submitting anything, and a job finds no host environment for
-   it.
-2. In `<site>/site.yaml`, name each allocation's image, relative to the
+1. In `<site>/site.yaml`, name each allocation's image, relative to the
    repository root or as an absolute path:
 
    ```yaml
@@ -144,6 +129,24 @@ environment built beside each image
 
    Jobs of a GPU allocation run with `--nv`. A missing image fails before
    submission.
+2. Build the image and the host environment on a node of each architecture
+   your allocations use, from the checkout root:
+
+   ```shell
+   python3 containers/submit_builds.py arrhenius
+   ```
+
+   It submits `containers/build.sbatch` once per image, to the allocation
+   naming it, with that allocation's account, partition and GPU request
+   from `site.yaml`; `--dry-run` prints the `sbatch` commands instead.
+   `just build-images arrhenius` does the same where `just` is installed.
+   It needs only the host's `python3`, since no environment exists yet.
+
+   Each job writes `containers/afabench-<arch>.sif`, the `uv.lock` it was
+   built from beside it, and `containers/orchestration-<arch>-<lock hash>/`. Rebuild both after any
+   change to `uv.lock`: the pipeline refuses an image built from another
+   lock before submitting anything, and a job finds no host environment for
+   it.
 3. In `<site>/config.yaml`, make each job start Snakemake from
    `containers/bin/python`, which picks the host environment of the node's
    architecture:
