@@ -1,9 +1,8 @@
 """
 Executable fake SLURM service: records sbatch and runs its real job wrapper.
 
-It also fakes `apptainer exec`: a fake image is a text file holding the
-`uv.lock` it was "built" from, and a command runs on the host in the given
-working directory and environment.
+It also fakes `apptainer exec`: the command runs on the host, in the given
+working directory and environment, whatever the image.
 """
 
 import json
@@ -60,10 +59,7 @@ elif command == "apptainer":
         values = options.setdefault(option, [])
         if option != "--nv":
             values.append(args.pop(0))
-    image = Path(args.pop(0))
-    if args == ["cat", "/opt/afabench/uv.lock"]:
-        sys.stdout.write(image.read_text())
-        sys.exit(0)
+    args.pop(0)  # The image
     environment = dict(os.environ)
     for assignment in options.get("--env", []):
         name, value = assignment.split("=", 1)

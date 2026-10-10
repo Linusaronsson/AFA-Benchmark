@@ -2,13 +2,14 @@
 # Build containers/afabench.def into the image for this node's architecture,
 # and the host environment Snakemake runs in beside it.
 #
-# Writes <image_dir>/afabench-<arch>.sif, where <arch> is `uname -m`, and
+# Writes <image_dir>/afabench-<arch>.sif, where <arch> is `uname -m`, the
+# uv.lock it was built from as afabench-<arch>.sif.uv.lock, and
 # <image_dir>/orchestration-<arch>-<lock hash>/, the orchestration dependency
 # group with its own Python, which containers/bin/python runs (ADR 0008). On
 # a cluster whose CPU and GPU nodes differ (Arrhenius: x86_64 and aarch64)
 # submit it once to each. Apptainer's cache and temporary directories live on
-# node-local storage and are removed on exit; only the finished image is
-# written to <image_dir>. The account and partition differ per architecture, so
+# node-local storage and are removed on exit; only the finished image, its
+# lock and the environment are written to <image_dir>. The account and partition differ per architecture, so
 # they are given at submit time. Submit from the checkout root:
 #
 #   sbatch -A <cpu-account> -p cpu --gpus 0 --output=<image_dir>/build-%j.log \
@@ -36,20 +37,25 @@ mkdir -p "$APPTAINER_CACHEDIR" "$APPTAINER_TMPDIR" "$image_dir"
 
 echo "host=$(hostname) arch=$(uname -m) scratch=$scratch"
 cd "$project_dir"
+# The lock the image is built from, recorded beside it, because the pipeline
+# checks it on nodes that cannot run an image of this architecture.
+cp uv.lock "$scratch/uv.lock"
 apptainer build --fakeroot "$scratch/$image" containers/afabench.def
 
 # Copy beside the destination, then rename, so a job reading the previous image
 # never sees a half-written one.
 cp "$scratch/$image" "$image_dir/.$image.partial"
 mv "$image_dir/.$image.partial" "$image_dir/$image"
-ls -l "$image_dir/$image"
+cp "$scratch/uv.lock" "$image_dir/.$image.uv.lock.partial"
+mv "$image_dir/.$image.uv.lock.partial" "$image_dir/$image.uv.lock"
+ls -l "$image_dir/$image" "$image_dir/$image.uv.lock"
 
 # The orchestration environment, with the uv the image was built with, whose
 # binary is static. A new uv.lock gets a new directory, so building for it
 # leaves the environment of running jobs alone until it is complete; only
 # then are older ones removed. Rebuilding for the same uv.lock replaces it
 # in place.
-lock_hash="$(sha256sum uv.lock | cut -c 1-16)"
+lock_hash="$(sha256sum "$scratch/uv.lock" | cut -c 1-16)"
 environment="$image_dir/orchestration-$arch-$lock_hash"
 apptainer exec "$image_dir/$image" cat /usr/local/bin/uv > "$scratch/uv"
 chmod +x "$scratch/uv"

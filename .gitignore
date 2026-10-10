@@ -197,6 +197,7 @@ cython_debug/
 
 # Apptainer images and their build logs (containers/build.sbatch)
 /containers/*.sif
+/containers/*.sif.uv.lock
 /containers/*.log
 # Host environments Snakemake runs in beside the images
 /containers/orchestration-*/

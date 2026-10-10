@@ -16,33 +16,36 @@ fails the job before its script runs.
 
 import functools
 import shlex
-import subprocess
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Protocol
 
 from execution import REPO_ROOT, ExecutionPolicy, Stage
 
-# Where containers/afabench.def copies the lock the image was built from
-IMAGE_LOCK = "/opt/afabench/uv.lock"
-
 
 class Wildcards(Protocol):
     def items(self) -> object: ...
 
 
+def image_lock(image: Path) -> Path:
+    """Return where containers/build.sbatch records the lock `image` was built from."""
+    return image.with_name(f"{image.name}.uv.lock")
+
+
 @functools.cache
 def check_image_lock(image: Path, lock: Path) -> None:
-    """Fail unless `image` was built from the dependencies `lock` pins."""
-    result = subprocess.run(
-        ["apptainer", "exec", "--pwd", "/", str(image), "cat", IMAGE_LOCK],  # noqa: S607
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode != 0:
-        message = f"Cannot read {IMAGE_LOCK} from image {image}: {result.stderr.decode(errors='replace').strip()}"
+    """
+    Fail unless `image` was built from the dependencies `lock` pins.
+
+    The image holds its lock too, but reading it would run the image, which
+    a node of another architecture cannot: the login node is x86_64 and a GPU
+    image aarch64.
+    """
+    built_from = image_lock(image)
+    if not built_from.is_file():
+        message = f"No record of the uv.lock image {image} was built from at {built_from}; rebuild it with containers/build.sbatch"
         raise RuntimeError(message)
-    if result.stdout != lock.read_bytes():
+    if built_from.read_bytes() != lock.read_bytes():
         message = f"Image {image} was built from another uv.lock than {lock}; rebuild it with containers/build.sbatch"
         raise RuntimeError(message)
 

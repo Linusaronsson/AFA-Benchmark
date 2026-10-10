@@ -20,12 +20,10 @@ LOCK = "# the locked dependencies\n"
 
 
 def with_images(workflow: WorkflowHarness, *, lock: str = LOCK) -> None:
-    """Give both allocations a fake image built from the checkout's lock."""
+    """Give both allocations a fake image, built from `lock`."""
     (workflow.root / "uv.lock").write_text(LOCK)
     for hardware in ["cpu", "gpu"]:
-        image = workflow.root / f"containers/afabench-{hardware}.sif"
-        image.parent.mkdir(exist_ok=True)
-        image.write_text(lock)
+        fake_image(workflow.root / f"containers/afabench-{hardware}.sif", lock)
     workflow.config["execution_site"] = {
         hardware: {
             **allocation,
@@ -33,6 +31,13 @@ def with_images(workflow: WorkflowHarness, *, lock: str = LOCK) -> None:
         }
         for hardware, allocation in SITE.items()
     }
+
+
+def fake_image(image: Path, lock: str) -> None:
+    """Write an image and the lock containers/build.sbatch records beside it."""
+    image.parent.mkdir(parents=True, exist_ok=True)
+    image.write_text("an image")
+    image.with_name(f"{image.name}.uv.lock").write_text(lock)
 
 
 def shell_commands(output: str) -> list[str]:
@@ -98,7 +103,7 @@ def test_arrhenius_jobs_run_snakemake_on_the_host_and_scripts_in_the_image(
     (tmp_path / "uv.lock").write_text(LOCK)
     shutil.copytree(REPO_ROOT / "containers/bin", tmp_path / "containers/bin")
     for arch in ["x86_64", "aarch64"]:
-        (tmp_path / f"containers/afabench-{arch}.sif").write_text(LOCK)
+        fake_image(tmp_path / f"containers/afabench-{arch}.sif", LOCK)
     # The orchestration environment build.sbatch would build for this node
     lock_hash = hashlib.sha256(LOCK.encode()).hexdigest()[:16]
     host_python = (
@@ -124,11 +129,10 @@ def test_arrhenius_jobs_run_snakemake_on_the_host_and_scripts_in_the_image(
         # Each job's Snakemake starts from PATH, not the login node's Python.
         assert f"export PATH={tmp_path.resolve()}/containers/bin:" in wrap
         assert " && python -m snakemake " in wrap
-    runs = [
+    scripts = [
         json.loads(line)
         for line in (tmp_path / "apptainer.jsonl").read_text().splitlines()
     ]
-    scripts = [args for args in runs if "cat" not in args]
     assert len(scripts) == 2
     checkout = str(tmp_path.resolve())
     for args in scripts:
@@ -161,6 +165,7 @@ def image_index(args: list[str]) -> int:
     ("change", "diagnostic"),
     [
         ("stale", "another uv.lock"),
+        ("unrecorded", "No record of the uv.lock"),
         ("missing", "does not exist"),
         ("unknown key", "Unknown execution_site.cpu keys: ['container']"),
     ],
@@ -174,6 +179,8 @@ def test_a_bad_image_fails_before_submission(
     )
     site = workflow.config["execution_site"]
     assert isinstance(site, dict)
+    if change == "unrecorded":
+        (tmp_path / "containers/afabench-cpu.sif.uv.lock").unlink()
     if change == "missing":
         (tmp_path / "containers/afabench-cpu.sif").unlink()
     if change == "unknown key":

@@ -45,9 +45,11 @@ snakemake`, which runs the rule's command.
 - Sites without an image are unaffected: the image prefix is empty and the
   rendered commands are unchanged.
 - An image or orchestration environment built from another `uv.lock` is
-  refused: an image fails the plan before submission, and an environment is
-  never found, because its directory is named after the lock's hash. Any
-  `uv.lock` change, dev tools included, needs a rebuild.
+  refused. An image fails the plan before submission: `build.sbatch` records
+  the lock beside it (`afabench-<arch>.sif.uv.lock`), because the login node
+  cannot run, or even inspect, an aarch64 image to read the copy inside. An
+  environment is never found, because its directory is named after the
+  lock's hash. Any `uv.lock` change, dev tools included, needs a rebuild.
 - The image param takes `resources` only so that Snakemake does not track
   it: adding, changing or rebuilding an image reruns no job.
 - Job records and provenance records name no image. The commit fixes the
