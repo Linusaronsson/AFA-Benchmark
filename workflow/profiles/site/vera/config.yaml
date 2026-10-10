@@ -27,5 +27,7 @@ set-resources:
   plot_eval_actions:
     cpus_per_task: 10
 
+# For Snakemake run without the pipeline launcher, which passes this again
+# with any overrides: Snakemake replaces this section with --config.
 config:
   execution_site_file: workflow/profiles/site/vera/site.yaml

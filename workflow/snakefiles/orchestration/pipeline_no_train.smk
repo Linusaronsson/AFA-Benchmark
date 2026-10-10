@@ -20,11 +20,12 @@ Runtime filters (--config, select subsets to run):
     execution_file (str, default='workflow/profiles/execution/default.yaml'):
         YAML file holding the execution mapping; use
         workflow/profiles/execution/cpu.yaml to run every job on CPU.
-    execution_site_file (str, required for SLURM submission): Profile-owned
-        YAML allocation map; submitting without one fails before any job.
-        Alternatively provide execution_site in a configuration file. A CLI
-        --config replaces the workflow profile's config, so repeat
-        execution_site_file=<site>/site.yaml whenever passing --config.
+    execution_site_file (str, required for SLURM submission): The site
+        profile's YAML allocation map (<site>/site.yaml); submitting without
+        one fails before any job. The pipeline launcher (workflow/run.py
+        --site <site>) sets it, also with overrides, which replace the site
+        profile's config. Alternatively provide execution_site in a
+        configuration file.
         An allocation may name an image (execution_site.<cpu|gpu>.image,
         relative to the repository root): its jobs then run their
         commands in it through apptainer exec, with --nv on GPU
@@ -62,10 +63,10 @@ Job records:
     which the time plot reads, as in pipeline.smk; see
     docs/reference/job_records.md.
 
-Usage (add existing scientific --configfile inputs):
-    snakemake -s workflow/snakefiles/orchestration/pipeline_no_train.smk \
-        --workflow-profile workflow/profiles/site/examples/mixed-gres \
-        --configfile <scientific.yaml> -n -p all_eval_methods
+Usage (the pipeline launcher, with a pipeline profile's configuration):
+    workflow/run.py <pipeline> --site examples/mixed-gres -n \
+        --target all_eval_methods \
+        -- --snakefile workflow/snakefiles/orchestration/pipeline_no_train.smk
     Remove -n to submit from an authorized SLURM controller with shared files.
 
 CPU-only processing:

@@ -333,12 +333,8 @@ in section 1, independent of whether you used the helpers, Hydra, or neither.
 Run the pipeline locally with only your new method and a couple of datasets:
 
 ```shell
-uv run snakemake \
-    --profile workflow/profiles/pipeline/all \
-    all \
-    --config \
-      "methods=[example_method]" \
-      "datasets=[cube, actg]" \
-      execution_file=workflow/profiles/execution/cpu.yaml \
-    --jobs 8
+workflow/run.py --jobs 8 \
+    "methods=[example_method]" \
+    "datasets=[cube, actg]" \
+    execution_file=workflow/profiles/execution/cpu.yaml
 ```

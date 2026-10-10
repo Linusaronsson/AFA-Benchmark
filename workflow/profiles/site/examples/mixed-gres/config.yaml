@@ -13,5 +13,7 @@ set-resources:
   eval_method:
     runtime: 600
     cpus_per_task: 8
+# For Snakemake run without the pipeline launcher, which passes this again
+# with any overrides: Snakemake replaces this section with --config.
 config:
   execution_site_file: workflow/profiles/site/examples/mixed-gres/site.yaml

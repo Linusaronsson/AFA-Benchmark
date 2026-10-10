@@ -15,8 +15,11 @@ from afabench.core.output_layout import (
     PRODUCTION_OUTPUT_ROOT,
     SMOKE_OUTPUT_ROOT,
 )
+from workflow.run import snakemake_arguments
 
 REPO_ROOT = Path(__file__).parents[2]
+# The pipeline profile of the fixture's config, written into its checkout
+PIPELINE_PROFILE = "harness"
 ESTIMATE_COMPUTE = REPO_ROOT / "scripts/compute_estimate/estimate_compute.py"
 # Cluster submission needs a site map; this one mirrors profiles/site/examples/mixed-gres.
 SITE = {
@@ -129,6 +132,25 @@ class WorkflowHarness:
     ) -> subprocess.CompletedProcess[str]:
         return self._snakemake(invocation, target, options, timeout)
 
+    def run_launcher(
+        self, arguments: list[str], timeout: int = 240
+    ) -> subprocess.CompletedProcess[str]:
+        """Run Snakemake as the pipeline launcher does for `arguments`."""
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "snakemake",
+                *snakemake_arguments(arguments, checkout=self.root),
+            ],
+            cwd=self.root,
+            env=self._environment(),
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+
     def plan(
         self,
         *options: str,
@@ -136,13 +158,20 @@ class WorkflowHarness:
         timeout: int = 240,
     ) -> subprocess.CompletedProcess[str]:
         """Plan, with `estimate-compute`, the jobs `run` would submit."""
+        self._write_pipeline_profile()
         return subprocess.run(
             [
                 sys.executable,
                 str(ESTIMATE_COMPUTE),
                 "--output",
                 str(self.planned_jobs_path),
-                *self._arguments(self._pipeline_invocation(), target, options),
+                # The launcher's arguments for the same Snakemake arguments
+                PIPELINE_PROFILE,
+                "--target",
+                target,
+                "--",
+                *self._snakemake_options(),
+                *options,
             ],
             cwd=self.root,
             env=self._environment(),
@@ -194,16 +223,23 @@ class WorkflowHarness:
         )
 
     def _pipeline_invocation(self) -> list[str]:
+        return ["--profile", self._write_pipeline_profile()]
+
+    def _write_pipeline_profile(self) -> str:
+        """Write the config and its pipeline profile; return the profile."""
         config_path = self.root / "config.yaml"
         config_path.write_text(yaml.safe_dump(self.config))
-        return [
-            "--profile",
-            "none",
-            "--snakefile",
-            "workflow/snakefiles/orchestration/pipeline.smk",
-            "--configfile",
-            str(config_path),
-        ]
+        profile = f"workflow/profiles/pipeline/{PIPELINE_PROFILE}"
+        (self.root / profile).mkdir(parents=True, exist_ok=True)
+        (self.root / profile / "config.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "snakefile": "workflow/snakefiles/orchestration/pipeline.smk",
+                    "configfile": [str(config_path)],
+                }
+            )
+        )
+        return profile
 
     def _snakemake(
         self,
@@ -236,16 +272,10 @@ class WorkflowHarness:
         self, invocation: list[str], target: str, options: tuple[str, ...]
     ) -> list[str]:
         """Return the Snakemake arguments of a run."""
-        return [
-            *invocation,
-            "--cores",
-            "2",
-            "--jobs",
-            "4",
-            "--printshellcmds",
-            target,
-            *options,
-        ]
+        return [*invocation, *self._snakemake_options(), target, *options]
+
+    def _snakemake_options(self) -> list[str]:
+        return ["--cores", "2", "--jobs", "4", "--printshellcmds"]
 
     def _environment(self) -> dict[str, str]:
         env = {

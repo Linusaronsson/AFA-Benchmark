@@ -19,8 +19,11 @@ files already exists, nothing is copied and the conflicts are listed; add
 
 ## 2. Check that the restore worked
 
+Dry-run the pipeline profile the snapshot's outputs were produced with,
+here `kdd26`:
+
 ```shell
-uv run snakemake --dry-run all
+workflow/run.py kdd26 -n
 ```
 
 If it reports nothing to do, the restore is complete. If it schedules

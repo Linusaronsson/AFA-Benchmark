@@ -14,5 +14,7 @@ set-resources:
   eval_method:
     runtime: 600 # 10 hours
 
+# For Snakemake run without the pipeline launcher, which passes this again
+# with any overrides: Snakemake replaces this section with --config.
 config:
   execution_site_file: workflow/profiles/site/alvis/site.yaml

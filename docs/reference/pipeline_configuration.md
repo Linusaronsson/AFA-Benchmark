@@ -5,14 +5,10 @@ The pipeline uses [Snakemake](https://snakemake.readthedocs.io/) for workflow or
 The whole pipeline is executable with the following command:
 ```shell
 WANDB_PROJECT=afabench \
-  uv run snakemake \
-    --profile workflow/profiles/pipeline/all \
-    all \
-    --jobs 8 \
-    --config execution_file=workflow/profiles/execution/cpu.yaml
+  workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
-This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](../how-to/slurm_integration.md).
+This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](../how-to/slurm_integration.md). The command is the [pipeline launcher](pipeline_launcher_command.md); the configuration keys below are its `key=value` overrides.
 
 ## Configuration overview
 
@@ -30,7 +26,7 @@ Below we discuss the meaning of each configuration group.
 
 ## Runtime configuration options
 
-The `--config` section of the pipeline command allows you to customize how the pipeline runs without modifying configuration files. These options are:
+Pipeline profile overrides (`key=value` arguments of the pipeline launcher, which it passes to Snakemake's `--config`) allow you to customize how the pipeline runs without modifying configuration files. These options are:
 
 ### `eval_dataset_split`
 
@@ -110,9 +106,9 @@ allocation; `cpu` passes `device=cpu` and requests none. Partitions and
 accounts never belong in these files; the site profile owns them
 ([SLURM integration](../how-to/slurm_integration.md)).
 
-### `--jobs` (Snakemake parameter)
+### `--jobs` (launcher option)
 
-Controls the number of jobs Snakemake runs in parallel. This is not a `--config` option but a direct Snakemake flag (specified with `-j`).
+Controls the number of jobs Snakemake runs in parallel locally. This is not an override but an option of the [pipeline launcher](pipeline_launcher_command.md); a site profile sets it for its cluster.
 
 - **Default:** 1 (serial execution)
 - **Example:** `--jobs 8` to run 8 jobs in parallel
@@ -137,11 +133,10 @@ Enables smoke testing mode, where each script runs as fast as possible while sti
 
 ### `list_jobs`
 
-Prints every job's messages in the terminal: its rule block with its resources, and, with `-p`, its script command; in a real run also its submission and completion. Without it, the terminal shows only the resolved configuration, how many jobs of each rule run, progress (`N of M steps done`) and errors. A real run's log file under `.snakemake/log` keeps every job's messages either way.
+Prints every job's messages in the terminal: its rule block with its resources, and, in a dry run, its script command; in a real run also its submission and completion. Without it, the terminal shows only the resolved configuration, how many jobs of each rule run, progress (`N of M steps done`) and errors. A real run's log file under `.snakemake/log` keeps every job's messages either way.
 
 - **Default:** `false`
 - **Example:** `list_jobs=true` to check each job's partition, GPU request and `device=` argument
-- **Note:** A `--config` on the command line replaces the site profile's, so repeat `execution_site_file` beside it
 
 ### `output_root`
 
@@ -304,8 +299,8 @@ The currently available `all_X` rules are:
 | `all_train_methods` | Train all methods across all datasets and budget configurations |
 | `all_eval_methods` | Evaluate all trained methods and produce evaluation results |
 
-To use one of these rules, replace `all` with the desired rule name in the command above. For example, to only generate datasets and train classifiers without training methods, use:
+To use one of these rules, pass it with `--target`. For example, to only generate datasets and train classifiers without training methods, use:
 
 ```shell
-uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk all_train_classifiers ...
+workflow/run.py --target all_train_classifiers ...
 ```

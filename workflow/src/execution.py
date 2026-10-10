@@ -267,7 +267,7 @@ class ExecutionPolicy:
         if self.site:
             self._validate_allocation(hardware, stage, identity)
         elif self.submits_to_cluster():
-            message = f"Cluster submission of {stage}/{identity} needs an execution_site allocation map; set execution_site_file in the site profile, and repeat it whenever passing --config, which replaces the profile's config"
+            message = f"Cluster submission of {stage}/{identity} needs an execution_site allocation map; run the pipeline with workflow/run.py --site <site>, which sets the site profile's execution_site_file"
             raise ValueError(message)
         site = _mapping(self.site.get(hardware, {}), "execution_site")
         default = ALLOCATION_RESOURCES[name]

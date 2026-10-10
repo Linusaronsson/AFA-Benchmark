@@ -484,7 +484,7 @@ _Avoid_: Timeout history, failure count
 The configuration that decides what a pipeline run contains: one config file
 per configuration group (datasets, methods, method options, hard budgets,
 soft-budget parameters and the rest). It says nothing about where jobs run or
-on which device. `--config` narrows or changes it for one run.
+on which device. Pipeline profile overrides narrow or change it for one run.
 _Avoid_: Preset, pipeline config, experiment config
 
 **Execution file**:
@@ -498,6 +498,16 @@ The configuration that places pipeline jobs on one computing site: its
 scheduler settings, its allocations and, where the site needs one, the image
 jobs run in. Running locally needs no site profile.
 _Avoid_: Cluster config, cluster profile
+
+**Pipeline launcher**:
+The command that runs the pipeline from a pipeline profile, an optional site
+profile and pipeline profile overrides.
+_Avoid_: Wrapper, runner
+
+**Pipeline profile override**:
+A value given for one run that replaces a pipeline profile's value for the
+same key, or merges into it key by key for a mapping.
+_Avoid_: Config option, CLI config
 
 **Allocation**:
 The scheduler resources a site profile requests for a pipeline job, such as

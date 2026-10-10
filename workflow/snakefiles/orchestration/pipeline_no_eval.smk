@@ -20,11 +20,12 @@ Runtime filters (--config, select subsets to run):
     execution_file (str, default='workflow/profiles/execution/default.yaml'):
         YAML file holding the execution mapping; use
         workflow/profiles/execution/cpu.yaml to run every job on CPU.
-    execution_site_file (str, required for SLURM submission): Profile-owned
-        YAML allocation map; submitting without one fails before any job.
-        Alternatively provide execution_site in a configuration file. A CLI
-        --config replaces the workflow profile's config, so repeat
-        execution_site_file=<site>/site.yaml whenever passing --config.
+    execution_site_file (str, required for SLURM submission): The site
+        profile's YAML allocation map (<site>/site.yaml); submitting without
+        one fails before any job. The pipeline launcher (workflow/run.py
+        --site <site>) sets it, also with overrides, which replace the site
+        profile's config. Alternatively provide execution_site in a
+        configuration file.
         An allocation may name an image (execution_site.<cpu|gpu>.image,
         relative to the repository root): its jobs then run their
         commands in it through apptainer exec, with --nv on GPU
@@ -69,11 +70,11 @@ Required files and usage:
     Existing evaluation parquet files and timing files at native output paths,
     scientific YAML configuration, and, for SLURM submission, the
     profile-owned site.yaml allocation map. No trained scripts are dispatched.
-    snakemake -s workflow/snakefiles/orchestration/pipeline_no_eval.smk \
-        --workflow-profile workflow/profiles/site/examples/mixed-gres \
-        --configfile <scientific.yaml> -n -p all
+    Run it with the pipeline launcher and a pipeline profile:
+    workflow/run.py <pipeline> --site examples/mixed-gres -n \
+        -- --snakefile workflow/snakefiles/orchestration/pipeline_no_eval.smk
     Remove -n to submit processing jobs from an authorized shared-filesystem
-    SLURM controller. Omit the cluster profile for ordinary local CPU use.
+    SLURM controller. Omit --site for ordinary local CPU use.
 
 Output namespacing:
     - Every rule addresses dataset, classifier, pretrained-model and method

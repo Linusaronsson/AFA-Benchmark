@@ -34,13 +34,11 @@ are selected; a missing site map or CPU allocation fails before submission.
 
 ## One graph and native paths
 
-Supply the existing scientific config files and computational execution choices
-as usual. Processing needs no extra portable hardware configuration:
+Run a pipeline profile with your computational execution choices as usual.
+Processing needs no extra portable hardware configuration:
 
 ```sh
-uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk \
-  --workflow-profile workflow/profiles/site/examples/mixed-gres \
-  --configfile benchmark.yaml execution.yaml -n -p all
+workflow/run.py kdd26 --site examples/mixed-gres -n execution_file=execution.yaml
 ```
 
 Inspect the plan, then remove `-n` to submit from an authorized controller with
@@ -52,7 +50,7 @@ profiles are illustrative, not verified allocations on a live cluster.
 
 `pipeline_no_train.smk` and `pipeline_no_eval.smk` use the same processing rules
 for existing upstream outputs. Local CPU smoke-test use remains possible by
-omitting the cluster profile and using `--cores` with `smoke_test=True`.
+omitting `--site` and using `--jobs` with `smoke_test=True`.
 
 ## Observable verification
 

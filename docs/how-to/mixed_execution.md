@@ -42,13 +42,12 @@ evaluation need not agree. There is no automatic CPU fallback.
 ## Site allocation is separate
 
 Adapt `workflow/profiles/site/examples/mixed-gres/` or `mixed-gpus/`. Both are illustrative,
-not verified allocations on any real cluster. The profile passes a scalar
-`execution_site_file` path; its `site.yaml` owns partitions, accounts and GPU
-request syntax. Paths are relative to the invocation working directory; run from
-the repository root, or use an absolute path when adapting the profile.
+not verified allocations on any real cluster. The profile's `site.yaml` owns
+partitions, accounts and GPU request syntax; the pipeline launcher passes it
+with `--site`.
 
 ```yaml
-# site.yaml, referenced only by the cluster profile
+# site.yaml, beside the site profile's config.yaml
 execution_site:
   cpu:
     slurm_partition: cpu-queue
@@ -91,25 +90,22 @@ availability or a script's support for a chosen device.
 
 ## Invocation and migration
 
-From the repository root, supply the existing scientific config files; the
-execution mapping comes from `workflow/profiles/execution/default.yaml`
-(select another file with `--config execution_file=<path>`). For example, with
-those scientific definitions combined in `benchmark.yaml`:
+Run a pipeline profile; the execution mapping comes from
+`workflow/profiles/execution/default.yaml` (select another file with the
+override `execution_file=<path>`). For example, with the pipeline profile
+`kdd26`:
 
 ```sh
-uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk \
-  --workflow-profile workflow/profiles/site/examples/mixed-gres \
-  --configfile benchmark.yaml \
-  -n -p all_eval_methods
+workflow/run.py kdd26 --site examples/mixed-gres -n --target all_eval_methods
 ```
 
 Remove `-n` to execute/submit. Use an authorized submit environment with access
 to both CPU and GPU allocations and a shared filesystem for inputs, repository,
 software environment and outputs. This is one dependency graph, not cross-cluster
 dispatch. `pipeline_no_train.smk` uses the same evaluation routing for existing
-trained bundles. Local CPU use needs no site profile: omit `--workflow-profile`,
-pass `--config execution_file=workflow/profiles/execution/cpu.yaml` and
-`smoke_test=True`, and `--cores`.
+trained bundles. Local CPU use needs no site profile: omit `--site`, and pass
+`--jobs` and the overrides
+`execution_file=workflow/profiles/execution/cpu.yaml` and `smoke_test=True`.
 
 An explicit global `device` remains supported with a visible deprecation
 message in invocations without `execution`. **Any** combination of global

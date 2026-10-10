@@ -7,7 +7,11 @@ through classifiers, pretrained models, method training and evaluation to
 the final plots. One invocation of its final target, `all`, runs every job
 whose inputs are ready, and under SLURM submits CPU and GPU jobs as their
 dependencies complete. The pipeline profile decides what the graph contains;
-`--config` narrows or changes it for one run.
+overrides narrow or change it for one run.
+
+Every command on this page runs the
+[pipeline launcher](../reference/pipeline_launcher_command.md),
+`workflow/run.py`, from the repository root.
 
 ## 1. Choose the configuration
 
@@ -15,9 +19,9 @@ A run combines three independent choices, all under `workflow/profiles/`:
 
 | Choice | Selected with | Decides | Needed |
 | --- | --- | --- | --- |
-| Pipeline profile | `--profile workflow/profiles/pipeline/<name>` | What runs: datasets, methods, budgets | Always |
-| Execution file | `--config execution_file=<path>` | Which stages and methods run on CPU or GPU | Defaults to `execution/default.yaml` |
-| Site profile | `--workflow-profile workflow/profiles/site/<name>` | Where jobs run: SLURM partitions, accounts, resources | Only on a cluster |
+| Pipeline profile | `workflow/run.py <name>` | What runs: datasets, methods, budgets | Defaults to `all` |
+| Execution file | the override `execution_file=<path>` | Which stages and methods run on CPU or GPU | Defaults to `execution/default.yaml` |
+| Site profile | `--site <name>` | Where jobs run: SLURM partitions, accounts, resources | Only on a cluster |
 
 ### Pipeline profile
 
@@ -30,8 +34,8 @@ configuration, described in
 
 | Pipeline profile | Contains |
 | --- | --- |
-| `pipeline/all` | Every dataset and method, with their budgets |
-| `pipeline/kdd26` | The same configuration as the KDD '26 submission. The code has changed since, so it does not necessarily reproduce the submitted results |
+| `all` | Every dataset and method, with their budgets |
+| `kdd26` | The same configuration as the KDD '26 submission. The code has changed since, so it does not necessarily reproduce the submitted results |
 
 ### Execution file
 
@@ -40,7 +44,7 @@ pretrained models and some methods on GPU. A machine without GPUs, or a
 smoke test, must instead run every job on CPU:
 
 ```shell
---config execution_file=workflow/profiles/execution/cpu.yaml
+workflow/run.py ... execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 > **Without `execution_file=.../cpu.yaml`, a local run requests GPU jobs.**
@@ -54,36 +58,26 @@ see [SLURM integration](slurm_integration.md).
 
 ## 2. Run the base command
 
-On a SLURM cluster, run from the repository root on an authorized submit host
-(see [where to run it](#where-to-run-it)). First inspect the planned work
-with a dry run (`-n`), which prints the resolved configuration and how many
-jobs of each rule would run:
+On a SLURM cluster, run on an authorized submit host (see
+[where to run it](#where-to-run-it)). First inspect the planned work with a
+dry run (`-n`), which prints the resolved configuration and how many jobs
+of each rule would run:
 
 ```shell
-uv run snakemake \
-    --profile workflow/profiles/pipeline/all \
-    --workflow-profile workflow/profiles/site/<your_site> \
-    -n -p all
+workflow/run.py --site <your_site> -n
 ```
 
-Then remove `-n -p` to submit. Adapt `<your_site>` from
-`site/examples/mixed-gres` or `site/examples/mixed-gpus` as described in
-[SLURM integration](slurm_integration.md).
-
-> **On a site whose jobs run in an image, such as `site/arrhenius`, use
-> `containers/snakemake.sh` instead of `uv run snakemake`** in every command
-> on this page. It needs the images and host environments built first; see
-> [run jobs in an image](slurm_integration.md#run-jobs-in-an-image).
+Then remove `-n` to submit. Adapt `<your_site>` from
+`examples/mixed-gres` or `examples/mixed-gpus` as described in
+[SLURM integration](slurm_integration.md). On a site whose jobs run in an
+image, such as `arrhenius`, build the images and host environments first;
+see [run jobs in an image](slurm_integration.md#run-jobs-in-an-image).
 
 On a workstation, use the CPU execution file and say how many jobs run in
 parallel:
 
 ```shell
-uv run snakemake \
-    --profile workflow/profiles/pipeline/all \
-    all \
-    --jobs 8 \
-    --config execution_file=workflow/profiles/execution/cpu.yaml
+workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 Snakemake only runs jobs whose outputs are missing or out of date, so
@@ -92,30 +86,18 @@ running the same command again resumes an interrupted run.
 A run prints the resolved configuration, how many jobs of each rule it runs,
 its progress (`N of M steps done`) and any job's error, but not every job's
 rule block, submission and completion. Those are in the log file under
-`.snakemake/log` whose path it prints at the end; `--config list_jobs=true`
-prints them in the terminal too.
+`.snakemake/log` whose path it prints at the end; the override
+`list_jobs=true` prints them in the terminal too.
 
-> **Repeat the site file whenever you add `--config`.** Snakemake replaces
-> the site profile's whole `config` section with the `--config` values, so
-> its `execution_site_file` disappears and the submission fails before any
-> job is submitted. Every cluster command with `--config` therefore ends
-> with:
->
-> ```shell
->     --config \
->       ... \
->       execution_site_file=workflow/profiles/site/<your_site>/site.yaml
-> ```
-
-The sections below each add `--config` values to the base command. They
-combine freely; see [combine them](#combine-them).
+The sections below each add overrides (`key=value`) to the base command.
+They combine freely; see [combine them](#combine-them).
 
 ## Run a subset of methods
 
 List the methods to train and evaluate:
 
 ```shell
-    --config "methods=[gdfs,dime]"
+workflow/run.py ... "methods=[gdfs,dime]"
 ```
 
 The list replaces the pipeline profile's `methods`. Every method needs an
@@ -130,7 +112,7 @@ instead.
 List the dataset keys to run:
 
 ```shell
-    --config "datasets=[cube,mnist]"
+workflow/run.py ... "datasets=[cube,mnist]"
 ```
 
 The list replaces the pipeline profile's `datasets`. Each key needs a file
@@ -144,7 +126,7 @@ Results average over several
 `[0,1,2,3,4,5,6,7,8,9]`, for tighter results. Two realizations:
 
 ```shell
-    --config "dataset_realization_indices=[0,1]"
+workflow/run.py ... "dataset_realization_indices=[0,1]"
 ```
 
 Each index seeds its own dataset realization, so realization 2 is the same
@@ -166,17 +148,13 @@ To check that the pipeline executes, without SLURM or a GPU, run with the CPU
 execution file and `smoke_test=true` and a small selection:
 
 ```shell
-uv run snakemake \
-    --profile workflow/profiles/pipeline/all \
-    all \
-    --jobs 8 \
-    --config \
-      "datasets=[cube]" \
-      "dataset_realization_indices=[0]" \
-      "methods=[random_dummy,gdfs]" \
-      smoke_test=true \
-      use_wandb=false \
-      execution_file=workflow/profiles/execution/cpu.yaml
+workflow/run.py --jobs 8 \
+    "datasets=[cube]" \
+    "dataset_realization_indices=[0]" \
+    "methods=[random_dummy,gdfs]" \
+    smoke_test=true \
+    use_wandb=false \
+    execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 Smoke-test settings make every script fast; the resulting metrics only show
@@ -202,10 +180,10 @@ one action reveals a patch. Override the budgets of a dataset by naming its
 dataset key:
 
 ```shell
-    --config "eval_hard_budgets={cube: [2, 4], mnist: [10]}"
+workflow/run.py ... "eval_hard_budgets={cube: [2, 4], mnist: [10]}"
 ```
 
-> **`--config` merges mappings key by key.** Datasets you do not name keep
+> **Overrides merge mappings key by key.** Datasets you do not name keep
 > the pipeline profile's budgets, and `default` only applies to datasets the
 > pipeline profile does not list. `"eval_hard_budgets={default: [2]}"`
 > leaves `cube` at `[3, 5, 10]` in every shipped pipeline profile. Name each
@@ -215,7 +193,7 @@ To run only the [soft-budget setting](../../CONTEXT.md), give the datasets
 you run no hard budgets:
 
 ```shell
-    --config "eval_hard_budgets={cube: [], mnist: []}"
+workflow/run.py ... "eval_hard_budgets={cube: [], mnist: []}"
 ```
 
 Methods train with the hard budget they are evaluated with, unless their
@@ -241,7 +219,7 @@ soft_budget_params:
 Override the parameters of one method on one dataset:
 
 ```shell
-    --config "soft_budget_params={jafa: {cube: [[0.001, null], [0.02, null]]}}"
+workflow/run.py ... "soft_budget_params={jafa: {cube: [[0.001, null], [0.02, null]]}}"
 ```
 
 The same merging applies as for hard budgets: other methods, and datasets
@@ -250,7 +228,7 @@ you do not name, keep the pipeline profile's values. To run only the
 list for each dataset you run:
 
 ```shell
-    --config "soft_budget_params={jafa: {cube: []}, gdfs: {cube: []}}"
+workflow/run.py ... "soft_budget_params={jafa: {cube: []}, gdfs: {cube: []}}"
 ```
 
 Most methods train soft-budget runs with no hard budget; methods with
@@ -260,9 +238,7 @@ Most methods train soft-budget runs with no hard budget; methods with
 ## Make a change durable
 
 For a run you will repeat or publish, put the change in config files rather
-than on the command line. `--configfile` on the command line replaces the
-pipeline profile's list of config files instead of adding to it, so copy the
-pipeline profile and edit the copy:
+than on the command line: copy the pipeline profile and edit the copy.
 
 ```shell
 cp -r workflow/profiles/pipeline/all workflow/profiles/pipeline/my_run
@@ -270,10 +246,7 @@ cp workflow/conf/soft_budget_params/all.yaml \
    workflow/conf/soft_budget_params/my_run.yaml
 # In profiles/pipeline/my_run/config.yaml, replace soft_budget_params/all.yaml
 # with soft_budget_params/my_run.yaml; then edit soft_budget_params/my_run.yaml.
-uv run snakemake \
-    --profile workflow/profiles/pipeline/my_run \
-    --workflow-profile workflow/profiles/site/<your_site> \
-    -n -p all
+workflow/run.py my_run --site <your_site> -n
 ```
 
 The same works for any file the pipeline profile lists. To train one more method on
@@ -290,17 +263,12 @@ Two dataset realizations of CUBE and MNIST, for two methods, in the
 hard-budget setting with custom budgets, on a cluster:
 
 ```shell
-uv run snakemake \
-    --profile workflow/profiles/pipeline/all \
-    --workflow-profile workflow/profiles/site/<your_site> \
-    -n -p all \
-    --config \
-      "methods=[gdfs,dime]" \
-      "datasets=[cube,mnist]" \
-      "dataset_realization_indices=[0,1]" \
-      "eval_hard_budgets={cube: [3, 5], mnist: [10, 20]}" \
-      "soft_budget_params={gdfs: {cube: [], mnist: []}, dime: {cube: [], mnist: []}}" \
-      execution_site_file=workflow/profiles/site/<your_site>/site.yaml
+workflow/run.py --site <your_site> -n \
+    "methods=[gdfs,dime]" \
+    "datasets=[cube,mnist]" \
+    "dataset_realization_indices=[0,1]" \
+    "eval_hard_budgets={cube: [3, 5], mnist: [10, 20]}" \
+    "soft_budget_params={gdfs: {cube: [], mnist: []}, dime: {cube: [], mnist: []}}"
 ```
 
 ## Inspect planned work
@@ -310,18 +278,16 @@ uv run snakemake \
   methods with their classifier and pretrained model, method sets, and the
   hard budgets and soft-budget parameters of every method on every dataset),
   then how many jobs of each rule would run. Check them after every
-  `--config` change.
-- To list every planned job too, add `list_jobs=true` to `--config`, with
-  `execution_site_file=workflow/profiles/site/<your_site>/site.yaml` beside
-  it: a `--config` on the command line replaces the site profile's. Each job
-  then shows its `resources:` line (`slurm_partition`, `slurm_account`,
-  `gpu`, `gres`, `gpu_model`, runtime, CPUs, memory) and, with `-p`, the
+  change to the overrides.
+- To list every planned job too, add the override `list_jobs=true`. Each
+  job then shows its `resources:` line (`slurm_partition`, `slurm_account`,
+  `gpu`, `gres`, `gpu_model`, runtime, CPUs, memory) and, in a dry run, the
   script command, including the `device=` argument passed to computational
   scripts and, on a site whose jobs run in an image, the `apptainer exec`
   prefix.
-- Replace `all` with a narrower target such as `all_train_classifiers`,
-  `all_pretrain_models`, `all_train_methods` or `all_eval_methods` to inspect
-  or run only part of the graph. These are subsets of the same graph, not
+- Pass a narrower target with `--target`, such as `all_train_classifiers`,
+  `all_pretrain_models`, `all_train_methods` or `all_eval_methods`, to
+  inspect or run only part of the graph. These are subsets of the same graph, not
   required stages.
 - Invalid configuration fails during planning, before any job runs: a method
   without `method_options` or `soft_budget_params`, an unknown dataset key,
@@ -339,13 +305,13 @@ Which hardware each job runs on, and how to change it, is described in
 
 ## Where to run it
 
-- Run Snakemake on one authorized submit host of a single SLURM cluster that
+- Run the launcher on one authorized submit host of a single SLURM cluster that
   can reach both its CPU and GPU partitions. The controller process stays
   alive for the whole run, so use a persistent session (for example `tmux`)
   if your site allows it, or follow site policy for long-running
   controllers. The controller only plans and submits; all jobs, including
   visualization, are submitted to compute nodes.
-- The repository, the `uv` environment, inputs and the output root must be
+- The repository, the environment, inputs and the output root must be
   on a filesystem shared by the submit host and all compute nodes.
 - Dispatching jobs across separate clusters is not supported. Nothing in the
   workflow checks that the partitions, accounts or GPUs in your site profile

@@ -1,15 +1,16 @@
 """
 Estimate the compute of a pipeline invocation (`just estimate-compute`).
 
-Takes the same Snakemake arguments as the real run (`--profile`,
-`--workflow-profile`, `--config`, `--set-resources`, target, ...), plans
-the jobs that invocation would run, matches each to job durations and
-prints the compute estimate: job-hours, core-hours and GPU-hours, mean and
-p90, per pipeline stage and device. It warns about planned job types that
-failed or timed out before. See `afabench.compute_estimate` and
-`docs/how-to/estimate_compute.md`.
+Takes, besides its own options, the same arguments as the pipeline launcher
+(`workflow/run.py`) gets for the real run: pipeline profile, `--site`,
+`--target`, pipeline profile overrides and, after `--`, Snakemake
+arguments. It plans the jobs that invocation would run, matches each to job
+durations and prints the compute estimate: job-hours, core-hours and
+GPU-hours, mean and p90, per pipeline stage and device. It warns about
+planned job types that failed or timed out before. See
+`afabench.compute_estimate` and `docs/how-to/estimate_compute.md`.
 
-Options, before or among the Snakemake arguments:
+Options, before or among the launcher's arguments:
     --job-durations PATH  A job duration table, or an output root of job
                           records (default: output/production; a
                           smoke test's job records are under
@@ -20,19 +21,19 @@ Options, before or among the Snakemake arguments:
     --strict              Exit with 1 when a planned job is unestimated.
 
 Usage:
-    just estimate-compute \
-        --profile workflow/profiles/pipeline/kdd26 \
-        --workflow-profile workflow/profiles/site/<site> all
+    just estimate-compute kdd26 --site <site>
     just estimate-compute \
         --job-durations \
             output/production/release_job_duration_table.parquet \
-        --by name --output estimate.csv <Snakemake arguments>
+        --by name --output estimate.csv <launcher arguments>
 """
 
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, override
 
+import click
 import typer
+from typer.core import TyperCommand
 
 from afabench.compute_estimate.estimate import estimate_compute
 from afabench.compute_estimate.planning import InvocationError, plan_jobs
@@ -53,14 +54,33 @@ from afabench.release.manifest import (
     RELEASE_MANIFEST_FILENAME,
     read_release_manifest,
 )
+from workflow.run import LauncherError, snakemake_arguments
 
 DEFAULT_JOB_DURATIONS = Path(PRODUCTION_OUTPUT_ROOT)
+SNAKEMAKE_ARGUMENTS = "snakemake_arguments"
 
 app = typer.Typer()
 
 
+class _LauncherArgumentsCommand(TyperCommand):
+    """Keeps the launcher's Snakemake arguments, and the -- before them."""
+
+    @override
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        if "--" in args:
+            split = args.index("--")
+            # Click would drop the --, leaving them to the launcher's parser.
+            ctx.meta[SNAKEMAKE_ARGUMENTS] = args[split:]
+            args = args[:split]
+        return super().parse_args(ctx, args)
+
+
 @app.command(
-    context_settings={"allow_extra_args": True, "ignore_unknown_options": True}
+    cls=_LauncherArgumentsCommand,
+    context_settings={
+        "allow_extra_args": True,
+        "ignore_unknown_options": True,
+    },
 )
 def main(
     ctx: typer.Context,
@@ -91,7 +111,7 @@ def main(
         typer.Option(help="Exit with 1 when a planned job is unestimated."),
     ] = False,
 ) -> None:
-    """Estimate `snakemake <arguments>`; other options go to Snakemake."""
+    """Estimate `workflow/run.py <arguments>`; other options go to it."""
     grouping = by or DEFAULT_GROUPING
     try:
         check_grouping(grouping)
@@ -106,7 +126,15 @@ def main(
         message = f"No job duration table or output root at {job_durations}"
         raise typer.BadParameter(message, param_hint="--job-durations")
     try:
-        jobs = plan_jobs(ctx.args)
+        # Profiles resolve in the working directory, as Snakemake's do.
+        arguments = snakemake_arguments(
+            [*ctx.args, *ctx.meta.get(SNAKEMAKE_ARGUMENTS, [])],
+            checkout=Path.cwd(),
+        )
+    except LauncherError as error:
+        raise typer.BadParameter(str(error)) from None
+    try:
+        jobs = plan_jobs(arguments)
     except InvocationError:
         raise typer.Exit(1) from None
     estimate = estimate_compute(jobs, table)

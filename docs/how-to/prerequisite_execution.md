@@ -46,7 +46,7 @@ execution:
   Values are exactly `cpu` and `cuda`, with no hardware inference or fallback.
 
 The same resolved choice supplies the existing script's `device` argument and
-allocation intent. `execution_site_file` in the cluster profile maps CPU/GPU to
+allocation intent. The site profile's `site.yaml` maps CPU/GPU to
 partitions, accounts and GPU request syntax. CPU prerequisites explicitly clear
 GPU resources, including inherited profile defaults. CPU count, memory and
 runtime remain the profile's ordinary sizing settings: configure `train_classifier`,
@@ -62,12 +62,12 @@ for a chosen device.
 
 ## Invoke and inspect
 
-With the original scientific config files combined in `benchmark.yaml`:
+With a pipeline profile, here `kdd26`, and your execution file
+`execution.yaml`:
 
 ```sh
-uv run snakemake -s workflow/snakefiles/orchestration/pipeline.smk \
-  --workflow-profile workflow/profiles/site/examples/mixed-gres \
-  --configfile benchmark.yaml execution.yaml -n -p all_eval_methods
+workflow/run.py kdd26 --site examples/mixed-gres -n \
+  --target all_eval_methods execution_file=execution.yaml
 ```
 
 Remove `-n` to submit from one authorized environment with shared filesystem and

@@ -3,8 +3,8 @@
 The pipeline submits jobs through
 [Snakemake's SLURM executor plugin](https://snakemake.github.io/snakemake-plugin-catalog/plugins/executor/slurm.html)
 (Snakemake 9.12.0, plugin 1.8.0 in `uv.lock`). A cluster's settings live in a
-workflow profile, `workflow/profiles/site/<site>/`, passed with
-`--workflow-profile`. For the full benchmark command, see
+site profile, `workflow/profiles/site/<site>/`, selected with the pipeline
+launcher's `--site <site>`. For the full benchmark command, see
 [Run the pipeline](run_the_pipeline.md).
 
 ## Portable execution versus site allocation
@@ -43,15 +43,10 @@ they are unlikely to work for you unchanged.
 ## Adapting a profile to your site
 
 1. Copy `site/examples/mixed-gres/` or `site/examples/mixed-gpus/` to `workflow/profiles/site/<site>/`.
-2. In `<site>/config.yaml`, point `execution_site_file` at your copy:
-
-   ```yaml
-   config:
-     execution_site_file: workflow/profiles/site/<site>/site.yaml
-   ```
-
-   The path is relative to the directory you run Snakemake from (the
-   repository root); use an absolute path otherwise.
+2. At the end of `<site>/config.yaml`, replace `examples/mixed-gres` (or
+   `examples/mixed-gpus`) with `<site>` in the `execution_site_file` path.
+   The pipeline launcher finds `<site>/site.yaml` itself; the line serves
+   Snakemake run without it.
 3. In `<site>/site.yaml`, set the partitions and accounts, and the GPU request
    in exactly one of the two conventions your site uses:
 
@@ -87,27 +82,11 @@ they are unlikely to work for you unchanged.
    would replace it.
 5. Check the result with a dry run and read the `resources:` lines.
    `list_jobs=true` makes the dry run list every job, which it otherwise
-   leaves out. A `--config` on the command line replaces the site profile's,
-   so repeat `execution_site_file` beside it:
+   leaves out:
 
    ```shell
-   uv run snakemake \
-       --profile workflow/profiles/pipeline/kdd26 \
-       --workflow-profile workflow/profiles/site/<site> \
-       -n -p all \
-       --config list_jobs=true \
-         execution_site_file=workflow/profiles/site/<site>/site.yaml
+   workflow/run.py kdd26 --site <site> -n list_jobs=true
    ```
-
-`execution_site` can instead be given in a config file, but not together with
-`execution_site_file`. Do not put the nested `execution_site` mapping in a
-profile's `config` section: this Snakemake/plugin version does not preserve
-nested profile config in the remote job wrapper.
-
-> **`--config` on the command line replaces the site profile's `config`.**
-> Any `--config` drops `execution_site_file`, and the submission then fails
-> before any job is submitted. Whenever you pass `--config`, also pass
-> `execution_site_file=workflow/profiles/site/<site>/site.yaml`.
 
 ## Run jobs in an image
 
@@ -161,17 +140,16 @@ environment built beside each image
    precommand: export PATH=$PWD/containers/bin:$PATH
    ```
 
-4. Run Snakemake with `containers/snakemake.sh` instead of
-   `uv run snakemake`, from the checkout root:
+4. Run the pipeline as on any site:
 
    ```shell
-   containers/snakemake.sh \
-       --profile workflow/profiles/pipeline/kdd26 \
-       --workflow-profile workflow/profiles/site/arrhenius -n -p all
+   workflow/run.py kdd26 --site arrhenius -n
    ```
 
-   It prints progress on the login node as usual. To run a single command in
-   the image by hand, use `containers/run.sh`.
+   Because the site file names images, the pipeline launcher runs Snakemake
+   from `containers/bin/python` instead of uv. It prints progress on the
+   login node as usual. To run a single command in the image by hand, use
+   `containers/run.sh`.
 
 ## A site map is required for SLURM
 

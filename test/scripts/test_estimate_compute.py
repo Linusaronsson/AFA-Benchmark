@@ -53,6 +53,10 @@ rule train_method:
 def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Write a workflow whose alpha job has a job record and beta none."""
     (tmp_path / "Snakefile").write_text(SNAKEFILE)
+    # The pipeline profile the launcher's arguments default to
+    profile = tmp_path / "workflow/profiles/pipeline/all"
+    profile.mkdir(parents=True)
+    (profile / "config.yaml").write_text("snakefile: Snakefile\n")
     output_root = tmp_path / PRODUCTION_OUTPUT_ROOT
     output_root.mkdir(parents=True)
     job_record_examples.write_job_record(
@@ -71,7 +75,7 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 
 def estimate(*options: str) -> Result:
-    return CliRunner().invoke(app, [*options, "--cores", "2", "all"])
+    return CliRunner().invoke(app, [*options, "--", "--cores", "2"])
 
 
 @pytest.mark.usefixtures("workflow")

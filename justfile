@@ -30,8 +30,8 @@ qa: (_qa "auto")
 # Pre-PR gate: static checks + fast tests including the workflow tier
 qa-full: (_qa "full")
 
-# Estimate the compute of a pipeline invocation; takes the Snakemake
-# arguments of the real run, plus --job-durations, --by, --output, --strict
+# Estimate the compute of a pipeline invocation; takes --job-durations,
+# --by, --output, --strict and the launcher arguments of the real run
 [positional-arguments]
 estimate-compute *args:
     uv run python scripts/compute_estimate/estimate_compute.py "$@"
@@ -43,7 +43,7 @@ build-images *args:
     python3 containers/submit_builds.py "$@"
 
 # Paths the workflow tier depends on
-workflow_paths := "workflow/ conf/ test/workflow/ afabench/release/ afabench/fit/contract afabench/core/bundle_system/ afabench/core/output_layout afabench/core/workflow_settings afabench/compute_estimate/ scripts/compute_estimate/ afabench/core/job_record.py afabench/core/code_identity.py afabench/core/job_duration_table.py scripts/misc/collect_job_records.py scripts/plotting/plot_total_time.py afabench/plotting/config.py"
+workflow_paths := "workflow/ containers/submit_builds.py conf/ test/workflow/ afabench/release/ afabench/fit/contract afabench/core/bundle_system/ afabench/core/output_layout afabench/core/workflow_settings afabench/compute_estimate/ scripts/compute_estimate/ afabench/core/job_record.py afabench/core/code_identity.py afabench/core/job_duration_table.py scripts/misc/collect_job_records.py scripts/plotting/plot_total_time.py afabench/plotting/config.py"
 
 # Type check and tests run concurrently after the file-rewriting steps
 _qa tier: fix

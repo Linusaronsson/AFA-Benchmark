@@ -1,6 +1,7 @@
-# Run with containers/snakemake.sh instead of uv run snakemake, from the
-# checkout root, after building both images and orchestration environments
-# with containers/build.sbatch (docs/how-to/slurm_integration.md).
+# Run with workflow/run.py --site arrhenius, which runs Snakemake from the
+# orchestration environment, after building both images and orchestration
+# environments with containers/build.sbatch
+# (docs/how-to/slurm_integration.md).
 executor: slurm
 jobs: 9001
 latency-wait: 30 # seconds
@@ -48,5 +49,7 @@ set-resources:
   plot_eval_actions:
     cpus_per_task: 10
 
+# For Snakemake run without the pipeline launcher, which passes this again
+# with any overrides: Snakemake replaces this section with --config.
 config:
   execution_site_file: workflow/profiles/site/arrhenius/site.yaml

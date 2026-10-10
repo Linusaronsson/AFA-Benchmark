@@ -29,23 +29,10 @@ the pipeline generates a large number of jobs. If you still want to run it
 locally with 8 CPU cores, execute this command from the repo root:
 
 ```shell
-uv run snakemake \
-    -s workflow/snakefiles/orchestration/pipeline.smk \
-    all \
-    --configfile \
-      workflow/conf/eval_hard_budgets/all.yaml \
-      workflow/conf/methods/all.yaml \
-      workflow/conf/method_sets/all.yaml \
-      workflow/conf/method_options/all.yaml \
-      workflow/conf/pretrain_mappings/all.yaml \
-      workflow/conf/soft_budget_params/all.yaml \
-      workflow/conf/unmaskers/all.yaml \
-      workflow/conf/classifier_names/all.yaml \
-      workflow/conf/datasets/all.yaml \
-    --jobs 8
+workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
-Without an execution file every job runs on CPU. To reproduce the full
+The CPU execution file runs every job on CPU. To reproduce the full
 benchmark results, use SLURM instead: one command submits CPU and GPU jobs
 together. See the
 [run the pipeline](docs/how-to/run_the_pipeline.md) guide

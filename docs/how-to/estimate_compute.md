@@ -11,16 +11,15 @@ runs, either your own or a benchmark release's. Options and output columns:
 
 ## 1. Write the invocation you will run
 
-Take the Snakemake arguments of the real run, for example from
+Take the `workflow/run.py` arguments of the real run, for example from
 [run the pipeline](run_the_pipeline.md):
 
 ```shell
---profile workflow/profiles/pipeline/kdd26 \
---workflow-profile workflow/profiles/site/<your_site> all
+kdd26 --site <your_site>
 ```
 
-Include every `--config`, `--set-resources` and target exactly as you will
-submit them: the estimate plans the same jobs, and gives each the CPUs and
+Include every override, `--target` and Snakemake argument after `--`
+exactly as you will submit them: the estimate plans the same jobs, and gives each the CPUs and
 GPUs your site profile will request.
 
 ## 2. Choose the job durations
@@ -49,10 +48,11 @@ slower.
 
 ## 3. Run the estimate
 
+Give it the arguments you run the pipeline with:
+
 ```shell
 just estimate-compute [--job-durations output/production/release_job_duration_table.parquet] \
-    --profile workflow/profiles/pipeline/kdd26 \
-    --workflow-profile workflow/profiles/site/<your_site> all
+    kdd26 --site <your_site>
 ```
 
 Nothing is submitted or run. Jobs whose outputs already exist are not

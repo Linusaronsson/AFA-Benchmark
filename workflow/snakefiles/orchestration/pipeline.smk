@@ -30,11 +30,12 @@ Runtime filters (--config, select subsets to run):
         classifier_training; pretrained_models overrides pretraining by named
         model. External classifiers use only the classifier_training default. Overrides take precedence over defaults.
         Shipped declarations: workflow/profiles/execution/{default,cpu}.yaml.
-    execution_site_file (str, required for SLURM submission): Profile-owned
-        YAML allocation map; submitting without one fails before any job.
-        Alternatively provide execution_site in a configuration file. A CLI
-        --config replaces the workflow profile's config, so repeat
-        execution_site_file=<site>/site.yaml whenever passing --config.
+    execution_site_file (str, required for SLURM submission): The site
+        profile's YAML allocation map (<site>/site.yaml); submitting without
+        one fails before any job. The pipeline launcher (workflow/run.py
+        --site <site>) sets it, also with overrides, which replace the site
+        profile's config. Alternatively provide execution_site in a
+        configuration file.
         An allocation may name an image (execution_site.<cpu|gpu>.image,
         relative to the repository root): its jobs then run their
         commands in it through apptainer exec, with --nv on GPU
@@ -107,20 +108,19 @@ Execution configuration and required files:
     execution YAML, site.yaml, migration and captured-submission tests.
 
 Usage:
+    Run it with the pipeline launcher, workflow/run.py (workflow/run.py -h).
     Full benchmark, one invocation from an authorized SLURM submit host of a
     single cluster, with the repository, environment and outputs on a shared
     filesystem (execution/default.yaml places the GPU jobs):
-        snakemake --profile workflow/profiles/pipeline/kdd26 \
-            --workflow-profile workflow/profiles/site/<site> -n -p all
+        workflow/run.py kdd26 --site <site> -n
     It prints the resolved configuration and the job counts; pass
     list_jobs=true to also list every job with its resources and device
-    arguments. Then remove -n -p.
-    Full method set: use --profile workflow/profiles/pipeline/all instead.
+    arguments. Then remove -n.
+    Full method set: workflow/run.py --site <site> (pipeline profile all).
     Local CPU smoke test without SLURM or GPUs:
-        snakemake --profile workflow/profiles/pipeline/all all --jobs 8 \
-            --config "datasets=[cube]" "dataset_realization_indices=[0]" \
-            smoke_test=true use_wandb=false \
-            execution_file=workflow/profiles/execution/cpu.yaml
+        workflow/run.py --jobs 8 "datasets=[cube]" \
+            "dataset_realization_indices=[0]" smoke_test=true \
+            use_wandb=false execution_file=workflow/profiles/execution/cpu.yaml
     It writes under output/smoke, so a later real run still runs every
     job.
     See docs/how-to/run_the_pipeline.md and slurm_integration.md.
@@ -128,11 +128,10 @@ Usage:
     transformed tables and the shared prerequisites into
     output/production, then run only the new method's missing work
     and the comparison plots:
-        snakemake --profile workflow/profiles/pipeline/all all --jobs 8 \
-            --config "methods=[my_method]" \
-                "reference_methods=[random_dummy, gdfs]" \
-                "datasets=[cube]" "dataset_realization_indices=[0]" \
-                execution_file=workflow/profiles/execution/cpu.yaml
+        workflow/run.py --jobs 8 "methods=[my_method]" \
+            "reference_methods=[random_dummy, gdfs]" \
+            "datasets=[cube]" "dataset_realization_indices=[0]" \
+            execution_file=workflow/profiles/execution/cpu.yaml
     See docs/how-to/compare_your_method_with_published_results.md.
 
 CPU-only processing:

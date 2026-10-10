@@ -7,14 +7,16 @@ prints the [compute estimate](../../CONTEXT.md) of a pipeline invocation
 
 ```shell
 just estimate-compute [--job-durations PATH] [--by COLUMN ...]
-    [--output CSV] [--strict] <Snakemake arguments>
+    [--output CSV] [--strict] <launcher arguments>
 ```
 
 ## Options
 
-Every argument other than these four goes to Snakemake unchanged, so the
-planned jobs, and the CPUs and GPUs each would request, are those of
-`snakemake <Snakemake arguments>`. Nothing is submitted or run.
+Every argument other than these four is an argument of the
+[pipeline launcher](pipeline_launcher_command.md), so the planned jobs, and
+the CPUs and GPUs each would request, are those of
+`workflow/run.py <launcher arguments>`. Nothing is submitted or run.
+Profiles are looked up in the working directory.
 
 | Option | Meaning |
 | --- | --- |

@@ -67,16 +67,11 @@ def planned_jobs(output: str) -> list[dict[str, str]]:
     return jobs
 
 
-# The documented cluster invocations of the two shipped pipeline profiles.
-CLUSTER_PIPELINE_PROFILES = {
-    "kdd26": ["--profile", "workflow/profiles/pipeline/kdd26"],
-    "all": ["--profile", "workflow/profiles/pipeline/all"],
-}
-SMALL_SELECTION = [
-    "datasets=[cube]",
-    "dataset_realization_indices=[0]",
-    "execution_site_file=workflow/profiles/site/examples/mixed-gres/site.yaml",
-]
+# The two shipped pipeline profiles, run on a cluster as documented: with
+# the pipeline launcher's --site and pipeline profile overrides.
+CLUSTER_PIPELINE_PROFILES = ["all", "kdd26"]
+CLUSTER_SITE = ["--site", "examples/mixed-gres"]
+SMALL_SELECTION = ["datasets=[cube]", "dataset_realization_indices=[0]"]
 
 
 @pytest.mark.parametrize(
@@ -92,14 +87,14 @@ def test_cluster_pipeline_profile_declares_former_six_stage_hardware(
     workflow = WorkflowHarness(tmp_path)
     shutil.rmtree(tmp_path / "output/smoke")
 
-    result = workflow.run_invocation(
-        CLUSTER_PIPELINE_PROFILES[pipeline_profile],
-        "--dry-run",
-        "--workflow-profile",
-        "workflow/profiles/site/examples/mixed-gres",
-        "--config",
-        *SMALL_SELECTION,
-        "list_jobs=true",
+    result = workflow.run_launcher(
+        [
+            pipeline_profile,
+            *CLUSTER_SITE,
+            "-n",
+            *SMALL_SELECTION,
+            "list_jobs=true",
+        ]
     )
 
     output = result.stdout + result.stderr
@@ -601,7 +596,7 @@ def test_cli_config_without_site_file_fails_before_submission(
     )
 
     assert result.returncode != 0
-    assert "execution_site_file" in result.stdout + result.stderr
+    assert "workflow/run.py --site" in result.stdout + result.stderr
     assert workflow.submissions() == []
 
 
@@ -638,7 +633,7 @@ def test_cli_config_with_repeated_site_file_keeps_site_allocations(
 
 
 @pytest.mark.pipeline
-@pytest.mark.parametrize("pipeline_profile", sorted(CLUSTER_PIPELINE_PROFILES))
+@pytest.mark.parametrize("pipeline_profile", CLUSTER_PIPELINE_PROFILES)
 def test_cluster_pipeline_profile_submits_declared_hardware(
     tmp_path: Path, pipeline_profile: str
 ) -> None:
@@ -654,23 +649,25 @@ def test_cluster_pipeline_profile_submits_declared_hardware(
             tmp_path / "scripts" / script,
         )
 
-    result = workflow.run_invocation(
-        CLUSTER_PIPELINE_PROFILES[pipeline_profile],
-        "--workflow-profile",
-        "workflow/profiles/site/examples/mixed-gres",
-        # Submit each dependency wave at once; the plugin waits per wave.
-        "--jobs",
-        "100",
-        "--slurm-init-seconds-before-status-checks",
-        "0",
-        "--seconds-between-status-checks",
-        "1",
-        "--config",
-        "methods=[jafa,aaco]",
-        "use_wandb=False",
-        "smoke_test=True",
-        *SMALL_SELECTION,
-        target="all_eval_methods",
+    result = workflow.run_launcher(
+        [
+            pipeline_profile,
+            *CLUSTER_SITE,
+            "--target",
+            "all_eval_methods",
+            "methods=[jafa,aaco]",
+            "use_wandb=False",
+            "smoke_test=True",
+            *SMALL_SELECTION,
+            "--",
+            # Submit each dependency wave at once; the plugin waits per wave.
+            "--jobs",
+            "100",
+            "--slurm-init-seconds-before-status-checks",
+            "0",
+            "--seconds-between-status-checks",
+            "1",
+        ],
         timeout=600,
     )
 
