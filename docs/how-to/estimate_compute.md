@@ -72,6 +72,9 @@ job-hours, core-hours and GPU-hours per pipeline stage and device, as a
 mean and a pessimistic p90.
 
 - Request the p90 `total` for a safety margin.
+- The [minimal wall time](../reference/estimate_compute_command.md#minimal-wall-time)
+  is how long the run takes at the least, with every job running as soon as
+  the jobs it needs are done. Its longest chain shows the jobs that set it.
 - Check the counts of `pooled` and `unestimated` jobs on the first line
   ([match levels](../reference/estimate_compute_command.md#matching)).
   Unestimated jobs are not in the totals; estimate them some other way, or

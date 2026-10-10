@@ -95,6 +95,35 @@ def test_only_the_remaining_jobs_are_planned_once_outputs_exist(
         (job["rule"], wildcards(job)["method"])
         for job in workflow.planned_jobs()
     ) == [("eval_method", "alpha"), ("eval_method", "beta")]
+    # The jobs they need have run, so the plan has none to wait for.
+    assert {job["dependencies"] for job in workflow.planned_jobs()} == {"[]"}
+
+
+def test_planned_jobs_depend_on_the_planned_jobs_they_need(
+    tmp_path: Path,
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+
+    # The harness's datasets and classifiers exist, so only training is
+    # planned before evaluation.
+    plan = workflow.plan("--executor", "local")
+
+    assert plan.returncode == 0, plan.stdout + plan.stderr
+    jobs = {job["jobid"]: job for job in workflow.planned_jobs()}
+    needed = {
+        (job["rule"], wildcards(job)["method"]): [
+            (jobs[str(jobid)]["rule"], wildcards(jobs[str(jobid)])["method"])
+            for jobid in json.loads(job["dependencies"])
+        ]
+        for job in jobs.values()
+    }
+    assert needed == {
+        ("eval_method", "alpha"): [("train_method", "alpha")],
+        ("eval_method", "beta"): [("train_method", "beta")],
+        ("train_method", "alpha"): [],
+        ("train_method", "beta"): [],
+    }
+    assert "Minimal wall time" in plan.stdout
 
 
 def test_reference_methods_are_never_planned(tmp_path: Path) -> None:

@@ -46,6 +46,11 @@ class PlannedJob:
     # None when the cluster's default applies.
     cpus: int | None
     gpus: int
+    # Snakemake's id of the job in this plan
+    jobid: int
+    # The planned jobs whose outputs it needs; jobs whose outputs exist are
+    # not planned.
+    dependencies: frozenset[int] = frozenset()
 
     @property
     def job_type(self) -> JobType | None:
@@ -78,11 +83,24 @@ def plan_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
         dag = workflow.dag
         assert dag is not None
         async_run(dag.postprocess(update_needrun=False, check_initial=True))
-        planned.extend(
-            _planned_job(job)
+        jobs = [
+            job
             for job in dag.needrun_jobs()
             # Rules without an action, such as target rules, never run.
             if not job.is_norun
+        ]
+        jobids = {job: job.jobid for job in jobs}
+        planned.extend(
+            _planned_job(
+                job,
+                jobid=jobids[job],
+                dependencies=frozenset(
+                    jobids[dependency]
+                    for dependency in dag.dependencies[job]
+                    if dependency in jobids
+                ),
+            )
+            for job in jobs
         )
 
     try:
@@ -98,7 +116,9 @@ def plan_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
     )
 
 
-def _planned_job(job: Job) -> PlannedJob:
+def _planned_job(
+    job: Job, *, jobid: int, dependencies: frozenset[int]
+) -> PlannedJob:
     # Evaluating params runs the workflow's allocation checks, as
     # submission does.
     params = job.params
@@ -118,4 +138,6 @@ def _planned_job(job: Job) -> PlannedJob:
         device="cuda" if gpus else "cpu",
         cpus=allocated_cpus(resources, job.threads),
         gpus=gpus,
+        jobid=jobid,
+        dependencies=dependencies,
     )

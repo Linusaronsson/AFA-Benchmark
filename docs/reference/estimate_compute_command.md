@@ -62,16 +62,29 @@ Printed to standard output, in this order:
 4. The totals per group, and a `total` row: `jobs` and the jobs per match
    level, then `mean_` and `p90_` `job_hours`, `core_hours` and
    `gpu_hours` of the estimated jobs. A p90 total adds up each job's p90.
-5. Unestimated jobs, counted per stage, name, dataset key and device.
-6. Failure warnings, if any: one line per stage, name and dataset key of
+5. The [minimal wall time](#minimal-wall-time), mean and p90, and the
+   longest chain of jobs at mean job durations, each with its hours.
+6. Unestimated jobs, counted per stage, name, dataset key and device.
+7. Failure warnings, if any: one line per stage, name and dataset key of
    a planned job with `failed` or `timeout` job records (smoke tests
    excluded), on any device, with the number of each and the distinct
    `time_limit_minutes` of the timed-out ones ("an unknown time limit"
    when none was recorded). The estimate of these jobs may be low. A
    warning stays while those job records are in the source, also after a
    later attempt completed.
-7. Jobs of rules without job records, counted per rule.
-8. How many estimated jobs' core-hours are unknown, if any.
+8. Jobs of rules without job records, counted per rule.
+9. How many estimated jobs' core-hours are unknown, if any.
+
+## Minimal wall time
+
+How long the planned jobs take if each starts as soon as the planned jobs it
+depends on are done, with no limit on how many run at once: the longest
+chain of dependent jobs, each taking its mean (or p90) job duration. Jobs
+whose outputs exist are not planned, so they add nothing. Unestimated jobs
+and jobs of rules without job records take no time, but still link the jobs
+before them to those after them, so the wall time is too low when the
+chain holds unestimated jobs. Queueing, the site's job limit and the
+cluster's free nodes are left out: the real wall time is never shorter.
 
 ## Per-job CSV
 
@@ -89,3 +102,5 @@ null.
 | `mean_job_duration_seconds`, `p90_job_duration_seconds` | The job's estimated job duration. |
 | `mean_job_hours`, `p90_job_hours`, `mean_core_hours`, `p90_core_hours`, `mean_gpu_hours`, `p90_gpu_hours` | The same in hours, times 1, the planned CPUs and the planned GPUs. |
 | `failure_history` | `True` when the report has a failure warning for the job's stage, name and dataset key. |
+| `jobid` | Snakemake's id of the job in this plan. |
+| `dependencies` | The `jobid`s of the planned jobs it needs, as a JSON list. |

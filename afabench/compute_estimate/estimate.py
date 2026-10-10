@@ -14,11 +14,17 @@ Failed and timed-out job records give no job duration. Instead, each
 planned job type (stage, name and dataset key) that has them gets a failure
 history: its jobs may fail or hit their time limit again, so their estimate
 may be low.
+
+The minimal wall time is the longest chain of planned jobs, each depending
+on the one before, with every job taking its estimated job duration: how
+long the run takes if every job starts as soon as the jobs it depends on
+are done.
 """
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, astuple, dataclass, fields
+from graphlib import TopologicalSorter
 from typing import Literal
 
 import pandas as pd
@@ -34,6 +40,9 @@ IDENTITY_COLUMNS = [field.name for field in fields(JobIdentity)]
 EXACT_COLUMNS = [*IDENTITY_COLUMNS, "device"]
 JOB_TYPE_COLUMNS = [field.name for field in fields(JobType)]
 POOL_COLUMNS = [*JOB_TYPE_COLUMNS, "device"]
+
+# Which of a job's job durations to take
+type Statistic = Literal["mean", "p90"]
 
 # The values of a job's identity columns and device, None for null
 type Key = tuple[object, ...]
@@ -109,6 +118,55 @@ class ComputeEstimate:
     refused_smoke_test_job_records: int
     # Sorted by job type
     failure_histories: list[FailureHistory]
+
+
+@dataclass(frozen=True, kw_only=True)
+class WallTime:
+    """The longest chain of dependent planned jobs, and how long it takes."""
+
+    seconds: float
+    # In the order the jobs run
+    chain: list[JobEstimate]
+
+
+def minimal_wall_time(
+    estimate: ComputeEstimate, statistic: Statistic
+) -> WallTime:
+    """
+    Return the wall time of the planned jobs, all run as early as possible.
+
+    Each job takes its `statistic` job duration. Unestimated jobs and jobs
+    of rules without job records take none, but still chain the jobs
+    before them to the jobs after them.
+    """
+    jobs = {job.job.jobid: job for job in estimate.jobs}
+    # The longest chain ending with each job, and how long it takes
+    chains: dict[int, tuple[float, list[JobEstimate]]] = {}
+    order = TopologicalSorter(
+        {jobid: job.job.dependencies for jobid, job in jobs.items()}
+    ).static_order()
+    for jobid in order:
+        job = jobs[jobid]
+        seconds, chain = max(
+            (chains[dependency] for dependency in job.job.dependencies),
+            key=_longest,
+            default=(0.0, []),
+        )
+        duration = (
+            job.mean_job_duration_seconds
+            if statistic == "mean"
+            else job.p90_job_duration_seconds
+        )
+        chains[jobid] = (seconds + (duration or 0.0), [*chain, job])
+    seconds, chain = max(chains.values(), key=_longest, default=(0.0, []))
+    return WallTime(seconds=seconds, chain=chain)
+
+
+def _longest(ending: tuple[float, list[JobEstimate]]) -> tuple[float, int]:
+    # Of chains that take as long, the one with more jobs, so that jobs
+    # that take no time are not left off its end.
+    seconds, chain = ending
+    return seconds, len(chain)
 
 
 def estimate_compute(

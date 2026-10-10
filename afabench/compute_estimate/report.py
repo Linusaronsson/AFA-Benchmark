@@ -4,6 +4,7 @@ Report a compute estimate: per-job rows, and totals per group of jobs.
 `estimate-compute` prints `format_report` and writes `per_job_table` as
 CSV. Totals hold only estimated jobs, as mean and p90 job-hours,
 core-hours and GPU-hours; a p90 total adds up each job's p90 job duration.
+The minimal wall time follows them, with its longest chain of jobs.
 """
 
 import json
@@ -19,6 +20,7 @@ from afabench.compute_estimate.estimate import (
     FailureHistory,
     JobEstimate,
     MatchLevel,
+    minimal_wall_time,
 )
 from afabench.core.job_duration_table import RECORD_FIELD_DTYPES
 from afabench.core.job_record import JobType
@@ -59,6 +61,8 @@ PER_JOB_DTYPES = {
     "matched_job_records": "Int64",
     **dict.fromkeys([*DURATION_COLUMNS, *HOUR_COLUMNS], "Float64"),
     "failure_history": "boolean",
+    "jobid": "Int64",
+    "dependencies": "string",
 }
 GROUPING_COLUMNS = [column for column in JOB_COLUMNS if column != "wildcards"]
 DEFAULT_GROUPING = ["stage", "device"]
@@ -102,6 +106,8 @@ def _per_job_row(
             for column in ESTIMATE_COLUMNS
         },
         "failure_history": job.job_type in failed_types,
+        "jobid": job.jobid,
+        "dependencies": json.dumps(sorted(job.dependencies)),
     }
 
 
@@ -195,6 +201,8 @@ def format_report(
         "included:",
         _table(totals),
         "",
+        *_wall_time_lines(estimate),
+        "",
     ]
     unestimated = jobs.loc[jobs["match_level"] == "unestimated"]
     if unestimated.empty:
@@ -241,14 +249,57 @@ def format_report(
     return "\n".join(lines) + "\n"
 
 
-def _failure_warning(history: FailureHistory) -> str:
-    """Return e.g. "training alpha on mnist timed out 3 times at 600 min"."""
-    job_type = history.job_type
-    names = " on ".join(
+def _wall_time_lines(estimate: ComputeEstimate) -> list[str]:
+    if all(job.mean_job_duration_seconds is None for job in estimate.jobs):
+        return ["Minimal wall time: unknown, no planned job is estimated"]
+    mean = minimal_wall_time(estimate, "mean")
+    p90 = minimal_wall_time(estimate, "p90")
+    lines = [
+        "Minimal wall time, every job starting once the jobs it needs are "
+        f"done: mean {mean.seconds / 3600:.2f} h, "
+        f"p90 {p90.seconds / 3600:.2f} h"
+    ]
+    if any(job.mean_job_duration_seconds is None for job in estimate.jobs):
+        lines.append(
+            "  It counts unestimated jobs and jobs of rules without job "
+            "records as taking no time."
+        )
+    hours = [
+        "-" if job.mean_job_hours is None else f"{job.mean_job_hours:.2f}"
+        for job in mean.chain
+    ]
+    width = max(map(len, hours))
+    lines.append("  Longest chain at mean job durations:")
+    for job, value in zip(mean.chain, hours, strict=True):
+        unit = "  " if job.mean_job_hours is None else " h"
+        lines.append(f"    {value.rjust(width)}{unit}  {_describe_job(job)}")
+    return lines
+
+
+def _describe_job(job_estimate: JobEstimate) -> str:
+    """Return e.g. "training alpha on mnist (unestimated)"."""
+    job_type = job_estimate.job.job_type
+    if job_type is None:
+        return f"{job_estimate.job.rule} (no job record)"
+    description = f"{job_type.stage} {_names(job_type)}"
+    if job_estimate.match_level == "unestimated":
+        description += " (unestimated)"
+    return description
+
+
+def _names(job_type: JobType) -> str:
+    """Return e.g. "alpha on mnist", leaving out what the job type lacks."""
+    return " on ".join(
         value
         for value in [job_type.name, job_type.dataset_key]
         if value is not None
     )
+
+
+def _failure_warning(history: FailureHistory) -> str:
+    """Return e.g. "training alpha on mnist timed out 3 times at 600 min"."""
+    job_type = history.job_type
+    names = _names(job_type)
     attempts = []
     if history.timed_out:
         limits = history.time_limits_minutes

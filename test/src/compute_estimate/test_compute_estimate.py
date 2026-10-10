@@ -5,7 +5,9 @@ Job durations come from job records written under an output root and
 loaded as the job duration table, as `estimate-compute` loads them.
 """
 
+from collections.abc import Iterable
 from dataclasses import replace
+from itertools import count
 from pathlib import Path
 
 import pandas as pd
@@ -14,6 +16,7 @@ import pytest
 from afabench.compute_estimate.estimate import (
     FailureHistory,
     estimate_compute,
+    minimal_wall_time,
 )
 from afabench.compute_estimate.planning import PlannedJob
 from afabench.compute_estimate.report import (
@@ -93,6 +96,9 @@ def records(tmp_path: Path) -> JobRecords:
     return JobRecords(tmp_path / "output")
 
 
+JOBIDS = count()
+
+
 def planned(
     identity: JobIdentity | None,
     *,
@@ -100,6 +106,7 @@ def planned(
     device: str = "cuda",
     cpus: int | None = 8,
     gpus: int = 1,
+    after: Iterable[PlannedJob] = (),
 ) -> PlannedJob:
     return PlannedJob(
         rule=rule,
@@ -108,6 +115,8 @@ def planned(
         device="cuda" if device == "cuda" else "cpu",
         cpus=cpus,
         gpus=gpus,
+        jobid=next(JOBIDS),
+        dependencies=frozenset(job.jobid for job in after),
     )
 
 
@@ -500,3 +509,127 @@ def test_the_per_job_table_flags_jobs_whose_type_failed_before(
     jobs = per_job_table(estimate)
 
     assert jobs["failure_history"].tolist() == [True, False, False]
+
+
+ALPHA_EVALUATION = replace(ALPHA_TRAINING, stage="evaluation")
+BETA_TRAINING = replace(ALPHA_TRAINING, name="beta")
+
+
+def test_minimal_wall_time_is_the_longest_chain_of_dependent_jobs(
+    records: JobRecords,
+) -> None:
+    records.add(ALPHA_TRAINING, 3600)
+    records.add(ALPHA_EVALUATION, 1800)
+    records.add(BETA_TRAINING, 7200)
+    alpha = planned(ALPHA_TRAINING)
+    evaluation = planned(ALPHA_EVALUATION, after=[alpha])
+    beta = planned(BETA_TRAINING)
+    # Independent jobs run in parallel, whichever way they are listed.
+    estimate = estimate_compute(
+        [evaluation, beta, alpha, planned(ALPHA_TRAINING)], records.table()
+    )
+
+    wall_time = minimal_wall_time(estimate, "mean")
+
+    assert wall_time.seconds == 7200
+    assert [step.job for step in wall_time.chain] == [beta]
+    records.add(ALPHA_EVALUATION, 1800 + 7200)
+    longer = minimal_wall_time(
+        estimate_compute([evaluation, beta, alpha], records.table()), "mean"
+    )
+    assert longer.seconds == 3600 + (1800 + 9000) / 2
+    assert [step.job for step in longer.chain] == [alpha, evaluation]
+
+
+def test_minimal_wall_time_at_p90_takes_each_job_s_p90(
+    records: JobRecords,
+) -> None:
+    records.add(ALPHA_TRAINING, 3600)
+    records.add(ALPHA_TRAINING, 7200)
+    estimate = estimate_compute([planned(ALPHA_TRAINING)], records.table())
+
+    assert minimal_wall_time(estimate, "mean").seconds == 5400
+    assert minimal_wall_time(estimate, "p90").seconds == 6840
+
+
+def test_jobs_without_a_job_duration_take_no_time_but_keep_their_chain(
+    records: JobRecords,
+) -> None:
+    records.add(ALPHA_TRAINING, 3600)
+    records.add(ALPHA_EVALUATION, 1800)
+    unestimated = planned(BETA_TRAINING)
+    alpha = planned(ALPHA_TRAINING, after=[unestimated])
+    merge = planned(None, rule="merge_eval_perf", gpus=0, after=[alpha])
+    evaluation = planned(ALPHA_EVALUATION, after=[merge])
+    estimate = estimate_compute(
+        [unestimated, alpha, merge, evaluation], records.table()
+    )
+
+    wall_time = minimal_wall_time(estimate, "mean")
+
+    assert wall_time.seconds == 3600 + 1800
+    assert [step.job for step in wall_time.chain] == [
+        unestimated,
+        alpha,
+        merge,
+        evaluation,
+    ]
+
+
+def test_the_report_gives_the_minimal_wall_time_and_its_chain(
+    records: JobRecords,
+) -> None:
+    records.add(ALPHA_TRAINING, 3600)
+    records.add(ALPHA_TRAINING, 7200)
+    alpha = planned(ALPHA_TRAINING)
+    unestimated = planned(BETA_TRAINING, after=[alpha])
+    merge = planned(None, rule="merge_eval_perf", gpus=0, after=[unestimated])
+    estimate = estimate_compute([alpha, unestimated, merge], records.table())
+
+    report = format_report(estimate, source="output")
+
+    _, wall_time = report.split("Minimal wall time")
+    assert wall_time.splitlines()[:5] == [
+        ", every job starting once the jobs it needs are done: "
+        "mean 1.50 h, p90 1.90 h",
+        "  It counts unestimated jobs and jobs of rules without job records "
+        "as taking no time.",
+        "  Longest chain at mean job durations:",
+        "    1.50 h  training alpha on cube",
+        "       -    training beta on cube (unestimated)",
+    ]
+    assert wall_time.splitlines()[5] == (
+        "       -    merge_eval_perf (no job record)"
+    )
+
+
+def test_the_report_has_no_minimal_wall_time_without_estimated_jobs(
+    records: JobRecords,
+) -> None:
+    estimate = estimate_compute([planned(ALPHA_TRAINING)], records.table())
+
+    report = format_report(estimate, source="output")
+
+    assert "Minimal wall time: unknown, no planned job is estimated" in report
+
+
+def test_the_per_job_table_holds_each_job_s_dependencies(
+    records: JobRecords,
+) -> None:
+    alpha = planned(ALPHA_TRAINING)
+    beta = planned(BETA_TRAINING)
+    evaluation = planned(ALPHA_EVALUATION, after=[beta, alpha])
+    estimate = estimate_compute([alpha, beta, evaluation], records.table())
+
+    jobs = per_job_table(estimate)
+
+    assert jobs["jobid"].tolist() == [
+        alpha.jobid,
+        beta.jobid,
+        evaluation.jobid,
+    ]
+    assert jobs["dependencies"].tolist() == [
+        "[]",
+        "[]",
+        f"[{alpha.jobid}, {beta.jobid}]",
+    ]
