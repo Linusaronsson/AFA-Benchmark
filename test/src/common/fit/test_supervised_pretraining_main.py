@@ -6,8 +6,9 @@ from typing import override
 import pytest
 import torch
 import torch.nn.functional as F
+from jaxtyping import Float
 from lightning import LightningModule
-from torch import nn
+from torch import Tensor, nn
 
 from afabench.components.initializers.config import InitializerConfig
 from afabench.components.unmaskers.config import UnmaskerConfig
@@ -27,6 +28,11 @@ from afabench.fit.inputs import FitInputs
 from afabench.fit.supervised_learning import supervised_pretraining_main
 from afabench.testing.provenance import placeholder_provenance
 
+type Features = Float[Tensor, "batch n_features"]
+type Labels = Float[Tensor, "batch n_classes"]
+type Logits = Float[Tensor, "batch n_classes"]
+type Loss = Float[Tensor, ""]
+
 
 @dataclass(frozen=True, kw_only=True)
 class _TinyPretrainConfig(SupervisedPretrainingConfig):
@@ -38,19 +44,19 @@ class _TinyModel(LightningModule):
         super().__init__()
         self.linear = nn.Linear(n_features, n_classes)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: Features) -> Logits:
         return self.linear(x)
 
     @override
     def training_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:
+        self, batch: tuple[Features, Labels], batch_idx: int
+    ) -> Loss:
         features, labels = batch
         return F.mse_loss(self(features), labels)
 
     @override
     def validation_step(
-        self, batch: tuple[torch.Tensor, torch.Tensor], batch_idx: int
+        self, batch: tuple[Features, Labels], batch_idx: int
     ) -> None:
         features, labels = batch
         self.log(
