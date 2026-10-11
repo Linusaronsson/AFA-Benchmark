@@ -1,4 +1,3 @@
-from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -14,6 +13,7 @@ from afabench.components.methods.static.cae.train.tabular import (
 )
 from afabench.fit.inputs import load_inputs
 from afabench.fit.run import fit_run, save_result
+from afabench.fit.smoke_test import limit
 
 
 @hydra.main(
@@ -23,17 +23,13 @@ from afabench.fit.run import fit_run, save_result
 )
 def main(cfg: CAETrainingConfig) -> None:
     cfg = cast("CAETrainingConfig", OmegaConf.to_object(cfg))
-    if cfg.smoke_test:
-        cfg = replace(
-            cfg,
-            architecture=replace(
-                cfg.architecture,
-                selector=replace(
-                    cfg.architecture.selector, nepochs=1, patience=1
-                ),
-                classifier=replace(cfg.architecture.classifier, nepochs=1),
-            ),
-        )
+    cfg = limit(
+        cfg,
+        architecture={
+            "selector": {"nepochs": 1, "patience": 1},
+            "classifier": {"nepochs": 1},
+        },
+    )
     inputs = load_inputs(cfg)
     with fit_run(cfg, tags=["cae"], inputs=inputs) as metric_logger:
         if isinstance(cfg.architecture, CAEImageArchitectureConfig):

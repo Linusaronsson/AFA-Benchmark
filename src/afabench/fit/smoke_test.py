@@ -1,10 +1,15 @@
 import logging
-from dataclasses import replace
+from collections.abc import Mapping
+from dataclasses import is_dataclass, replace
+from typing import TYPE_CHECKING, cast
 
 import torch
 
 from afabench.core.types import AFADataset
-from afabench.fit.config import SupervisedLearningConfig
+from afabench.fit.contract import BaseContract
+
+if TYPE_CHECKING:
+    from _typeshed import DataclassInstance
 
 log = logging.getLogger(__name__)
 
@@ -13,6 +18,40 @@ SMOKE_TEST_N_BATCHES = 2
 SMOKE_TEST_N_SAMPLES = SMOKE_TEST_BATCH_SIZE * SMOKE_TEST_N_BATCHES
 SMOKE_TEST_N_TRAINING_SAMPLES = 10
 SMOKE_TEST_N_EPOCHS = 1
+
+
+def limit[ConfigT: BaseContract](cfg: ConfigT, **fields: object) -> ConfigT:
+    """
+    Replace `fields` of a fit-stage config during a smoke test.
+
+    A field given as a mapping where `cfg` holds a dataclass replaces only
+    the named fields of that dataclass, at any depth. Outside a smoke test
+    `cfg` is returned unchanged.
+    """
+    if not cfg.smoke_test:
+        return cfg
+
+    log.info("Smoke test detected.")
+    return _replace_fields(cfg, fields)
+
+
+def _replace_fields[ConfigT: "DataclassInstance"](
+    cfg: ConfigT, fields: Mapping[str, object]
+) -> ConfigT:
+    replacements: dict[str, object] = {}
+    for name, value in fields.items():
+        current = getattr(cfg, name)
+        if (
+            isinstance(value, Mapping)
+            and is_dataclass(current)
+            and not isinstance(current, type)
+        ):
+            replacements[name] = _replace_fields(
+                current, cast("Mapping[str, object]", value)
+            )
+        else:
+            replacements[name] = value
+    return replace(cfg, **replacements)
 
 
 def eval_settings(
@@ -56,19 +95,20 @@ def training_subset(
     )
 
 
-def limit_supervised_learning(
-    cfg: SupervisedLearningConfig, *, smoke_test: bool
-) -> SupervisedLearningConfig:
-    """Train one epoch of a few batches during a smoke test."""
-    if not smoke_test:
-        return cfg
+def limit_supervised_learning[ConfigT: BaseContract](cfg: ConfigT) -> ConfigT:
+    """
+    Train one epoch of a few batches during a smoke test.
 
-    log.info("Smoke test detected.")
-    return replace(
+    `cfg` holds a `SupervisedLearningConfig` in its `supervised_learning`
+    field.
+    """
+    return limit(
         cfg,
-        max_epochs=SMOKE_TEST_N_EPOCHS,
-        limit_train_batches=SMOKE_TEST_N_BATCHES,
-        limit_val_batches=SMOKE_TEST_N_BATCHES,
+        supervised_learning={
+            "max_epochs": SMOKE_TEST_N_EPOCHS,
+            "limit_train_batches": SMOKE_TEST_N_BATCHES,
+            "limit_val_batches": SMOKE_TEST_N_BATCHES,
+        },
     )
 
 

@@ -7,7 +7,6 @@ Trains a neural network policy via behavioral cloning.
 from __future__ import annotations
 
 import logging
-from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
@@ -26,6 +25,7 @@ from afabench.components.methods.oracle import (
 from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
 from afabench.fit.inputs import load_inputs
 from afabench.fit.run import fit_run, save_result
+from afabench.fit.smoke_test import limit
 
 if TYPE_CHECKING:
     from afabench.components.methods.oracle.aaco.config import (
@@ -34,13 +34,6 @@ if TYPE_CHECKING:
     from afabench.core.types import AFAClassifier
 
 logger = logging.getLogger(__name__)
-
-
-def _configure_smoke_test(cfg: AACONNTrainConfig) -> AACONNTrainConfig:
-    if not cfg.smoke_test:
-        return cfg
-    logger.info("Smoke test mode: reducing training samples and epochs")
-    return replace(cfg, max_epochs=2, batch_size=min(cfg.batch_size, 32))
 
 
 def _prepare_rollout_data(
@@ -92,7 +85,7 @@ def main(cfg: AACONNTrainConfig) -> None:
     logger.debug(cfg)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
-    cfg = _configure_smoke_test(cfg)
+    cfg = limit(cfg, max_epochs=2, batch_size=min(cfg.batch_size, 32))
     inputs = load_inputs(cfg)
     with fit_run(cfg, tags=["aaco_nn"], inputs=inputs) as metrics:
         aaco_method = inputs.pretrained_model(AACOAFAMethod)

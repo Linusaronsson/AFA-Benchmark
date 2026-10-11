@@ -1,4 +1,3 @@
-from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -12,6 +11,7 @@ from afabench.components.methods.discriminative.l2m.pretrain import (
 )
 from afabench.fit.inputs import load_inputs
 from afabench.fit.run import fit_run, save_result
+from afabench.fit.smoke_test import limit
 
 
 @hydra.main(
@@ -21,15 +21,14 @@ from afabench.fit.run import fit_run, save_result
 )
 def main(cfg: L2MPretrainingConfig) -> None:
     cfg = cast("L2MPretrainingConfig", OmegaConf.to_object(cfg))
-    if cfg.smoke_test:
-        # Model width is kept, so the smoke test runs the real architecture.
-        cfg = replace(
-            cfg,
-            sequence_length=16,
-            n_steps=2,
-            checkpoint_interval=1,
-            n_validation_tasks=2,
-        )
+    # Model width is kept, so the smoke test runs the real architecture.
+    cfg = limit(
+        cfg,
+        sequence_length=16,
+        n_steps=2,
+        checkpoint_interval=1,
+        n_validation_tasks=2,
+    )
     inputs = load_inputs(cfg)
     with fit_run(cfg, tags=["l2m"], inputs=inputs) as metric_logger:
         result = pretrain_l2m(

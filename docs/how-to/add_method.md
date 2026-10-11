@@ -123,6 +123,13 @@ separate object. Pass both helpers the script's `inputs`, so that each
 input bundle's manifest is read once; without `inputs=` they read the
 manifests again.
 
+To make a smoke test (`contract.smoke_test`) fast, shrink the config with
+`limit` from `afabench.fit.smoke_test` before loading the inputs:
+`cfg = limit(cfg, nepochs=1, patience=1)` replaces those fields during a
+smoke test and returns `cfg` unchanged otherwise. A mapping replaces only
+the named fields of a nested config dataclass, as in
+`limit(cfg, selector={"nepochs": 1})`.
+
 Nothing here is Hydra-specific except `@hydra.main` and `OmegaConf.to_object`;
 section 6 covers skipping both.
 

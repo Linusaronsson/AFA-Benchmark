@@ -9,7 +9,6 @@ the metric logger and saving (`afabench.fit.run`).
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import replace
 from typing import Any
 
 import torch
@@ -43,20 +42,19 @@ from afabench.core.utils import get_class_frequencies
 from afabench.fit.contract import TrainingContract
 from afabench.fit.inputs import FitInputs
 from afabench.fit.metric_logger import MetricLogger
-from afabench.fit.smoke_test import SMOKE_TEST_N_BATCHES
+from afabench.fit.smoke_test import SMOKE_TEST_N_BATCHES, limit
 
 log = logging.getLogger(__name__)
 
 
-def limit_training_loop(
-    cfg: AFARLTrainingLoopConfig, *, smoke_test: bool
-) -> AFARLTrainingLoopConfig:
-    """Train for only a few batches during a smoke test."""
-    if not smoke_test:
-        return cfg
+def limit_training_loop[ConfigT: TrainingContract](cfg: ConfigT) -> ConfigT:
+    """
+    Train for only a few batches during a smoke test.
 
-    log.info("Smoke test detected.")
-    return replace(cfg, n_batches=SMOKE_TEST_N_BATCHES)
+    `cfg` holds an `AFARLTrainingLoopConfig` in its `rl_training_loop`
+    field.
+    """
+    return limit(cfg, rl_training_loop={"n_batches": SMOKE_TEST_N_BATCHES})
 
 
 def _should_disable_collector_cuda_sync(device: torch.device) -> bool:

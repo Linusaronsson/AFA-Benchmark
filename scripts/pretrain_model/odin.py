@@ -1,6 +1,5 @@
 import logging
 from collections.abc import Callable
-from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -128,12 +127,7 @@ def main(cfg: ODINPretrainConfig) -> None:
     cfg = cast("ODINPretrainConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     torch.set_float32_matmul_precision("medium")
-    cfg = replace(
-        cfg,
-        supervised_learning=limit_supervised_learning(
-            cfg.supervised_learning, smoke_test=cfg.smoke_test
-        ),
-    )
+    cfg = limit_supervised_learning(cfg)
 
     inputs = load_inputs(cfg)
     with fit_run(cfg, tags=["odin"], inputs=inputs):

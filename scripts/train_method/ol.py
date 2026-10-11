@@ -1,5 +1,4 @@
 import logging
-from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -24,12 +23,7 @@ def main(cfg: OLTrainConfig) -> None:
     cfg = cast("OLTrainConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
     torch.set_float32_matmul_precision("medium")
-    cfg = replace(
-        cfg,
-        rl_training_loop=limit_training_loop(
-            cfg.rl_training_loop, smoke_test=cfg.smoke_test
-        ),
-    )
+    cfg = limit_training_loop(cfg)
 
     inputs = load_inputs(cfg)
     with fit_run(cfg, tags=["ol"], inputs=inputs) as logger:

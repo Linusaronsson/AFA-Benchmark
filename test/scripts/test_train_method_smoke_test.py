@@ -1,9 +1,15 @@
+from dataclasses import dataclass
+
 import torch
 
+from afabench.components.initializers.config import InitializerConfig
+from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.fit.config import SupervisedLearningConfig
+from afabench.fit.contract import PretrainingContract
 from afabench.fit.smoke_test import (
     dataset_subset,
     eval_settings,
+    limit,
     limit_supervised_learning,
     training_batch_size,
     training_subset,
@@ -132,37 +138,113 @@ def test_dataset_subset_keeps_dataset_without_smoke_test() -> None:
     assert subset is dataset
 
 
-def _supervised_learning_config() -> SupervisedLearningConfig:
-    return SupervisedLearningConfig(
-        batch_size=128,
-        max_epochs=100,
-        checkpoint_earliest_batch=0,
-        early_stopping_min_batches=0,
-        early_stopping_patience=50,
-        early_stopping_min_delta=1e-3,
-        val_check_interval=10,
-        limit_train_batches=None,
-        limit_val_batches=None,
+@dataclass(frozen=True, kw_only=True)
+class _SupervisedPretrainConfig(PretrainingContract):
+    supervised_learning: SupervisedLearningConfig
+
+
+def _supervised_pretrain_config(
+    *, smoke_test: bool
+) -> _SupervisedPretrainConfig:
+    return _SupervisedPretrainConfig(
+        train_dataset_bundle_path="train.bundle",
+        val_dataset_bundle_path="val.bundle",
+        classifier_bundle_path="classifier.bundle",
+        save_path="model.bundle",
+        initializer=InitializerConfig(class_name="ColdInitializer", kwargs={}),
+        unmasker=UnmaskerConfig(class_name="DirectUnmasker", kwargs={}),
+        dataset_key="cube",
+        device="cpu",
+        seed=0,
+        smoke_test=smoke_test,
+        supervised_learning=SupervisedLearningConfig(
+            batch_size=128,
+            max_epochs=100,
+            checkpoint_earliest_batch=0,
+            early_stopping_min_batches=0,
+            early_stopping_patience=50,
+            early_stopping_min_delta=1e-3,
+            val_check_interval=10,
+            limit_train_batches=None,
+            limit_val_batches=None,
+        ),
     )
 
 
 def test_limit_supervised_learning_keeps_config_without_smoke_test() -> None:
-    cfg = _supervised_learning_config()
+    cfg = _supervised_pretrain_config(smoke_test=False)
 
-    assert limit_supervised_learning(cfg, smoke_test=False) == cfg
+    assert limit_supervised_learning(cfg) == cfg
 
 
 def test_limit_supervised_learning_trains_one_short_epoch_for_smoke_test() -> (
     None
 ):
-    cfg = _supervised_learning_config()
+    cfg = _supervised_pretrain_config(smoke_test=True)
 
-    limited = limit_supervised_learning(cfg, smoke_test=True)
+    limited = limit_supervised_learning(cfg).supervised_learning
 
     assert (
         limited.max_epochs,
         limited.limit_train_batches,
         limited.limit_val_batches,
     ) == (1, 2, 2)
-    assert limited.batch_size == cfg.batch_size
-    assert cfg.max_epochs == 100
+    assert limited.batch_size == cfg.supervised_learning.batch_size
+    assert cfg.supervised_learning.max_epochs == 100
+
+
+@dataclass
+class _StopCriteria:
+    nepochs: int
+    patience: int
+
+
+@dataclass(frozen=True, kw_only=True)
+class _MethodPretrainConfig(PretrainingContract):
+    batch_size: int
+    selector: _StopCriteria
+    classifier: _StopCriteria
+
+
+def _method_config(*, smoke_test: bool) -> _MethodPretrainConfig:
+    return _MethodPretrainConfig(
+        train_dataset_bundle_path="train.bundle",
+        val_dataset_bundle_path="val.bundle",
+        classifier_bundle_path="classifier.bundle",
+        save_path="model.bundle",
+        initializer=InitializerConfig(class_name="ColdInitializer", kwargs={}),
+        unmasker=UnmaskerConfig(class_name="DirectUnmasker", kwargs={}),
+        dataset_key="cube",
+        device="cpu",
+        seed=0,
+        smoke_test=smoke_test,
+        batch_size=128,
+        selector=_StopCriteria(nepochs=100, patience=10),
+        classifier=_StopCriteria(nepochs=100, patience=10),
+    )
+
+
+def test_limit_replaces_the_given_fields_for_smoke_test() -> None:
+    cfg = _method_config(smoke_test=True)
+
+    limited = limit(cfg, batch_size=2)
+
+    assert limited.batch_size == 2
+    assert {**vars(limited), "batch_size": 128} == vars(cfg)
+    assert cfg.batch_size == 128
+
+
+def test_limit_keeps_config_without_smoke_test() -> None:
+    cfg = _method_config(smoke_test=False)
+
+    assert limit(cfg, batch_size=2) is cfg
+
+
+def test_limit_replaces_only_the_named_fields_of_a_nested_config() -> None:
+    cfg = _method_config(smoke_test=True)
+
+    limited = limit(cfg, selector={"nepochs": 1})
+
+    assert limited.selector == _StopCriteria(nepochs=1, patience=10)
+    assert limited.classifier == _StopCriteria(nepochs=100, patience=10)
+    assert cfg.selector == _StopCriteria(nepochs=100, patience=10)

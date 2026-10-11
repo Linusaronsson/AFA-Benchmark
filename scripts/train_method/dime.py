@@ -1,4 +1,3 @@
-from dataclasses import replace
 from typing import cast
 
 import hydra
@@ -10,6 +9,7 @@ from afabench.components.methods.discriminative.dime.config import (
 from afabench.components.methods.discriminative.dime.train import train
 from afabench.fit.inputs import load_inputs
 from afabench.fit.run import fit_run, save_result
+from afabench.fit.smoke_test import limit
 
 
 @hydra.main(
@@ -19,8 +19,7 @@ from afabench.fit.run import fit_run, save_result
 )
 def main(cfg: DIMETrainingConfig) -> None:
     cfg = cast("DIMETrainingConfig", OmegaConf.to_object(cfg))
-    if cfg.smoke_test:
-        cfg = replace(cfg, nepochs=1, patience=1)
+    cfg = limit(cfg, nepochs=1, patience=1)
     inputs = load_inputs(cfg)
     with fit_run(cfg, tags=["dime"], inputs=inputs) as metric_logger:
         result = train(cfg, metric_logger=metric_logger.log, inputs=inputs)

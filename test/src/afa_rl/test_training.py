@@ -9,6 +9,7 @@ or in the run's cleanup, would reach the recording CUDA stubs.
 """
 
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -193,28 +194,40 @@ def test_rl_trainer_trains_on_cpu_without_touching_cuda(
     )
 
 
-def _training_loop_config() -> AFARLTrainingLoopConfig:
-    return AFARLTrainingLoopConfig(
-        frames_per_batch=64,
-        n_batches=500,
-        eval_max_steps=10,
-        n_eval_episodes=20,
-        eval_n_times=10,
+def test_limit_training_loop_keeps_config_without_smoke_test(
+    tmp_path: Path,
+) -> None:
+    cfg = _make_jafa_train_config(
+        tmp_path / "train.bundle",
+        tmp_path / "val.bundle",
+        tmp_path / "pretrained.bundle",
     )
 
-
-def test_limit_training_loop_keeps_config_without_smoke_test() -> None:
-    cfg = _training_loop_config()
-
-    assert limit_training_loop(cfg, smoke_test=False) == cfg
+    assert limit_training_loop(cfg) == cfg
 
 
-def test_limit_training_loop_trains_a_few_batches_for_smoke_test() -> None:
-    cfg = _training_loop_config()
+def test_limit_training_loop_trains_a_few_batches_for_smoke_test(
+    tmp_path: Path,
+) -> None:
+    cfg = replace(
+        _make_jafa_train_config(
+            tmp_path / "train.bundle",
+            tmp_path / "val.bundle",
+            tmp_path / "pretrained.bundle",
+        ),
+        rl_training_loop=AFARLTrainingLoopConfig(
+            frames_per_batch=64,
+            n_batches=500,
+            eval_max_steps=10,
+            n_eval_episodes=20,
+            eval_n_times=10,
+        ),
+        smoke_test=True,
+    )
 
-    limited = limit_training_loop(cfg, smoke_test=True)
+    limited = limit_training_loop(cfg).rl_training_loop
 
     assert limited.n_batches == SMOKE_TEST_N_BATCHES
-    assert limited.frames_per_batch == cfg.frames_per_batch
-    assert limited.eval_n_times == cfg.eval_n_times
-    assert cfg.n_batches == 500
+    assert limited.frames_per_batch == 64
+    assert limited.eval_n_times == 10
+    assert cfg.rl_training_loop.n_batches == 500

@@ -27,6 +27,7 @@ from afabench.components.methods.static.pt.static_methods import (
 )
 from afabench.components.methods.static.pt.utils import transform_dataset
 from afabench.fit.run import fit_run, save_result
+from afabench.fit.smoke_test import limit
 
 log = logging.getLogger(__name__)
 
@@ -44,10 +45,11 @@ def main(cfg: PermutationTrainingConfig) -> None:
     hard_budget = cfg.hard_budget
     device = torch.device(cfg.device)
     torch.set_float32_matmul_precision("medium")
-    if cfg.smoke_test:
-        cfg.selector.nepochs = 1
-        cfg.selector.patience = 1
-        cfg.classifier.nepochs = 1
+    cfg = limit(
+        cfg,
+        selector={"nepochs": 1, "patience": 1},
+        classifier={"nepochs": 1},
+    )
 
     with fit_run(cfg, tags=["permutation"]) as metric_logger:
         train_dataset, val_dataset, _, _, class_weights = (
