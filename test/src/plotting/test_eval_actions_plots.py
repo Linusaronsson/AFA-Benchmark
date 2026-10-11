@@ -3,16 +3,12 @@ from pathlib import Path
 import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
-from omegaconf import OmegaConf
 
 from afabench.evaluation.tables import load_plotting_ready_table
-from afabench.plotting.config import (
-    PlotEvalActionsConfig,
-    PlottingDisplayConfig,
-)
-from scripts.plotting.plot_eval_actions import (
-    main,
+from afabench.plotting.config import PlottingDisplayConfig
+from afabench.plotting.eval_actions import (
     normalize_heatmap_by_timestep,
+    save_all_action_heatmaps,
 )
 
 
@@ -104,16 +100,13 @@ def test_one_heatmap_file_per_dataset_and_budget(
         ],
     )  # fmt: skip
     output_folder = tmp_path / "plots"
-    cfg = OmegaConf.structured(
-        PlotEvalActionsConfig(
-            input=str(input_path),
-            output_folder=str(output_folder),
-            formats=["png"],
-            plotting=plotting_config,
-        )
-    )
 
-    main(cfg)
+    save_all_action_heatmaps(
+        load_plotting_ready_table(input_path),
+        output_folder,
+        plotting_config,
+        formats=["png"],
+    )
 
     assert sorted(
         path.relative_to(output_folder).as_posix()
