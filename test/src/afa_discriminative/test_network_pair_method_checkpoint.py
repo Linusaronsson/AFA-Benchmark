@@ -1,5 +1,7 @@
 """GDFS and DIME bundles: the model.pt format both methods write and read."""
 
+from collections.abc import Iterator
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -10,6 +12,10 @@ from afabench.components.methods.discriminative.common.afa_methods import (
 )
 from afabench.components.methods.discriminative.common.checkpoint import (
     NetworkPairSpec,
+)
+from afabench.components.methods.discriminative.common.models import (
+    ConvNet,
+    Predictor,
 )
 from afabench.components.methods.discriminative.dime.afa_methods import (
     DIMEAFAMethod,
@@ -149,6 +155,78 @@ def test_a_bundle_written_before_grouped_selections_and_selection_costs_loads(
     torch.testing.assert_close(loaded.selection_costs, torch.ones(D_IN))
     masked_features, feature_mask, _ = _episode_inputs()
     assert loaded.act(masked_features, feature_mask).shape == (5, 1)
+
+
+@pytest.fixture
+def single_torch_thread() -> Iterator[None]:
+    previous = torch.get_num_threads()
+    torch.set_num_threads(1)
+    try:
+        yield
+    finally:
+        torch.set_num_threads(previous)
+
+
+@pytest.mark.usefixtures("single_torch_thread")
+@pytest.mark.parametrize("method_class", METHOD_CLASSES)
+@pytest.mark.parametrize("lambda_threshold", [None, 0.25])
+def test_image_bundle_preserves_trained_backbones_and_behaviour(
+    tmp_path: Path,
+    method_class: type[NetworkPairAFAMethod],
+    lambda_threshold: float | None,
+) -> None:
+    spec = NetworkPairSpec(
+        modality="image",
+        d_out=3,
+        backbone="resnet18",
+        image_size=96,
+        patch_size=16,
+        mask_width=6,
+    )
+    with torch.random.fork_rng():
+        torch.manual_seed(117)
+        policy, predictor = spec.build_networks(CPU)
+    assert isinstance(policy, ConvNet)
+    assert isinstance(predictor, Predictor)
+    if method_class is GDFSAFAMethod:
+        policy.backbone = deepcopy(predictor.backbone)
+        with torch.no_grad():
+            next(policy.backbone.parameters()).fill_(0.01)
+            next(predictor.backbone.parameters()).fill_(0.02)
+    policy.eval()
+    predictor.eval()
+    method = method_class(
+        policy, predictor, spec, CPU, lambda_threshold=lambda_threshold
+    )
+    rng = torch.Generator().manual_seed(117)
+    features = torch.randn((2, 3, 96, 96), generator=rng)
+    mask = torch.zeros_like(features, dtype=torch.bool)
+    mask[:, :, :16, :16] = True
+    features = features.masked_fill(~mask, 0)
+    method.save(tmp_path)
+    loaded = method_class.load(tmp_path, CPU)
+
+    with torch.no_grad():
+        torch.testing.assert_close(
+            loaded.policy_network(features), policy(features)
+        )
+        torch.testing.assert_close(
+            loaded.predict(features, mask), method.predict(features, mask)
+        )
+        assert torch.equal(
+            loaded.act(features, mask), method.act(features, mask)
+        )
+    assert isinstance(loaded.policy_network, ConvNet)
+    assert isinstance(loaded.predictor, Predictor)
+    for original, restored in zip(
+        policy.state_dict().values(),
+        loaded.policy_network.state_dict().values(),
+        strict=True,
+    ):
+        torch.testing.assert_close(restored, original)
+    assert (loaded.policy_network.backbone is loaded.predictor.backbone) == (
+        method_class is DIMEAFAMethod
+    )
 
 
 def test_a_method_without_soft_budget_parameter_never_stops_on_entropy(

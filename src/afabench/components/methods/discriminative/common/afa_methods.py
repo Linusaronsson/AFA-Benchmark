@@ -191,7 +191,9 @@ class NetworkPairAFAMethod(AFAMethodBase, ABC):
         spec = NetworkPairSpec.from_dict(
             checkpoint["architecture"], cls.policy_network_name
         )
-        policy_network, predictor = spec.build_networks(device)
+        policy_network, predictor = spec.build_networks(
+            device, share_image_backbone=cls.policy_network_name != "selector"
+        )
         policy_network.load_state_dict(
             checkpoint[f"{cls.policy_network_name}_state_dict"]
         )

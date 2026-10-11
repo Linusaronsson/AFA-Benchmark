@@ -20,7 +20,8 @@ every behavioural difference from upstream that the check found.
   `architecture` dict; the dict's keys are unchanged, and the policy
   network's hidden layers stay keyed by each method's own name for it
   (`selector_hidden_layers`, `value_network_hidden_layers`), so published
-  bundles load as before.
+  bundles remain readable (GDFS image evaluation changes with the #117
+  fix described below).
 - **The method class**, `NetworkPairAFAMethod` in
   `discriminative/common/afa_methods.py`: `save`, `load`, `to`, the
   soft-budget parameter (`lambda_threshold`), `predict`, the exclusion of
@@ -117,14 +118,29 @@ These predate #105 and remain after #116. They were kept on purpose in
   `test_dime_single_backward_matches_per_acquisition_backward` shows
   gives the same gradients.
 
-## A pre-existing bug kept for compatibility
+## GDFS image bundle loading correction (#117)
 
-`load` rebuilds an image method's predictor and policy network on one
-ResNet backbone and loads the policy network's state dict first, so the
-predictor's backbone weights overwrite the policy network's. GDFS trains
-the selector on its own backbone, so a loaded GDFS image bundle runs the
-selector on the predictor's backbone (#117). DIME trains the value
-network on the predictor's backbone, so for DIME the rebuilt pair
-matches training. `NetworkPairSpec.build_networks` keeps the shared
-backbone because published GDFS image bundles must load and evaluate
-unchanged.
+Previously, `load` rebuilt an image method's built-in classifier and policy
+network on one ResNet backbone and loaded the policy network's state dict
+first. The classifier's backbone weights then overwrote the policy network's.
+GDFS trains the selector on its own backbone, so the loaded method did not
+match the in-memory trained method. The #105 refactor preserved this bug
+for compatibility; #117 deliberately fixes it, accepting changes to the
+published `kdd26` GDFS image results.
+
+GDFS image loading now rebuilds two independent backbones and restores each
+network's own weights. DIME still shares one backbone, matching its training.
+The `model.pt` keys and architecture dict are unchanged. Existing GDFS image
+bundles contain both backbones' weights and remain readable without migration
+or retraining, but re-evaluating them now uses the selector's trained backbone
+and can change selections and evaluation results.
+
+This affects `gdfs` on `mnist`, `fashion_mnist`, `synthetic_mnist`,
+`synthetic_mnist_without_noise` and `imagenette`, in both the hard-budget and
+soft-budget settings, with either the built-in or external classifier.
+Tabular GDFS and DIME are unaffected. Stored evaluation tables and plots do
+not change automatically: corrected results require re-evaluation and
+regeneration of downstream tables and plots. The `kdd26` profile does not
+restore the buggy loading behaviour; reproducing the published GDFS image
+numbers requires the pre-fix code revision or the published evaluation tables.
+The size and direction of the result changes have not been measured here.

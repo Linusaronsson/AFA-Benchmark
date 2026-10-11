@@ -14,6 +14,7 @@ name for it (`selector` for GDFS, `value_network` for DIME), so the two
 checkpoint formats stay distinct and published bundles keep loading.
 """
 
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Literal, Self
 
@@ -48,8 +49,9 @@ class NetworkPairSpec:
     How to rebuild a method's policy network and predictor.
 
     A tabular pair is two MLPs over the features with the feature mask
-    appended; an image pair is a predictor and a ConvNet on one ResNet
-    backbone, selecting among `mask_width` squared patches.
+    appended; an image pair is a predictor and a ConvNet on ResNet
+    backbones, selecting among `mask_width` squared patches. DIME shares
+    the backbone; GDFS keeps the selector's backbone independent.
     """
 
     modality: Modality
@@ -139,9 +141,9 @@ class NetworkPairSpec:
         raise ValueError(msg)
 
     def build_networks(
-        self, device: torch.device
+        self, device: torch.device, *, share_image_backbone: bool = True
     ) -> tuple[nn.Module, nn.Module]:
-        """Build the untrained (policy network, predictor) pair on `device`."""
+        """Build the pair on `device`; GDFS needs an independent image backbone."""
         if self.modality == "tabular":
             assert self.d_in is not None
             assert self.n_selections is not None
@@ -165,12 +167,14 @@ class NetworkPairSpec:
                 if self.backbone == "resnet18"
                 else resnet50(pretrained=False)
             )
-            # One backbone module serves both networks, as the methods
-            # have always rebuilt them; the state dict loaded last wins,
-            # which is wrong for GDFS, whose selector trains on its own
-            # backbone, and kept so published bundles evaluate unchanged
-            # (#117, docs/explanation/gdfs_dime_shared_code.md)
             backbone_net, expansion = ResNet18Backbone(base)
             predictor = Predictor(backbone_net, expansion, self.d_out)
-            policy_network = ConvNet(backbone_net, expansion, 0.5)
+            # GDFS trains two backbones. Reusing the module would let
+            # the classifier's state dict overwrite the selector's (#117).
+            policy_backbone = (
+                backbone_net
+                if share_image_backbone
+                else deepcopy(backbone_net)
+            )
+            policy_network = ConvNet(policy_backbone, expansion, 0.5)
         return policy_network.to(device), predictor.to(device)
