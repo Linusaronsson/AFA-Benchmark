@@ -10,28 +10,29 @@ Datasets in AFA-Benchmark are serialized as **bundles** (directories containing 
 
 Define a dataset class in `src/afabench/datasets/datasets.py` that implements the `AFADataset` protocol from `src/afabench/core/types.py`.
 
+A dataset whose instances fit in memory as tensors subclasses
+`InMemoryAFADataset` from `src/afabench/datasets/in_memory.py`. It supplies
+its shapes, its config and how to build its tensors; the base owns the rest
+of the protocol: subsets, indexing, and saving and loading `dataset.pt`.
+
 **Minimal example:**
 
-
 ```python
-from collections.abc import Sequence
-from pathlib import Path
-from typing import Self, override
+from typing import ClassVar, final, override
 
 import torch
 import torch.nn.functional as F
 from torch import Tensor
-from torch.utils.data import Dataset
 
-from afabench.core.types import AFADataset, GenerationIndices
-from afabench.datasets.feature_costs import load_saved_feature_costs
-from afabench.datasets.utils import (
-    default_create_subset,
-    load_generation_indices,
-)
+from afabench.datasets.in_memory import InMemoryAFADataset
 
 
-class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+@final
+class MyDataset(InMemoryAFADataset):
+    # The constructor arguments that generated the data; saved as the
+    # bundle's config and restored as attributes on load
+    config_keys: ClassVar[tuple[str, ...]] = ("n_samples",)
+
     @classmethod
     @override
     def accepts_seed(cls) -> bool:
@@ -47,104 +48,53 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def label_shape(self) -> torch.Size:
         return torch.Size([3])
 
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
-
-    @override
-    def get_generation_indices(self) -> GenerationIndices:
-        return self.generation_indices
-
     def __init__(self, n_samples: int):
-        super().__init__()
         self.n_samples = n_samples
+        super().__init__()
 
-        self.features = torch.randn(n_samples, 5)
-        self.labels = F.one_hot(
+    @override
+    def _build(self) -> tuple[Tensor, Tensor]:
+        features = torch.randn(self.n_samples, 5)
+        labels = F.one_hot(
             torch.randint(low=0, high=3, size=(self.n_samples,)),
             num_classes=3,
         ).float()
-        self.generation_indices = torch.arange(n_samples)
-
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self) -> int:
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "config": {
-                    "n_samples": self.n_samples,
-                },
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.n_samples = data["config"]["n_samples"]
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
+        return features, labels
 ```
 
+The constructor sets the config attributes, then `super().__init__()` calls
+`_build`, checks the tensors against `feature_shape` and `label_shape`, and
+numbers the instances. A real-world tabular dataset read from one CSV file
+subclasses `TabularCSVDataset` instead and only declares its shapes and its
+file argument; see `DiabetesDataset`. A dataset that cannot hold its
+instances in memory, like `ImagenetteDataset`, implements the protocol
+itself.
+
 Every instance carries its **generation index**, its position in the
-dataset your constructor produces, before dataset generation splits it
+dataset your class produces, before dataset generation splits it
 (`docs/adr/0004-instances-carry-their-generation-index.md`). Evaluation
 tables record it per episode, so an odd result can be traced back to the
-instance. Your class must:
-
-- **Number its instances in generation order.** The constructor sets
-  `generation_indices` to `0..n-1`; the generation script checks this before
-  splitting.
-- **Keep the source order for real-world data.** Do not drop, sort or shuffle
-  the rows you read, so that generation index `i` is row `i` of the source in
-  every dataset realization. If a source must be filtered or reordered, keep
-  the mapping to the source yourself.
-- **Compose them in `create_subset`.** A subset's generation indices are the
-  parent's at the selected positions. `default_create_subset` does this for
-  in-memory datasets with `features`, `labels` and `generation_indices`.
-- **Persist them.** `save` writes them and `load` reads them with
-  `load_generation_indices`, which raises `MissingGenerationIndicesError`
-  for a bundle saved without them.
+instance. The base numbers the instances `_build` returns `0..n-1`, composes
+the indices in `create_subset`, and persists them: `load` raises
+`MissingGenerationIndicesError` for a bundle saved without them. Your class
+must **keep the source order for real-world data**: do not drop, sort or
+shuffle the rows you read, so that generation index `i` is row `i` of the
+source in every dataset realization. If a source must be filtered or
+reordered, keep the mapping to the source yourself.
 
 `test/src/common/datasets/test_generation_indices.py` checks all of this for
 every registered dataset class. Tell its `dataset_kwargs` how to build a
 small instance of yours; if it reads a CSV, add it to `TABULAR_SOURCES` so
 the source-order test covers it too.
 
-Your class must also persist its **feature costs**
+The base also persists the **feature costs**
 (`docs/adr/0011-feature-costs-stored-in-dataset-bundles.md`): `save` writes
-`get_feature_acquisition_costs()` and `load` reads them with
-`load_saved_feature_costs`, which raises `MissingFeatureCostsError` for a
-bundle saved without them. Dataset generation sets them before saving:
+`get_feature_acquisition_costs()` and `load` raises `MissingFeatureCostsError`
+for a bundle saved without them. Dataset generation sets them before saving:
 
 - **Unit costs** need nothing more.
 - **Costs computed from config**, as in CUBE-NM: set `self.feature_costs` in
-  the constructor.
+  the constructor, after `super().__init__()`.
 - **Costs from a file**: put one value per feature, in flattened feature
   order, in `data/<dataset key>/feature_costs.csv`, then regenerate the
   dataset. `scripts/misc/generate_feature_costs.py` writes a random one. The
@@ -152,9 +102,11 @@ bundle saved without them. Dataset generation sets them before saving:
   own costs must not have one.
 
 `test/src/common/datasets/test_feature_costs.py` checks that the costs reach
-every split bundle.
+every split bundle, and `test/src/common/datasets/test_in_memory_dataset.py`
+checks the base's subset and persistence rules once for every in-memory
+dataset.
 
-If your dataset is synthetic and should vary by dataset realization, make `accepts_seed()` return `True` and add a `seed` argument to `__init__`. The dataset generation script will pass one seed per dataset realization automatically.
+If your dataset is synthetic and should vary by dataset realization, make `accepts_seed()` return `True`, add a `seed` argument to `__init__` and list it in `config_keys`. The dataset generation script will pass one seed per dataset realization automatically.
 
 ### 2. Create an entry in dataset generation config
 
