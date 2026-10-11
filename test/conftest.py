@@ -1,6 +1,9 @@
 """Root pytest configuration for all tests."""
 
 import subprocess
+from collections import Counter
+from pathlib import Path
+from typing import IO, Any
 
 import pytest
 import torch
@@ -105,6 +108,21 @@ def datasets(request: pytest.FixtureRequest) -> list[str] | None:
         assert isinstance(datasets_arg, list)
         return datasets_arg
     return None
+
+
+@pytest.fixture
+def manifest_reads(monkeypatch: pytest.MonkeyPatch) -> Counter[Path]:
+    """Count the reads of each bundle's manifest from now on, by bundle path."""
+    reads: Counter[Path] = Counter()
+    path_open = Path.open
+
+    def counting_open(path: Path, *args: Any, **kwargs: Any) -> IO[Any]:  # noqa: ANN401
+        if path.name == "manifest.json":
+            reads[path.parent] += 1
+        return path_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", counting_open)
+    return reads
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:

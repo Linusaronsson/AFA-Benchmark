@@ -16,11 +16,7 @@ from afabench.components.initializers.utils import (
 from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
-from afabench.core.bundle_system.bundle import (
-    bundle_input,
-    bundle_provenance,
-    load_bundle,
-)
+from afabench.core.bundle_system.bundle import LoadedBundle, load_bundle
 from afabench.core.provenance import (
     ProvenanceRecord,
     capture_provenance,
@@ -72,10 +68,13 @@ class AFAEvaluator:
         self._seed: int | None = None
         self._provenance: ProvenanceRecord | None = None
         self._wandb_run: Run | None = None
+        self._method_bundle: LoadedBundle[AFAMethod] | None = None
         self._method: AFAMethod | None = None
         self._unmasker: AFAUnmasker | None = None
         self._initializer: AFAInitializer | None = None
+        self._dataset_bundle: LoadedBundle[AFADataset] | None = None
         self._dataset: AFADataset | None = None
+        self._classifier_bundle: LoadedBundle[AFAClassifier] | None = None
         self._external_classifier: AFAClassifier | None = None
         self._n_selection_choices: int | None = None
         self._selection_costs: torch.Tensor | None = None
@@ -100,11 +99,12 @@ class AFAEvaluator:
     ) -> None:
         # Load method
         device = torch.device(self._cfg.device)
-        self._method = load_bundle(
-            Path(self._cfg.method_bundle_path),
-            expect=AFAMethod,
-            device=device,
-        ).obj
+        # Paths are passed as given, so the provenance record keeps them
+        # as passed (ADR 0002)
+        self._method_bundle = load_bundle(
+            self._cfg.method_bundle_path, expect=AFAMethod, device=device
+        )
+        self._method = self._method_bundle.obj
         log.info(f"Loaded AFA method from {self._cfg.method_bundle_path}")
 
         # Load unmasker
@@ -118,22 +118,25 @@ class AFAEvaluator:
         log.info(f"Loaded {self._cfg.initializer.class_name} initializer")
 
         # Load dataset
-        self._dataset = load_bundle(
-            Path(self._cfg.dataset_bundle_path), expect=AFADataset
-        ).obj
+        self._dataset_bundle = load_bundle(
+            self._cfg.dataset_bundle_path, expect=AFADataset
+        )
+        self._dataset = self._dataset_bundle.obj
         log.info(f"Loaded dataset from {self._cfg.dataset_bundle_path}")
 
         # Load external classifier if specified
         if self._cfg.classifier_bundle_path is not None:
-            self._external_classifier = load_bundle(
-                Path(self._cfg.classifier_bundle_path),
+            self._classifier_bundle = load_bundle(
+                self._cfg.classifier_bundle_path,
                 expect=AFAClassifier,
                 device=device,
-            ).obj
+            )
+            self._external_classifier = self._classifier_bundle.obj
             log.info(
                 f"Loaded external classifier from {self._cfg.classifier_bundle_path}."
             )
         else:
+            self._classifier_bundle = None
             self._external_classifier = None
             log.info(
                 "No external classifier provided; using builtin classifier."
@@ -253,7 +256,8 @@ class AFAEvaluator:
             force_acquisition=self._cfg.hard_budget is not None,
         )
 
-        method_record = bundle_provenance(Path(self._cfg.method_bundle_path))
+        assert self._method_bundle is not None
+        method_record = self._method_bundle.manifest.provenance
         self._provenance = self._capture_provenance(method_record)
         identity = _identity_columns(
             self._provenance,
@@ -270,15 +274,15 @@ class AFAEvaluator:
     ) -> ProvenanceRecord:
         """Capture the record after smoke-test overrides, with the seed used."""
         assert self._seed is not None
+        assert self._method_bundle is not None
+        assert self._dataset_bundle is not None
         inputs = [
-            bundle_input("method", self._cfg.method_bundle_path),
-            bundle_input("eval_dataset", self._cfg.dataset_bundle_path),
+            self._method_bundle.as_input("method"),
+            self._dataset_bundle.as_input("eval_dataset"),
         ]
-        if self._cfg.classifier_bundle_path is not None:
-            inputs.append(
-                bundle_input("classifier", self._cfg.classifier_bundle_path)
-            )
-        dataset_record = bundle_provenance(Path(self._cfg.dataset_bundle_path))
+        if self._classifier_bundle is not None:
+            inputs.append(self._classifier_bundle.as_input("classifier"))
+        dataset_record = self._dataset_bundle.manifest.provenance
         return capture_provenance(
             stage="evaluation",
             resolved_config=asdict(self._cfg),

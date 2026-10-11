@@ -3,6 +3,7 @@
 import json
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -227,6 +228,23 @@ def test_evaluator_records_its_inputs_and_identity(
     assert record.resolved_config == asdict(cfg)
     assert record.resolved_config["batch_size"] == 2
     assert record.resolved_config["eval_only_n_samples"] == 4
+
+
+def test_evaluator_reads_each_input_manifest_once(
+    eval_inputs: EvalInputs,
+    tmp_path: Path,
+    manifest_reads: Counter[Path],
+) -> None:
+    AFAEvaluator(
+        eval_config(eval_inputs, tmp_path / "eval_data.parquet", seed=5),
+        initializer_name="warm",
+    ).run()
+
+    assert manifest_reads == {
+        eval_inputs.method: 1,
+        eval_inputs.dataset: 1,
+        eval_inputs.classifier: 1,
+    }
 
 
 def test_evaluation_table_columns_identify_it_without_afabench(
