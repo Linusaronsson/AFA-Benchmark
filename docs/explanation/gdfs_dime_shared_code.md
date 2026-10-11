@@ -39,6 +39,20 @@ every behavioural difference from upstream that the check found.
   the zero-temperature best kept at the end) and `DIMETrainingObjective`
   (CMI regression with epsilon-greedy exploration, decaying epsilon and
   resetting the learning rate on a plateau).
+- **The modality setup**, `prepare_modality` in
+  `discriminative/common/modality.py` (issue #106), so each method has one
+  `train` for tabular and image datasets. It reads the pretrained model's
+  architecture and answers a `TabularSetup` (MLP policy network, flat
+  features with the feature mask appended) or an `ImageSetup` (ConvNet
+  policy network on a ResNet backbone, patches of the pretrained model's
+  geometry): the loaders, the mask layer, the policy network and its
+  output check, and the checkpoint's `NetworkPairSpec`. The per-modality
+  differences the trainers always had stay in the setup: only tabular
+  training weights classes, charges the dataset's feature costs and
+  falls back to the upstream `min_lr` when the config sets none; image
+  training charges unit costs and requires `min_lr`. DIME passes its
+  predictor to `policy_network(share_with=...)`, which ties the first
+  two linear layers (tabular) or reuses the backbone (image).
 
 Only what upstream GDFS and DIME already had in common is shared; each
 difference between the two papers stays in the method's own package.

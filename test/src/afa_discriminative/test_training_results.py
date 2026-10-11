@@ -21,8 +21,8 @@ from afabench.components.methods.discriminative.dime.config import (
 from afabench.components.methods.discriminative.dime.pretrain.tabular import (
     pretrain_tabular,
 )
-from afabench.components.methods.discriminative.dime.train.tabular import (
-    train_tabular,
+from afabench.components.methods.discriminative.dime.train import (
+    train as train_dime,
 )
 from afabench.components.methods.discriminative.gdfs.afa_methods import (
     GDFSAFAMethod,
@@ -35,8 +35,8 @@ from afabench.components.methods.discriminative.gdfs.config import (
 from afabench.components.methods.discriminative.gdfs.pretrain.tabular import (
     pretrain_tabular as pretrain_gdfs,
 )
-from afabench.components.methods.discriminative.gdfs.train.tabular import (
-    train_tabular as train_gdfs,
+from afabench.components.methods.discriminative.gdfs.train import (
+    train as train_gdfs,
 )
 from afabench.components.methods.static.cae.config import (
     CAETabularArchitectureConfig,
@@ -133,7 +133,7 @@ def test_training_returns_method_without_saving(
         if method == "dime"
         else GDFSTabularArchitectureConfig
     )
-    train = train_tabular if method == "dime" else train_gdfs
+    train = train_dime if method == "dime" else train_gdfs
     result_type = DIMEAFAMethod if method == "dime" else GDFSAFAMethod
     method_kwargs = (
         {"eps": 0.05, "eps_decay": 0.2, "eps_steps": 1}

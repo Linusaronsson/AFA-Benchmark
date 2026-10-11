@@ -5,15 +5,9 @@ import hydra
 from omegaconf import OmegaConf
 
 from afabench.components.methods.discriminative.dime.config import (
-    DIMEImageArchitectureConfig,
     DIMETrainingConfig,
 )
-from afabench.components.methods.discriminative.dime.train.image import (
-    train_image,
-)
-from afabench.components.methods.discriminative.dime.train.tabular import (
-    train_tabular,
-)
+from afabench.components.methods.discriminative.dime.train import train
 from afabench.fit.inputs import load_inputs
 from afabench.fit.run import fit_run, save_result
 
@@ -33,14 +27,7 @@ def main(cfg: DIMETrainingConfig) -> None:
     ) as metric_logger:
         inputs.initializer().set_seed(cfg.seed)
         inputs.unmasker().set_seed(cfg.seed)
-        if isinstance(cfg.architecture, DIMEImageArchitectureConfig):
-            result = train_image(
-                cfg, metric_logger=metric_logger.log, inputs=inputs
-            )
-        else:
-            result = train_tabular(
-                cfg, metric_logger=metric_logger.log, inputs=inputs
-            )
+        result = train(cfg, metric_logger=metric_logger.log, inputs=inputs)
         save_result(result, cfg, cfg, inputs=inputs)
 
 
