@@ -26,12 +26,13 @@ re-evaluated (see [reference methods](reference_methods.md)).
   [add a dataset](../how-to/add_dataset.md)
 - [Compare your method with published results](../how-to/compare_your_method_with_published_results.md)
 
-## Independent evaluator
+## Library user
 
-Wants AFABench's evaluation functions without adopting its pipeline, for
-example to evaluate a method inside their own code base. AFABench is not
+Wants AFABench's library code, such as its evaluation functions or models,
+without adopting its pipeline, for example to evaluate a method inside
+their own code base. AFABench is not
 published as a package, so this user installs it from the repository. No
-guide covers this yet; the evaluation code is in `afabench/evaluation/`.
+guide covers this yet; the evaluation code is in `src/afabench/evaluation/`.
 
 ## Maintainer
 

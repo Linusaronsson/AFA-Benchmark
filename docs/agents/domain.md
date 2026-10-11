@@ -16,7 +16,7 @@ when exploring the codebase.
 Supporting background, in order of authority when they disagree:
 
 1. `CONTEXT.md` (canonical terms).
-2. The code's protocols in `afabench/core/types.py` (what the terms mean
+2. The code's protocols in `src/afabench/core/types.py` (what the terms mean
    operationally).
 3. The paper "AFABench: A Generic Framework for Benchmarking Active Feature
    Acquisition" (Schütz, Wu, Rezvan, Aronsson, Haghir Chehreghani, KDD '26,
@@ -36,7 +36,7 @@ Single-context repo:
 /
 ├── CONTEXT.md
 ├── docs/adr/            ← architecture decision records
-├── afabench/            ← library code
+├── src/afabench/        ← library code
 ├── scripts/             ← pipeline entry points
 ├── conf/                ← Hydra configs
 ├── workflow/            ← Snakemake workflows

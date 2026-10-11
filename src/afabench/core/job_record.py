@@ -36,7 +36,8 @@ from typing import Annotated, Any, Literal
 
 import typer
 
-from afabench.core.code_identity import AFABENCH_CHECKOUT, code_identity
+from afabench.core.checkout import AFABENCH_CHECKOUT
+from afabench.core.code_identity import code_identity
 
 JOB_RECORD_VERSION = 1
 # A record is named after its artifact: model.bundle, model.job_record.json

@@ -91,7 +91,7 @@ format given there. To find the changes since the previous release:
 
 1. Review `git log <previous commit>..<new commit>` for each producing
    commit `save` printed, especially changes under `conf/`,
-   `workflow/`, `afabench/` and `scripts/`.
+   `workflow/`, `src/afabench/` and `scripts/`.
 2. Compare the two manifests' `workflow_config.merged`, and the
    `resolved_config` of corresponding artifacts' provenance records.
 3. Sort each change into a compatibility change or a result-affecting

@@ -43,7 +43,7 @@ build-images *args:
     python3 containers/submit_builds.py "$@"
 
 # Paths the workflow tier depends on
-workflow_paths := "workflow/ containers/submit_builds.py conf/ test/workflow/ afabench/release/ afabench/fit/contract afabench/core/bundle_system/ afabench/core/output_layout afabench/core/workflow_settings afabench/compute_estimate/ scripts/compute_estimate/ afabench/core/job_record.py afabench/core/code_identity.py afabench/core/job_duration_table.py scripts/misc/collect_job_records.py scripts/plotting/plot_total_time.py afabench/plotting/config.py"
+workflow_paths := "workflow/ containers/submit_builds.py conf/ test/workflow/ src/afabench/release/ src/afabench/fit/contract src/afabench/core/bundle_system/ src/afabench/core/output_layout src/afabench/core/workflow_settings src/afabench/compute_estimate/ scripts/compute_estimate/ src/afabench/core/job_record.py src/afabench/core/code_identity.py src/afabench/core/job_duration_table.py scripts/misc/collect_job_records.py scripts/plotting/plot_total_time.py src/afabench/plotting/config.py"
 
 # Type check and tests run concurrently after the file-rewriting steps
 _qa tier: fix

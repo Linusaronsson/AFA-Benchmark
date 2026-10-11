@@ -2,7 +2,7 @@
 The settings every orchestration Snakefile shares, as the globals the rules
 read.
 
-`load_config` (afabench/core/workflow_settings.py) validates the merged
+`load_config` (src/afabench/core/workflow_settings.py) validates the merged
 config and rejects a config mistake before any rule is defined; see
 docs/reference/pipeline_configuration.md. Rules ask `WORKFLOW_SETTINGS` which
 run and classifier a method uses, and address them with `OUTPUT_LAYOUT`.
@@ -15,6 +15,11 @@ import sys
 # The workflow's own modules, such as execution.py, live in workflow/src.
 # workflow.basedir is the directory of the orchestration Snakefile.
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(workflow.basedir)), "src"))
+# The orchestration environment does not install the project, so afabench is
+# imported from the checkout's src/.
+sys.path.insert(
+    0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(workflow.basedir))), "src")
+)
 
 from afabench.core.output_layout import OutputLayout
 from afabench.core.workflow_settings import load_config

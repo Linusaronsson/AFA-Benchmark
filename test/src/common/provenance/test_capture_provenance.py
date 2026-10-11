@@ -141,6 +141,18 @@ def test_capture_outside_a_git_work_tree_records_unknown_code(
     assert record.code_dirty is None
 
 
+def test_capture_from_an_installed_package_records_unknown_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("afabench.core.provenance.AFABENCH_CHECKOUT", None)
+
+    record = _capture()
+
+    assert record.code_commit is None
+    assert record.code_dirty is None
+    assert record.environment.lockfile_sha256 is None
+
+
 def test_capture_run_from_outside_the_checkout_records_afabench_code(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

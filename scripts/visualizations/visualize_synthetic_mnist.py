@@ -15,9 +15,6 @@ from typing import TYPE_CHECKING, cast
 import matplotlib.pyplot as plt
 import torch
 
-# Add the project root to the path to import the dataset
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
 from afabench.core.bundle_system.bundle import load_bundle
 
 if TYPE_CHECKING:

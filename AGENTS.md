@@ -1,7 +1,7 @@
 # AGENTS.md
 
 AFABench: a benchmark of active feature acquisition (AFA) methods. Library
-code is in `afabench/`, pipeline entry points in `scripts/`, Hydra configs,
+code is in `src/afabench/`, pipeline entry points in `scripts/`, Hydra configs,
 Snakemake workflows in `workflow/`, pipeline outputs in `output/`, tests in
 `test/`.
 
@@ -35,7 +35,7 @@ markers `optional`, `pipeline` and `workflow` are deselected by default
 - **Bundles**: objects are saved as `.bundle/` folders through
   `afabench.core.bundle_system` (`docs/reference/bundle_format.md`). Any
   class saved as a bundle needs an entry in `REGISTERED_CLASSES` in
-  `afabench/core/registry.py`, or `load_bundle` cannot rebuild it.
+  `src/afabench/core/registry.py`, or `load_bundle` cannot rebuild it.
 - **Hydra configs**: script configs live under
   `conf/scripts/<script_group>/<script_name>/`, shared groups under
   `conf/components/`. Read `conf/components/README.md` before

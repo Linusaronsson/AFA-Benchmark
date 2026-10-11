@@ -143,7 +143,7 @@ byte for byte into the path the workflow expects, and Snakemake reuses it
 instead of regenerating it. Native bundles load with
 `afabench.core.bundle_system.bundle.load_bundle` (datasets without
 arguments, the others with `device=`), which looks up `class_name` in
-`afabench/core/registry.py`. No HF-friendly conversion is produced; any
+`src/afabench/core/registry.py`. No HF-friendly conversion is produced; any
 later conversion is added beside the native files, never instead of them.
 
 | Category | Path | Enables | Kind |

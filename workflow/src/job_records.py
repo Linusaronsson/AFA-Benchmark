@@ -1,7 +1,7 @@
 """
 The job record wrapper command each computational rule runs its script with.
 
-The wrapper (`afabench/core/job_record.py`) times the script and writes the
+The wrapper (`src/afabench/core/job_record.py`) times the script and writes the
 job record. This module renders its options from what Snakemake resolved
 for the job: identity from the wildcards, allocation from the final
 resources, after profile defaults and `--set-resources` overrides.

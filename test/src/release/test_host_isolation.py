@@ -7,7 +7,7 @@ REPO_ROOT = Path(__file__).parents[3]
 HOST_MODULES = ("huggingface_hub", "afabench.release.huggingface")
 # The adapter itself and the release command that selects it.
 ALLOWED = {
-    Path("afabench/release/huggingface.py"),
+    Path("src/afabench/release/huggingface.py"),
     Path("scripts/release/snapshot.py"),
 }
 
@@ -26,7 +26,7 @@ def imported_modules(path: Path) -> set[str]:
 def test_no_pipeline_code_imports_the_release_host() -> None:
     offenders = [
         path.relative_to(REPO_ROOT)
-        for directory in ["afabench", "scripts", "workflow"]
+        for directory in ["src/afabench", "scripts", "workflow"]
         for path in sorted((REPO_ROOT / directory).rglob("*.py"))
         if path.relative_to(REPO_ROOT) not in ALLOWED
         and any(

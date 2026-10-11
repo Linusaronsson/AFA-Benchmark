@@ -17,6 +17,7 @@ from typing import Any
 
 import dacite
 
+from afabench.core.checkout import require_checkout
 from afabench.core.output_layout import (
     EvaluationRun,
     OutputLayout,
@@ -36,7 +37,7 @@ type BudgetCombination = tuple[
 
 # A dataset key is known when it has a file here.
 DATASET_KEY_DIR = (
-    Path(__file__).resolve().parents[2] / "conf/components/dataset_key"
+    require_checkout("the workflow settings") / "conf/components/dataset_key"
 )
 
 

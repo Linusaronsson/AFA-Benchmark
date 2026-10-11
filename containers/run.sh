@@ -5,7 +5,7 @@
 #
 # Picks <image_dir>/afabench-<arch>.sif, where <image_dir> is $AFABENCH_IMAGE_DIR
 # or this directory, binds the checkout this script belongs to and runs the
-# command from it with the checkout on PYTHONPATH. GPUs are passed through
+# command from it with the checkout's src/ on PYTHONPATH. GPUs are passed through
 # when the node has any.
 
 set -euo pipefail
@@ -25,5 +25,5 @@ if command -v nvidia-smi > /dev/null 2>&1; then
 fi
 
 exec apptainer exec "${gpu_flags[@]}" --bind "$checkout" --pwd "$(pwd -P)" \
-    --env "PYTHONPATH=$checkout${PYTHONPATH:+:$PYTHONPATH}" \
+    --env "PYTHONPATH=$checkout/src${PYTHONPATH:+:$PYTHONPATH}" \
     "$image" "$@"

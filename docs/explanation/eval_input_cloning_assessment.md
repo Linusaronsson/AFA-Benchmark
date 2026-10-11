@@ -2,7 +2,7 @@
 
 ## Question
 
-`process_batch` (`afabench/evaluation/eval.py`) clones its three batch-level
+`process_batch` (`src/afabench/evaluation/eval.py`) clones its three batch-level
 inputs on entry:
 
 ```python

@@ -1,6 +1,6 @@
 {
   "include": [
-    "afabench",
+    "src",
     "scripts"
   ],
   "exclude": [

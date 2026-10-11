@@ -24,7 +24,8 @@ import pandas as pd
 import torch
 import torch.version
 
-from afabench.core.code_identity import AFABENCH_CHECKOUT, code_identity
+from afabench.core.checkout import AFABENCH_CHECKOUT
+from afabench.core.code_identity import code_identity
 
 PROVENANCE_VERSION = 1
 AFABENCH_DISTRIBUTION = "afa-benchmark"
@@ -159,7 +160,8 @@ def capture_provenance(
     `resolved_config` is the script's full configuration as it actually used
     it; a value that is not JSON-serialisable raises `TypeError` naming it.
     `checkout` is the git work tree whose code runs, by default the one
-    holding this package; outside a work tree the code identity is unknown.
+    holding this package; outside a work tree, or with the package installed
+    rather than run from a checkout, the code identity is unknown.
     """
     _require_json(resolved_config, path="resolved_config")
     checkout = AFABENCH_CHECKOUT if checkout is None else checkout
@@ -266,8 +268,8 @@ def _require_json(value: object, *, path: str) -> None:
     raise TypeError(msg)
 
 
-def _environment(checkout: Path) -> Environment:
-    lockfile = checkout / "uv.lock"
+def _environment(checkout: Path | None) -> Environment:
+    lockfile = None if checkout is None else checkout / "uv.lock"
     try:
         afabench_version = importlib.metadata.version(AFABENCH_DISTRIBUTION)
     except importlib.metadata.PackageNotFoundError:
@@ -280,7 +282,7 @@ def _environment(checkout: Path) -> Environment:
         pandas_version=pd.__version__,
         lockfile_sha256=(
             hashlib.sha256(lockfile.read_bytes()).hexdigest()
-            if lockfile.is_file()
+            if lockfile is not None and lockfile.is_file()
             else None
         ),
         platform=platform.platform(),

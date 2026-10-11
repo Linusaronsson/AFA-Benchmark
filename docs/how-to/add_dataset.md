@@ -8,7 +8,7 @@ Datasets in AFA-Benchmark are serialized as **bundles** (directories containing 
 
 ### 1. Define a dataset class
 
-Define a dataset class in `afabench/datasets/datasets.py` that implements the `AFADataset` protocol from `afabench/core/types.py`.
+Define a dataset class in `src/afabench/datasets/datasets.py` that implements the `AFADataset` protocol from `src/afabench/core/types.py`.
 
 **Minimal example:**
 
@@ -148,7 +148,7 @@ The `class_name` must match the name of your dataset class in the registry, and 
 
 ### 3. Register the dataset class
 
-Add your dataset class to the `REGISTERED_CLASSES` dictionary in `afabench/core/registry.py`:
+Add your dataset class to the `REGISTERED_CLASSES` dictionary in `src/afabench/core/registry.py`:
 
 ```python
 REGISTERED_CLASSES = {

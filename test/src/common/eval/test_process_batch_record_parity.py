@@ -4,7 +4,7 @@ Golden-record parity for `process_batch`.
 Issue #25 moved the evaluation loop's bookkeeping onto the compute device and
 required that the records it produces stay identical to the previous,
 host-side implementation. The golden records below were captured by running
-the `dev` implementation of `afabench/evaluation/eval.py` at commit e0e26a83
+the `dev` implementation of `src/afabench/evaluation/eval.py` at commit e0e26a83
 on exactly the batch built here, so any drift in record content, row order or
 column dtype fails this test. Compact output is expanded at the public
 history-reconstruction seam before comparison with those legacy records.

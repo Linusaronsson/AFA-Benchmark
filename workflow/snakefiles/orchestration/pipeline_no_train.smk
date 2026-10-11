@@ -83,7 +83,7 @@ CPU-only processing:
 Output namespacing:
     - Every rule addresses dataset, classifier, pretrained-model and method
       bundles, evaluation tables and job records under the output root
-      (output_root) through OUTPUT_LAYOUT (afabench/core/output_layout.py), the native layout that
+      (output_root) through OUTPUT_LAYOUT (src/afabench/core/output_layout.py), the native layout that
       release manifests and restored benchmark releases also use.
     - All initializer-dependent artifacts are stored under
       `initializer-<initializer>` to allow side-by-side comparisons
@@ -91,7 +91,7 @@ Output namespacing:
 
 Config files (--configfile):
     The merged config is validated by load_config
-    (afabench/core/workflow_settings.py) through ../settings.smk, which
+    (src/afabench/core/workflow_settings.py) through ../settings.smk, which
     defines the globals the rules read. Unknown method_options keys, a
     missing train_script_name, a pretrained_model_name outside
     pretrain_mapping, a method missing from method_options or

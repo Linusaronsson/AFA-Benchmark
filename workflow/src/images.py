@@ -138,7 +138,7 @@ class ImageCommands:
             "--pwd",
             str(working_directory),
             "--env",
-            f"PYTHONPATH={checkout}",
+            f"PYTHONPATH={checkout / 'src'}",
             str(image),
         ]
         return shlex.join(arguments) + " "

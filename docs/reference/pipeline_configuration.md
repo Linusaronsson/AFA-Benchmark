@@ -255,7 +255,7 @@ A `method_options` entry takes only these keys:
 | `classifier` | The method's built-in classifier: `script_name` and optional `script_params`, trained instead of the external classifier. |
 
 The workflow config is validated when Snakemake parses the workflow, by
-`load_config` in `afabench/core/workflow_settings.py`, before any job runs.
+`load_config` in `src/afabench/core/workflow_settings.py`, before any job runs.
 Each error names the method and the key or value at fault:
 
 - An unknown key in a `method_options` entry, such as a misspelt

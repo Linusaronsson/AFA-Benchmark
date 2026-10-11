@@ -105,7 +105,7 @@ Tests that write fixture bundles get a record from `afabench.testing.provenance.
 
 ## Registering classes for deserialization
 
-When `load_bundle()` reads a manifest, it needs to know which Python class corresponds to the `class_name` in the manifest. This mapping is defined in `afabench/core/registry.py` in the `REGISTERED_CLASSES` dictionary:
+When `load_bundle()` reads a manifest, it needs to know which Python class corresponds to the `class_name` in the manifest. This mapping is defined in `src/afabench/core/registry.py` in the `REGISTERED_CLASSES` dictionary:
 
 ```python
 REGISTERED_CLASSES = {

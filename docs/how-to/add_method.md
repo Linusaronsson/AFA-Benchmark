@@ -23,7 +23,7 @@ key is prescribed.
 
 The contract's field names and types are not restated here; the source of
 truth is the `PretrainingContract` / `TrainingContract` dataclasses in
-`afabench/fit/contract.py`. Both extend `BaseContract` and are
+`src/afabench/fit/contract.py`. Both extend `BaseContract` and are
 independent of each other: `TrainingContract` has the pretrained-model path
 and the budgets, which `PretrainingContract` doesn't, but the two stages are
 free to diverge further. A method whose stages share logic still gives
@@ -37,13 +37,13 @@ shared code as arguments, because the pretraining stage passes no
 The smallest way to satisfy the contract is a training script with no
 pretraining stage that inherits `TrainingContract` for its config and uses
 the optional library helpers. The ported dummy methods
-(`afabench/components/methods/dummy/`) are the worked example; this section
+(`src/afabench/components/methods/dummy/`) are the worked example; this section
 walks through `random_dummy`.
 
 The config dataclass adds no fields of its own:
 
 ```python
-# afabench/components/methods/dummy/config.py
+# src/afabench/components/methods/dummy/config.py
 from dataclasses import dataclass
 
 from afabench.fit.contract import TrainingContract, store_contract_config
@@ -66,7 +66,7 @@ a `FitInputs` and returns the trained method — it does not seed, log, or
 save anything itself:
 
 ```python
-# afabench/components/methods/dummy/train.py (abridged)
+# src/afabench/components/methods/dummy/train.py (abridged)
 def train_random_dummy(
     contract: RandomDummyTrainConfig, inputs: FitInputs
 ) -> RandomWithoutClassifierAFAMethod:
@@ -150,7 +150,7 @@ in all the contract fields, leaving the config otherwise empty since
 `RandomDummyTrainConfig` adds none.
 
 If your method class is new, register it in `REGISTERED_CLASSES` in
-`afabench/core/registry.py` ([`docs/reference/bundle_format.md`](../reference/bundle_format.md))
+`src/afabench/core/registry.py` ([`docs/reference/bundle_format.md`](../reference/bundle_format.md))
 so `load_bundle` can reconstruct it; `RandomWithoutClassifierAFAMethod` is
 already there as `"RandomWithoutClassifierAFAMethod"`.
 
@@ -160,7 +160,7 @@ A method with a pretraining stage additionally gets a script under
 `scripts/pretrain_model/`, configured the same way but with a config
 dataclass inheriting `PretrainingContract` instead of `TrainingContract`
 (a separate contract, currently without the pretrained-model path and
-the budgets — see `afabench/fit/contract.py`). Structure it like the training script in
+the budgets — see `src/afabench/fit/contract.py`). Structure it like the training script in
 section 2: a plain `pretrain_*` function taking the config and a
 `FitInputs`, called from a script that wraps it in `fit_run` and
 `save_result`.
@@ -237,11 +237,11 @@ still has to:
 
 - Parse the training (or pretraining) contract's arguments off
   `sys.argv`, in the plain `key=value` form Snakemake passes them
-  (`afabench/fit/contract.py` lists the fields; nothing requires you to
+  (`src/afabench/fit/contract.py` lists the fields; nothing requires you to
   use the dataclass to hold them).
 - Call `afabench.core.bundle_system.bundle.save_bundle` to write a loadable
   bundle to the `save_path` argument, with your method's class registered in
-  `REGISTERED_CLASSES` (`afabench/core/registry.py`,
+  `REGISTERED_CLASSES` (`src/afabench/core/registry.py`,
   [`docs/reference/bundle_format.md`](../reference/bundle_format.md)).
   `save_bundle` requires a provenance record; build it with
   `afabench.core.provenance.capture_provenance` from the contract's seed,
@@ -300,7 +300,7 @@ file name):
   plot groups it belongs in (for example `main`).
 
 If your method introduces a new `AFAMethod` or `AFAClassifier` class, add it
-to `REGISTERED_CLASSES` in `afabench/core/registry.py` — this is the same
+to `REGISTERED_CLASSES` in `src/afabench/core/registry.py` — this is the same
 registration the bundle system needs (section 2 and
 [`docs/reference/bundle_format.md`](../reference/bundle_format.md)); there's no separate pipeline
 registry.

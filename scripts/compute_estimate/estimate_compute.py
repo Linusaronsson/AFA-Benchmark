@@ -28,6 +28,7 @@ Usage:
         --by name --output estimate.csv <launcher arguments>
 """
 
+import sys
 from pathlib import Path
 from typing import Annotated, override
 
@@ -54,6 +55,9 @@ from afabench.release.manifest import (
     RELEASE_MANIFEST_FILENAME,
     read_release_manifest,
 )
+
+# Run as a script, this directory is on sys.path, not the checkout root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from workflow.run import LauncherError, snakemake_arguments
 
 DEFAULT_JOB_DURATIONS = Path(PRODUCTION_OUTPUT_ROOT)

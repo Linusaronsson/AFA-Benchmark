@@ -176,7 +176,7 @@ def test_arrhenius_jobs_run_snakemake_on_the_host_and_scripts_in_the_image(
         assert ("--nv" in args) is gpu
         assert args[args.index("--bind") + 1] == checkout
         assert args[args.index("--pwd") + 1] == checkout
-        assert f"PYTHONPATH={checkout}" in args
+        assert f"PYTHONPATH={checkout}/src" in args
         image = image_index(args)
         assert args[image] == (
             f"{checkout}/containers/afabench-"

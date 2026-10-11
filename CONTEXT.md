@@ -370,6 +370,12 @@ evaluates only that method, comparing it with a benchmark release's
 published methods (see `docs/explanation/user_types.md`).
 _Avoid_: Benchmark adopter, adopter
 
+**Library user**:
+A user who imports AFABench's library code, such as its evaluation
+functions or models, into their own code base and never runs its pipeline
+(see `docs/explanation/user_types.md`).
+_Avoid_: Independent evaluator, package user
+
 **Results-only user**:
 A user who downloads a benchmark release's tables or plots without
 installing AFABench (see `docs/explanation/user_types.md`).
