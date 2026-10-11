@@ -115,7 +115,7 @@ class ModalitySetup(ABC):
         Build the policy network on the device, with one output per selection.
 
         With `share_with`, the network shares its feature extraction with
-        that predictor, as DIME's value network does.
+        that built-in classifier, as DIME's value network does.
         """
 
     @abstractmethod

@@ -51,8 +51,8 @@ every behavioural difference from upstream that the check found.
   training weights classes, charges the dataset's feature costs and
   falls back to the upstream `min_lr` when the config sets none; image
   training charges unit costs and requires `min_lr`. DIME passes its
-  predictor to `policy_network(share_with=...)`, which ties the first
-  two linear layers (tabular) or reuses the backbone (image).
+  built-in classifier to `policy_network(share_with=...)`, which ties the
+  first two linear layers (tabular) or reuses the backbone (image).
 
 Only what upstream GDFS and DIME already had in common is shared; each
 difference between the two papers stays in the method's own package.
