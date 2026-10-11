@@ -1,0 +1,180 @@
+"""GDFS and DIME bundles: the model.pt format both methods write and read."""
+
+from pathlib import Path
+
+import pytest
+import torch
+
+from afabench.components.methods.discriminative.common.afa_methods import (
+    NetworkPairAFAMethod,
+)
+from afabench.components.methods.discriminative.common.checkpoint import (
+    NetworkPairSpec,
+)
+from afabench.components.methods.discriminative.dime.afa_methods import (
+    DIMEAFAMethod,
+)
+from afabench.components.methods.discriminative.gdfs.afa_methods import (
+    GDFSAFAMethod,
+)
+from afabench.core.bundle_system.bundle import load_bundle, save_bundle
+from afabench.testing.provenance import placeholder_provenance
+
+CPU = torch.device("cpu")
+D_IN = 6
+D_OUT = 3
+N_SELECTIONS = 4
+TABULAR_SPEC = NetworkPairSpec(
+    modality="tabular",
+    d_in=D_IN,
+    d_out=D_OUT,
+    n_selections=N_SELECTIONS,
+    policy_hidden_layers=[8],
+    predictor_hidden_layers=[8, 8],
+    dropout=0.0,
+)
+METHOD_CLASSES = [GDFSAFAMethod, DIMEAFAMethod]
+
+
+def _tabular_method(
+    method_class: type[NetworkPairAFAMethod],
+) -> NetworkPairAFAMethod:
+    torch.manual_seed(0)
+    policy_network, predictor = TABULAR_SPEC.build_networks(CPU)
+    return method_class(
+        policy_network,
+        predictor,
+        TABULAR_SPEC,
+        CPU,
+        lambda_threshold=0.25,
+        selection_costs=torch.tensor([1.0, 2.0, 1.0, 0.5]),
+    )
+
+
+def _episode_inputs() -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    torch.manual_seed(1)
+    masked_features = torch.randn((5, D_IN))
+    feature_mask = torch.rand((5, D_IN)) > 0.5
+    selection_mask = torch.zeros((5, N_SELECTIONS), dtype=torch.bool)
+    return masked_features, feature_mask, selection_mask
+
+
+@pytest.mark.parametrize("method_class", METHOD_CLASSES)
+def test_a_saved_method_loads_with_the_same_predictions_actions_and_costs(
+    tmp_path: Path, method_class: type[NetworkPairAFAMethod]
+) -> None:
+    method = _tabular_method(method_class)
+    masked_features, feature_mask, selection_mask = _episode_inputs()
+
+    method.save(tmp_path)
+    loaded = method_class.load(tmp_path, CPU)
+
+    assert loaded.spec == TABULAR_SPEC
+    assert loaded.cost_param == 0.25
+    assert loaded.selection_costs is not None
+    torch.testing.assert_close(
+        loaded.selection_costs, torch.tensor([1.0, 2.0, 1.0, 0.5])
+    )
+    torch.testing.assert_close(
+        loaded.predict(masked_features, feature_mask),
+        method.predict(masked_features, feature_mask),
+    )
+    assert torch.equal(
+        loaded.act(masked_features, feature_mask, selection_mask),
+        method.act(masked_features, feature_mask, selection_mask),
+    )
+
+
+@pytest.mark.parametrize("method_class", METHOD_CLASSES)
+def test_model_pt_keeps_the_keys_published_bundles_have(
+    tmp_path: Path, method_class: type[NetworkPairAFAMethod]
+) -> None:
+    method = _tabular_method(method_class)
+
+    method.save(tmp_path)
+    checkpoint = torch.load(tmp_path / "model.pt", weights_only=False)
+
+    policy_key = (
+        "selector" if method_class is GDFSAFAMethod else "value_network"
+    )
+    assert set(checkpoint) == {
+        f"{policy_key}_state_dict",
+        "predictor_state_dict",
+        "architecture",
+        "lambda_threshold",
+        "selection_costs",
+    }
+    assert f"{policy_key}_hidden_layers" in checkpoint["architecture"]
+
+
+def test_a_bundle_written_before_grouped_selections_and_selection_costs_loads(
+    tmp_path: Path,
+) -> None:
+    """Early GDFS bundles stored feature costs and no n_selections."""
+    torch.manual_seed(0)
+    legacy_spec = NetworkPairSpec(
+        modality="tabular",
+        d_in=D_IN,
+        d_out=D_OUT,
+        n_selections=D_IN,
+        policy_hidden_layers=[8],
+        predictor_hidden_layers=[8, 8],
+        dropout=0.0,
+    )
+    selector, predictor = legacy_spec.build_networks(CPU)
+    torch.save(
+        {
+            "selector_state_dict": selector.state_dict(),
+            "predictor_state_dict": predictor.state_dict(),
+            "architecture": {
+                "type": "mlp",
+                "d_in": D_IN,
+                "d_out": D_OUT,
+                "selector_hidden_layers": [8],
+                "predictor_hidden_layers": [8, 8],
+                "dropout": 0.0,
+                "model_type": "tabular",
+            },
+            "lambda_threshold": 0.5,
+            "feature_costs": torch.ones(D_IN),
+        },
+        tmp_path / "model.pt",
+    )
+
+    loaded = GDFSAFAMethod.load(tmp_path, CPU)
+
+    assert loaded.spec == legacy_spec
+    assert loaded.cost_param == 0.5
+    assert loaded.selection_costs is not None
+    torch.testing.assert_close(loaded.selection_costs, torch.ones(D_IN))
+    masked_features, feature_mask, _ = _episode_inputs()
+    assert loaded.act(masked_features, feature_mask).shape == (5, 1)
+
+
+def test_a_method_without_soft_budget_parameter_never_stops_on_entropy(
+    tmp_path: Path,
+) -> None:
+    policy_network, predictor = TABULAR_SPEC.build_networks(CPU)
+    method = GDFSAFAMethod(policy_network, predictor, TABULAR_SPEC, CPU)
+
+    method.save(tmp_path)
+    loaded = GDFSAFAMethod.load(tmp_path, CPU)
+
+    assert method.cost_param == loaded.cost_param == -float("inf")
+    assert loaded.selection_costs is None
+
+
+@pytest.mark.parametrize("method_class", METHOD_CLASSES)
+def test_the_registry_rebuilds_the_method_from_its_bundle(
+    tmp_path: Path, method_class: type[NetworkPairAFAMethod]
+) -> None:
+    method = _tabular_method(method_class)
+    bundle_path = tmp_path / "method.bundle"
+
+    save_bundle(
+        method, bundle_path, metadata={}, provenance=placeholder_provenance()
+    )
+    loaded = load_bundle(bundle_path, device=CPU, expect=method_class).obj
+
+    assert isinstance(loaded, method_class)
+    assert loaded.spec == TABULAR_SPEC

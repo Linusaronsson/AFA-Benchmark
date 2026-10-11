@@ -5,6 +5,9 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
+from afabench.components.methods.discriminative.common.checkpoint import (
+    NetworkPairSpec,
+)
 from afabench.components.methods.discriminative.common.models import (
     ConvNet,
     GreedyAFAClassifier,
@@ -123,16 +126,17 @@ def train_image(
         metric_logger=metric_logger,
         metric_prefix="gdfs",
     )
-    afa_method = GDFSAFAMethod(
-        selector=gdfs.selector.cpu(),
-        predictor=gdfs.predictor.cpu(),
-        device=torch.device("cpu"),
+    spec = NetworkPairSpec(
         modality="image",
-        n_patches=n_patches,
         d_out=d_out,
-        backbone_type=cfg.architecture.backbone_type,
+        backbone=cfg.architecture.backbone_type,
+        image_size=int(image_size),
+        patch_size=int(patch_size),
+        mask_width=int(mask_width),
     )
-    afa_method.image_size = image_size
-    afa_method.patch_size = patch_size
-    afa_method.mask_width = mask_width
-    return afa_method
+    return GDFSAFAMethod(
+        gdfs.selector.cpu(),
+        gdfs.predictor.cpu(),
+        spec,
+        torch.device("cpu"),
+    )

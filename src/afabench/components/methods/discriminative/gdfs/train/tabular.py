@@ -5,6 +5,9 @@ import torch
 from torch import nn
 from torchrl.modules import MLP
 
+from afabench.components.methods.discriminative.common.checkpoint import (
+    NetworkPairSpec,
+)
 from afabench.components.methods.discriminative.common.datasets import (
     prepare_datasets,
 )
@@ -89,17 +92,19 @@ def train_tabular(
         metric_logger=metric_logger,
         metric_prefix="gdfs",
     )
-    afa_method = GDFSAFAMethod(
-        selector=gdfs.selector.cpu(),
-        predictor=gdfs.predictor.cpu(),
-        device=torch.device("cpu"),
-        selector_hidden_layers=cfg.architecture.hidden_units,
-        predictor_hidden_layers=cfg.architecture.hidden_units,
-        dropout=cfg.architecture.dropout,
+    spec = NetworkPairSpec(
         modality="tabular",
         d_in=d_in,
         d_out=d_out,
-        selection_costs=unmasker.get_selection_costs(feature_costs),
         n_selections=n_selections,
+        policy_hidden_layers=cfg.architecture.hidden_units,
+        predictor_hidden_layers=cfg.architecture.hidden_units,
+        dropout=cfg.architecture.dropout,
     )
-    return afa_method
+    return GDFSAFAMethod(
+        gdfs.selector.cpu(),
+        gdfs.predictor.cpu(),
+        spec,
+        torch.device("cpu"),
+        selection_costs=unmasker.get_selection_costs(feature_costs),
+    )

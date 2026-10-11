@@ -2,25 +2,37 @@ import pytest
 import torch
 from torch import nn
 
+from afabench.components.methods.discriminative.common.checkpoint import (
+    NetworkPairSpec,
+)
 from afabench.components.methods.discriminative.gdfs.afa_methods import (
     GDFSAFAMethod,
 )
 
 
 def _make_method(
-    d_in: int, n_selections: int, d_out: int = 2
+    d_in: int,
+    n_selections: int,
+    d_out: int = 2,
+    selection_scores: list[float] | None = None,
 ) -> GDFSAFAMethod:
+    """Build a method whose selector scores every selection by `selection_scores`, whatever the input."""
     selector = nn.Linear(2 * d_in, n_selections)
     predictor = nn.Linear(2 * d_in, d_out)
-    return GDFSAFAMethod(
-        selector=selector,
-        predictor=predictor,
-        device=torch.device("cpu"),
+    if selection_scores is not None:
+        with torch.no_grad():
+            selector.weight.zero_()
+            selector.bias.copy_(torch.tensor(selection_scores))
+    spec = NetworkPairSpec(
         modality="tabular",
         d_in=d_in,
         d_out=d_out,
         n_selections=n_selections,
+        policy_hidden_layers=[],
+        predictor_hidden_layers=[],
+        dropout=0.0,
     )
+    return GDFSAFAMethod(selector, predictor, spec, torch.device("cpu"))
 
 
 def test_gdfs_grouped_selection_excludes_already_selected() -> None:
@@ -28,15 +40,11 @@ def test_gdfs_grouped_selection_excludes_already_selected() -> None:
     d_in = 10
     n_contexts = 3
     n_selections = 1 + (d_in - n_contexts)  # 8
-    method = _make_method(d_in=d_in, n_selections=n_selections)
-
-    # Zero out the selector so masked features/mask don't affect
-    # logits, then fix per-selection scores deterministically.
-    with torch.no_grad():
-        method.selector.weight.zero_()
-        method.selector.bias.copy_(
-            torch.tensor([5.0, 4.0, 3.0, 2.0, 1.0, 0.0, -1.0, -2.0])
-        )
+    method = _make_method(
+        d_in=d_in,
+        n_selections=n_selections,
+        selection_scores=[5.0, 4.0, 3.0, 2.0, 1.0, 0.0, -1.0, -2.0],
+    )
 
     masked_features = torch.zeros((2, d_in))
     feature_mask = torch.zeros((2, d_in), dtype=torch.bool)
@@ -99,11 +107,11 @@ def test_gdfs_direct_unmasker_fallback_is_unchanged() -> None:
     """Direct Unmasker's feature-mask fallback keeps working."""
     d_in = 5
     n_selections = d_in
-    method = _make_method(d_in=d_in, n_selections=n_selections)
-
-    with torch.no_grad():
-        method.selector.weight.zero_()
-        method.selector.bias.copy_(torch.tensor([3.0, 5.0, 1.0, 4.0, 2.0]))
+    method = _make_method(
+        d_in=d_in,
+        n_selections=n_selections,
+        selection_scores=[3.0, 5.0, 1.0, 4.0, 2.0],
+    )
 
     masked_features = torch.zeros((2, d_in))
     feature_mask = torch.zeros((2, d_in), dtype=torch.bool)

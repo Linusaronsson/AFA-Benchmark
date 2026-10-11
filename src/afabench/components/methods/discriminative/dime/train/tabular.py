@@ -5,6 +5,9 @@ import torch
 from torch import nn
 from torchrl.modules import MLP
 
+from afabench.components.methods.discriminative.common.checkpoint import (
+    NetworkPairSpec,
+)
 from afabench.components.methods.discriminative.common.datasets import (
     prepare_datasets,
 )
@@ -94,17 +97,19 @@ def train_tabular(
         metric_logger=metric_logger,
         metric_prefix="dime",
     )
-    afa_method = DIMEAFAMethod(
-        greedy_cmi_estimator.value_network.cpu(),
-        greedy_cmi_estimator.predictor.cpu(),
-        device=torch.device("cpu"),
-        value_network_hidden_layers=cfg.architecture.hidden_units,
-        predictor_hidden_layers=cfg.architecture.hidden_units,
-        dropout=cfg.architecture.dropout,
+    spec = NetworkPairSpec(
         modality="tabular",
         d_in=d_in,
         d_out=d_out,
         n_selections=n_selections,
+        policy_hidden_layers=cfg.architecture.hidden_units,
+        predictor_hidden_layers=cfg.architecture.hidden_units,
+        dropout=cfg.architecture.dropout,
+    )
+    return DIMEAFAMethod(
+        greedy_cmi_estimator.value_network.cpu(),
+        greedy_cmi_estimator.predictor.cpu(),
+        spec,
+        torch.device("cpu"),
         selection_costs=unmasker.get_selection_costs(feature_costs),
     )
-    return afa_method

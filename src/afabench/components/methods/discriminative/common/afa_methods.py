@@ -1,22 +1,28 @@
+"""
+GDFS and DIME: the method base they share and, for now, their trainers.
+
+Both come from one upstream code base (Covert et al., ICML 2023; Gadgil,
+Covert and Lee, 2023), so the port shares what that code base shared and
+keeps each paper's own step explicit in the method's package. What the
+shared code does differently from the upstream implementations is
+written up in `docs/explanation/gdfs_dime_shared_code.md`.
+"""
+
 import math
+from abc import ABC
 from collections.abc import Callable
 from copy import deepcopy
 from pathlib import Path
-from typing import Self, override
+from typing import ClassVar, Self, override
 
 import numpy as np
 import torch
-from torch import nn, optim
+from torch import Tensor, nn, optim
 from torch.utils.data import DataLoader
-from torchrl.modules import MLP
 
 from afabench.components.methods.common import AFAMethodBase
-from afabench.components.methods.discriminative.common.models import (
-    ConvNet,
-    Predictor,
-    ResNet18Backbone,
-    resnet18,
-    resnet50,
+from afabench.components.methods.discriminative.common.checkpoint import (
+    NetworkPairSpec,
 )
 from afabench.components.methods.discriminative.common.utils import (
     ConcreteSelector,
@@ -58,6 +64,182 @@ def _append_flat_mask(
         masked_features = masked_features.flatten(start_dim=1)
         feature_mask = feature_mask.flatten(start_dim=1)
     return torch.cat([masked_features, feature_mask], dim=1)
+
+
+class NetworkPairAFAMethod(AFAMethodBase, ABC):
+    """
+    The method shape GDFS and DIME share: a policy network and a predictor.
+
+    Both methods score every selection with a policy network, exclude the
+    selections already performed, scale the scores by the selection costs
+    and stop below a threshold; both predict with a built-in classifier,
+    the `predictor`, that takes the masked features (with the feature mask
+    appended for tabular data). The base owns that, the device moves and
+    the model.pt round trip through `NetworkPairSpec`; a subclass names
+    its policy network for the checkpoint and implements `act`.
+
+    `lambda_threshold` is the soft-budget parameter; without one the method
+    never stops on its own, so the hard-budget setting forces every stop.
+    """
+
+    policy_network_name: ClassVar[str]
+    """The checkpoint's name for the policy network: `selector` or `value_network`."""
+
+    def __init__(
+        self,
+        policy_network: nn.Module,
+        predictor: nn.Module,
+        spec: NetworkPairSpec,
+        device: torch.device,
+        *,
+        lambda_threshold: float | None = None,
+        selection_costs: Tensor | None = None,
+    ) -> None:
+        super().__init__(device)
+        self.policy_network: nn.Module = policy_network
+        self.predictor: nn.Module = predictor
+        self.spec: NetworkPairSpec = spec
+        self.lambda_threshold: float = (
+            -math.inf if lambda_threshold is None else lambda_threshold
+        )
+        self.selection_costs: Tensor | None = selection_costs
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return True
+
+    @property
+    @override
+    def cost_param(self) -> float | None:
+        return float(self.lambda_threshold)
+
+    @override
+    def set_cost_param(self, cost_param: float) -> None:
+        self.lambda_threshold = cost_param
+
+    @override
+    def predict(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> Label:
+        pred = self.predictor(
+            self._network_input(masked_features, feature_mask)
+        )
+        return pred.softmax(dim=-1)
+
+    def _network_input(
+        self, masked_features: MaskedFeatures, feature_mask: FeatureMask
+    ) -> Tensor:
+        if self.spec.modality == "tabular":
+            return _append_flat_mask(masked_features, feature_mask)
+        return masked_features
+
+    def _exclude_performed_selections(
+        self,
+        scores: Tensor,
+        feature_mask: FeatureMask,
+        selection_mask: SelectionMask | None,
+    ) -> Tensor:
+        """Push the scores of the selections already performed below every other score."""
+        if self.spec.modality == "image":
+            return scores - 1e6 * self._patch_mask(feature_mask).float()
+        if selection_mask is not None:
+            if scores.shape != selection_mask.shape:
+                msg = (
+                    f"selection_mask shape {selection_mask.shape} is "
+                    "incompatible with the policy network's output shape "
+                    f"{scores.shape}."
+                )
+                raise ValueError(msg)
+            return scores - 1e6 * selection_mask.float()
+        if scores.shape == feature_mask.shape:
+            # Selections map 1:1 onto features (the direct Unmasker), so
+            # the feature mask doubles as the selection mask
+            return scores - 1e6 * feature_mask
+        msg = (
+            f"{type(self).__name__} requires a selection_mask when "
+            "selections do not correspond 1:1 to features (e.g. grouped "
+            "selections such as the Context Unmasker on cube_nm): policy "
+            f"network output shape {scores.shape} does not match "
+            f"feature_mask shape {feature_mask.shape}."
+        )
+        raise ValueError(msg)
+
+    def _patch_mask(self, feature_mask: FeatureMask) -> Tensor:
+        """Whether any pixel of each patch is revealed, one column per patch."""
+        assert feature_mask.dim() == 4
+        patch_size = self.spec.patch_size
+        assert patch_size is not None
+        B, C, H, W = feature_mask.shape
+        ph = H // patch_size
+        pw = W // patch_size
+        fm = feature_mask.view(B, C, ph, patch_size, pw, patch_size)
+        return fm.any(dim=(1, 3, 5)).reshape(B, ph * pw)
+
+    def _score_per_cost(self, scores: Tensor) -> Tensor:
+        if self.selection_costs is None:
+            return scores
+        costs = torch.clamp(self.selection_costs.to(self.device), min=1e-12)
+        return scores / costs.unsqueeze(0)
+
+    def _actions(self, scores: Tensor, stop_mask: Tensor) -> AFAAction:
+        """Encode the best-scoring selection as an action, or stop where `stop_mask` says so or every selection is excluded."""
+        best_scores, best_idx = scores.max(dim=1)
+        stop_mask = stop_mask | (best_scores < -1e5)
+        selections = (best_idx + 1).to(dtype=torch.long).unsqueeze(-1)
+        return selections.masked_fill(stop_mask.unsqueeze(-1), 0)
+
+    @override
+    def save(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+        payload = {
+            f"{self.policy_network_name}_state_dict": (
+                self.policy_network.state_dict()
+            ),
+            "predictor_state_dict": self.predictor.state_dict(),
+            "architecture": self.spec.to_dict(self.policy_network_name),
+            "lambda_threshold": float(self.lambda_threshold),
+            "selection_costs": self.selection_costs.detach().cpu()
+            if self.selection_costs is not None
+            else None,
+        }
+        torch.save(payload, path / "model.pt")
+
+    @classmethod
+    @override
+    def load(cls, path: Path, device: torch.device) -> Self:
+        checkpoint = torch.load(
+            path / "model.pt", weights_only=False, map_location=device
+        )
+        spec = NetworkPairSpec.from_dict(
+            checkpoint["architecture"], cls.policy_network_name
+        )
+        policy_network, predictor = spec.build_networks(device)
+        policy_network.load_state_dict(
+            checkpoint[f"{cls.policy_network_name}_state_dict"]
+        )
+        predictor.load_state_dict(checkpoint["predictor_state_dict"])
+        policy_network.eval()
+        predictor.eval()
+        selection_costs = checkpoint.get("selection_costs")
+        if selection_costs is None:
+            # Bundles from before selection costs stored the feature
+            # costs, which equal them under the direct Unmasker
+            selection_costs = checkpoint.get("feature_costs")
+        if selection_costs is not None:
+            selection_costs = selection_costs.to(device)
+        return cls(
+            policy_network,
+            predictor,
+            spec,
+            device,
+            lambda_threshold=checkpoint.get("lambda_threshold"),
+            selection_costs=selection_costs,
+        )
 
 
 class GreedyDynamicSelection(nn.Module):
@@ -430,300 +612,6 @@ class GreedyDynamicSelection(nn.Module):
         assert best_zerotemp_predictor is not None
         restore_parameters(selector, best_zerotemp_selector)
         restore_parameters(predictor, best_zerotemp_predictor)
-
-
-class GDFSAFAMethod(AFAMethodBase):
-    def __init__(
-        self,
-        selector: nn.Module,
-        predictor: nn.Module,
-        device: torch.device,
-        lambda_threshold: float | None = None,
-        selection_costs: torch.Tensor | None = None,
-        selector_hidden_layers: list[int] | None = None,
-        predictor_hidden_layers: list[int] | None = None,
-        dropout: float = 0.3,
-        modality: str | None = "tabular",
-        n_patches: int | None = None,
-        d_in: int | None = None,
-        d_out: int | None = None,
-        n_selections: int | None = None,
-        backbone_type: str = "resnet50",
-    ):
-        super().__init__(device)
-
-        # Set up models and mask layer.
-        self.selector: nn.Module = selector
-        self.predictor: nn.Module = predictor
-        if lambda_threshold is None:
-            self.lambda_threshold: float = -math.inf
-        else:
-            self.lambda_threshold = lambda_threshold
-        self._selection_costs: torch.Tensor | None = selection_costs
-        self.selector_hidden_layers: list[int] = selector_hidden_layers or [
-            128,
-            128,
-        ]
-        self.predictor_hidden_layers: list[int] = predictor_hidden_layers or [
-            128,
-            128,
-        ]
-        self.dropout: float = dropout
-        self.modality: str | None = modality
-        # for image selection
-        self.n_patches: int | None = n_patches
-        self.d_in: int | None = d_in
-        self.d_out: int | None = d_out
-        self.n_selections: int | None = n_selections
-        self.image_size: int | None = None
-        self.patch_size: int | None = None
-        self.mask_width: int | None = None
-        self.backbone_type: str = backbone_type
-
-    def _flat_mask_to_patch_mask(
-        self, feature_mask: torch.Tensor
-    ) -> torch.Tensor:
-        assert feature_mask.dim() == 4
-        B, C, H, W = feature_mask.shape
-        ps = self.patch_size
-        assert ps is not None
-        ph = H // ps
-        pw = W // ps
-        fm = feature_mask.view(B, C, ph, ps, pw, ps)
-        patch_revealed = fm.any(dim=(1, 3, 5))
-        return patch_revealed.reshape(B, ph * pw)
-
-    @override
-    def predict(
-        self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        label: Label | None = None,
-        feature_shape: torch.Size | None = None,
-    ) -> Label:
-        if self.modality == "tabular":
-            x_masked = _append_flat_mask(masked_features, feature_mask)
-            pred = self.predictor(x_masked)
-        else:
-            pred = self.predictor(masked_features)
-        return pred.softmax(dim=-1)
-
-    @override
-    def act(
-        self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        selection_mask: SelectionMask | None = None,
-        label: Label | None = None,
-        feature_shape: torch.Size | None = None,
-    ) -> AFAAction:
-        with torch.no_grad():
-            if self.modality == "tabular":
-                x_masked_pred = _append_flat_mask(
-                    masked_features, feature_mask
-                )
-                pred = self.predictor(x_masked_pred)
-            else:
-                pred = self.predictor(masked_features)
-
-            entropy = get_entropy(pred)
-            stop_mask = entropy < self.lambda_threshold
-
-        if self.modality == "tabular":
-            x_masked = _append_flat_mask(masked_features, feature_mask)
-            logits = self.selector(x_masked).flatten(1)
-            if selection_mask is not None:
-                if logits.shape != selection_mask.shape:
-                    msg = (
-                        f"selection_mask shape {selection_mask.shape} is "
-                        "incompatible with the selector's logits shape "
-                        f"{logits.shape}."
-                    )
-                    raise ValueError(msg)
-                logits = logits - 1e6 * selection_mask.float()
-            elif logits.shape == feature_mask.shape:
-                # Selections map 1:1 onto features (e.g. DirectUnmasker),
-                # so the feature mask doubles as the already-selected
-                # mask.
-                logits = logits - 1e6 * feature_mask
-            else:
-                msg = (
-                    "GDFS requires a selection_mask when selections do "
-                    "not correspond 1:1 to features (e.g. grouped "
-                    "selections such as the Context Unmasker on "
-                    "cube_nm): logits shape "
-                    f"{logits.shape} does not match feature_mask shape "
-                    f"{feature_mask.shape}."
-                )
-                raise ValueError(msg)
-        else:
-            logits = self.selector(masked_features)
-            assert logits.dim() == 2, (
-                f"Selector must return [B, N], got {logits.shape}"
-            )
-            patch_mask = self._flat_mask_to_patch_mask(feature_mask).float()
-            logits = logits - 1e6 * patch_mask
-
-        if self._selection_costs is not None:
-            costs = self._selection_costs.to(self._device)
-            costs = torch.clamp(costs, min=1e-12)
-            scores = logits / costs.unsqueeze(0)
-        else:
-            scores = logits
-        best_scores, best_idx = scores.max(dim=1)
-
-        # stop_mask = best_scores < lam
-        # all masked
-        stop_mask = stop_mask | (best_scores < -1e5)
-
-        selections = (best_idx + 1).to(dtype=torch.long).unsqueeze(-1)
-        stop_mask = stop_mask.unsqueeze(-1)
-        # 0 = stop
-        selections = selections.masked_fill(stop_mask, 0)
-        return selections
-
-    @classmethod
-    @override
-    def load(cls, path: Path, device: torch.device) -> Self:
-        checkpoint = torch.load(
-            path / "model.pt", weights_only=False, map_location=device
-        )
-        arch = checkpoint["architecture"]
-        lambda_threshold = checkpoint.get("lambda_threshold", None)
-        selection_costs = checkpoint.get("selection_costs", None)
-        feature_costs = checkpoint.get("feature_costs", None)
-        if selection_costs is not None:
-            selection_costs = selection_costs.to(device)
-        elif feature_costs is not None:
-            selection_costs = feature_costs.to(device)
-        # tabular
-        if arch["type"] == "mlp":
-            d_in = arch["d_in"]
-            d_out = arch["d_out"]
-            n_selections = arch.get("n_selections", None)
-            if n_selections is None:
-                n_selections = d_in
-            selector_hidden_layers = arch["selector_hidden_layers"]
-            predictor_hidden_layers = arch["predictor_hidden_layers"]
-            dropout = arch["dropout"]
-            predictor = MLP(
-                in_features=d_in * 2,
-                out_features=d_out,
-                num_cells=predictor_hidden_layers,
-                activation_class=nn.ReLU,
-                dropout=dropout,
-            )
-            selector = MLP(
-                in_features=d_in * 2,
-                out_features=n_selections,
-                num_cells=selector_hidden_layers,
-                activation_class=nn.ReLU,
-                dropout=dropout,
-            )
-
-            model = cls(
-                selector=selector,
-                predictor=predictor,
-                device=device,
-                lambda_threshold=lambda_threshold,
-                selection_costs=selection_costs,
-                selector_hidden_layers=selector_hidden_layers,
-                predictor_hidden_layers=predictor_hidden_layers,
-                dropout=dropout,
-                modality="tabular",
-                d_in=d_in,
-                d_out=d_out,
-                n_selections=n_selections,
-            )
-            model.selector.load_state_dict(checkpoint["selector_state_dict"])
-            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
-            model.selector.eval()
-            model.predictor.eval()
-            return model.to(device)
-
-        if arch["type"] in ("resnet18", "resnet50"):
-            d_out = arch["d_out"]
-            if arch["type"] == "resnet18":
-                base = resnet18(pretrained=False)
-            else:
-                base = resnet50(pretrained=False)
-            backbone_net, expansion = ResNet18Backbone(base)
-            predictor = Predictor(backbone_net, expansion, d_out)
-            selector = ConvNet(backbone_net, expansion, 0.5)
-
-            model = cls(
-                selector=selector,
-                predictor=predictor,
-                device=device,
-                lambda_threshold=lambda_threshold,
-                selection_costs=selection_costs,
-                modality="image",
-                n_patches=int(arch["mask_width"]) ** 2,
-                d_out=d_out,
-                backbone_type=str(arch["type"]),
-            )
-
-            model.mask_width = int(arch["mask_width"])
-            model.patch_size = int(arch["patch_size"])
-            model.image_size = int(arch["image_size"])
-
-            model.selector.load_state_dict(checkpoint["selector_state_dict"])
-            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
-            model.selector.eval()
-            model.predictor.eval()
-            return model.to(device)
-        msg = "Unrecognized checkpoint format"
-        raise ValueError(msg)
-
-    @override
-    def save(self, path: Path) -> None:
-        path.mkdir(parents=True, exist_ok=True)
-        if self.modality == "tabular":
-            arch = {
-                "type": "mlp",
-                "d_in": self.d_in,
-                "d_out": self.d_out,
-                "n_selections": self.n_selections,
-                "selector_hidden_layers": self.selector_hidden_layers,
-                "predictor_hidden_layers": self.predictor_hidden_layers,
-                "dropout": self.dropout,
-                "model_type": "tabular",
-            }
-        else:
-            backbone_type = self.backbone_type
-            arch = {
-                "type": backbone_type,
-                "backbone": backbone_type,
-                "image_size": getattr(self, "image_size", 224),
-                "patch_size": getattr(self, "patch_size", 16),
-                "mask_width": getattr(self, "mask_width", 14),
-                "d_out": self.d_out,
-                "model_type": "image",
-            }
-        payload = {
-            "selector_state_dict": self.selector.state_dict(),
-            "predictor_state_dict": self.predictor.state_dict(),
-            "architecture": arch,
-            "lambda_threshold": float(self.lambda_threshold),
-            "selection_costs": self._selection_costs.detach().cpu()
-            if self._selection_costs is not None
-            else None,
-        }
-        torch.save(payload, Path(path) / "model.pt")
-
-    @property
-    @override
-    def has_builtin_classifier(self) -> bool:
-        return True
-
-    @property
-    @override
-    def cost_param(self) -> float | None:
-        return float(self.lambda_threshold)
-
-    @override
-    def set_cost_param(self, cost_param: float) -> None:
-        self.lambda_threshold = cost_param
 
 
 class CMIEstimator(nn.Module):
@@ -1114,272 +1002,3 @@ class CMIEstimator(nn.Module):
         # Copy parameters from best model.
         restore_parameters(value_network, best_value_network)
         restore_parameters(predictor, best_predictor)
-
-
-class DIMEAFAMethod(AFAMethodBase):
-    def __init__(
-        self,
-        value_network: nn.Module,
-        predictor: nn.Module,
-        device: torch.device,
-        lambda_threshold: float | None = None,
-        selection_costs: torch.Tensor | None = None,
-        value_network_hidden_layers: list[int] | None = None,
-        predictor_hidden_layers: list[int] | None = None,
-        dropout: float = 0.3,
-        modality: str | None = "tabular",
-        n_patches: int | None = None,
-        d_in: int | None = None,
-        d_out: int | None = None,
-        n_selections: int | None = None,
-        backbone_type: str = "resnet50",
-    ):
-        super().__init__(device)
-
-        # Save network modules.
-        self.value_network: nn.Module = value_network
-        self.predictor: nn.Module = predictor
-        if lambda_threshold is None:
-            self.lambda_threshold: float = -math.inf
-        else:
-            self.lambda_threshold = lambda_threshold
-        self._selection_costs: torch.Tensor | None = selection_costs
-        self.value_network_hidden_layers: list[int] = (
-            value_network_hidden_layers or [128, 128]
-        )
-        self.predictor_hidden_layers: list[int] = predictor_hidden_layers or [
-            128,
-            128,
-        ]
-        self.dropout: float = dropout
-        self.modality: str | None = modality
-        self.n_patches: int | None = n_patches
-        self.d_in: int | None = d_in
-        self.d_out: int | None = d_out
-        self.n_selections: int | None = n_selections
-        self.image_size: int | None = None
-        self.patch_size: int | None = None
-        self.mask_width: int | None = None
-        self.backbone_type: str = backbone_type
-
-    def _flat_mask_to_patch_mask(
-        self, feature_mask: torch.Tensor
-    ) -> torch.Tensor:
-        # need to check, ph, pw, which comes first?
-        assert feature_mask.dim() == 4
-        B, C, H, W = feature_mask.shape
-        ps = self.patch_size
-        assert ps is not None
-        ph = H // ps
-        pw = W // ps
-        fm = feature_mask.view(B, C, ph, ps, pw, ps)
-        patch_revealed = fm.any(dim=(1, 3, 5))
-        return patch_revealed.reshape(B, ph * pw)
-
-    @override
-    def predict(
-        self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        label: Label | None = None,
-        feature_shape: torch.Size | None = None,
-    ) -> Label:
-        if self.modality == "tabular":
-            x_masked = _append_flat_mask(masked_features, feature_mask)
-            pred = self.predictor(x_masked)
-        else:
-            pred = self.predictor(masked_features)
-        return pred.softmax(dim=-1)
-
-    @override
-    def act(
-        self,
-        masked_features: MaskedFeatures,
-        feature_mask: FeatureMask,
-        selection_mask: SelectionMask | None = None,
-        label: Label | None = None,
-        feature_shape: torch.Size | None = None,
-    ) -> AFAAction:
-        if self.modality == "tabular":
-            x_masked = _append_flat_mask(masked_features, feature_mask)
-            # pred = self.predict(masked_features, feature_mask)
-            pred = self.predictor(x_masked)
-            entropy = get_entropy(pred).unsqueeze(1)
-            pred_cmi = self.value_network(x_masked).sigmoid() * entropy
-            if selection_mask is not None:
-                assert pred_cmi.shape == selection_mask.shape, (
-                    f"selection_mask shape {selection_mask.shape} incompatible with pred_cmi {pred_cmi.shape}"
-                )
-                pred_cmi -= 1e6 * selection_mask.float()
-            else:
-                assert pred_cmi.shape == feature_mask.shape, (
-                    f"feature_mask shape {feature_mask.shape} incompatible with pred_cmi {pred_cmi.shape}"
-                )
-                pred_cmi -= 1e6 * feature_mask
-        else:
-            pred = self.predictor(masked_features)
-            entropy = get_entropy(pred).unsqueeze(1)
-            pred_cmi = self.value_network(masked_features).sigmoid() * entropy
-            patch_mask = self._flat_mask_to_patch_mask(feature_mask).float()
-            pred_cmi = pred_cmi - 1e6 * patch_mask
-
-        if self._selection_costs is not None:
-            costs = self._selection_costs.to(self._device)
-            costs = torch.clamp(costs, min=1e-12)
-            scores = pred_cmi / costs.unsqueeze(0)
-        else:
-            scores = pred_cmi
-        best_scores, best_idx = scores.max(dim=1)
-        lam = self.lambda_threshold
-        stop_mask = best_scores < lam
-        stop_mask = stop_mask | (best_scores < -1e5)
-
-        selections = (best_idx + 1).to(dtype=torch.long).unsqueeze(-1)
-        stop_mask = stop_mask.unsqueeze(-1)
-        selections = selections.masked_fill(stop_mask, 0)
-        return selections
-
-    @classmethod
-    @override
-    def load(cls, path: Path, device: torch.device) -> Self:
-        checkpoint = torch.load(
-            path / "model.pt", weights_only=False, map_location=device
-        )
-        arch = checkpoint["architecture"]
-        lambda_threshold = checkpoint.get("lambda_threshold", None)
-        selection_costs = checkpoint.get("selection_costs", None)
-        feature_costs = checkpoint.get("feature_costs", None)
-        if selection_costs is not None:
-            selection_costs = selection_costs.to(device)
-        elif feature_costs is not None:
-            selection_costs = feature_costs.to(device)
-        if arch["type"] == "mlp":
-            d_in = arch["d_in"]
-            d_out = arch["d_out"]
-            n_selections = arch.get("n_selections", None)
-            if n_selections is None:
-                n_selections = d_in
-            value_network_hidden_layers = arch["value_network_hidden_layers"]
-            predictor_hidden_layers = arch["predictor_hidden_layers"]
-            dropout = arch["dropout"]
-            predictor = MLP(
-                in_features=d_in * 2,
-                out_features=d_out,
-                num_cells=predictor_hidden_layers,
-                activation_class=nn.ReLU,
-                dropout=dropout,
-            )
-            value_network = MLP(
-                in_features=d_in * 2,
-                out_features=n_selections,
-                num_cells=value_network_hidden_layers,
-                activation_class=nn.ReLU,
-                dropout=dropout,
-            )
-
-            model = cls(
-                value_network=value_network,
-                predictor=predictor,
-                device=device,
-                lambda_threshold=lambda_threshold,
-                selection_costs=selection_costs,
-                value_network_hidden_layers=value_network_hidden_layers,
-                predictor_hidden_layers=predictor_hidden_layers,
-                dropout=dropout,
-                modality="tabular",
-                d_in=d_in,
-                d_out=d_out,
-                n_selections=n_selections,
-            )
-            model.value_network.load_state_dict(
-                checkpoint["value_network_state_dict"]
-            )
-            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
-            model.value_network.eval()
-            model.predictor.eval()
-            return model.to(device)
-
-        if arch["type"] in ("resnet18", "resnet50"):
-            d_out = arch["d_out"]
-            if arch["type"] == "resnet18":
-                base = resnet18(pretrained=False)
-            else:
-                base = resnet50(pretrained=False)
-            backbone_net, expansion = ResNet18Backbone(base)
-            predictor = Predictor(backbone_net, expansion, d_out)
-            value_network = ConvNet(backbone_net, expansion, 0.5)
-
-            model = cls(
-                value_network=value_network,
-                predictor=predictor,
-                device=device,
-                lambda_threshold=lambda_threshold,
-                selection_costs=selection_costs,
-                modality="image",
-                n_patches=int(arch["mask_width"]) ** 2,
-                d_out=d_out,
-                backbone_type=str(arch["type"]),
-            )
-            model.mask_width = int(arch["mask_width"])
-            model.patch_size = int(arch["patch_size"])
-            model.image_size = int(arch["image_size"])
-
-            model.value_network.load_state_dict(
-                checkpoint["value_network_state_dict"]
-            )
-            model.predictor.load_state_dict(checkpoint["predictor_state_dict"])
-            model.value_network.eval()
-            model.predictor.eval()
-            return model.to(device)
-        msg = "Unrecognized checkpoint format"
-        raise ValueError(msg)
-
-    @override
-    def save(self, path: Path) -> None:
-        path.mkdir(parents=True, exist_ok=True)
-        if self.modality == "tabular":
-            arch = {
-                "type": "mlp",
-                "d_in": self.d_in,
-                "d_out": self.d_out,
-                "n_selections": self.n_selections,
-                "value_network_hidden_layers": self.value_network_hidden_layers,
-                "predictor_hidden_layers": self.predictor_hidden_layers,
-                "dropout": self.dropout,
-                "model_type": "tabular",
-            }
-        else:
-            backbone_type = self.backbone_type
-            arch = {
-                "type": backbone_type,
-                "backbone": backbone_type,
-                "image_size": getattr(self, "image_size", 224),
-                "patch_size": getattr(self, "patch_size", 16),
-                "mask_width": getattr(self, "mask_width", 14),
-                "d_out": self.d_out,
-                "model_type": "image",
-            }
-        payload = {
-            "value_network_state_dict": self.value_network.state_dict(),
-            "predictor_state_dict": self.predictor.state_dict(),
-            "architecture": arch,
-            "lambda_threshold": float(self.lambda_threshold),
-            "selection_costs": self._selection_costs.detach().cpu()
-            if self._selection_costs is not None
-            else None,
-        }
-        torch.save(payload, Path(path) / "model.pt")
-
-    @property
-    @override
-    def has_builtin_classifier(self) -> bool:
-        return True
-
-    @property
-    @override
-    def cost_param(self) -> float | None:
-        return float(self.lambda_threshold)
-
-    @override
-    def set_cost_param(self, cost_param: float) -> None:
-        self.lambda_threshold = cost_param
