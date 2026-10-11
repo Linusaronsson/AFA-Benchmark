@@ -116,10 +116,15 @@ def manifest_reads(monkeypatch: pytest.MonkeyPatch) -> Counter[Path]:
     reads: Counter[Path] = Counter()
     path_open = Path.open
 
-    def counting_open(path: Path, *args: Any, **kwargs: Any) -> IO[Any]:  # noqa: ANN401
-        if path.name == "manifest.json":
+    def counting_open(
+        path: Path,
+        mode: str = "r",
+        *args: Any,  # noqa: ANN401
+        **kwargs: Any,  # noqa: ANN401
+    ) -> IO[Any]:
+        if path.name == "manifest.json" and "r" in mode:
             reads[path.parent] += 1
-        return path_open(path, *args, **kwargs)
+        return path_open(path, mode, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", counting_open)
     return reads

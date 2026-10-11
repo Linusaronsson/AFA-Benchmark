@@ -25,12 +25,13 @@ log = logging.getLogger(__name__)
 def main(cfg: EDDITrainingConfig) -> None:
     cfg = cast("EDDITrainingConfig", OmegaConf.to_object(cfg))
     log.debug(cfg)
-    with fit_run(cfg, tags=["eddi_external"], config=cfg):
+    inputs = load_inputs(cfg)
+    with fit_run(cfg, tags=["eddi_external"], config=cfg, inputs=inputs):
         afa_method = build_eddi_afa_method(
-            load_inputs(cfg),
+            inputs,
             classifier_bundle_path=Path(cfg.classifier_bundle_path),
         )
-        save_result(afa_method, cfg, cfg)
+        save_result(afa_method, cfg, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

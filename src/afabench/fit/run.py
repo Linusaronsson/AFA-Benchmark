@@ -10,18 +10,8 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from afabench.core.bundle_system.bundle import (
-    Saveable,
-    bundle_input,
-    save_bundle,
-    shared_bundle_dataset_identity,
-)
-from afabench.core.provenance import (
-    DatasetIdentity,
-    ProvenanceInput,
-    ProvenanceRecord,
-    capture_provenance,
-)
+from afabench.core.bundle_system.bundle import Saveable, save_bundle
+from afabench.core.provenance import ProvenanceRecord, capture_provenance
 from afabench.core.utils import initialize_wandb_run, set_seed
 from afabench.fit.contract import (
     BaseContract,
@@ -29,6 +19,7 @@ from afabench.fit.contract import (
     PretrainingContract,
     TrainingContract,
 )
+from afabench.fit.inputs import FitInputs
 from afabench.fit.metric_logger import (
     MetricLogger,
     NullMetricLogger,
@@ -52,6 +43,7 @@ def fit_run(
     *,
     tags: list[str],
     config: "DataclassInstance",
+    inputs: FitInputs | None = None,
 ) -> Generator[MetricLogger]:
     """
     Seed, open a metric logger for the contract's stage and clean up afterwards.
@@ -60,9 +52,11 @@ def fit_run(
     memory is released only when the contract's device is a CUDA device, so
     a CPU run never initialises a CUDA context. Dataset bundles whose
     records disagree on the dataset identity raise
-    `DatasetIdentityMismatchError` on entry, before any training.
+    `DatasetIdentityMismatchError` on entry, before any training. `inputs`
+    are the contract's `FitInputs` the script loads its inputs from, so
+    that their manifests are read once; without them, fresh ones are used.
     """
-    _contract_dataset_identity(contract)
+    (FitInputs(contract) if inputs is None else inputs).dataset_identity()
     set_seed(contract.seed)
     if contract.use_wandb:
         metric_logger = WandbMetricLogger(
@@ -89,6 +83,8 @@ def save_result(
     obj: Saveable,
     contract: BaseContract,
     config: "DataclassInstance",
+    *,
+    inputs: FitInputs | None = None,
 ) -> None:
     """
     Save `obj` as a bundle at the contract's `save_path`.
@@ -97,7 +93,8 @@ def save_result(
     remaining fields of `config`. The bundle's provenance record
     (ADR 0002) takes the contract's seed, its input bundles and, for
     training, its method name; the dataset identity is copied from the
-    dataset bundles' own records.
+    dataset bundles' own records. `inputs` are the contract's `FitInputs`,
+    as for `fit_run`.
     """
     contract_class = _CONTRACT_CLASSES[contract.stage]
     contract_field_names = {f.name for f in fields(contract_class)}
@@ -120,42 +117,31 @@ def save_result(
             "method_config": method_config_dict,
         },
         provenance=_fit_provenance(
-            contract, resolved_config={**contract_dict, **method_config_dict}
+            contract,
+            FitInputs(contract) if inputs is None else inputs,
+            resolved_config={**contract_dict, **method_config_dict},
         ),
     )
     log.info(f"Saved {type(obj).__name__} to {contract.save_path}")
 
 
-def _contract_dataset_identity(contract: BaseContract) -> DatasetIdentity:
-    return shared_bundle_dataset_identity(
-        contract.train_dataset_bundle_path, contract.val_dataset_bundle_path
-    )
-
-
 def _fit_provenance(
-    contract: BaseContract, *, resolved_config: dict[str, object]
+    contract: BaseContract,
+    inputs: FitInputs,
+    *,
+    resolved_config: dict[str, object],
 ) -> ProvenanceRecord:
-    inputs: list[ProvenanceInput] = [
-        bundle_input("train_dataset", contract.train_dataset_bundle_path),
-        bundle_input("val_dataset", contract.val_dataset_bundle_path),
-        bundle_input("classifier", contract.classifier_bundle_path),
-    ]
-    method_name = None
-    if isinstance(contract, TrainingContract):
-        method_name = contract.method_name
-        if contract.pretrained_model_bundle_path is not None:
-            inputs.append(
-                bundle_input(
-                    "pretrained_model", contract.pretrained_model_bundle_path
-                )
-            )
     return capture_provenance(
         stage=contract.stage,
         resolved_config=resolved_config,
         seed=contract.seed,
         smoke_test=contract.smoke_test,
         device=contract.device,
-        inputs=inputs,
-        dataset_identity=_contract_dataset_identity(contract),
-        method_name=method_name,
+        inputs=inputs.provenance_inputs(),
+        dataset_identity=inputs.dataset_identity(),
+        method_name=(
+            contract.method_name
+            if isinstance(contract, TrainingContract)
+            else None
+        ),
     )

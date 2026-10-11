@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -22,7 +23,8 @@ from afabench.core.provenance import (
 )
 from afabench.datasets.datasets import CubeDataset
 from afabench.fit.contract import PretrainingContract, TrainingContract
-from afabench.fit.run import save_result
+from afabench.fit.inputs import load_inputs
+from afabench.fit.run import fit_run, save_result
 from afabench.testing.provenance import placeholder_provenance
 
 
@@ -183,6 +185,53 @@ def test_save_result_records_training_provenance(inputs: Path) -> None:
             ],
         ),
     ]
+
+
+def test_fit_stage_given_its_inputs_reads_each_input_manifest_once(
+    inputs: Path, manifest_reads: Counter[Path]
+) -> None:
+    config = _training_config(inputs)
+    fit_inputs = load_inputs(config)
+
+    with fit_run(config, tags=["m"], config=config, inputs=fit_inputs):
+        fit_inputs.train_dataset()
+        fit_inputs.val_dataset()
+        fit_inputs.classifier(WrappedMaskedMLPClassifier)
+        save_result(
+            TorchModelBundle(nn.Linear(2, 2)),
+            config,
+            config,
+            inputs=fit_inputs,
+        )
+
+    # The pretrained model is never loaded, but its manifest is still read
+    # once for its provenance input
+    assert manifest_reads == {
+        inputs / "train.bundle": 1,
+        inputs / "val.bundle": 1,
+        inputs / "classifier.bundle": 1,
+        inputs / "pretrained.bundle": 1,
+    }
+
+
+def test_save_result_records_the_same_inputs_given_the_fit_inputs(
+    inputs: Path,
+) -> None:
+    config = _training_config(inputs)
+    save_result(TorchModelBundle(nn.Linear(2, 2)), config, config)
+    without_inputs = bundle_provenance(inputs / "method.bundle")
+    fit_inputs = load_inputs(config)
+    fit_inputs.classifier(WrappedMaskedMLPClassifier)
+
+    save_result(
+        TorchModelBundle(nn.Linear(2, 2)), config, config, inputs=fit_inputs
+    )
+
+    with_inputs = bundle_provenance(inputs / "method.bundle")
+    assert without_inputs is not None
+    assert with_inputs is not None
+    assert with_inputs.inputs == without_inputs.inputs
+    assert with_inputs.dataset_identity == without_inputs.dataset_identity
 
 
 def test_save_result_without_a_pretrained_model_records_three_inputs(

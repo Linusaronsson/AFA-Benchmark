@@ -135,8 +135,8 @@ def main(cfg: ODINPretrainConfig) -> None:
         ),
     )
 
-    with fit_run(cfg, tags=["odin"], config=cfg):
-        inputs = load_inputs(cfg)
+    inputs = load_inputs(cfg)
+    with fit_run(cfg, tags=["odin"], config=cfg, inputs=inputs):
         model_bundle = supervised_learning(
             train_dataset=inputs.train_dataset(),
             val_dataset=inputs.val_dataset(),
@@ -147,7 +147,7 @@ def main(cfg: ODINPretrainConfig) -> None:
             use_wandb=cfg.use_wandb,
             device=cfg.device,
         )
-        save_result(model_bundle, cfg, cfg)
+        save_result(model_bundle, cfg, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":
