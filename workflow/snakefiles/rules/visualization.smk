@@ -13,11 +13,11 @@ def _plot_time_selection() -> str:
     """Hydra overrides selecting this invocation's jobs from the job duration table."""
     pretrained_models = ",".join(
         f"{method}:{pretrained_model}"
-        for method, pretrained_model in METHOD_TO_PRETRAINED_MODEL.items()
+        for method, pretrained_model in WORKFLOW_SETTINGS.method_to_pretrained_model.items()
     )
     return shlex.join(
         [
-            f"methods=[{','.join(METHODS)}]",
+            f"methods=[{','.join(WORKFLOW_SETTINGS.methods)}]",
             # Hydra rejects new keys in a dict without the force-add prefix.
             f"++pretrained_models={{{pretrained_models}}}",
             f"initializer_tag={OUTPUT_LAYOUT.initializer_tag}",

@@ -7,25 +7,25 @@ from execution import checked_script_params
 
 
 def _classifier_script_name(dataset: str) -> str:
-    return CLASSIFIER_NAMES[dataset].script_name
+    return WORKFLOW_SETTINGS.classifier_names[dataset].script_name
 
 
 def _classifier_script_params(dataset: str) -> str:
     return checked_script_params(
-        " ".join(CLASSIFIER_NAMES[dataset].script_params),
+        " ".join(WORKFLOW_SETTINGS.classifier_names[dataset].script_params),
         f"classifier script_params for {dataset!r}",
     )
 
 
 def _method_classifier_script_name(method: str, dataset: str) -> str:
-    script_name = METHOD_CLASSIFIER_SCRIPT_NAMES.get(method)
+    script_name = WORKFLOW_SETTINGS.method_classifier_script_names.get(method)
     if script_name is not None:
         return script_name
     return _classifier_script_name(dataset)
 
 
 def _method_classifier_script_params(method: str, dataset: str) -> str:
-    script_params = METHOD_CLASSIFIER_SCRIPT_PARAMS.get(method)
+    script_params = WORKFLOW_SETTINGS.method_classifier_script_params.get(method)
     if script_params is not None:
         return checked_script_params(
             script_params, f"classifier script_params for method {method!r}"
@@ -67,7 +67,7 @@ rule train_classifier:
             name=lambda wc: _classifier_script_name(wc.dataset),
             train_seed=lambda wc: wc.dataset_realization_index,
         ),
-        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        unmasker=lambda wildcards: WORKFLOW_SETTINGS.unmasker(wildcards.dataset),
         script_name=lambda wildcards: _classifier_script_name(
             wildcards.dataset
         ),
@@ -129,7 +129,7 @@ rule train_classifier_for_method:
             name=lambda wc: _method_classifier_script_name(wc.method, wc.dataset),
             train_seed=lambda wc: wc.dataset_realization_index,
         ),
-        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
+        unmasker=lambda wildcards: WORKFLOW_SETTINGS.unmasker(wildcards.dataset),
         script_name=lambda wildcards: _method_classifier_script_name(
             wildcards.method, wildcards.dataset
         ),

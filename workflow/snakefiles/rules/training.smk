@@ -19,40 +19,7 @@ from contract_arguments import (
     render_pretraining_contract,
     render_training_contract,
 )
-from afabench.core.output_layout import (
-    PRETRAIN_FOLDER_PATTERN,
-    TrainingRun,
-    pretrain_seed_folder,
-    pretrain_seed_in_folder,
-)
-
-
-def _pretrained_model_bundle(wildcards) -> list[str]:
-    """The pretrained model a training run needs: one bundle or none."""
-    has_pretraining_stage = wildcards.method in METHOD_TO_PRETRAINED_MODEL
-    pretrain_seed = pretrain_seed_in_folder(wildcards.pretrain_folder)
-    if pretrain_seed is None:
-        if has_pretraining_stage:
-            raise ValueError(
-                f"Method {wildcards.method!r} has a pretraining stage, so its "
-                f"bundles live under {pretrain_seed_folder('<seed>')}/, not "
-                f"{wildcards.pretrain_folder}/."
-            )
-        return []
-    if not has_pretraining_stage:
-        raise ValueError(
-            f"Method {wildcards.method!r} has no pretraining stage, so its "
-            f"bundles live under {pretrain_seed_folder(None)}/, not "
-            f"{wildcards.pretrain_folder}/."
-        )
-    return [
-        OUTPUT_LAYOUT.pretrained_model_bundle(
-            pretrained_model_name=METHOD_TO_PRETRAINED_MODEL[wildcards.method],
-            dataset=wildcards.dataset,
-            dataset_realization_index=wildcards.dataset_realization_index,
-            pretrain_seed=pretrain_seed,
-        )
-    ]
+from afabench.core.output_layout import PRETRAIN_FOLDER_PATTERN, TrainingRun
 
 
 def _pretraining_contract(wildcards, input, output, resources) -> str:
@@ -63,7 +30,7 @@ def _pretraining_contract(wildcards, input, output, resources) -> str:
             "classifier_bundle_path": input.classifier,
             "save_path": output.model_bundle,
             "initializer": INITIALIZER,
-            "unmasker": UNMASKERS[wildcards.dataset],
+            "unmasker": WORKFLOW_SETTINGS.unmasker(wildcards.dataset),
             "dataset_key": wildcards.dataset,
             "device": EXECUTION.checked_device("pretraining", wildcards.pretrained_model_name, resources),
             "seed": wildcards.pretrain_seed,
@@ -85,7 +52,7 @@ def _training_contract(wildcards, input, output, resources) -> str:
             "save_path": output.method_bundle,
             "method_name": wildcards.method,
             "initializer": INITIALIZER,
-            "unmasker": UNMASKERS[wildcards.dataset],
+            "unmasker": WORKFLOW_SETTINGS.unmasker(wildcards.dataset),
             "dataset_key": wildcards.dataset,
             "hard_budget": wildcards.train_hard_budget,
             "soft_budget_param": wildcards.train_soft_budget_param,
@@ -138,9 +105,9 @@ rule pretrain_model:
             lambda wc: wc.pretrained_model_name,
             name=lambda wc: wc.pretrained_model_name,
         ),
-        script_name=lambda wildcards: PRETRAIN_SCRIPT_NAMES[wildcards.pretrained_model_name],
+        script_name=lambda wildcards: WORKFLOW_SETTINGS.pretraining_script(wildcards.pretrained_model_name).script_name,
         contract=_pretraining_contract,
-        pretrain_params=lambda wildcards: checked_script_params(PRETRAIN_PARAMS[wildcards.pretrained_model_name], f"pretrain_params for {wildcards.pretrained_model_name!r}"),
+        pretrain_params=lambda wildcards: checked_script_params(WORKFLOW_SETTINGS.pretraining_script(wildcards.pretrained_model_name).script_params, f"pretrain_params for {wildcards.pretrained_model_name!r}"),
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("pretraining", lambda wc: wc.pretrained_model_name),
@@ -165,7 +132,13 @@ rule train_method:
             dataset_realization_index="{dataset_realization_index}",
             split="val",
         ),
-        pretrained_model=_pretrained_model_bundle,
+        pretrained_model=lambda wildcards: WORKFLOW_SETTINGS.pretrained_model_bundle(
+            OUTPUT_LAYOUT,
+            method=wildcards.method,
+            dataset=wildcards.dataset,
+            dataset_realization_index=wildcards.dataset_realization_index,
+            pretrain_folder=wildcards.pretrain_folder,
+        ),
         classifier=ancient(
             lambda wildcards: WORKFLOW_SETTINGS.classifier_bundle(
                 OUTPUT_LAYOUT,
@@ -186,9 +159,9 @@ rule train_method:
         job_record=JOB_RECORDS.param(
             "training", lambda wc: wc.method, name=lambda wc: wc.method
         ),
-        script_name=lambda wildcards: METHOD_TRAIN_SCRIPT_NAMES[wildcards.method],
+        script_name=lambda wildcards: WORKFLOW_SETTINGS.training_script(wildcards.method).script_name,
         contract=_training_contract,
-        method_specific_params=lambda wildcards: METHOD_SPECIFIC_PARAMS[wildcards.method],
+        method_specific_params=lambda wildcards: WORKFLOW_SETTINGS.training_script(wildcards.method).script_params,
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("training", lambda wc: wc.method),

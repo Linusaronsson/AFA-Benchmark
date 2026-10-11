@@ -4,9 +4,10 @@ read.
 
 `load_config` (src/afabench/core/workflow_settings.py) validates the merged
 config and rejects a config mistake before any rule is defined; see
-docs/reference/pipeline_configuration.md. Rules ask `WORKFLOW_SETTINGS` which
-run and classifier a method uses, and address them with `OUTPUT_LAYOUT`.
-Include this file before the rules.
+docs/reference/pipeline_configuration.md. Rules ask `WORKFLOW_SETTINGS` what
+a run covers and which scripts, classifier, pretrained model, unmasker and
+eval batch size a method uses, and address every output with
+`OUTPUT_LAYOUT`. Include this file before the rules.
 """
 
 import os
@@ -44,34 +45,20 @@ EXECUTION = ExecutionPolicy(
     submits_to_cluster=lambda: workflow.is_main_process and workflow.non_local_exec,
 )
 
-DATASET_REALIZATION_INDICES = WORKFLOW_SETTINGS.dataset_realization_indices
+OUTPUT_LAYOUT = OutputLayout(
+    root=WORKFLOW_SETTINGS.output_root,
+    initializer=WORKFLOW_SETTINGS.initializer,
+    eval_split=WORKFLOW_SETTINGS.eval_dataset_split,
+)
+JOB_RECORDS = JobRecordCommands(
+    EXECUTION,
+    output_root=WORKFLOW_SETTINGS.output_root,
+    smoke_test=WORKFLOW_SETTINGS.smoke_test,
+)
+IMAGES = ImageCommands(EXECUTION, output_root=WORKFLOW_SETTINGS.output_root)
+# The scalars the rules read; everything else they ask of
+# WORKFLOW_SETTINGS and OUTPUT_LAYOUT.
 INITIALIZER = WORKFLOW_SETTINGS.initializer
 EVAL_DATASET_SPLIT = WORKFLOW_SETTINGS.eval_dataset_split
-OUTPUT_ROOT = WORKFLOW_SETTINGS.output_root
-OUTPUT_LAYOUT = OutputLayout(
-    root=OUTPUT_ROOT, initializer=INITIALIZER, eval_split=EVAL_DATASET_SPLIT
-)
 USE_WANDB = WORKFLOW_SETTINGS.use_wandb
 SMOKE_TEST = WORKFLOW_SETTINGS.smoke_test
-JOB_RECORDS = JobRecordCommands(
-    EXECUTION, output_root=OUTPUT_ROOT, smoke_test=SMOKE_TEST
-)
-IMAGES = ImageCommands(EXECUTION, output_root=OUTPUT_ROOT)
-PRETRAIN_NAMES = WORKFLOW_SETTINGS.pretrain_names
-PRETRAIN_SCRIPT_NAMES = WORKFLOW_SETTINGS.pretrain_script_names
-PRETRAIN_PARAMS = WORKFLOW_SETTINGS.pretrain_params
-METHODS = WORKFLOW_SETTINGS.methods
-REFERENCE_METHODS = WORKFLOW_SETTINGS.reference_methods
-METHOD_TRAIN_SCRIPT_NAMES = WORKFLOW_SETTINGS.method_train_script_names
-METHOD_CLASSIFIER_SCRIPT_NAMES = WORKFLOW_SETTINGS.method_classifier_script_names
-METHOD_CLASSIFIER_SCRIPT_PARAMS = WORKFLOW_SETTINGS.method_classifier_script_params
-METHOD_TO_PRETRAINED_MODEL = WORKFLOW_SETTINGS.method_to_pretrained_model
-METHOD_SPECIFIC_PARAMS = WORKFLOW_SETTINGS.method_specific_params
-DATASETS = WORKFLOW_SETTINGS.datasets
-UNMASKERS = WORKFLOW_SETTINGS.unmaskers
-BUDGET_PARAMS = WORKFLOW_SETTINGS.budget_params
-CLASSIFIER_NAMES = WORKFLOW_SETTINGS.classifier_names
-METHOD_SETS = WORKFLOW_SETTINGS.method_sets
-EVAL_BATCH_SIZES = WORKFLOW_SETTINGS.eval_batch_sizes
-DATASETS_USED_PER_PRETRAIN_NAME = WORKFLOW_SETTINGS.datasets_used_per_pretrain_name
-HEATMAP_METHOD_SET = "heatmap_comparison"

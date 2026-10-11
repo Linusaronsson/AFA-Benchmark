@@ -94,12 +94,13 @@ Output namespacing:
 Config files (--configfile):
     The merged config is validated by load_config
     (src/afabench/core/workflow_settings.py) through ../settings.smk, which
-    defines the globals the rules read. Unknown method_options keys, a
-    missing train_script_name, a pretrained_model_name outside
-    pretrain_mapping, a method missing from method_options or
-    soft_budget_params, and an ignored dataset that is not a dataset key all
-    fail the parse, naming the method, as does a malformed pretrain_mapping
-    entry, naming the pretrained model; see
+    defines WORKFLOW_SETTINGS, the typed settings the rules query per method
+    and dataset, OUTPUT_LAYOUT and the few scalars the rules read. Unknown
+    method_options keys, a missing train_script_name, a
+    pretrained_model_name outside pretrain_mapping, a method missing from
+    method_options or soft_budget_params, and an ignored dataset that is not
+    a dataset key all fail the parse, naming the method, as does a malformed
+    pretrain_mapping entry, naming the pretrained model; see
     docs/reference/pipeline_configuration.md.
     Fixed definitions:
         method_options.yaml,

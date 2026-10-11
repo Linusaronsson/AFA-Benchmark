@@ -23,10 +23,10 @@ rule merge_eval_perf:
                     budget_combination=budget_combination,
                 )
             )
-            for method in METHOD_SETS[wc.method_set]
-            for dataset in DATASETS
-            for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for budget_combination in BUDGET_PARAMS[method][dataset]
+            for method in WORKFLOW_SETTINGS.method_sets[wc.method_set]
+            for dataset in WORKFLOW_SETTINGS.datasets
+            for dataset_realization_index in WORKFLOW_SETTINGS.dataset_realization_indices
+            for budget_combination in WORKFLOW_SETTINGS.budget_params[method][dataset]
         ]
     params:
         image=IMAGES.param("aggregation", lambda wc: "merge_eval_perf"),
@@ -82,10 +82,10 @@ rule collect_job_records:
                     budget_combination=budget_combination,
                 )
             )
-            for method in METHODS
-            for dataset in DATASETS
-            for dataset_realization_index in DATASET_REALIZATION_INDICES
-            for budget_combination in BUDGET_PARAMS[method][dataset]
+            for method in WORKFLOW_SETTINGS.methods
+            for dataset in WORKFLOW_SETTINGS.datasets
+            for dataset_realization_index in WORKFLOW_SETTINGS.dataset_realization_indices
+            for budget_combination in WORKFLOW_SETTINGS.budget_params[method][dataset]
         ]
     output:
         OUTPUT_LAYOUT.job_duration_table(),

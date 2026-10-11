@@ -15,8 +15,10 @@ from afabench.core.output_layout import EvaluationRun
 # release. Not matching them here leaves those tables as plain input files,
 # so aggregating them never schedules their evaluation or training.
 TRANSFORMED_METHOD_PATTERN = (
-    "(?!(?:" + "|".join(map(re.escape, REFERENCE_METHODS)) + ")/).+"
-    if REFERENCE_METHODS
+    "(?!(?:"
+    + "|".join(map(re.escape, WORKFLOW_SETTINGS.reference_methods))
+    + ")/).+"
+    if WORKFLOW_SETTINGS.reference_methods
     else ".+"
 )
 

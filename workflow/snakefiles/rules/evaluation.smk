@@ -31,10 +31,10 @@ rule eval_method:
             "evaluation",
             lambda wc: wc.method,
             name=lambda wc: wc.method,
-            eval_batch_size=lambda wc: EVAL_BATCH_SIZES[wc.method][wc.dataset],
+            eval_batch_size=lambda wc: WORKFLOW_SETTINGS.eval_batch_size(wc.method, wc.dataset),
         ),
-        unmasker=lambda wildcards: UNMASKERS[wildcards.dataset],
-        eval_batch_size=lambda wildcards: EVAL_BATCH_SIZES[wildcards.method][wildcards.dataset],
+        unmasker=lambda wildcards: WORKFLOW_SETTINGS.unmasker(wildcards.dataset),
+        eval_batch_size=lambda wildcards: WORKFLOW_SETTINGS.eval_batch_size(wildcards.method, wildcards.dataset),
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("evaluation", lambda wc: wc.method),
