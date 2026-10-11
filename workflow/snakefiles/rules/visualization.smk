@@ -20,7 +20,7 @@ def _plot_time_selection() -> str:
             f"methods=[{','.join(METHODS)}]",
             # Hydra rejects new keys in a dict without the force-add prefix.
             f"++pretrained_models={{{pretrained_models}}}",
-            f"initializer_tag={INITIALIZER_TAG}",
+            f"initializer_tag={OUTPUT_LAYOUT.initializer_tag}",
             f"eval_dataset_split={EVAL_DATASET_SPLIT}",
         ]
     )
@@ -29,9 +29,9 @@ def _plot_time_selection() -> str:
 rule plot_eval_perf:
     """Generate evaluation performance plots."""
     input:
-        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
+        OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type="{classifier_type}"),
     output:
-        directory(f"{OUTPUT_ROOT}/plots/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}"),
+        directory(OUTPUT_LAYOUT.eval_perf_plots(method_set="{method_set}", classifier_type="{classifier_type}")),
     params:
         image=IMAGES.param("visualization", lambda wc: "plot_eval_perf"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_perf", resources),
@@ -47,9 +47,9 @@ rule plot_eval_perf:
 # This rule probably does not need to use both types of classifiers, since the actions are the same (they come from the same original evaluation dataframe).
 rule plot_eval_actions:
     input:
-        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
+        OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type="{classifier_type}"),
     output:
-        directory(f"{OUTPUT_ROOT}/plots/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_actions/{{method_set}}+classifier_type-{{classifier_type}}"),
+        directory(OUTPUT_LAYOUT.eval_actions_plots(method_set="{method_set}", classifier_type="{classifier_type}")),
     params:
         image=IMAGES.param("visualization", lambda wc: "plot_eval_actions"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_actions", resources),
@@ -71,9 +71,9 @@ rule plot_time:
     split.
     """
     input:
-        f"{OUTPUT_ROOT}/merged_results/job_duration_table.parquet",
+        OUTPUT_LAYOUT.job_duration_table(),
     output:
-        directory(f"{OUTPUT_ROOT}/plots/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"),
+        directory(OUTPUT_LAYOUT.time_plots()),
     params:
         image=IMAGES.param("visualization", lambda wc: "plot_time"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_time", resources),

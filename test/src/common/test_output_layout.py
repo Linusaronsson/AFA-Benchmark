@@ -264,3 +264,50 @@ def test_pretrain_folder_wildcard_rejects_other_folders() -> None:
     assert not re.fullmatch(PRETRAIN_FOLDER_PATTERN, "pretrain_seed-x")
     with pytest.raises(ValueError, match="'pretrain_seed-x'"):
         pretrain_seed_in_folder("pretrain_seed-x")
+
+
+MERGED_FOLDER = "output/merged_results/eval_split-test/initializer-cold/"
+PLOTS_FOLDER = "output/plots/eval_split-test/initializer-cold/"
+
+
+def test_merged_table_of_both_classifier_types() -> None:
+    assert (
+        LAYOUT.merged_table(method_set="rl", classifier_type=None)
+        == f"{MERGED_FOLDER}eval_perf/method_set-rl+all.parquet"
+    )
+
+
+def test_merged_table_of_one_classifier_type() -> None:
+    assert (
+        LAYOUT.merged_table(method_set="rl", classifier_type="external")
+        == f"{MERGED_FOLDER}eval_perf/"
+        "method_set-rl+classifier_type-external.parquet"
+    )
+
+
+def test_eval_perf_plots() -> None:
+    assert (
+        LAYOUT.eval_perf_plots(method_set="rl", classifier_type="builtin")
+        == f"{PLOTS_FOLDER}eval_perf/method_set-rl+classifier_type-builtin"
+    )
+
+
+def test_eval_actions_plots() -> None:
+    assert (
+        LAYOUT.eval_actions_plots(
+            method_set="heatmap_comparison", classifier_type="external"
+        )
+        == f"{PLOTS_FOLDER}eval_actions/"
+        "method_set-heatmap_comparison+classifier_type-external"
+    )
+
+
+def test_time_plots() -> None:
+    assert LAYOUT.time_plots() == f"{PLOTS_FOLDER}time"
+
+
+def test_job_duration_table_covers_every_initializer_and_split() -> None:
+    assert (
+        LAYOUT.job_duration_table()
+        == "output/merged_results/job_duration_table.parquet"
+    )

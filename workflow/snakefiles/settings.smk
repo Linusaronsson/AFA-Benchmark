@@ -51,8 +51,6 @@ OUTPUT_ROOT = WORKFLOW_SETTINGS.output_root
 OUTPUT_LAYOUT = OutputLayout(
     root=OUTPUT_ROOT, initializer=INITIALIZER, eval_split=EVAL_DATASET_SPLIT
 )
-# For the merged results and plots, which the layout does not address.
-INITIALIZER_TAG = OUTPUT_LAYOUT.initializer_tag
 USE_WANDB = WORKFLOW_SETTINGS.use_wandb
 SMOKE_TEST = WORKFLOW_SETTINGS.smoke_test
 JOB_RECORDS = JobRecordCommands(

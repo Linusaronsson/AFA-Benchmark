@@ -35,7 +35,7 @@ rule merge_eval_perf:
         shell_exec="bash",
         **EXECUTION.allocation_resources("aggregation", lambda wc: "merge_eval_perf"),
     output:
-        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet",
+        OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type=None),
     shell:
         """
             {params.image}python scripts/misc/merge_dataframes.py {input} --output {output}
@@ -43,10 +43,10 @@ rule merge_eval_perf:
 
 rule split_by_classifier_type:
     input:
-        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+all.parquet"
+        OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type=None),
     output:
-        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-builtin.parquet",
-        f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/method_set-{{method_set}}+classifier_type-external.parquet"
+        OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type="builtin"),
+        OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type="external"),
     params:
         image=IMAGES.param("aggregation", lambda wc: "split_by_classifier_type"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "split_by_classifier_type", resources),
@@ -88,10 +88,10 @@ rule collect_job_records:
             for budget_combination in BUDGET_PARAMS[method][dataset]
         ]
     output:
-        f"{OUTPUT_ROOT}/merged_results/job_duration_table.parquet",
+        OUTPUT_LAYOUT.job_duration_table(),
     params:
         image=IMAGES.param("aggregation", lambda wc: "collect_job_records"),
-        output_root=OUTPUT_ROOT,
+        output_root=OUTPUT_LAYOUT.root,
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "collect_job_records", resources),
     resources:
         shell_exec="bash",

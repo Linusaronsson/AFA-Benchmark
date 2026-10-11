@@ -147,9 +147,11 @@ CPU-only processing:
 
 Output namespacing:
     - Every rule addresses dataset, classifier, pretrained-model and method
-      bundles, evaluation tables and job records under the output root
-      (output_root) through OUTPUT_LAYOUT (src/afabench/core/output_layout.py), the native layout that
-      release manifests and restored benchmark releases also use.
+      bundles, evaluation tables, job records, merged tables, the job
+      duration table and plots under the output root (output_root) through
+      OUTPUT_LAYOUT (src/afabench/core/output_layout.py), the native layout
+      that release manifests and restored benchmark releases also use. No
+      rule spells a path under the output root itself.
     - All initializer-dependent artifacts are stored under
       `initializer-<initializer>` to allow side-by-side comparisons
       (for example `cold` vs `missingness`) without overwriting.

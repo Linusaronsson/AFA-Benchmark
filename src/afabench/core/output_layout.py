@@ -1,12 +1,11 @@
 """
-The pipeline's native output layout of bundles, tables and job records.
+The pipeline's native output layout of bundles, tables, job records and plots.
 
-Every Snakemake rule addresses bundles, evaluation tables and the job
-records beside them (`docs/reference/job_records.md`) through this module,
-so their layout is spelled once; the aggregation and visualization rules
-spell their merged results and plots themselves, under this module's
-initializer tag. Benchmark releases are restored at these paths and
-reference methods' tables are found by them, so the layout must not change.
+Every Snakemake rule addresses bundles, evaluation tables, the job records
+beside them (`docs/reference/job_records.md`), merged tables, the job
+duration table and plots through this module, so their layout is spelled
+once. Benchmark releases are restored at these paths and reference methods'
+tables are found by them, so the layout must not change.
 Artifacts carry their own identity
 (`docs/adr/0002-provenance-recorded-in-artifacts.md`); the paths are
 Snakemake target naming only.
@@ -265,6 +264,53 @@ class OutputLayout:
             file_name,
         )
 
+    def merged_table(
+        self, *, method_set: PathValue, classifier_type: PathValue | None
+    ) -> str:
+        """Address a merged table; None keeps both classifier types."""
+        selection = (
+            "all"
+            if classifier_type is None
+            else f"classifier_type-{classifier_type}"
+        )
+        return self._path(
+            "merged_results",
+            f"eval_split-{self.eval_split}",
+            self.initializer_tag,
+            "eval_perf",
+            f"method_set-{method_set}+{selection}.parquet",
+        )
+
+    def job_duration_table(self) -> str:
+        """Collect every job record under the root, whatever its initializer."""
+        return self._path("merged_results", "job_duration_table.parquet")
+
+    def eval_perf_plots(
+        self, *, method_set: PathValue, classifier_type: PathValue
+    ) -> str:
+        return self._plots_path(
+            "eval_perf", _method_set_plots_folder(method_set, classifier_type)
+        )
+
+    def eval_actions_plots(
+        self, *, method_set: PathValue, classifier_type: PathValue
+    ) -> str:
+        return self._plots_path(
+            "eval_actions",
+            _method_set_plots_folder(method_set, classifier_type),
+        )
+
+    def time_plots(self) -> str:
+        return self._plots_path("time")
+
+    def _plots_path(self, *segments: str) -> str:
+        return self._path(
+            "plots",
+            f"eval_split-{self.eval_split}",
+            self.initializer_tag,
+            *segments,
+        )
+
     def _pretraining_path(
         self,
         pretrained_model_name: PathValue,
@@ -294,6 +340,12 @@ def _dataset_realization_folder(
     dataset: PathValue, dataset_realization_index: PathValue
 ) -> str:
     return f"dataset-{dataset}+realization_index-{dataset_realization_index}"
+
+
+def _method_set_plots_folder(
+    method_set: PathValue, classifier_type: PathValue
+) -> str:
+    return f"method_set-{method_set}+classifier_type-{classifier_type}"
 
 
 def _training_segments(run: TrainingRun) -> list[str]:
