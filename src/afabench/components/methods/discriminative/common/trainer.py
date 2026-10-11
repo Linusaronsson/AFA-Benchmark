@@ -36,8 +36,11 @@ from afabench.core.types import AFAInitializer, AFAUnmasker
 
 type ValLossMode = Literal["min", "max"]
 type MetricLogger = Callable[[dict[str, float]], None]
+type BatchFeatures = Float[Tensor, "batch *feature_shape"]  # noqa: F821
 type ClassIndices = Integer[Tensor, "batch"]  # noqa: F821
 type FloatMask = Float[Tensor, "batch *mask_shape"]  # noqa: F821
+type SelectionCosts = Float[Tensor, "n_selections"]  # noqa: F821
+type ValidationScore = Float[Tensor, ""]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -71,7 +74,7 @@ class TrainerSettings:
 class BatchEpisode:
     """A batch of episodes at their initial feature mask, on the training device."""
 
-    features: Tensor
+    features: BatchFeatures
     label: ClassIndices
     feature_mask: FloatMask
     selection_mask: FloatMask
@@ -89,7 +92,7 @@ class TrainingContext:
     settings: TrainerSettings
     val_loss_fn: nn.Module
     val_loss_mode: ValLossMode
-    selection_costs: Tensor
+    selection_costs: SelectionCosts
     n_selections: int
     mask_size: int
     feature_shape: torch.Size
@@ -97,7 +100,7 @@ class TrainingContext:
 
 @dataclass(frozen=True)
 class EpochValidation:
-    score: Tensor
+    score: ValidationScore
     """What the scheduler steps on and the best-epoch check compares."""
     metrics: dict[str, float]
 
