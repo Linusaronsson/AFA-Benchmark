@@ -11,7 +11,7 @@ Snakemake imports this module at parse time, so it must not import torch.
 
 import warnings
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
@@ -89,7 +89,23 @@ class MethodOptions:
 
 
 @dataclass(frozen=True, kw_only=True)
+class PipelineStages:
+    """
+    The `stages` mapping: which optional pipeline stages define rules.
+
+    A stage that is off defines no rules, so the run reads its outputs as
+    they are on disk and never schedules its jobs.
+    """
+
+    dataset_generation: bool = True
+    # Pretraining, training and classifier training.
+    training: bool = True
+    evaluation: bool = True
+
+
+@dataclass(frozen=True, kw_only=True)
 class WorkflowSettings:
+    stages: PipelineStages
     dataset_realization_indices: list[int]
     initializer: str
     eval_dataset_split: str
@@ -257,6 +273,14 @@ class WorkflowSettings:
         lines = [
             "Resolved workflow configuration:",
             f"  output root: {self.output_root}",
+            "  stages off: "
+            + _join(
+                [
+                    stage.name
+                    for stage in fields(self.stages)
+                    if not getattr(self.stages, stage.name)
+                ]
+            ),
             f"  initializer: {self.initializer}",
             f"  eval dataset split: {self.eval_dataset_split}",
             f"  smoke test: {self.smoke_test}",
@@ -469,6 +493,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     }
 
     return WorkflowSettings(
+        stages=_stages(config.get("stages", {})),
         dataset_realization_indices=config.get(
             "dataset_realization_indices", [0, 1, 2, 3, 4]
         ),
@@ -644,6 +669,13 @@ def _output_root(output_root: str | None, *, smoke_test: bool) -> str:
         )
         raise ValueError(message)
     return output_root
+
+
+def _stages(stages: object) -> PipelineStages:
+    if not isinstance(stages, Mapping):
+        message = f"Expected stages to be a mapping, got {stages!r}."
+        raise TypeError(message)
+    return _parse_strictly(PipelineStages, stages, "stages")
 
 
 def _check_reference_methods(

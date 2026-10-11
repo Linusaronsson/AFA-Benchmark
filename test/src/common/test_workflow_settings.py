@@ -47,6 +47,43 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.output_root == "output/production"
 
 
+def test_every_pipeline_stage_runs_by_default() -> None:
+    stages = load_config(_config()).stages
+
+    assert stages.dataset_generation is True
+    assert stages.training is True
+    assert stages.evaluation is True
+
+
+def test_stages_turn_off_only_the_named_stages() -> None:
+    stages = load_config(
+        _config()
+        | {"stages": {"dataset_generation": False, "training": False}}
+    ).stages
+
+    assert stages.dataset_generation is False
+    assert stages.training is False
+    assert stages.evaluation is True
+
+
+@pytest.mark.parametrize(
+    ("stages", "error", "message"),
+    [
+        ({"trainig": False}, ValueError, r"stages.*trainig"),
+        ({"pretraining": False}, ValueError, r"stages.*pretraining"),
+        ({"training": "false"}, ValueError, r"stages.*training"),
+        ({"evaluation": 0}, ValueError, r"stages.*evaluation"),
+        (["training"], TypeError, r"stages.*\['training'\]"),
+        ("training=false", TypeError, r"stages.*'training=false'"),
+    ],
+)
+def test_invalid_stages_are_rejected(
+    stages: object, error: type[Exception], message: str
+) -> None:
+    with pytest.raises(error, match=message):
+        load_config(_config() | {"stages": stages})
+
+
 def test_smoke_test_writes_under_its_own_output_root() -> None:
     settings = load_config(_config() | {"smoke_test": True})
 
@@ -537,6 +574,7 @@ def test_summary_lists_what_the_run_covers() -> None:
     summary = load_config(config).summary()
 
     assert "  dataset realizations: [0, 1, 2, 3, 4]" in summary.splitlines()
+    assert "  stages off: []" in summary.splitlines()
     assert "  reference methods: [gamma]" in summary.splitlines()
     assert (
         "  datasets:\n"
@@ -564,6 +602,14 @@ def test_summary_lists_what_the_run_covers() -> None:
         "      hard budgets: [1]\n"
         "      soft-budget parameters: [0.1 -> 0.2]"
     ) in summary
+
+
+def test_summary_lists_the_stages_that_are_off() -> None:
+    config = _config() | {"stages": {"training": False, "evaluation": False}}
+
+    summary = load_config(config).summary()
+
+    assert "  stages off: [training, evaluation]" in summary.splitlines()
 
 
 def _config(
