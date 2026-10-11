@@ -121,7 +121,13 @@ class AFADataset(Protocol):
 
 @runtime_checkable
 class AFAMethod(Protocol):
-    """An AFA method is an object that can decide which features to collect next (or stop collecting features) and also do predictions with the features it has seen so far."""
+    """
+    An AFA method is an object that can decide which features to collect next (or stop collecting features) and also do predictions with the features it has seen so far.
+
+    This is a pure protocol: what evaluation and the bundle system call.
+    `afabench.components.methods.common.AFAMethodBase` implements the
+    device bookkeeping and the defaults for method classes.
+    """
 
     def act(
         self,
@@ -183,21 +189,21 @@ class AFAMethod(Protocol):
 
     @property
     def has_builtin_classifier(self) -> bool:
-        """Return the current device the method is on."""
-        return False
+        """Whether `predict` is a built-in classifier that evaluation reports beside the external one."""
+        ...
 
     @property
     def cost_param(self) -> float | None:
-        """Return the cost parameter, if any. Only applies to methods that make trade-offs between feature cost and accuracy."""
-        return None
+        """Return the soft-budget parameter, if any. Only applies to methods that make trade-offs between feature cost and accuracy."""
+        ...
 
     def set_cost_param(self, cost_param: float) -> None:
-        """Set the cost parameter, if any. Mostly applies to methods that do not need a cost parameter during training but can adjust the trade-off during evaluation."""
-        pass  # noqa: PIE790
+        """Set the soft-budget parameter, if any. Mostly applies to methods that do not need one during training but can adjust the trade-off during evaluation."""
+        ...
 
     def set_seed(self, seed: int | None) -> None:
         """Set the seed, if the method is stochastic."""
-        pass  # noqa: PIE790
+        ...
 
 
 @runtime_checkable
