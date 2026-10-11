@@ -39,6 +39,7 @@ def test_generated_split_bundles_record_their_identity_and_seed(
         dataset_key="cube_without_noise",
         dataset_realization_index=3,
         resolved_config=resolved_config,
+        feature_costs_file=tmp_path / "feature_costs.csv",
     )
 
     for split in SPLITS:

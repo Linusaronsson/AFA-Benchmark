@@ -18,6 +18,10 @@ from afabench.core.provenance import (
 from afabench.core.registry import get_class
 from afabench.core.types import AFADataset
 from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
+from afabench.datasets.feature_costs import (
+    feature_costs_path,
+    resolve_feature_costs,
+)
 from afabench.datasets.utils import require_generation_order
 
 log = logging.getLogger(__name__)
@@ -33,6 +37,7 @@ def generate_and_save_image_split(
     dataset_key: str,
     dataset_realization_index: int,
     resolved_config: dict[str, Any],
+    feature_costs_file: Path,
 ) -> None:
     """
     Generate and save a single train/val/test split for a dataset with a specific seed.
@@ -42,7 +47,8 @@ def generate_and_save_image_split(
     `train/` then `val/`, so generation indices run over both folders in
     that order and are unique across splits. `dataset_key`,
     `dataset_realization_index` and `resolved_config` go into each bundle's
-    provenance record.
+    provenance record. The feature costs file at `feature_costs_file`, if it
+    exists, sets the feature costs stored in each bundle.
     """
 
     def pool_size(subdir: str) -> int:
@@ -80,6 +86,9 @@ def generate_and_save_image_split(
         dataset = dataset_class(**effective_kwargs[split])
         require_generation_order(dataset)
         splits[split] = dataset.create_subset(generation_indices)
+        splits[split].feature_costs = resolve_feature_costs(
+            dataset, feature_costs_file
+        )
 
     # Create dataset directory
     save_path.mkdir(parents=True, exist_ok=True)
@@ -147,6 +156,7 @@ def main(cfg: DatasetGenerationConfig) -> None:
             dataset_key=dataset_key,
             dataset_realization_index=dataset_realization_index,
             resolved_config=asdict(cfg),
+            feature_costs_file=feature_costs_path(dataset_key),
         )
 
 

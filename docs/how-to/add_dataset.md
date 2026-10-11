@@ -24,6 +24,7 @@ from torch import Tensor
 from torch.utils.data import Dataset
 
 from afabench.core.types import AFADataset, GenerationIndices
+from afabench.datasets.feature_costs import load_saved_feature_costs
 from afabench.datasets.utils import (
     default_create_subset,
     load_generation_indices,
@@ -84,6 +85,7 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "config": {
                     "n_samples": self.n_samples,
                 },
@@ -102,6 +104,9 @@ class MyDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.labels = data["labels"]
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
+        )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
         )
         return obj
 ```
@@ -130,6 +135,24 @@ instance. Your class must:
 every registered dataset class. Tell its `dataset_kwargs` how to build a
 small instance of yours; if it reads a CSV, add it to `TABULAR_SOURCES` so
 the source-order test covers it too.
+
+Your class must also persist its **feature costs**
+(`docs/adr/0011-feature-costs-stored-in-dataset-bundles.md`): `save` writes
+`get_feature_acquisition_costs()` and `load` reads them with
+`load_saved_feature_costs`, which raises `MissingFeatureCostsError` for a
+bundle saved without them. Dataset generation sets them before saving:
+
+- **Unit costs** need nothing more.
+- **Costs computed from config**, as in CUBE-NM: set `self.feature_costs` in
+  the constructor.
+- **Costs from a file**: put one value per feature, in flattened feature
+  order, in `data/<dataset key>/feature_costs.csv`, then regenerate the
+  dataset. `scripts/misc/generate_feature_costs.py` writes a random one. The
+  file is read only at dataset generation, and a class that computes its
+  own costs must not have one.
+
+`test/src/common/datasets/test_feature_costs.py` checks that the costs reach
+every split bundle.
 
 If your dataset is synthetic and should vary by dataset realization, make `accepts_seed()` return `True` and add a `seed` argument to `__init__`. The dataset generation script will pass one seed per dataset realization automatically.
 

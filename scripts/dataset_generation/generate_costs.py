@@ -12,6 +12,9 @@ Modes:
       (optionally shuffled)
 
 All costs are normalized to mean == 1.0.
+
+Dataset generation reads the file and stores the costs in the dataset
+bundles (ADR 0011), so regenerate the dataset for it to take effect.
 """
 
 from __future__ import annotations

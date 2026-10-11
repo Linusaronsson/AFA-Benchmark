@@ -1,20 +1,9 @@
-import csv
-import logging
 from collections.abc import Sequence
-from math import prod
 from pathlib import Path
 from typing import Literal, Protocol, Self, runtime_checkable
 
 import torch
 from jaxtyping import Bool, Float, Integer
-
-logger = logging.getLogger(__name__)
-
-# Relative to the working directory, which the pipeline runs from the
-# repository root. Each dataset owns the folder named after its dataset key;
-# a dataset without a feature costs file there has unit feature costs.
-DATA_DIR = Path("data")
-FEATURE_COSTS_FILENAME = "feature_costs.csv"
 
 type Features = Float[torch.Tensor, "*batch *feature_shape"]
 # MaskedFeatures are similar to Features, but are 0 where FeatureMask is False
@@ -42,14 +31,6 @@ type AFAAction = Integer[torch.Tensor, "*batch 1"]
 type AFASelection = Integer[torch.Tensor, "*batch 1"]
 
 
-def _infer_dataset_key(dataset: object) -> str:
-    from afabench.core.naming import (  # noqa: PLC0415
-        infer_dataset_key_from_class_name,
-    )
-
-    return infer_dataset_key_from_class_name(dataset.__class__.__name__)
-
-
 class AFADataset(Protocol):
     """
     Datasets that can be used for evaluating AFA methods.
@@ -63,9 +44,14 @@ class AFADataset(Protocol):
     dataset numbers its instances 0..n-1 in generation order, which for a
     real-world dataset must be the source's order. `create_subset` composes
     the indices, and `save`/`load` persist them.
+
+    `save`/`load` also persist the feature costs
+    (`get_feature_acquisition_costs`), which dataset generation sets as
+    `feature_costs` before saving (ADR 0011).
     """
 
-    feature_costs: torch.Tensor | None
+    # Set by dataset generation, or by a constructor that computes them
+    feature_costs: torch.Tensor | None = None
 
     @property
     def feature_shape(self) -> torch.Size:
@@ -121,64 +107,17 @@ class AFADataset(Protocol):
         ...
 
     def get_feature_acquisition_costs(self) -> torch.Tensor:
-        """Return the acquisition costs for each feature as a tensor of the shape as the features."""
-        feature_costs = getattr(self, "feature_costs", None)
-        if feature_costs is None:
-            feature_costs = self.load_feature_costs()
-            self.feature_costs = feature_costs
-        return feature_costs
-
-    def load_feature_costs(
-        self,
-        dataset_key: str | None = None,
-        feature_shape: torch.Size | None = None,
-        costs_path: Path | None = None,
-    ) -> torch.Tensor:
         """
-        Load per-feature acquisition costs from a CSV file if it exists.
+        Return the feature cost of each feature, shaped like the features.
 
-        Falls back to uniform unit costs when no file is present.
+        A dataset loaded from a bundle returns the feature costs stored in it
+        at dataset generation (ADR 0011). A freshly constructed dataset
+        returns the costs it computes from its config, set as
+        `feature_costs` in its constructor, or unit costs.
         """
-        resolved_shape = (
-            feature_shape if feature_shape is not None else self.feature_shape
-        )
-        resolved_key = dataset_key or _infer_dataset_key(self)
-        resolved_path = (
-            costs_path or DATA_DIR / resolved_key / FEATURE_COSTS_FILENAME
-        )
-        if not resolved_path.exists():
-            logger.info(
-                "No feature cost CSV for %s at %s. Using unit costs.",
-                resolved_key,
-                resolved_path,
-            )
-            return torch.ones(resolved_shape, dtype=torch.float32)
-        values: list[float] = []
-        with resolved_path.open(newline="") as handle:
-            reader = csv.reader(handle)
-            for row in reader:
-                for cell in row:
-                    cell_value = cell.strip()
-                    if cell_value:
-                        values.append(float(cell_value))
-        expected = prod(resolved_shape)
-        assert len(values) == expected, (
-            f"Feature cost file {resolved_path} has {len(values)} values, "
-            f"expected {expected} for feature shape {resolved_shape}."
-        )
-        costs = torch.tensor(values, dtype=torch.float32).reshape(
-            resolved_shape
-        )
-        logger.info(
-            "Loaded feature costs for %s from %s (n=%d, min=%.4f, max=%.4f, mean=%.4f).",
-            resolved_key,
-            resolved_path,
-            costs.numel(),
-            costs.min().item(),
-            costs.max().item(),
-            costs.mean().item(),
-        )
-        return costs
+        if self.feature_costs is None:
+            return torch.ones(self.feature_shape, dtype=torch.float32)
+        return self.feature_costs
 
 
 class AFAMethod(Protocol):

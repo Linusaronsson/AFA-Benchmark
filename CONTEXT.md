@@ -40,7 +40,9 @@ _Avoid_: Patch (use only for images), block (reserved for CUBE-NM)
 
 **Feature cost**:
 The fixed, dataset-defined non-negative cost of acquiring one feature. Uniform
-unit cost is the default.
+unit cost is the default. Dataset generation fixes the feature costs, from the
+dataset's feature costs file or the dataset itself, and stores them in each
+dataset bundle; later stages read them only from there.
 _Avoid_: Price, acquisition fee
 
 **Selection cost**:

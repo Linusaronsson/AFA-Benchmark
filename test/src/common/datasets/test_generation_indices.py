@@ -101,8 +101,12 @@ def dataset_kwargs(
 
 
 def generate_splits(
-    class_name: str, kwargs: dict[str, Any], save_path: Path
+    class_name: str,
+    kwargs: dict[str, Any],
+    save_path: Path,
+    feature_costs_file: Path | None = None,
 ) -> dict[str, AFADataset]:
+    """Generate and load the split bundles, with no feature costs file unless `feature_costs_file` is given."""
     dataset_class = cast("type[AFADataset]", get_class(class_name))
     generate = (
         generate_and_save_image_split
@@ -119,6 +123,8 @@ def generate_splits(
         dataset_key="test_dataset",
         dataset_realization_index=0,
         resolved_config={"dataset": {"class_name": class_name}},
+        feature_costs_file=feature_costs_file
+        or save_path.parent / "no_feature_costs.csv",
     )
     return {
         split: cast(

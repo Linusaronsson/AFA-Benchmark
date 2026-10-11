@@ -1,3 +1,10 @@
+"""
+Write random feature costs for a dataset to its feature costs file.
+
+Dataset generation reads the file and stores the costs in the dataset
+bundles (ADR 0011), so regenerate the dataset for it to take effect.
+"""
+
 from __future__ import annotations
 
 import argparse

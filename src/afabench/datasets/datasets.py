@@ -17,6 +17,7 @@ from torchvision.datasets import ImageFolder
 from ucimlrepo import fetch_ucirepo
 
 from afabench.core.types import AFADataset
+from afabench.datasets.feature_costs import load_saved_feature_costs
 from afabench.datasets.utils import (
     default_create_subset,
     load_generation_indices,
@@ -170,6 +171,7 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -203,6 +205,9 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.labels = data["labels"]
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
+        )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
         )
         return obj
 
@@ -330,6 +335,7 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         ).float()
         assert self.labels.shape[1] == self.label_shape[0]
         self.generation_indices = torch.arange(len(self.features))
+        self.feature_costs = self._compute_feature_costs()
 
     @override
     def get_generation_indices(self) -> Tensor:
@@ -354,6 +360,7 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -390,10 +397,12 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
         )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
+        )
         return obj
 
-    @override
-    def get_feature_acquisition_costs(self) -> torch.Tensor:
+    def _compute_feature_costs(self) -> torch.Tensor:
         block1_costs = torch.ones((self.n_cube_features,), dtype=torch.float32)
         block2_costs = self.cost_scaling * torch.ones((self.n_cube_features,))
         combined_costs = torch.cat([block1_costs, block2_costs], dim=-1)
@@ -555,6 +564,7 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             y_int, num_classes=self.label_shape[0]
         ).float()
         self.generation_indices = torch.arange(len(self.features))
+        self.feature_costs = self._compute_feature_costs()
 
     @override
     def get_generation_indices(self) -> Tensor:
@@ -579,6 +589,7 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -619,10 +630,12 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
         )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
+        )
         return obj
 
-    @override
-    def get_feature_acquisition_costs(self) -> torch.Tensor:
+    def _compute_feature_costs(self) -> torch.Tensor:
         context_feature_cost_scaling = (
             1 / self.n_contexts if self.use_cheap_context_features else 1
         )
@@ -716,6 +729,7 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "config": {
                     "train": self.train,
                     "root": self.root,
@@ -739,6 +753,9 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.labels = data["labels"]
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
+        )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
         )
         return obj
 
@@ -822,6 +839,7 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "config": {
                     "train": self.train,
                     "root": self.root,
@@ -845,6 +863,9 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.labels = data["labels"]
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
+        )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
         )
         return obj
 
@@ -940,6 +961,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "feature_names": self.feature_names,
                 "config": {
                     "root": self.root,
@@ -960,6 +982,9 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.labels = data["labels"]
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
+        )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
         )
         obj.feature_names = data["feature_names"]
         return obj
@@ -1048,6 +1073,7 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "feature_names": self.feature_names,
                 "config": {
                     "root": self.root,
@@ -1067,6 +1093,9 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.labels = data["labels"]
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
+        )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
         )
         obj.feature_names = data["feature_names"]
         return obj
@@ -1165,6 +1194,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "feature_names": self.feature_names,
                 "config": {
                     "root": self.root,
@@ -1184,6 +1214,9 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.labels = data["labels"]
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
+        )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
         )
         obj.feature_names = data["feature_names"]
         return obj
@@ -1277,6 +1310,7 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
@@ -1296,6 +1330,9 @@ class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         )
         obj.feature_names = data["feature_names"]
         obj.n_features = obj.features.shape[1]
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
+        )
         return obj
 
 
@@ -1391,6 +1428,7 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
@@ -1410,6 +1448,9 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         )
         obj.feature_names = data["feature_names"]
         obj.n_features = obj.features.shape[1]
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
+        )
         return obj
 
 
@@ -1502,6 +1543,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "feature_names": self.feature_names,
                 "config": {"path": self.path},
             },
@@ -1521,6 +1563,9 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         )
         obj.feature_names = data["feature_names"]
         obj.n_features = obj.features.shape[1]
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
+        )
         return obj
 
 
@@ -1720,6 +1765,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         torch.save(
             {
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "config": {
                     "data_root": self.data_root,
                     "variant_dir": self.variant_dir,
@@ -1784,6 +1830,9 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 f"Loaded generation indices out of bounds: valid [0, {n - 1}]"
             )
             raise ValueError(msg)
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
+        )
 
         return obj
 
@@ -2001,6 +2050,7 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 "features": self.features,
                 "labels": self.labels,
                 "generation_indices": self.generation_indices,
+                "feature_costs": self.get_feature_acquisition_costs(),
                 "config": {
                     "n_samples": self.n_samples,
                     "seed": self.seed,
@@ -2026,5 +2076,8 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         obj.labels = data["labels"]
         obj.generation_indices = load_generation_indices(
             data, path / "dataset.pt", len(obj.features)
+        )
+        obj.feature_costs = load_saved_feature_costs(
+            data, path / "dataset.pt", obj.feature_shape
         )
         return obj

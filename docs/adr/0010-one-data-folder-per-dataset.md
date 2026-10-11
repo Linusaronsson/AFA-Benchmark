@@ -19,7 +19,11 @@ checksums. The folder exists even when it holds a single file. Synthetic
 datasets have no source files, so their folder only exists when they have
 feature costs. `load_feature_costs` finds the file from the dataset key
 alone, through `DATA_DIR` in `src/afabench/core/types.py`, so a dataset needs
-no config to have non-uniform feature costs.
+no config to have non-uniform feature costs. _Amended by
+[ADR 0011](0011-feature-costs-stored-in-dataset-bundles.md): only dataset
+generation reads the file, through `feature_costs_path` in
+`src/afabench/datasets/feature_costs.py`, and stores the costs in the
+dataset bundles._
 
 ## Considered options
 

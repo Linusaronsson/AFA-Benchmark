@@ -20,6 +20,10 @@ from afabench.core.provenance import (
 from afabench.core.registry import get_class
 from afabench.core.types import AFADataset
 from afabench.datasets.config import DatasetGenerationConfig, SplitRatioConfig
+from afabench.datasets.feature_costs import (
+    feature_costs_path,
+    resolve_feature_costs,
+)
 from afabench.datasets.utils import require_generation_order
 
 log = logging.getLogger(__name__)
@@ -35,6 +39,7 @@ def generate_and_save_split(
     dataset_key: str,
     dataset_realization_index: int,
     resolved_config: dict[str, Any],
+    feature_costs_file: Path,
 ) -> None:
     """
     Generate and save a single train/val/test split.
@@ -49,11 +54,13 @@ def generate_and_save_split(
         dataset_key: The dataset key, recorded in each bundle's provenance.
         dataset_realization_index: The realization's index, recorded in each bundle's provenance.
         resolved_config: The script's full configuration, recorded in each bundle's provenance.
+        feature_costs_file: The dataset's feature costs file, which sets the feature costs stored in each bundle if it exists.
     """
     # Generate full dataset. Splitting by position below makes each split's
     # generation indices positions in this dataset.
     dataset = dataset_class(**dataset_kwargs)
     require_generation_order(dataset)
+    feature_costs = resolve_feature_costs(dataset, feature_costs_file)
 
     # Split into train/val/test
     total_size = len(dataset)
@@ -71,6 +78,8 @@ def generate_and_save_split(
     train_dataset = dataset.create_subset(train_indices)
     val_dataset = dataset.create_subset(val_indices)
     test_dataset = dataset.create_subset(test_indices)
+    for split_dataset in (train_dataset, val_dataset, test_dataset):
+        split_dataset.feature_costs = feature_costs
 
     # Save splits
     save_path.mkdir(parents=True, exist_ok=True)
@@ -155,6 +164,7 @@ def main(cfg: DatasetGenerationConfig) -> None:
             dataset_key=dataset_key,
             dataset_realization_index=dataset_realization_index,
             resolved_config=asdict(cfg),
+            feature_costs_file=feature_costs_path(dataset_key),
         )
     log.info(
         f"Generated {
