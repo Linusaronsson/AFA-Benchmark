@@ -65,7 +65,7 @@ The manifest contains essential information for reconstructing the object, optio
 - `bundle_version`: The version of the bundle specification/protocol, as a SemVer string. `load_bundle` rejects a different major version. Version `1.1.0` added `provenance` and `content_hash`; `1.0.0` manifests, which lack both keys, still load, and `bundle_provenance()` returns `None` for them.
 - `class_name`: A globally unique string that identifies the object's class; used to look up the appropriate class with `afabench.core.registry.get_class()`.
 - `class_version`: The object's own version, following Semantic Versioning (SemVer). Major version differences indicate incompatibility.
-- `metadata`: Optional, arbitrary information about the object.
+- `metadata`: Optional, arbitrary information about the object. `Manifest.metadata` is an empty mapping for a manifest without it.
 - `provenance`: The bundle's provenance record, below.
 - `content_hash`: `sha256:<hex>` over the files under `data/` in sorted relative-path order. For each file, the relative POSIX path (UTF-8), a NUL byte, the file size as 8 big-endian bytes and the contents are fed to SHA-256; the manifest is not part of the hash. `compute_content_hash(data_path)` computes it. Consumers copy an input's hash from its manifest rather than rehashing; verifying hashes against contents is the job of the release tooling.
 

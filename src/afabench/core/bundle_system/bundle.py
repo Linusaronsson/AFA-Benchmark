@@ -211,7 +211,8 @@ class Manifest:
     A bundle's `manifest.json`, typed.
 
     `provenance` and `content_hash` are null for a manifest written before
-    ADR 0002.
+    ADR 0002. `metadata` is optional in the format; a manifest without it
+    has empty metadata.
     """
 
     bundle_version: str
@@ -229,7 +230,7 @@ class Manifest:
             bundle_version=manifest["bundle_version"],
             class_name=manifest["class_name"],
             class_version=manifest["class_version"],
-            metadata=manifest["metadata"],
+            metadata=manifest.get("metadata", {}),
             provenance=provenance_from_manifest(manifest),
             content_hash=manifest.get("content_hash"),
         )

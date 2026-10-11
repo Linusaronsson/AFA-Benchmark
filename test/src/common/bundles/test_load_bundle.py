@@ -98,3 +98,15 @@ def test_legacy_manifest_has_no_provenance_or_content_hash(
 
     assert loaded.manifest.provenance is None
     assert loaded.manifest.content_hash is None
+
+
+def test_manifest_without_metadata_loads_with_empty_metadata(
+    model_path: Path,
+) -> None:
+    manifest = read_manifest(model_path)
+    del manifest["metadata"]
+    (model_path / "manifest.json").write_text(json.dumps(manifest))
+
+    loaded = load_bundle(model_path)
+
+    assert loaded.manifest.metadata == {}
