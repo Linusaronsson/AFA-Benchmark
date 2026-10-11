@@ -2,7 +2,7 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Self, cast, final, override
+from typing import Any, Self, final, override
 
 import torch
 from torch import nn
@@ -679,8 +679,9 @@ class AACONNAFAMethod(AFAMethod):
         )
 
         classifier_bundle_path = Path(classifier_bundle_path)
-        classifier, _ = load_bundle(classifier_bundle_path, device=device)
-        classifier = cast("AFAClassifier", cast("object", classifier))
+        classifier = load_bundle(
+            classifier_bundle_path, expect=AFAClassifier, device=device
+        ).obj
 
         force_acquisition = state.get("force_acquisition")
         if force_acquisition is None:

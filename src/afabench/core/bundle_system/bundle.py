@@ -2,8 +2,9 @@
 
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol, Self
+from typing import Any, Protocol, Self, overload
 
 from afabench.core.provenance import (
     DatasetIdentity,
@@ -204,43 +205,152 @@ def bundle_input(role: InputRole, path: str) -> ProvenanceInput:
     return input_from_manifest(role, path, read_manifest(Path(path)))
 
 
-def load_bundle(
-    path: Path,
+@dataclass(frozen=True)
+class Manifest:
+    """
+    A bundle's `manifest.json`, typed.
+
+    `provenance` and `content_hash` are null for a manifest written before
+    ADR 0002.
+    """
+
+    bundle_version: str
+    class_name: str
+    class_version: str | None
+    metadata: dict[str, Any]
+    provenance: ProvenanceRecord | None
+    content_hash: str | None
+
+    @classmethod
+    def read(cls, path: Path) -> Self:
+        """Read the manifest of the bundle at `path` without loading it."""
+        manifest = read_manifest(path)
+        return cls(
+            bundle_version=manifest["bundle_version"],
+            class_name=manifest["class_name"],
+            class_version=manifest["class_version"],
+            metadata=manifest["metadata"],
+            provenance=provenance_from_manifest(manifest),
+            content_hash=manifest.get("content_hash"),
+        )
+
+    def as_input(self, role: InputRole, path: str) -> ProvenanceInput:
+        """Describe the bundle at `path` as an input of another artifact."""
+        return ProvenanceInput(
+            role=role,
+            path=path,
+            class_name=self.class_name,
+            content_hash=self.content_hash,
+        )
+
+
+@dataclass(frozen=True)
+class LoadedBundle[T]:
+    """
+    A loaded bundle object with the manifest it was loaded from.
+
+    `path` is the bundle path as the caller gave it, which provenance
+    records as passed (ADR 0002).
+    """
+
+    obj: T
+    manifest: Manifest
+    path: str
+
+    def as_input(self, role: InputRole) -> ProvenanceInput:
+        """Describe this bundle as an input of the artifact being written."""
+        return self.manifest.as_input(role, self.path)
+
+
+@overload
+def load_bundle[T](
+    path: Path | str,
+    *,
+    expect: type[T],
     **kwargs: Any,  # noqa: ANN401
-) -> tuple[Loadeable, dict[str, Any]]:
-    """
-    Load a bundle from disk. `path` is required to end with the `.bundle` extension to make it clear that this is a bundle.
+) -> LoadedBundle[T]: ...
 
-    Args:
-        path: Path to the bundle file
-        **kwargs: Arbitrary keyword arguments forwarded to the object's load method.
-                 Uses Any because we must support any underlying object type.
 
-    Returns:
-        A tuple of the loaded object and the manifest dictionary.
+@overload
+def load_bundle(
+    path: Path | str,
+    *,
+    expect: None = None,
+    **kwargs: Any,  # noqa: ANN401
+) -> LoadedBundle[object]: ...
+
+
+def load_bundle[T](
+    path: Path | str,
+    *,
+    expect: type[T] | None = None,
+    **kwargs: Any,
+) -> LoadedBundle[T] | LoadedBundle[object]:
     """
-    assert path.suffix == ".bundle", (
-        "Bundle path must end with .bundle extension"
+    Load a bundle from disk, reading its manifest once.
+
+    `path` is required to end with the `.bundle` extension to make it clear
+    that this is a bundle. A loaded object that is not an instance of
+    `expect` raises `TypeError`. `kwargs` are forwarded to the object's
+    `load` method; they are `Any` because the bundle system supports any
+    object type.
+    """
+    return load_bundle_from_manifest(
+        path, Manifest.read(Path(path)), expect=expect, **kwargs
     )
 
-    with (path / "manifest.json").open("r") as f:
-        manifest = json.load(f)
-        # If stored major bundle version is different than the current one, panic
-        if not is_same_major_semver(
-            manifest["bundle_version"], BUNDLE_VERSION
-        ):
-            msg = (
-                f"Cannot load bundle with version "
-                f"{manifest['bundle_version']}; "
-                f"current version is {BUNDLE_VERSION}."
-            )
-            raise ValueError(msg)
+
+@overload
+def load_bundle_from_manifest[T](
+    path: Path | str,
+    manifest: Manifest,
+    *,
+    expect: type[T],
+    **kwargs: Any,  # noqa: ANN401
+) -> LoadedBundle[T]: ...
+
+
+@overload
+def load_bundle_from_manifest(
+    path: Path | str,
+    manifest: Manifest,
+    *,
+    expect: None = None,
+    **kwargs: Any,  # noqa: ANN401
+) -> LoadedBundle[object]: ...
+
+
+def load_bundle_from_manifest[T](
+    path: Path | str,
+    manifest: Manifest,
+    *,
+    expect: type[T] | None = None,
+    **kwargs: Any,
+) -> LoadedBundle[T] | LoadedBundle[object]:
+    """
+    Load the bundle at `path` from its already-read `manifest`.
+
+    For a caller that read the manifest before loading the object, such as
+    `FitInputs`, so that the manifest is not read again; otherwise as
+    `load_bundle`.
+    """
+    bundle_path = Path(path)
+    assert bundle_path.suffix == ".bundle", (
+        "Bundle path must end with .bundle extension"
+    )
+    # If stored major bundle version is different than the current one, panic
+    if not is_same_major_semver(manifest.bundle_version, BUNDLE_VERSION):
+        msg = (
+            f"Cannot load bundle with version {manifest.bundle_version}; "
+            f"current version is {BUNDLE_VERSION}."
+        )
+        raise ValueError(msg)
 
     # Lookup class in registry
-    cls = get_class(manifest["class_name"])
+    cls = get_class(manifest.class_name)
 
     # Only check version compatibility if both stored and current versions exist
-    stored_class_version = manifest["class_version"]
+    stored_class_version = manifest.class_version
     current_class_version = get_class_version(cls)
 
     if (
@@ -251,13 +361,18 @@ def load_bundle(
         )
     ):
         msg = (
-            f"Cannot load object of class {manifest['class_name']} "
+            f"Cannot load object of class {manifest.class_name} "
             f"with version {stored_class_version}; "
             f"current version is {current_class_version}."
         )
         raise ValueError(msg)
 
-    # Load object
-    obj = cls.load(path / "data", **kwargs)
-
-    return obj, manifest
+    obj: object = cls.load(bundle_path / "data", **kwargs)
+    if expect is None:
+        return LoadedBundle(obj=obj, manifest=manifest, path=str(path))
+    if not isinstance(obj, expect):
+        msg = (
+            f"Expected {expect.__name__} in {path}, got {type(obj).__name__}."
+        )
+        raise TypeError(msg)
+    return LoadedBundle(obj=obj, manifest=manifest, path=str(path))

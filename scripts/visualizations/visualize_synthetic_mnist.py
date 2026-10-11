@@ -10,15 +10,12 @@ This script loads a pre-generated dataset bundle and visualizes the images to ve
 import argparse
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
 import torch
 
 from afabench.core.bundle_system.bundle import load_bundle
-
-if TYPE_CHECKING:
-    from afabench.core.types import AFADataset
+from afabench.core.types import AFADataset
 
 
 def visualize_dataset_from_bundle(
@@ -33,8 +30,7 @@ def visualize_dataset_from_bundle(
     """
     # Load the dataset bundle
     print(f"Loading dataset from {bundle_path}")
-    dataset, _ = load_bundle(bundle_path)
-    dataset = cast("AFADataset", cast("object", dataset))
+    dataset = load_bundle(bundle_path, expect=AFADataset).obj
     print(f"Loaded dataset with {len(dataset)} samples")
 
     # Get all data
@@ -100,8 +96,9 @@ def analyze_noise_vs_pattern_from_bundle(bundle_path: Path) -> None:
     From a pre-generated dataset bundle.
     """
     # Load the dataset bundle
-    dataset, metadata = load_bundle(bundle_path)
-    dataset = cast("AFADataset", cast("object", dataset))
+    loaded = load_bundle(bundle_path, expect=AFADataset)
+    dataset = loaded.obj
+    metadata = loaded.manifest.metadata
     features, labels = dataset.get_all_data()
     class_indices = torch.argmax(labels, dim=1)
 
@@ -152,8 +149,7 @@ def save_sample_images_from_bundle(
     save_path.mkdir(exist_ok=True)
 
     # Load the dataset bundle
-    dataset, _ = load_bundle(bundle_path)
-    dataset = cast("AFADataset", cast("object", dataset))
+    dataset = load_bundle(bundle_path, expect=AFADataset).obj
     features, labels = dataset.get_all_data()
     class_indices = torch.argmax(labels, dim=1)
 

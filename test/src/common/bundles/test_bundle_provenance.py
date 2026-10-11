@@ -89,11 +89,11 @@ def test_record_round_trips_through_the_bundle(tmp_path: Path) -> None:
         metadata={"free": "form"},
         provenance=record,
     )
-    _, manifest = load_bundle(path)
+    manifest = load_bundle(path).manifest
 
-    assert manifest["bundle_version"] == "1.1.0"
-    assert manifest["metadata"] == {"free": "form"}
-    assert ProvenanceRecord.from_json_dict(manifest["provenance"]) == record
+    assert manifest.bundle_version == "1.1.0"
+    assert manifest.metadata == {"free": "form"}
+    assert manifest.provenance == record
     assert bundle_provenance(path) == record
 
 
@@ -113,10 +113,10 @@ def test_legacy_manifest_without_provenance_still_loads(
     manifest["bundle_version"] = "1.0.0"
     (path / "manifest.json").write_text(json.dumps(manifest))
 
-    loaded, loaded_manifest = load_bundle(path)
+    loaded = load_bundle(path)
 
-    assert isinstance(loaded, TorchModelBundle)
-    assert loaded_manifest["metadata"] == {"seed": 0}
+    assert isinstance(loaded.obj, TorchModelBundle)
+    assert loaded.manifest.metadata == {"seed": 0}
     assert bundle_provenance(path) is None
     assert bundle_input("classifier", str(path)) == ProvenanceInput(
         role="classifier",

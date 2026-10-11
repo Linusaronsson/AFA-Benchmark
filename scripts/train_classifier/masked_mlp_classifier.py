@@ -26,6 +26,7 @@ from afabench.core.bundle_system.bundle import (
 )
 from afabench.core.naming import infer_dataset_key_from_class_name
 from afabench.core.provenance import capture_provenance
+from afabench.core.types import AFADataset
 from afabench.core.utils import (
     get_class_frequencies,
     initialize_wandb_run,
@@ -39,7 +40,7 @@ from afabench.fit.tensor_batches import (
 if TYPE_CHECKING:
     from torch.utils.data import Dataset
 
-    from afabench.core.types import AFADataset, Features, Label
+    from afabench.core.types import Features, Label
 
 log = logging.getLogger(__name__)
 
@@ -80,13 +81,14 @@ def main(cfg: TrainMaskedMLPClassifierConfig) -> None:
     )
 
     # Load datasets via bundle system
-    train_dataset, train_manifest = load_bundle(Path(cfg.train_dataset_path))
+    train_bundle = load_bundle(Path(cfg.train_dataset_path), expect=AFADataset)
     dataset_name = infer_dataset_key_from_class_name(
-        train_manifest["class_name"]
+        train_bundle.manifest.class_name
     )
-    train_dataset = cast("AFADataset", cast("object", train_dataset))
-    val_dataset, _ = load_bundle(Path(cfg.val_dataset_path))
-    val_dataset = cast("AFADataset", cast("object", val_dataset))
+    train_dataset = train_bundle.obj
+    val_dataset = load_bundle(
+        Path(cfg.val_dataset_path), expect=AFADataset
+    ).obj
 
     # Get dimensions (flatten for MLP)
     feature_shape = train_dataset.feature_shape

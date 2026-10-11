@@ -115,8 +115,8 @@ def snakemake(
 def load_native(path: Path, category: PayloadCategory) -> object:
     """Load a bundle the way the training inputs and the evaluator do."""
     if category is PayloadCategory.DATASET_BUNDLE:
-        return load_bundle(path)[0]
-    return load_bundle(path, device=CPU)[0]
+        return load_bundle(path).obj
+    return load_bundle(path, device=CPU).obj
 
 
 @pytest.fixture(scope="module")

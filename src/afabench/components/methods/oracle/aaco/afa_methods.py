@@ -75,10 +75,11 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
 
         # Load classifier from bundle if path provided
         if self.classifier_bundle_path is not None:
-            classifier, _ = load_bundle(
-                self.classifier_bundle_path, device=self._device
-            )
-            classifier = cast("AFAClassifier", cast("object", classifier))
+            classifier = load_bundle(
+                self.classifier_bundle_path,
+                expect=AFAClassifier,
+                device=self._device,
+            ).obj
             self.aaco_oracle.set_classifier(classifier)
             logger.info(
                 f"Loaded classifier from {self.classifier_bundle_path}"

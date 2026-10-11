@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Self
 
 import pytest
@@ -100,10 +101,12 @@ def _training_prep_with_seed(
     val_dataset = FakeDataset(
         features=torch.zeros((1, 6)), labels=torch.tensor([[0.0, 1.0]])
     )
-    loaded_datasets = iter([(train_dataset, {}), (val_dataset, {})])
+    loaded_datasets = iter(
+        [SimpleNamespace(obj=train_dataset), SimpleNamespace(obj=val_dataset)]
+    )
 
     monkeypatch.setattr(
-        utils, "load_bundle", lambda _path: next(loaded_datasets)
+        utils, "load_bundle", lambda _path, **_kwargs: next(loaded_datasets)
     )
     monkeypatch.setattr(
         utils,
@@ -184,10 +187,12 @@ def test_training_prep_calculates_class_weights_for_image_dataset(
         features=torch.zeros((1, 1, 2, 2)),
         labels=torch.tensor([[0.0, 0.0, 1.0]]),
     )
-    loaded_datasets = iter([(train_dataset, {}), (val_dataset, {})])
+    loaded_datasets = iter(
+        [SimpleNamespace(obj=train_dataset), SimpleNamespace(obj=val_dataset)]
+    )
 
     monkeypatch.setattr(
-        utils, "load_bundle", lambda _path: next(loaded_datasets)
+        utils, "load_bundle", lambda _path, **_kwargs: next(loaded_datasets)
     )
     monkeypatch.setattr(
         utils, "get_afa_initializer_from_config", lambda _cfg: object()

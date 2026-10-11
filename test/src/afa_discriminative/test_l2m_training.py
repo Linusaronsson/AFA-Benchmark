@@ -105,10 +105,10 @@ def test_training_returns_method_without_saving_and_bundle_keeps_context(
     assert not Path(cfg.save_path).exists()
     assert result.context_features.shape == (8, N_FEATURES)
     assert result.context_labels.shape == (8, N_CLASSES)
-    restored, _ = load_bundle(
+    restored = load_bundle(
         Path(_save(result, tmp_path / "caller.bundle")),
         device=torch.device("cpu"),
-    )
+    ).obj
     assert isinstance(restored, L2MAFAMethod)
     assert torch.equal(restored.context_features, result.context_features)
     assert torch.equal(restored.context_labels, result.context_labels)

@@ -70,7 +70,7 @@ class FitInputs:
 
     def _load_dataset(self, bundle_path: str) -> AFADataset:
         dataset = self._load_once(
-            bundle_path, lambda: load_bundle(Path(bundle_path))[0]
+            bundle_path, lambda: load_bundle(Path(bundle_path)).obj
         )
         return cast("AFADataset", dataset)
 
@@ -80,7 +80,7 @@ class FitInputs:
         device = torch.device(self._contract.device)
         obj = self._load_once(
             bundle_path,
-            lambda: load_bundle(Path(bundle_path), device=device)[0],
+            lambda: load_bundle(Path(bundle_path), device=device).obj,
         )
         if not isinstance(obj, expected_type):
             msg = (

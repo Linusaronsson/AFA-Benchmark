@@ -64,7 +64,7 @@ def test_bundles_keep_the_feature_costs_file_after_it_is_gone(
     for split in SPLITS:
         loaded = cast(
             "AFADataset",
-            load_bundle(tmp_path / "out" / f"{split}.bundle")[0],
+            load_bundle(tmp_path / "out" / f"{split}.bundle").obj,
         )
         torch.testing.assert_close(
             loaded.get_feature_acquisition_costs(), costs

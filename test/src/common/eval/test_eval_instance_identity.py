@@ -40,7 +40,7 @@ def test_sampled_evaluation_records_the_evaluated_instances(
         metadata={},
         provenance=placeholder_provenance(),
     )
-    dataset = cast("CubeDataset", load_bundle(bundle_path)[0])
+    dataset = cast("CubeDataset", load_bundle(bundle_path).obj)
     seen: list[torch.Tensor] = []
 
     def record_and_stop(

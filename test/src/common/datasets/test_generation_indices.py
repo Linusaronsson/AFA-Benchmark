@@ -128,7 +128,7 @@ def generate_splits(
     )
     return {
         split: cast(
-            "AFADataset", load_bundle(save_path / f"{split}.bundle")[0]
+            "AFADataset", load_bundle(save_path / f"{split}.bundle").obj
         )
         for split in SPLITS
     }
@@ -254,6 +254,6 @@ def test_bundle_round_trip_keeps_generation_indices(tmp_path: Path) -> None:
         subset, bundle_path, metadata={}, provenance=placeholder_provenance()
     )
 
-    loaded = cast("AFADataset", load_bundle(bundle_path)[0])
+    loaded = cast("AFADataset", load_bundle(bundle_path).obj)
 
     assert loaded.get_generation_indices().tolist() == [5, 1, 3]

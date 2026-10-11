@@ -4,15 +4,12 @@
 import argparse
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
 
 import matplotlib.pyplot as plt
 import torch
 
 from afabench.core.bundle_system.bundle import load_bundle
-
-if TYPE_CHECKING:
-    from afabench.core.types import AFADataset
+from afabench.core.types import AFADataset
 
 
 def quick_view(
@@ -22,8 +19,7 @@ def quick_view(
     """Show a quick sample of images from each class."""
     # Load the dataset bundle
     print(f"Loading dataset from {bundle_path}")
-    dataset, _ = load_bundle(bundle_path)
-    dataset = cast("AFADataset", cast("object", dataset))
+    dataset = load_bundle(bundle_path, expect=AFADataset).obj
     print(f"Loaded dataset with {len(dataset)} samples")
 
     # Get data

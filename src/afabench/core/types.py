@@ -31,6 +31,7 @@ type AFAAction = Integer[torch.Tensor, "*batch 1"]
 type AFASelection = Integer[torch.Tensor, "*batch 1"]
 
 
+@runtime_checkable
 class AFADataset(Protocol):
     """
     Datasets that can be used for evaluating AFA methods.
@@ -120,6 +121,7 @@ class AFADataset(Protocol):
         return self.feature_costs
 
 
+@runtime_checkable
 class AFAMethod(Protocol):
     """An AFA method is an object that can decide which features to collect next (or stop collecting features) and also do predictions with the features it has seen so far."""
 
@@ -200,6 +202,7 @@ class AFAMethod(Protocol):
         pass  # noqa: PIE790
 
 
+@runtime_checkable
 class AFAClassifier(Protocol):
     """
     An AFA classifier is an object that can perform classification on masked features.

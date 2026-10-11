@@ -72,10 +72,11 @@ class TestTorchModelBundle:
             )
 
             # Load model back
-            loaded_bundle, loaded_metadata = load_bundle(
+            loaded = load_bundle(
                 bundle_path,
                 device=torch.device("cpu"),
             )
+            loaded_bundle, loaded_metadata = loaded.obj, loaded.manifest
             assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
@@ -84,8 +85,7 @@ class TestTorchModelBundle:
 
             assert torch.allclose(original_output, loaded_output, atol=1e-6)
             assert (
-                loaded_metadata["metadata"]["test_info"]
-                == "simple linear model"
+                loaded_metadata.metadata["test_info"] == "simple linear model"
             )
 
     def test_complex_model_save_load(self) -> None:
@@ -114,10 +114,11 @@ class TestTorchModelBundle:
             )
 
             # Load model back
-            loaded_bundle, loaded_manifest = load_bundle(
+            loaded = load_bundle(
                 bundle_path,
                 device=torch.device("cpu"),
             )
+            loaded_bundle, loaded_manifest = loaded.obj, loaded.manifest
             assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
             loaded_model.eval()  # Ensure eval mode
@@ -126,7 +127,7 @@ class TestTorchModelBundle:
             loaded_output = loaded_model(test_input)
 
             assert torch.allclose(original_output, loaded_output, atol=1e-6)
-            assert loaded_manifest["metadata"]["model_type"] == "complex"
+            assert loaded_manifest.metadata["model_type"] == "complex"
 
     def test_trained_model_save_load(self) -> None:
         """Test saving and loading a model after training."""
@@ -167,10 +168,11 @@ class TestTorchModelBundle:
             )
 
             # Load model back
-            loaded_bundle, loaded_manifest = load_bundle(
+            loaded = load_bundle(
                 bundle_path,
                 device=torch.device("cpu"),
             )
+            loaded_bundle, loaded_manifest = loaded.obj, loaded.manifest
             assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
             loaded_model.eval()
@@ -179,7 +181,7 @@ class TestTorchModelBundle:
             loaded_output = loaded_model(test_input)
 
             assert torch.allclose(trained_output, loaded_output, atol=1e-6)
-            assert loaded_manifest["metadata"]["trained"] is True
+            assert loaded_manifest.metadata["trained"] is True
 
     def test_device_handling(self) -> None:
         """Test device handling functionality."""
@@ -226,10 +228,10 @@ class TestTorchModelBundle:
             )
 
             # Load model back on CPU
-            loaded_bundle, _loaded_metadata = load_bundle(
+            loaded_bundle = load_bundle(
                 bundle_path,
                 device=torch.device("cpu"),
-            )
+            ).obj
             assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
@@ -267,10 +269,10 @@ class TestTorchModelBundle:
                 provenance=placeholder_provenance(),
             )
 
-            loaded_bundle, _loaded_metadata = load_bundle(
+            loaded_bundle = load_bundle(
                 bundle_path,
                 device=torch.device("cpu"),
-            )
+            ).obj
             assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
@@ -298,10 +300,10 @@ class TestTorchModelBundle:
             )
 
             # Load model
-            loaded_bundle, _loaded_metadata = load_bundle(
+            loaded_bundle = load_bundle(
                 bundle_path,
                 device=torch.device("cpu"),
-            )
+            ).obj
             assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
@@ -318,10 +320,10 @@ class TestTorchModelBundle:
                 provenance=placeholder_provenance(),
             )
 
-            loaded_bundle, _loaded_metadata = load_bundle(
+            loaded_bundle = load_bundle(
                 bundle_path,
                 device=torch.device("cpu"),
-            )
+            ).obj
             assert isinstance(loaded_bundle, TorchModelBundle)
             loaded_model = loaded_bundle.model
 
@@ -352,19 +354,17 @@ class TestTorchModelBundle:
             )
 
             # Load and verify manifest
-            _loaded_bundle, loaded_manifest = load_bundle(
+            loaded_manifest = load_bundle(
                 bundle_path,
                 device=torch.device("cpu"),
-            )
+            ).manifest
 
             # Check bundle manifest structure
-            assert "bundle_version" in loaded_manifest
-            assert "class_name" in loaded_manifest
-            assert loaded_manifest["class_name"] == "TorchModelBundle"
-            assert "metadata" in loaded_manifest
+            assert loaded_manifest.bundle_version == "1.1.0"
+            assert loaded_manifest.class_name == "TorchModelBundle"
 
             # Check our custom metadata
-            custom_metadata = loaded_manifest["metadata"]
+            custom_metadata = loaded_manifest.metadata
             assert custom_metadata["model_architecture"] == "SimpleLinearModel"
             assert custom_metadata["input_size"] == 6
             assert custom_metadata["output_size"] == 4

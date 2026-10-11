@@ -123,7 +123,7 @@ def test_l2m_method_bundle_preserves_context_actions_and_logits(
     path = tmp_path / "method.bundle"
     save_bundle(method, path, {}, provenance=placeholder_provenance())
 
-    restored, _ = load_bundle(path, device=torch.device("cpu"))
+    restored = load_bundle(path, device=torch.device("cpu")).obj
 
     assert isinstance(restored, L2MAFAMethod)
     assert restored.device == torch.device("cpu")
@@ -233,7 +233,7 @@ def test_l2m_model_bundle_rebuilds_architecture_and_both_heads(
     path = tmp_path / "pretrained.bundle"
     save_bundle(model, path, {}, provenance=placeholder_provenance())
 
-    restored, _ = load_bundle(path, device=torch.device("cpu"))
+    restored = load_bundle(path, device=torch.device("cpu")).obj
 
     assert isinstance(restored, L2MModel)
     assert restored.architecture == model.architecture

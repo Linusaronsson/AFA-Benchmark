@@ -104,9 +104,9 @@ def test_save_result_writes_a_loadable_bundle_to_save_path(
 
     save_result(TorchModelBundle(nn.Linear(2, 2)), config, config)
 
-    loaded, manifest = load_bundle(inputs / "method.bundle")
-    assert isinstance(loaded, TorchModelBundle)
-    assert manifest["metadata"] == {
+    loaded = load_bundle(inputs / "method.bundle")
+    assert isinstance(loaded.obj, TorchModelBundle)
+    assert loaded.manifest.metadata == {
         "stage": "training",
         "contract": {
             "train_dataset_bundle_path": str(inputs / "train.bundle"),
@@ -243,8 +243,7 @@ def test_save_result_records_a_separate_method_config(inputs: Path) -> None:
         _PretrainHyperparameters(n_epochs=4),
     )
 
-    _, manifest = load_bundle(inputs / "model.bundle")
-    metadata = manifest["metadata"]
+    metadata = load_bundle(inputs / "model.bundle").manifest.metadata
     assert metadata["stage"] == "pretraining"
     assert set(metadata["contract"]) == {
         "train_dataset_bundle_path",

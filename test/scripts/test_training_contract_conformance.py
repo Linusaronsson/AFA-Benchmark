@@ -122,7 +122,7 @@ def _load_bundle_on_cpu(bundle_path: Path) -> object:
         if name in load_parameters
         or (accepts_any_keyword and name == "device")
     }
-    loaded, _ = load_bundle(bundle_path, **device_keywords)
+    loaded = load_bundle(bundle_path, **device_keywords).obj
     return loaded
 
 

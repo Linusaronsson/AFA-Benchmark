@@ -142,11 +142,11 @@ class EDDIAFAMethod(AFAMethod):
         self.num_mc_samples: int = num_mc_samples
         self.classifier: AFAClassifier | None = None
         if classifier_bundle_path is not None:
-            classifier, _ = load_bundle(
-                classifier_bundle_path, device=self._device
-            )
-            classifier = cast("AFAClassifier", cast("object", classifier))
-            self.classifier = classifier
+            self.classifier = load_bundle(
+                classifier_bundle_path,
+                expect=AFAClassifier,
+                device=self._device,
+            ).obj
 
     def _logits_to_probs(self, logits: torch.Tensor) -> torch.Tensor:
         if logits.ndim == 2 and logits.size(1) > 1:

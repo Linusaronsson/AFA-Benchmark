@@ -84,7 +84,7 @@ def test_pretraining_returns_model_without_saving(
     save_bundle(
         result, caller_path, metadata={}, provenance=placeholder_provenance()
     )
-    restored, _ = load_bundle(caller_path, device=torch.device("cpu"))
+    restored = load_bundle(caller_path, device=torch.device("cpu")).obj
     assert isinstance(restored, L2MModel)
     features = torch.randn(5, result.n_features)
     mask = torch.rand(5, result.n_features) < 0.5

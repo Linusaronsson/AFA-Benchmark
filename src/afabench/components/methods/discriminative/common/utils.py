@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import cast, override
+from typing import override
 
 import torch
 import torch.nn.functional as F
@@ -58,14 +58,10 @@ def afa_discriminative_training_prep(
     unmasker_cfg: UnmaskerConfig,
     seed: int | None = None,
 ) -> tuple[AFADataset, AFADataset, AFAInitializer, AFAUnmasker, torch.Tensor]:
-    train_dataset, _train_dataset_manifest = load_bundle(
-        train_dataset_bundle_path,
-    )
-    train_dataset = cast("AFADataset", cast("object", train_dataset))
-    val_dataset, _val_dataset_manifest = load_bundle(
-        val_dataset_bundle_path,
-    )
-    val_dataset = cast("AFADataset", cast("object", val_dataset))
+    train_dataset = load_bundle(
+        train_dataset_bundle_path, expect=AFADataset
+    ).obj
+    val_dataset = load_bundle(val_dataset_bundle_path, expect=AFADataset).obj
 
     initializer = get_afa_initializer_from_config(initializer_cfg)
     unmasker = get_afa_unmasker_from_config(unmasker_cfg)

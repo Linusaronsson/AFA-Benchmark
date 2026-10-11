@@ -116,7 +116,7 @@ def test_pretraining_returns_classifier_without_saving(
     save_bundle(
         result, caller_path, metadata={}, provenance=placeholder_provenance()
     )
-    restored, _ = load_bundle(caller_path, device=torch.device("cpu"))
+    restored = load_bundle(caller_path, device=torch.device("cpu")).obj
     assert isinstance(restored, GreedyAFAClassifier)
 
 
@@ -210,7 +210,7 @@ def test_training_returns_method_without_saving(
     save_bundle(
         result, caller_path, metadata={}, provenance=placeholder_provenance()
     )
-    restored, _ = load_bundle(caller_path, device=torch.device("cpu"))
+    restored = load_bundle(caller_path, device=torch.device("cpu")).obj
     assert isinstance(restored, result_type)
 
 
@@ -262,5 +262,5 @@ def test_cae_training_returns_method_without_saving(tmp_path: Path) -> None:
     save_bundle(
         result, caller_path, metadata={}, provenance=placeholder_provenance()
     )
-    restored, _ = load_bundle(caller_path, device=torch.device("cpu"))
+    restored = load_bundle(caller_path, device=torch.device("cpu")).obj
     assert isinstance(restored, StaticBaseMethod)

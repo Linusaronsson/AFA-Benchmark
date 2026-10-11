@@ -26,7 +26,12 @@ from afabench.core.provenance import (
     capture_provenance,
     shared_dataset_identity,
 )
-from afabench.core.types import SupportsForcedAcquisition
+from afabench.core.types import (
+    AFAClassifier,
+    AFADataset,
+    AFAMethod,
+    SupportsForcedAcquisition,
+)
 from afabench.core.utils import (
     set_seed,
 )
@@ -42,13 +47,7 @@ from afabench.fit.smoke_test import eval_settings
 if TYPE_CHECKING:
     from wandb.sdk.wandb_run import Run
 
-    from afabench.core.types import (
-        AFAClassifier,
-        AFADataset,
-        AFAInitializer,
-        AFAMethod,
-        AFAUnmasker,
-    )
+    from afabench.core.types import AFAInitializer, AFAUnmasker
 
 log = logging.getLogger(__name__)
 
@@ -101,11 +100,11 @@ class AFAEvaluator:
     ) -> None:
         # Load method
         device = torch.device(self._cfg.device)
-        method, _ = load_bundle(
+        self._method = load_bundle(
             Path(self._cfg.method_bundle_path),
+            expect=AFAMethod,
             device=device,
-        )
-        self._method = cast("AFAMethod", cast("object", method))
+        ).obj
         log.info(f"Loaded AFA method from {self._cfg.method_bundle_path}")
 
         # Load unmasker
@@ -119,19 +118,18 @@ class AFAEvaluator:
         log.info(f"Loaded {self._cfg.initializer.class_name} initializer")
 
         # Load dataset
-        dataset, _ = load_bundle(Path(self._cfg.dataset_bundle_path))
-        self._dataset = cast("AFADataset", cast("object", dataset))
+        self._dataset = load_bundle(
+            Path(self._cfg.dataset_bundle_path), expect=AFADataset
+        ).obj
         log.info(f"Loaded dataset from {self._cfg.dataset_bundle_path}")
 
         # Load external classifier if specified
         if self._cfg.classifier_bundle_path is not None:
-            classifier, _ = load_bundle(
+            self._external_classifier = load_bundle(
                 Path(self._cfg.classifier_bundle_path),
+                expect=AFAClassifier,
                 device=device,
-            )
-            self._external_classifier = cast(
-                "AFAClassifier", cast("object", classifier)
-            )
+            ).obj
             log.info(
                 f"Loaded external classifier from {self._cfg.classifier_bundle_path}."
             )

@@ -76,7 +76,7 @@ def _overrides(train_path: Path, val_path: Path, save_path: Path) -> list[str]:
 def _assert_records_inputs_seed_and_dataset(
     save_path: Path, train_path: Path, val_path: Path
 ) -> None:
-    assert load_bundle(save_path, device=torch.device("cpu"))[0] is not None
+    assert load_bundle(save_path, device=torch.device("cpu")).obj is not None
     record = bundle_provenance(save_path)
     assert record is not None
     assert record.stage == "classifier_training"
