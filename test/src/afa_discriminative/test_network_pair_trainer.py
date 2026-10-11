@@ -49,7 +49,7 @@ GDFS_METRICS = {
 DIME_METRICS = {
     "epoch",
     "train_value_loss",
-    "train_predictor_loss",
+    "train_classifier_loss",
     "val_loss_mean",
     "val_perf_mean",
     "val_loss_final",
@@ -80,10 +80,10 @@ def _networks() -> tuple[nn.Module, nn.Module]:
     policy_network = nn.Sequential(
         nn.Linear(2 * N_FEATURES, 16), nn.ReLU(), nn.Linear(16, N_FEATURES)
     )
-    predictor = nn.Sequential(
+    classifier = nn.Sequential(
         nn.Linear(2 * N_FEATURES, 16), nn.ReLU(), nn.Linear(16, N_CLASSES)
     )
-    return policy_network, predictor
+    return policy_network, classifier
 
 
 def _loader() -> DataLoader[tuple[Tensor, ...]]:
@@ -98,16 +98,16 @@ def _loader() -> DataLoader[tuple[Tensor, ...]]:
 def _trainer(
     objective: TrainingObjective,
 ) -> tuple[NetworkPairTrainer, nn.Module, nn.Module]:
-    policy_network, predictor = _networks()
+    policy_network, classifier = _networks()
     trainer = NetworkPairTrainer(
         policy_network=policy_network,
-        predictor=predictor,
+        classifier=classifier,
         mask_layer=MaskLayer(append=True),
         initializer=ZeroInitializer(),
         unmasker=DirectUnmasker(),
         objective=objective,
     )
-    return trainer, policy_network, predictor
+    return trainer, policy_network, classifier
 
 
 def _settings(
@@ -178,7 +178,7 @@ def test_fit_logs_each_methods_metrics_once_per_epoch(
 def test_fit_keeps_the_networks_of_the_best_validation_epoch_and_stops_after_the_plateau(
     objective: TrainingObjective, calls_per_epoch: int
 ) -> None:
-    trainer, policy_network, predictor = _trainer(objective)
+    trainer, policy_network, classifier = _trainer(objective)
     # Epoch 2 is best; epochs 3 and 4 are bad, one more than the
     # early_stopping_epochs of 1, so the loop stops after epoch 4
     val_loss_fn = _ScriptedValidationLoss(
@@ -192,7 +192,7 @@ def test_fit_keeps_the_networks_of_the_best_validation_epoch_and_stops_after_the
                 p.detach().clone()
                 for p in [
                     *policy_network.parameters(),
-                    *predictor.parameters(),
+                    *classifier.parameters(),
                 ]
             ]
         )
@@ -205,7 +205,7 @@ def test_fit_keeps_the_networks_of_the_best_validation_epoch_and_stops_after_the
     )
 
     assert len(snapshots) == 4
-    kept = [*policy_network.parameters(), *predictor.parameters()]
+    kept = [*policy_network.parameters(), *classifier.parameters()]
     for parameter, best in zip(kept, snapshots[1], strict=True):
         torch.testing.assert_close(parameter, best)
     assert any(
@@ -285,16 +285,16 @@ def test_a_validation_metric_needs_its_mode() -> None:
 def test_dime_lists_each_parameter_once_in_the_optimizer() -> None:
     """Shared and unshared parameters are stepped once, in stable order."""
     objective = DIMETrainingObjective(eps=0.0)
-    trainer, policy_network, predictor = _trainer(objective)
-    tie_first_k_linears_by_module(predictor, policy_network, k=1)
-    tied = next(predictor.parameters())
+    trainer, policy_network, classifier = _trainer(objective)
+    tie_first_k_linears_by_module(classifier, policy_network, k=1)
+    tied = next(classifier.parameters())
     assert tied is next(policy_network.parameters())
     expected = list(
         dict.fromkeys(
             id(parameter)
             for parameter in [
                 *policy_network.parameters(),
-                *predictor.parameters(),
+                *classifier.parameters(),
             ]
         )
     )

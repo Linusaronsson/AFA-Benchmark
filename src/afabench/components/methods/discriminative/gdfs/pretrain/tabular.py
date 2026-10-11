@@ -54,7 +54,7 @@ def pretrain_tabular(
     activation_name: str = cfg.architecture.activation
     dropout: float = float(cfg.architecture.dropout)
 
-    predictor = MLP(
+    classifier = MLP(
         in_features=in_features,
         out_features=out_features,
         num_cells=hidden_units,
@@ -71,7 +71,7 @@ def pretrain_tabular(
     }
 
     mask_layer = MaskLayer(append=True)
-    pretrainer = MaskingPretrainer(predictor, mask_layer).to(device)
+    pretrainer = MaskingPretrainer(classifier, mask_layer).to(device)
 
     pretrainer.fit(
         train_loader,
@@ -88,7 +88,7 @@ def pretrain_tabular(
     )
 
     bundle_obj = GreedyAFAClassifier(
-        predictor=predictor,
+        classifier=classifier,
         architecture=architecture,
         device=torch.device("cpu"),
     )

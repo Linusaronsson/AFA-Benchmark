@@ -18,7 +18,7 @@ def _make_method(
 ) -> GDFSAFAMethod:
     """Build a method whose selector scores every selection by `selection_scores`, whatever the input."""
     selector = nn.Linear(2 * d_in, n_selections)
-    predictor = nn.Linear(2 * d_in, d_out)
+    classifier = nn.Linear(2 * d_in, d_out)
     if selection_scores is not None:
         with torch.no_grad():
             selector.weight.zero_()
@@ -29,10 +29,10 @@ def _make_method(
         d_out=d_out,
         n_selections=n_selections,
         policy_hidden_layers=[],
-        predictor_hidden_layers=[],
+        classifier_hidden_layers=[],
         dropout=0.0,
     )
-    return GDFSAFAMethod(selector, predictor, spec, torch.device("cpu"))
+    return GDFSAFAMethod(selector, classifier, spec, torch.device("cpu"))
 
 
 def test_gdfs_grouped_selection_excludes_already_selected() -> None:

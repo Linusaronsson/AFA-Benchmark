@@ -85,7 +85,7 @@ class TrainingContext:
     """What `fit` resolved once before the first epoch, for the objective."""
 
     policy_network: nn.Module
-    predictor: nn.Module
+    classifier: nn.Module
     mask_layer: MaskLayer | MaskLayer2d
     unmasker: AFAUnmasker
     device: torch.device
@@ -181,20 +181,20 @@ def _to_class_indices(y: Tensor) -> ClassIndices:
 
 
 class NetworkPairTrainer:
-    """Trains a policy network and a predictor with a `TrainingObjective`."""
+    """Trains a policy network and a classifier with a `TrainingObjective`."""
 
     def __init__(
         self,
         *,
         policy_network: nn.Module,
-        predictor: nn.Module,
+        classifier: nn.Module,
         mask_layer: MaskLayer | MaskLayer2d,
         initializer: AFAInitializer,
         unmasker: AFAUnmasker,
         objective: TrainingObjective,
     ) -> None:
         self.policy_network: nn.Module = policy_network
-        self.predictor: nn.Module = predictor
+        self.classifier: nn.Module = classifier
         self.mask_layer: MaskLayer | MaskLayer2d = mask_layer
         self.initializer: AFAInitializer = initializer
         self.unmasker: AFAUnmasker = unmasker
@@ -209,7 +209,7 @@ class NetworkPairTrainer:
         feature_costs: Tensor | None = None,
         metric_logger: MetricLogger | None = None,
     ) -> None:
-        """Train in place on the predictor's device; `feature_costs` default to unit costs."""
+        """Train in place on the classifier's device; `feature_costs` default to unit costs."""
         context = self._prepare(settings, val_loader, feature_costs)
         self.objective.prepare(context)
         total_epochs = 0
@@ -231,7 +231,7 @@ class NetworkPairTrainer:
         """Run one round's epochs with a fresh optimizer; answer how many ran."""
         settings = context.settings
         policy_network = self.policy_network
-        predictor = self.predictor
+        classifier = self.classifier
         objective = self.objective
         early_stopping_epochs = (
             settings.patience + 1
@@ -242,7 +242,7 @@ class NetworkPairTrainer:
         # as upstream does, while preserving the parameter order.
         opt = optim.Adam(
             dict.fromkeys(
-                [*policy_network.parameters(), *predictor.parameters()]
+                [*policy_network.parameters(), *classifier.parameters()]
             ),
             lr=settings.lr,
         )
@@ -254,13 +254,13 @@ class NetworkPairTrainer:
             min_lr=settings.min_lr,
         )
         best_policy_network = deepcopy(policy_network)
-        best_predictor = deepcopy(predictor)
+        best_classifier = deepcopy(classifier)
         num_bad_epochs = 0
         epoch = 0
 
         for epoch in range(settings.nepochs):
             policy_network.train()
-            predictor.train()
+            classifier.train()
             objective.start_epoch()
             for x_batch, y_batch in train_loader:
                 episode = self._start_episode(context, x_batch, y_batch)
@@ -269,7 +269,7 @@ class NetworkPairTrainer:
                 opt.step()
 
             policy_network.eval()
-            predictor.eval()
+            classifier.eval()
             with torch.no_grad():
                 for x_batch, y_batch in val_loader:
                     objective.validate_episode(
@@ -281,7 +281,7 @@ class NetworkPairTrainer:
             scheduler.step(validation.score)
             if validation.score == scheduler.best:
                 best_policy_network = deepcopy(policy_network)
-                best_predictor = deepcopy(predictor)
+                best_classifier = deepcopy(classifier)
                 num_bad_epochs = 0
             else:
                 num_bad_epochs += 1
@@ -294,7 +294,7 @@ class NetworkPairTrainer:
         if settings.verbose:
             print(f"Stopping the round at epoch {epoch + 1}\n")
         restore_parameters(policy_network, best_policy_network)
-        restore_parameters(predictor, best_predictor)
+        restore_parameters(classifier, best_classifier)
         return epoch + 1
 
     def _report_epoch(
@@ -340,7 +340,7 @@ class NetworkPairTrainer:
                 "is specified"
             )
             raise ValueError(msg)
-        device = next(self.predictor.parameters()).device
+        device = next(self.classifier.parameters()).device
         val_loss_fn.to(device)
 
         x0, _ = next(iter(val_loader))
@@ -357,7 +357,7 @@ class NetworkPairTrainer:
             )
         return TrainingContext(
             policy_network=self.policy_network,
-            predictor=self.predictor,
+            classifier=self.classifier,
             mask_layer=self.mask_layer,
             unmasker=self.unmasker,
             device=device,

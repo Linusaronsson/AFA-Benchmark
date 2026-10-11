@@ -16,18 +16,19 @@ every behavioural difference from upstream that the check found.
 
 - **The checkpoint**, `NetworkPairSpec` in
   `src/afabench/components/methods/discriminative/common/checkpoint.py`.
-  Both methods save a policy network and a predictor to `model.pt` with an
-  `architecture` dict; the dict's keys are unchanged, and the policy
-  network's hidden layers stay keyed by each method's own name for it
-  (`selector_hidden_layers`, `value_network_hidden_layers`), so published
-  bundles remain readable (GDFS image evaluation changes with the #117
-  fix described below).
+  Both methods save a policy network and a built-in classifier to
+  `model.pt` with an `architecture` dict. Issue #118 renamed the classifier
+  fields to `classifier_state_dict` and `classifier_hidden_layers`,
+  without compatibility aliases for old bundles. Classifier bundles also
+  use `classifier_state_dict`, and DIME logs `train_classifier_loss`.
+  The policy network's hidden layers stay keyed by each method's own name
+  for it (`selector_hidden_layers`, `value_network_hidden_layers`).
 - **The method class**, `NetworkPairAFAMethod` in
   `discriminative/common/afa_methods.py`: `save`, `load`, `to`, the
   soft-budget parameter (`lambda_threshold`), `predict`, the exclusion of
   performed selections and the scaling of scores by selection cost.
   `GDFSAFAMethod` and `DIMEAFAMethod` keep only their own `act`: GDFS ranks
-  the selector's logits and stops on the predictor's entropy; DIME ranks
+  the selector's logits and stops on the classifier's entropy; DIME ranks
   the value network's CMI estimates and stops when none is worth its cost.
 - **The training loop**, `NetworkPairTrainer` in
   `discriminative/common/trainer.py`: the validation metric protocol
@@ -86,8 +87,10 @@ This intentionally changes DIME's training dynamics on every dataset key,
 in both the hard-budget and soft-budget settings, including `kdd26` config
 variants. Retraining can therefore change the published KDD '26 DIME
 results; the corrected trainer is not intended to reproduce those results.
-Resolved training hyperparameters are unchanged. Existing bundles still
-load and evaluate unchanged. GDFS shares no parameters between its networks,
+Resolved training hyperparameters are unchanged. The optimizer fix itself
+does not change bundle loading or evaluation; #118 separately renames the
+classifier fields without old-bundle compatibility. GDFS shares no
+parameters between its networks,
 so its optimizer parameter list and training behaviour are unchanged.
 
 ## Departures from upstream in the shared code
@@ -95,7 +98,7 @@ so its optimizer parameter list and training behaviour are unchanged.
 These predate #105 and remain after #116. They were kept on purpose in
 #105 because it was a behaviour-preserving refactor.
 - **DIME's scheduler and best-epoch check use the validation metric.**
-  Upstream DIME steps `ReduceLROnPlateau` on the predictor's validation
+  Upstream DIME steps `ReduceLROnPlateau` on the classifier's validation
   loss in `min` mode whatever `val_loss_fn` is; the port's DIME steps on
   the mean of `val_loss_fn` over the episode in `val_loss_mode`, as GDFS
   does. The pipeline sets no validation metric for DIME, so the metric
@@ -130,10 +133,11 @@ published `kdd26` GDFS image results.
 
 GDFS image loading now rebuilds two independent backbones and restores each
 network's own weights. DIME still shares one backbone, matching its training.
-The `model.pt` keys and architecture dict are unchanged. Existing GDFS image
-bundles contain both backbones' weights and remain readable without migration
-or retraining, but re-evaluating them now uses the selector's trained backbone
-and can change selections and evaluation results.
+The #117 fix did not change the `model.pt` keys or architecture dict:
+GDFS image bundles contain both backbones' weights. Loading now uses the
+selector's trained backbone and can change selections and evaluation
+results. The subsequent #118 classifier-field rename requires new bundles;
+it retains this corrected backbone reconstruction.
 
 This affects `gdfs` on `mnist`, `fashion_mnist`, `synthetic_mnist`,
 `synthetic_mnist_without_noise` and `imagenette`, in both the hard-budget and

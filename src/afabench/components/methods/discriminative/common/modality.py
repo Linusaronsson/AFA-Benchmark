@@ -30,8 +30,8 @@ from afabench.components.methods.discriminative.common.datasets import (
     prepare_datasets,
 )
 from afabench.components.methods.discriminative.common.models import (
+    Classifier,
     ConvNet,
-    Predictor,
     ResNet18Backbone,
     resnet18,
     resnet50,
@@ -191,7 +191,7 @@ class TabularSetup(ModalitySetup):
             d_out=self.d_out,
             n_selections=self.n_selections,
             policy_hidden_layers=self.architecture.hidden_units,
-            predictor_hidden_layers=self.architecture.hidden_units,
+            classifier_hidden_layers=self.architecture.hidden_units,
             dropout=self.architecture.dropout,
         )
 
@@ -211,10 +211,10 @@ class ImageSetup(ModalitySetup):
     ) -> nn.Module:
         backbone, expansion = load_backbone(self.architecture.backbone_type)
         if share_with is not None:
-            if not isinstance(share_with, Predictor):
+            if not isinstance(share_with, Classifier):
                 msg = (
                     "An image policy network shares the backbone of a "
-                    f"Predictor, not of a {type(share_with).__name__}"
+                    f"Classifier, not of a {type(share_with).__name__}"
                 )
                 raise TypeError(msg)
             # The fresh backbone is still loaded for its expansion, as

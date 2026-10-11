@@ -14,8 +14,8 @@ from afabench.components.methods.discriminative.common.checkpoint import (
     NetworkPairSpec,
 )
 from afabench.components.methods.discriminative.common.models import (
+    Classifier,
     ConvNet,
-    Predictor,
 )
 from afabench.components.methods.discriminative.dime.afa_methods import (
     DIMEAFAMethod,
@@ -36,7 +36,7 @@ TABULAR_SPEC = NetworkPairSpec(
     d_out=D_OUT,
     n_selections=N_SELECTIONS,
     policy_hidden_layers=[8],
-    predictor_hidden_layers=[8, 8],
+    classifier_hidden_layers=[8, 8],
     dropout=0.0,
 )
 METHOD_CLASSES = [GDFSAFAMethod, DIMEAFAMethod]
@@ -46,10 +46,10 @@ def _tabular_method(
     method_class: type[NetworkPairAFAMethod],
 ) -> NetworkPairAFAMethod:
     torch.manual_seed(0)
-    policy_network, predictor = TABULAR_SPEC.build_networks(CPU)
+    policy_network, classifier = TABULAR_SPEC.build_networks(CPU)
     return method_class(
         policy_network,
-        predictor,
+        classifier,
         TABULAR_SPEC,
         CPU,
         lambda_threshold=0.25,
@@ -92,7 +92,7 @@ def test_a_saved_method_loads_with_the_same_predictions_actions_and_costs(
 
 
 @pytest.mark.parametrize("method_class", METHOD_CLASSES)
-def test_model_pt_keeps_the_keys_published_bundles_have(
+def test_model_pt_uses_classifier_keys(
     tmp_path: Path, method_class: type[NetworkPairAFAMethod]
 ) -> None:
     method = _tabular_method(method_class)
@@ -105,18 +105,19 @@ def test_model_pt_keeps_the_keys_published_bundles_have(
     )
     assert set(checkpoint) == {
         f"{policy_key}_state_dict",
-        "predictor_state_dict",
+        "classifier_state_dict",
         "architecture",
         "lambda_threshold",
         "selection_costs",
     }
     assert f"{policy_key}_hidden_layers" in checkpoint["architecture"]
+    assert "classifier_hidden_layers" in checkpoint["architecture"]
 
 
-def test_a_bundle_written_before_grouped_selections_and_selection_costs_loads(
+def test_missing_selection_fields_default_to_direct_unmasker_costs(
     tmp_path: Path,
 ) -> None:
-    """Early GDFS bundles stored feature costs and no n_selections."""
+    """Missing n_selections uses d_in; feature costs supply selection costs."""
     torch.manual_seed(0)
     legacy_spec = NetworkPairSpec(
         modality="tabular",
@@ -124,20 +125,20 @@ def test_a_bundle_written_before_grouped_selections_and_selection_costs_loads(
         d_out=D_OUT,
         n_selections=D_IN,
         policy_hidden_layers=[8],
-        predictor_hidden_layers=[8, 8],
+        classifier_hidden_layers=[8, 8],
         dropout=0.0,
     )
-    selector, predictor = legacy_spec.build_networks(CPU)
+    selector, classifier = legacy_spec.build_networks(CPU)
     torch.save(
         {
             "selector_state_dict": selector.state_dict(),
-            "predictor_state_dict": predictor.state_dict(),
+            "classifier_state_dict": classifier.state_dict(),
             "architecture": {
                 "type": "mlp",
                 "d_in": D_IN,
                 "d_out": D_OUT,
                 "selector_hidden_layers": [8],
-                "predictor_hidden_layers": [8, 8],
+                "classifier_hidden_layers": [8, 8],
                 "dropout": 0.0,
                 "model_type": "tabular",
             },
@@ -185,18 +186,18 @@ def test_image_bundle_preserves_trained_backbones_and_behaviour(
     )
     with torch.random.fork_rng():
         torch.manual_seed(117)
-        policy, predictor = spec.build_networks(CPU)
+        policy, classifier = spec.build_networks(CPU)
     assert isinstance(policy, ConvNet)
-    assert isinstance(predictor, Predictor)
+    assert isinstance(classifier, Classifier)
     if method_class is GDFSAFAMethod:
-        policy.backbone = deepcopy(predictor.backbone)
+        policy.backbone = deepcopy(classifier.backbone)
         with torch.no_grad():
             next(policy.backbone.parameters()).fill_(0.01)
-            next(predictor.backbone.parameters()).fill_(0.02)
+            next(classifier.backbone.parameters()).fill_(0.02)
     policy.eval()
-    predictor.eval()
+    classifier.eval()
     method = method_class(
-        policy, predictor, spec, CPU, lambda_threshold=lambda_threshold
+        policy, classifier, spec, CPU, lambda_threshold=lambda_threshold
     )
     rng = torch.Generator().manual_seed(117)
     features = torch.randn((2, 3, 96, 96), generator=rng)
@@ -217,14 +218,14 @@ def test_image_bundle_preserves_trained_backbones_and_behaviour(
             loaded.act(features, mask), method.act(features, mask)
         )
     assert isinstance(loaded.policy_network, ConvNet)
-    assert isinstance(loaded.predictor, Predictor)
+    assert isinstance(loaded.classifier, Classifier)
     for original, restored in zip(
         policy.state_dict().values(),
         loaded.policy_network.state_dict().values(),
         strict=True,
     ):
         torch.testing.assert_close(restored, original)
-    assert (loaded.policy_network.backbone is loaded.predictor.backbone) == (
+    assert (loaded.policy_network.backbone is loaded.classifier.backbone) == (
         method_class is DIMEAFAMethod
     )
 
@@ -232,8 +233,8 @@ def test_image_bundle_preserves_trained_backbones_and_behaviour(
 def test_a_method_without_soft_budget_parameter_never_stops_on_entropy(
     tmp_path: Path,
 ) -> None:
-    policy_network, predictor = TABULAR_SPEC.build_networks(CPU)
-    method = GDFSAFAMethod(policy_network, predictor, TABULAR_SPEC, CPU)
+    policy_network, classifier = TABULAR_SPEC.build_networks(CPU)
+    method = GDFSAFAMethod(policy_network, classifier, TABULAR_SPEC, CPU)
 
     method.save(tmp_path)
     loaded = GDFSAFAMethod.load(tmp_path, CPU)

@@ -1,17 +1,17 @@
 """
 The architecture record of a GDFS or DIME checkpoint.
 
-Both methods save a policy network and a predictor to `model.pt` together
+Both methods save a policy network and a classifier to `model.pt` together
 with an `architecture` dict that says how to rebuild them. `NetworkPairSpec`
-is that dict as a typed value: `to_dict` writes it in the format the
-checkpoints have always used, `from_dict` reads it, including the two
-legacy shapes (`n_selections` missing, where it equals `d_in`), and
-`build_networks` rebuilds the untrained pair that the saved state dicts
-fit.
+is that dict as a typed value: `to_dict` writes it, `from_dict` reads it
+(defaulting a missing `n_selections` to `d_in`), and `build_networks`
+rebuilds the untrained pair that the saved state dicts fit.
 
 The dict names the policy network's hidden layers after the method's own
 name for it (`selector` for GDFS, `value_network` for DIME), so the two
-checkpoint formats stay distinct and published bundles keep loading.
+checkpoint formats stay distinct. The built-in classifier's fields use
+`classifier` throughout; bundles written with the old spelling are not
+supported.
 """
 
 from copy import deepcopy
@@ -23,8 +23,8 @@ from torch import nn
 from torchrl.modules import MLP
 
 from afabench.components.methods.discriminative.common.models import (
+    Classifier,
     ConvNet,
-    Predictor,
     ResNet18Backbone,
     resnet18,
     resnet50,
@@ -37,7 +37,7 @@ TABULAR_FIELDS = (
     "d_in",
     "n_selections",
     "policy_hidden_layers",
-    "predictor_hidden_layers",
+    "classifier_hidden_layers",
     "dropout",
 )
 IMAGE_FIELDS = ("backbone", "image_size", "patch_size", "mask_width")
@@ -46,10 +46,10 @@ IMAGE_FIELDS = ("backbone", "image_size", "patch_size", "mask_width")
 @dataclass(frozen=True)
 class NetworkPairSpec:
     """
-    How to rebuild a method's policy network and predictor.
+    How to rebuild a method's policy network and classifier.
 
     A tabular pair is two MLPs over the features with the feature mask
-    appended; an image pair is a predictor and a ConvNet on ResNet
+    appended; an image pair is a classifier and a ConvNet on ResNet
     backbones, selecting among `mask_width` squared patches. DIME shares
     the backbone; GDFS keeps the selector's backbone independent.
     """
@@ -59,7 +59,7 @@ class NetworkPairSpec:
     d_in: int | None = None
     n_selections: int | None = None
     policy_hidden_layers: list[int] | None = None
-    predictor_hidden_layers: list[int] | None = None
+    classifier_hidden_layers: list[int] | None = None
     dropout: float | None = None
     backbone: str | None = None
     image_size: int | None = None
@@ -90,7 +90,7 @@ class NetworkPairSpec:
                 "d_out": self.d_out,
                 "n_selections": self.n_selections,
                 f"{policy_network_name}_hidden_layers": self.policy_hidden_layers,
-                "predictor_hidden_layers": self.predictor_hidden_layers,
+                "classifier_hidden_layers": self.classifier_hidden_layers,
                 "dropout": self.dropout,
                 "model_type": "tabular",
             }
@@ -122,7 +122,9 @@ class NetworkPairSpec:
                 policy_hidden_layers=list(
                     arch[f"{policy_network_name}_hidden_layers"]
                 ),
-                predictor_hidden_layers=list(arch["predictor_hidden_layers"]),
+                classifier_hidden_layers=list(
+                    arch["classifier_hidden_layers"]
+                ),
                 dropout=float(arch["dropout"]),
             )
         if arch["type"] in IMAGE_BACKBONES:
@@ -154,10 +156,10 @@ class NetworkPairSpec:
                 activation_class=nn.ReLU,
                 dropout=self.dropout,
             )
-            predictor = MLP(
+            classifier = MLP(
                 in_features=self.d_in * 2,
                 out_features=self.d_out,
-                num_cells=self.predictor_hidden_layers,
+                num_cells=self.classifier_hidden_layers,
                 activation_class=nn.ReLU,
                 dropout=self.dropout,
             )
@@ -168,7 +170,7 @@ class NetworkPairSpec:
                 else resnet50(pretrained=False)
             )
             backbone_net, expansion = ResNet18Backbone(base)
-            predictor = Predictor(backbone_net, expansion, self.d_out)
+            classifier = Classifier(backbone_net, expansion, self.d_out)
             # GDFS trains two backbones. Reusing the module would let
             # the classifier's state dict overwrite the selector's (#117).
             policy_backbone = (
@@ -177,4 +179,4 @@ class NetworkPairSpec:
                 else deepcopy(backbone_net)
             )
             policy_network = ConvNet(policy_backbone, expansion, 0.5)
-        return policy_network.to(device), predictor.to(device)
+        return policy_network.to(device), classifier.to(device)

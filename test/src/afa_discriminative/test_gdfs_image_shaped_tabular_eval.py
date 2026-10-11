@@ -17,7 +17,7 @@ SPEC = NetworkPairSpec(
     d_out=10,
     n_selections=49,
     policy_hidden_layers=[],
-    predictor_hidden_layers=[],
+    classifier_hidden_layers=[],
     dropout=0.0,
 )
 

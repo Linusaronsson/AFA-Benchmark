@@ -28,7 +28,7 @@ MAX_FEATURES = 3
 
 def _per_acquisition_backward_grads(
     value_network: nn.Module,
-    predictor: nn.Module,
+    classifier: nn.Module,
     features: torch.Tensor,
     label: torch.Tensor,
 ) -> list[torch.Tensor]:
@@ -37,7 +37,7 @@ def _per_acquisition_backward_grads(
     loss_fn = nn.CrossEntropyLoss(reduction="none")
     feature_mask = torch.zeros_like(features)
 
-    pred_without_next_feature = predictor(mask_layer(features, feature_mask))
+    pred_without_next_feature = classifier(mask_layer(features, feature_mask))
     loss_without_next_feature = loss_fn(pred_without_next_feature, label)
     (loss_without_next_feature.mean() / (MAX_FEATURES + 1)).backward()
     pred_without_next_feature = pred_without_next_feature.detach()
@@ -52,7 +52,7 @@ def _per_acquisition_backward_grads(
         feature_mask = feature_mask.clone()
         feature_mask[torch.arange(N_SAMPLES), actions] = 1.0
 
-        pred_with_next_feature = predictor(mask_layer(features, feature_mask))
+        pred_with_next_feature = classifier(mask_layer(features, feature_mask))
         loss_with_next_feature = loss_fn(pred_with_next_feature, label)
         delta = loss_without_next_feature - loss_with_next_feature.detach()
         value_network_loss = nn.functional.mse_loss(
@@ -64,7 +64,7 @@ def _per_acquisition_backward_grads(
         loss_without_next_feature = loss_with_next_feature.detach()
         pred_without_next_feature = pred_with_next_feature.detach()
 
-    parameters = [*value_network.parameters(), *predictor.parameters()]
+    parameters = [*value_network.parameters(), *classifier.parameters()]
     return [
         parameter.grad.clone()
         for parameter in parameters
@@ -82,13 +82,13 @@ def test_dime_single_backward_matches_per_acquisition_backward() -> None:
         nn.ReLU(),
         nn.Linear(16, N_FEATURES),
     )
-    predictor = nn.Sequential(
+    classifier = nn.Sequential(
         nn.Linear(2 * N_FEATURES, 16),
         nn.ReLU(),
         nn.Linear(16, N_CLASSES),
     )
     expected_grads = _per_acquisition_backward_grads(
-        deepcopy(value_network), deepcopy(predictor), features, label
+        deepcopy(value_network), deepcopy(classifier), features, label
     )
 
     captured_grads: list[list[torch.Tensor]] = []
@@ -112,7 +112,7 @@ def test_dime_single_backward_matches_per_acquisition_backward() -> None:
     )
     trainer = NetworkPairTrainer(
         policy_network=value_network,
-        predictor=predictor,
+        classifier=classifier,
         mask_layer=MaskLayer(append=True),
         initializer=ZeroInitializer(),
         unmasker=DirectUnmasker(),
@@ -137,7 +137,7 @@ def test_dime_single_backward_matches_per_acquisition_backward() -> None:
 
     assert len(captured_grads) == 1
     (actual_grads,) = captured_grads
-    n_parameters = len([*value_network.parameters(), *predictor.parameters()])
+    n_parameters = len([*value_network.parameters(), *classifier.parameters()])
     assert len(actual_grads) == len(expected_grads) == n_parameters
     assert all(grad.abs().sum() > 0 for grad in expected_grads)
     for actual_grad, expected_grad in zip(

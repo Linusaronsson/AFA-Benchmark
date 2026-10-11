@@ -45,15 +45,15 @@ def train(
     )
     torch.set_float32_matmul_precision("medium")
     classifier_bundle = inputs.pretrained_model(GreedyAFAClassifier)
-    predictor = classifier_bundle.predictor.to(torch.device(cfg.device))
+    classifier = classifier_bundle.classifier.to(torch.device(cfg.device))
     setup = prepare_modality(
         cfg, inputs, classifier_arch=classifier_bundle.architecture
     )
-    value_network = setup.policy_network(share_with=predictor)
+    value_network = setup.policy_network(share_with=classifier)
     setup.check_policy_output(value_network)
     trainer = NetworkPairTrainer(
         policy_network=value_network,
-        predictor=predictor,
+        classifier=classifier,
         mask_layer=setup.mask_layer,
         initializer=inputs.initializer(),
         unmasker=inputs.unmasker(),
@@ -79,7 +79,7 @@ def train(
     )
     return DIMEAFAMethod(
         value_network.cpu(),
-        predictor.cpu(),
+        classifier.cpu(),
         setup.network_pair_spec(),
         torch.device("cpu"),
         selection_costs=setup.selection_costs,

@@ -125,16 +125,18 @@ def selection_soft_to_feature_soft(
 
 
 def tie_first_k_linears_by_module(
-    predictor: nn.Module, value_network: nn.Module, k: int = 2
+    classifier: nn.Module, value_network: nn.Module, k: int = 2
 ) -> None:
-    pred_linears = [m for m in predictor.modules() if isinstance(m, nn.Linear)]
+    pred_linears = [
+        m for m in classifier.modules() if isinstance(m, nn.Linear)
+    ]
     val_linears = [
         m for m in value_network.modules() if isinstance(m, nn.Linear)
     ]
     if len(pred_linears) < k or len(val_linears) < k:
         message = (
             f"Need at least {k} Linear layers in each model. "
-            f"Got predictor={len(pred_linears)}, value_network={len(val_linears)}"
+            f"Got classifier={len(pred_linears)}, value_network={len(val_linears)}"
         )
         raise ValueError(message)
     for i in range(k):

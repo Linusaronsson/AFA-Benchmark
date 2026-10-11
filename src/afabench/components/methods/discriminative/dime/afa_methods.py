@@ -34,7 +34,7 @@ class DIMEAFAMethod(NetworkPairAFAMethod):
     Acts on the value network's CMI estimates, and stops when none is worth its cost.
 
     The value network estimates each selection's conditional mutual
-    information with the label, bounded by the predictor's entropy; at
+    information with the label, bounded by the classifier's entropy; at
     evaluation the estimate per unit of selection cost ranks the
     selections, and falls below `lambda_threshold` to stop.
     """
@@ -51,7 +51,7 @@ class DIMEAFAMethod(NetworkPairAFAMethod):
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
         network_input = self._network_input(masked_features, feature_mask)
-        pred = self.predictor(network_input)
+        pred = self.classifier(network_input)
         entropy = get_entropy(pred).unsqueeze(1)
         pred_cmi = self.policy_network(network_input).sigmoid() * entropy
         scores = self._score_per_cost(
@@ -72,10 +72,10 @@ class DIMETrainingObjective(TrainingObjective):
 
     In a training episode the value network estimates every selection's
     conditional mutual information with the label (bounded by the
-    predictor's entropy under `cmi_scaling="bounded"`); the selection is
+    classifier's entropy under `cmi_scaling="bounded"`); the selection is
     the best estimate per unit of cost or, with probability `eps`, a
-    random one. The value network is regressed on the predictor's loss
-    drop from the selection, the predictor on its loss, with one backward
+    random one. The value network is regressed on the classifier's loss
+    drop from the selection, the classifier on its loss, with one backward
     pass over the episode. On a plateau `eps` decays by `eps_decay` and
     the learning rate is reset; after `eps_steps` decays training stops.
     """
@@ -132,7 +132,7 @@ class DIMETrainingObjective(TrainingObjective):
     def train_episode(self, episode: BatchEpisode) -> None:
         context = self.context
         settings = context.settings
-        predictor = context.predictor
+        classifier = context.classifier
         loss_fn = settings.loss_fn
         assert self._selection_costs is not None
         x = episode.features
@@ -143,9 +143,9 @@ class DIMETrainingObjective(TrainingObjective):
         pred_loss_total = torch.zeros((), device=x.device)
         step_losses: list[Tensor] = []
 
-        # Predictor loss with initial features.
+        # Classifier loss with initial features.
         x_masked = apply_model_mask(context.mask_layer, x, m_feat)
-        pred_without_next_feature = predictor(x_masked)
+        pred_without_next_feature = classifier(x_masked)
         loss_without_next_feature = loss_fn(pred_without_next_feature, y)
         pred_loss = loss_without_next_feature.mean()
         pred_loss_total += pred_loss.detach()
@@ -170,7 +170,7 @@ class DIMETrainingObjective(TrainingObjective):
                 m_sel, ind_to_onehot(actions, context.n_selections)
             )
 
-            # Predictor loss.
+            # Classifier loss.
             m_feat = context.unmasker.unmask(
                 masked_features=x_masked,
                 feature_mask=m_feat.bool(),
@@ -180,7 +180,7 @@ class DIMETrainingObjective(TrainingObjective):
                 feature_shape=context.feature_shape,
             )
             x_masked = apply_model_mask(context.mask_layer, x, m_feat)
-            pred_with_next_feature = predictor(x_masked)
+            pred_with_next_feature = classifier(x_masked)
             loss_with_next_feature = loss_fn(pred_with_next_feature, y)
 
             # Value network loss.
@@ -217,7 +217,7 @@ class DIMETrainingObjective(TrainingObjective):
     @override
     def validate_episode(self, episode: BatchEpisode) -> None:
         context = self.context
-        predictor = context.predictor
+        classifier = context.classifier
         assert self._selection_costs is not None
         x = episode.features
         y = episode.label
@@ -225,7 +225,7 @@ class DIMETrainingObjective(TrainingObjective):
         m_sel = episode.selection_mask
 
         x_masked = apply_model_mask(context.mask_layer, x, m_feat)
-        pred = predictor(x_masked)
+        pred = classifier(x_masked)
         self._val_preds[0].append(pred)
 
         for i in range(1, context.settings.selections_per_episode + 1):
@@ -253,7 +253,7 @@ class DIMETrainingObjective(TrainingObjective):
 
             # Make prediction.
             x_masked = apply_model_mask(context.mask_layer, x, m_feat)
-            pred = predictor(x_masked)
+            pred = classifier(x_masked)
             self._val_preds[i].append(pred)
 
         self._val_targets.append(y)
@@ -278,7 +278,7 @@ class DIMETrainingObjective(TrainingObjective):
             score=val_perf_mean,
             metrics={
                 "train_value_loss": float(train_value_loss.item()),
-                "train_predictor_loss": float(train_pred_loss.item()),
+                "train_classifier_loss": float(train_pred_loss.item()),
                 "val_loss_mean": float(val_loss_mean.mean().item()),
                 "val_perf_mean": float(val_perf_mean.mean().item()),
                 "val_loss_final": float(val_loss_final.mean().item()),

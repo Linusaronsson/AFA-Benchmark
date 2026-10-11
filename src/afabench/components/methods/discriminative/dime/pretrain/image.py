@@ -7,9 +7,9 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from afabench.components.methods.discriminative.common.models import (
+    Classifier,
     GreedyAFAClassifier,
     MaskingPretrainer,
-    Predictor,
     ResNet18Backbone,
     resnet18,
     resnet50,
@@ -61,7 +61,7 @@ def pretrain_image(
         msg = f"Unsupported backbone type: {backbone_type}"
         raise ValueError(msg)
     backbone, expansion = ResNet18Backbone(base)
-    predictor = Predictor(backbone, expansion, num_classes=d_out).to(device)
+    classifier = Classifier(backbone, expansion, num_classes=d_out).to(device)
     image_size = cfg.architecture.image_size
     patch_size = cfg.architecture.patch_size
     assert image_size % patch_size == 0, (
@@ -79,9 +79,9 @@ def pretrain_image(
     mask_layer = MaskLayer2d(
         mask_width=mask_width, patch_size=patch_size, append=False
     )
-    print("Pretraining predictor")
+    print("Pretraining classifier")
     print("-" * 8)
-    pretrain = MaskingPretrainer(predictor, mask_layer).to(device)
+    pretrain = MaskingPretrainer(classifier, mask_layer).to(device)
     pretrain.fit(
         train_loader,
         val_loader,
@@ -96,7 +96,7 @@ def pretrain_image(
         metric_prefix="dime_pretrain",
     )
     bundle_obj = GreedyAFAClassifier(
-        predictor=predictor,
+        classifier=classifier,
         architecture=architecture,
         device=torch.device("cpu"),
     )

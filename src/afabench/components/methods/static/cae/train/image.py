@@ -11,7 +11,7 @@ from afabench.components.methods.discriminative.common.modality import (
     load_backbone,
 )
 from afabench.components.methods.discriminative.common.models import (
-    Predictor,
+    Classifier,
 )
 from afabench.components.methods.static.cae.config import (
     CAEImageArchitectureConfig,
@@ -62,7 +62,7 @@ def train_image(
 
     backbone_type = cfg.architecture.backbone_type
     backbone, expansion = load_backbone(backbone_type)
-    model = Predictor(backbone, expansion, num_classes=d_out).to(device)
+    model = Classifier(backbone, expansion, num_classes=d_out).to(device)
     selector_layer = ConcreteMask2d(
         width=mask_width,
         patch_size=patch_size,
@@ -138,7 +138,7 @@ def train_image(
         )
 
         backbone, expansion = load_backbone(backbone_type)
-        model = Predictor(backbone, expansion, num_classes=d_out).to(device)
+        model = Classifier(backbone, expansion, num_classes=d_out).to(device)
         predictor = BaseModel(model).to(device)
         predictor.fit(
             masked_train_loader,

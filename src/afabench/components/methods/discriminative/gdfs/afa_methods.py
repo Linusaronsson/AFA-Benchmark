@@ -42,7 +42,7 @@ class GDFSAFAMethod(NetworkPairAFAMethod):
     The selector was trained through a Concrete relaxation to pick the
     selection that most improves the prediction; at evaluation its logit,
     per unit of selection cost, ranks the selections. The stop test is the
-    predictor's entropy against `lambda_threshold`.
+    classifier's entropy against `lambda_threshold`.
     """
 
     policy_network_name: ClassVar[str] = "selector"
@@ -58,7 +58,7 @@ class GDFSAFAMethod(NetworkPairAFAMethod):
     ) -> AFAAction:
         network_input = self._network_input(masked_features, feature_mask)
         with torch.no_grad():
-            pred = self.predictor(network_input)
+            pred = self.classifier(network_input)
             stop_mask = get_entropy(pred) < self.lambda_threshold
         logits = self.policy_network(network_input).flatten(1)
         scores = self._exclude_performed_selections(
@@ -74,7 +74,7 @@ class GDFSTrainingObjective(TrainingObjective):
     Each round trains at one temperature of `np.geomspace(start_temp,
     end_temp, temp_steps)` with a fresh optimizer. In a training episode
     the selector's logits, less the log selection costs, are sampled
-    through the Concrete distribution; the predictor sees the soft mask
+    through the Concrete distribution; the classifier sees the soft mask
     and its loss is backpropagated per selection; the hard argmax
     selection advances the episode. Validation scores the soft and the
     hard (zero-temperature) prediction; the networks best at zero
@@ -102,7 +102,7 @@ class GDFSTrainingObjective(TrainingObjective):
         self._log_cost: Tensor | None = None
         self._best_val: Tensor | None = None
         self._best_zerotemp_selector: nn.Module | None = None
-        self._best_zerotemp_predictor: nn.Module | None = None
+        self._best_zerotemp_classifier: nn.Module | None = None
         self._epoch_train_loss: float = 0.0
         self._n_train_batches: int = 0
         self._pred_list: list[Tensor] = []
@@ -121,7 +121,7 @@ class GDFSTrainingObjective(TrainingObjective):
         self._log_cost = torch.log(context.selection_costs)
         self._best_val = None
         self._best_zerotemp_selector = None
-        self._best_zerotemp_predictor = None
+        self._best_zerotemp_classifier = None
 
     @override
     def start_round(self, round_index: int) -> None:
@@ -155,7 +155,7 @@ class GDFSTrainingObjective(TrainingObjective):
         context = self.context
         settings = context.settings
         selector = context.policy_network
-        predictor = context.predictor
+        classifier = context.classifier
         assert self._log_cost is not None
         x = episode.features
         y = episode.label
@@ -174,9 +174,9 @@ class GDFSTrainingObjective(TrainingObjective):
                 m_feat, self._soft_feature_mask(soft, x)
             )
 
-            # Evaluate predictor model.
+            # Evaluate classifier model.
             x_masked = apply_model_mask(context.mask_layer, x, m_soft_feat)
-            pred = predictor(x_masked)
+            pred = classifier(x_masked)
 
             # Calculate loss.
             loss = settings.loss_fn(pred, y)
@@ -203,7 +203,7 @@ class GDFSTrainingObjective(TrainingObjective):
     def validate_episode(self, episode: BatchEpisode) -> None:
         context = self.context
         selector = context.policy_network
-        predictor = context.predictor
+        classifier = context.classifier
         assert self._log_cost is not None
         x = episode.features
         y = episode.label
@@ -236,13 +236,13 @@ class GDFSTrainingObjective(TrainingObjective):
                 feature_shape=context.feature_shape,
             ).to(dtype=x.dtype)
 
-            # Evaluate predictor with soft sample.
+            # Evaluate classifier with soft sample.
             x_masked = apply_model_mask(context.mask_layer, x, m_soft_feat)
-            pred = predictor(x_masked)
+            pred = classifier(x_masked)
 
-            # Evaluate predictor with hard sample.
+            # Evaluate classifier with hard sample.
             x_masked = apply_model_mask(context.mask_layer, x, m_feat)
-            hard_pred = predictor(x_masked)
+            hard_pred = classifier(x_masked)
 
             self._pred_list.append(pred)
             self._hard_pred_list.append(hard_pred)
@@ -274,7 +274,7 @@ class GDFSTrainingObjective(TrainingObjective):
         ):
             self._best_val = val_hard_loss
             self._best_zerotemp_selector = deepcopy(context.policy_network)
-            self._best_zerotemp_predictor = deepcopy(context.predictor)
+            self._best_zerotemp_classifier = deepcopy(context.classifier)
 
         return EpochValidation(
             score=val_loss,
@@ -290,12 +290,12 @@ class GDFSTrainingObjective(TrainingObjective):
     def finish(self) -> None:
         # Copy parameters from best model with zero temperature.
         assert self._best_zerotemp_selector is not None
-        assert self._best_zerotemp_predictor is not None
+        assert self._best_zerotemp_classifier is not None
         restore_parameters(
             self.context.policy_network, self._best_zerotemp_selector
         )
         restore_parameters(
-            self.context.predictor, self._best_zerotemp_predictor
+            self.context.classifier, self._best_zerotemp_classifier
         )
 
 

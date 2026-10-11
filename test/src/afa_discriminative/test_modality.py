@@ -17,7 +17,7 @@ from afabench.components.methods.discriminative.common.modality import (
     prepare_modality,
 )
 from afabench.components.methods.discriminative.common.models import (
-    build_resnet18_predictor,
+    build_resnet18_classifier,
 )
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer,
@@ -223,7 +223,7 @@ def test_tabular_policy_network_scores_every_selection(
         )
 
 
-def test_tabular_policy_network_shares_the_predictors_first_linears(
+def test_tabular_policy_network_shares_the_classifiers_first_linears(
     tabular_cfg: GDFSTrainingConfig,
 ) -> None:
     setup = prepare_modality(
@@ -231,17 +231,17 @@ def test_tabular_policy_network_shares_the_predictors_first_linears(
         load_inputs(tabular_cfg),
         classifier_arch=CUBE_ARCHITECTURE,
     )
-    predictor = MLP(in_features=40, out_features=8, num_cells=[8, 8])
+    classifier = MLP(in_features=40, out_features=8, num_cells=[8, 8])
 
-    policy_network = setup.policy_network(share_with=predictor)
+    policy_network = setup.policy_network(share_with=classifier)
 
-    predictor_linears = [
-        m for m in predictor.modules() if isinstance(m, nn.Linear)
+    classifier_linears = [
+        m for m in classifier.modules() if isinstance(m, nn.Linear)
     ]
     policy_linears = [
         m for m in policy_network.modules() if isinstance(m, nn.Linear)
     ]
-    assert policy_linears[:2] == predictor_linears[:2]
+    assert policy_linears[:2] == classifier_linears[:2]
     setup.check_policy_output(policy_network)
 
 
@@ -253,11 +253,11 @@ def test_image_policy_network_scores_every_patch(
         load_inputs(image_cfg),
         classifier_arch=IMAGENETTE_ARCHITECTURE,
     )
-    predictor = build_resnet18_predictor(IMAGENETTE_ARCHITECTURE)
+    classifier = build_resnet18_classifier(IMAGENETTE_ARCHITECTURE)
 
-    policy_network = setup.policy_network(share_with=predictor)
+    policy_network = setup.policy_network(share_with=classifier)
 
-    assert policy_network.backbone is predictor.backbone
+    assert policy_network.backbone is classifier.backbone
     setup.check_policy_output(policy_network)
 
 
@@ -303,7 +303,7 @@ def test_tabular_setup_records_the_mlp_pair(
         d_out=8,
         n_selections=20,
         policy_hidden_layers=[8, 8],
-        predictor_hidden_layers=[8, 8],
+        classifier_hidden_layers=[8, 8],
         dropout=0.0,
     )
 

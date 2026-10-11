@@ -502,9 +502,9 @@ class ResNet(nn.Module):
         return x
 
 
-class Predictor(nn.Module):
+class Classifier(nn.Module):
     def __init__(self, backbone, expansion, num_classes=10):
-        super(Predictor, self).__init__()
+        super(Classifier, self).__init__()
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
         self.conv = nn.Conv2d(512 * expansion, 256, kernel_size=3)
@@ -571,34 +571,34 @@ def build_mlp(arch: dict[str, Any]) -> nn.Module:
     )
 
 
-def build_resnet18_predictor(arch: dict[str, Any]) -> nn.Module:
+def build_resnet18_classifier(arch: dict[str, Any]) -> nn.Module:
     base = resnet18(pretrained=bool(arch.get("pretrained", True)))
     backbone, expansion = ResNet18Backbone(base)
-    return Predictor(backbone, expansion, num_classes=int(arch["d_out"]))
+    return Classifier(backbone, expansion, num_classes=int(arch["d_out"]))
 
 
-def build_resnet50_predictor(arch: dict[str, Any]) -> nn.Module:
+def build_resnet50_classifier(arch: dict[str, Any]) -> nn.Module:
     base = resnet50(pretrained=bool(arch.get("pretrained", True)))
     backbone, expansion = ResNet18Backbone(base)
-    return Predictor(backbone, expansion, num_classes=int(arch["d_out"]))
+    return Classifier(backbone, expansion, num_classes=int(arch["d_out"]))
 
 
 _BUILDERS: dict[str, Callable[[dict[str, Any]], nn.Module]] = {
     "mlp": build_mlp,
-    "resnet18": build_resnet18_predictor,
-    "resnet50": build_resnet50_predictor,
+    "resnet18": build_resnet18_classifier,
+    "resnet50": build_resnet50_classifier,
 }
 
 
 class GreedyAFAClassifier:
     def __init__(
         self,
-        predictor: nn.Module,
+        classifier: nn.Module,
         architecture: dict[str, Any],
         device: torch.device,
     ):
-        self.predictor: nn.Module = predictor.to(device)
-        self.predictor.eval()
+        self.classifier: nn.Module = classifier.to(device)
+        self.classifier.eval()
         self.architecture: dict[str, Any] = architecture
         self._device: torch.device = device
 
@@ -607,7 +607,7 @@ class GreedyAFAClassifier:
         path.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
-                "predictor_state_dict": self.predictor.state_dict(),
+                "classifier_state_dict": self.classifier.state_dict(),
                 "architecture": self.architecture,
             },
             path / "model.pt",
@@ -623,7 +623,7 @@ class GreedyAFAClassifier:
             path / "model.pt", map_location=device, weights_only=False
         )
         arch: dict[str, Any] = checkpoint["architecture"]
-        state_dict = checkpoint["predictor_state_dict"]
+        state_dict = checkpoint["classifier_state_dict"]
         model_type = arch.get("type")
         if not model_type:
             raise ValueError("Checkpoint missing architecture['type']")
@@ -632,8 +632,8 @@ class GreedyAFAClassifier:
         if builder is None:
             raise ValueError(f"Unsupported model type: {model_type}")
 
-        predictor = builder(arch)
-        predictor.load_state_dict(state_dict)
-        predictor.eval()
+        classifier = builder(arch)
+        classifier.load_state_dict(state_dict)
+        classifier.eval()
 
-        return cls(predictor=predictor, architecture=arch, device=device)
+        return cls(classifier=classifier, architecture=arch, device=device)

@@ -41,12 +41,12 @@ def _append_flat_mask(
 
 class NetworkPairAFAMethod(AFAMethodBase, ABC):
     """
-    The method shape GDFS and DIME share: a policy network and a predictor.
+    The method shape GDFS and DIME share: a policy network and a classifier.
 
     Both methods score every selection with a policy network, exclude the
     selections already performed, scale the scores by the selection costs
     and stop below a threshold; both predict with a built-in classifier,
-    the `predictor`, that takes the masked features (with the feature mask
+    the `classifier`, that takes the masked features (with the feature mask
     appended for tabular data). The base owns that, the device moves and
     the model.pt round trip through `NetworkPairSpec`; a subclass names
     its policy network for the checkpoint and implements `act`.
@@ -61,7 +61,7 @@ class NetworkPairAFAMethod(AFAMethodBase, ABC):
     def __init__(
         self,
         policy_network: nn.Module,
-        predictor: nn.Module,
+        classifier: nn.Module,
         spec: NetworkPairSpec,
         device: torch.device,
         *,
@@ -70,7 +70,7 @@ class NetworkPairAFAMethod(AFAMethodBase, ABC):
     ) -> None:
         super().__init__(device)
         self.policy_network: nn.Module = policy_network
-        self.predictor: nn.Module = predictor
+        self.classifier: nn.Module = classifier
         self.spec: NetworkPairSpec = spec
         self.lambda_threshold: float = (
             -math.inf if lambda_threshold is None else lambda_threshold
@@ -99,7 +99,7 @@ class NetworkPairAFAMethod(AFAMethodBase, ABC):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
-        pred = self.predictor(
+        pred = self.classifier(
             self._network_input(masked_features, feature_mask)
         )
         return pred.softmax(dim=-1)
@@ -173,7 +173,7 @@ class NetworkPairAFAMethod(AFAMethodBase, ABC):
             f"{self.policy_network_name}_state_dict": (
                 self.policy_network.state_dict()
             ),
-            "predictor_state_dict": self.predictor.state_dict(),
+            "classifier_state_dict": self.classifier.state_dict(),
             "architecture": self.spec.to_dict(self.policy_network_name),
             "lambda_threshold": float(self.lambda_threshold),
             "selection_costs": self.selection_costs.detach().cpu()
@@ -191,15 +191,15 @@ class NetworkPairAFAMethod(AFAMethodBase, ABC):
         spec = NetworkPairSpec.from_dict(
             checkpoint["architecture"], cls.policy_network_name
         )
-        policy_network, predictor = spec.build_networks(
+        policy_network, classifier = spec.build_networks(
             device, share_image_backbone=cls.policy_network_name != "selector"
         )
         policy_network.load_state_dict(
             checkpoint[f"{cls.policy_network_name}_state_dict"]
         )
-        predictor.load_state_dict(checkpoint["predictor_state_dict"])
+        classifier.load_state_dict(checkpoint["classifier_state_dict"])
         policy_network.eval()
-        predictor.eval()
+        classifier.eval()
         selection_costs = checkpoint.get("selection_costs")
         if selection_costs is None:
             # Bundles from before selection costs stored the feature
@@ -209,7 +209,7 @@ class NetworkPairAFAMethod(AFAMethodBase, ABC):
             selection_costs = selection_costs.to(device)
         return cls(
             policy_network,
-            predictor,
+            classifier,
             spec,
             device,
             lambda_threshold=checkpoint.get("lambda_threshold"),

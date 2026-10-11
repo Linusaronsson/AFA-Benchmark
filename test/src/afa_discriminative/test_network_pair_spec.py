@@ -17,7 +17,7 @@ def test_tabular_spec_round_trips_through_the_checkpoint_dict() -> None:
         d_out=8,
         n_selections=18,
         policy_hidden_layers=[64, 32],
-        predictor_hidden_layers=[128, 128],
+        classifier_hidden_layers=[128, 128],
         dropout=0.3,
     )
 
@@ -29,7 +29,7 @@ def test_tabular_spec_round_trips_through_the_checkpoint_dict() -> None:
         "d_out": 8,
         "n_selections": 18,
         "selector_hidden_layers": [64, 32],
-        "predictor_hidden_layers": [128, 128],
+        "classifier_hidden_layers": [128, 128],
         "dropout": 0.3,
         "model_type": "tabular",
     }
@@ -67,7 +67,7 @@ def test_tabular_dict_without_n_selections_falls_back_to_d_in() -> None:
         "d_in": 20,
         "d_out": 8,
         "value_network_hidden_layers": [128, 128],
-        "predictor_hidden_layers": [128, 128],
+        "classifier_hidden_layers": [128, 128],
         "dropout": 0.3,
     }
 
@@ -91,7 +91,7 @@ def test_unknown_checkpoint_type_is_rejected_by_name() -> None:
                 "d_in": 4,
                 "d_out": 2,
                 "policy_hidden_layers": [8],
-                "predictor_hidden_layers": [8],
+                "classifier_hidden_layers": [8],
                 "dropout": 0.0,
             },
         ),
@@ -123,12 +123,12 @@ def test_tabular_networks_take_features_with_mask_and_answer_per_selection_and_c
         d_out=3,
         n_selections=4,
         policy_hidden_layers=[8],
-        predictor_hidden_layers=[8, 8],
+        classifier_hidden_layers=[8, 8],
         dropout=0.0,
     )
 
-    policy_network, predictor = spec.build_networks(CPU)
+    policy_network, classifier = spec.build_networks(CPU)
 
     features_with_mask = torch.zeros((2, 2 * 6))
     assert policy_network(features_with_mask).shape == (2, 4)
-    assert predictor(features_with_mask).shape == (2, 3)
+    assert classifier(features_with_mask).shape == (2, 3)
