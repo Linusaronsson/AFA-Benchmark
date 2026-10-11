@@ -44,6 +44,7 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.dataset_realization_indices == [0, 1, 2, 3, 4]
     assert settings.smoke_test is False
     assert settings.use_wandb is True
+    assert settings.list_jobs is False
     assert settings.initializer == "cold"
     assert settings.output_root == "output/production"
 
@@ -99,6 +100,82 @@ def test_invalid_stages_are_rejected(
 ) -> None:
     with pytest.raises(error, match=message):
         load_config(_config() | {"stages": stages})
+
+
+@pytest.mark.parametrize(
+    ("value", "expected", "output_root"),
+    [
+        ("false", False, "output/production"),
+        ("true", True, "output/smoke"),
+        ("False", False, "output/production"),
+        ("True", True, "output/smoke"),
+        ("fAlSe", False, "output/production"),
+        ("TrUe", True, "output/smoke"),
+    ],
+)
+def test_smoke_test_override_selects_the_correct_output_root(
+    *, value: str, expected: bool, output_root: str
+) -> None:
+    override = parse_config([f"smoke_test={value}"])
+
+    settings = load_config(_config() | override)
+
+    assert settings.output_root == output_root
+    assert settings.smoke_test is expected
+
+
+@pytest.mark.parametrize("key", ["use_wandb", "list_jobs"])
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("false", False),
+        ("true", True),
+        ("False", False),
+        ("True", True),
+        ("fAlSe", False),
+        ("TrUe", True),
+    ],
+)
+def test_logging_overrides_resolve_to_booleans(
+    *, key: str, value: str, expected: bool
+) -> None:
+    settings = load_config(_config() | parse_config([f"{key}={value}"]))
+
+    assert getattr(settings, key) is expected
+
+
+@pytest.mark.parametrize("key", ["smoke_test", "use_wandb", "list_jobs"])
+@pytest.mark.parametrize("value", ["no", "0", "1", "null", "[]"])
+def test_invalid_boolean_overrides_are_rejected(key: str, value: str) -> None:
+    override = parse_config([f"{key}={value}"])
+
+    with pytest.raises(ValueError, match=rf"Expected {key}") as error:
+        load_config(_config() | override)
+
+    assert str(error.value) == (
+        f"Expected {key} to be true or false, got {override[key]!r}."
+    )
+
+
+@pytest.mark.parametrize("key", ["smoke_test", "use_wandb", "list_jobs"])
+def test_null_boolean_settings_are_rejected(key: str) -> None:
+    with pytest.raises(ValueError, match=rf"{key}.*None"):
+        load_config(_config() | {key: None})
+
+
+@pytest.mark.parametrize(
+    ("value", "output_root"),
+    [("false", "output/smoke"), ("true", "output/production")],
+)
+def test_smoke_test_override_cannot_write_into_the_other_output_root(
+    value: str, output_root: str
+) -> None:
+    override = parse_config(
+        [f"smoke_test={value}", f"output_root={output_root}"]
+    )
+
+    with pytest.raises(ValueError, match=rf"smoke_test={value}.*output_root"):
+        load_config(_config() | override)
 
 
 def test_smoke_test_writes_under_its_own_output_root() -> None:

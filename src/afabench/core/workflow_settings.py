@@ -393,7 +393,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         ).items()
     }
 
-    smoke_test: bool = config.get("smoke_test", False)
+    smoke_test = _config_bool(config.get("smoke_test", False), "smoke_test")
     output_root = _output_root(
         config.get("output_root"), smoke_test=smoke_test
     )
@@ -500,9 +500,9 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         initializer=config.get("initializer", "cold"),
         # Switch to val while developing, and train if debugging.
         eval_dataset_split=config.get("eval_dataset_split", "test"),
-        use_wandb=config.get("use_wandb", True),
+        use_wandb=_config_bool(config.get("use_wandb", True), "use_wandb"),
         smoke_test=smoke_test,
-        list_jobs=config.get("list_jobs", False),
+        list_jobs=_config_bool(config.get("list_jobs", False), "list_jobs"),
         output_root=output_root,
         pretrain_names=pretrain_names,
         pretrain_script_names={
@@ -695,7 +695,7 @@ def _config_bool(value: object, key: str) -> bool:
     """Read a bool that a `--config` override may pass as a string."""
     if isinstance(value, bool):
         return value
-    # Snakemake parses the values inside a mapping override as strings.
+    # Snakemake can pass scalar and mapping override values as strings.
     if isinstance(value, str) and value.lower() in {"true", "false"}:
         return value.lower() == "true"
     message = f"Expected {key} to be true or false, got {value!r}."
