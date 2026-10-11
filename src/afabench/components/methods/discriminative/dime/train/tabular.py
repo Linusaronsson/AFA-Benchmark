@@ -14,13 +14,17 @@ from afabench.components.methods.discriminative.common.datasets import (
 from afabench.components.methods.discriminative.common.models import (
     GreedyAFAClassifier,
 )
+from afabench.components.methods.discriminative.common.trainer import (
+    NetworkPairTrainer,
+    TrainerSettings,
+)
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer,
     tie_first_k_linears_by_module,
 )
 from afabench.components.methods.discriminative.dime.afa_methods import (
-    CMIEstimator,
     DIMEAFAMethod,
+    DIMETrainingObjective,
 )
 from afabench.components.methods.discriminative.dime.config import (
     DIMETabularArchitectureConfig,
@@ -30,6 +34,10 @@ from afabench.core.utils import get_class_frequencies
 from afabench.fit.inputs import FitInputs
 
 log = logging.getLogger(__name__)
+
+# The upstream CMIEstimator default, used when the config sets no min_lr;
+# the tabular configs set none
+UPSTREAM_MIN_LR = 1e-6
 
 
 def train_tabular(
@@ -71,31 +79,32 @@ def train_tabular(
         dropout=cfg.architecture.dropout,
     ).to(device)
     tie_first_k_linears_by_module(predictor, value_network, k=2)
-    mask_layer = MaskLayer(append=True)
-    greedy_cmi_estimator = CMIEstimator(
-        value_network=value_network,
+    trainer = NetworkPairTrainer(
+        policy_network=value_network,
         predictor=predictor,
-        mask_layer=mask_layer,
+        mask_layer=MaskLayer(append=True),
         initializer=initializer,
         unmasker=unmasker,
-    ).to(device)
+        objective=DIMETrainingObjective(
+            eps=cfg.eps, eps_decay=cfg.eps_decay, eps_steps=cfg.eps_steps
+        ),
+    )
     feature_costs = train_dataset.get_feature_acquisition_costs()
-    greedy_cmi_estimator.fit(
+    trainer.fit(
         train_loader,
         val_loader,
-        lr=cfg.lr,
-        nepochs=cfg.nepochs,
-        max_features=cfg.hard_budget,
-        eps=cfg.eps,
-        loss_fn=nn.CrossEntropyLoss(reduction="none", weight=class_weights),
-        val_loss_fn=None,
-        val_loss_mode=None,
-        eps_decay=cfg.eps_decay,
-        eps_steps=cfg.eps_steps,
-        patience=cfg.patience,
+        TrainerSettings(
+            lr=cfg.lr,
+            nepochs=cfg.nepochs,
+            selections_per_episode=cfg.hard_budget,
+            loss_fn=nn.CrossEntropyLoss(
+                reduction="none", weight=class_weights
+            ),
+            min_lr=UPSTREAM_MIN_LR if cfg.min_lr is None else cfg.min_lr,
+            patience=cfg.patience,
+        ),
         feature_costs=feature_costs.to(device),
         metric_logger=metric_logger,
-        metric_prefix="dime",
     )
     spec = NetworkPairSpec(
         modality="tabular",
@@ -107,8 +116,8 @@ def train_tabular(
         dropout=cfg.architecture.dropout,
     )
     return DIMEAFAMethod(
-        greedy_cmi_estimator.value_network.cpu(),
-        greedy_cmi_estimator.predictor.cpu(),
+        value_network.cpu(),
+        predictor.cpu(),
         spec,
         torch.device("cpu"),
         selection_costs=unmasker.get_selection_costs(feature_costs),

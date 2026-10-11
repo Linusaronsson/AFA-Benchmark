@@ -17,12 +17,16 @@ from afabench.components.methods.discriminative.common.models import (
     resnet18,
     resnet50,
 )
+from afabench.components.methods.discriminative.common.trainer import (
+    NetworkPairTrainer,
+    TrainerSettings,
+)
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer2d,
 )
 from afabench.components.methods.discriminative.dime.afa_methods import (
-    CMIEstimator,
     DIMEAFAMethod,
+    DIMETrainingObjective,
 )
 from afabench.components.methods.discriminative.dime.config import (
     DIMEImageArchitectureConfig,
@@ -109,31 +113,29 @@ def train_image(
     assert logits0.shape[1] == n_patches, (
         f"Value Network outputs {logits0.shape[1]} != n_patches {n_patches}"
     )
-    greedy_cmi_estimator = CMIEstimator(
-        value_network=value_network,
+    trainer = NetworkPairTrainer(
+        policy_network=value_network,
         predictor=predictor,
         mask_layer=mask_layer,
         initializer=initializer,
         unmasker=unmasker,
-    ).to(device)
+        objective=DIMETrainingObjective(
+            eps=cfg.eps, eps_decay=cfg.eps_decay, eps_steps=cfg.eps_steps
+        ),
+    )
     assert cfg.min_lr is not None, "min_lr must be set for image training"
-    greedy_cmi_estimator.fit(
+    trainer.fit(
         train_loader,
         val_loader,
-        lr=cfg.lr,
-        min_lr=cfg.min_lr,
-        nepochs=cfg.nepochs,
-        max_features=cfg.hard_budget,
-        eps=cfg.eps,
-        loss_fn=nn.CrossEntropyLoss(reduction="none"),
-        val_loss_fn=None,
-        val_loss_mode=None,
-        eps_decay=cfg.eps_decay,
-        eps_steps=cfg.eps_steps,
-        patience=cfg.patience,
-        feature_costs=None,
+        TrainerSettings(
+            lr=cfg.lr,
+            nepochs=cfg.nepochs,
+            selections_per_episode=cfg.hard_budget,
+            loss_fn=nn.CrossEntropyLoss(reduction="none"),
+            min_lr=cfg.min_lr,
+            patience=cfg.patience,
+        ),
         metric_logger=metric_logger,
-        metric_prefix="dime",
     )
     spec = NetworkPairSpec(
         modality="image",
@@ -144,8 +146,8 @@ def train_image(
         mask_width=int(mask_width),
     )
     return DIMEAFAMethod(
-        greedy_cmi_estimator.value_network.cpu(),
-        greedy_cmi_estimator.predictor.cpu(),
+        value_network.cpu(),
+        predictor.cpu(),
         spec,
         torch.device("cpu"),
     )

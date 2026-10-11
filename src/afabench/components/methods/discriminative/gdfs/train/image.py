@@ -15,12 +15,16 @@ from afabench.components.methods.discriminative.common.models import (
     resnet18,
     resnet50,
 )
+from afabench.components.methods.discriminative.common.trainer import (
+    NetworkPairTrainer,
+    TrainerSettings,
+)
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer2d,
 )
 from afabench.components.methods.discriminative.gdfs.afa_methods import (
     GDFSAFAMethod,
-    GreedyDynamicSelection,
+    GDFSTrainingObjective,
 )
 from afabench.components.methods.discriminative.gdfs.config import (
     GDFSImageArchitectureConfig,
@@ -104,27 +108,27 @@ def train_image(
     assert logits0.shape[1] == n_patches, (
         f"Selector outputs {logits0.shape[1]} != n_patches {n_patches}"
     )
-    gdfs = GreedyDynamicSelection(
-        selector=selector,
+    trainer = NetworkPairTrainer(
+        policy_network=selector,
         predictor=predictor,
         mask_layer=mask_layer,
         initializer=initializer,
         unmasker=unmasker,
-    ).to(device)
+        objective=GDFSTrainingObjective(temp_steps=1 if cfg.smoke_test else 5),
+    )
     assert cfg.min_lr is not None, "min_lr must be set for image training"
-    gdfs.fit(
+    trainer.fit(
         train_loader,
         val_loader,
-        lr=cfg.lr,
-        min_lr=cfg.min_lr,
-        nepochs=cfg.nepochs,
-        max_features=cfg.hard_budget,
-        loss_fn=nn.CrossEntropyLoss(),
-        patience=cfg.patience,
-        temp_steps=1 if cfg.smoke_test else 5,
-        verbose=True,
+        TrainerSettings(
+            lr=cfg.lr,
+            nepochs=cfg.nepochs,
+            selections_per_episode=cfg.hard_budget,
+            loss_fn=nn.CrossEntropyLoss(),
+            min_lr=cfg.min_lr,
+            patience=cfg.patience,
+        ),
         metric_logger=metric_logger,
-        metric_prefix="gdfs",
     )
     spec = NetworkPairSpec(
         modality="image",
@@ -135,8 +139,8 @@ def train_image(
         mask_width=int(mask_width),
     )
     return GDFSAFAMethod(
-        gdfs.selector.cpu(),
-        gdfs.predictor.cpu(),
+        selector.cpu(),
+        predictor.cpu(),
         spec,
         torch.device("cpu"),
     )

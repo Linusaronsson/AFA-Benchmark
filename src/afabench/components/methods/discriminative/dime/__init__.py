@@ -1,3 +1,3 @@
-from .afa_methods import CMIEstimator, DIMEAFAMethod
+from .afa_methods import DIMEAFAMethod, DIMETrainingObjective
 
-__all__ = ["CMIEstimator", "DIMEAFAMethod"]
+__all__ = ["DIMEAFAMethod", "DIMETrainingObjective"]

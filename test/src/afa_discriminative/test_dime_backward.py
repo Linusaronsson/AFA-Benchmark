@@ -7,12 +7,16 @@ from torch.optim.optimizer import register_optimizer_step_pre_hook
 from torch.utils.data import DataLoader, TensorDataset
 
 from afabench.components.initializers.zero_initializer import ZeroInitializer
+from afabench.components.methods.discriminative.common.trainer import (
+    NetworkPairTrainer,
+    TrainerSettings,
+)
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer,
     get_entropy,
 )
 from afabench.components.methods.discriminative.dime.afa_methods import (
-    CMIEstimator,
+    DIMETrainingObjective,
 )
 from afabench.components.unmaskers.direct_unmasker import DirectUnmasker
 
@@ -106,26 +110,27 @@ def test_dime_single_backward_matches_per_acquisition_backward() -> None:
     loader = DataLoader(
         TensorDataset(features, label), batch_size=N_SAMPLES, shuffle=False
     )
-    estimator = CMIEstimator(
-        value_network=value_network,
+    trainer = NetworkPairTrainer(
+        policy_network=value_network,
         predictor=predictor,
         mask_layer=MaskLayer(append=True),
         initializer=ZeroInitializer(),
         unmasker=DirectUnmasker(),
+        objective=DIMETrainingObjective(eps=0.0),
     )
     handle = register_optimizer_step_pre_hook(capture_grads)
     try:
-        estimator.fit(
+        trainer.fit(
             loader,
             loader,
-            lr=1e-3,
-            nepochs=1,
-            max_features=MAX_FEATURES,
-            eps=0.0,
-            loss_fn=nn.CrossEntropyLoss(reduction="none"),
-            val_loss_fn=None,
-            val_loss_mode=None,
-            verbose=False,
+            TrainerSettings(
+                lr=1e-3,
+                nepochs=1,
+                selections_per_episode=MAX_FEATURES,
+                loss_fn=nn.CrossEntropyLoss(reduction="none"),
+                min_lr=1e-6,
+                verbose=False,
+            ),
         )
     finally:
         handle.remove()

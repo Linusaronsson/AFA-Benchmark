@@ -1,3 +1,3 @@
-from .afa_methods import GDFSAFAMethod, GreedyDynamicSelection
+from .afa_methods import GDFSAFAMethod, GDFSTrainingObjective
 
-__all__ = ["GDFSAFAMethod", "GreedyDynamicSelection"]
+__all__ = ["GDFSAFAMethod", "GDFSTrainingObjective"]

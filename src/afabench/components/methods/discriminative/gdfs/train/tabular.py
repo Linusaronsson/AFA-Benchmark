@@ -14,12 +14,16 @@ from afabench.components.methods.discriminative.common.datasets import (
 from afabench.components.methods.discriminative.common.models import (
     GreedyAFAClassifier,
 )
+from afabench.components.methods.discriminative.common.trainer import (
+    NetworkPairTrainer,
+    TrainerSettings,
+)
 from afabench.components.methods.discriminative.common.utils import (
     MaskLayer,
 )
 from afabench.components.methods.discriminative.gdfs.afa_methods import (
     GDFSAFAMethod,
-    GreedyDynamicSelection,
+    GDFSTrainingObjective,
 )
 from afabench.components.methods.discriminative.gdfs.config import (
     GDFSTabularArchitectureConfig,
@@ -29,6 +33,10 @@ from afabench.core.utils import get_class_frequencies
 from afabench.fit.inputs import FitInputs
 
 log = logging.getLogger(__name__)
+
+# The upstream GreedyDynamicSelection.fit default, used when the config
+# sets no min_lr; the tabular configs set none
+UPSTREAM_MIN_LR = 1e-5
 
 
 def train_tabular(
@@ -69,28 +77,28 @@ def train_tabular(
         activation_class=getattr(nn, cfg.architecture.activation),
         dropout=cfg.architecture.dropout,
     ).to(device)
-    mask_layer = MaskLayer(append=True)
-    gdfs = GreedyDynamicSelection(
-        selector=selector,
+    trainer = NetworkPairTrainer(
+        policy_network=selector,
         predictor=predictor,
-        mask_layer=mask_layer,
+        mask_layer=MaskLayer(append=True),
         initializer=initializer,
         unmasker=unmasker,
-    ).to(device)
+        objective=GDFSTrainingObjective(temp_steps=1 if cfg.smoke_test else 5),
+    )
     feature_costs = train_dataset.get_feature_acquisition_costs()
-    gdfs.fit(
+    trainer.fit(
         train_loader,
         val_loader,
-        lr=cfg.lr,
-        nepochs=cfg.nepochs,
-        max_features=cfg.hard_budget,
-        loss_fn=nn.CrossEntropyLoss(weight=class_weights),
-        patience=cfg.patience,
-        temp_steps=1 if cfg.smoke_test else 5,
-        verbose=True,
+        TrainerSettings(
+            lr=cfg.lr,
+            nepochs=cfg.nepochs,
+            selections_per_episode=cfg.hard_budget,
+            loss_fn=nn.CrossEntropyLoss(weight=class_weights),
+            min_lr=UPSTREAM_MIN_LR if cfg.min_lr is None else cfg.min_lr,
+            patience=cfg.patience,
+        ),
         feature_costs=feature_costs.to(device),
         metric_logger=metric_logger,
-        metric_prefix="gdfs",
     )
     spec = NetworkPairSpec(
         modality="tabular",
@@ -102,8 +110,8 @@ def train_tabular(
         dropout=cfg.architecture.dropout,
     )
     return GDFSAFAMethod(
-        gdfs.selector.cpu(),
-        gdfs.predictor.cpu(),
+        selector.cpu(),
+        predictor.cpu(),
         spec,
         torch.device("cpu"),
         selection_costs=unmasker.get_selection_costs(feature_costs),
