@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 import pandas as pd
 import torch
+from jaxtyping import Integer
 from PIL import Image
 from sklearn.preprocessing import LabelEncoder
 from torch import Tensor
@@ -22,9 +23,12 @@ from afabench.datasets.feature_costs import load_saved_feature_costs
 from afabench.datasets.in_memory import InMemoryAFADataset
 from afabench.datasets.utils import load_generation_indices
 
+type CubeBinaryCodes = Integer[Tensor, "8 3"]
+type ClassIndices = Integer[Tensor, "n_instances"]  # noqa: F821
+
 # The 3-bit binary code of each of the 8 CUBE labels, least significant
-# bit first, shaped (8, 3)
-CUBE_BINARY_CODES = torch.stack(
+# bit first
+CUBE_BINARY_CODES: CubeBinaryCodes = torch.stack(
     [torch.tensor([int(b) for b in format(i, "03b")]) for i in range(8)],
     dim=0,
 ).flip(-1)
@@ -44,7 +48,7 @@ def _z_normalize(
     return (features_df - means) / stds
 
 
-def _one_hot(labels: Tensor, n_classes: int) -> Label:
+def _one_hot(labels: ClassIndices, n_classes: int) -> Label:
     return torch.nn.functional.one_hot(labels, num_classes=n_classes).float()
 
 
