@@ -1,4 +1,9 @@
-"""Dataset generation fixes feature costs in the dataset bundles (ADR 0011)."""
+"""
+Dataset generation fixes feature costs in the dataset bundles (ADR 0011).
+
+That a bundle saved without feature costs does not load is tested once
+against the in-memory base in `test_in_memory_dataset.py`.
+"""
 
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -6,14 +11,9 @@ from typing import TYPE_CHECKING, cast
 import pytest
 import torch
 
-from afabench.core.bundle_system.bundle import load_bundle, save_bundle
+from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.registry import get_class
-from afabench.datasets.datasets import CubeDataset
-from afabench.datasets.feature_costs import (
-    FeatureCostsConflictError,
-    MissingFeatureCostsError,
-)
-from afabench.testing.provenance import placeholder_provenance
+from afabench.datasets.feature_costs import FeatureCostsConflictError
 from test.src.common.datasets.test_generation_indices import (
     DATASET_CLASS_NAMES,
     SPLITS,
@@ -124,22 +124,3 @@ def test_an_invalid_feature_costs_file_names_it(
     with pytest.raises(ValueError, match=message) as error:
         generate_splits("CKDDataset", kwargs, tmp_path / "out", costs_file)
     assert "bad_costs.csv" in str(error.value)
-
-
-def test_loading_a_bundle_without_feature_costs_names_it(
-    tmp_path: Path,
-) -> None:
-    bundle_path = tmp_path / "old_split.bundle"
-    save_bundle(
-        CubeDataset(n_samples=20, seed=1),
-        bundle_path,
-        metadata={},
-        provenance=placeholder_provenance(),
-    )
-    data_path = bundle_path / "data" / "dataset.pt"
-    data = torch.load(data_path)
-    del data["feature_costs"]
-    torch.save(data, data_path)
-
-    with pytest.raises(MissingFeatureCostsError, match=r"old_split\.bundle"):
-        load_bundle(bundle_path)
