@@ -1,13 +1,6 @@
 # Preserve existing requested limits until measured durations justify changes.
 walltime:
-  default_hours: 2
-  rules:
-    pretrain_model:
-      default_hours: 72
-    train_method:
-      default_hours: 72
-    eval_method:
-      default_hours: 72
+  default_hours: 4
 
 # CPU nodes are x86_64 and GPU nodes aarch64 (GH200), so each allocation
 # names the image built for its nodes by containers/build.sbatch.
