@@ -419,6 +419,11 @@ _Avoid_: Method id, method key
 A named group of method names plotted together.
 _Avoid_: Method group, plot group
 
+**Dataset set**:
+A named group of datasets plotted together; each gets a `dataset_set-<name>`
+plot folder when any of its datasets has evaluation results.
+_Avoid_: Dataset group, plot group
+
 **Bundle**:
 The on-disk folder format in which datasets, classifiers, pretrained models,
 and AFA methods are saved and loaded.

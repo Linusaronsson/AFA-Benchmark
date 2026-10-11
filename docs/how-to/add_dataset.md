@@ -183,7 +183,7 @@ dataset_name_mapping:
 
 ### 6. Add to dataset sets
 
-(Optional but recommended) Add your dataset to one or more *dataset sets* in `dataset_sets` in `conf/scripts/plotting/common/default.yaml`. Dataset sets group datasets for organized plotting:
+(Optional but recommended) Add your dataset to one or more *dataset sets* in `dataset_sets` in `conf/scripts/plotting/common/default.yaml`. Dataset sets group datasets for organized plotting: each set with evaluation results gets its own `dataset_set-<name>/` plot folder.
 
 ```yaml
 dataset_sets:

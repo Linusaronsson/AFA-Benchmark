@@ -271,11 +271,40 @@ def test_all_plots_are_written_for_each_dataset_set(
     plotter.load_and_process()
     plotter.generate_all_plots()
 
-    assert sorted(path.name for path in (output_folder / "all").iterdir()) == [
+    assert sorted(
+        path.name for path in (output_folder / "dataset_set-all").iterdir()
+    ) == [
         "hard_budget_normal.png",
         "hard_budget_traj.png",
         "soft_budget_2d_errors.png",
         "soft_budget_lines.png",
+    ]
+
+
+@pytest.mark.filterwarnings(
+    "ignore::sklearn.exceptions.UndefinedMetricWarning"
+)
+def test_dataset_set_without_results_gets_no_folder(
+    eval_perf_path: Path,
+    tmp_path: Path,
+    plotting_config: PlottingDisplayConfig,
+) -> None:
+    output_folder = tmp_path / "plots"
+    plotter = EvaluationPlotter(
+        eval_perf_path,
+        output_folder,
+        replace(
+            plotting_config,
+            dataset_sets={"all": ["cube", "mnist"], "unrun": ["ckd"]},
+        ),
+        formats=("png",),
+    )
+
+    plotter.load_and_process()
+    plotter.generate_all_plots()
+
+    assert [path.name for path in output_folder.iterdir()] == [
+        "dataset_set-all"
     ]
 
 
@@ -299,7 +328,7 @@ def test_caption_labels_every_plot(
     plotter.load_and_process()
     plotter.generate_all_plots()
 
-    plots = sorted((output_folder / "all").iterdir())
+    plots = sorted((output_folder / "dataset_set-all").iterdir())
     assert len(plots) == 4
     # Matplotlib keeps each text of an SVG as a comment beside its glyphs.
     for plot in plots:

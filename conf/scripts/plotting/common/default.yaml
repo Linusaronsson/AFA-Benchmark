@@ -114,6 +114,8 @@ datasets_with_f_score:
   - physionet
   - bank_marketing
 
+# Each dataset set with evaluation results gets a `dataset_set-<name>` plot
+# folder.
 dataset_sets:
   cube_nm_pair:
     - cube_nm

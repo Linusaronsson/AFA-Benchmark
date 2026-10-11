@@ -798,10 +798,11 @@ class EvaluationPlotter:
                 figure_height=fig_height,
             )
             for fmt in self.formats:
-                normal_hard_budget_plot.save(
+                self.save_plot(
+                    normal_hard_budget_plot,
                     subfolder / f"hard_budget_normal.{fmt}",
-                    width=fig_width,
-                    height=fig_height,
+                    fig_width,
+                    fig_height,
                 )
         df_stop_action_soft_budget = df_stop_action_filtered.loc[
             df_stop_action_filtered["soft_budget_param"].notna()
@@ -834,15 +835,17 @@ class EvaluationPlotter:
                 figure_height=fig_height,
             )
             for fmt in self.formats:
-                soft_budget_plot_2d_errors.save(
+                self.save_plot(
+                    soft_budget_plot_2d_errors,
                     subfolder / f"soft_budget_2d_errors.{fmt}",
-                    width=fig_width,
-                    height=fig_height,
+                    fig_width,
+                    fig_height,
                 )
-                soft_budget_plot_lines.save(
+                self.save_plot(
+                    soft_budget_plot_lines,
                     subfolder / f"soft_budget_lines.{fmt}",
-                    width=fig_width,
-                    height=fig_height,
+                    fig_width,
+                    fig_height,
                 )
 
     def produce_trajectory_plots(
@@ -876,22 +879,33 @@ class EvaluationPlotter:
                 figure_height=fig_height,
             )
             for fmt in self.formats:
-                traj_hard_budget_plot.save(
+                self.save_plot(
+                    traj_hard_budget_plot,
                     subfolder / f"hard_budget_traj.{fmt}",
-                    width=fig_width,
-                    height=fig_height,
+                    fig_width,
+                    fig_height,
                 )
 
+    @staticmethod
+    def save_plot(
+        plot: p9.ggplot, path: Path, width: float, height: float
+    ) -> None:
+        """Save a plot, creating its folder on the first save into it."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        plot.save(path, width=width, height=height)
+
     def generate_all_plots(self) -> None:
-        """Generate all plots for each dataset set."""
-        # One set of plots per dataset set
+        """
+        Generate all plots for each dataset set.
+
+        Each dataset set gets a `dataset_set-<name>` subfolder, created only
+        if the set has evaluation results to plot.
+        """
         for (
             dataset_set_name,
             dataset_set,
         ) in self.plotting_config.dataset_sets.items():
-            subfolder = self.output_folder / dataset_set_name
-            subfolder.mkdir(parents=True, exist_ok=True)
-
+            subfolder = self.output_folder / f"dataset_set-{dataset_set_name}"
             self.produce_stop_action_plots(set(dataset_set), subfolder)
             self.produce_trajectory_plots(set(dataset_set), subfolder)
 
