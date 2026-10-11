@@ -12,6 +12,7 @@ from tqdm.auto import tqdm
 from afabench.components.initializers.random_initializer import (
     RandomInitializer,
 )
+from afabench.components.methods.common import AFAMethodBase, on_method_device
 from afabench.components.methods.oracle.aaco.afa_methods import AACOAFAMethod
 from afabench.components.methods.oracle.aaco.utils import (
     compute_patch_selection_mask,
@@ -24,7 +25,6 @@ from afabench.core.types import (
     AFAAction,
     AFAClassifier,
     AFAInitializer,
-    AFAMethod,
     AFAUnmasker,
     FeatureMask,
     Label,
@@ -473,7 +473,7 @@ def create_rollout_data_loaders(
 
 @dataclass
 @final
-class AACONNAFAMethod(AFAMethod):
+class AACONNAFAMethod(AFAMethodBase):
     """
     AACO+NN: Neural network approximation of AACO.
 
@@ -494,10 +494,10 @@ class AACONNAFAMethod(AFAMethod):
     force_acquisition: bool = False
 
     def __post_init__(self):
-        """Move to device after initialization."""
-        self.policy_network = self.policy_network.to(self._device)
+        self.to(self._device)
 
     @override
+    @on_method_device
     def act(
         self,
         masked_features: MaskedFeatures,
@@ -522,10 +522,6 @@ class AACONNAFAMethod(AFAMethod):
             - 1 to N = 1-indexed feature to acquire
         """
         del label  # Unused
-        original_device = masked_features.device
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
-
         masked_features, feature_mask, batch_shape = flatten_for_aaco(
             masked_features, feature_mask, feature_shape
         )
@@ -575,9 +571,10 @@ class AACONNAFAMethod(AFAMethod):
         actions = action_logits.argmax(dim=-1)
 
         # Reshape to match batch shape
-        return actions.view(*batch_shape, 1).to(original_device)
+        return actions.view(*batch_shape, 1)
 
     @override
+    @on_method_device
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -598,10 +595,6 @@ class AACONNAFAMethod(AFAMethod):
             Class probabilities with shape (*batch, n_classes)
         """
         del label  # Unused
-        original_device = masked_features.device
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
-
         masked_features_flat, feature_mask_flat, batch_shape = (
             flatten_for_aaco(masked_features, feature_mask, feature_shape)
         )
@@ -619,7 +612,12 @@ class AACONNAFAMethod(AFAMethod):
         # Reshape and return
         n_classes = probs.shape[-1]
         output_shape = batch_shape + (n_classes,)
-        return probs.view(*output_shape).to(original_device)
+        return probs.view(*output_shape)
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return False
 
     @property
     @override
@@ -697,19 +695,6 @@ class AACONNAFAMethod(AFAMethod):
         )
 
         return method
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        """Move method to device."""
-        self._device = device
-        self.policy_network = self.policy_network.to(device)
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        """Get current device."""
-        return self._device
 
 
 def create_aaco_nn_method(

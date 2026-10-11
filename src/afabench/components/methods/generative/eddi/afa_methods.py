@@ -1,15 +1,15 @@
 import math
 from pathlib import Path
-from typing import cast, override
+from typing import Self, cast, override
 
 import torch
 from torch import nn
 
+from afabench.components.methods.common import AFAMethodBase, on_method_device
 from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.types import (
     AFAAction,
     AFAClassifier,
-    AFAMethod,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -115,7 +115,7 @@ def _selection_add_masks(
     return add_masks
 
 
-class EDDIAFAMethod(AFAMethod):
+class EDDIAFAMethod(AFAMethodBase):
     def __init__(
         self,
         sampler: nn.Module,
@@ -128,11 +128,10 @@ class EDDIAFAMethod(AFAMethod):
         num_mc_samples: int = 128,
         classifier_bundle_path: Path | None = None,
     ) -> None:
-        super().__init__()
+        super().__init__(device or torch.device("cpu"))
         self.sampler: nn.Module = sampler
         self.predictor: nn.Module = predictor
         self.num_classes: int = num_classes
-        self._device: torch.device = device or torch.device("cpu")
         if lambda_threshold is None:
             self.lambda_threshold: float = -math.inf
         else:
@@ -177,6 +176,7 @@ class EDDIAFAMethod(AFAMethod):
         return output
 
     @override
+    @on_method_device
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -184,8 +184,6 @@ class EDDIAFAMethod(AFAMethod):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
         masked_features, feature_mask, _label, batch_shape = _flatten_inputs(
             masked_features, feature_mask, label, feature_shape
         )
@@ -225,6 +223,7 @@ class EDDIAFAMethod(AFAMethod):
         return probs_mean.view(*batch_shape, self.num_classes)
 
     @override
+    @on_method_device
     def act(  # noqa: PLR0915
         self,
         masked_features: MaskedFeatures,
@@ -234,8 +233,6 @@ class EDDIAFAMethod(AFAMethod):
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
         device = self._device
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
         masked_features, feature_mask, _label, batch_shape = _flatten_inputs(
             masked_features, feature_mask, label, feature_shape
         )
@@ -406,7 +403,7 @@ class EDDIAFAMethod(AFAMethod):
 
     @classmethod
     @override
-    def load(cls, path: Path, device: torch.device) -> "EDDIAFAMethod":
+    def load(cls, path: Path, device: torch.device) -> Self:
         checkpoint = torch.load(
             str(path / "model.pt"), map_location=device, weights_only=False
         )
@@ -457,20 +454,6 @@ class EDDIAFAMethod(AFAMethod):
             },
             str(path / "model.pt"),
         )
-
-    @override
-    def to(self, device: torch.device) -> "EDDIAFAMethod":
-        self.sampler = self.sampler.to(device)
-        self.predictor = self.predictor.to(device)
-        if self.classifier is not None:
-            self.classifier = self.classifier.to(device)
-        self._device = device
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device
 
     @property
     @override

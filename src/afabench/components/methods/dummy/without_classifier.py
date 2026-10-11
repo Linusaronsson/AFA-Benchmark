@@ -3,9 +3,9 @@ from typing import Self, final, override
 
 import torch
 
+from afabench.components.methods.common import AFAMethodBase, on_method_device
 from afabench.core.types import (
     AFAAction,
-    AFAMethod,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -14,7 +14,7 @@ from afabench.core.types import (
 
 
 @final
-class RandomWithoutClassifierAFAMethod(AFAMethod):
+class RandomWithoutClassifierAFAMethod(AFAMethodBase):
     """A simple baseline AFAMethod that makes random AFA selections and random predictions."""
 
     def __init__(
@@ -31,12 +31,9 @@ class RandomWithoutClassifierAFAMethod(AFAMethod):
             prob_select_0: The probability of selecting 0 (stop) at each time step.
             device: Which device to use.
         """
-        self.n_classes = n_classes
-        self.prob_select_0 = prob_select_0
-        if device is None:
-            self._device = torch.device("cpu")
-        else:
-            self._device = device
+        super().__init__(torch.device("cpu") if device is None else device)
+        self.n_classes: int = n_classes
+        self.prob_select_0: float = prob_select_0
 
     @property
     @override
@@ -44,6 +41,7 @@ class RandomWithoutClassifierAFAMethod(AFAMethod):
         return True
 
     @override
+    @on_method_device
     def act(
         self,
         masked_features: MaskedFeatures,
@@ -60,10 +58,7 @@ class RandomWithoutClassifierAFAMethod(AFAMethod):
         assert selection_mask is not None, (
             "RandomWithoutClassifierAFAMethod requires selection_mask to be provided"
         )
-        original_device = masked_features.device
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
-        selection_mask = selection_mask.to(self._device)
+        del feature_mask, label, feature_shape
 
         batch_size = masked_features.shape[0]
         selection = -1 * torch.ones(
@@ -94,10 +89,10 @@ class RandomWithoutClassifierAFAMethod(AFAMethod):
                     )
                     selection[i, 0] = available[idx] + 1
 
-        selection = selection.to(original_device)
         return selection
 
     @override
+    @on_method_device
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -106,10 +101,7 @@ class RandomWithoutClassifierAFAMethod(AFAMethod):
         feature_shape: torch.Size | None = None,
     ) -> Label:
         """Output a random prediction."""
-        original_device = masked_features.device
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
-
+        del feature_mask, label, feature_shape
         batch_size = masked_features.shape[0]
 
         random_class_onehot = torch.randint(
@@ -118,11 +110,9 @@ class RandomWithoutClassifierAFAMethod(AFAMethod):
             (batch_size,),
             device=masked_features.device,
         )
-        random_class_onehot = torch.nn.functional.one_hot(
+        return torch.nn.functional.one_hot(
             random_class_onehot, num_classes=self.n_classes
         ).float()
-        random_class_onehot = random_class_onehot.to(original_device)
-        return random_class_onehot
 
     @override
     def save(self, path: Path) -> None:
@@ -140,21 +130,11 @@ class RandomWithoutClassifierAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a file."""
         data = torch.load(path / "method.pt")
-        obj = cls.__new__(cls)
-        obj.n_classes = data["n_classes"]
-        obj.prob_select_0 = data["prob_select_0"]
-        obj._device = device  # noqa: SLF001
-        return obj
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self._device = device
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device
+        return cls(
+            n_classes=data["n_classes"],
+            prob_select_0=data["prob_select_0"],
+            device=device,
+        )
 
     @property
     @override
@@ -163,7 +143,7 @@ class RandomWithoutClassifierAFAMethod(AFAMethod):
 
 
 @final
-class SequentialWithoutClassifierAFAMethod(AFAMethod):
+class SequentialWithoutClassifierAFAMethod(AFAMethodBase):
     """A simple baseline AFAMethod that selects features in order and makes random predictions."""
 
     def __init__(
@@ -172,9 +152,9 @@ class SequentialWithoutClassifierAFAMethod(AFAMethod):
         n_classes: int,
         prob_select_0: float,
     ):
-        self._device = device
-        self.n_classes = n_classes
-        self.prob_select_0 = prob_select_0
+        super().__init__(device)
+        self.n_classes: int = n_classes
+        self.prob_select_0: float = prob_select_0
 
     @property
     @override
@@ -182,6 +162,7 @@ class SequentialWithoutClassifierAFAMethod(AFAMethod):
         return True
 
     @override
+    @on_method_device
     def act(
         self,
         masked_features: MaskedFeatures,
@@ -193,10 +174,7 @@ class SequentialWithoutClassifierAFAMethod(AFAMethod):
         assert selection_mask is not None, (
             "SequentialWithoutClassifierAFAMethod requires selection_mask to be provided"
         )
-        original_device = masked_features.device
-
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
+        del feature_mask, label, feature_shape
 
         batch_size = masked_features.shape[0]
         select_0_mask = (
@@ -217,9 +195,10 @@ class SequentialWithoutClassifierAFAMethod(AFAMethod):
             select_0_mask, torch.zeros_like(selection), selection
         )
 
-        return selection.to(original_device).unsqueeze(-1)
+        return selection.unsqueeze(-1)
 
     @override
+    @on_method_device
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -228,10 +207,7 @@ class SequentialWithoutClassifierAFAMethod(AFAMethod):
         feature_shape: torch.Size | None = None,
     ) -> Label:
         """Output a random prediction."""
-        original_device = masked_features.device
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
-
+        del feature_mask, label, feature_shape
         batch_size = masked_features.shape[0]
 
         random_class_onehot = torch.randint(
@@ -240,11 +216,9 @@ class SequentialWithoutClassifierAFAMethod(AFAMethod):
             (batch_size,),
             device=masked_features.device,
         )
-        random_class_onehot = torch.nn.functional.one_hot(
+        return torch.nn.functional.one_hot(
             random_class_onehot, num_classes=self.n_classes
         ).float()
-        random_class_onehot = random_class_onehot.to(original_device)
-        return random_class_onehot
 
     @override
     def save(self, path: Path) -> None:
@@ -262,21 +236,11 @@ class SequentialWithoutClassifierAFAMethod(AFAMethod):
     def load(cls, path: Path, device: torch.device) -> Self:
         """Load the method from a folder."""
         data = torch.load(path / "method.pt")
-        obj = cls.__new__(cls)
-        obj.n_classes = data["n_classes"]
-        obj.prob_select_0 = data["prob_select_0"]
-        obj._device = device  # noqa: SLF001
-        return obj
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self._device = device
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device
+        return cls(
+            device=device,
+            n_classes=data["n_classes"],
+            prob_select_0=data["prob_select_0"],
+        )
 
     @property
     @override

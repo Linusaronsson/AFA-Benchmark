@@ -10,6 +10,7 @@ from typing import Self, override
 
 import torch
 
+from afabench.components.methods.common import AFAMethodBase
 from afabench.components.methods.discriminative.l2m.models import (
     ClassifierLogits,
     L2MModel,
@@ -18,7 +19,6 @@ from afabench.components.methods.discriminative.l2m.models import (
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.types import (
     AFAAction,
-    AFAMethod,
     ClassifierOutputKind,
     FeatureMask,
     Features,
@@ -34,7 +34,7 @@ def require_direct_unmasker(unmasker: UnmaskerConfig) -> None:
         raise ValueError(msg)
 
 
-class L2MAFAMethod(AFAMethod):
+class L2MAFAMethod(AFAMethodBase):
     """
     Fixed context set and a direct-selection policy with no stop action.
 
@@ -85,6 +85,7 @@ class L2MAFAMethod(AFAMethod):
                 f"{expected_labels}"
             )
             raise ValueError(msg)
+        super().__init__(model.device)
         self.model: L2MModel = model
         self.context_features: Features = (
             context_features.detach().clone().to(model.device)
@@ -94,18 +95,6 @@ class L2MAFAMethod(AFAMethod):
         )
         self.unmasker: UnmaskerConfig = unmasker
         self.model.eval()
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self.model.device
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self.model.to(device)
-        self.context_features = self.context_features.to(device)
-        self.context_labels = self.context_labels.to(device)
-        return self
 
     @override
     def save(self, path: Path) -> None:

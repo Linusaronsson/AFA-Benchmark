@@ -3,11 +3,15 @@ from typing import Self, final, override
 
 import torch
 
-from afabench.core.registry import get_class
+from afabench.components.methods.common import (
+    AFAMethodBase,
+    load_classifier,
+    on_method_device,
+    save_classifier,
+)
 from afabench.core.types import (
     AFAAction,
     AFAClassifier,
-    AFAMethod,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -16,18 +20,14 @@ from afabench.core.types import (
 
 
 @final
-class RandomWithClassifierAFAMethod(AFAMethod):
+class RandomWithClassifierAFAMethod(AFAMethodBase):
     """Select random unobserved features and delegate predictions to a classifier."""
 
     def __init__(
         self, afa_classifier: AFAClassifier, device: torch.device | None = None
     ):
-        if device is None:
-            self._device = afa_classifier.device
-            self.afa_classifier = afa_classifier
-        else:
-            self._device = device
-            self.afa_classifier = afa_classifier.to(device)
+        super().__init__(afa_classifier.device if device is None else device)
+        self.afa_classifier: AFAClassifier = afa_classifier.to(self._device)
 
     @property
     @override
@@ -35,6 +35,7 @@ class RandomWithClassifierAFAMethod(AFAMethod):
         return True
 
     @override
+    @on_method_device
     def act(
         self,
         masked_features: MaskedFeatures,
@@ -43,9 +44,7 @@ class RandomWithClassifierAFAMethod(AFAMethod):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
-        del selection_mask, label, feature_shape
-        original_device = masked_features.device
-        feature_mask = feature_mask.to(self._device)
+        del masked_features, selection_mask, label, feature_shape
 
         probs = (~feature_mask).float()
         row_sums = probs.sum(dim=1, keepdim=True)
@@ -59,9 +58,10 @@ class RandomWithClassifierAFAMethod(AFAMethod):
             selection[can_select] = (
                 torch.multinomial(probs[can_select], num_samples=1) + 1
             )
-        return selection.to(original_device)
+        return selection
 
     @override
+    @on_method_device
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -69,60 +69,30 @@ class RandomWithClassifierAFAMethod(AFAMethod):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
-        original_device = masked_features.device
-        if label is not None:
-            label = label.to(self._device)
-
         return self.afa_classifier(
-            masked_features.to(self._device),
-            feature_mask.to(self._device),
-            label,
-            feature_shape,
-        ).to(original_device)
+            masked_features, feature_mask, label, feature_shape
+        )
 
     @override
     def save(self, path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
-        self.afa_classifier.save(path / "classifier.pt")
-        with (path / "classifier_class_name.txt").open("w") as f:
-            f.write(self.afa_classifier.__class__.__name__)
+        save_classifier(self.afa_classifier, path)
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
-        with (path / "classifier_class_name.txt").open() as f:
-            classifier_class_name = f.read()
-
-        afa_classifier = get_class(classifier_class_name).load(
-            path / "classifier.pt", device
-        )
-        return cls(afa_classifier, device)
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self._device = device
-        self.afa_classifier.to(self._device)
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device
+        return cls(load_classifier(path, device), device)
 
 
 @final
-class SequentialWithClassifierAFAMethod(AFAMethod):
+class SequentialWithClassifierAFAMethod(AFAMethodBase):
     """Select the first unobserved feature and delegate predictions to a classifier."""
 
     def __init__(
         self, afa_classifier: AFAClassifier, device: torch.device | None = None
     ):
-        if device is None:
-            self._device = afa_classifier.device
-            self.afa_classifier = afa_classifier
-        else:
-            self._device = device
-            self.afa_classifier = afa_classifier.to(device)
+        super().__init__(afa_classifier.device if device is None else device)
+        self.afa_classifier: AFAClassifier = afa_classifier.to(self._device)
 
     @property
     @override
@@ -130,6 +100,7 @@ class SequentialWithClassifierAFAMethod(AFAMethod):
         return True
 
     @override
+    @on_method_device
     def act(
         self,
         masked_features: MaskedFeatures,
@@ -139,8 +110,6 @@ class SequentialWithClassifierAFAMethod(AFAMethod):
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
         del masked_features, selection_mask, label, feature_shape
-        original_device = feature_mask.device
-        feature_mask = feature_mask.to(self._device)
 
         selection = torch.zeros(
             (feature_mask.shape[0], 1), dtype=torch.long, device=self._device
@@ -149,9 +118,10 @@ class SequentialWithClassifierAFAMethod(AFAMethod):
             unobserved = (~feature_mask[i]).nonzero(as_tuple=True)[0]
             if unobserved.numel() > 0:
                 selection[i, 0] = unobserved[0] + 1
-        return selection.to(original_device)
+        return selection
 
     @override
+    @on_method_device
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -159,42 +129,16 @@ class SequentialWithClassifierAFAMethod(AFAMethod):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
-        original_device = masked_features.device
-        if label is not None:
-            label = label.to(self._device)
-
         return self.afa_classifier(
-            masked_features.to(self._device),
-            feature_mask.to(self._device),
-            label,
-            feature_shape,
-        ).to(original_device)
+            masked_features, feature_mask, label, feature_shape
+        )
 
     @override
     def save(self, path: Path) -> None:
         path.mkdir(parents=True, exist_ok=True)
-        self.afa_classifier.save(path / "classifier.pt")
-        with (path / "classifier_class_name.txt").open("w") as f:
-            f.write(self.afa_classifier.__class__.__name__)
+        save_classifier(self.afa_classifier, path)
 
     @classmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self:
-        with (path / "classifier_class_name.txt").open() as f:
-            classifier_class_name = f.read()
-
-        afa_classifier = get_class(classifier_class_name).load(
-            path / "classifier.pt", device
-        )
-        return cls(afa_classifier, device)
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self._device = device
-        self.afa_classifier.to(self._device)
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device
+        return cls(load_classifier(path, device), device)

@@ -10,6 +10,7 @@ from torch import nn, optim
 from torch.utils.data import DataLoader
 from torchrl.modules import MLP
 
+from afabench.components.methods.common import AFAMethodBase
 from afabench.components.methods.discriminative.common.models import (
     ConvNet,
     Predictor,
@@ -32,7 +33,6 @@ from afabench.components.unmaskers.cube_nm_unmasker import CubeNMUnmasker
 from afabench.core.types import (
     AFAAction,
     AFAInitializer,
-    AFAMethod,
     AFAUnmasker,
     FeatureMask,
     Label,
@@ -432,7 +432,7 @@ class GreedyDynamicSelection(nn.Module):
         restore_parameters(predictor, best_zerotemp_predictor)
 
 
-class GDFSAFAMethod(AFAMethod):
+class GDFSAFAMethod(AFAMethodBase):
     def __init__(
         self,
         selector: nn.Module,
@@ -450,12 +450,11 @@ class GDFSAFAMethod(AFAMethod):
         n_selections: int | None = None,
         backbone_type: str = "resnet50",
     ):
-        super().__init__()
+        super().__init__(device)
 
         # Set up models and mask layer.
         self.selector: nn.Module = selector
         self.predictor: nn.Module = predictor
-        self._device: torch.device = device
         if lambda_threshold is None:
             self.lambda_threshold: float = -math.inf
         else:
@@ -711,18 +710,6 @@ class GDFSAFAMethod(AFAMethod):
             else None,
         }
         torch.save(payload, Path(path) / "model.pt")
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self.selector = self.selector.to(device)
-        self.predictor = self.predictor.to(device)
-        self._device = device
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device
 
     @property
     @override
@@ -1129,7 +1116,7 @@ class CMIEstimator(nn.Module):
         restore_parameters(predictor, best_predictor)
 
 
-class DIMEAFAMethod(AFAMethod):
+class DIMEAFAMethod(AFAMethodBase):
     def __init__(
         self,
         value_network: nn.Module,
@@ -1147,12 +1134,11 @@ class DIMEAFAMethod(AFAMethod):
         n_selections: int | None = None,
         backbone_type: str = "resnet50",
     ):
-        super().__init__()
+        super().__init__(device)
 
         # Save network modules.
         self.value_network: nn.Module = value_network
         self.predictor: nn.Module = predictor
-        self._device: torch.device = device
         if lambda_threshold is None:
             self.lambda_threshold: float = -math.inf
         else:
@@ -1383,18 +1369,6 @@ class DIMEAFAMethod(AFAMethod):
             else None,
         }
         torch.save(payload, Path(path) / "model.pt")
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self.value_network = self.value_network.to(device)
-        self.predictor = self.predictor.to(device)
-        self._device = device
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device
 
     @property
     @override

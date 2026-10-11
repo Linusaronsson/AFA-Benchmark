@@ -2,7 +2,7 @@ from dataclasses import (
     dataclass,
 )
 from pathlib import Path
-from typing import Self, cast, final, override
+from typing import Self, final, override
 
 import torch
 from tensordict import TensorDict
@@ -10,11 +10,15 @@ from tensordict.nn import TensorDictModuleBase
 from torchrl.envs import ExplorationType, set_exploration_type
 from torchrl.modules import ProbabilisticActor
 
-from afabench.core.registry import get_class
+from afabench.components.methods.common import (
+    AFAMethodBase,
+    load_classifier,
+    on_method_device,
+    save_classifier,
+)
 from afabench.core.types import (
     AFAAction,
     AFAClassifier,
-    AFAMethod,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -25,8 +29,15 @@ from afabench.core.types import (
 
 @dataclass
 @final
-class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
-    """Implements the AFAMethod protocol for a TensorDictModule policy together with a classifier."""
+class RLAFAMethod(  # pyright: ignore[reportUnsafeMultipleInheritance]
+    AFAMethodBase, SupportsForcedAcquisition
+):
+    """
+    Implements the AFAMethod protocol for a TensorDictModule policy together with a classifier.
+
+    The dataclass constructor sets the base's `_device` field itself, which
+    is all the base's constructor does.
+    """
 
     policy_tdmodule: TensorDictModuleBase | ProbabilisticActor
     afa_classifier: AFAClassifier
@@ -34,9 +45,7 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
     force_acquisition: bool = False
 
     def __post_init__(self):
-        # Move policy and classifier to the specified device
-        self.policy_tdmodule = self.policy_tdmodule.to(self._device)
-        self.afa_classifier = self.afa_classifier.to(self._device)
+        self.to(self._device)
 
     @property
     @override
@@ -85,6 +94,7 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
         return td
 
     @override
+    @on_method_device
     def act(
         self,
         masked_features: MaskedFeatures,
@@ -93,15 +103,9 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
-        original_device = masked_features.device
-
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
-
         assert selection_mask is not None, (
             "RLAFAMethod requires selection_mask"
         )
-        selection_mask = selection_mask.to(self._device)
 
         batch_size = masked_features.shape[0]
         actions = torch.zeros(
@@ -112,7 +116,7 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
         # feature left to acquire, so stop without consulting the policy.
         active_mask = (~selection_mask).any(dim=-1)
         if not active_mask.any():
-            return actions.to(original_device)
+            return actions
 
         td = self.get_td_from_masked_features(
             masked_features[active_mask],
@@ -130,9 +134,10 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
         # Get the action from the tensordict
         actions[active_mask] = td["action"].unsqueeze(-1)
 
-        return actions.to(original_device)
+        return actions
 
     @override
+    @on_method_device
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -140,23 +145,15 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
     ) -> Label:
-        original_device = masked_features.device
-
-        masked_features = masked_features.to(self._device)
-        feature_mask = feature_mask.to(self._device)
-
         with torch.no_grad():
-            probs = self.afa_classifier(
+            return self.afa_classifier(
                 masked_features, feature_mask, label, feature_shape
             )
-        return probs.to(original_device)
 
     @override
     def save(self, path: Path) -> None:
         torch.save(self.policy_tdmodule, path / "policy_tdmodule.pt")
-        self.afa_classifier.save(path / "classifier.pt")
-        with (path / "classifier_class_name.txt").open("w") as f:
-            f.write(self.afa_classifier.__class__.__name__)
+        save_classifier(self.afa_classifier, path)
 
     @classmethod
     @override
@@ -166,29 +163,8 @@ class RLAFAMethod(AFAMethod, SupportsForcedAcquisition):
             weights_only=False,
             map_location=device,
         )
-
-        with (path / "classifier_class_name.txt").open() as f:
-            classifier_class_name = f.read()
-
-        afa_classifier = get_class(classifier_class_name).load(
-            path / "classifier.pt", device=device
-        )
-        afa_classifier = cast("AFAClassifier", cast("object", afa_classifier))
-
         return cls(
             policy_tdmodule=policy_tdmodule,
-            afa_classifier=afa_classifier,
+            afa_classifier=load_classifier(path, device),
             _device=device,
         )
-
-    @override
-    def to(self, device: torch.device) -> Self:
-        self._device = device
-        self.policy_tdmodule = self.policy_tdmodule.to(self._device)
-        self.afa_classifier = self.afa_classifier.to(self._device)
-        return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device

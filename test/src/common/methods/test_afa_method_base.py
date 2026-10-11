@@ -14,6 +14,7 @@ from afabench.components.methods.common import (
     on_method_device,
     save_classifier,
 )
+from afabench.core.registry import REGISTERED_CLASSES, get_class
 from afabench.core.types import (
     AFAAction,
     AFAMethod,
@@ -192,3 +193,18 @@ def test_load_classifier_reads_the_layout_saved_before_the_base(
 
     assert isinstance(loaded, UniformDummyAFAClassifier)
     assert loaded.n_classes == 4
+
+
+def test_every_registered_afa_method_class_builds_on_the_base() -> None:
+    method_classes = {
+        name: get_class(name)
+        for name in REGISTERED_CLASSES
+        if hasattr(get_class(name), "act")
+    }
+
+    assert len(method_classes) >= 12
+    assert {
+        name
+        for name, cls in method_classes.items()
+        if not issubclass(cls, AFAMethodBase)
+    } == set()

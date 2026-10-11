@@ -8,10 +8,10 @@ import torch
 from torch import nn, optim
 from torch.distributions import RelaxedOneHotCategorical
 
+from afabench.components.methods.common import AFAMethodBase
 from afabench.components.methods.static.common.utils import restore_parameters
 from afabench.core.types import (
     AFAAction,
-    AFAMethod,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -297,24 +297,22 @@ class DifferentiableSelector(nn.Module):
         restore_parameters(selector_layer, best_zerotemp_selector)
 
 
-class StaticBaseMethod(AFAMethod):
+class StaticBaseMethod(AFAMethodBase):
     def __init__(
         self,
         selected_history: dict[int, list[int]],
         predictors: dict[int, nn.Module],
-        device: str | torch.device = "cpu",
+        device: torch.device,
         image_size: int | None = None,
         patch_size: int | None = None,
     ):
-        super().__init__()
-        device = torch.device(device)
+        super().__init__(device)
         self.selected_history: dict[int, list[int]] = selected_history
         self.predictors: dict[int, nn.Module] = {
             b: m.to(device) for b, m in predictors.items()
         }
         self.image_size: int | None = image_size
         self.patch_size: int | None = patch_size
-        self._device: torch.device = device
 
     @override
     def predict(
@@ -439,7 +437,7 @@ class StaticBaseMethod(AFAMethod):
 
     @classmethod
     @override
-    def load(cls, path: Path, device: str | torch.device = "cpu") -> Self:
+    def load(cls, path: Path, device: torch.device) -> Self:
         data = torch.load(
             path / "selected.pt", weights_only=False, map_location="cpu"
         )
@@ -462,19 +460,15 @@ class StaticBaseMethod(AFAMethod):
             image_size=image_size,
             patch_size=patch_size,
             device=device,
-        ).to(device)
+        )
 
     @override
-    def to(self, device: str | torch.device) -> Self:
-        self._device = torch.device(device)
+    def to(self, device: torch.device) -> Self:
+        # The predictors sit in a dict, which the base does not look into
+        super().to(device)
         for b in self.predictors:
-            self.predictors[b] = self.predictors[b].to(self._device)
+            self.predictors[b] = self.predictors[b].to(device)
         return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        return self._device
 
     @property
     @override

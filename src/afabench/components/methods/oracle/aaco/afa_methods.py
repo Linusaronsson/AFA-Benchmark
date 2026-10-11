@@ -5,6 +5,7 @@ from typing import Any, Self, cast, final, override
 
 import torch
 
+from afabench.components.methods.common import AFAMethodBase, on_method_device
 from afabench.components.methods.oracle.aaco.core import AACOOracle
 from afabench.components.methods.oracle.aaco.utils import (
     flatten_for_aaco,
@@ -15,7 +16,6 @@ from afabench.core.registry import get_class
 from afabench.core.types import (
     AFAAction,
     AFAClassifier,
-    AFAMethod,
     AFAUnmasker,
     FeatureMask,
     Label,
@@ -29,9 +29,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 @final
-class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
+class AACOAFAMethod(  # pyright: ignore[reportUnsafeMultipleInheritance]
+    AFAMethodBase, SupportsForcedAcquisition
+):
     """
     AACO-based Active Feature Acquisition method.
+
+    The dataclass constructor sets the base's `_device` field itself, which
+    is all the base's constructor does.
 
     This method uses the Acquisition Conditioned Oracle (AACO) from
     Valancius et al. 2024 to select features for acquisition.
@@ -67,11 +72,11 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
 
     def __post_init__(self):
         """Move oracle to device after initialization and load classifier if path provided."""
-        self.aaco_oracle = self.aaco_oracle.to(self._device)
         if self._selection_costs is not None:
             self._selection_costs = torch.as_tensor(
-                self._selection_costs, dtype=torch.float32, device=self._device
+                self._selection_costs, dtype=torch.float32
             )
+        self.to(self._device)
 
         # Load classifier from bundle if path provided
         if self.classifier_bundle_path is not None:
@@ -150,6 +155,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
         """Set whether to exclude the query instance from KNN results."""
         self._exclude_instance = exclude_instance
 
+    @on_method_device
     def act_for_instances(
         self,
         masked_features: MaskedFeatures,
@@ -170,10 +176,6 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
         """
         del label  # Unused, kept for signature parity
         with torch.no_grad():
-            original_device = masked_features.device
-            masked_features = masked_features.to(self._device)
-            feature_mask = feature_mask.to(self._device)
-
             # Flatten features if needed (AACO works on flat features)
             masked_features, feature_mask, batch_shape = flatten_for_aaco(
                 masked_features, feature_mask, feature_shape
@@ -182,7 +184,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
 
             batch_size = masked_features.shape[0]
             if split_indices is not None:
-                split_indices = split_indices.view(-1).to(self._device)
+                split_indices = split_indices.view(-1)
                 assert len(split_indices) == batch_size, (
                     "split_indices must match batch size."
                 )
@@ -267,7 +269,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             selections = [0 if c is None else c + 1 for c in chosen]
 
             selection_tensor = torch.tensor(
-                selections, dtype=torch.long, device=original_device
+                selections, dtype=torch.long, device=self._device
             )
 
             # Reshape to match batch shape
@@ -307,6 +309,7 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
         )
 
     @override
+    @on_method_device
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -327,10 +330,6 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
             Class probabilities with shape (*batch, n_classes)
         """
         with torch.no_grad():
-            original_device = masked_features.device
-            masked_features = masked_features.to(self._device)
-            feature_mask = feature_mask.to(self._device)
-
             masked_features_flat, feature_mask_flat, batch_shape = (
                 flatten_for_aaco(masked_features, feature_mask, feature_shape)
             )
@@ -356,7 +355,12 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
 
             # Reshape and return
             output_shape = batch_shape + (n_classes,)
-            return predictions.view(*output_shape).to(original_device)
+            return predictions.view(*output_shape)
+
+    @property
+    @override
+    def has_builtin_classifier(self) -> bool:
+        return False
 
     @property
     @override
@@ -467,16 +471,11 @@ class AACOAFAMethod(AFAMethod, SupportsForcedAcquisition):
 
     @override
     def to(self, device: torch.device) -> Self:
-        """Move method to device."""
-        self._device = device
+        # The oracle is neither a module nor a classifier, so the base does
+        # not move it
+        super().to(device)
         self.aaco_oracle = self.aaco_oracle.to(device)
         return self
-
-    @property
-    @override
-    def device(self) -> torch.device:
-        """Get current device."""
-        return self._device
 
 
 def create_aaco_method(
