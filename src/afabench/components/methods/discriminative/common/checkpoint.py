@@ -166,7 +166,10 @@ class NetworkPairSpec:
                 else resnet50(pretrained=False)
             )
             # One backbone module serves both networks, as the methods
-            # have always rebuilt them; the state dict loaded last wins
+            # have always rebuilt them; the state dict loaded last wins,
+            # which is wrong for GDFS, whose selector trains on its own
+            # backbone, and kept so published bundles evaluate unchanged
+            # (#117, docs/explanation/gdfs_dime_shared_code.md)
             backbone_net, expansion = ResNet18Backbone(base)
             predictor = Predictor(backbone_net, expansion, self.d_out)
             policy_network = ConvNet(backbone_net, expansion, 0.5)

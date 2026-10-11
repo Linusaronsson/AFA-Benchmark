@@ -237,8 +237,8 @@ class NetworkPairTrainer:
         )
         # Listing both networks' parameters, as the port always has, lists
         # a parameter DIME ties between them twice, so Adam steps it twice
-        # per update; upstream deduplicates. Kept until the maintainers
-        # decide (docs/explanation/gdfs_dime_shared_code.md). The order is
+        # per update; upstream deduplicates. Kept until #116 is decided
+        # (docs/explanation/gdfs_dime_shared_code.md). The order is
         # immaterial: Adam updates each parameter from its own state
         opt = optim.Adam(
             list(policy_network.parameters()) + list(predictor.parameters()),

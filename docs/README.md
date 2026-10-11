@@ -70,6 +70,7 @@ instead of defining a term on a page.
 - [Output snapshots](explanation/output_snapshots.md)
 - [Reference methods](explanation/reference_methods.md)
 - [Framework limitations](explanation/limitations.md)
+- [What GDFS and DIME share, and where the port departs from upstream](explanation/gdfs_dime_shared_code.md)
 - Investigations behind ADRs:
   [training-contract duplication](explanation/training_contract_inventory.md),
   [evaluation input cloning](explanation/eval_input_cloning_assessment.md)
