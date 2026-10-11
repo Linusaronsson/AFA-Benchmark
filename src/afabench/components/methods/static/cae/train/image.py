@@ -6,11 +6,12 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader
 
+from afabench.components.methods.discriminative.common.modality import (
+    image_loaders,
+    load_backbone,
+)
 from afabench.components.methods.discriminative.common.models import (
     Predictor,
-    ResNet18Backbone,
-    resnet18,
-    resnet50,
 )
 from afabench.components.methods.static.cae.config import (
     CAEImageArchitectureConfig,
@@ -30,7 +31,7 @@ from afabench.fit.inputs import FitInputs
 log = logging.getLogger(__name__)
 
 
-def train_image(  # noqa: PLR0915
+def train_image(
     cfg: CAETrainingConfig,
     metric_logger: Callable[[dict[str, float]], None] | None = None,
     *,
@@ -46,18 +47,11 @@ def train_image(  # noqa: PLR0915
     d_out = train_dataset.label_shape[0]
     val_dataset = inputs.val_dataset()
 
-    train_loader = DataLoader(
-        train_dataset,  # pyright: ignore[reportArgumentType]
-        batch_size=cfg.batch_size,
-        shuffle=True,
-        pin_memory=True,
-        drop_last=True,
-    )
-    val_loader = DataLoader(
-        val_dataset,  # pyright: ignore[reportArgumentType]
-        batch_size=cfg.batch_size,
-        shuffle=False,
-        pin_memory=True,
+    train_loader, val_loader = image_loaders(
+        train_dataset,
+        val_dataset,
+        cfg.batch_size,
+        smoke_test=cfg.smoke_test,
     )
     image_size = cfg.architecture.image_size
     patch_size = cfg.architecture.patch_size
@@ -67,14 +61,7 @@ def train_image(  # noqa: PLR0915
     mask_width = image_size // patch_size
 
     backbone_type = cfg.architecture.backbone_type
-    if backbone_type == "resnet18":
-        base = resnet18(pretrained=True)
-    elif backbone_type == "resnet50":
-        base = resnet50(pretrained=True)
-    else:
-        msg = f"Unsupported backbone type: {backbone_type}"
-        raise ValueError(msg)
-    backbone, expansion = ResNet18Backbone(base)
+    backbone, expansion = load_backbone(backbone_type)
     model = Predictor(backbone, expansion, num_classes=d_out).to(device)
     selector_layer = ConcreteMask2d(
         width=mask_width,
@@ -150,11 +137,7 @@ def train_image(  # noqa: PLR0915
             collate_fn=make_masked_collate(patch_mask),
         )
 
-        if backbone_type == "resnet18":
-            base = resnet18(pretrained=True)
-        else:
-            base = resnet50(pretrained=True)
-        backbone, expansion = ResNet18Backbone(base)
+        backbone, expansion = load_backbone(backbone_type)
         model = Predictor(backbone, expansion, num_classes=d_out).to(device)
         predictor = BaseModel(model).to(device)
         predictor.fit(

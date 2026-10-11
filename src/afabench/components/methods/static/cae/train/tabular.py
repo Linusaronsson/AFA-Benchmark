@@ -46,7 +46,10 @@ def train_tabular(
     class_weights = class_weights / class_weights.sum()
     class_weights = class_weights.to(device)
     train_loader, val_loader, d_in, d_out = prepare_datasets(
-        train_dataset, val_dataset, cfg.batch_size
+        train_dataset,
+        val_dataset,
+        cfg.batch_size,
+        smoke_test=cfg.smoke_test,
     )
 
     model = MLP(

@@ -7,7 +7,9 @@ features are masked for the networks. `prepare_modality` reads the
 pretrained model's architecture and answers a `ModalitySetup` with those
 parts settled: `TabularSetup` for an MLP pretrained model, `ImageSetup`
 for a ResNet one. It is an optional library helper that each method's own
-training script calls (ADR 0001).
+training script calls (ADR 0001). CAE, which trains no policy network on a
+pretrained model, uses only `prepare_datasets`, `image_loaders` and
+`load_backbone`.
 """
 
 from abc import ABC, abstractmethod
