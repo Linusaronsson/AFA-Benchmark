@@ -103,7 +103,7 @@ class ModalitySetup(ABC):
     class_weights: ClassWeights | None
     """The training loss's class weights, on the device; None weighs classes equally."""
     feature_costs: FeatureCosts | None
-    """What training charges per feature, on the device; None charges unit costs."""
+    """What training charges per feature; None charges unit costs."""
     selection_costs: SelectionCosts | None
     """What the trained method scales its scores by; None for unit costs."""
 
@@ -376,9 +376,12 @@ def _prepare_image(
             f"its patch_size {patch_size}"
         )
         raise ValueError(msg)
-    n_selections = inputs.unmasker().get_n_selections(
-        train_dataset.feature_shape
-    )
+    device = torch.device(cfg.device)
+    unmasker = inputs.unmasker()
+    # The image Unmasker derives selection costs on CPU; the trainer moves
+    # those costs to its device after derivation.
+    feature_costs = train_dataset.get_feature_acquisition_costs().cpu()
+    n_selections = unmasker.get_n_selections(train_dataset.feature_shape)
     if n_selections != mask_width**2:
         msg = (
             f"The Unmasker offers {n_selections} selections, but the "
@@ -392,7 +395,7 @@ def _prepare_image(
         smoke_test=cfg.smoke_test,
     )
     return ImageSetup(
-        device=torch.device(cfg.device),
+        device=device,
         architecture=architecture,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -402,11 +405,10 @@ def _prepare_image(
         mask_layer=MaskLayer2d(
             mask_width=mask_width, patch_size=patch_size, append=False
         ),
-        # Image training has never read the dataset's feature costs or
-        # weighted classes; kept so its results do not change
+        # Image training keeps its unweighted classification loss.
         class_weights=None,
-        feature_costs=None,
-        selection_costs=None,
+        feature_costs=feature_costs,
+        selection_costs=unmasker.get_selection_costs(feature_costs),
         image_size=image_size,
         patch_size=patch_size,
         mask_width=mask_width,

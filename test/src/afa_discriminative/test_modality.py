@@ -1,5 +1,6 @@
 """`prepare_modality` sets up tabular and image training without training."""
 
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -193,18 +194,33 @@ def test_tabular_setup_weights_classes_and_charges_dataset_costs(
     torch.testing.assert_close(setup.selection_costs, torch.ones(20))
 
 
-def test_image_setup_trains_unweighted_on_unit_selection_costs(
-    image_cfg: GDFSTrainingConfig,
+@pytest.mark.parametrize("non_unit_costs", [False, True])
+def test_image_setup_trains_unweighted_on_dataset_costs(
+    image_cfg: GDFSTrainingConfig, non_unit_costs: bool
 ) -> None:
+    # Setup must keep image costs on CPU even for CUDA training: the
+    # Unmasker uses CPU masks, and the trainer moves the derived costs.
+    # No CUDA allocation is needed to exercise this preparation boundary.
+    image_cfg = replace(image_cfg, device="cuda")
+    inputs = load_inputs(image_cfg)
+    costs = torch.ones(3, 224, 224)
+    expected_selection_costs = torch.ones(196)
+    if non_unit_costs:
+        costs[:, :8, 16:32] = 0.25
+        costs[:, 8:16, 16:32] = 0.75
+        expected_selection_costs[1] = 0.5
+    inputs.train_dataset().feature_costs = costs
     setup = prepare_modality(
-        image_cfg,
-        load_inputs(image_cfg),
-        classifier_arch=IMAGENETTE_ARCHITECTURE,
+        image_cfg, inputs, classifier_arch=IMAGENETTE_ARCHITECTURE
     )
 
     assert setup.class_weights is None
-    assert setup.feature_costs is None
-    assert setup.selection_costs is None
+    assert setup.feature_costs is not None
+    torch.testing.assert_close(setup.feature_costs, costs)
+    assert setup.device == torch.device("cuda")
+    assert setup.feature_costs.device == torch.device("cpu")
+    assert setup.selection_costs is not None
+    torch.testing.assert_close(setup.selection_costs, expected_selection_costs)
 
 
 def test_tabular_policy_network_scores_every_selection(

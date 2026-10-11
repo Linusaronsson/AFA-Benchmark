@@ -3,7 +3,9 @@
 from pathlib import Path
 
 import pytest
+import torch
 from PIL import Image
+from torch import nn
 
 from afabench.components.initializers.config import InitializerConfig
 from afabench.components.methods.discriminative.common import models
@@ -137,8 +139,12 @@ def test_image_pretraining_returns_classifier_without_saving(
 
 @pytest.mark.pipeline
 @pytest.mark.parametrize("method", ["dime", "gdfs"])
-def test_image_training_returns_method_without_saving(
-    image_contract_values: dict[str, object], tmp_path: Path, method: str
+@pytest.mark.parametrize("non_unit_costs", [False, True])
+def test_image_training_returns_cost_aware_method_without_saving(
+    image_contract_values: dict[str, object],
+    tmp_path: Path,
+    method: str,
+    non_unit_costs: bool,
 ) -> None:
     config_type = (
         DIMETrainingConfig if method == "dime" else GDFSTrainingConfig
@@ -165,6 +171,19 @@ def test_image_training_returns_method_without_saving(
         max_masking_probability=0.9,
         architecture=DIMEImageArchitectureConfig("resnet18", 224, 16),
     )
+    if non_unit_costs:
+        dataset = load_inputs(pretrain_cfg).train_dataset()
+        costs = torch.ones(dataset.feature_shape)
+        # Selection 1 averages to 0.5 across its pixels and channels.
+        costs[:, :8, 16:32] = 0.25
+        costs[:, 8:16, 16:32] = 0.75
+        dataset.feature_costs = costs
+        save_bundle(
+            dataset,
+            Path(pretrain_cfg.train_dataset_bundle_path),
+            metadata={},
+            provenance=placeholder_provenance(),
+        )
     pretrained = pretrain_image(pretrain_cfg, inputs=load_inputs(pretrain_cfg))
     pretrained_path = tmp_path / "pretrained.bundle"
     save_bundle(
@@ -192,6 +211,27 @@ def test_image_training_returns_method_without_saving(
 
     assert isinstance(result, result_type)
     assert not Path(cfg.save_path).exists()
+
+    # Supply equal, positive scores to isolate the trained method's cost
+    # ranking from learned scores, without depending on its architecture.
+    scores = nn.Linear(3, 196)
+    with torch.no_grad():
+        scores.weight.zero_()
+        scores.bias.fill_(1.0)
+    result.policy_network = nn.Sequential(
+        nn.AdaptiveAvgPool2d(1), nn.Flatten(), scores
+    )
+    action = result.act(
+        masked_features=torch.zeros(2, 3, 224, 224),
+        feature_mask=torch.zeros(2, 3, 224, 224, dtype=torch.bool),
+        selection_mask=torch.zeros(2, 196, dtype=torch.bool),
+        feature_shape=torch.Size((3, 224, 224)),
+    )
+
+    # Unit costs preserve the first-selection tie break; otherwise the
+    # equally informative but cheaper second patch wins (action 2).
+    expected_action = 2 if non_unit_costs else 1
+    assert torch.equal(action, torch.full((2, 1), expected_action))
 
 
 @pytest.mark.pipeline

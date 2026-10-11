@@ -50,9 +50,11 @@ every behavioural difference from upstream that the check found.
   geometry): the loaders, the mask layer, the policy network and its
   output check, and the checkpoint's `NetworkPairSpec`. The per-modality
   differences the trainers always had stay in the setup: only tabular
-  training weights classes, charges the dataset's feature costs and
-  falls back to the upstream `min_lr` when the config sets none; image
-  training charges unit costs and requires `min_lr`. DIME passes its
+  training weights classes and falls back to the upstream `min_lr` when
+  the config sets none; image training requires `min_lr`. Both modalities
+  use the dataset bundle's feature costs for training and the Unmasker's
+  derived selection costs for the trained policy (issue #102). For image
+  patches these are the mean feature costs within each patch. DIME passes its
   built-in classifier to `policy_network(share_with=...)`, which ties the
   first two linear layers (tabular) or reuses the backbone (image).
 
