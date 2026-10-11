@@ -6,13 +6,14 @@ import pyarrow.parquet as pq
 import pytest
 from omegaconf import OmegaConf
 
+from afabench.evaluation.tables import load_plotting_ready_table
 from afabench.plotting.config import PlottingDisplayConfig
-from scripts.plotting.plot_eval_perf import (
+from afabench.plotting.eval_perf import (
     EvaluationPlotter,
     get_method_color_mapping,
 )
 
-REPO_ROOT = Path(__file__).parents[2]
+REPO_ROOT = Path(__file__).parents[3]
 
 # The (ddof=1) standard deviation of two values `d` apart is d * SQRT_HALF
 SQRT_HALF = 0.5**0.5
@@ -135,9 +136,9 @@ def test_stop_action_metrics_are_aggregated_over_seeds(
     tmp_path: Path,
     plotting_config: PlottingDisplayConfig,
 ) -> None:
-    plotter = EvaluationPlotter(eval_perf_path, tmp_path, plotting_config)
-
-    plotter.load_and_process()
+    plotter = EvaluationPlotter(
+        load_plotting_ready_table(eval_perf_path), tmp_path, plotting_config
+    )
 
     assert plotter.df_stop_action is not None
     rows = sorted_rows(
@@ -214,9 +215,9 @@ def test_per_time_step_metrics_use_largest_hard_budget_per_dataset(
     tmp_path: Path,
     plotting_config: PlottingDisplayConfig,
 ) -> None:
-    plotter = EvaluationPlotter(eval_perf_path, tmp_path, plotting_config)
-
-    plotter.load_and_process()
+    plotter = EvaluationPlotter(
+        load_plotting_ready_table(eval_perf_path), tmp_path, plotting_config
+    )
 
     assert plotter.df_traj is not None
     # Only JAFA on cube at hard budget 2 remains: budget 1 is not the
@@ -265,10 +266,11 @@ def test_all_plots_are_written_for_each_dataset_set(
 ) -> None:
     output_folder = tmp_path / "plots"
     plotter = EvaluationPlotter(
-        eval_perf_path, output_folder, plotting_config, formats=("png",)
+        load_plotting_ready_table(eval_perf_path),
+        output_folder,
+        plotting_config,
+        formats=("png",),
     )
-
-    plotter.load_and_process()
     plotter.generate_all_plots()
 
     assert sorted(
@@ -291,7 +293,7 @@ def test_dataset_set_without_results_gets_no_folder(
 ) -> None:
     output_folder = tmp_path / "plots"
     plotter = EvaluationPlotter(
-        eval_perf_path,
+        load_plotting_ready_table(eval_perf_path),
         output_folder,
         replace(
             plotting_config,
@@ -299,8 +301,6 @@ def test_dataset_set_without_results_gets_no_folder(
         ),
         formats=("png",),
     )
-
-    plotter.load_and_process()
     plotter.generate_all_plots()
 
     assert [path.name for path in output_folder.iterdir()] == [
@@ -319,13 +319,11 @@ def test_caption_labels_every_plot(
     output_folder = tmp_path / "plots"
     caption = "Workflow demonstration, not scientific results"
     plotter = EvaluationPlotter(
-        eval_perf_path,
+        load_plotting_ready_table(eval_perf_path),
         output_folder,
         replace(plotting_config, caption=caption),
         formats=("svg",),
     )
-
-    plotter.load_and_process()
     plotter.generate_all_plots()
 
     plots = sorted((output_folder / "dataset_set-all").iterdir())

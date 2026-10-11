@@ -1,0 +1,596 @@
+"""
+Evaluation performance plots of a plotting-ready table.
+
+Plots each method's metric against its hard budget, its number of
+selections and, in the soft-budget setting, its accumulated cost.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, final
+
+import numpy as np
+import pandas as pd
+import plotnine as p9
+from plotnine import (
+    aes,
+    element_text,
+    facet_wrap,
+    geom_errorbar,
+    geom_errorbarh,
+    geom_line,
+    geom_point,
+    geom_ribbon,
+    ggplot,
+    labs,
+    scale_color_manual,
+    scale_fill_manual,
+    scale_linetype_manual,
+    theme,
+    theme_bw,
+)
+
+from afabench.evaluation.tables import (
+    apply_exclusions,
+    combine_soft_budget_params,
+    keep_largest_hard_budget,
+    metrics_at_every_step,
+    metrics_at_stop,
+    variance_over_seeds_at_every_step,
+    variance_over_seeds_at_stop,
+)
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
+
+    from afabench.plotting.config import PlottingDisplayConfig
+
+SUBPLOT_HEIGHT = 2.0
+PLOT_FONT_SIZE = 12
+SUBPLOT_TITLE_FONT_SIZE = 10
+
+NON_MYOPIC_METHODS = frozenset(
+    {
+        "aaco",
+        "aaco_nn",
+        "jafa",
+        "odin_model_based",
+        "odin_model_free",
+        "ol_with_mask",
+        "ol_without_mask",
+    }
+)
+
+
+def get_method_color_mapping(
+    plotting_config: PlottingDisplayConfig,
+) -> dict[str, str]:
+    family_colors = plotting_config.method_family_color_schemes[
+        plotting_config.active_method_color_scheme
+    ]
+    return {
+        method: family_colors[family]
+        for method, family in plotting_config.method_policy_family_mapping.items()
+    }
+
+
+def get_dataset_name_mapping_including_metric(
+    plotting_config: PlottingDisplayConfig,
+) -> dict[str, str]:
+    datasets_with_f_score = set(plotting_config.datasets_with_f_score)
+    return {
+        dataset: f"{name} ({'F1' if dataset in datasets_with_f_score else 'Accuracy'})"
+        for dataset, name in plotting_config.dataset_name_mapping.items()
+    }
+
+
+def get_plot(
+    df: pd.DataFrame,
+    x_col: str,
+    x_label: str,
+    plotting_config: PlottingDisplayConfig,
+    x_error_min: str | None = None,
+    x_error_max: str | None = None,
+    *,
+    use_line: bool = True,
+    method_order: list[str] | None = None,
+    figure_width: float | None = None,
+    figure_height: float | None = None,
+) -> p9.ggplot:
+    """
+    Create a plot with metrics vs cost/budget.
+
+    Args:
+        df: Input dataframe
+        x_col: Column name for x-axis
+        x_label: Label for x-axis
+        x_error_min: Column name for x-axis error minimum
+        x_error_max: Column name for x-axis error maximum
+        use_line: Whether to use line plot (True) or point plot (False)
+        method_order: List of method names in desired legend order
+        figure_width: Figure width in inches (default: PLOT_WIDTH)
+        figure_height: Figure height in inches (default: PLOT_HEIGHT)
+    """
+    method_color_mapping = get_method_color_mapping(plotting_config)
+    dataset_name_mapping_including_metric = (
+        get_dataset_name_mapping_including_metric(plotting_config)
+    )
+
+    # plotnine cannot handle the pd.NA nulls of pandas' nullable numeric
+    # dtypes, so plot with NaN-backed floats instead
+    df = df.astype(
+        {
+            column: "float64"
+            for column, dtype in df.dtypes.items()
+            if pd.api.types.is_extension_array_dtype(dtype)
+            and pd.api.types.is_numeric_dtype(dtype)
+        }
+    )
+
+    # Apply name transforms
+    processed_df = df.assign(
+        dataset=df["dataset"].replace(dataset_name_mapping_including_metric),
+        policy_type=np.where(
+            df["afa_method"].isin(list(NON_MYOPIC_METHODS)),
+            "Non-myopic",
+            "Myopic",
+        ),
+        afa_method=df["afa_method"].replace(
+            plotting_config.method_name_mapping
+        ),
+    )
+
+    # Get method order for legend
+    if method_order is None:
+        method_order = list(plotting_config.method_name_mapping.keys())
+
+    # Get display names in order, filtering to only methods in the data
+    available_methods = processed_df["afa_method"].unique().tolist()
+    ordered_display_names = [
+        plotting_config.method_name_mapping.get(orig, orig)
+        for orig in method_order
+        if plotting_config.method_name_mapping.get(orig, orig)
+        in available_methods
+    ]
+    ordered_color_values = {
+        plotting_config.method_name_mapping.get(
+            orig, orig
+        ): method_color_mapping[orig]
+        for orig in method_order
+        if plotting_config.method_name_mapping.get(orig, orig)
+        in available_methods
+    }
+    # Use provided dimensions or defaults
+    if figure_width is None:
+        figure_width = plotting_config.plot_width
+    if figure_height is None:
+        figure_height = plotting_config.plot_height
+
+    plot = (
+        ggplot(
+            processed_df,
+            aes(
+                x=x_col,
+                y="mean_metric",
+                color="afa_method",
+                fill="afa_method",
+            ),
+        )
+        + facet_wrap(
+            "dataset",
+            scales="free",
+            ncol=4,
+        )
+        + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
+        + theme_bw()
+        + theme(
+            figure_size=(figure_width, figure_height),
+            text=element_text(
+                family=plotting_config.plot_font_family,
+                size=PLOT_FONT_SIZE,
+            ),
+            strip_text=element_text(size=SUBPLOT_TITLE_FONT_SIZE),
+        )
+        + scale_color_manual(
+            values=ordered_color_values,
+            breaks=ordered_display_names,
+        )
+        + scale_fill_manual(
+            values=ordered_color_values,
+            breaks=ordered_display_names,
+        )
+    )
+
+    if plotting_config.caption is not None:
+        plot += labs(caption=plotting_config.caption)
+
+    if use_line:
+        plot += geom_point()
+        plot += geom_ribbon(
+            aes(ymin="low_metric", ymax="high_metric"),
+            alpha=0.1,
+            size=0.0,
+        )
+        plot += geom_line(aes(linetype="policy_type"))
+        plot += scale_linetype_manual(
+            name="Policy type",
+            values={"Myopic": "solid", "Non-myopic": "dotted"},
+            breaks=["Myopic", "Non-myopic"],
+        )
+    else:
+        plot += geom_point()
+        plot += geom_errorbar(
+            aes(ymin="low_metric", ymax="high_metric"), width=0
+        )
+        if x_error_min and x_error_max:
+            plot += geom_errorbarh(
+                aes(xmin=x_error_min, xmax=x_error_max),
+                height=0,
+            )
+
+    return plot
+
+
+def get_normal_hard_budget_plot(
+    df: pd.DataFrame,
+    plotting_config: PlottingDisplayConfig,
+    method_order: list[str] | None = None,
+    figure_width: float | None = None,
+    figure_height: float | None = None,
+) -> p9.ggplot:
+    return get_plot(
+        df,
+        x_col="eval_hard_budget",
+        x_label="Hard budget",
+        plotting_config=plotting_config,
+        use_line=True,
+        method_order=method_order,
+        figure_width=figure_width,
+        figure_height=figure_height,
+    )
+
+
+def get_traj_hard_budget_plot(
+    df: pd.DataFrame,
+    plotting_config: PlottingDisplayConfig,
+    method_order: list[str] | None = None,
+    figure_width: float | None = None,
+    figure_height: float | None = None,
+) -> p9.ggplot:
+    return get_plot(
+        df,
+        x_col="n_selections_performed",
+        x_label="Number of selections",
+        plotting_config=plotting_config,
+        use_line=True,
+        method_order=method_order,
+        figure_width=figure_width,
+        figure_height=figure_height,
+    )
+
+
+def get_soft_budget_plot(
+    df: pd.DataFrame,
+    mode: str,
+    plotting_config: PlottingDisplayConfig,
+    method_order: list[str] | None = None,
+    figure_width: float | None = None,
+    figure_height: float | None = None,
+) -> p9.ggplot:
+    if mode == "2d_errors":
+        return get_plot(
+            df,
+            x_col="mean_avg_accumulated_cost",
+            x_label="Average cost accumulated per episode",
+            plotting_config=plotting_config,
+            x_error_min="low_avg_accumulated_cost",
+            x_error_max="high_avg_accumulated_cost",
+            use_line=False,
+            method_order=method_order,
+            figure_width=figure_width,
+            figure_height=figure_height,
+        )
+    if mode == "lines":
+        return get_plot(
+            df,
+            x_col="mean_avg_accumulated_cost",
+            x_label="Average cost accumulated per episode",
+            plotting_config=plotting_config,
+            x_error_min=None,
+            x_error_max=None,
+            use_line=True,
+            method_order=method_order,
+            figure_width=figure_width,
+            figure_height=figure_height,
+        )
+    msg = f"Expected either '2d_errors' or 'lines' as mode, got '{mode}'"
+    raise ValueError(msg)
+
+
+def calculate_figure_dimensions(
+    num_datasets: int,
+    plot_width: float,
+    ncol: int = 4,
+    subplot_height: float = 3.0,
+) -> tuple[float, float]:
+    """
+    Calculate figure dimensions based on number of subplots.
+
+    Args:
+        num_datasets: Number of datasets (subplots)
+        ncol: Number of columns in facet layout
+        subplot_height: Height of each individual subplot in inches
+
+    Returns:
+        Tuple of (width, height) for the figure
+    """
+    num_rows = (num_datasets + ncol - 1) // ncol
+    figure_width = plot_width
+    figure_height = subplot_height * num_rows
+    return figure_width, figure_height
+
+
+def add_metric_column(
+    df: pd.DataFrame, plotting_config: PlottingDisplayConfig
+) -> pd.DataFrame:
+    uses_f_score = df["dataset"].isin(plotting_config.datasets_with_f_score)
+    return df.assign(
+        mean_metric=df["mean_f_score"].where(
+            uses_f_score, df["mean_accuracy"]
+        ),
+        std_metric=df["std_f_score"].where(uses_f_score, df["std_accuracy"]),
+    )
+
+
+def process_df_only_stop_action_and_valid_prediction(
+    df: pd.DataFrame,
+    plotting_config: PlottingDisplayConfig,
+) -> pd.DataFrame | None:
+    df_only_stop_action = df.loc[
+        (df["action_performed"] == 0).fillna(False)
+        & df["predicted_class"].notna()
+    ]
+
+    if df_only_stop_action.empty:
+        return None
+
+    metric_df_only_stop_action = metrics_at_stop(df_only_stop_action)
+
+    # Variance of metrics across seeds
+    var_metric_df_only_stop_action = variance_over_seeds_at_stop(
+        metric_df_only_stop_action
+    )
+
+    # Datasets use different metrics
+    var_metric_df_only_stop_action = add_metric_column(
+        var_metric_df_only_stop_action, plotting_config
+    )
+
+    # Add "low" and "high" versions of metrics to enable plotting of ranges
+    var_metric_df_only_stop_action = var_metric_df_only_stop_action.assign(
+        low_metric=lambda d: d["mean_metric"] - d["std_metric"],
+        high_metric=lambda d: d["mean_metric"] + d["std_metric"],
+        low_avg_accumulated_cost=lambda d: (
+            d["mean_avg_accumulated_cost"] - d["std_avg_accumulated_cost"]
+        ),
+        high_avg_accumulated_cost=lambda d: (
+            d["mean_avg_accumulated_cost"] + d["std_avg_accumulated_cost"]
+        ),
+    )
+
+    return var_metric_df_only_stop_action
+
+
+def process_df_every_action(
+    df: pd.DataFrame, plotting_config: PlottingDisplayConfig
+) -> pd.DataFrame | None:
+    # Just like in process_df_only_stop_action, filter out null predictions
+    df = df.loc[df["predicted_class"].notna()]
+
+    if df.empty:
+        return None
+
+    # When considering performance up to some budget, we only look at the case when the largest budget is used
+    df = keep_largest_hard_budget(df)
+
+    metric_df_every_action = metrics_at_every_step(df)
+
+    # Variance of metrics across seeds
+    var_metric_df_every_action = variance_over_seeds_at_every_step(
+        metric_df_every_action
+    )
+
+    # Datasets use different metrics
+    var_metric_df_every_action = add_metric_column(
+        var_metric_df_every_action, plotting_config
+    )
+
+    # Add "low" and "high" versions of metrics to enable plotting of ranges
+    var_metric_df_every_action = var_metric_df_every_action.assign(
+        low_metric=lambda d: d["mean_metric"] - d["std_metric"],
+        high_metric=lambda d: d["mean_metric"] + d["std_metric"],
+    )
+
+    return var_metric_df_every_action
+
+
+@final
+class EvaluationPlotter:
+    """Prepare a plotting-ready table and save its performance plots."""
+
+    output_folder: Path
+    plotting_config: PlottingDisplayConfig
+    df_stop_action: pd.DataFrame | None
+    df_traj: pd.DataFrame | None
+
+    def __init__(
+        self,
+        table: pd.DataFrame,
+        output_folder: Path,
+        plotting_config: PlottingDisplayConfig,
+        formats: Sequence[str] = ("pdf",),
+    ) -> None:
+        """
+        Prepare the stop-action and per-time-step metrics of `table`.
+
+        Args:
+            table: A plotting-ready table, from `load_plotting_ready_table`
+            output_folder: Root output directory for plots
+            formats: Output formats (e.g. ("pdf", "svg")). Default: ("pdf",)
+        """
+        self.output_folder = output_folder
+        self.plotting_config = plotting_config
+        self.formats = formats
+        table = combine_soft_budget_params(table)
+        self.df_stop_action = process_df_only_stop_action_and_valid_prediction(
+            table, plotting_config
+        )
+        self.df_traj = process_df_every_action(table, plotting_config)
+
+    def produce_stop_action_plots(
+        self,
+        dataset_set: set[str],
+        subfolder: Path,
+    ) -> None:
+        """Generate stop action plots (hard and soft budget)."""
+        if self.df_stop_action is None:
+            return
+
+        df_stop_action_filtered = self.df_stop_action.loc[
+            self.df_stop_action["dataset"].isin(list(dataset_set))
+        ]
+
+        df_stop_action_hard_budget = df_stop_action_filtered.loc[
+            df_stop_action_filtered["eval_hard_budget"].notna()
+        ]
+        df_stop_action_hard_budget = apply_exclusions(
+            df_stop_action_hard_budget
+        )
+        if not df_stop_action_hard_budget.empty:
+            # Calculate figure dimensions based on number of unique datasets
+            num_datasets = df_stop_action_hard_budget.loc[
+                :, "dataset"
+            ].nunique()
+            fig_width, fig_height = calculate_figure_dimensions(
+                num_datasets,
+                plot_width=self.plotting_config.plot_width,
+                subplot_height=SUBPLOT_HEIGHT,
+            )
+            normal_hard_budget_plot = get_normal_hard_budget_plot(
+                df_stop_action_hard_budget,
+                plotting_config=self.plotting_config,
+                figure_width=fig_width,
+                figure_height=fig_height,
+            )
+            for fmt in self.formats:
+                self.save_plot(
+                    normal_hard_budget_plot,
+                    subfolder / f"hard_budget_normal.{fmt}",
+                    fig_width,
+                    fig_height,
+                )
+        df_stop_action_soft_budget = df_stop_action_filtered.loc[
+            df_stop_action_filtered["soft_budget_param"].notna()
+        ]
+        df_stop_action_soft_budget = apply_exclusions(
+            df_stop_action_soft_budget
+        )
+        if not df_stop_action_soft_budget.empty:
+            # Calculate figure dimensions based on number of unique datasets
+            num_datasets = df_stop_action_soft_budget.loc[
+                :, "dataset"
+            ].nunique()
+            fig_width, fig_height = calculate_figure_dimensions(
+                num_datasets,
+                plot_width=self.plotting_config.plot_width,
+                subplot_height=SUBPLOT_HEIGHT,
+            )
+            soft_budget_plot_2d_errors = get_soft_budget_plot(
+                df_stop_action_soft_budget,
+                mode="2d_errors",
+                plotting_config=self.plotting_config,
+                figure_width=fig_width,
+                figure_height=fig_height,
+            )
+            soft_budget_plot_lines = get_soft_budget_plot(
+                df_stop_action_soft_budget,
+                mode="lines",
+                plotting_config=self.plotting_config,
+                figure_width=fig_width,
+                figure_height=fig_height,
+            )
+            for fmt in self.formats:
+                self.save_plot(
+                    soft_budget_plot_2d_errors,
+                    subfolder / f"soft_budget_2d_errors.{fmt}",
+                    fig_width,
+                    fig_height,
+                )
+                self.save_plot(
+                    soft_budget_plot_lines,
+                    subfolder / f"soft_budget_lines.{fmt}",
+                    fig_width,
+                    fig_height,
+                )
+
+    def produce_trajectory_plots(
+        self,
+        dataset_set: set[str],
+        subfolder: Path,
+    ) -> None:
+        """Generate trajectory plots (hard budget)."""
+        if self.df_traj is None:
+            return
+
+        df_traj_filtered = self.df_traj.loc[
+            self.df_traj["dataset"].isin(list(dataset_set))
+        ]
+        df_traj_hard_budget = df_traj_filtered.loc[
+            df_traj_filtered["eval_hard_budget"].notna()
+        ]
+        df_traj_hard_budget = apply_exclusions(df_traj_hard_budget)
+        if not df_traj_hard_budget.empty:
+            # Calculate figure dimensions based on number of unique datasets
+            num_datasets = df_traj_hard_budget.loc[:, "dataset"].nunique()
+            fig_width, fig_height = calculate_figure_dimensions(
+                num_datasets,
+                plot_width=self.plotting_config.plot_width,
+                subplot_height=SUBPLOT_HEIGHT,
+            )
+            traj_hard_budget_plot = get_traj_hard_budget_plot(
+                df_traj_hard_budget,
+                plotting_config=self.plotting_config,
+                figure_width=fig_width,
+                figure_height=fig_height,
+            )
+            for fmt in self.formats:
+                self.save_plot(
+                    traj_hard_budget_plot,
+                    subfolder / f"hard_budget_traj.{fmt}",
+                    fig_width,
+                    fig_height,
+                )
+
+    @staticmethod
+    def save_plot(
+        plot: p9.ggplot, path: Path, width: float, height: float
+    ) -> None:
+        """Save a plot, creating its folder on the first save into it."""
+        path.parent.mkdir(parents=True, exist_ok=True)
+        plot.save(path, width=width, height=height)
+
+    def generate_all_plots(self) -> None:
+        """
+        Generate all plots for each dataset set.
+
+        Each dataset set gets a `dataset_set-<name>` subfolder, created only
+        if the set has evaluation results to plot.
+        """
+        for (
+            dataset_set_name,
+            dataset_set,
+        ) in self.plotting_config.dataset_sets.items():
+            subfolder = self.output_folder / f"dataset_set-{dataset_set_name}"
+            self.produce_stop_action_plots(set(dataset_set), subfolder)
+            self.produce_trajectory_plots(set(dataset_set), subfolder)
