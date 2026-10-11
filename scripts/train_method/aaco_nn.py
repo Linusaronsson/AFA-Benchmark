@@ -104,7 +104,6 @@ def main(cfg: AACONNTrainConfig) -> None:
         x_train, y_train = dataset.get_all_data()
         feature_shape = dataset.feature_shape
         initializer = inputs.initializer()
-        initializer.set_seed(cfg.seed)
         unmasker = inputs.unmasker()
         selection_size = unmasker.get_n_selections(feature_shape=feature_shape)
         x_train, y_train, n_features = _prepare_rollout_data(

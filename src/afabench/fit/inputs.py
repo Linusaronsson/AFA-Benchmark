@@ -32,8 +32,9 @@ class FitInputs:
     """
     Inputs of a contract, each loaded on first request.
 
-    Classifier and pretrained model are loaded onto the contract's device and
-    checked against the class the caller expects. Each input bundle's
+    Initializer and Unmasker are seeded with the contract's seed. Classifier
+    and pretrained model are loaded onto the contract's device and checked
+    against the class the caller expects. Each input bundle's
     manifest is read at most once, whether for loading the bundle or for
     the dataset identity and provenance inputs of the fit-stage result.
     """
@@ -51,19 +52,11 @@ class FitInputs:
         return self._load_dataset(self._contract.val_dataset_bundle_path)
 
     def initializer(self) -> AFAInitializer:
-        initializer = self._load_once(
-            "initializer",
-            lambda: get_afa_initializer_from_config(
-                self._contract.initializer
-            ),
-        )
+        initializer = self._load_once("initializer", self._seeded_initializer)
         return cast("AFAInitializer", initializer)
 
     def unmasker(self) -> AFAUnmasker:
-        unmasker = self._load_once(
-            "unmasker",
-            lambda: get_afa_unmasker_from_config(self._contract.unmasker),
-        )
+        unmasker = self._load_once("unmasker", self._seeded_unmasker)
         return cast("AFAUnmasker", unmasker)
 
     def classifier[T](self, expected_type: type[T]) -> T:
@@ -114,6 +107,18 @@ class FitInputs:
         return [
             self._manifest(path).as_input(role, path) for role, path in paths
         ]
+
+    def _seeded_initializer(self) -> AFAInitializer:
+        initializer = get_afa_initializer_from_config(
+            self._contract.initializer
+        )
+        initializer.set_seed(self._contract.seed)
+        return initializer
+
+    def _seeded_unmasker(self) -> AFAUnmasker:
+        unmasker = get_afa_unmasker_from_config(self._contract.unmasker)
+        unmasker.set_seed(self._contract.seed)
+        return unmasker
 
     def _manifest(self, bundle_path: str) -> Manifest:
         if bundle_path not in self._manifests:

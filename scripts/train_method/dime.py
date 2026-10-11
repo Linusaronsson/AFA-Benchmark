@@ -23,8 +23,6 @@ def main(cfg: DIMETrainingConfig) -> None:
         cfg = replace(cfg, nepochs=1, patience=1)
     inputs = load_inputs(cfg)
     with fit_run(cfg, tags=["dime"], inputs=inputs) as metric_logger:
-        inputs.initializer().set_seed(cfg.seed)
-        inputs.unmasker().set_seed(cfg.seed)
         result = train(cfg, metric_logger=metric_logger.log, inputs=inputs)
         save_result(result, cfg, inputs=inputs)
 

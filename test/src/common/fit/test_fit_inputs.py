@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -104,6 +105,35 @@ def test_initializer_and_unmasker_are_built_from_the_contract(
 
     assert isinstance(inputs.initializer(), RandomInitializer)
     assert isinstance(inputs.unmasker(), DirectUnmasker)
+
+
+def test_initializer_is_seeded_with_the_contract_seed(
+    bundle_dir: Path,
+) -> None:
+    contract = replace(
+        _training_contract(bundle_dir, pretrained_model_bundle_path=None),
+        initializer=InitializerConfig(
+            class_name="RandomInitializer",
+            kwargs={"num_initial_features": 5},
+        ),
+        seed=13,
+    )
+    features = torch.zeros(4, N_FEATURES)
+    expected_initializer = RandomInitializer(num_initial_features=5)
+    expected_initializer.set_seed(13)
+
+    initial_mask = (
+        load_inputs(contract)
+        .initializer()
+        .initialize(features, feature_shape=torch.Size([N_FEATURES]))
+    )
+
+    assert torch.equal(
+        initial_mask,
+        expected_initializer.initialize(
+            features, feature_shape=torch.Size([N_FEATURES])
+        ),
+    )
 
 
 def test_classifier_is_loaded_on_the_contract_device(

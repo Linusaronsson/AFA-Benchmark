@@ -86,7 +86,8 @@ def train_random_dummy(
 loads whatever the contract points to: `inputs.train_dataset()`,
 `inputs.val_dataset()`, `inputs.initializer()`, `inputs.unmasker()`,
 `inputs.classifier(expected_type)` and, for `TrainingContract`,
-`inputs.pretrained_model(expected_type)`.
+`inputs.pretrained_model(expected_type)`. The Initializer and Unmasker
+come seeded with `contract.seed`.
 
 The script itself owns the lifecycle — seeding, wandb, saving — using the
 other two helpers:
