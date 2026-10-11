@@ -120,7 +120,7 @@ Pass both helpers the script's `inputs`, so that each input bundle's
 manifest is read once; without `inputs=` they read the manifests again.
 
 Nothing here is Hydra-specific except `@hydra.main` and `OmegaConf.to_object`;
-section 5 covers skipping both.
+section 6 covers skipping both.
 
 The YAML config wires in the contract's Hydra groups. See
 `conf/components/README.md` for how `initializer`, `unmasker` and
@@ -156,7 +156,41 @@ If your method class is new, register it in `REGISTERED_CLASSES` in
 so `load_bundle` can reconstruct it; `RandomWithoutClassifierAFAMethod` is
 already there as `"RandomWithoutClassifierAFAMethod"`.
 
-## 3. Adding a pretraining stage
+## 3. The method class
+
+The object the training script returns and saves is the method class. It
+implements the `AFAMethod` protocol in `src/afabench/core/types.py`, which
+is what evaluation and the bundle system call. Build it on `AFAMethodBase`
+from `afabench.components.methods.common`, as every method in the repo
+does, so you write only what is specific to your method:
+
+- Set the device with `super().__init__(device)`. The base's `to` then
+  moves every tensor, `nn.Module` and `AFAClassifier` attribute, and
+  `device` reports where the method computes. If you keep modules in a
+  container such as a dict, extend `to` and call `super().to(device)`
+  first.
+- Declare `has_builtin_classifier`. It is abstract, so a method that
+  forgets it does not instantiate. True means evaluation also reports
+  `predict` as the method's built-in classifier.
+- Implement `act` and `predict`, decorated with `on_method_device`: the
+  body then runs on the method's device whatever device the caller's
+  tensors are on, and the answer comes back on the caller's.
+- Implement `save` and `load` in whatever layout suits the method; `load`
+  takes the device to place the method on. A method that ships a
+  classifier can store it with `save_classifier` and `load_classifier`,
+  which write `classifier.pt` and `classifier_class_name.txt` under the
+  bundle's data folder.
+- Override `cost_param` and `set_cost_param` if the method has a
+  soft-budget parameter, and `set_seed` if it has a generator of its own.
+  The base's defaults are None and no-ops; evaluation seeds torch's global
+  generators before it calls `set_seed`.
+
+`RandomWithClassifierAFAMethod` in
+`src/afabench/components/methods/dummy/with_classifier.py` is the shortest
+complete example. Register the class in `REGISTERED_CLASSES` as section 2
+says.
+
+## 4. Adding a pretraining stage
 
 A method with a pretraining stage additionally gets a script under
 `scripts/pretrain_model/`, configured the same way but with a config
@@ -195,12 +229,12 @@ method_options:
 
 Add an entry to `pretrain_mapping` naming your pretraining script, then point
 every method name that depends on it at that name via
-`pretrained_model_name` in `method_options` (section 6). The pipeline runs
+`pretrained_model_name` in `method_options` (section 7). The pipeline runs
 the pretraining stage once per `(pretrained_model_name, dataset, dataset
 realization, pretrain seed)` and passes the resulting bundle's path as
 `pretrained_model_bundle_path` to every training run that needs it.
 
-## 4. Configuring hyperparameters
+## 5. Configuring hyperparameters
 
 Hyperparameters beyond the contract are entirely the method author's choice
 — the contract says nothing about them. The repo's own methods follow one
@@ -229,9 +263,9 @@ Two rules keep this convention from drifting back into the duplication
 
 You are free to configure hyperparameters a different way (plain Python
 constants, a JSON file you load yourself, environment variables); the only
-constraint is the one in section 5.
+constraint is the one in section 6.
 
-## 5. Not using the helpers or Hydra
+## 6. Not using the helpers or Hydra
 
 None of `TrainingContract`, `load_inputs`, `fit_run`, `save_result` or
 Hydra is required. If you'd rather write a training script from scratch, it
@@ -254,7 +288,7 @@ still has to:
 Everything else — seeding, logging, hyperparameter configuration, smoke-test
 handling — is on you, exactly as it would be for any other script.
 
-## 6. Registering with the pipeline
+## 7. Registering with the pipeline
 
 The pipeline doesn't yet know your method exists even once its scripts work
 standalone. Four config groups under `workflow/conf/` wire it in,
@@ -310,7 +344,7 @@ registry.
 To also show up in plots, add it to `method_name_mapping` in
 `conf/scripts/plotting/common/default.yaml`.
 
-## 7. Testing
+## 8. Testing
 
 `test/scripts/test_training_contract_conformance.py` is the contract
 conformance test: for every method name in `method_options`, it runs your
@@ -320,7 +354,7 @@ ends up at `save_path`. It's marked `pipeline` (skipped by default) except
 for one always-run `random_dummy` case, so `just qa` exercises the contract
 without running every method on every commit.
 
-Once your method is registered in `method_options` (section 6), run its
+Once your method is registered in `method_options` (section 7), run its
 case directly:
 
 ```shell
