@@ -148,7 +148,8 @@ rather than in `merged_results/`
 ([payload category](release_manifest.md#job-duration-table)).
 
 The `plot_time` rule plots the table with
-`scripts/plotting/plot_total_time.py`. It keeps the completed jobs of the
+`scripts/plotting/plot_total_time.py`, which calls
+`afabench.plotting.total_time`. It keeps the completed jobs of the
 selected methods under the run's initializer and evaluation split, so
 failed and timed-out attempts are left out: each method's pretraining,
 through the pretrained model it trains from, its method-specific

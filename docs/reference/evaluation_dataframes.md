@@ -144,6 +144,36 @@ before the identity columns existed is identified from them, except for
 `dataset_realization_index` and `eval_split`, which no argument names and
 which stay null.
 
+### Loading and plotting
+
+`afabench.evaluation.tables.load_plotting_ready_table(path)` reads a
+plotting-ready table, or a merge of them, as a pandas DataFrame and casts
+each column it knows to its dtype in
+`afabench.evaluation.schemas.PLOTTING_READY_DTYPES`: the identity columns
+take the dtypes of `IDENTITY_DTYPES`, the rest are `UInt64`, `Float64`,
+`boolean` or `string`. Merging tables whose column types disagree upcasts
+those columns to strings, so values that do not parse as the column's dtype
+become null. Absent columns stay absent. It does not validate the table.
+
+Every evaluation plot reads its table through this function, and the same
+module prepares it for plotting:
+
+| Function | Returns |
+| --- | --- |
+| `combine_soft_budget_params` | The table with `train_soft_budget_param` and `eval_soft_budget_param` replaced by `soft_budget_param`, whichever is set. Raises `SoftBudgetParamConflictError` for a row that sets both. |
+| `keep_largest_hard_budget` | The rows of each dataset's largest `eval_hard_budget`. |
+| `keep_smallest_soft_budget_param` | The rows of each method and dataset's smallest `soft_budget_param`. |
+| `metrics_at_stop` | Accuracy, macro F1 and mean accumulated cost per method, dataset, seed pair and budget. |
+| `metrics_at_every_step` | Accuracy and macro F1 per method, dataset, seed pair, budget and `n_selections_performed`. |
+| `variance_over_seeds_at_stop`, `variance_over_seeds_at_every_step` | Mean and standard deviation of those metrics over seeds. |
+| `apply_exclusions` | The table without each method excluded from a dataset. |
+
+The figures are built in `afabench.plotting`: `eval_perf` (performance
+against hard budget, selections and accumulated cost), `eval_actions`
+(action heatmaps) and `total_time` (job durations per pipeline stage, from
+the job duration table). The scripts under `scripts/plotting/` only load
+their input and call these modules.
+
 ## Legacy reading and conversion
 
 Existing Parquet files remain untouched. The evaluation-data transform accepts

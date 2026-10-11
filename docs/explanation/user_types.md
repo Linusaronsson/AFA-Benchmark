@@ -32,7 +32,9 @@ Wants AFABench's library code, such as its evaluation functions or models,
 without adopting its pipeline, for example to evaluate a method inside
 their own code base. AFABench is not
 published as a package, so this user installs it from the repository. No
-guide covers this yet; the evaluation code is in `src/afabench/evaluation/`.
+guide covers this yet; the evaluation code is in `src/afabench/evaluation/`,
+and plotting-ready evaluation tables load and plot through the interfaces in
+[Evaluation dataframes](../reference/evaluation_dataframes.md#loading-and-plotting).
 
 ## Maintainer
 
