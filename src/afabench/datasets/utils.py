@@ -1,5 +1,4 @@
-import copy
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,33 +10,6 @@ if TYPE_CHECKING:
 
 class MissingGenerationIndicesError(ValueError):
     """A saved dataset has no generation indices (see ADR 0004)."""
-
-
-def default_create_subset[T: AFADataset](
-    dataset: T, indices: Sequence[int]
-) -> T:
-    """Return a subset of a dataset using default logic for in-memory datasets with .features, .labels and .generation_indices."""
-    subset = copy.deepcopy(dataset)
-    indices_list = list(indices)
-    if (
-        hasattr(subset, "features")
-        and hasattr(subset, "labels")
-        and hasattr(subset, "generation_indices")
-    ):
-        features = getattr(subset, "features")  # noqa: B009
-        labels = getattr(subset, "labels")  # noqa: B009
-        generation_indices = getattr(subset, "generation_indices")  # noqa: B009
-        setattr(subset, "features", features[indices_list])  # noqa: B010
-        setattr(subset, "labels", labels[indices_list])  # noqa: B010
-        setattr(  # noqa: B010
-            subset, "generation_indices", generation_indices[indices_list]
-        )
-        if hasattr(subset, "n_samples"):
-            setattr(subset, "n_samples", len(indices))  # noqa: B010
-    else:
-        msg = "default_create_subset requires 'features', 'labels' and 'generation_indices' attributes on the dataset."
-        raise AttributeError(msg)
-    return subset
 
 
 def load_generation_indices(

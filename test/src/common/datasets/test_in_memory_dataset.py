@@ -7,6 +7,7 @@ import pytest
 import torch
 from torch import Tensor
 
+from afabench.datasets.datasets import CubeDataset, DiabetesDataset
 from afabench.datasets.feature_costs import MissingFeatureCostsError
 from afabench.datasets.in_memory import (
     InMemoryAFADataset,
@@ -38,8 +39,8 @@ class TinyDataset(InMemoryAFADataset):
         return torch.Size([2])
 
     def __init__(self, n_samples: int = N_INSTANCES, offset: float = 0.0):
-        self.n_samples = n_samples
-        self.offset = offset
+        self.n_samples: int = n_samples
+        self.offset: float = offset
         super().__init__()
 
     @override
@@ -176,3 +177,59 @@ def test_loading_a_config_without_a_declared_key_names_the_key(
     with pytest.raises(MissingConfigKeyError, match=r"'offset'") as error:
         TinyDataset.load(tmp_path)
     assert "dataset.pt" in str(error.value)
+
+
+def test_a_synthetic_dataset_saved_before_the_base_still_loads(
+    tmp_path: Path,
+) -> None:
+    # A CUBE split bundle as dataset generation wrote it before the base:
+    # its config's n_samples was the split's size, not the generated size
+    torch.save(
+        {
+            "features": torch.ones(3, 20),
+            "labels": torch.eye(8)[:3],
+            "generation_indices": torch.tensor([7, 0, 4]),
+            "feature_costs": torch.ones(20),
+            "config": {
+                "n_samples": 3,
+                "seed": 11,
+                "non_informative_feature_mean": 0.5,
+                "non_informative_feature_std": 0.3,
+                "informative_feature_std": 0.1,
+            },
+        },
+        tmp_path / "dataset.pt",
+    )
+
+    loaded = CubeDataset.load(tmp_path)
+
+    assert len(loaded) == 3
+    assert loaded.get_generation_indices().tolist() == [7, 0, 4]
+    assert loaded.seed == 11
+    assert loaded.get_feature_acquisition_costs().shape == (20,)
+
+
+def test_a_tabular_dataset_saved_before_the_base_still_loads(
+    tmp_path: Path,
+) -> None:
+    feature_names = [f"f{i}" for i in range(45)]
+    torch.save(
+        {
+            "features": torch.zeros(2, 45),
+            "labels": torch.eye(3)[:2],
+            "generation_indices": torch.tensor([1, 0]),
+            "feature_costs": torch.full((45,), 2.0),
+            "feature_names": feature_names,
+            "config": {"root": "data/diabetes/diabetes.csv"},
+        },
+        tmp_path / "dataset.pt",
+    )
+
+    loaded = DiabetesDataset.load(tmp_path)
+
+    assert loaded.root == "data/diabetes/diabetes.csv"
+    assert loaded.feature_names == feature_names
+    assert loaded.get_generation_indices().tolist() == [1, 0]
+    torch.testing.assert_close(
+        loaded.get_feature_acquisition_costs(), torch.full((45,), 2.0)
+    )

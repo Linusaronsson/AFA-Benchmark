@@ -73,12 +73,10 @@ class AFADataset(Protocol):
         """
         Return a new dataset containing only the specified indices.
 
-        Implementers must provide this method. For in-memory datasets with
-        `features`, `labels` and `generation_indices` attributes, you may use
-        the `default_create_subset` function.
-
         The subset's generation indices are this dataset's generation
-        indices at `indices`.
+        indices at `indices`. `afabench.datasets.in_memory.InMemoryAFADataset`
+        implements this, and the rest of the protocol, for a dataset whose
+        instances are tensors in memory.
         """
         ...
 

@@ -1,7 +1,8 @@
 import copy
 import tarfile
 import urllib.request
-from collections.abc import Callable, Sequence
+from abc import ABC, abstractmethod
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import ClassVar, Self, cast, final, override
 from urllib.parse import urlparse
@@ -13,15 +14,20 @@ from sklearn.preprocessing import LabelEncoder
 from torch import Tensor
 from torch.utils.data import Dataset
 from torchvision import datasets, transforms
-from torchvision.datasets import ImageFolder
+from torchvision.datasets import ImageFolder, VisionDataset
 from ucimlrepo import fetch_ucirepo
 
-from afabench.core.types import AFADataset
+from afabench.core.types import AFADataset, Features, Label
 from afabench.datasets.feature_costs import load_saved_feature_costs
-from afabench.datasets.utils import (
-    default_create_subset,
-    load_generation_indices,
-)
+from afabench.datasets.in_memory import InMemoryAFADataset
+from afabench.datasets.utils import load_generation_indices
+
+# The 3-bit binary code of each of the 8 CUBE labels, least significant
+# bit first, shaped (8, 3)
+CUBE_BINARY_CODES = torch.stack(
+    [torch.tensor([int(b) for b in format(i, "03b")]) for i in range(8)],
+    dim=0,
+).flip(-1)
 
 
 def _z_normalize(
@@ -38,13 +44,28 @@ def _z_normalize(
     return (features_df - means) / stds
 
 
+def _one_hot(labels: Tensor, n_classes: int) -> Label:
+    return torch.nn.functional.one_hot(labels, num_classes=n_classes).float()
+
+
 @final
-class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class CubeDataset(InMemoryAFADataset):
     """
     The Cube dataset, as described in the paper "ODIN: Optimal Discovery of High-value INformation Using Model-based Deep Reinforcement Learning".
 
     Implements the AFADataset protocol.
     """
+
+    config_keys: ClassVar[tuple[str, ...]] = (
+        "n_samples",
+        "seed",
+        "non_informative_feature_mean",
+        "non_informative_feature_std",
+        "informative_feature_std",
+    )
+    n_cube_features: ClassVar[int] = 10
+    # Remaining features are dummy features
+    n_dummy_features: ClassVar[int] = 10
 
     @classmethod
     @override
@@ -60,10 +81,6 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def label_shape(self) -> torch.Size:
         return torch.Size([8])
-
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
 
     def __init__(
         self,
@@ -73,19 +90,17 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         informative_feature_std: float = 0.1,
         non_informative_feature_std: float = 0.3,
     ):
-        super().__init__()
         self.seed = seed
         self.n_samples = n_samples
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
         self.informative_feature_std = informative_feature_std
+        super().__init__()
 
-        # Constants
-        self.n_cube_features = 10  # Number of cube features
-        self.n_dummy_features = 10  # Remaining features are dummy features
-
-        self.rng = torch.Generator()
-        self.rng.manual_seed(self.seed)
+    @override
+    def _build(self) -> tuple[Features, Label]:
+        rng = torch.Generator()
+        rng.manual_seed(self.seed)
 
         # Draw labels
         y_int = torch.randint(
@@ -93,36 +108,28 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             self.label_shape[0],
             (self.n_samples,),
             dtype=torch.int64,
-            generator=self.rng,
+            generator=rng,
         )
-        # Binary codes for labels
-        binary_codes = torch.stack(
-            [
-                torch.tensor([int(b) for b in format(i, "03b")])
-                for i in range(self.label_shape[0])
-            ],
-            dim=0,
-        ).flip(-1)
 
         # Initialize feature blocks
         x_cube = torch.normal(
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_cube_features),
-            generator=self.rng,
+            generator=rng,
         )
 
         x_dummy = torch.normal(
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_dummy_features),
-            generator=self.rng,
+            generator=rng,
         )
 
         # Insert informative signals
         for i in range(self.n_samples):
             lbl = int(y_int[i].item())
-            mu_bin = binary_codes[lbl]
+            mu_bin = CUBE_BINARY_CODES[lbl]
 
             # Cube features: 3 bumps
             idxs = [(lbl + j) for j in range(3)]
@@ -131,94 +138,34 @@ class CubeDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     mean=0.0,
                     std=self.informative_feature_std,
                     size=(3,),
-                    generator=self.rng,
+                    generator=rng,
                 )
                 + mu_bin
             )
 
-        # Concatenate all features
-        self.features = torch.cat([x_cube, x_dummy], dim=1)
-        assert self.features.shape[1] == self.feature_shape[0]
-
-        # Labels
-        self.labels = y_int
-        self.labels = torch.nn.functional.one_hot(
-            self.labels, num_classes=self.label_shape[0]
-        ).float()
-        assert self.labels.shape[1] == self.label_shape[0]
-        self.generation_indices = torch.arange(len(self.features))
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self):
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "config": {
-                    "n_samples": self.n_samples,
-                    "seed": self.seed,
-                    "non_informative_feature_mean": self.non_informative_feature_mean,
-                    "non_informative_feature_std": self.non_informative_feature_std,
-                    "informative_feature_std": self.informative_feature_std,
-                },
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.seed = data["config"]["seed"]
-        obj.n_samples = data["config"]["n_samples"]
-        obj.non_informative_feature_mean = data["config"][
-            "non_informative_feature_mean"
-        ]
-        obj.non_informative_feature_std = data["config"][
-            "non_informative_feature_std"
-        ]
-        obj.informative_feature_std = data["config"]["informative_feature_std"]
-        obj.n_cube_features = 10
-        obj.n_dummy_features = 10
-        obj.rng = torch.Generator()
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
+        features = torch.cat([x_cube, x_dummy], dim=1)
+        return features, _one_hot(y_int, self.label_shape[0])
 
 
 @final
-class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class CubeNonUniformCostsDataset(InMemoryAFADataset):
     """
     A modified version of CUBE that has two blocks of features which both contain informative features, but the blocks have different feature costs.
 
     This dataset can be used to verify whether an AFA method cares about feature costs.
     """
+
+    config_keys: ClassVar[tuple[str, ...]] = (
+        "n_samples",
+        "seed",
+        "non_informative_feature_mean",
+        "non_informative_feature_std",
+        "informative_feature_std",
+        "cost_scaling",
+    )
+    # Number of cube features in each block
+    n_cube_features: ClassVar[int] = 10
+    n_blocks: ClassVar[int] = 2
 
     @classmethod
     @override
@@ -234,10 +181,6 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def label_shape(self) -> torch.Size:
         return torch.Size([8])
-
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
 
     def __init__(
         self,
@@ -248,23 +191,19 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         non_informative_feature_std: float = 0.3,
         cost_scaling: float = 2.0,
     ):
-        super().__init__()
         self.seed = seed
         self.n_samples = n_samples
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
         self.informative_feature_std = informative_feature_std
         self.cost_scaling = cost_scaling
+        super().__init__()
+        self.feature_costs = self._compute_feature_costs()
 
-        # Constants
-        self.n_cube_features = 10  # Number of cube features in each block
-        self.n_blocks = 2
-        # self.n_dummy_features = (
-        #     self.feature_shape[0] - self.n_cube_features
-        # )  # Remaining features are dummy features
-
-        self.rng = torch.Generator()
-        self.rng.manual_seed(self.seed)
+    @override
+    def _build(self) -> tuple[Features, Label]:
+        rng = torch.Generator()
+        rng.manual_seed(self.seed)
 
         # Draw labels
         y_int = torch.randint(
@@ -272,36 +211,28 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             self.label_shape[0],
             (self.n_samples,),
             dtype=torch.int64,
-            generator=self.rng,
+            generator=rng,
         )
-        # Binary codes for labels
-        binary_codes = torch.stack(
-            [
-                torch.tensor([int(b) for b in format(i, "03b")])
-                for i in range(self.label_shape[0])
-            ],
-            dim=0,
-        ).flip(-1)
 
         # Initialize feature blocks
         x_block1 = torch.normal(
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_cube_features),
-            generator=self.rng,
+            generator=rng,
         )
 
         x_block2 = torch.normal(
             mean=self.non_informative_feature_mean,
             std=self.non_informative_feature_std,
             size=(self.n_samples, self.n_cube_features),
-            generator=self.rng,
+            generator=rng,
         )
 
         # Insert informative signals, in both blocks
         for i in range(self.n_samples):
             lbl = int(y_int[i].item())
-            mu_bin = binary_codes[lbl]
+            mu_bin = CUBE_BINARY_CODES[lbl]
 
             # Cube features: 3 bumps
             idxs = [(lbl + j) for j in range(3)]
@@ -310,7 +241,7 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     mean=0.0,
                     std=self.informative_feature_std,
                     size=(3,),
-                    generator=self.rng,
+                    generator=rng,
                 )
                 + mu_bin
             )
@@ -319,88 +250,13 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                     mean=0.0,
                     std=self.informative_feature_std,
                     size=(3,),
-                    generator=self.rng,
+                    generator=rng,
                 )
                 + mu_bin
             )
 
-        # Concatenate all features
-        self.features = torch.cat([x_block1, x_block2], dim=1)
-        assert self.features.shape[1] == self.feature_shape[0]
-
-        # Labels
-        self.labels = y_int
-        self.labels = torch.nn.functional.one_hot(
-            self.labels, num_classes=self.label_shape[0]
-        ).float()
-        assert self.labels.shape[1] == self.label_shape[0]
-        self.generation_indices = torch.arange(len(self.features))
-        self.feature_costs = self._compute_feature_costs()
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self):
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "config": {
-                    "n_samples": self.n_samples,
-                    "seed": self.seed,
-                    "non_informative_feature_mean": self.non_informative_feature_mean,
-                    "non_informative_feature_std": self.non_informative_feature_std,
-                    "informative_feature_std": self.informative_feature_std,
-                    "cost_scaling": self.cost_scaling,
-                },
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.seed = data["config"]["seed"]
-        obj.n_samples = data["config"]["n_samples"]
-        obj.non_informative_feature_mean = data["config"][
-            "non_informative_feature_mean"
-        ]
-        obj.non_informative_feature_std = data["config"][
-            "non_informative_feature_std"
-        ]
-        obj.informative_feature_std = data["config"]["informative_feature_std"]
-        obj.cost_scaling = data["config"]["cost_scaling"]
-        obj.n_cube_features = 10
-        obj.n_blocks = 2
-        obj.rng = torch.Generator()
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
+        features = torch.cat([x_block1, x_block2], dim=1)
+        return features, _one_hot(y_int, self.label_shape[0])
 
     def _compute_feature_costs(self) -> torch.Tensor:
         block1_costs = torch.ones((self.n_cube_features,), dtype=torch.float32)
@@ -419,7 +275,7 @@ class CubeNonUniformCostsDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 
 @final
-class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class CubeNMDataset(InMemoryAFADataset):
     """
     Synthetic tabular benchmark implementing the paper's CUBE-NM setup.
 
@@ -440,12 +296,22 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     `CubeNMUnmasker`.
     """
 
+    config_keys: ClassVar[tuple[str, ...]] = (
+        "n_samples",
+        "seed",
+        "context_feature_std",
+        "informative_feature_std",
+        "non_informative_feature_mean",
+        "non_informative_feature_std",
+        "n_contexts",
+        "use_cheap_context_features",
+    )
+    block_size: ClassVar[int] = 10
+
     @classmethod
     @override
     def accepts_seed(cls) -> bool:
         return True
-
-    block_size = 10
 
     @property
     @override
@@ -460,10 +326,6 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def label_shape(self) -> torch.Size:
         return torch.Size([8])
-
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
 
     def __init__(
         self,
@@ -485,16 +347,16 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         self.non_informative_feature_mean = non_informative_feature_mean
         self.non_informative_feature_std = non_informative_feature_std
         self.use_cheap_context_features = use_cheap_context_features
+        super().__init__()
+        self.feature_costs = self._compute_feature_costs()
 
-        # self.n_features = self.n_contexts + self.n_contexts * self.block_size
-
-        self.rng = torch.Generator().manual_seed(seed)
-        self.features: Tensor
-        self.labels: Tensor
+    @override
+    def _build(self) -> tuple[Features, Label]:
+        rng = torch.Generator().manual_seed(self.seed)
         # Sample the logical context, then encode it as a noisy one-hot
         # vector to match the benchmark setup used in the paper.
         context = torch.randint(
-            0, self.n_contexts, (self.n_samples,), generator=self.rng
+            0, self.n_contexts, (self.n_samples,), generator=rng
         )
         context_onehot = torch.nn.functional.one_hot(
             context, num_classes=self.n_contexts
@@ -502,7 +364,7 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             mean=0,
             std=self.context_feature_std,
             size=(self.n_samples, self.n_contexts),
-            generator=self.rng,
+            generator=rng,
         )  # (n_samples, n_contexts)
 
         # Sample labels 0-7
@@ -510,17 +372,8 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             0,
             self.label_shape[0],
             (self.n_samples,),
-            generator=self.rng,
+            generator=rng,
         )
-
-        # Binary codes for labels (8x3)
-        binary_codes = torch.stack(
-            [
-                torch.tensor([int(b) for b in format(i, "03b")])
-                for i in range(self.label_shape[0])
-            ],
-            dim=0,
-        ).flip(-1)  # (8, 3)
 
         # Create one candidate CUBE block per context value.
         blocks = []
@@ -529,7 +382,7 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 mean=self.non_informative_feature_mean,
                 std=self.non_informative_feature_std,
                 size=(self.n_samples, self.block_size),
-                generator=self.rng,
+                generator=rng,
             )
             blocks.append(block)
         blocks = torch.stack(blocks, dim=1)  # (n_samples, n_contexts, 10)
@@ -538,7 +391,7 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         for i in range(self.n_samples):
             ctx = int(context[i].item())
             label = int(y_int[i].item())
-            bin_code = binary_codes[label].float()
+            bin_code = CUBE_BINARY_CODES[label].float()
 
             # Select 3 indices in the block to hold the binary code (arbitrary positions)
             insert_idx = [(label + j) % self.block_size for j in range(3)]
@@ -547,7 +400,7 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 mean=0.0,
                 std=self.informative_feature_std,
                 size=(3,),
-                generator=self.rng,
+                generator=rng,
             )
             blocks[i, ctx, insert_idx] = bin_code + noise
 
@@ -555,85 +408,10 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         block_features = blocks.view(self.n_samples, -1)
 
         # Final matrix: one-hot context features followed by all blocks.
-        self.features = torch.cat(
+        features = torch.cat(
             [context_onehot, block_features], dim=1
         )  # (n_samples, n_contexts + n_contexts * block_size)
-
-        # One-hot labels
-        self.labels = torch.nn.functional.one_hot(
-            y_int, num_classes=self.label_shape[0]
-        ).float()
-        self.generation_indices = torch.arange(len(self.features))
-        self.feature_costs = self._compute_feature_costs()
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self) -> int:
-        return self.features.size(0)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "config": {
-                    "n_samples": self.n_samples,
-                    "seed": self.seed,
-                    "context_feature_std": self.context_feature_std,
-                    "informative_feature_std": self.informative_feature_std,
-                    "non_informative_feature_mean": self.non_informative_feature_mean,
-                    "non_informative_feature_std": self.non_informative_feature_std,
-                    "n_contexts": self.n_contexts,
-                    "use_cheap_context_features": self.use_cheap_context_features,
-                },
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.n_samples = data["config"]["n_samples"]
-        obj.seed = data["config"]["seed"]
-        obj.n_contexts = data["config"]["n_contexts"]
-        obj.context_feature_std = data["config"]["context_feature_std"]
-        obj.informative_feature_std = data["config"]["informative_feature_std"]
-        obj.non_informative_feature_mean = data["config"][
-            "non_informative_feature_mean"
-        ]
-        obj.non_informative_feature_std = data["config"][
-            "non_informative_feature_std"
-        ]
-        obj.use_cheap_context_features = data["config"][
-            "use_cheap_context_features"
-        ]
-        obj.rng = torch.Generator()
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
+        return features, _one_hot(y_int, self.label_shape[0])
 
     def _compute_feature_costs(self) -> torch.Tensor:
         context_feature_cost_scaling = (
@@ -649,13 +427,10 @@ class CubeNMDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         return all_feature_costs
 
 
-@final
-class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    """MNIST dataset wrapped to follow the AFADataset protocol."""
+class TorchvisionImageDataset(InMemoryAFADataset, ABC):
+    """A torchvision image classification dataset, with every 28x28 image flattened to 784 features and 10 classes."""
 
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
+    config_keys: ClassVar[tuple[str, ...]] = ("train", "root")
 
     @property
     @override
@@ -671,6 +446,39 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     @override
     def accepts_seed(cls) -> bool:
         return False
+
+    def __init__(
+        self,
+        root: str,
+        *,
+        train: bool = True,
+        transform: Callable[[Tensor], Tensor] | None = None,
+        download: bool = True,
+    ):
+        self.train: bool = train
+        self.root: str = root
+        # Used only to build the data, so not part of the config
+        self.transform: Callable[[Tensor], Tensor] = (
+            transform if transform is not None else transforms.ToTensor()
+        )
+        self.download: bool = download
+        super().__init__()
+
+    @abstractmethod
+    def _images(self) -> VisionDataset:
+        """Return the torchvision dataset of `root`, `train`, `transform` and `download`."""
+
+    @override
+    def _build(self) -> tuple[Features, Label]:
+        images = self._images()
+        features = torch.stack([x[0].flatten() for x in images]).float()
+        labels = torch.tensor([x[1] for x in images])
+        return features, _one_hot(labels, self.label_shape[0])
+
+
+@final
+class MNISTDataset(TorchvisionImageDataset):
+    """MNIST dataset wrapped to follow the AFADataset protocol."""
 
     def __init__(
         self,
@@ -680,108 +488,23 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         download: bool = True,
         root: str = "data/mnist",
     ):
-        super().__init__()
-        self.train = train
-        self.transform = (
-            transform if transform is not None else transforms.ToTensor()
+        super().__init__(
+            root, train=train, transform=transform, download=download
         )
-        self.download = download
-        self.root = root
 
-        self.dataset = datasets.MNIST(
+    @override
+    def _images(self) -> VisionDataset:
+        return datasets.MNIST(
             root=self.root,
             train=self.train,
             transform=self.transform,
             download=self.download,
         )
-        # Convert images to features (flatten)
-        self.features = torch.stack(
-            [x[0].flatten() for x in self.dataset]
-        ).float()
-        assert self.features.shape[1] == self.feature_shape[0]
-        self.labels = torch.tensor([x[1] for x in self.dataset])
-        self.labels = torch.nn.functional.one_hot(
-            self.labels, num_classes=self.label_shape[0]
-        ).float()
-        assert self.labels.shape[1] == self.label_shape[0]
-        self.generation_indices = torch.arange(len(self.features))
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self):
-        return self.features.size(0)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "config": {
-                    "train": self.train,
-                    "root": self.root,
-                },
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.train = data["config"]["train"]
-        obj.root = data["config"]["root"]
-        obj.transform = transforms.ToTensor()
-        obj.download = False
-        obj.dataset = None
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
 
 
 @final
-class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class FashionMNISTDataset(TorchvisionImageDataset):
     """FashionMNIST dataset wrapped to follow the AFADataset protocol."""
-
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
-
-    @property
-    @override
-    def feature_shape(self) -> torch.Size:
-        return torch.Size([784])
-
-    @property
-    @override
-    def label_shape(self) -> torch.Size:
-        return torch.Size([10])
-
-    @classmethod
-    @override
-    def accepts_seed(cls) -> bool:
-        return False
 
     def __init__(
         self,
@@ -791,87 +514,104 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         download: bool = True,
         root: str = "data/fashion_mnist",
     ):
-        super().__init__()
-        self.train = train
-        self.transform = (
-            transform if transform is not None else transforms.ToTensor()
+        super().__init__(
+            root, train=train, transform=transform, download=download
         )
-        self.download = download
-        self.root = root
-        self.dataset = datasets.FashionMNIST(
+
+    @override
+    def _images(self) -> VisionDataset:
+        return datasets.FashionMNIST(
             root=self.root,
             train=self.train,
             transform=self.transform,
             download=self.download,
         )
-        # Convert images to flattened feature vectors
-        self.features = torch.stack(
-            [x[0].flatten() for x in self.dataset]
-        ).float()
-        assert self.features.shape[1] == self.feature_shape[0]
-        self.labels = torch.tensor([x[1] for x in self.dataset])
-        self.labels = torch.nn.functional.one_hot(
-            self.labels, num_classes=self.label_shape[0]
-        ).float()
-        assert self.labels.shape[1] == self.label_shape[0]
-        self.generation_indices = torch.arange(len(self.features))
 
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
 
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
+class TabularCSVDataset(InMemoryAFADataset, ABC):
+    """
+    A real-world tabular dataset read from one CSV file, in the file's row order (ADR 0004).
 
-    @override
-    def __len__(self):
-        return self.features.size(0)
+    By default the last column holds the class label and the other columns
+    the features; `_read_source` is where a subclass reads its file
+    differently, and `_fetch_source` where it downloads a missing file.
+    Categorical feature columns are label-encoded, missing values are filled
+    with the column mean, and every feature is z-normalized over the whole
+    file. The feature names are saved in dataset.pt beside the tensors.
+    """
 
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "config": {
-                    "train": self.train,
-                    "root": self.root,
-                },
-            },
-            path / "dataset.pt",
-        )
+    feature_names: list[str]
 
     @classmethod
     @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.train = data["config"]["train"]
-        obj.root = data["config"]["root"]
-        obj.transform = transforms.ToTensor()
-        obj.download = False
-        obj.dataset = None
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
+    def accepts_seed(cls) -> bool:
+        return False
+
+    def __init__(self, source: Path):
+        # Used only to build the data; the subclass's constructor argument
+        # it comes from is the config
+        self.source: Path = source
+        super().__init__()
+
+    def _fetch_source(self) -> None:
+        """Write the source file where `source` points, when it is missing."""
+        msg = f"{type(self).__name__} source not found at {self.source}"
+        raise FileNotFoundError(msg)
+
+    def _read_source(self) -> tuple[pd.DataFrame, pd.Series]:
+        """Return the feature columns and the integer class label of each row of `source`."""
+        frame = pd.read_csv(self.source)
+        return frame.iloc[:, :-1].copy(), frame.iloc[:, -1]
+
+    @override
+    def _build(self) -> tuple[Features, Label]:
+        if not self.source.exists():
+            self._fetch_source()
+        features_df, labels = self._read_source()
+
+        for col in features_df.columns:
+            if features_df[col].dtype == "object":
+                mask = features_df[col].notna()
+                if bool(mask.any()):
+                    features_df.loc[mask, col] = LabelEncoder().fit_transform(
+                        features_df.loc[mask, col].astype(str)
+                    )
+        for col in features_df.columns:
+            features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
+        features_df = features_df.fillna(features_df.mean())
+        features_df = _z_normalize(features_df)
+
+        features = torch.tensor(features_df.values, dtype=torch.float32)
+        if torch.isnan(features).any():
+            msg = (
+                f"{type(self).__name__} has NaN features after filling "
+                f"missing values from {self.source}; a column has no values"
+            )
+            raise ValueError(msg)
+        self.feature_names = features_df.columns.tolist()
+        return features, _one_hot(
+            torch.tensor(labels.values, dtype=torch.long), self.label_shape[0]
         )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
+
+    @override
+    def _saved_data(self) -> dict[str, object]:
+        return super()._saved_data() | {"feature_names": self.feature_names}
+
+    @override
+    def _restore(self, data: Mapping[str, object], file: Path) -> None:
+        super()._restore(data, file)
+        feature_names = data.get("feature_names")
+        if not isinstance(feature_names, list):
+            msg = (
+                f"Dataset saved at {file} has no feature names, "
+                f"got {feature_names!r}"
+            )
+            raise TypeError(msg)
+        self.feature_names = feature_names
 
 
 @final
-class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class DiabetesDataset(TabularCSVDataset):
     """
     Diabetes dataset wrapped to follow the AFADataset protocol.
 
@@ -879,9 +619,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     The target variable has 3 classes (0, 1, 2) representing different diabetes outcomes.
     """
 
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
+    config_keys: ClassVar[tuple[str, ...]] = ("root",)
 
     @property
     @override
@@ -893,105 +631,13 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def label_shape(self) -> torch.Size:
         return torch.Size([3])
 
-    @classmethod
-    @override
-    def accepts_seed(cls) -> bool:
-        return False
-
-    def __init__(
-        self,
-        root: str = "data/diabetes/diabetes.csv",
-    ):
-        super().__init__()
+    def __init__(self, root: str = "data/diabetes/diabetes.csv"):
         self.root = root
-        # Check if file exists
-        if not Path(self.root).exists():
-            msg = f"Diabetes dataset not found at {self.root}"
-            raise FileNotFoundError(msg)
-
-        # Load the dataset
-        df_dataset = pd.read_csv(self.root)
-
-        # Extract features and labels
-        # The last column is the target variable (Outcome)
-        features_df = df_dataset.iloc[:, :-1]
-        labels_df = df_dataset.iloc[:, -1]
-
-        # Fill missing values then normalize
-        features_df = features_df.fillna(features_df.mean())
-        features_df = _z_normalize(features_df)
-
-        # Convert to tensors
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
-        assert self.features.shape[1] == self.feature_shape[0]
-        self.labels = torch.tensor(labels_df.values, dtype=torch.long)
-        self.labels = torch.nn.functional.one_hot(
-            self.labels, num_classes=self.label_shape[0]
-        ).float()
-        assert self.labels.shape[1] == self.label_shape[0]
-
-        # Store feature names
-        self.feature_names = features_df.columns.tolist()
-        self.generation_indices = torch.arange(len(self.features))
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        """Return a single sample from the dataset."""
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self) -> int:
-        """Return the number of samples in the dataset."""
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        """Return all features and labels."""
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        """Save the dataset to a file."""
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "feature_names": self.feature_names,
-                "config": {
-                    "root": self.root,
-                },
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        """Load a dataset from a file."""
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.root = data["config"]["root"]
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        obj.feature_names = data["feature_names"]
-        return obj
+        super().__init__(Path(root))
 
 
 @final
-class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class MiniBooNEDataset(TabularCSVDataset):
     """
     MiniBooNE dataset wrapped to follow the AFADataset protocol.
 
@@ -999,9 +645,7 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     The target variable has 2 classes (signal and background).
     """
 
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
+    config_keys: ClassVar[tuple[str, ...]] = ("root",)
 
     @property
     @override
@@ -1013,96 +657,13 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def label_shape(self) -> torch.Size:
         return torch.Size([2])
 
-    @classmethod
-    @override
-    def accepts_seed(cls) -> bool:
-        return False
-
-    def __init__(
-        self,
-        root: str = "data/miniboone/miniboone.csv",
-    ):
-        super().__init__()
+    def __init__(self, root: str = "data/miniboone/miniboone.csv"):
         self.root = root
-        if not Path(self.root).exists():
-            msg = f"MiniBooNE dataset not found at {self.root}"
-            raise FileNotFoundError(msg)
-
-        df_dataset = pd.read_csv(self.root)
-
-        # Assuming the last column is the binary target variable
-        features_df = df_dataset.iloc[:, :-1]
-        labels_df = df_dataset.iloc[:, -1]
-
-        # Fill missing then normalize
-        features_df = features_df.fillna(features_df.mean())
-        features_df = _z_normalize(features_df)
-
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
-        assert self.features.shape[1] == self.feature_shape[0]
-
-        self.labels = torch.tensor(labels_df.values, dtype=torch.long)
-        self.labels = torch.nn.functional.one_hot(
-            self.labels, num_classes=self.label_shape[0]
-        ).float()
-        assert self.labels.shape[1] == self.label_shape[0]
-
-        self.feature_names = features_df.columns.tolist()
-        self.generation_indices = torch.arange(len(self.features))
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self) -> int:
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "feature_names": self.feature_names,
-                "config": {
-                    "root": self.root,
-                },
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.root = data["config"]["root"]
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        obj.feature_names = data["feature_names"]
-        return obj
+        super().__init__(Path(root))
 
 
 @final
-class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class PhysionetDataset(TabularCSVDataset):
     """
     Physionet dataset wrapped to follow the AFADataset protocol.
 
@@ -1110,9 +671,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     The target variable has 2 classes (0, 1) representing different outcomes.
     """
 
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
+    config_keys: ClassVar[tuple[str, ...]] = ("root",)
 
     @property
     @override
@@ -1124,274 +683,80 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def label_shape(self) -> torch.Size:
         return torch.Size([2])
 
-    @classmethod
-    @override
-    def accepts_seed(cls) -> bool:
-        return False
-
-    def __init__(
-        self,
-        root: str = "data/physionet/physionet.csv",
-    ):
-        super().__init__()
+    def __init__(self, root: str = "data/physionet/physionet.csv"):
         self.root = root
-        if not Path(self.root).exists():
-            msg = f"Physionet dataset not found at {self.root}"
-            raise FileNotFoundError(msg)
-
-        df_dataset = pd.read_csv(self.root)
-
-        features_df = df_dataset.iloc[:, :-1]
-        labels_df = df_dataset.iloc[:, -1]
-
-        # Handle missing values by filling with column means and normalize
-        features_df = features_df.fillna(features_df.mean())
-        features_df = _z_normalize(features_df)
-
-        # Convert to tensors
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
-
-        # Check for NaNs after tensor conversion
-        if torch.isnan(self.features).any():
-            msg = "NaNs detected in features after filling missing values."
-            raise ValueError(msg)
-
-        # === Standardize features ===
-        # scaler = StandardScaler()
-        # scaled_features = scaler.fit_transform(features_df.values)
-
-        assert self.features.shape[1] == self.feature_shape[0]
-
-        self.labels = torch.tensor(labels_df.values, dtype=torch.long)
-        self.labels = torch.nn.functional.one_hot(
-            self.labels, num_classes=self.label_shape[0]
-        ).float()
-        assert self.labels.shape[1] == self.label_shape[0]
-
-        self.feature_names = features_df.columns.tolist()
-        self.generation_indices = torch.arange(len(self.features))
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self) -> int:
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "feature_names": self.feature_names,
-                "config": {
-                    "root": self.root,
-                },
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.root = data["config"]["root"]
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        obj.feature_names = data["feature_names"]
-        return obj
+        super().__init__(Path(root))
 
 
-@final
-class BankMarketingDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
+class UCIDataset(TabularCSVDataset, ABC):
+    """A tabular dataset fetched from the UCI repository into `path` when the file is missing; its feature shape is the file's."""
+
+    config_keys: ClassVar[tuple[str, ...]] = ("path",)
 
     @property
     @override
     def feature_shape(self) -> torch.Size:
-        return torch.Size([getattr(self, "n_features", 16)])
+        return torch.Size(self.features.shape[1:])
 
     @property
     @override
     def label_shape(self) -> torch.Size:
         return torch.Size([2])
 
-    @classmethod
-    @override
-    def accepts_seed(cls) -> bool:
-        return False
-
     def __init__(self, path: str):
-        super().__init__()
-        self.path = path
+        self.path: str = path
+        super().__init__(Path(path))
 
-        if not Path(self.path).exists():
-            self._fetch_and_save()
+    @override
+    def _fetch_source(self) -> None:
+        self.source.parent.mkdir(parents=True, exist_ok=True)
+        self._fetch_uci().to_csv(self.source, index=False)
 
-        df_data = pd.read_csv(self.path, sep=";")
+    @abstractmethod
+    def _fetch_uci(self) -> pd.DataFrame:
+        """Return the UCI repository's data as the frame `_read_source` reads, with the label last."""
+
+
+@final
+class BankMarketingDataset(UCIDataset):
+    @override
+    def _read_source(self) -> tuple[pd.DataFrame, pd.Series]:
+        df_data = pd.read_csv(self.source, sep=";")
         target_col = "y" if "y" in df_data.columns else "deposit"
         features_df = df_data.drop(columns=[target_col])
         pd.set_option("future.no_silent_downcasting", True)
-        target_series = (
-            df_data[target_col].replace({"yes": 1, "no": 0}).astype("int64")
+        labels = cast(
+            "pd.Series",
+            df_data[target_col].replace({"yes": 1, "no": 0}).astype("int64"),
         )
-
+        # Missing categorical values are a category of their own
         for col in features_df.columns:
             if features_df[col].dtype == "object":
-                le = LabelEncoder()
-                features_df[col] = le.fit_transform(
+                features_df[col] = LabelEncoder().fit_transform(
                     features_df[col].astype(str)
                 )
-        features_df = features_df.fillna(features_df.mean())
-        features_df = _z_normalize(features_df)
+        return features_df, labels
 
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
-        self.labels = torch.nn.functional.one_hot(
-            torch.tensor(target_series.values, dtype=torch.long),
-            num_classes=self.label_shape[0],
-        ).float()
-        self.n_features = self.features.shape[1]
-        self.feature_names = features_df.columns.tolist()
-        self.generation_indices = torch.arange(len(self.features))
+    @override
+    def _fetch_source(self) -> None:
+        self.source.parent.mkdir(parents=True, exist_ok=True)
+        self._fetch_uci().to_csv(self.source, sep=";", index=False)
 
-    def _fetch_and_save(self) -> None:
-        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+    @override
+    def _fetch_uci(self) -> pd.DataFrame:
         bank_data = fetch_ucirepo(id=222)
         assert bank_data is not None
         assert bank_data.data is not None
-        df_data = pd.concat(
+        return pd.concat(
             [bank_data.data.features, bank_data.data.targets],
             axis=1,
         )
-        df_data.to_csv(self.path, sep=";", index=False)
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int):
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self):
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "feature_names": self.feature_names,
-                "config": {"path": self.path},
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        obj = cls.__new__(cls)
-        obj.path = data["config"]["path"]
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_names = data["feature_names"]
-        obj.n_features = obj.features.shape[1]
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
 
 
 @final
-class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class CKDDataset(UCIDataset):
     @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
-
-    @property
-    @override
-    def feature_shape(self) -> torch.Size:
-        return torch.Size([getattr(self, "n_features", 24)])
-
-    @property
-    @override
-    def label_shape(self) -> torch.Size:
-        return torch.Size([2])
-
-    @classmethod
-    @override
-    def accepts_seed(cls) -> bool:
-        return False
-
-    def __init__(self, path: str):
-        super().__init__()
-        self.path = path
-
-        if not Path(self.path).exists():
-            self._fetch_and_save()
-
-        df_data = pd.read_csv(self.path)
-        features_df = df_data.iloc[:, :-1].copy()
-        target_series = df_data.iloc[:, -1]
-
-        for col in features_df.columns:
-            if features_df[col].dtype == "object":
-                le = LabelEncoder()
-                mask = features_df[col].notna()
-                if mask.any():
-                    features_df.loc[mask, col] = le.fit_transform(
-                        features_df.loc[mask, col].astype(str)
-                    )
-        for col in features_df.columns:
-            features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
-        features_df = features_df.fillna(features_df.mean())
-        features_df = _z_normalize(features_df)
-
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
-        self.labels = torch.nn.functional.one_hot(
-            torch.tensor(target_series.values, dtype=torch.long),
-            num_classes=self.label_shape[0],
-        ).float()
-        self.n_features = self.features.shape[1]
-        self.feature_names = features_df.columns.tolist()
-        self.generation_indices = torch.arange(len(self.features))
-
-    def _fetch_and_save(self) -> None:
-        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+    def _fetch_uci(self) -> pd.DataFrame:
         ckd_data = fetch_ucirepo(id=336)
         assert ckd_data is not None
         assert ckd_data.data is not None
@@ -1403,113 +768,13 @@ class CKDDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         target_series = target_series.map({"ckd": 1, "notckd": 0})
         df_data = features_df.copy()
         df_data["target"] = target_series.to_numpy()
-        df_data.to_csv(self.path, index=False)
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int):
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self):
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "feature_names": self.feature_names,
-                "config": {"path": self.path},
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        obj = cls.__new__(cls)
-        obj.path = data["config"]["path"]
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_names = data["feature_names"]
-        obj.n_features = obj.features.shape[1]
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
+        return df_data
 
 
 @final
-class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class ACTG175Dataset(UCIDataset):
     @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
-
-    @property
-    @override
-    def feature_shape(self) -> torch.Size:
-        return torch.Size([getattr(self, "n_features", 23)])
-
-    @property
-    @override
-    def label_shape(self) -> torch.Size:
-        return torch.Size([2])
-
-    @classmethod
-    @override
-    def accepts_seed(cls) -> bool:
-        return False
-
-    def __init__(self, path: str):
-        super().__init__()
-        self.path = path
-
-        if not Path(self.path).exists():
-            self._fetch_and_save()
-
-        df_data = pd.read_csv(self.path)
-        features_df = df_data.iloc[:, :-1].copy()
-        target_series = df_data.iloc[:, -1]
-
-        for col in features_df.columns:
-            if features_df[col].dtype == "object":
-                le = LabelEncoder()
-                mask = features_df[col].notna()
-                if mask.any():
-                    features_df.loc[mask, col] = le.fit_transform(
-                        features_df.loc[mask, col].astype(str)
-                    )
-        for col in features_df.columns:
-            features_df[col] = pd.to_numeric(features_df[col], errors="coerce")
-        features_df = features_df.fillna(features_df.mean())
-        features_df = _z_normalize(features_df)
-
-        self.features = torch.tensor(features_df.values, dtype=torch.float32)
-        self.labels = torch.nn.functional.one_hot(
-            torch.tensor(target_series.values, dtype=torch.long),
-            num_classes=self.label_shape[0],
-        ).float()
-        self.n_features = self.features.shape[1]
-        self.feature_names = features_df.columns.tolist()
-        self.generation_indices = torch.arange(len(self.features))
-
-    def _fetch_and_save(self) -> None:
-        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+    def _fetch_uci(self) -> pd.DataFrame:
         actg_data = fetch_ucirepo(id=890)
         assert actg_data is not None
         assert actg_data.data is not None
@@ -1518,55 +783,7 @@ class ACTG175Dataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         target_series = target_df.iloc[:, 0].astype(int)
         df_data = features_df.copy()
         df_data["target"] = target_series.to_numpy()
-        df_data.to_csv(self.path, index=False)
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int):
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self):
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "feature_names": self.feature_names,
-                "config": {"path": self.path},
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        obj = cls.__new__(cls)
-        obj.path = data["config"]["path"]
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_names = data["feature_names"]
-        obj.n_features = obj.features.shape[1]
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
+        return df_data
 
 
 @final
@@ -1838,7 +1055,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
 
 @final
-class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
+class SyntheticMNISTDataset(InMemoryAFADataset):
     """
     Synthetic MNIST-like dataset with the same shape as MNIST (28x28 = 784 features, 10 classes).
 
@@ -1848,6 +1065,13 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     Implements the AFADataset protocol.
     """
+
+    config_keys: ClassVar[tuple[str, ...]] = (
+        "n_samples",
+        "seed",
+        "noise_std",
+        "pattern_intensity",
+    )
 
     @classmethod
     @override
@@ -1866,11 +1090,7 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
     def label_shape(self) -> torch.Size:
         return torch.Size([10])  # 10 classes, same as MNIST
 
-    @override
-    def create_subset(self, indices: Sequence[int]) -> Self:
-        return default_create_subset(self, indices)
-
-    def __init__(  # noqa: C901, PLR0915, PLR0912
+    def __init__(
         self,
         seed: int = 123,
         # Memory-friendly default (60k samples ≈ 200MB RAM)
@@ -1878,14 +1098,16 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         noise_std: float = 0.1,
         pattern_intensity: float = 0.8,
     ):
-        super().__init__()
         self.seed = seed
         self.n_samples = n_samples
         self.noise_std = noise_std
         self.pattern_intensity = pattern_intensity
+        super().__init__()
 
-        self.rng = torch.Generator()
-        self.rng.manual_seed(self.seed)
+    @override
+    def _build(self) -> tuple[Features, Label]:  # noqa: C901, PLR0915, PLR0912
+        rng = torch.Generator()
+        rng.manual_seed(self.seed)
 
         # Generate labels uniformly
         y_int = torch.randint(
@@ -1893,15 +1115,15 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             self.label_shape[0],
             (self.n_samples,),
             dtype=torch.int64,
-            generator=self.rng,
+            generator=rng,
         )
 
         # Initialize features with noise in image format (C, H, W)
-        self.features = torch.normal(
+        features = torch.normal(
             mean=0.0,
             std=self.noise_std,
             size=(self.n_samples, 1, 28, 28),
-            generator=self.rng,
+            generator=rng,
         )
 
         # Pre-compute coordinate grids for optimized pattern generation
@@ -1916,14 +1138,14 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
             label = int(y_int[i].item())
 
             # Create simple geometric patterns for each class
-            img = self.features[i, 0]  # Get the single channel (28, 28)
+            img = features[i, 0]  # Get the single channel (28, 28)
 
             # Ensure left half (0:14) remains pure noise - regenerate it
             img[:, 0:14] = torch.normal(
                 mean=0.0,
                 std=self.noise_std,
                 size=(28, 14),
-                generator=self.rng,
+                generator=rng,
             )
 
             if label == 0:  # Circle-like pattern (right half only)
@@ -2015,69 +1237,8 @@ class SyntheticMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
                 img[18:20, 24:26] += self.pattern_intensity
 
             # Update the channel
-            self.features[i, 0] = img
+            features[i, 0] = img
 
         # Normalize features to [0, 1] range like MNIST
-        self.features = torch.clamp(self.features, 0, 1)
-
-        # Convert labels to one-hot
-        self.labels = torch.nn.functional.one_hot(
-            y_int, num_classes=self.label_shape[0]
-        ).float()
-        assert self.labels.shape[1] == self.label_shape[0]
-        self.generation_indices = torch.arange(len(self.features))
-
-    @override
-    def get_generation_indices(self) -> Tensor:
-        return self.generation_indices
-
-    @override
-    def __getitem__(self, idx: int) -> tuple[Tensor, Tensor]:
-        return self.features[idx], self.labels[idx]
-
-    @override
-    def __len__(self):
-        return len(self.features)
-
-    @override
-    def get_all_data(self) -> tuple[Tensor, Tensor]:
-        return self.features, self.labels
-
-    @override
-    def save(self, path: Path) -> None:
-        torch.save(
-            {
-                "features": self.features,
-                "labels": self.labels,
-                "generation_indices": self.generation_indices,
-                "feature_costs": self.get_feature_acquisition_costs(),
-                "config": {
-                    "n_samples": self.n_samples,
-                    "seed": self.seed,
-                    "noise_std": self.noise_std,
-                    "pattern_intensity": self.pattern_intensity,
-                },
-            },
-            path / "dataset.pt",
-        )
-
-    @classmethod
-    @override
-    def load(cls, path: Path) -> Self:
-        data = torch.load(path / "dataset.pt")
-        # Create instance without calling __init__
-        obj = cls.__new__(cls)
-        obj.seed = data["config"]["seed"]
-        obj.n_samples = data["config"]["n_samples"]
-        obj.noise_std = data["config"]["noise_std"]
-        obj.pattern_intensity = data["config"]["pattern_intensity"]
-        obj.rng = torch.Generator()
-        obj.features = data["features"]
-        obj.labels = data["labels"]
-        obj.generation_indices = load_generation_indices(
-            data, path / "dataset.pt", len(obj.features)
-        )
-        obj.feature_costs = load_saved_feature_costs(
-            data, path / "dataset.pt", obj.feature_shape
-        )
-        return obj
+        features = torch.clamp(features, 0, 1)
+        return features, _one_hot(y_int, self.label_shape[0])
