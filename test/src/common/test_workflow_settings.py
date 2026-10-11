@@ -12,10 +12,11 @@ import pytest
 import yaml
 
 from afabench.core.output_layout import OutputLayout
-from afabench.core.workflow_settings import load_config
+from afabench.core.workflow_settings import ScriptInvocation, load_config
 from afabench.release.workflow_config import resolve_workflow_config
 
 REPO_ROOT = Path(__file__).parents[3]
+LAYOUT = OutputLayout(root="output", initializer="cold", eval_split="test")
 
 
 @pytest.mark.parametrize("profile", ["all", "kdd26"])
@@ -403,14 +404,127 @@ def test_classifier_bundle_is_the_built_in_one_if_the_method_has_one(
     method: str, bundle: str
 ) -> None:
     settings = load_config(_compared_methods_config())
-    layout = OutputLayout(root="output", initializer="cold", eval_split="test")
 
     assert (
         settings.classifier_bundle(
-            layout, method=method, dataset="cube", dataset_realization_index=2
+            LAYOUT, method=method, dataset="cube", dataset_realization_index=2
         )
         == bundle
     )
+
+
+def test_training_script_passes_the_method_specific_params() -> None:
+    config = _compared_methods_config()
+    config["method_options"]["beta"]["method_specific_params"] = [  # type: ignore[index]
+        "lr=0.1",
+        "epochs=2",
+    ]
+
+    assert load_config(config).training_script("beta") == ScriptInvocation(
+        script_name="beta", script_params="lr=0.1 epochs=2"
+    )
+
+
+def test_pretraining_script_passes_the_pretrain_params() -> None:
+    config = _compared_methods_config()
+    config["pretrain_mapping"] = {
+        "shared": {
+            "pretrain_script_name": "shared_vae",
+            "pretrain_params": ["latent=4"],
+        }
+    }
+
+    assert load_config(config).pretraining_script(
+        "shared"
+    ) == ScriptInvocation(script_name="shared_vae", script_params="latent=4")
+
+
+@pytest.mark.parametrize(
+    ("method", "pretrain_folder", "bundles"),
+    [
+        (
+            "beta",
+            "pretrain_seed-2",
+            [
+                "output/pretrained_models/initializer-cold/shared/"
+                "dataset-cube+realization_index-2/pretrain_seed-2/model.bundle"
+            ],
+        ),
+        ("alpha", "NO_PRETRAIN", []),
+    ],
+)
+def test_pretrained_model_bundle_is_the_methods_pretrained_model_if_any(
+    method: str, pretrain_folder: str, bundles: list[str]
+) -> None:
+    settings = load_config(_compared_methods_config())
+
+    assert (
+        settings.pretrained_model_bundle(
+            LAYOUT,
+            method=method,
+            dataset="cube",
+            dataset_realization_index=2,
+            pretrain_folder=pretrain_folder,
+        )
+        == bundles
+    )
+
+
+@pytest.mark.parametrize(
+    ("method", "pretrain_folder", "message"),
+    [
+        (
+            "beta",
+            "NO_PRETRAIN",
+            r"'beta' has a pretraining stage.*pretrain_seed-<seed>/.*"
+            r"NO_PRETRAIN/",
+        ),
+        (
+            "alpha",
+            "pretrain_seed-2",
+            r"'alpha' has no pretraining stage.*NO_PRETRAIN/.*"
+            r"pretrain_seed-2/",
+        ),
+    ],
+)
+def test_pretrained_model_bundle_rejects_the_other_pretrain_folder(
+    method: str, pretrain_folder: str, message: str
+) -> None:
+    settings = load_config(_compared_methods_config())
+
+    with pytest.raises(ValueError, match=message):
+        settings.pretrained_model_bundle(
+            LAYOUT,
+            method=method,
+            dataset="cube",
+            dataset_realization_index=2,
+            pretrain_folder=pretrain_folder,
+        )
+
+
+def test_unmasker_falls_back_to_the_default() -> None:
+    config = _config(datasets=["cube", "mnist"])
+    config["unmaskers"] = {"default": "direct", "mnist": "image_patch"}
+    settings = load_config(config)
+
+    assert settings.unmasker("cube") == "direct"
+    assert settings.unmasker("mnist") == "image_patch"
+
+
+def test_eval_batch_size_falls_back_to_the_default() -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": {"default": 8, "mnist": 2},
+            }
+        },
+        datasets=["cube", "mnist"],
+    )
+    settings = load_config(config)
+
+    assert settings.eval_batch_size("alpha", "cube") == 8
+    assert settings.eval_batch_size("alpha", "mnist") == 2
 
 
 def test_summary_lists_what_the_run_covers() -> None:

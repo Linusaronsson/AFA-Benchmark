@@ -25,6 +25,7 @@ from afabench.core.output_layout import (
     TrainingRun,
     default_output_root,
     pretrain_seed_folder,
+    pretrain_seed_in_folder,
 )
 
 type BudgetParam = int | float | str
@@ -47,6 +48,15 @@ class ClassifierScript:
 
     script_name: str
     script_params: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class ScriptInvocation:
+    """A pretraining or training script and the arguments it gets appended."""
+
+    script_name: str
+    # Space-joined, as the rule appends them to the command.
+    script_params: str
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -172,6 +182,69 @@ class WorkflowSettings:
                 else None
             ),
         )
+
+    def training_script(self, method: str) -> ScriptInvocation:
+        return ScriptInvocation(
+            script_name=self.method_train_script_names[method],
+            script_params=self.method_specific_params[method],
+        )
+
+    def pretraining_script(
+        self, pretrained_model_name: str
+    ) -> ScriptInvocation:
+        return ScriptInvocation(
+            script_name=self.pretrain_script_names[pretrained_model_name],
+            script_params=self.pretrain_params[pretrained_model_name],
+        )
+
+    def pretrained_model_bundle(
+        self,
+        layout: OutputLayout,
+        *,
+        method: str,
+        dataset: str,
+        dataset_realization_index: PathValue,
+        pretrain_folder: str,
+    ) -> list[str]:
+        """
+        Address the pretrained model a training run needs: one bundle or none.
+
+        `pretrain_folder` must be the kind `evaluation_run` names for the
+        method, a pretraining seed's folder exactly if it has a pretraining
+        stage.
+        """
+        pretrained_model_name = self.method_to_pretrained_model.get(method)
+        pretrain_seed = pretrain_seed_in_folder(pretrain_folder)
+        if pretrain_seed is None:
+            if pretrained_model_name is not None:
+                message = (
+                    f"Method {method!r} has a pretraining stage, so its "
+                    f"bundles live under {pretrain_seed_folder('<seed>')}/, "
+                    f"not {pretrain_folder}/."
+                )
+                raise ValueError(message)
+            return []
+        if pretrained_model_name is None:
+            message = (
+                f"Method {method!r} has no pretraining stage, so its "
+                f"bundles live under {pretrain_seed_folder(None)}/, not "
+                f"{pretrain_folder}/."
+            )
+            raise ValueError(message)
+        return [
+            layout.pretrained_model_bundle(
+                pretrained_model_name=pretrained_model_name,
+                dataset=dataset,
+                dataset_realization_index=dataset_realization_index,
+                pretrain_seed=pretrain_seed,
+            )
+        ]
+
+    def unmasker(self, dataset: str) -> str:
+        return self.unmaskers[dataset]
+
+    def eval_batch_size(self, method: str, dataset: str) -> int:
+        return self.eval_batch_sizes[method][dataset]
 
     def summary(self) -> str:
         """
