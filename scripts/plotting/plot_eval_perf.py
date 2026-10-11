@@ -25,9 +25,17 @@ from plotnine import (
     theme,
     theme_bw,
 )
-from sklearn.metrics import accuracy_score, f1_score
 
-from afabench.evaluation.tables import load_plotting_ready_table
+from afabench.evaluation.tables import (
+    apply_exclusions,
+    combine_soft_budget_params,
+    keep_largest_hard_budget,
+    load_plotting_ready_table,
+    metrics_at_every_step,
+    metrics_at_stop,
+    variance_over_seeds_at_every_step,
+    variance_over_seeds_at_stop,
+)
 from afabench.plotting.config import PlotEvalPerfConfig, PlottingDisplayConfig
 
 if TYPE_CHECKING:
@@ -36,21 +44,6 @@ if TYPE_CHECKING:
 SUBPLOT_HEIGHT = 2.0
 PLOT_FONT_SIZE = 12
 SUBPLOT_TITLE_FONT_SIZE = 10
-
-# EXCLUSION_MAPPING = {
-#     # Exclude method from dataset by default, except when methods set matches
-#     # Structure: (method, dataset) -> frozenset of allowed method combinations
-#     # If the set of methods in the dataset matches one of the frozensets,
-#     # the method is NOT excluded. Otherwise, it IS excluded.
-#     ("odin_model_based", "diabetes"): frozenset(
-#         [frozenset(["odin_model_based", "odin_model_free"])]
-#     ),
-#     ("odin_model_based", "miniboone"): frozenset(
-#         [frozenset(["odin_model_based", "odin_model_free"])]
-#     ),
-# }
-
-EXCLUSION_MAPPING = {}
 
 NON_MYOPIC_METHODS = frozenset(
     {
@@ -85,238 +78,6 @@ def get_dataset_name_mapping_including_metric(
         dataset: f"{name} ({'F1' if dataset in datasets_with_f_score else 'Accuracy'})"
         for dataset, name in plotting_config.dataset_name_mapping.items()
     }
-
-
-def create_dummy_data() -> pd.DataFrame:  # noqa: C901
-    """Create minimal dummy data for testing both hard and soft budget plots."""
-    rows = []
-
-    methods = ["jafa", "odin_model_based"]
-    datasets = ["cube_without_noise", "synthetic_mnist_without_noise"]
-    train_seeds = [0, 1, 2]
-    eval_seeds = [0, 1, 2]
-    soft_params = [0.001, 0.01, 0.1]
-    hard_budgets = [1.0, 2.0, 3.0]
-
-    # Hard budget data
-    for method in methods:
-        for dataset in datasets:
-            for train_seed in train_seeds:
-                for eval_seed in eval_seeds:
-                    for budget in hard_budgets:
-                        rows.append(  # noqa: PERF401
-                            {
-                                "action_performed": 0,
-                                "true_class": np.random.randint(0, 3),  # noqa: NPY002
-                                "accumulated_cost": float(
-                                    budget + np.random.normal(0, 0.1)  # noqa: NPY002
-                                ),
-                                "idx": 0,
-                                "forced_stop": False,
-                                "eval_seed": eval_seed,
-                                "eval_hard_budget": float(budget),
-                                "soft_budget_param": None,
-                                "selections_performed": 0,
-                                "afa_method": method,
-                                "dataset": dataset,
-                                "train_seed": train_seed,
-                                "train_hard_budget": None,
-                                "predicted_class": np.random.randint(0, 3),  # noqa: NPY002
-                            }
-                        )
-
-    # Soft budget data - cost varies significantly with param
-    for method in methods:
-        for dataset in datasets:
-            for train_seed in train_seeds:
-                for eval_seed in eval_seeds:
-                    for param in soft_params:
-                        # Different params should have clearly different costs
-                        base_cost = 2.0 + param * 20.0
-                        cost = base_cost + np.random.normal(0, 0.5)  # noqa: NPY002
-                        rows.append(
-                            {
-                                "action_performed": 0,
-                                "true_class": np.random.randint(0, 3),  # noqa: NPY002
-                                "accumulated_cost": float(cost),
-                                "idx": 0,
-                                "forced_stop": False,
-                                "eval_seed": eval_seed,
-                                "eval_hard_budget": None,
-                                "soft_budget_param": float(param),
-                                "selections_performed": 0,
-                                "afa_method": method,
-                                "dataset": dataset,
-                                "train_seed": train_seed,
-                                "train_hard_budget": None,
-                                "predicted_class": np.random.randint(0, 3),  # noqa: NPY002
-                            }
-                        )
-
-    return pd.DataFrame(rows).astype(
-        {
-            "action_performed": "UInt64",
-            "true_class": "UInt64",
-            "accumulated_cost": "Float64",
-            "idx": "UInt64",
-            "forced_stop": "boolean",
-            "eval_seed": "UInt64",
-            "eval_hard_budget": "Float64",
-            "soft_budget_param": "Float64",
-            "selections_performed": "UInt64",
-            "afa_method": "string",
-            "dataset": "string",
-            "train_seed": "UInt64",
-            "train_hard_budget": "Float64",
-            "predicted_class": "UInt64",
-        }
-    )
-
-
-def get_classification_metrics(group_df: pd.DataFrame) -> pd.Series:
-    true_class = group_df["true_class"].to_numpy(dtype=np.int64)
-    predicted_class = group_df["predicted_class"].to_numpy(dtype=np.int64)
-    return pd.Series(
-        {
-            "accuracy": accuracy_score(true_class, predicted_class),
-            "f_score": f1_score(true_class, predicted_class, average="macro"),
-        }
-    )
-
-
-def get_metrics_at_stop_action(df: pd.DataFrame) -> pd.DataFrame:
-    grouped = df.groupby(
-        [
-            "afa_method",
-            "dataset",
-            "train_seed",
-            "eval_seed",
-            "eval_hard_budget",
-            "soft_budget_param",
-        ],
-        dropna=False,
-    )
-    metrics = grouped[["true_class", "predicted_class"]].apply(
-        get_classification_metrics
-    )
-    metrics["avg_accumulated_cost"] = grouped["accumulated_cost"].mean()
-    return metrics.reset_index()
-
-
-def get_metrics_at_every_action(df: pd.DataFrame) -> pd.DataFrame:
-    return (
-        df.groupby(
-            [
-                "afa_method",
-                "dataset",
-                "train_seed",
-                "eval_seed",
-                "eval_hard_budget",
-                "soft_budget_param",
-                "n_selections_performed",
-            ],
-            dropna=False,
-        )[["true_class", "predicted_class"]]
-        .apply(get_classification_metrics)
-        .reset_index()
-    )
-
-
-def get_variance_of_metrics_and_cost(df: pd.DataFrame) -> pd.DataFrame:
-    return (
-        df.groupby(
-            ["afa_method", "dataset", "eval_hard_budget", "soft_budget_param"],
-            dropna=False,
-        )
-        .agg(
-            mean_accuracy=("accuracy", "mean"),
-            std_accuracy=("accuracy", "std"),
-            mean_f_score=("f_score", "mean"),
-            std_f_score=("f_score", "std"),
-            mean_avg_accumulated_cost=("avg_accumulated_cost", "mean"),
-            std_avg_accumulated_cost=("avg_accumulated_cost", "std"),
-        )
-        .reset_index()
-    )
-
-
-def get_variance_of_metrics(df: pd.DataFrame) -> pd.DataFrame:
-    return (
-        df.groupby(
-            [
-                "afa_method",
-                "dataset",
-                "eval_hard_budget",
-                "soft_budget_param",
-                "n_selections_performed",
-            ],
-            dropna=False,
-        )
-        .agg(
-            mean_accuracy=("accuracy", "mean"),
-            std_accuracy=("accuracy", "std"),
-            mean_f_score=("f_score", "mean"),
-            std_f_score=("f_score", "std"),
-        )
-        .reset_index()
-    )
-
-
-def apply_exclusions(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Apply exclusion mappings to filter out methods under specific conditions.
-
-    By default, excludes a method from a dataset. Only includes it if the set
-    of methods present in the dataset matches one of the allowed combinations.
-
-    Structure of EXCLUSION_MAPPING:
-        (method, dataset) -> frozenset([frozenset(allowed_combinations)])
-
-    Example:
-        ("odin_model_based", "diabetes") -> frozenset([
-            frozenset(["odin_model_based", "odin_model_free"])
-        ])
-
-    This means: Exclude odin_model_based from diabetes, EXCEPT when the
-    only methods present are odin_model_based and odin_model_free.
-
-    Args:
-        df: Input dataframe with 'afa_method' and 'dataset' columns
-
-    Returns:
-        Filtered dataframe with exclusions applied
-    """
-    # Get unique combinations of method and dataset in the input
-    method_dataset_pairs = (
-        df[["afa_method", "dataset"]]
-        .drop_duplicates()
-        .itertuples(index=False, name=None)
-    )
-
-    # Check each (method, dataset) pair and filter if needed
-    for method, dataset in method_dataset_pairs:
-        key = (method, dataset)
-
-        # Check if this method-dataset pair has exclusion rules
-        if key in EXCLUSION_MAPPING:
-            # Get the set of methods present for this dataset
-            methods_in_dataset = frozenset(
-                df.loc[df["dataset"] == dataset, "afa_method"].unique()
-            )
-
-            # Get the allowed method combinations for this exclusion rule
-            allowed_combinations = EXCLUSION_MAPPING[key]
-
-            # Only exclude if methods_in_dataset doesn't match any allowed combo
-            if methods_in_dataset not in allowed_combinations:
-                df = df.loc[
-                    ~(
-                        (df["afa_method"] == method)
-                        & (df["dataset"] == dataset)
-                    )
-                ]
-
-    return df
 
 
 def get_plot(
@@ -577,20 +338,6 @@ def add_metric_column(
     )
 
 
-def assert_only_one_soft_budget_param_type(df: pd.DataFrame) -> pd.DataFrame:
-    assert (
-        df["train_soft_budget_param"].isna()
-        | df["eval_soft_budget_param"].isna()
-    ).all(), (
-        "Both train_soft_budget_param and eval_soft_budget_param cannot be set. Choose one."
-    )
-    return df.assign(
-        soft_budget_param=df["train_soft_budget_param"].fillna(
-            df["eval_soft_budget_param"]
-        )
-    ).drop(columns=["train_soft_budget_param", "eval_soft_budget_param"])
-
-
 def process_df_only_stop_action_and_valid_prediction(
     df: pd.DataFrame,
     plotting_config: PlottingDisplayConfig,
@@ -603,12 +350,10 @@ def process_df_only_stop_action_and_valid_prediction(
     if df_only_stop_action.empty:
         return None
 
-    metric_df_only_stop_action = get_metrics_at_stop_action(
-        df_only_stop_action
-    )
+    metric_df_only_stop_action = metrics_at_stop(df_only_stop_action)
 
     # Variance of metrics across seeds
-    var_metric_df_only_stop_action = get_variance_of_metrics_and_cost(
+    var_metric_df_only_stop_action = variance_over_seeds_at_stop(
         metric_df_only_stop_action
     )
 
@@ -632,12 +377,6 @@ def process_df_only_stop_action_and_valid_prediction(
     return var_metric_df_only_stop_action
 
 
-def filter_only_largest_budget(df: pd.DataFrame) -> pd.DataFrame:
-    """For each dataset, only keep the largest evaluation budget."""
-    largest_budget = df.groupby("dataset")["eval_hard_budget"].transform("max")
-    return df.loc[(df["eval_hard_budget"] == largest_budget).fillna(False)]
-
-
 def process_df_every_action(
     df: pd.DataFrame, plotting_config: PlottingDisplayConfig
 ) -> pd.DataFrame | None:
@@ -648,12 +387,12 @@ def process_df_every_action(
         return None
 
     # When considering performance up to some budget, we only look at the case when the largest budget is used
-    df = filter_only_largest_budget(df)
+    df = keep_largest_hard_budget(df)
 
-    metric_df_every_action = get_metrics_at_every_action(df)
+    metric_df_every_action = metrics_at_every_step(df)
 
     # Variance of metrics across seeds
-    var_metric_df_every_action = get_variance_of_metrics(
+    var_metric_df_every_action = variance_over_seeds_at_every_step(
         metric_df_every_action
     )
 
@@ -711,7 +450,7 @@ class EvaluationPlotter:
 
     def validate_soft_budget_params(self) -> None:
         """Validate and consolidate soft budget parameters."""
-        self.df = assert_only_one_soft_budget_param_type(self.df)
+        self.df = combine_soft_budget_params(self.df)
 
     def prepare_stop_action_data(self) -> None:
         """Process dataframe for stop action analysis."""

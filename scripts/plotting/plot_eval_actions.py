@@ -6,11 +6,13 @@ from typing import TYPE_CHECKING, Any, cast
 import hydra
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from afabench.evaluation.tables import load_plotting_ready_table
+from afabench.evaluation.tables import (
+    combine_soft_budget_params,
+    load_plotting_ready_table,
+)
 from afabench.plotting.config import (
     PlotEvalActionsConfig,
     PlottingDisplayConfig,
@@ -19,111 +21,13 @@ from afabench.plotting.config import (
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    import pandas as pd
     from matplotlib.axes import Axes
 
 type Heatmap = Any
 
 PLOT_FONT_SIZE = 16
 PLOT_TITLE_FONT_SIZE = 18
-
-
-def create_dummy_data() -> pd.DataFrame:
-    """Create minimal dummy data for testing action heatmap plots."""
-    methods = ["jafa", "odin_model_based", "random_dummy"]
-    datasets_list = ["cube_without_noise", "synthetic_mnist_without_noise"]
-    train_seeds = [0, 1]
-    eval_seeds = [0, 1]
-    hard_budgets = [5.0]
-    num_samples = 100
-    rng = np.random.default_rng(42)
-
-    # Hard budget data with multiple actions per sample
-    rows = [
-        {
-            "action_performed": int(rng.integers(0, 10)),
-            "true_class": int(rng.integers(0, 3)),
-            "accumulated_cost": float(budget + rng.normal(0, 0.1)),
-            "idx": sample_idx,
-            "forced_stop": False,
-            "eval_seed": eval_seed,
-            "eval_hard_budget": float(budget),
-            "train_soft_budget_param": None,
-            "eval_soft_budget_param": None,
-            "n_selections_performed": action_idx + 1,
-            "afa_method": method,
-            "dataset": dataset,
-            "train_seed": train_seed,
-            "train_hard_budget": None,
-            "predicted_class": int(rng.integers(0, 3)),
-        }
-        for method in methods
-        for dataset in datasets_list
-        for train_seed in train_seeds
-        for eval_seed in eval_seeds
-        for budget in hard_budgets
-        for sample_idx in range(num_samples)
-        for action_idx in range(1, int(rng.integers(1, 8)) + 1)
-    ]
-
-    return pd.DataFrame(rows).astype(
-        {
-            "action_performed": "UInt64",
-            "true_class": "UInt64",
-            "accumulated_cost": "Float64",
-            "idx": "UInt64",
-            "forced_stop": "boolean",
-            "eval_seed": "UInt64",
-            "eval_hard_budget": "Float64",
-            "train_soft_budget_param": "Float64",
-            "eval_soft_budget_param": "Float64",
-            "n_selections_performed": "UInt64",
-            "afa_method": "string",
-            "dataset": "string",
-            "train_seed": "UInt64",
-            "train_hard_budget": "Float64",
-            "predicted_class": "Int64",
-        }
-    )
-
-
-def assert_only_one_soft_budget_param_type(
-    dataframe: pd.DataFrame,
-) -> pd.DataFrame:
-    """Ensure only one type of soft budget parameter is set."""
-    assert (
-        dataframe["train_soft_budget_param"].isna()
-        | dataframe["eval_soft_budget_param"].isna()
-    ).all(), (
-        "Both train_soft_budget_param and eval_soft_budget_param"
-        " cannot be set. Choose one."
-    )
-    return dataframe.assign(
-        soft_budget_param=dataframe["train_soft_budget_param"].fillna(
-            dataframe["eval_soft_budget_param"]
-        )
-    ).drop(columns=["train_soft_budget_param", "eval_soft_budget_param"])
-
-
-def filter_only_largest_budget(dataframe: pd.DataFrame) -> pd.DataFrame:
-    """For each dataset, only keep the largest evaluation budget."""
-    largest_budget = dataframe.groupby("dataset")[
-        "eval_hard_budget"
-    ].transform("max")
-    return dataframe.loc[
-        (dataframe["eval_hard_budget"] == largest_budget).fillna(False)
-    ]
-
-
-def filter_only_smallest_soft_budget_parameter(
-    dataframe: pd.DataFrame,
-) -> pd.DataFrame:
-    """For each dataset and method, only keep the smallest soft budget parameter."""
-    smallest_parameter = dataframe.groupby(["afa_method", "dataset"])[
-        "soft_budget_param"
-    ].transform("min")
-    return dataframe.loc[
-        (dataframe["soft_budget_param"] == smallest_parameter).fillna(False)
-    ]
 
 
 def normalize_heatmap_by_timestep(
@@ -309,7 +213,7 @@ def main(cfg: PlotEvalActionsConfig) -> None:
     output_folder.mkdir(parents=True, exist_ok=True)
 
     evaluation_df = load_plotting_ready_table(Path(cfg.input))
-    evaluation_df = assert_only_one_soft_budget_param_type(evaluation_df)
+    evaluation_df = combine_soft_budget_params(evaluation_df)
 
     hard_budget_folder = output_folder / "hard_budget"
     soft_budget_folder = output_folder / "soft_budget"
