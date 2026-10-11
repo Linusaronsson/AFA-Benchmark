@@ -8,8 +8,10 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
+from walltime import WalltimePolicy
 
 from afabench.core.job_record import Device
+from afabench.core.workflow_settings import DATASET_KEY_DIR
 
 type Hardware = Literal["cpu", "gpu"]
 # Pipeline stages: the kinds of job whose hardware this policy resolves.
@@ -64,6 +66,17 @@ def _known_keys(
     if unknown:
         message = f"Unknown {label} keys: {sorted(unknown)}"
         raise ValueError(message)
+
+
+def _catalog_names(
+    config: Mapping[str, object], key: str, folder: str
+) -> set[str]:
+    # Site tables are reused across pipeline profiles and narrowed runs.
+    names = set(_mapping(config.get(key, {}), key))
+    for path in (REPO_ROOT / "workflow/conf" / folder).glob("*.yaml"):
+        catalog = _mapping(yaml.safe_load(path.read_text()), str(path))
+        names.update(_mapping(catalog.get(key, {}), key))
+    return names
 
 
 def checked_script_params(params: str, label: str) -> str:
@@ -137,6 +150,15 @@ class ExecutionPolicy:
                 ),
                 "execution_site_file",
             )
+        self.walltime = WalltimePolicy(
+            site_config.get("walltime", {}),
+            methods=_catalog_names(config, "method_options", "method_options"),
+            pretrained_models=_catalog_names(
+                config, "pretrain_mapping", "pretrain_mappings"
+            ),
+            datasets={path.stem for path in DATASET_KEY_DIR.glob("*.yaml")},
+            default_runtime=default_resources.get("runtime"),
+        )
         self.site = _mapping(
             site_config.get("execution_site", {}), "execution_site"
         )

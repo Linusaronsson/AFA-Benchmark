@@ -77,6 +77,7 @@ rule train_classifier:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("classifier_training", lambda wc: None),
+        **EXECUTION.walltime.resources("train_classifier"),
     shell:
         """
         {params.image}{params.job_record} \
@@ -139,6 +140,7 @@ rule train_classifier_for_method:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("classifier_training", lambda wc: wc.method),
+        **EXECUTION.walltime.resources("train_classifier_for_method"),
     shell:
         """
         {params.image}{params.job_record} \

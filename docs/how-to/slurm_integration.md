@@ -17,7 +17,7 @@ any cluster:
 ```text
 workflow/profiles/site/<site>/
     config.yaml   # executor, sizing, and the path of site.yaml
-    site.yaml     # CPU and GPU partitions, accounts and GPU request syntax
+    site.yaml     # CPU/GPU allocations and requested walltime lookup
 ```
 
 ## Example profiles
@@ -68,8 +68,15 @@ they are unlikely to work for you unchanged.
    add other scheduler flags with `slurm_extra` (for example
    `slurm_extra: --qos=short`), but not GPU requests (`--gres`, `--gpus*`,
    `-G`). Invalid maps fail before submission.
-4. Size jobs in `<site>/config.yaml` with `default-resources` and
-   `set-resources` (`runtime`, `mem_mb`, `cpus_per_task`). Rule names you can
+4. Size memory and CPUs in `<site>/config.yaml` with `default-resources`
+   and `set-resources` (`mem_mb`, `cpus_per_task`). Set requested walltime in
+   `<site>/site.yaml` using the hours-based
+   [walltime lookup](../reference/requested_walltime.md), per rule,
+   method/pretrained model and dataset. Remove any profile
+   `set-resources.*.runtime` entries that would shadow the table; an explicit
+   command-line `--set-resources <rule>:runtime=<minutes>` still wins.
+   `default-resources.runtime` remains the fallback for unmatched jobs.
+   Rule names you can
    size: `dataset_generation`, `train_classifier`,
    `train_classifier_for_method`, `pretrain_model`, `train_method`,
    `eval_method`, `transform_eval_data`, `merge_eval_perf`,
@@ -87,6 +94,23 @@ they are unlikely to work for you unchanged.
    ```shell
    workflow/run.py kdd26 --site <site> -n list_jobs=true
    ```
+
+## Check requested walltime before submission
+
+After editing the site's `walltime` table, inspect a narrowed dry run:
+
+```shell
+workflow/run.py --site arrhenius -n list_jobs=true \
+  "methods=[dime,l2m_real_feature_prior,l2m_synthetic_feature_prior]" \
+  "datasets=[miniboone]" "dataset_realization_indices=[0,1]"
+```
+
+Read each job's `resources: runtime=...` in minutes. Use measured job
+durations with a safety margin, not the illustrative limits in the
+[reference example](../reference/requested_walltime.md#miniboone-example).
+Changes affect future submissions only, not running or pending jobs.
+To override one rule for a run, append, for example,
+`-- --set-resources pretrain_model:runtime=240`.
 
 ## Run jobs in an image
 

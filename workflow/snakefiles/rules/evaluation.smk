@@ -38,6 +38,7 @@ rule eval_method:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("evaluation", lambda wc: wc.method),
+        **EXECUTION.walltime.resources("eval_method"),
     shell:
         """
         {params.image}{params.job_record} \

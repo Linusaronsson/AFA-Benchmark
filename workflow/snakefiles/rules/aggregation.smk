@@ -34,6 +34,7 @@ rule merge_eval_perf:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("aggregation", lambda wc: "merge_eval_perf"),
+        **EXECUTION.walltime.resources("merge_eval_perf"),
     output:
         OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type=None),
     shell:
@@ -53,6 +54,7 @@ rule split_by_classifier_type:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("aggregation", lambda wc: "split_by_classifier_type"),
+        **EXECUTION.walltime.resources("split_by_classifier_type"),
     shell:
         """
             {params.image}python scripts/misc/split_eval_perf_by_classifier.py \
@@ -96,6 +98,7 @@ rule collect_job_records:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("aggregation", lambda wc: "collect_job_records"),
+        **EXECUTION.walltime.resources("collect_job_records"),
     shell:
         """
         {params.image}python scripts/misc/collect_job_records.py \

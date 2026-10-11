@@ -51,6 +51,8 @@ class PlannedJob:
     # The planned jobs whose outputs it needs; jobs whose outputs exist are
     # not planned.
     dependencies: frozenset[int] = frozenset()
+    # Requested walltime, not the measured duration used for the estimate.
+    time_limit_minutes: int | None = None
 
     @property
     def job_type(self) -> JobType | None:
@@ -119,6 +121,9 @@ def plan_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
 def _planned_job(
     job: Job, *, jobid: int, dependencies: frozenset[int]
 ) -> PlannedJob:
+    # As at submission, release the initial deferral of input-dependent
+    # resources. Missing input files can still resolve to <TBD> in a plan.
+    job.reset_params_and_resources()
     # Evaluating params runs the workflow's allocation checks, as
     # submission does.
     params = job.params
@@ -126,6 +131,7 @@ def _planned_job(
     job_record_command = params.get("job_record")
     resources = job.resources
     gpus = allocated_gpus(resources)
+    runtime = resources.get("runtime")
     return PlannedJob(
         rule=job.rule.name,
         wildcards={
@@ -140,4 +146,5 @@ def _planned_job(
         gpus=gpus,
         jobid=jobid,
         dependencies=dependencies,
+        time_limit_minutes=runtime if isinstance(runtime, int) else None,
     )

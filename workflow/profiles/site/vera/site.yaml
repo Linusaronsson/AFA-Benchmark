@@ -1,4 +1,13 @@
 # CPU-only cluster: jobs resolved to cuda fail before submission.
+walltime:
+  rules:
+    pretrain_model:
+      default_hours: 100
+    train_method:
+      default_hours: 100
+    eval_method:
+      default_hours: 100
+
 execution_site:
   cpu:
     slurm_partition: vera

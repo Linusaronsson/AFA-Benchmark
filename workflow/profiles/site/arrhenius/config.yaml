@@ -31,14 +31,12 @@ set-resources:
     cpus_per_task: 8
   train_classifier_for_method:
     cpus_per_task: 8
+  # Walltime lives in site.yaml; only explicit --set-resources overrides it.
   pretrain_model:
-    runtime: 4320
     cpus_per_task: 8
   train_method:
-    runtime: 4320
     cpus_per_task: 8
   eval_method:
-    runtime: 4320
     cpus_per_task: 8
 
   # Although the merged eval dataframes "only" take up less than 1Gb, opening them can use a lot more

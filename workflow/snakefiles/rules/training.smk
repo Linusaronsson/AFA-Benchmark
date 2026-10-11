@@ -111,6 +111,7 @@ rule pretrain_model:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("pretraining", lambda wc: wc.pretrained_model_name),
+        **EXECUTION.walltime.resources("pretrain_model"),
     shell:
         """
         {params.image}{params.job_record} \
@@ -165,6 +166,7 @@ rule train_method:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("training", lambda wc: wc.method),
+        **EXECUTION.walltime.resources("train_method"),
     shell:
         """
         {params.image}{params.job_record} \

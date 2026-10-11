@@ -6,13 +6,7 @@ default-resources:
   runtime: 120 # minutes
   mem_mb: 0 # Only memory attribute that works
 
-set-resources:
-  pretrain_model:
-    runtime: 600 # 10 hours
-  train_method:
-    runtime: 600 # 10 hours
-  eval_method:
-    runtime: 600 # 10 hours
+# Requested walltime is configured in site.yaml.
 
 # For Snakemake run without the pipeline launcher, which passes this again
 # with any overrides: Snakemake replaces this section with --config.

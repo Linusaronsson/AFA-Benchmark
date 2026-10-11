@@ -30,8 +30,8 @@ PRETRAINED_MODELS = {
     "delta": None,
 }
 # CPUs this test's --set-resources gives pretraining and evaluation, and
-# evaluation's time limit. It replaces the mixed-gres profile's
-# set-resources, so the other jobs get the profile's default-resources.
+# evaluation's time limit. It replaces the mixed-gres profile's CPU
+# set-resources, but training retains the walltime table's 10-hour limit.
 PRETRAINING_CPUS = 3
 EVALUATION_CPUS = 4
 DEFAULT_CPUS = 1
@@ -140,6 +140,7 @@ def expected_records() -> dict[str, dict[str, Any]]:
                 **allocation(
                     gpu=("train_method", method) in GPU_JOBS,
                     cpus=DEFAULT_CPUS,
+                    time_limit_minutes=600,
                 ),
             }
             records[

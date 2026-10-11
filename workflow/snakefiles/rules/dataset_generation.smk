@@ -37,6 +37,7 @@ rule dataset_generation:
         ),
     resources:
         **EXECUTION.allocation_resources("dataset_generation", lambda wc: wc.dataset),
+        **EXECUTION.walltime.resources("dataset_generation"),
     shell:
         """
         {params.image}{params.job_record} \

@@ -2,6 +2,15 @@
 # been checked. If it does not, sbatch rejects them at submission. A CPU
 # allocation is still required, because dataset generation, transformations,
 # aggregation and visualization always resolve to CPU.
+walltime:
+  rules:
+    pretrain_model:
+      default_hours: 10
+    train_method:
+      default_hours: 10
+    eval_method:
+      default_hours: 10
+
 execution_site:
   cpu:
     slurm_partition: alvis

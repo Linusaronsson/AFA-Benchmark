@@ -32,6 +32,7 @@ JOB_COLUMNS = [
     "device",
     "cpus",
     "gpus",
+    "time_limit_minutes",
 ]
 DURATION_COLUMNS = ["mean_job_duration_seconds", "p90_job_duration_seconds"]
 # What totals add up
@@ -57,6 +58,7 @@ PER_JOB_DTYPES = {
     "device": "string",
     "cpus": "Int64",
     "gpus": "Int64",
+    "time_limit_minutes": "Int64",
     "match_level": "string",
     "matched_job_records": "Int64",
     **dict.fromkeys([*DURATION_COLUMNS, *HOUR_COLUMNS], "Float64"),
@@ -101,6 +103,7 @@ def _per_job_row(
         "device": job.device,
         "cpus": job.cpus,
         "gpus": job.gpus,
+        "time_limit_minutes": job.time_limit_minutes,
         **{
             column: getattr(job_estimate, column)
             for column in ESTIMATE_COLUMNS

@@ -1,3 +1,10 @@
+walltime:
+  rules:
+    train_method:
+      default_hours: 10
+    eval_method:
+      default_hours: 10
+
 execution_site:
   cpu:
     slurm_partition: cpu-queue

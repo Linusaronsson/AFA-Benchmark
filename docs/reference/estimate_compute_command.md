@@ -23,7 +23,7 @@ Profiles are looked up in the working directory.
 | Option | Meaning |
 | --- | --- |
 | `--job-durations PATH` | A [job duration table](job_records.md#job-duration-table) Parquet file, such as a downloaded release's `output/production/release_job_duration_table.parquet`, or an output root whose job records are read. Default `output/production`, the production output root, which holds no smoke test's job records; if it does not exist, every job is unestimated. Any other missing path is an error. |
-| `--by COLUMN` | Group the totals by this job column instead of `stage` and `device`; repeat for several. Any column of the [per-job CSV](#per-job-csv) up to `gpus`, except `wildcards`. |
+| `--by COLUMN` | Group the totals by this job column instead of `stage` and `device`; repeat for several. Any column of the [per-job CSV](#per-job-csv) up to `time_limit_minutes`, except `wildcards`. |
 | `--output CSV` | Also write the [per-job CSV](#per-job-csv). |
 | `--strict` | Exit with 1 after the report when any planned job is unestimated. |
 
@@ -97,6 +97,7 @@ null.
 | `wildcards` | The job's wildcards as a JSON object. |
 | `stage` ... `eval_batch_size` | The identity the job's record will have, as in [job records](job_records.md#identity); empty for `no_job_record` jobs. |
 | `device`, `cpus`, `gpus` | The planned allocation; `cpus` is empty when the cluster chooses. |
+| `time_limit_minutes` | Resolved requested walltime, including [site lookup](requested_walltime.md) and resource overrides; empty when unspecified or not yet resolvable. Not the measured duration used for estimates. |
 | `match_level` | See [matching](#matching). |
 | `matched_job_records` | How many job durations the estimate uses. |
 | `mean_job_duration_seconds`, `p90_job_duration_seconds` | The job's estimated job duration. |

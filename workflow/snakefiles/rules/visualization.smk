@@ -38,6 +38,7 @@ rule plot_eval_perf:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("visualization", lambda wc: "plot_eval_perf"),
+        **EXECUTION.walltime.resources("plot_eval_perf"),
     shell:
         """
         {params.image}python scripts/plotting/plot_eval_perf.py \
@@ -56,6 +57,7 @@ rule plot_eval_actions:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("visualization", lambda wc: "plot_eval_actions"),
+        **EXECUTION.walltime.resources("plot_eval_actions"),
     shell:
         """
         {params.image}python scripts/plotting/plot_eval_actions.py \
@@ -81,6 +83,7 @@ rule plot_time:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("visualization", lambda wc: "plot_time"),
+        **EXECUTION.walltime.resources("plot_time"),
     shell:
         """
         {params.image}python scripts/plotting/plot_total_time.py \

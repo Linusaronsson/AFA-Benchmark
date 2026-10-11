@@ -7,11 +7,10 @@ default-resources:
   mem_mb: 4000
   cpus_per_task: 1
 set-resources:
+  # Requested walltime is configured in site.yaml.
   train_method:
-    runtime: 600
     cpus_per_task: 8
   eval_method:
-    runtime: 600
     cpus_per_task: 8
 # For Snakemake run without the pipeline launcher, which passes this again
 # with any overrides: Snakemake replaces this section with --config.

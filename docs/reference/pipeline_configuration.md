@@ -160,6 +160,14 @@ Turns whole pipeline stages off. A stage that is off defines no rules, so the ru
 - **Example:** `"stages={dataset_generation: false, training: false}"` to evaluate existing trained methods; add `evaluation: false` to only transform, aggregate and plot existing evaluation tables
 - **Note:** Each value is `true` or `false`, in any case. An unknown key, another value, or a `stages` that is not a mapping is a config error. The dry run's resolved configuration lists the stages that are off
 
+## Requested walltime (site configuration)
+
+The site's `site.yaml` can set requested walltime in hours by Snakemake
+rule, method/pretrained model and dataset. This is not a method
+hyperparameter or an acquisition budget. See the
+[walltime lookup reference](requested_walltime.md) for fields, precedence,
+validation and a MiniBooNE example.
+
 ## Datasets
 
 The `workflow/conf/datasets/` directory contains dataset configuration files. Each file specifies which datasets are used in the pipeline.

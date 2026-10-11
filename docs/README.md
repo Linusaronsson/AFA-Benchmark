@@ -53,6 +53,7 @@ instead of defining a term on a page.
 ### Reference
 
 - [Pipeline configuration](reference/pipeline_configuration.md)
+- [Requested walltime](reference/requested_walltime.md)
 - [Bundle format](reference/bundle_format.md)
 - [Evaluation dataframes](reference/evaluation_dataframes.md)
 - [Job records](reference/job_records.md)

@@ -50,6 +50,7 @@ rule transform_eval_data:
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("transformation", lambda wc: "transform_eval_data"),
+        **EXECUTION.walltime.resources("transform_eval_data"),
     shell:
         """
         {params.image}{params.job_record} \
