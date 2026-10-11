@@ -2,7 +2,7 @@
 Generate per-feature acquisition costs for tabular datasets.
 
 Writes:
-  data/misc/feature_costs/{dataset_key}.csv
+  data/{dataset_key}/feature_costs.csv
 
 Modes:
 - uniform: uniform random costs in [low, high]
@@ -22,7 +22,7 @@ from typing import Final
 
 import torch
 
-DEFAULT_OUTDIR: Final[Path] = Path("data/misc/feature_costs")
+DEFAULT_DATA_DIR: Final[Path] = Path("data")
 
 ERR_NUM_FEATURES_POSITIVE: Final[str] = "--num-features must be > 0"
 ERR_CUBE_RANDOM_ORDERED_RANGES: Final[str] = (
@@ -39,12 +39,12 @@ def normalize_mean_1(x: torch.Tensor, eps: float = 1e-12) -> torch.Tensor:
     return x / m
 
 
-def write_csv(dataset_key: str, costs: torch.Tensor, outdir: Path) -> Path:
+def write_csv(dataset_key: str, costs: torch.Tensor, data_dir: Path) -> Path:
     if costs.ndim != 1:
         msg = f"Costs must be 1D (F,), got {tuple(costs.shape)}"
         raise ValueError(msg)
-    outdir.mkdir(parents=True, exist_ok=True)
-    path = outdir / f"{dataset_key}.csv"
+    path = data_dir / dataset_key / "feature_costs.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(",".join(f"{v:.6f}" for v in costs.tolist()) + "\n")
     return path
 
@@ -65,7 +65,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dataset-key", required=True)
     p.add_argument("-F", "--num-features", type=int, required=True)
     p.add_argument("--seed", type=int, default=0)
-    p.add_argument("--outdir", type=Path, default=DEFAULT_OUTDIR)
+    p.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
 
     sub = p.add_subparsers(dest="mode", required=True)
 
@@ -158,7 +158,7 @@ def main() -> None:
         costs = _gen_cube(num_features, a, g)
 
     costs = normalize_mean_1(costs.to(torch.float32))
-    outpath = write_csv(a.dataset_key, costs, a.outdir)
+    outpath = write_csv(a.dataset_key, costs, a.data_dir)
 
     print(f"Wrote: {outpath}")
     print(

@@ -11,8 +11,10 @@ from jaxtyping import Bool, Float, Integer
 logger = logging.getLogger(__name__)
 
 # Relative to the working directory, which the pipeline runs from the
-# repository root. A dataset key without a file here has unit feature costs.
-FEATURE_COSTS_DIR = Path("data/misc/feature_costs")
+# repository root. Each dataset owns the folder named after its dataset key;
+# a dataset without a feature costs file there has unit feature costs.
+DATA_DIR = Path("data")
+FEATURE_COSTS_FILENAME = "feature_costs.csv"
 
 type Features = Float[torch.Tensor, "*batch *feature_shape"]
 # MaskedFeatures are similar to Features, but are 0 where FeatureMask is False
@@ -141,7 +143,9 @@ class AFADataset(Protocol):
             feature_shape if feature_shape is not None else self.feature_shape
         )
         resolved_key = dataset_key or _infer_dataset_key(self)
-        resolved_path = costs_path or FEATURE_COSTS_DIR / f"{resolved_key}.csv"
+        resolved_path = (
+            costs_path or DATA_DIR / resolved_key / FEATURE_COSTS_FILENAME
+        )
         if not resolved_path.exists():
             logger.info(
                 "No feature cost CSV for %s at %s. Using unit costs.",

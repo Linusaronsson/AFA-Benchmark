@@ -1,5 +1,5 @@
 class_name: "ImagenetteDataset"
 kwargs:
-  data_root: "data/misc/imagenette"
+  data_root: "data/imagenette"
   variant_dir: "imagenette2-320"
   image_size: 224

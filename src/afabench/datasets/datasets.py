@@ -665,7 +665,7 @@ class MNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         train: bool = True,
         transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
-        root: str = "data/misc",
+        root: str = "data/mnist",
     ):
         super().__init__()
         self.train = train
@@ -772,7 +772,7 @@ class FashionMNISTDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
         train: bool = True,
         transform: Callable[[Tensor], Tensor] | None = None,
         download: bool = True,
-        root: str = "data/misc",
+        root: str = "data/fashion_mnist",
     ):
         super().__init__()
         self.train = train
@@ -879,7 +879,7 @@ class DiabetesDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        root: str = "data/misc/diabetes.csv",
+        root: str = "data/diabetes/diabetes.csv",
     ):
         super().__init__()
         self.root = root
@@ -995,7 +995,7 @@ class MiniBooNEDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        root: str = "data/misc/miniboone.csv",
+        root: str = "data/miniboone/miniboone.csv",
     ):
         super().__init__()
         self.root = root
@@ -1102,7 +1102,7 @@ class PhysionetDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        root: str = "data/misc/physionet.csv",
+        root: str = "data/physionet/physionet.csv",
     ):
         super().__init__()
         self.root = root
@@ -1569,7 +1569,7 @@ class ImagenetteDataset(Dataset[tuple[Tensor, Tensor]], AFADataset):
 
     def __init__(
         self,
-        data_root: str = "data/",
+        data_root: str = "data/imagenette",
         variant_dir: str = "imagenette2-320",
         load_subdirs: tuple[str, ...] = ("train", "val"),
         image_size: int = 224,

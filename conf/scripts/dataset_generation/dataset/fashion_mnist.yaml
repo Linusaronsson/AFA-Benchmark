@@ -3,4 +3,4 @@ kwargs:
   train: True # Use training set as base
   transform: null # Will use default ToTensor()
   download: True
-  root: "data/misc/FashionMNIST"
+  root: "data/fashion_mnist"

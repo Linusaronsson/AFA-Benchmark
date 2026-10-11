@@ -61,8 +61,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output",
         help=(
-            "Output CSV path. Defaults to "
-            "data/misc/feature_costs/{dataset}.csv."
+            "Output CSV path. Defaults to data/{dataset}/feature_costs.csv."
         ),
     )
     parser.add_argument(
@@ -147,7 +146,7 @@ def main() -> None:
     output_path = (
         Path(args.output)
         if args.output is not None
-        else Path("data/misc/feature_costs") / f"{args.dataset}.csv"
+        else Path("data") / args.dataset / "feature_costs.csv"
     )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savetxt(output_path, costs, delimiter=",", fmt="%.6f")
