@@ -113,6 +113,22 @@ IDENTITY_DTYPES = {
 }
 
 
+# The columns of a plotting-ready evaluation table, with their pandas dtypes.
+# Tables split by classifier type have no `classifier` column.
+PLOTTING_READY_DTYPES = {
+    "classifier": "string",
+    "generation_index": "UInt64",
+    "split_index": "UInt64",
+    "action_performed": "UInt64",
+    "true_class": "UInt64",
+    "accumulated_cost": "Float64",
+    "forced_stop": "boolean",
+    "n_selections_performed": "UInt64",
+    "predicted_class": "UInt64",
+    **IDENTITY_DTYPES,
+}
+
+
 def identity_column(name: str, value: object, index: pd.Index) -> pd.Series:
     """Return identity column `name` holding `value`, null for `None`."""
     # Built as object first so that None becomes the nullable dtype's NA

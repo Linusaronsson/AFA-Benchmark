@@ -27,6 +27,7 @@ from plotnine import (
 )
 from sklearn.metrics import accuracy_score, f1_score
 
+from afabench.evaluation.tables import load_plotting_ready_table
 from afabench.plotting.config import PlotEvalPerfConfig, PlottingDisplayConfig
 
 if TYPE_CHECKING:
@@ -219,39 +220,6 @@ def get_metrics_at_every_action(df: pd.DataFrame) -> pd.DataFrame:
         .apply(get_classification_metrics)
         .reset_index()
     )
-
-
-def cast_column(series: pd.Series, dtype: str) -> pd.Series:
-    """Cast a column, turning values that cannot be cast into nulls."""
-    if dtype in {"string", "boolean"}:
-        return series.astype(dtype)
-    return cast("pd.Series", pd.to_numeric(series, errors="coerce")).astype(
-        dtype
-    )
-
-
-def read_parquet(input_csv_path: Path) -> pd.DataFrame:
-    df = pd.read_parquet(input_csv_path, dtype_backend="numpy_nullable")
-    dtypes = {
-        "action_performed": "UInt64",
-        "true_class": "UInt64",
-        "accumulated_cost": "Float64",
-        "forced_stop": "boolean",
-        "eval_seed": "UInt64",
-        "eval_hard_budget": "Float64",
-        "n_selections_performed": "UInt64",
-        "predicted_class": "UInt64",
-        "afa_method": "string",
-        "dataset": "string",
-        "train_seed": "UInt64",
-        "train_hard_budget": "Float64",
-        "train_soft_budget_param": "Float64",
-        "eval_soft_budget_param": "Float64",
-    }
-    for name, dtype in dtypes.items():
-        if name in df.columns:
-            df[name] = cast_column(df.loc[:, name], dtype)
-    return df
 
 
 def get_variance_of_metrics_and_cost(df: pd.DataFrame) -> pd.DataFrame:
@@ -739,7 +707,7 @@ class EvaluationPlotter:
 
     def load_input_file(self) -> None:
         """Load the input parquet file."""
-        self.df = read_parquet(self.input_path)
+        self.df = load_plotting_ready_table(self.input_path)
 
     def validate_soft_budget_params(self) -> None:
         """Validate and consolidate soft budget parameters."""

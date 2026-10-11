@@ -10,6 +10,7 @@ import pandas as pd
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
+from afabench.evaluation.tables import load_plotting_ready_table
 from afabench.plotting.config import (
     PlotEvalActionsConfig,
     PlottingDisplayConfig,
@@ -83,10 +84,6 @@ def create_dummy_data() -> pd.DataFrame:
             "predicted_class": "Int64",
         }
     )
-
-
-def read_parquet(input_path: Path) -> pd.DataFrame:
-    return pd.read_parquet(input_path, dtype_backend="numpy_nullable")
 
 
 def assert_only_one_soft_budget_param_type(
@@ -311,7 +308,7 @@ def main(cfg: PlotEvalActionsConfig) -> None:
     output_folder = Path(cfg.output_folder)
     output_folder.mkdir(parents=True, exist_ok=True)
 
-    evaluation_df = read_parquet(Path(cfg.input))
+    evaluation_df = load_plotting_ready_table(Path(cfg.input))
     evaluation_df = assert_only_one_soft_budget_param_type(evaluation_df)
 
     hard_budget_folder = output_folder / "hard_budget"

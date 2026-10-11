@@ -5,6 +5,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from omegaconf import OmegaConf
 
+from afabench.evaluation.tables import load_plotting_ready_table
 from afabench.plotting.config import (
     PlotEvalActionsConfig,
     PlottingDisplayConfig,
@@ -12,7 +13,6 @@ from afabench.plotting.config import (
 from scripts.plotting.plot_eval_actions import (
     main,
     normalize_heatmap_by_timestep,
-    read_parquet,
 )
 
 
@@ -69,7 +69,7 @@ def test_heatmap_is_normalized_by_instances_at_each_time_step(
     )
 
     heatmap = normalize_heatmap_by_timestep(
-        read_parquet(path), max_action=2, max_time=1
+        load_plotting_ready_table(path), max_action=2, max_time=1
     )
 
     # Rows are actions 1 and 2, columns are time steps 0 and 1
