@@ -152,8 +152,11 @@ each column it knows to its dtype in
 `afabench.evaluation.schemas.PLOTTING_READY_DTYPES`: the identity columns
 take the dtypes of `IDENTITY_DTYPES`, the rest are `UInt64`, `Float64`,
 `boolean` or `string`. Merging tables whose column types disagree upcasts
-those columns to strings, so values that do not parse as the column's dtype
-become null. Absent columns stay absent. It does not validate the table.
+those columns to strings, so in a numeric column values that do not parse
+as numbers become null. A number the column's dtype cannot hold, such as a
+fraction or a negative number in a `UInt64` column, and a value of a
+`boolean` column that is not bool-like raise `TypeError`. Absent columns
+stay absent. It does not validate the table.
 
 Every evaluation plot reads its table through this function, and the same
 module prepares it for plotting:
