@@ -177,7 +177,7 @@ against hard budget, selections and accumulated cost), `eval_actions`
 the job duration table). The scripts under `scripts/plotting/` only load
 their input and call these modules.
 
-## Legacy reading and conversion
+## Legacy reading
 
 Existing Parquet files remain untouched. The evaluation-data transform accepts
 compact tables with and without identity columns, each validated against the
@@ -188,32 +188,6 @@ string lists. Tables transformed from legacy logs have null
 `generation_index` and `split_index`. Compact tables written before those
 columns existed are rejected rather than backfilled; re-run their
 evaluation.
-
-For explicit conversion of a complete, original-order legacy artifact:
-
-```python
-from afabench.evaluation.history import (
-    convert_legacy_episode_log,
-    reconstruct_selection_history,
-)
-
-legacy = pd.read_parquet(legacy_path)
-compact = convert_legacy_episode_log(legacy, original_order=True)
-histories = reconstruct_selection_history(compact)
-```
-
-Converted logs have no `generation_index` or `split_index`, which legacy
-artifacts never recorded, so they do not satisfy `SavedEvaluationSchema`.
-
-The caller must attest to original producer ordering. Legacy `idx` resets in
-each batch; conversion starts a new episode when an index first appears or
-reappears after stop. Stored histories must match the preceding actions,
-every episode must terminate, and indices/actions/selections must be
-nonnegative integers. A stopped index cannot be reused while another episode
-in its batch is still active. Inconsistent or incomplete logs fail rather than guess.
-The converter cannot prove provenance or detect an entirely omitted episode;
-identity cannot be inferred safely from arbitrary reordered legacy tables.
-Do not convert classifier-expanded plotting tables or combine source runs.
 
 These contracts cover pandas evaluation results, not subsequent aggregation
 or plotting tables or arbitrary dataset frames.
