@@ -48,8 +48,11 @@ all dependencies, native bundle/parquet/plot locations, dataset realization indi
 seeds and plotting formats. No scientific settings are changed. The example
 profiles are illustrative, not verified allocations on a live cluster.
 
-`pipeline_no_train.smk` and `pipeline_no_eval.smk` use the same processing rules
-for existing upstream outputs. Local CPU smoke-test use remains possible by
+Turning pipeline stages off with the `stages` override keeps the same
+processing rules for existing upstream outputs:
+`"stages={dataset_generation: false, training: false}"` evaluates existing
+trained methods, and adding `evaluation: false` processes existing evaluation
+tables only. Local CPU smoke-test use remains possible by
 omitting `--site` and using `--jobs` with `smoke_test=True`.
 
 ## Observable verification

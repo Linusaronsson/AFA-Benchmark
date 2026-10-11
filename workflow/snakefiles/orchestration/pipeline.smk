@@ -1,8 +1,22 @@
 """
-Full orchestration pipeline: datasets, classifiers, pretraining, training,
-evaluation and plots.
+The orchestration pipeline: datasets, classifiers, pretraining, training,
+evaluation and plots, less the pipeline stages `stages` turns off.
 
 Runtime filters (--config, select subsets to run):
+    stages (mapping, default=every stage on): Booleans that turn off whole
+        pipeline stages: dataset_generation, training (pretraining,
+        training and classifier training) and evaluation, each default
+        true. A stage that is off defines no rules, so the run reads its
+        outputs as they are on disk, never schedules its jobs, and fails the
+        plan with MissingInputException where one is missing. An unknown
+        stage or a value other than true or false fails load_config. The
+        resolved configuration lists the stages that are off.
+        Transformation, aggregation and visualization always define rules.
+        Evaluate existing trained methods:
+            "stages={dataset_generation: false, training: false}"
+        Transform, aggregate and plot existing evaluation tables:
+            "stages={dataset_generation: false, training: false,
+            evaluation: false}"
     methods (list[str], required): Subset of methods from method_options.yaml
     reference_methods (list[str], default=[]): Methods from
         method_options.yaml whose plotting-ready tables were restored from a
@@ -133,9 +147,14 @@ Usage:
             "datasets=[cube]" "dataset_realization_indices=[0]" \
             execution_file=workflow/profiles/execution/cpu.yaml
     See docs/how-to/compare_your_method_with_published_results.md.
+    Evaluate trained methods already under the output root, without
+    generating datasets or training:
+        workflow/run.py <pipeline> --site <site> -n \
+            --target all_eval_methods \
+            "stages={dataset_generation: false, training: false}"
 
 CPU-only processing:
-    Dataset generation (full pipeline only), transformations, aggregation and
+    Dataset generation (when its stage is on), transformations, aggregation and
     visualization always resolve to CPU, including with legacy device=cuda.
     These fixed stages have no execution defaults/overrides. The profile's
     execution_site.cpu allocation maps their partition/account and clears GPU
@@ -202,10 +221,16 @@ Config files (--configfile):
 
 include: "../settings.smk"
 
-include: "../rules/dataset_generation.smk"
-include: "../rules/training.smk"
-include: "../rules/classifier_training.smk"
-include: "../rules/evaluation.smk"
+# A stage that is off defines no rules, so its outputs are read as they are.
+STAGES = WORKFLOW_SETTINGS.stages
+if STAGES.dataset_generation:
+    include: "../rules/dataset_generation.smk"
+if STAGES.training:
+    include: "../rules/training.smk"
+    include: "../rules/classifier_training.smk"
+if STAGES.evaluation:
+    include: "../rules/evaluation.smk"
+
 include: "../rules/transformations.smk"
 include: "../rules/aggregation.smk"
 include: "../rules/visualization.smk"

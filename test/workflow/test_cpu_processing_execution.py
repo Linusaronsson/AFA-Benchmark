@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from test.workflow.submission_harness import SITE, WorkflowHarness
+from test.workflow.test_reference_results import job_counts
 
 
 @pytest.mark.parametrize(
@@ -318,13 +319,29 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
     ).is_file()
 
 
-@pytest.mark.parametrize("variant", ["pipeline_no_train", "pipeline_no_eval"])
-def test_processing_variants_use_cpu_site_mapping(
-    tmp_path: Path, variant: str
-) -> None:
-    workflow = processing_workflow(tmp_path)
+# The stages of the former pipeline_no_train.smk and pipeline_no_eval.smk
+WITHOUT_TRAINING = {"dataset_generation": False, "training": False}
+WITHOUT_EVALUATION = WITHOUT_TRAINING | {"evaluation": False}
+# The jobs both former variants planned from trained methods and their
+# evaluation tables
+PROCESSING_JOBS = {
+    "all": 1,
+    "collect_job_records": 1,
+    "merge_eval_perf": 1,
+    "plot_eval_actions": 1,
+    "plot_eval_perf": 2,
+    "plot_time": 1,
+    "split_by_classifier_type": 1,
+    "transform_eval_data": 2,
+    "total": 10,
+}
+
+
+def trained_workflow(root: Path, *, evaluated: bool) -> WorkflowHarness:
+    """Datasets and both trained methods, and their evaluation tables."""
+    workflow = processing_workflow(root)
     for split in ["train", "val", "test"]:
-        (tmp_path / f"output/smoke/datasets/cube/0/{split}.bundle").mkdir(
+        (root / f"output/smoke/datasets/cube/0/{split}.bundle").mkdir(
             parents=True
         )
     for method, pretrain in [
@@ -340,21 +357,28 @@ def test_processing_variants_use_cpu_site_mapping(
             "eval_soft_budget_param-null"
         )
         trained = (
-            tmp_path
-            / f"output/smoke/trained_methods/initializer-cold/{training}"
+            root / f"output/smoke/trained_methods/initializer-cold/{training}"
         )
         (trained / "method.bundle").mkdir(parents=True)
-        eval_table = (
-            tmp_path / "output/smoke/eval_results/eval_split-test/"
-            f"initializer-cold/{evaluation}/eval_data.parquet"
-        )
-        eval_table.parent.mkdir(parents=True, exist_ok=True)
-        eval_table.write_text("fixture")
+        if evaluated:
+            eval_table = (
+                root / "output/smoke/eval_results/eval_split-test/"
+                f"initializer-cold/{evaluation}/eval_data.parquet"
+            )
+            eval_table.parent.mkdir(parents=True, exist_ok=True)
+            eval_table.write_text("fixture")
+    return workflow
+
+
+@pytest.mark.parametrize("stages", [WITHOUT_TRAINING, WITHOUT_EVALUATION])
+def test_processing_stages_use_cpu_site_mapping(
+    tmp_path: Path, stages: dict[str, bool]
+) -> None:
+    workflow = trained_workflow(tmp_path, evaluated=True)
+    workflow.config["stages"] = stages
 
     result = workflow.run(
         "--dry-run",
-        "--snakefile",
-        f"workflow/snakefiles/orchestration/{variant}.smk",
         "--workflow-profile",
         str(tmp_path / "workflow/profiles/site/examples/mixed-gres"),
         "--default-resources",
@@ -372,6 +396,46 @@ def test_processing_variants_use_cpu_site_mapping(
         assert "gpu=0" in block, block
     assert "rule train_method:" not in commands
     assert "rule dataset_generation:" not in commands
+    assert job_counts(commands) == PROCESSING_JOBS
+
+
+def test_without_training_evaluates_the_trained_methods(
+    tmp_path: Path,
+) -> None:
+    workflow = trained_workflow(tmp_path, evaluated=False)
+
+    # As the pipeline launcher passes a pipeline profile override
+    result = workflow.run(
+        "--dry-run",
+        "--config",
+        "stages={dataset_generation: false, training: false}",
+        target="all",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (
+        "  stages off: [dataset_generation, training]"
+        in result.stdout.splitlines()
+    )
+    assert job_counts(result.stdout) == PROCESSING_JOBS | {
+        "eval_method": 2,
+        "total": 12,
+    }
+
+
+def test_without_evaluation_a_missing_evaluation_table_fails_the_plan(
+    tmp_path: Path,
+) -> None:
+    workflow = trained_workflow(tmp_path, evaluated=False)
+    workflow.config["stages"] = WITHOUT_EVALUATION
+
+    result = workflow.run("--dry-run", target="all")
+
+    assert result.returncode != 0
+    assert (
+        "MissingInputException in rule transform_eval_data"
+        in result.stdout + result.stderr
+    )
 
 
 @pytest.mark.pipeline

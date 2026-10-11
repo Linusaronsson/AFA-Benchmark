@@ -102,8 +102,10 @@ workflow/run.py kdd26 --site examples/mixed-gres -n --target all_eval_methods
 Remove `-n` to execute/submit. Use an authorized submit environment with access
 to both CPU and GPU allocations and a shared filesystem for inputs, repository,
 software environment and outputs. This is one dependency graph, not cross-cluster
-dispatch. `pipeline_no_train.smk` uses the same evaluation routing for existing
-trained bundles. Local CPU use needs no site profile: omit `--site`, and pass
+dispatch. The override
+`"stages={dataset_generation: false, training: false}"` uses the same
+evaluation routing for existing trained bundles, without generating datasets
+or training. Local CPU use needs no site profile: omit `--site`, and pass
 `--jobs` and the overrides
 `execution_file=workflow/profiles/execution/cpu.yaml` and `smoke_test=True`.
 

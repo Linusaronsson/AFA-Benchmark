@@ -386,14 +386,12 @@ def test_evaluation_only_validates_the_selected_stage(tmp_path: Path) -> None:
             "slurm_account": "cpu-account",
         },
     }
+    workflow.config["stages"] = {
+        "dataset_generation": False,
+        "training": False,
+    }
 
-    result = workflow.run(
-        "--dry-run",
-        "--forcerun",
-        "eval_method",
-        "--snakefile",
-        "workflow/snakefiles/orchestration/pipeline_no_train.smk",
-    )
+    result = workflow.run("--dry-run", "--forcerun", "eval_method")
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert "device=cpu" in result.stdout + result.stderr
