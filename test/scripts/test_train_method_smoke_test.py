@@ -4,7 +4,10 @@ import torch
 
 from afabench.components.initializers.config import InitializerConfig
 from afabench.components.unmaskers.config import UnmaskerConfig
-from afabench.fit.config import SupervisedLearningConfig
+from afabench.fit.config import (
+    SupervisedLearningConfig,
+    SupervisedPretrainingConfig,
+)
 from afabench.fit.contract import PretrainingContract
 from afabench.fit.smoke_test import (
     dataset_subset,
@@ -138,15 +141,10 @@ def test_dataset_subset_keeps_dataset_without_smoke_test() -> None:
     assert subset is dataset
 
 
-@dataclass(frozen=True, kw_only=True)
-class _SupervisedPretrainConfig(PretrainingContract):
-    supervised_learning: SupervisedLearningConfig
-
-
-def _supervised_pretrain_config(
+def _supervised_pretraining_config(
     *, smoke_test: bool
-) -> _SupervisedPretrainConfig:
-    return _SupervisedPretrainConfig(
+) -> SupervisedPretrainingConfig:
+    return SupervisedPretrainingConfig(
         train_dataset_bundle_path="train.bundle",
         val_dataset_bundle_path="val.bundle",
         classifier_bundle_path="classifier.bundle",
@@ -172,7 +170,7 @@ def _supervised_pretrain_config(
 
 
 def test_limit_supervised_learning_keeps_config_without_smoke_test() -> None:
-    cfg = _supervised_pretrain_config(smoke_test=False)
+    cfg = _supervised_pretraining_config(smoke_test=False)
 
     assert limit_supervised_learning(cfg) == cfg
 
@@ -180,7 +178,7 @@ def test_limit_supervised_learning_keeps_config_without_smoke_test() -> None:
 def test_limit_supervised_learning_trains_one_short_epoch_for_smoke_test() -> (
     None
 ):
-    cfg = _supervised_pretrain_config(smoke_test=True)
+    cfg = _supervised_pretraining_config(smoke_test=True)
 
     limited = limit_supervised_learning(cfg).supervised_learning
 

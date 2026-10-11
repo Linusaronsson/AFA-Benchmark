@@ -20,7 +20,13 @@ if TYPE_CHECKING:
 
 
 from afabench.core.types import AFADataset
-from afabench.fit.config import SupervisedLearningConfig
+from afabench.fit.config import (
+    SupervisedLearningConfig,
+    SupervisedPretrainingConfig,
+)
+from afabench.fit.inputs import FitInputs, load_inputs
+from afabench.fit.run import fit_run, save_result
+from afabench.fit.smoke_test import limit_supervised_learning
 from afabench.fit.tensor_batches import (
     TensorBatchDataset,
     passthrough_batch,
@@ -193,3 +199,38 @@ def supervised_learning(
         ensure_finite_module_state(lit_model)
 
     return TorchModelBundle(lit_model)
+
+
+def supervised_pretraining_main[ConfigT: SupervisedPretrainingConfig](
+    cfg: ConfigT,
+    *,
+    tags: list[str],
+    model_fn: Callable[
+        [ConfigT, FitInputs], Callable[[AFADataset], pl.LightningModule]
+    ],
+) -> None:
+    """
+    Pretrain a model by supervised learning and save it at `save_path`.
+
+    The body of a pretraining script whose model is a Lightning module
+    trained on the train and val datasets. `model_fn` builds the module's
+    factory from the config, after the smoke-test limits, and the
+    contract's inputs. The best checkpoint is chosen by
+    `val_loss_many_observations`.
+    """
+    log.debug(cfg)
+    torch.set_float32_matmul_precision("medium")
+    cfg = limit_supervised_learning(cfg)
+    inputs = load_inputs(cfg)
+    with fit_run(cfg, tags=tags, inputs=inputs):
+        model_bundle = supervised_learning(
+            train_dataset=inputs.train_dataset(),
+            val_dataset=inputs.val_dataset(),
+            cfg=cfg.supervised_learning,
+            model_fn=model_fn(cfg, inputs),
+            metric_to_monitor="val_loss_many_observations",
+            monitor_mode="min",
+            use_wandb=cfg.use_wandb,
+            device=cfg.device,
+        )
+        save_result(model_bundle, cfg, inputs=inputs)

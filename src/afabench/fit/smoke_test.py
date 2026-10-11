@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, cast
 import torch
 
 from afabench.core.types import AFADataset
+from afabench.fit.config import SupervisedPretrainingConfig
 from afabench.fit.contract import BaseContract
 
 if TYPE_CHECKING:
@@ -95,13 +96,10 @@ def training_subset(
     )
 
 
-def limit_supervised_learning[ConfigT: BaseContract](cfg: ConfigT) -> ConfigT:
-    """
-    Train one epoch of a few batches during a smoke test.
-
-    `cfg` holds a `SupervisedLearningConfig` in its `supervised_learning`
-    field.
-    """
+def limit_supervised_learning[ConfigT: SupervisedPretrainingConfig](
+    cfg: ConfigT,
+) -> ConfigT:
+    """Train one epoch of a few batches during a smoke test."""
     return limit(
         cfg,
         supervised_learning={

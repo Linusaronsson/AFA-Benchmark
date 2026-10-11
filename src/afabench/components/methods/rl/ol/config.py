@@ -4,9 +4,8 @@ from afabench.components.methods.rl.common.config import (
     AFAMDPConfig,
     AFARLTrainingLoopConfig,
 )
-from afabench.fit.config import SupervisedLearningConfig
+from afabench.fit.config import SupervisedPretrainingConfig
 from afabench.fit.contract import (
-    PretrainingContract,
     TrainingContract,
     store_contract_config,
 )
@@ -20,9 +19,7 @@ class OLPQModuleConfig:
 
 
 @dataclass(frozen=True, kw_only=True)
-class OLPretrainConfig(PretrainingContract):
-    supervised_learning: SupervisedLearningConfig
-
+class OLPretrainConfig(SupervisedPretrainingConfig):
     min_masking_probability: float
     max_masking_probability: float
     lr: float

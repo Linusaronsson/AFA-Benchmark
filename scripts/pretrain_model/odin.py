@@ -1,10 +1,8 @@
-import logging
 from collections.abc import Callable
 from typing import cast
 
 import hydra
 import lightning as pl
-import torch
 from omegaconf import OmegaConf
 from torchrl.modules import MLP
 
@@ -20,16 +18,12 @@ from afabench.components.methods.rl.odin.models import (
 )
 from afabench.core.types import AFADataset
 from afabench.core.utils import get_class_frequencies
-from afabench.fit.inputs import load_inputs
-from afabench.fit.run import fit_run, save_result
-from afabench.fit.smoke_test import limit_supervised_learning
-from afabench.fit.supervised_learning import supervised_learning
-
-log = logging.getLogger(__name__)
+from afabench.fit.inputs import FitInputs
+from afabench.fit.supervised_learning import supervised_pretraining_main
 
 
 def get_odin_model_fn(
-    cfg: ODINPretrainConfig,
+    cfg: ODINPretrainConfig, _inputs: FitInputs
 ) -> Callable[[AFADataset], pl.LightningModule]:
     def f(
         dataset: AFADataset,
@@ -125,23 +119,7 @@ def get_odin_model_fn(
 )
 def main(cfg: ODINPretrainConfig) -> None:
     cfg = cast("ODINPretrainConfig", OmegaConf.to_object(cfg))
-    log.debug(cfg)
-    torch.set_float32_matmul_precision("medium")
-    cfg = limit_supervised_learning(cfg)
-
-    inputs = load_inputs(cfg)
-    with fit_run(cfg, tags=["odin"], inputs=inputs):
-        model_bundle = supervised_learning(
-            train_dataset=inputs.train_dataset(),
-            val_dataset=inputs.val_dataset(),
-            cfg=cfg.supervised_learning,
-            model_fn=get_odin_model_fn(cfg=cfg),
-            metric_to_monitor="val_loss_many_observations",
-            monitor_mode="min",
-            use_wandb=cfg.use_wandb,
-            device=cfg.device,
-        )
-        save_result(model_bundle, cfg, inputs=inputs)
+    supervised_pretraining_main(cfg, tags=["odin"], model_fn=get_odin_model_fn)
 
 
 if __name__ == "__main__":

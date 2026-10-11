@@ -212,6 +212,14 @@ section 2: a plain `pretrain_*` function taking the config and a
 `FitInputs`, called from a script that wraps it in `fit_run` and
 `save_result`.
 
+If the pretrained model is a Lightning module trained by supervised
+learning on the train and val datasets, inherit
+`SupervisedPretrainingConfig` from `afabench.fit.config` instead, and let
+the script's `main` call `supervised_pretraining_main` from
+`afabench.fit.supervised_learning` with a function that builds the module
+from the config and the `FitInputs`. It applies the smoke-test limits,
+trains and saves; `scripts/pretrain_model/jafa.py` is an example.
+
 A pretrained model is a separate pipeline-level concept from a method; one
 pretrained model can be shared by several method names. For example,
 `eddi_builtin` and `eddi_external` both depend on the `pvae` pretrained
