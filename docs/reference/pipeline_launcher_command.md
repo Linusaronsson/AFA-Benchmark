@@ -17,6 +17,8 @@ Snakemake from the checkout root, wherever it is started.
 
 | Argument | Meaning |
 | --- | --- |
+| `-h`, `--help` | Show command-line help and exit. |
+| `--list-methods`, `--list-datasets`, `--list-unmaskers`, `--list-initializers` | List shipped names and exit without an environment or running jobs. Flags can be combined. These list all available names, not the selection of a pipeline profile or its overrides. |
 | `<pipeline>` | A pipeline profile under `workflow/profiles/pipeline/`, by name (`all`, `kdd26`). Default `all`. An argument containing `=` is never a pipeline profile. |
 | `--site <site>` | A site profile under `workflow/profiles/site/`, by name (`arrhenius`, `examples/mixed-gres`). Without one, jobs run locally. |
 | `-n`, `--dry-run` | Plan the run and print its configuration, job counts and commands without running jobs. |
@@ -28,6 +30,15 @@ Snakemake from the checkout root, wherever it is started.
 | `-- <Snakemake arguments>` | Passed to Snakemake unchanged, such as `--rerun-incomplete` or `--set-resources`. Not `--config`: give overrides as `key=value` instead. |
 
 A profile name that does not exist fails, listing the existing ones.
+
+The method and dataset listings read `workflow/conf/{methods,datasets}/all.yaml`.
+The Unmasker and Initializer listings read the config file names under
+`conf/components/{unmasker,initializer}/`. For example:
+
+```shell
+workflow/run.py --list-methods
+workflow/run.py --list-datasets --list-unmaskers --list-initializers
+```
 
 ## The Snakemake command
 

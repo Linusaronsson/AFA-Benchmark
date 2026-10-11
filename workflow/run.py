@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -41,6 +42,12 @@ PIPELINE_PROFILES = "workflow/profiles/pipeline"
 SITE_PROFILES = "workflow/profiles/site"
 ESTIMATE_SCRIPT = "scripts/compute_estimate/estimate_compute.py"
 ESTIMATE_FLAGS = ("-e", "--estimate")
+CATALOGS = {
+    "methods": "workflow/conf/methods/all.yaml",
+    "datasets": "workflow/conf/datasets/all.yaml",
+    "unmaskers": "conf/components/unmasker",
+    "initializers": "conf/components/initializer",
+}
 # The estimate's own options, taken with -e only.
 ESTIMATE_OPTIONS = ("job_durations", "by", "output", "strict")
 
@@ -152,7 +159,14 @@ def _parse(arguments: list[str]) -> argparse.Namespace:
     """Parse the launcher's arguments, before any --."""
     if "--" in arguments:
         arguments = arguments[: arguments.index("--")]
-    options = _parser().parse_intermixed_args(arguments)
+    parser = _parser()
+    options = parser.parse_intermixed_args(arguments)
+    requested = [name for name in CATALOGS if getattr(options, "list_" + name)]
+    if requested:
+        for name in requested:
+            print(f"Available {name} ({CATALOGS[name]}):")
+            print("\n".join(available_names(name)))
+        parser.exit()
     if not options.estimate:
         for name in ESTIMATE_OPTIONS:
             if getattr(options, name) not in (None, False):
@@ -162,6 +176,39 @@ def _parse(arguments: list[str]) -> argparse.Namespace:
                 )
                 raise LauncherError(message)
     return options
+
+
+def available_names(kind: str, checkout: Path = REPO_ROOT) -> list[str]:
+    """List shipped names using only the login node's standard library."""
+    if kind not in CATALOGS:
+        msg = f"Unknown catalog {kind!r}; choose from {', '.join(CATALOGS)}"
+        raise LauncherError(msg)
+    path = checkout / CATALOGS[kind]
+    if kind in {"unmaskers", "initializers"}:
+        names = sorted(config.stem for config in path.glob("*.yaml"))
+        if not names:
+            msg = f"{path}: no {kind} configs"
+            raise LauncherError(msg)
+        return names
+    # These two catalogs use a flat list of unquoted names, not general YAML.
+    names: list[str] = []
+    header_seen = False
+    for number, raw in enumerate(path.read_text().splitlines(), start=1):
+        line = raw.split("#", 1)[0].rstrip()
+        if not line.strip():
+            continue
+        if not header_seen and line == f"{kind}:":
+            header_seen = True
+            continue
+        entry = re.fullmatch(r" +\- ([a-z][a-z0-9_]*)", line)
+        if not header_seen or entry is None:
+            message = f"{path}:{number}: expected {kind}: followed by a flat list of names, got {raw!r}"
+            raise LauncherError(message)
+        names.append(entry.group(1))
+    if not names:
+        msg = f"{path}: no {kind} names"
+        raise LauncherError(msg)
+    return sorted(set(names))
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -176,6 +223,12 @@ def _parser() -> argparse.ArgumentParser:
         metavar="[pipeline] [key=value ...]",
         help=f"A pipeline profile under {PIPELINE_PROFILES}/ (default: all), then pipeline profile overrides",
     )
+    for kind in CATALOGS:
+        parser.add_argument(
+            f"--list-{kind}",
+            action="store_true",
+            help=f"List all shipped {kind} and exit, without running jobs",
+        )
     parser.add_argument(
         "--site",
         help=f"A site profile under {SITE_PROFILES}/; without one, jobs run locally",

@@ -6,12 +6,68 @@ import pytest
 
 from workflow.run import (
     LauncherError,
+    available_names,
     launcher_command,
     snakemake_arguments,
     snakemake_command,
 )
 
 ESTIMATE_SCRIPT = "scripts/compute_estimate/estimate_compute.py"
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected"),
+    [
+        ("methods", "l2m_synthetic_feature_prior"),
+        ("datasets", "miniboone"),
+        ("unmaskers", "28x28_to_4x4"),
+        ("initializers", "warm"),
+    ],
+)
+def test_lists_shipped_names_without_launching(
+    kind: str, expected: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with pytest.raises(SystemExit) as exit_info:
+        launcher_command([f"--list-{kind}"])
+    assert exit_info.value.code == 0
+    assert expected in capsys.readouterr().out.splitlines()
+
+
+def test_can_list_multiple_catalogs(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        launcher_command(["--list-datasets", "--list-initializers"])
+    output = capsys.readouterr().out
+    assert "Available datasets" in output
+    assert "Available initializers" in output
+
+
+def test_catalog_reads_another_checkout(tmp_path: Path) -> None:
+    catalog = tmp_path / "workflow/conf/methods/all.yaml"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text(
+        "# custom catalog\nmethods:\n  - new_method # comment\n"
+    )
+    assert available_names("methods", tmp_path) == ["new_method"]
+
+
+def test_catalog_rejects_unsupported_yaml(tmp_path: Path) -> None:
+    catalog = tmp_path / "workflow/conf/datasets/all.yaml"
+    catalog.parent.mkdir(parents=True)
+    catalog.write_text("datasets: [miniboone]\n")
+    with pytest.raises(LauncherError, match="flat list"):
+        available_names("datasets", tmp_path)
+
+
+def test_help_advertises_all_catalogs(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    with pytest.raises(SystemExit):
+        launcher_command(["--help"])
+    output = capsys.readouterr().out
+    for kind in ("methods", "datasets", "unmaskers", "initializers"):
+        assert f"--list-{kind}" in output
 
 
 def test_runs_the_all_pipeline_profile_locally_by_default() -> None:
