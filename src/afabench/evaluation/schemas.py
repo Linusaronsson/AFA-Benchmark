@@ -7,7 +7,37 @@ import pandas as pd
 import pandera.pandas as pa
 from pandera.typing import Series
 
-from afabench.evaluation.history import validate_episode_log
+
+def _nonnegative_integer(value: object) -> bool:
+    return (
+        not isinstance(value, bool)
+        and isinstance(value, Integral)
+        and int(value) >= 0
+    )
+
+
+def validate_episode_log(frame: pd.DataFrame) -> None:
+    """
+    Require complete episodes within one artifact, regardless of row order.
+
+    Raises ValueError for invalid identity/action types, missing or duplicate
+    steps, or anything other than a single terminal stop per episode.
+    """
+    for column in ("episode_id", "step", "action_performed"):
+        if column not in frame or not frame.columns.is_unique:
+            msg = f"Missing or duplicate episode-log column: {column}"
+            raise ValueError(msg)
+        if not all(_nonnegative_integer(value) for value in frame[column]):
+            msg = f"{column} must contain nonnegative integers"
+            raise ValueError(msg)
+    for episode_id, episode in frame.sort_values("step").groupby("episode_id"):
+        if episode["step"].tolist() != list(range(len(episode))):
+            msg = f"Episode {episode_id} has missing or duplicate steps"
+            raise ValueError(msg)
+        actions = episode["action_performed"]
+        if actions.iloc[-1] != 0 or (actions.iloc[:-1] == 0).any():
+            msg = f"Episode {episode_id} must have exactly one terminal stop"
+            raise ValueError(msg)
 
 
 class BatchEvaluationSchema(pa.DataFrameModel):
@@ -40,11 +70,7 @@ class BatchEvaluationSchema(pa.DataFrameModel):
     )
     @classmethod
     def valid_prediction(cls, value: object) -> bool:
-        return (
-            not isinstance(value, bool)
-            and isinstance(value, Integral)
-            and int(value) >= 0
-        )
+        return _nonnegative_integer(value)
 
     class Config(pa.DataFrameModel.Config):
         strict: bool | Literal["filter"] = True
