@@ -95,7 +95,7 @@ public benchmark releases.
   `publish` nor `download` verifies them against the bundles' files.
 - "Latest" is decided by the manifests' `created_at`, so finding it reads
   the manifest of every published release.
-- Output categories other than payload categories, such as `plot_results`
+- Output categories other than payload categories, such as `plots`
   and `merged_results`, are downloaded whole, not by dataset or method.
 - `publish` refuses a release with an unreviewed or restricted dataset
   rather than leaving that dataset's payloads out, and cannot leave out

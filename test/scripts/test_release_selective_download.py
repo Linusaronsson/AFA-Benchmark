@@ -35,7 +35,7 @@ runner = CliRunner()
 
 REPO_ID = "afabench-test/releases"
 TAG = "initializer-cold"
-PLOT = f"plot_results/eval_split-test/{TAG}/cube/eval_perf.pdf"
+PLOT = f"plots/eval_split-test/{TAG}/cube/eval_perf.pdf"
 # The external classifier of dataset realization 1 of cube.
 EXTERNAL_CLASSIFIER = classifier_bundle("cube", 1)
 # Alpha has no pretraining stage; beta pretrains and has its own classifier.
@@ -293,7 +293,7 @@ def test_older_and_partial_releases_download_when_named(
     [
         ["--all"],
         ["--payload-category", "transformed_evaluation_table"]
-        + ["--output-category", "plot_results"],
+        + ["--output-category", "plots"],
     ],
 )
 def test_a_release_published_during_a_download_is_not_mixed_in(
@@ -374,7 +374,7 @@ def test_results_only_selection_fetches_no_bundle(tmp_path: Path) -> None:
         "--payload-category",
         "transformed_evaluation_table",
         "--output-category",
-        "plot_results",
+        "plots",
         "--method",
         "alpha",
         "--dataset",

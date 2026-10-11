@@ -158,7 +158,7 @@ setting from `comparison.yaml`.
 Run the same command without `--dry-run`. The plots end up in:
 
 ```text
-output/production/plot_results/eval_split-<split>/initializer-<init>/eval_perf/
+output/production/plots/eval_split-<split>/initializer-<init>/eval_perf/
     method_set-my_comparison+classifier_type-<builtin|external>/dataset_set-<name>/
         hard_budget_normal.{pdf,svg}   hard_budget_traj.{pdf,svg}
         soft_budget_lines.{pdf,svg}    soft_budget_2d_errors.{pdf,svg}

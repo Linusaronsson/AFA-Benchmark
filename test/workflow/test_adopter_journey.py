@@ -377,7 +377,7 @@ def test_comparison_plots_show_both_and_are_labelled_demonstrations(
 ) -> None:
     assert journey.run.returncode == 0
     plot = (
-        journey.forked / f"output/smoke/plot_results/{EVAL_PERF}/"
+        journey.forked / f"output/smoke/plots/{EVAL_PERF}/"
         f"{COMPARISON}+classifier_type-external/all/hard_budget_normal.svg"
     ).read_text()
 
@@ -403,7 +403,7 @@ def test_results_only_journey_needs_no_afabench_loading(
         "--payload-category",
         "raw_evaluation_table",
         "--output-category",
-        "plot_results",
+        "plots",
     )
 
     assert downloaded.exit_code == 0, downloaded.output
@@ -421,7 +421,7 @@ def test_results_only_journey_needs_no_afabench_loading(
             )
     # Plots open in any viewer: plain PDF and SVG files.
     for suffix, header in [(".pdf", b"%PDF"), (".svg", b"<?xml")]:
-        plots = sorted((destination / "plot_results").rglob(f"*{suffix}"))
+        plots = sorted((destination / "plots").rglob(f"*{suffix}"))
         assert plots, suffix
         for plot in plots:
             assert plot.read_bytes().startswith(header), plot

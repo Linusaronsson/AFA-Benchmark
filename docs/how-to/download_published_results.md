@@ -51,7 +51,7 @@ Take `<path>` from the manifest:
 - For accuracy and cost per number of selections, read the plotting-ready
   table (`transformed_path`).
 - For acquisition histories, read the raw table (`raw_path`).
-- For plots, browse `output/plot_results/`; they are PDF and SVG files.
+- For plots, browse `output/plots/`; they are PDF and SVG files.
 
 Both tables carry their identity as columns. The
 [columns of each table](../reference/release_manifest.md#raw-versus-plotting-ready-tables).

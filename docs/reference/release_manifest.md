@@ -127,7 +127,7 @@ Derived from the index: `datasets`, `dataset_realization_indices`,
 evaluations, and `output_categories` (top-level directories of the output
 root that contain files, such as `datasets`, `trained_methods`,
 `eval_results`, `eval_results_transformed`, `merged_results` and
-`plot_results`, and `failed_job_records` when a job failed or timed out;
+`plots`, and `failed_job_records` when a job failed or timed out;
 see [Job duration table](#job-duration-table)).
 
 `payloads` has one entry per [payload category](#payload-categories), in
@@ -269,7 +269,7 @@ root.
 | `pretrained_model_bundle` | 1 | 95,267 | `GreedyAFAClassifier` |
 | `afa_method_bundle` | 3 | 199,310 | `GDFSAFAMethod`, `RandomWithoutClassifierAFAMethod` |
 
-The rest of that output root was `plot_results/` (5.1 MB, 134 files),
+The rest of that output root was `plots/` (5.1 MB, 134 files),
 `merged_results/` (83 kB) and per-job timing files (10 kB) that job
 records have since replaced. A production run multiplies the counts by
 datasets, dataset realizations, methods and budgets, and per-payload sizes

@@ -184,7 +184,7 @@ file comes from it.
 | --- | --- |
 | `--payload-category` | `raw_evaluation_table`, `transformed_evaluation_table`, `dataset_bundle`, `classifier_bundle`, `pretrained_model_bundle` or `afa_method_bundle` files of the selected evaluations. |
 | `--payload-category job_duration_table` | The release's job duration table alone, beside the restored manifest. Coverage options do not narrow it. |
-| `--output-category` | A top-level folder of the output root listed in `coverage.output_categories`, such as `plot_results` or `merged_results`, whole. Coverage options do not narrow it. |
+| `--output-category` | A top-level folder of the output root listed in `coverage.output_categories`, such as `plots` or `merged_results`, whole. Coverage options do not narrow it. |
 
 and optionally narrow the evaluations with coverage options:
 

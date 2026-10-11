@@ -317,7 +317,7 @@ def test_a_smoke_run_writes_nothing_under_the_production_output_root(
 ) -> None:
     output = recorded_run.output
     assert (output / "merged_results/job_duration_table.parquet").is_file()
-    assert (output / "plot_results").is_dir()
+    assert (output / "plots").is_dir()
     assert recorded_run.records
     assert not (recorded_run.workflow.root / PRODUCTION_OUTPUT_ROOT).exists()
 

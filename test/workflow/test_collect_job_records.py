@@ -90,9 +90,7 @@ def test_the_table_holds_one_row_per_job_that_ran_including_failed_attempts(
 def test_the_time_plot_renders_from_the_table(
     collected_run: CollectedRun,
 ) -> None:
-    time_plots = (
-        collected_run.output / f"plot_results/eval_split-test/{TAG}/time"
-    )
+    time_plots = collected_run.output / f"plots/eval_split-test/{TAG}/time"
     for plot in ["average_time", "dataset_time"]:
         for suffix in [".pdf", ".svg"]:
             assert (time_plots / plot).with_suffix(suffix).is_file()

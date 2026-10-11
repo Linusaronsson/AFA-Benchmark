@@ -25,7 +25,7 @@ published method locally.
 
 The workflow never writes a reference method's tables. It does rebuild
 the merged tables and plots of every method set that contains a local
-method, so downloaded `merged_results` and `plot_results` of those method
+method, so downloaded `merged_results` and `plots` of those method
 sets are replaced by the comparison; method sets of only reference methods
 are skipped and stay as downloaded.
 

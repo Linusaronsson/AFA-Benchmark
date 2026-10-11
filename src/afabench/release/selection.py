@@ -9,7 +9,7 @@ AFA-method bundles come with the job record their job wrote beside them.
 So asking for evaluation tables alone fetches no bundle, and asking for
 dataset and classifier bundles fetches the shared prerequisites of the
 selected evaluations without their AFA-method bundles. Output categories
-(top-level folders of the output root such as `plot_results`) are not
+(top-level folders of the output root such as `plots`) are not
 described per file by the manifest, so they are selected whole. The job
 duration table is one file beside the manifest holding every job of the
 release, so coverage does not narrow it either.

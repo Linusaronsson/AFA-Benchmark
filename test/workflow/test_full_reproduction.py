@@ -359,7 +359,7 @@ def test_full_graph_submits_every_job_once(
     assert len(full_graph_run.calls) == len(comments) - 1
     plots = (
         full_graph_run.root
-        / "output/smoke/plot_results/eval_split-test/initializer-cold"
+        / "output/smoke/plots/eval_split-test/initializer-cold"
     )
     assert len(list(plots.rglob("fixture.svg"))) == 4
 
@@ -708,7 +708,5 @@ def test_local_cpu_smoke_runs_the_same_full_graph(tmp_path: Path) -> None:
         if "device" in args:
             assert args["device"] == "cpu", script
             assert args["smoke_test"] == "True", script
-    plots = (
-        tmp_path / "output/smoke/plot_results/eval_split-test/initializer-cold"
-    )
+    plots = tmp_path / "output/smoke/plots/eval_split-test/initializer-cold"
     assert len(list(plots.rglob("fixture.svg"))) == 4

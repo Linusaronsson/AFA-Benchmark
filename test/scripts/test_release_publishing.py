@@ -42,7 +42,7 @@ ALPHA_HARD_ONLY = Method(name="alpha", budgets=[HARD_3])
 TABLE = evaluation_table(ALPHA_HARD_ONLY, "cube", 0, HARD_3)
 RAW_TABLE = f"eval_results/{TABLE}"
 TRANSFORMED_TABLE = f"eval_results_transformed/{TABLE}"
-PLOT = "plot_results/eval_split-test/initializer-cold/cube/eval_perf.pdf"
+PLOT = "plots/eval_split-test/initializer-cold/cube/eval_perf.pdf"
 DIRTY = CodeIdentity(commit="d" * 40, dirty=True)
 
 
@@ -587,7 +587,7 @@ def test_downloaded_outputs_keep_the_snapshot_directories_and_mtimes(
     transport = FakeReleaseTransport()
     package_dir = prepare_package(tmp_path, "2026-10")
     source_root = package_dir / "output"
-    (source_root / "plot_results/empty").mkdir()
+    (source_root / "plots/empty").mkdir()
     paths = sorted(source_root.rglob("*"))
     for offset, path in enumerate(paths):
         backdated = 1_700_000_000 + offset

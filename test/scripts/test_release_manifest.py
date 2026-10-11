@@ -562,7 +562,7 @@ def test_tables_outside_the_evaluation_folders_need_no_record(
 
 
 def test_a_tree_without_artifacts_is_not_a_release(tmp_path: Path) -> None:
-    plot = tmp_path / "source/plot_results/eval_perf.pdf"
+    plot = tmp_path / "source/plots/eval_perf.pdf"
     plot.parent.mkdir(parents=True)
     plot.write_bytes(b"%PDF-1.4 plot")
 

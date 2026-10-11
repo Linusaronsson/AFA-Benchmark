@@ -291,8 +291,7 @@ def download(
     output_category: Annotated[
         list[str] | None,
         typer.Option(
-            help="Download this top-level output folder, such as "
-            "plot_results, whole."
+            help="Download this top-level output folder, such as plots, whole."
         ),
     ] = None,
     dataset: Annotated[

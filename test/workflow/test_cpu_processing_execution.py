@@ -301,7 +301,7 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
             if "plot_total_time" in script:
                 assert args == {
                     "input": "output/smoke/merged_results/job_duration_table.parquet",
-                    "output_folder": "output/smoke/plot_results/eval_split-test/initializer-cold/time",
+                    "output_folder": "output/smoke/plots/eval_split-test/initializer-cold/time",
                     "methods": "[alpha,beta]",
                     "++pretrained_models": "{alpha:shared}",
                     "initializer_tag": "initializer-cold",
@@ -392,7 +392,5 @@ def test_local_cpu_processing_reaches_native_final_outputs(
     for _, args in calls:
         if "device" in args:
             assert args["device"] == "cpu"
-    plots = (
-        tmp_path / "output/smoke/plot_results/eval_split-test/initializer-cold"
-    )
+    plots = tmp_path / "output/smoke/plots/eval_split-test/initializer-cold"
     assert len(list(plots.rglob("fixture.svg"))) == 4

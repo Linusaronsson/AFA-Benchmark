@@ -31,7 +31,7 @@ rule plot_eval_perf:
     input:
         f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
     output:
-        directory(f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}"),
+        directory(f"{OUTPUT_ROOT}/plots/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}"),
     params:
         image=IMAGES.param("visualization", lambda wc: "plot_eval_perf"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_perf", resources),
@@ -49,7 +49,7 @@ rule plot_eval_actions:
     input:
         f"{OUTPUT_ROOT}/merged_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_perf/{{method_set}}+classifier_type-{{classifier_type}}.parquet",
     output:
-        directory(f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_actions/{{method_set}}+classifier_type-{{classifier_type}}"),
+        directory(f"{OUTPUT_ROOT}/plots/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/eval_actions/{{method_set}}+classifier_type-{{classifier_type}}"),
     params:
         image=IMAGES.param("visualization", lambda wc: "plot_eval_actions"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_actions", resources),
@@ -73,7 +73,7 @@ rule plot_time:
     input:
         f"{OUTPUT_ROOT}/merged_results/job_duration_table.parquet",
     output:
-        directory(f"{OUTPUT_ROOT}/plot_results/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"),
+        directory(f"{OUTPUT_ROOT}/plots/eval_split-{EVAL_DATASET_SPLIT}/{INITIALIZER_TAG}/time/"),
     params:
         image=IMAGES.param("visualization", lambda wc: "plot_time"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_time", resources),
