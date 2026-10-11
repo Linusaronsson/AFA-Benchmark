@@ -4,7 +4,7 @@ NetworkPairTrainer: the training loop GDFS and DIME share.
 Every case trains a handful of instances for a few epochs, so a case is a
 test of the loop's control flow, not of what the methods learn: which
 epoch's networks are kept, when a round stops, what is logged, and the
-one DIME quirk the loop preserves on purpose.
+deduplication of DIME's shared parameters.
 """
 
 from collections.abc import Iterator
@@ -281,40 +281,42 @@ def test_a_validation_metric_needs_its_mode() -> None:
         trainer.fit(_loader(), _loader(), settings)
 
 
-def test_dime_lists_its_tied_parameters_twice_in_the_optimizer() -> None:
-    """
-    DIME ties the value network's first linear layers to the predictor's.
-
-    Upstream DIME deduplicates them (`Adam(self.parameters())`); this port
-    has always listed both networks' parameters, so a tied parameter is
-    stepped twice per update. The loop keeps that on purpose until the
-    maintainers decide otherwise (`docs/explanation/gdfs_dime_shared_code.md`).
-    """
+@pytest.mark.filterwarnings("error:.*duplicate parameters:UserWarning")
+def test_dime_lists_each_parameter_once_in_the_optimizer() -> None:
+    """Shared and unshared parameters are stepped once, in stable order."""
     objective = DIMETrainingObjective(eps=0.0)
     trainer, policy_network, predictor = _trainer(objective)
     tie_first_k_linears_by_module(predictor, policy_network, k=1)
     tied = next(predictor.parameters())
     assert tied is next(policy_network.parameters())
-    listed: list[int] = []
+    expected = list(
+        dict.fromkeys(
+            id(parameter)
+            for parameter in [
+                *policy_network.parameters(),
+                *predictor.parameters(),
+            ]
+        )
+    )
+    listed: list[list[int]] = []
 
-    def count_tied(
+    def record_parameters(
         optimizer: Optimizer,
         _args: tuple[object, ...],
         _kwargs: dict[str, object],
     ) -> None:
         listed.append(
-            sum(
-                parameter is tied
+            [
+                id(parameter)
                 for group in optimizer.param_groups
                 for parameter in group["params"]
-            )
+            ]
         )
 
-    handle = register_optimizer_step_pre_hook(count_tied)
+    handle = register_optimizer_step_pre_hook(record_parameters)
     try:
-        with pytest.warns(UserWarning, match="duplicate parameters"):
-            trainer.fit(_loader(), _loader(), _settings(objective, nepochs=1))
+        trainer.fit(_loader(), _loader(), _settings(objective, nepochs=1))
     finally:
         handle.remove()
 
-    assert listed == [2]
+    assert listed == [expected]

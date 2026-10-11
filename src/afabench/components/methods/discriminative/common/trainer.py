@@ -238,13 +238,12 @@ class NetworkPairTrainer:
             if settings.early_stopping_epochs is None
             else settings.early_stopping_epochs
         )
-        # Listing both networks' parameters, as the port always has, lists
-        # a parameter DIME ties between them twice, so Adam steps it twice
-        # per update; upstream deduplicates. Kept until #116 is decided
-        # (docs/explanation/gdfs_dime_shared_code.md). The order is
-        # immaterial: Adam updates each parameter from its own state
+        # DIME shares parameters between the networks; step each only once,
+        # as upstream does, while preserving the parameter order.
         opt = optim.Adam(
-            list(policy_network.parameters()) + list(predictor.parameters()),
+            dict.fromkeys(
+                [*policy_network.parameters(), *predictor.parameters()]
+            ),
             lr=settings.lr,
         )
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(

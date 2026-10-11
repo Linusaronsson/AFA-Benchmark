@@ -57,9 +57,9 @@ every behavioural difference from upstream that the check found.
 Only what upstream GDFS and DIME already had in common is shared; each
 difference between the two papers stays in the method's own package.
 
-## Equivalence with the previous port
+## Equivalence of the #105 refactor with the previous port
 
-With the same seeds the shared loop trains the same parameters as the
+Before the optimizer deduplication in #116, with the same seeds the shared loop trains the same parameters as the
 replaced `GreedyDynamicSelection.fit` and `CMIEstimator.fit`, bit for
 bit, for both methods with the direct and the Context Unmasker and with
 cold and warm starts, after one change in RNG order: the old `fit`
@@ -70,22 +70,29 @@ global generator; the trainer creates one. ADR 0001 allows that
 required). Resolved training hyperparameters are unchanged for every
 GDFS and DIME config.
 
+## Optimizer deduplication (#116)
+
+The trainer now deduplicates Adam's parameters in first-occurrence order,
+matching upstream GDFS's `Adam(set(...))` and upstream DIME's
+`Adam(self.parameters())`. DIME ties the value network's first two linear
+layers to the built-in classifier's (tabular) or shares its backbone
+(image). Previously, these shared parameters appeared twice in Adam and
+Torch 2.7 stepped them twice per update, with a duplicate-parameter warning.
+`test_dime_lists_each_parameter_once_in_the_optimizer` checks that every
+shared and unshared parameter is listed once, in stable order.
+
+This intentionally changes DIME's training dynamics on every dataset key,
+in both the hard-budget and soft-budget settings, including `kdd26` config
+variants. Retraining can therefore change the published KDD '26 DIME
+results; the corrected trainer is not intended to reproduce those results.
+Resolved training hyperparameters are unchanged. Existing bundles still
+load and evaluate unchanged. GDFS shares no parameters between its networks,
+so its optimizer parameter list and training behaviour are unchanged.
+
 ## Departures from upstream in the shared code
 
-These predate #105 and are kept on purpose, because #105 is a
-behaviour-preserving refactor; each is the maintainers' call.
-
-- **DIME steps its tied parameters twice per optimizer update**
-  (#116). The port ties the value network's first linear layers to the
-  predictor's (tabular) and builds the value network on the predictor's
-  backbone (image), then lists both networks' parameters in Adam, so a
-  tied parameter appears twice. Torch 2.7 updates a duplicated parameter
-  twice per `step()` (verified: exactly twice the single-listing delta)
-  and warns that this will become an error. Upstream GDFS builds
-  `Adam(set(...))` and upstream DIME `Adam(self.parameters())`, both of
-  which deduplicate. GDFS shares no parameters, so only DIME is affected.
-  `test_dime_lists_its_tied_parameters_twice_in_the_optimizer` pins the
-  current behaviour.
+These predate #105 and remain after #116. They were kept on purpose in
+#105 because it was a behaviour-preserving refactor.
 - **DIME's scheduler and best-epoch check use the validation metric.**
   Upstream DIME steps `ReduceLROnPlateau` on the predictor's validation
   loss in `min` mode whatever `val_loss_fn` is; the port's DIME steps on
