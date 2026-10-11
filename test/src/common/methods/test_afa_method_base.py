@@ -127,6 +127,34 @@ def test_act_receives_its_inputs_on_the_method_device() -> None:
     assert [device.type for device in method.input_devices] == ["meta"]
 
 
+def test_predict_answers_on_the_device_of_masked_features_whatever_the_keyword_order() -> (
+    None
+):
+    # A meta method whose body answers on the CPU: the decorator's final move
+    # leaves the answer there only if it targets masked_features' device
+    class _Probe(_RecordingMethod):
+        @override
+        @on_method_device
+        def predict(
+            self,
+            masked_features: MaskedFeatures,
+            feature_mask: FeatureMask,
+            label: Label | None = None,
+            feature_shape: torch.Size | None = None,
+        ) -> Label:
+            del feature_mask, label, feature_shape
+            return torch.zeros((masked_features.shape[0], 2))
+
+    method = _Probe(torch.device("cpu")).to(torch.device("meta"))
+
+    prediction = method.predict(
+        feature_mask=torch.zeros((2, 3), dtype=torch.bool, device="meta"),
+        masked_features=torch.zeros((2, 3)),
+    )
+
+    assert prediction.device.type == "cpu"
+
+
 @pytest.mark.skipif(
     not torch.cuda.is_available(), reason="needs a second device"
 )

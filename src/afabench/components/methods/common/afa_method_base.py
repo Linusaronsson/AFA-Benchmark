@@ -130,8 +130,8 @@ def on_method_device[M: AFAMethodBase, **P](
     Run `act` or `predict` on the method's device and answer on the caller's.
 
     Every tensor argument is moved to `self.device` before the body runs,
-    and the result is moved to the device of the first tensor argument,
-    `masked_features`.
+    and the result is moved to the device of `masked_features`, passed by
+    position or by keyword.
     """
     # Rebuilt argument tuples cannot be typed as P.args, so the wrapper
     # calls through an untyped alias; callers see fn's own signature
@@ -139,7 +139,7 @@ def on_method_device[M: AFAMethodBase, **P](
 
     @functools.wraps(fn)
     def wrapper(self: M, *args: P.args, **kwargs: P.kwargs) -> Tensor:
-        caller_device = _first_tensor(args, kwargs).device
+        caller_device = _masked_features(args, kwargs).device
         moved_args = tuple(_on_device(arg, self.device) for arg in args)
         moved_kwargs = {
             name: _on_device(value, self.device)
@@ -150,14 +150,17 @@ def on_method_device[M: AFAMethodBase, **P](
     return wrapper
 
 
-def _first_tensor(
+def _masked_features(
     args: tuple[object, ...], kwargs: dict[str, object]
 ) -> Tensor:
-    for value in (*args, *kwargs.values()):
-        if isinstance(value, Tensor):
-            return value
-    msg = "on_method_device needs a tensor argument to answer on its device"
-    raise TypeError(msg)
+    value = args[0] if args else kwargs.get("masked_features")
+    if not isinstance(value, Tensor):
+        msg = (
+            "on_method_device needs masked_features as a tensor to answer "
+            f"on its device, got {type(value).__name__}"
+        )
+        raise TypeError(msg)
+    return value
 
 
 def _on_device(value: object, device: torch.device) -> object:
