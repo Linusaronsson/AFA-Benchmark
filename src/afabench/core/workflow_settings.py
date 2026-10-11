@@ -675,7 +675,31 @@ def _stages(stages: object) -> PipelineStages:
     if not isinstance(stages, Mapping):
         message = f"Expected stages to be a mapping, got {stages!r}."
         raise TypeError(message)
-    return _parse_strictly(PipelineStages, stages, "stages")
+    known = [stage.name for stage in fields(PipelineStages)]
+    unknown = [stage for stage in stages if stage not in known]
+    if unknown:
+        message = (
+            f"stages: {unknown} are not pipeline stages a run can turn "
+            f"off; expected some of {known}."
+        )
+        raise ValueError(message)
+    return PipelineStages(
+        **{
+            stage: _config_bool(value, f"stages.{stage}")
+            for stage, value in stages.items()
+        }
+    )
+
+
+def _config_bool(value: object, key: str) -> bool:
+    """Read a bool that a `--config` override may pass as a string."""
+    if isinstance(value, bool):
+        return value
+    # Snakemake parses the values inside a mapping override as strings.
+    if isinstance(value, str) and value.lower() in {"true", "false"}:
+        return value.lower() == "true"
+    message = f"Expected {key} to be true or false, got {value!r}."
+    raise ValueError(message)
 
 
 def _check_reference_methods(

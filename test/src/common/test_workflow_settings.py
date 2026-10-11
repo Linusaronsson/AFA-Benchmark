@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from snakemake.cli import parse_config
 
 from afabench.core.output_layout import OutputLayout
 from afabench.core.workflow_settings import ScriptInvocation, load_config
@@ -66,13 +67,29 @@ def test_stages_turn_off_only_the_named_stages() -> None:
     assert stages.evaluation is True
 
 
+def test_stages_read_the_strings_a_config_override_passes() -> None:
+    # Snakemake passes the values of a mapping override as strings.
+    override = parse_config(
+        [
+            "stages={dataset_generation: False, training: false, evaluation: TRUE}"
+        ]
+    )
+
+    stages = load_config(_config() | override).stages
+
+    assert stages.dataset_generation is False
+    assert stages.training is False
+    assert stages.evaluation is True
+
+
 @pytest.mark.parametrize(
     ("stages", "error", "message"),
     [
-        ({"trainig": False}, ValueError, r"stages.*trainig"),
-        ({"pretraining": False}, ValueError, r"stages.*pretraining"),
-        ({"training": "false"}, ValueError, r"stages.*training"),
-        ({"evaluation": 0}, ValueError, r"stages.*evaluation"),
+        ({"trainig": False}, ValueError, r"stages.*'trainig'"),
+        ({"pretraining": False}, ValueError, r"stages.*'pretraining'"),
+        ({"training": "no"}, ValueError, r"stages\.training.*'no'"),
+        ({"evaluation": 0}, ValueError, r"stages\.evaluation.*0"),
+        ({"evaluation": None}, ValueError, r"stages\.evaluation.*None"),
         (["training"], TypeError, r"stages.*\['training'\]"),
         ("training=false", TypeError, r"stages.*'training=false'"),
     ],
