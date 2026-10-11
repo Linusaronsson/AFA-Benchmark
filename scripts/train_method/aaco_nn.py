@@ -94,7 +94,7 @@ def main(cfg: AACONNTrainConfig) -> None:
     device = torch.device(cfg.device)
     cfg = _configure_smoke_test(cfg)
     inputs = load_inputs(cfg)
-    with fit_run(cfg, tags=["aaco_nn"], config=cfg, inputs=inputs) as metrics:
+    with fit_run(cfg, tags=["aaco_nn"], inputs=inputs) as metrics:
         aaco_method = inputs.pretrained_model(AACOAFAMethod)
         force_acquisition = cfg.hard_budget is not None
         aaco_method.force_acquisition = force_acquisition
@@ -174,7 +174,7 @@ def main(cfg: AACONNTrainConfig) -> None:
             device=device,
         )
 
-        save_result(aaco_nn_method, cfg, cfg, inputs=inputs)
+        save_result(aaco_nn_method, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

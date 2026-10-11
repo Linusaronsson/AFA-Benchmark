@@ -32,9 +32,9 @@ def main(cfg: ODINTrainConfig) -> None:
     )
 
     inputs = load_inputs(cfg)
-    with fit_run(cfg, tags=["odin"], config=cfg, inputs=inputs) as logger:
+    with fit_run(cfg, tags=["odin"], inputs=inputs) as logger:
         afa_method = train_odin(cfg, inputs, logger)
-        save_result(afa_method, cfg, cfg, inputs=inputs)
+        save_result(afa_method, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

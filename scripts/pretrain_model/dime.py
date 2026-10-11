@@ -28,9 +28,7 @@ def main(cfg: DIMEPretrainingConfig) -> None:
     if cfg.smoke_test:
         cfg = replace(cfg, nepochs=1, patience=1)
     inputs = load_inputs(cfg)
-    with fit_run(
-        cfg, tags=["dime"], config=cfg, inputs=inputs
-    ) as metric_logger:
+    with fit_run(cfg, tags=["dime"], inputs=inputs) as metric_logger:
         if isinstance(cfg.architecture, DIMEImageArchitectureConfig):
             result = pretrain_image(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
@@ -39,7 +37,7 @@ def main(cfg: DIMEPretrainingConfig) -> None:
             result = pretrain_tabular(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
             )
-        save_result(result, cfg, cfg, inputs=inputs)
+        save_result(result, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

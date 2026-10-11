@@ -15,13 +15,13 @@ from afabench.fit.run import fit_run, save_result
 )
 def main(cfg: AACOTrainConfig) -> None:
     cfg = cast("AACOTrainConfig", OmegaConf.to_object(cfg))
-    with fit_run(cfg, tags=["aaco"], config=cfg):
+    with fit_run(cfg, tags=["aaco"]):
         method = run(
             cfg,
             hard_budget=cfg.hard_budget,
             soft_budget_param=cfg.soft_budget_param,
         )
-        save_result(method, cfg, cfg)
+        save_result(method, cfg)
 
 
 if __name__ == "__main__":

@@ -35,9 +35,7 @@ def main(cfg: CAETrainingConfig) -> None:
             ),
         )
     inputs = load_inputs(cfg)
-    with fit_run(
-        cfg, tags=["cae"], config=cfg, inputs=inputs
-    ) as metric_logger:
+    with fit_run(cfg, tags=["cae"], inputs=inputs) as metric_logger:
         if isinstance(cfg.architecture, CAEImageArchitectureConfig):
             result = train_image(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
@@ -46,7 +44,7 @@ def main(cfg: CAETrainingConfig) -> None:
             result = train_tabular(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
             )
-        save_result(result, cfg, cfg, inputs=inputs)
+        save_result(result, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

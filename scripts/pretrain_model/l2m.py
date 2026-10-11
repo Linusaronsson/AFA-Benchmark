@@ -31,13 +31,11 @@ def main(cfg: L2MPretrainingConfig) -> None:
             n_validation_tasks=2,
         )
     inputs = load_inputs(cfg)
-    with fit_run(
-        cfg, tags=["l2m"], config=cfg, inputs=inputs
-    ) as metric_logger:
+    with fit_run(cfg, tags=["l2m"], inputs=inputs) as metric_logger:
         result = pretrain_l2m(
             cfg, metric_logger=metric_logger.log, inputs=inputs
         )
-        save_result(result, cfg, cfg, inputs=inputs)
+        save_result(result, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

@@ -77,7 +77,7 @@ def main(cfg: JAFAPretrainConfig) -> None:
     )
 
     inputs = load_inputs(cfg)
-    with fit_run(cfg, tags=["jafa"], config=cfg, inputs=inputs):
+    with fit_run(cfg, tags=["jafa"], inputs=inputs):
         model_bundle = supervised_learning(
             train_dataset=inputs.train_dataset(),
             val_dataset=inputs.val_dataset(),
@@ -88,7 +88,7 @@ def main(cfg: JAFAPretrainConfig) -> None:
             use_wandb=cfg.use_wandb,
             device=cfg.device,
         )
-        save_result(model_bundle, cfg, cfg, inputs=inputs)
+        save_result(model_bundle, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

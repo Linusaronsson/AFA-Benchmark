@@ -24,9 +24,9 @@ def main(cfg: RandomDummyTrainConfig) -> None:
     torch.set_float32_matmul_precision("medium")
 
     inputs = load_inputs(cfg)
-    with fit_run(cfg, tags=["random_dummy"], config=cfg, inputs=inputs):
+    with fit_run(cfg, tags=["random_dummy"], inputs=inputs):
         afa_method = train_random_dummy(cfg, inputs)
-        save_result(afa_method, cfg, cfg, inputs=inputs)
+        save_result(afa_method, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

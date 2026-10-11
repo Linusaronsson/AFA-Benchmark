@@ -104,7 +104,7 @@ def test_save_result_writes_a_loadable_bundle_to_save_path(
 ) -> None:
     config = _training_config(inputs)
 
-    save_result(TorchModelBundle(nn.Linear(2, 2)), config, config)
+    save_result(TorchModelBundle(nn.Linear(2, 2)), config)
 
     loaded = load_bundle(inputs / "method.bundle")
     assert isinstance(loaded.obj, TorchModelBundle)
@@ -137,7 +137,7 @@ def test_save_result_writes_a_loadable_bundle_to_save_path(
 def test_save_result_records_training_provenance(inputs: Path) -> None:
     config = _training_config(inputs, seed=11, smoke_test=True)
 
-    save_result(TorchModelBundle(nn.Linear(2, 2)), config, config)
+    save_result(TorchModelBundle(nn.Linear(2, 2)), config)
 
     record = bundle_provenance(inputs / "method.bundle")
     assert record is not None
@@ -193,15 +193,12 @@ def test_fit_stage_given_its_inputs_reads_each_input_manifest_once(
     config = _training_config(inputs)
     fit_inputs = load_inputs(config)
 
-    with fit_run(config, tags=["m"], config=config, inputs=fit_inputs):
+    with fit_run(config, tags=["m"], inputs=fit_inputs):
         fit_inputs.train_dataset()
         fit_inputs.val_dataset()
         fit_inputs.classifier(WrappedMaskedMLPClassifier)
         save_result(
-            TorchModelBundle(nn.Linear(2, 2)),
-            config,
-            config,
-            inputs=fit_inputs,
+            TorchModelBundle(nn.Linear(2, 2)), config, inputs=fit_inputs
         )
 
     # The pretrained model is never loaded, but its manifest is still read
@@ -218,14 +215,12 @@ def test_save_result_records_the_same_inputs_given_the_fit_inputs(
     inputs: Path,
 ) -> None:
     config = _training_config(inputs)
-    save_result(TorchModelBundle(nn.Linear(2, 2)), config, config)
+    save_result(TorchModelBundle(nn.Linear(2, 2)), config)
     without_inputs = bundle_provenance(inputs / "method.bundle")
     fit_inputs = load_inputs(config)
     fit_inputs.classifier(WrappedMaskedMLPClassifier)
 
-    save_result(
-        TorchModelBundle(nn.Linear(2, 2)), config, config, inputs=fit_inputs
-    )
+    save_result(TorchModelBundle(nn.Linear(2, 2)), config, inputs=fit_inputs)
 
     with_inputs = bundle_provenance(inputs / "method.bundle")
     assert without_inputs is not None
@@ -239,7 +234,7 @@ def test_save_result_without_a_pretrained_model_records_three_inputs(
 ) -> None:
     config = _training_config(inputs, pretrained_model_bundle_path=None)
 
-    save_result(TorchModelBundle(nn.Linear(2, 2)), config, config)
+    save_result(TorchModelBundle(nn.Linear(2, 2)), config)
 
     record = bundle_provenance(inputs / "method.bundle")
     assert record is not None
@@ -266,7 +261,7 @@ def test_save_result_rejects_datasets_of_different_realizations(
     )
 
     with pytest.raises(DatasetIdentityMismatchError, match=r"2.*3"):
-        save_result(TorchModelBundle(nn.Linear(2, 2)), config, config)
+        save_result(TorchModelBundle(nn.Linear(2, 2)), config)
 
 
 def test_save_result_records_a_separate_method_config(inputs: Path) -> None:

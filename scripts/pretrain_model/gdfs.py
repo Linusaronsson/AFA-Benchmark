@@ -28,9 +28,7 @@ def main(cfg: GDFSPretrainingConfig) -> None:
     if cfg.smoke_test:
         cfg = replace(cfg, nepochs=1, patience=1)
     inputs = load_inputs(cfg)
-    with fit_run(
-        cfg, tags=["gdfs"], config=cfg, inputs=inputs
-    ) as metric_logger:
+    with fit_run(cfg, tags=["gdfs"], inputs=inputs) as metric_logger:
         if isinstance(cfg.architecture, GDFSImageArchitectureConfig):
             result = pretrain_image(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
@@ -39,7 +37,7 @@ def main(cfg: GDFSPretrainingConfig) -> None:
             result = pretrain_tabular(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
             )
-        save_result(result, cfg, cfg, inputs=inputs)
+        save_result(result, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

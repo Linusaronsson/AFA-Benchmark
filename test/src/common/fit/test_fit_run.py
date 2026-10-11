@@ -120,12 +120,12 @@ def fake_wandb_runs(monkeypatch: pytest.MonkeyPatch) -> list[_FakeWandbRun]:
 def test_fit_run_seeds_from_the_contract() -> None:
     config = _method_config(seed=11, use_wandb=False)
 
-    with fit_run(config, tags=["m"], config=config):
+    with fit_run(config, tags=["m"]):
         first = torch.rand(3)
-    with fit_run(config, tags=["m"], config=config):
+    with fit_run(config, tags=["m"]):
         second = torch.rand(3)
     other_config = replace(config, seed=12)
-    with fit_run(other_config, tags=["m"], config=other_config):
+    with fit_run(other_config, tags=["m"]):
         other = torch.rand(3)
 
     assert torch.equal(first, second)
@@ -137,7 +137,7 @@ def test_fit_run_on_cpu_does_not_touch_cuda(
 ) -> None:
     config = _method_config(seed=0, use_wandb=False)
 
-    with fit_run(config, tags=["m"], config=config):
+    with fit_run(config, tags=["m"]):
         pass
 
     assert cuda_calls == []
@@ -148,7 +148,7 @@ def test_fit_run_on_cuda_releases_cuda_memory_afterwards(
 ) -> None:
     config = replace(_method_config(seed=0, use_wandb=False), device="cuda")
 
-    with fit_run(config, tags=["m"], config=config):
+    with fit_run(config, tags=["m"]):
         assert cuda_calls == []
 
     assert cuda_calls == ["empty_cache", "synchronize"]
@@ -159,7 +159,7 @@ def test_fit_run_without_wandb_logs_nowhere(
 ) -> None:
     config = _method_config(seed=0, use_wandb=False)
 
-    with fit_run(config, tags=["m"], config=config) as metric_logger:
+    with fit_run(config, tags=["m"]) as metric_logger:
         metric_logger.log({"loss": 1.0})
 
     assert isinstance(metric_logger, NullMetricLogger)
@@ -201,7 +201,7 @@ def test_fit_run_with_wandb_sets_job_type_from_contract_stage(
         **kwargs,  # pyright: ignore[reportArgumentType]
     )
 
-    with fit_run(contract, tags=["my_method"], config=contract):
+    with fit_run(contract, tags=["my_method"]):
         pass
 
     [run] = fake_wandb_runs
@@ -214,7 +214,7 @@ def test_fit_run_with_wandb_logs_the_flat_method_config(
 ) -> None:
     config = _method_config(seed=5, use_wandb=True)
 
-    with fit_run(config, tags=["m"], config=config):
+    with fit_run(config, tags=["m"]):
         pass
 
     [run] = fake_wandb_runs
@@ -233,7 +233,7 @@ def test_fit_run_with_wandb_forwards_metrics_and_finishes(
 ) -> None:
     config = _method_config(seed=0, use_wandb=True)
 
-    with fit_run(config, tags=["m"], config=config) as metric_logger:
+    with fit_run(config, tags=["m"]) as metric_logger:
         metric_logger.log({"loss": 0.5})
         [run] = fake_wandb_runs
         assert not run.finished
@@ -248,7 +248,7 @@ def test_fit_run_finishes_wandb_when_training_fails(
     config = _method_config(seed=0, use_wandb=True)
 
     def train() -> None:
-        with fit_run(config, tags=["m"], config=config):
+        with fit_run(config, tags=["m"]):
             msg = "diverged"
             raise RuntimeError(msg)
 
@@ -272,7 +272,7 @@ def test_fit_run_rejects_datasets_of_different_realizations_before_training(
 
     def train() -> None:
         nonlocal trained
-        with fit_run(config, tags=["m"], config=config):
+        with fit_run(config, tags=["m"]):
             trained = True
 
     with pytest.raises(DatasetIdentityMismatchError, match=r"2.*3"):

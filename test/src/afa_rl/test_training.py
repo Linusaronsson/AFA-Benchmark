@@ -152,7 +152,7 @@ def test_rl_trainer_trains_on_cpu_without_touching_cuda(
     metric_logger = RecordingMetricLogger()
     cuda_calls: list[str] = []
 
-    with fit_run(cfg, tags=["jafa"], config=cfg):
+    with fit_run(cfg, tags=["jafa"]):
         trainer = JAFARLTrainer(cfg, load_inputs(cfg), metric_logger)
         value_net_before = [
             p.detach().clone()

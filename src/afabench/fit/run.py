@@ -42,13 +42,14 @@ def fit_run(
     contract: BaseContract,
     *,
     tags: list[str],
-    config: "DataclassInstance",
+    config: "DataclassInstance | None" = None,
     inputs: FitInputs | None = None,
 ) -> Generator[MetricLogger]:
     """
     Seed, open a metric logger for the contract's stage and clean up afterwards.
 
-    `config` is the full method config, usually the contract itself. CUDA
+    `config` is the full method config; it defaults to the contract, which
+    method configs inherit. CUDA
     memory is released only when the contract's device is a CUDA device, so
     a CPU run never initialises a CUDA context. Dataset bundles whose
     records disagree on the dataset identity raise
@@ -61,7 +62,10 @@ def fit_run(
     if contract.use_wandb:
         metric_logger = WandbMetricLogger(
             initialize_wandb_run(
-                cfg={**asdict(contract), **asdict(config)},
+                cfg={
+                    **asdict(contract),
+                    **asdict(contract if config is None else config),
+                },
                 job_type=contract.stage,
                 tags=tags,
             )
@@ -82,7 +86,7 @@ def fit_run(
 def save_result(
     obj: Saveable,
     contract: BaseContract,
-    config: "DataclassInstance",
+    config: "DataclassInstance | None" = None,
     *,
     inputs: FitInputs | None = None,
 ) -> None:
@@ -90,7 +94,8 @@ def save_result(
     Save `obj` as a bundle at the contract's `save_path`.
 
     The bundle metadata records the stage, the contract fields and the
-    remaining fields of `config`. The bundle's provenance record
+    remaining fields of `config`, which defaults to the contract as for
+    `fit_run`. The bundle's provenance record
     (ADR 0002) takes the contract's seed, its input bundles and, for
     training, its method name; the dataset identity is copied from the
     dataset bundles' own records. `inputs` are the contract's `FitInputs`,
@@ -105,7 +110,9 @@ def save_result(
     }
     method_config_dict = {
         name: value
-        for name, value in asdict(config).items()
+        for name, value in asdict(
+            contract if config is None else config
+        ).items()
         if name not in contract_field_names
     }
     save_bundle(

@@ -101,9 +101,9 @@ other two helpers:
 def main(cfg: RandomDummyTrainConfig) -> None:
     cfg = cast("RandomDummyTrainConfig", OmegaConf.to_object(cfg))
     inputs = load_inputs(cfg)
-    with fit_run(cfg, tags=["random_dummy"], config=cfg, inputs=inputs):
+    with fit_run(cfg, tags=["random_dummy"], inputs=inputs):
         afa_method = train_random_dummy(cfg, inputs)
-        save_result(afa_method, cfg, cfg, inputs=inputs)
+        save_result(afa_method, cfg, inputs=inputs)
 ```
 
 `fit_run` (from `afabench.fit.run`) checks that the train and val dataset
@@ -116,8 +116,11 @@ stage, the contract values and the config fields the contract doesn't cover,
 and with the bundle's provenance record (seed, inputs, `method_name` and
 dataset identity; see
 [`docs/reference/bundle_format.md`](../reference/bundle_format.md)).
-Pass both helpers the script's `inputs`, so that each input bundle's
-manifest is read once; without `inputs=` they read the manifests again.
+Both helpers take the method config from the contract, since your config
+dataclass inherits it; pass `config=` only if the method config is a
+separate object. Pass both helpers the script's `inputs`, so that each
+input bundle's manifest is read once; without `inputs=` they read the
+manifests again.
 
 Nothing here is Hydra-specific except `@hydra.main` and `OmegaConf.to_object`;
 section 6 covers skipping both.

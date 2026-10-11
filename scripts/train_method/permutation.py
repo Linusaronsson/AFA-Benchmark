@@ -49,7 +49,7 @@ def main(cfg: PermutationTrainingConfig) -> None:
         cfg.selector.patience = 1
         cfg.classifier.nepochs = 1
 
-    with fit_run(cfg, tags=["permutation"], config=cfg) as metric_logger:
+    with fit_run(cfg, tags=["permutation"]) as metric_logger:
         train_dataset, val_dataset, _, _, class_weights = (
             afa_discriminative_training_prep(
                 train_dataset_bundle_path=Path(cfg.train_dataset_bundle_path),
@@ -148,7 +148,7 @@ def main(cfg: PermutationTrainingConfig) -> None:
 
         static_method = StaticBaseMethod(selected_history, predictors, device)
 
-    save_result(static_method, cfg, cfg)
+    save_result(static_method, cfg)
 
 
 if __name__ == "__main__":

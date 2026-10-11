@@ -22,13 +22,11 @@ def main(cfg: DIMETrainingConfig) -> None:
     if cfg.smoke_test:
         cfg = replace(cfg, nepochs=1, patience=1)
     inputs = load_inputs(cfg)
-    with fit_run(
-        cfg, tags=["dime"], config=cfg, inputs=inputs
-    ) as metric_logger:
+    with fit_run(cfg, tags=["dime"], inputs=inputs) as metric_logger:
         inputs.initializer().set_seed(cfg.seed)
         inputs.unmasker().set_seed(cfg.seed)
         result = train(cfg, metric_logger=metric_logger.log, inputs=inputs)
-        save_result(result, cfg, cfg, inputs=inputs)
+        save_result(result, cfg, inputs=inputs)
 
 
 if __name__ == "__main__":

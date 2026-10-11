@@ -106,9 +106,7 @@ def eval_inputs(tmp_path: Path) -> EvalInputs:
         hard_budget=2,
         soft_budget_param=None,
     )
-    save_result(
-        RandomWithoutClassifierAFAMethod(n_classes=8), contract, contract
-    )
+    save_result(RandomWithoutClassifierAFAMethod(n_classes=8), contract)
     return EvalInputs(
         method=tmp_path / "method.bundle",
         dataset=tmp_path / "test.bundle",
