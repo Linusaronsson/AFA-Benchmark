@@ -3,17 +3,16 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 import pytest
-from omegaconf import OmegaConf
 
-from afabench.core.job_duration_table import COLUMN_DTYPES
-from afabench.plotting.config import (
-    PlottingDisplayConfig,
-    PlotTotalTimeConfig,
+from afabench.core.job_duration_table import (
+    COLUMN_DTYPES,
+    load_job_duration_table,
 )
-from scripts.plotting.plot_total_time import (
+from afabench.plotting.config import PlottingDisplayConfig
+from afabench.plotting.total_time import (
     get_plots,
-    main,
     method_job_durations,
+    save_time_plots,
 )
 
 TAG = "initializer-cold"
@@ -274,7 +273,7 @@ def test_methods_follow_reversed_mapping_order_and_stages_stack_last_first(
     assert pa.table(dataset_plot.data).num_rows == len(durations)
 
 
-def test_main_plots_a_job_duration_table(
+def test_time_plots_are_saved_from_a_job_duration_table(
     tmp_path: Path,
     plotting_config: PlottingDisplayConfig,
 ) -> None:
@@ -286,20 +285,15 @@ def test_main_plots_a_job_duration_table(
         ]
     ).to_parquet(table_path, index=False)
     output_folder = tmp_path / "plots"
-    cfg = OmegaConf.structured(
-        PlotTotalTimeConfig(
-            input=str(table_path),
-            output_folder=str(output_folder),
-            methods=["gdfs"],
-            pretrained_models={},
-            initializer_tag=TAG,
-            eval_dataset_split="test",
-            formats=["png"],
-            plotting=plotting_config,
-        )
+    durations = method_job_durations(
+        load_job_duration_table(table_path),
+        methods=["gdfs"],
+        pretrained_models={},
+        initializer_tag=TAG,
+        eval_dataset_split="test",
     )
 
-    main(cfg)
+    save_time_plots(durations, output_folder, plotting_config, ["png"])
 
     assert sorted(path.name for path in output_folder.iterdir()) == [
         "average_time.png",
