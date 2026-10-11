@@ -166,6 +166,30 @@ under its own output root, `output/smoke`, never
 `smoke_test=true` also works with a site profile and the default execution
 file, to check the submissions themselves.
 
+## Use existing outputs without rerunning their stages
+
+To evaluate methods already trained under the output root, without
+generating datasets or training anything, turn those pipeline stages off
+with the `stages` override:
+
+```shell
+workflow/run.py kdd26 --site <your_site> -n --target all_eval_methods \
+    "stages={dataset_generation: false, training: false}"
+```
+
+`training: false` turns off pretraining, training and classifier training
+together. To only transform, aggregate and plot existing evaluation tables,
+also turn off evaluation:
+
+```shell
+workflow/run.py kdd26 --site <your_site> -n \
+    "stages={dataset_generation: false, training: false, evaluation: false}"
+```
+
+A stage that is off never schedules a job: the run uses its outputs as they
+are, and planning fails if one it needs is missing. The dry run lists the
+stages that are off.
+
 ## Change the hard budgets
 
 The [hard budgets](../../CONTEXT.md) evaluated per dataset come from the
@@ -275,8 +299,9 @@ workflow/run.py --site <your_site> -n \
 
 ## Inspect planned work
 
-- A dry run prints the resolved configuration (output root, initializer,
-  dataset realizations, datasets with their unmasker and classifier,
+- A dry run prints the resolved configuration (output root, the
+  [stages that are off](#use-existing-outputs-without-rerunning-their-stages),
+  initializer, dataset realizations, datasets with their unmasker and classifier,
   methods with their classifier and pretrained model, method sets, and the
   hard budgets and soft-budget parameters of every method on every dataset),
   then how many jobs of each rule would run. Check them after every

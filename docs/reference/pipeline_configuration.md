@@ -146,6 +146,20 @@ The output root the run writes all its bundles, evaluation tables, job records, 
 - **Example:** `output_root=/scratch/afabench/output`
 - **Note:** An `output_root` that is, contains or lies inside the other kind of run's default root is a config error, for example `smoke_test=true` with `output_root=output/production`, or `output_root=output`
 
+### `stages`
+
+Turns whole pipeline stages off. A stage that is off defines no rules, so the run reads that stage's outputs as they are under the output root, never schedules its jobs, and fails during planning if an output it needs is missing. Transformation, aggregation and visualization are always on.
+
+| Key | Pipeline stages it covers |
+| --- | --- |
+| `dataset_generation` | Dataset generation |
+| `training` | Pretraining, training and classifier training |
+| `evaluation` | Evaluation |
+
+- **Default:** every key `true`
+- **Example:** `"stages={dataset_generation: false, training: false}"` to evaluate existing trained methods; add `evaluation: false` to only transform, aggregate and plot existing evaluation tables
+- **Note:** Each value is `true` or `false`, in any case. An unknown key, another value, or a `stages` that is not a mapping is a config error. The dry run's resolved configuration lists the stages that are off
+
 ## Datasets
 
 The `workflow/conf/datasets/` directory contains dataset configuration files. Each file specifies which datasets are used in the pipeline.
@@ -304,3 +318,5 @@ To use one of these rules, pass it with `--target`. For example, to only generat
 ```shell
 workflow/run.py --target all_train_classifiers ...
 ```
+
+A target only narrows what Snakemake builds; it still regenerates any missing or outdated upstream output. To use upstream outputs as they are instead, turn their stages off with [`stages`](#stages).
