@@ -1,7 +1,7 @@
 # Issue tracker: GitHub
 
 Issues and specs for this repo live as GitHub issues on
-`Linusaronsson/AFA-Benchmark`. Use the `gh` CLI for all operations.
+`MachineLearning-DecisionMaking/AFABench`. Use the `gh` CLI for all operations.
 
 ## Repo-specific conventions
 

@@ -52,8 +52,9 @@ markers `optional`, `pipeline` and `workflow` are deselected by default
 Development follows the `matt-pocock` skill set; use those skills where they
 apply.
 
-- **Issue tracker**: GitHub Issues for `Linusaronsson/AFA-Benchmark` via
-  `gh`. See `docs/agents/issue-tracker.md`.
+- **Issue tracker**: GitHub Issues for
+  `MachineLearning-DecisionMaking/AFABench` via `gh`. See
+  `docs/agents/issue-tracker.md`.
 - **Triage labels**: `needs-triage`, `needs-info`, `ready-for-agent`,
   `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 - **Domain docs**: single context, `CONTEXT.md` plus `docs/adr/`. See
