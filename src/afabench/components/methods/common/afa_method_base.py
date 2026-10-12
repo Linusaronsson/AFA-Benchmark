@@ -28,6 +28,7 @@ from afabench.core.types import (
     AFAAction,
     AFAClassifier,
     AFAMethod,
+    ClassifierOutputKind,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -102,6 +103,12 @@ class AFAMethodBase(AFAMethod, ABC):
     @abstractmethod
     @override
     def load(cls, path: Path, device: torch.device) -> Self: ...
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        msg = f"{type(self).__name__} must declare its built-in classifier output_kind"
+        raise NotImplementedError(msg)
 
     @property
     @override

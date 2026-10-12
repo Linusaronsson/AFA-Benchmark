@@ -10,6 +10,7 @@ from afabench.core.bundle_system.bundle import load_bundle
 from afabench.core.types import (
     AFAAction,
     AFAClassifier,
+    ClassifierOutputKind,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -454,6 +455,11 @@ class EDDIAFAMethod(AFAMethodBase):
             },
             str(path / "model.pt"),
         )
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"
 
     @property
     @override

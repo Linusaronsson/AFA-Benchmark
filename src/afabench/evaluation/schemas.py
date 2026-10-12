@@ -50,6 +50,9 @@ class BatchEvaluationSchema(pa.DataFrameModel):
     # coercion so existing callers and Parquet artifacts keep their dtypes.
     builtin_predicted_class: Series[Any] = pa.Field(nullable=True)
     external_predicted_class: Series[Any] = pa.Field(nullable=True)
+    # Object cells contain a full vector in label class-index order, or None.
+    builtin_predicted_probabilities: Series[object] = pa.Field(nullable=True)
+    external_predicted_probabilities: Series[object] = pa.Field(nullable=True)
     true_class: Series[int] = pa.Field(ge=0)
     accumulated_cost: Series[float] = pa.Field(ge=0)
     forced_stop: Series[bool] = pa.Field()
@@ -151,6 +154,8 @@ PLOTTING_READY_DTYPES = {
     "forced_stop": "boolean",
     "n_selections_performed": "UInt64",
     "predicted_class": "UInt64",
+    # Full class-index-ordered vector after pairing each classifier's columns.
+    "predicted_probabilities": "object",
     **IDENTITY_DTYPES,
 }
 

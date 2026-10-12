@@ -13,6 +13,7 @@ from afabench.components.methods.dummy.without_classifier import (
     RandomWithoutClassifierAFAMethod,
     SequentialWithoutClassifierAFAMethod,
 )
+from afabench.core.class_probabilities import as_class_probability_fn
 from afabench.core.types import AFAMethod
 from afabench.evaluation.eval import eval_afa_method
 from afabench.fit.inputs import FitInputs
@@ -84,7 +85,9 @@ def _check_dummy_method_works(
         afa_initialize_fn=initializer.initialize,
         dataset=train_dataset,
         external_afa_predict_fn=None,
-        builtin_afa_predict_fn=afa_method.predict,
+        builtin_afa_predict_fn=as_class_probability_fn(
+            afa_method.predict, output_kind=afa_method.output_kind
+        ),
         only_n_samples=only_n_samples,
         batch_size=batch_size,
     )

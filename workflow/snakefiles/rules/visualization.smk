@@ -36,16 +36,34 @@ def _dataset_sets_override() -> str:
     return shlex.quote(f"++dataset_sets={{{dataset_sets}}}")
 
 
+def _plotting_metric_overrides() -> str:
+    """Merge headline metric choices into the script's display defaults."""
+    plotting = WORKFLOW_SETTINGS.plotting
+    overrides = []
+    if plotting.dataset_metrics:
+        metrics = ",".join(
+            f"{dataset}:{metric}"
+            for dataset, metric in plotting.dataset_metrics.items()
+        )
+        overrides.append(f"++plotting.dataset_metrics={{{metrics}}}")
+    if plotting.default_metric is not None:
+        overrides.append(f"plotting.default_metric={plotting.default_metric}")
+    return shlex.join(overrides)
+
+
 rule plot_eval_perf:
     """Generate evaluation performance plots, one folder per dataset set."""
     input:
         OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type="{classifier_type}"),
     output:
         directory(OUTPUT_LAYOUT.eval_perf_plots(method_set="{method_set}", classifier_type="{classifier_type}")),
+    wildcard_constraints:
+        classifier_type="builtin" if WORKFLOW_SETTINGS.per_dataset_plots else "builtin|external",
     params:
         image=IMAGES.param("visualization", lambda wc: "plot_eval_perf"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_perf", resources),
         dataset_sets=_dataset_sets_override(),
+        metrics=_plotting_metric_overrides(),
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("visualization", lambda wc: "plot_eval_perf"),
@@ -54,8 +72,35 @@ rule plot_eval_perf:
         """
         {params.image}python scripts/plotting/plot_eval_perf.py \
             input={input} output_folder={output} formats='[pdf,svg]' \
-            {params.dataset_sets}
+            {params.dataset_sets} {params.metrics}
         """
+
+if WORKFLOW_SETTINGS.per_dataset_plots:
+    rule plot_eval_perf_per_dataset:
+        """The external usual job also owns the additional method-set figures."""
+        input:
+            selected=OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type="external"),
+            unsplit=OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type=None),
+        output:
+            usual=directory(OUTPUT_LAYOUT.eval_perf_plots(method_set="{method_set}", classifier_type="external")),
+            per_dataset=directory(OUTPUT_LAYOUT.per_dataset_eval_perf_plots(method_set="{method_set}")),
+        params:
+            image=IMAGES.param("visualization", lambda wc: "plot_eval_perf"),
+            allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_perf", resources),
+            dataset_sets=_dataset_sets_override(),
+            metrics=_plotting_metric_overrides(),
+        resources:
+            shell_exec="bash",
+            **EXECUTION.allocation_resources("visualization", lambda wc: "plot_eval_perf"),
+            **EXECUTION.walltime.resources("plot_eval_perf"),
+        shell:
+            """
+            {params.image}python scripts/plotting/plot_eval_perf.py \
+                input={input.selected} output_folder={output.usual} formats='[pdf,svg]' \
+                {params.dataset_sets} {params.metrics} per_dataset_plots=true \
+                per_dataset_input={input.unsplit} \
+                per_dataset_output_folder={output.per_dataset}
+            """
 
 # This rule probably does not need to use both types of classifiers, since the actions are the same (they come from the same original evaluation dataframe).
 rule plot_eval_actions:

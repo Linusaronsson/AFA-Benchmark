@@ -28,6 +28,21 @@ def main(cfg: PlotEvalPerfConfig) -> None:
         cfg.formats,
     )
     plotter.generate_all_plots(cfg.dataset_sets)
+    if cfg.per_dataset_plots:
+        if (
+            cfg.per_dataset_input is None
+            or cfg.per_dataset_output_folder is None
+        ):
+            msg = (
+                "per_dataset_plots=True requires per_dataset_input and "
+                "per_dataset_output_folder; got "
+                f"{cfg.per_dataset_input!r}, {cfg.per_dataset_output_folder!r}"
+            )
+            raise ValueError(msg)
+        plotter.generate_per_dataset_plots(
+            load_plotting_ready_table(Path(cfg.per_dataset_input)),
+            Path(cfg.per_dataset_output_folder),
+        )
 
 
 if __name__ == "__main__":

@@ -22,8 +22,10 @@ import pytest
 import torch
 from pandas.testing import assert_frame_equal
 
+from afabench.core.class_probabilities import as_class_probability_fn
 from afabench.core.types import (
     AFAAction,
+    AFAClassifierFn,
     AFAPredictFn,
     FeatureMask,
     Label,
@@ -107,7 +109,8 @@ def get_linear_predict_fn(weights: torch.Tensor) -> AFAPredictFn:
     ) -> Label:
         return masked_features @ weights
 
-    return f
+    logits_fn: AFAClassifierFn = f
+    return as_class_probability_fn(logits_fn, output_kind="logits")
 
 
 SCENARIOS: dict[str, dict[str, Any]] = {

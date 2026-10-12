@@ -292,6 +292,12 @@ class OutputLayout:
             "eval_perf", _method_set_plots_folder(method_set, classifier_type)
         )
 
+    def per_dataset_eval_perf_plots(self, *, method_set: PathValue) -> str:
+        """Additional figures for both classifiers, owned once per method set."""
+        return self._plots_path(
+            "eval_perf_per_dataset", f"method_set-{method_set}"
+        )
+
     def eval_actions_plots(
         self, *, method_set: PathValue, classifier_type: PathValue
     ) -> str:

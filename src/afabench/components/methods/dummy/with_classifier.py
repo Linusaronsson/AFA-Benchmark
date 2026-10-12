@@ -12,6 +12,7 @@ from afabench.components.methods.common import (
 from afabench.core.types import (
     AFAAction,
     AFAClassifier,
+    ClassifierOutputKind,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -28,6 +29,11 @@ class RandomWithClassifierAFAMethod(AFAMethodBase):
     ):
         super().__init__(afa_classifier.device if device is None else device)
         self.afa_classifier: AFAClassifier = afa_classifier.to(self._device)
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return self.afa_classifier.output_kind
 
     @property
     @override
@@ -93,6 +99,11 @@ class SequentialWithClassifierAFAMethod(AFAMethodBase):
     ):
         super().__init__(afa_classifier.device if device is None else device)
         self.afa_classifier: AFAClassifier = afa_classifier.to(self._device)
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return self.afa_classifier.output_kind
 
     @property
     @override

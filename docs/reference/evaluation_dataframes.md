@@ -13,8 +13,8 @@ extending `BatchEvaluationSchema` or `EvaluationSchema`:
   columns below, added by `AFAEvaluator` before saving Parquet.
 - `PreProvenanceSavedEvaluationSchema`: the `EvaluationSchema` columns plus
   nullable `eval_seed` and `eval_hard_budget`, as the evaluator saved them
-  before the identity columns existed. The transform step still accepts
-  these tables.
+  before the identity columns existed. These schema columns now also
+  require probability vectors; old class-only tables are not supported.
 
 `episode_id` identifies an episode, not a dataset position. It is batch-local
 for an individual `process_batch` call, but unique across all batches in one
@@ -38,12 +38,13 @@ Repeated selections count as separate steps, even if no new features appear.
 The initializer's observations are not selections and do not increment `step`.
 
 The other evaluation columns are `action_performed`,
-`builtin_predicted_class`, `external_predicted_class`, `true_class`,
+`builtin_predicted_class`, `external_predicted_class`,
+`builtin_predicted_probabilities`, `external_predicted_probabilities`, `true_class`,
 `accumulated_cost`, and `forced_stop`. Actions are one-based selection IDs;
 zero means stop. Recorded actions include budget/forced-acquisition overrides,
 not rejected actions or original policy intentions. Predictions use the
 pre-action observations, whereas cost includes the current action.
-Missing classifiers produce all-null prediction columns.
+Missing classifiers produce null classes and probability vectors together.
 
 Functions return `pandera.typing.DataFrame[EvaluationSchema]`. Runtime
 validation rejects missing, unexpected, or duplicate column names and checks
@@ -55,6 +56,28 @@ concatenation and before saving.
 Prediction fields use `Series[Any]` because pandas represents all-null
 columns differently from populated columns. Explicit element-wise checks
 enforce scalar integer class IDs.
+
+## Class probabilities
+
+Evaluation consumes only class probabilities (`ClassProbabilities`), not
+logits. Classifier outputs declare `output_kind` as `logits` or
+`probabilities`; upstream adapters (`as_class_probability_fn`) apply softmax
+only to declared logits. Semantics are never inferred from tensor values.
+
+A probability tensor has the label's batch/class shape, at least two classes,
+finite floating-point values in `[0, 1]`, and row sums of one (absolute
+tolerance `1e-6`, relative tolerance `1e-5`). Runtime validation raises
+specific exceptions naming invalid shapes or values. Single-logit binary
+outputs are not supported: binary classifiers return two-class vectors.
+
+Every recorded time step retains the full vector for each available
+classifier, ordered by label class index. Raw Parquet object cells store
+`builtin_predicted_probabilities` and `external_predicted_probabilities` as
+floating vectors; unavailable classifiers have null vectors and classes.
+Predicted classes are the vectors' argmax. The classifier-long transformed
+table pairs each `predicted_class` with its `predicted_probabilities`; it does
+not discard probabilities or replace missing built-in results with external
+results.
 
 ## Identity and provenance
 
@@ -126,7 +149,7 @@ mapping from selections to features.
 plotting-ready table. It reads identity from the raw table's columns and only
 derives plotting columns: `n_selections_performed`, the melt of the
 prediction columns into `classifier` (`builtin` or `external`) and
-`predicted_class`, and nullable dtypes. The output keeps `generation_index`,
+`predicted_class` and the paired `predicted_probabilities`, and nullable dtypes. The output keeps `generation_index`,
 `split_index` and every identity column, including
 `dataset_realization_index` and `eval_split`, and copies the raw table's
 provenance record into its own schema metadata. It discards episode
@@ -166,8 +189,8 @@ module prepares it for plotting:
 | `combine_soft_budget_params` | The table with `train_soft_budget_param` and `eval_soft_budget_param` replaced by `soft_budget_param`, whichever is set. Raises `SoftBudgetParamConflictError` for a row that sets both. |
 | `keep_largest_hard_budget` | The rows of each dataset's largest `eval_hard_budget`. |
 | `keep_smallest_soft_budget_param` | The rows of each method and dataset's smallest `soft_budget_param`. |
-| `metrics_at_stop` | Accuracy, macro F1 and mean accumulated cost per method, dataset, seed pair and budget. |
-| `metrics_at_every_step` | Accuracy and macro F1 per method, dataset, seed pair, budget and `n_selections_performed`. |
+| `metrics_at_stop` | Accuracy, macro F1, AUROC and mean accumulated cost per method, dataset, seed pair and budget. |
+| `metrics_at_every_step` | Accuracy, macro F1 and AUROC per method, dataset, seed pair, budget and `n_selections_performed`. |
 | `variance_over_seeds_at_stop`, `variance_over_seeds_at_every_step` | Mean and standard deviation of those metrics over seeds. |
 | `apply_exclusions` | The table without each method excluded from a dataset. |
 
@@ -177,17 +200,34 @@ against hard budget, selections and accumulated cost), `eval_actions`
 the job duration table). The scripts under `scripts/plotting/` only load
 their input and call these modules.
 
-## Legacy reading
+## Metrics and seed summaries
 
-Existing Parquet files remain untouched. The evaluation-data transform accepts
-compact tables with and without identity columns, each validated against the
-column set it was written with, and legacy logs: it uses `step` for compact
-logs and stored history lengths for legacy logs, including partial legacy
-tables. Legacy histories can be lists, Parquet-restored NumPy arrays, or
-string lists. Tables transformed from legacy logs have null
-`generation_index` and `split_index`. Compact tables written before those
-columns existed are rejected rather than backfilled; re-run their
-evaluation.
+Pass each classifier's rows separately to the metric interfaces. Accuracy
+and macro F1 (`accuracy`, `f_score`) are retained. AUROC (`auroc`) uses class
+1 probability for binary classification, or macro one-vs-rest over all vector
+classes for multiclass classification. It is computed within each run before
+across-seed aggregation, at stopping and at each selection-count time step.
 
-These contracts cover pandas evaluation results, not subsequent aggregation
-or plotting tables or arbitrary dataset frames.
+A run missing any required class has undefined AUROC (`NaN`), not zero.
+If any run in a seed summary has undefined AUROC, both `mean_auroc` and
+`std_auroc` remain undefined; undefined runs are not silently dropped.
+Standard deviations use the sample convention, so a single seed also has
+undefined standard deviation. The existing accuracy and F1 summaries remain
+`mean_accuracy`, `std_accuracy`, `mean_f_score`, `std_f_score`.
+
+[Evaluation performance plots](evaluation_plots.md) documents headline metric
+configuration and optional per-dataset three-metric figures. Average precision
+(AP) is deferred to [issue #130](https://github.com/MachineLearning-DecisionMaking/AFABench/issues/130).
+
+## Compatibility
+
+[ADR 0013](../adr/0013-evaluation-tables-require-class-probabilities.md) amends
+ADR 0002's evaluation-table compatibility promise: probability retention
+requires a new table contract; class indices cannot recover ranking scores.
+
+Old class-only raw and plotting-ready tables lack the required probabilities
+and cannot be used with this evaluation/metric contract. No conversion from
+class IDs to probabilities or backward-compatible table reader is provided.
+[Reevaluate the trained methods](../how-to/run_the_pipeline.md#reevaluate-class-only-tables),
+then regenerate transformed and merged tables and plots. Generation/split
+indices, provenance and acquisition semantics are retained.

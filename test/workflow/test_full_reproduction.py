@@ -290,13 +290,26 @@ FULL_GRAPH_JOBS = {
     "train_method": 8,
     "eval_method": 8,
     "transform_eval_data": 8,
-    "merge_eval_perf": 1,
-    "split_by_classifier_type": 1,
+    # Both the reserved all set and heatmap_comparison need their own tables
+    # and one performance plot job for each classifier.
+    "merge_eval_perf": 2,
+    "split_by_classifier_type": 2,
     "collect_job_records": 1,
-    "plot_eval_perf": 2,
+    "plot_eval_perf": 4,
     "plot_eval_actions": 1,
     "plot_time": 1,
 }
+
+
+def test_full_graph_plans_every_job_once(tmp_path: Path) -> None:
+    workflow = full_benchmark_workflow(tmp_path)
+    result = workflow.run("--dry-run", "--printshellcmds", target="all")
+    output = result.stdout + result.stderr
+    assert result.returncode == 0, output
+    jobs = Counter(
+        job["rule"] for job in planned_jobs(output) if job["rule"] != "all"
+    )
+    assert jobs == FULL_GRAPH_JOBS
 
 
 def submitted_job(args: list[str]) -> tuple[str, str]:
@@ -361,7 +374,7 @@ def test_full_graph_submits_every_job_once(
         full_graph_run.root
         / "output/smoke/plots/eval_split-test/initializer-cold"
     )
-    assert len(list(plots.rglob("fixture.svg"))) == 4
+    assert len(list(plots.rglob("fixture.svg"))) == 6
 
 
 @pytest.mark.pipeline
@@ -709,4 +722,4 @@ def test_local_cpu_smoke_runs_the_same_full_graph(tmp_path: Path) -> None:
             assert args["device"] == "cpu", script
             assert args["smoke_test"] == "True", script
     plots = tmp_path / "output/smoke/plots/eval_split-test/initializer-cold"
-    assert len(list(plots.rglob("fixture.svg"))) == 4
+    assert len(list(plots.rglob("fixture.svg"))) == 6

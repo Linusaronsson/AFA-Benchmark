@@ -4,7 +4,8 @@ Transform a raw evaluation table into a plotting-ready table.
 The raw table identifies itself (ADR 0002): identity comes from its columns,
 and its provenance record is copied into the output's schema metadata. The
 transform only derives `n_selections_performed`, melts the prediction
-columns into `classifier` and `predicted_class`, and normalises nullable
+columns into `classifier`, `predicted_class` and `predicted_probabilities`,
+and normalises nullable
 dtypes. Identity arguments are checks: one that disagrees with a non-null
 column raises, and a missing or null column is filled from its argument.
 """
@@ -176,27 +177,39 @@ def main() -> None:
         }
     )
 
-    # Pivot long on classifier type
-    df = df.rename(
-        columns={
-            "builtin_predicted_class": "builtin",
-            "external_predicted_class": "external",
-        }
-    ).melt(
-        # Index is everything else except stuff we don't care about for plotting
-        id_vars=[
-            "generation_index",
-            "split_index",
-            "action_performed",
-            "true_class",
-            "accumulated_cost",
-            "forced_stop",
-            "n_selections_performed",
-            *IDENTITY_DTYPES,
+    # Keep each classifier's class and vector paired, including null results.
+    id_columns = [
+        "generation_index",
+        "split_index",
+        "action_performed",
+        "true_class",
+        "accumulated_cost",
+        "forced_stop",
+        "n_selections_performed",
+        *IDENTITY_DTYPES,
+    ]
+    df = pd.concat(
+        [
+            df.loc[
+                :,
+                [
+                    *id_columns,
+                    f"{classifier}_predicted_class",
+                    f"{classifier}_predicted_probabilities",
+                ],
+            ]
+            .rename(
+                columns={
+                    f"{classifier}_predicted_class": "predicted_class",
+                    f"{classifier}_predicted_probabilities": (
+                        "predicted_probabilities"
+                    ),
+                }
+            )
+            .assign(classifier=classifier)
+            for classifier in ["builtin", "external"]
         ],
-        value_vars=["builtin", "external"],
-        var_name="classifier",
-        value_name="predicted_class",
+        ignore_index=True,
     )
 
     save_evaluation_table(

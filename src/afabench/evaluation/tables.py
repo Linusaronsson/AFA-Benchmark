@@ -13,14 +13,15 @@ from typing import cast
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, f1_score
+from numpy.typing import ArrayLike, NDArray
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
 
 from afabench.evaluation.schemas import PLOTTING_READY_DTYPES
 
 
 def _cast_column(series: pd.Series, dtype: str) -> pd.Series:
     """Cast a column, turning non-numeric values of numeric dtypes to null."""
-    if dtype in {"string", "boolean"}:
+    if dtype in {"string", "boolean", "object"}:
         return series.astype(dtype)
     return cast("pd.Series", pd.to_numeric(series, errors="coerce")).astype(
         dtype
@@ -87,13 +88,78 @@ def keep_smallest_soft_budget_param(table: pd.DataFrame) -> pd.DataFrame:
     return table.loc[(table["soft_budget_param"] == smallest).fillna(False)]
 
 
+def _probability_matrix(series: pd.Series) -> NDArray[np.float64]:
+    vectors: list[NDArray[np.float64]] = []
+    for value in cast("list[object]", series.tolist()):
+        if not isinstance(value, (list, np.ndarray)):
+            msg = (
+                f"predicted_probabilities must contain vectors, got {value!r}"
+            )
+            raise TypeError(msg)
+        vector = np.asarray(cast("ArrayLike", value))
+        if (
+            vector.ndim != 1
+            or vector.size < 2
+            or (vectors and vector.shape != vectors[0].shape)
+        ):
+            msg = (
+                "predicted_probabilities must contain equally sized class "
+                f"vectors with at least two classes, got {value!r}"
+            )
+            raise ValueError(msg)
+        if not np.issubdtype(vector.dtype, np.floating):
+            msg = (
+                "predicted_probabilities must contain floating values, "
+                f"got {value!r} with dtype {vector.dtype}"
+            )
+            raise TypeError(msg)
+        if not np.isfinite(vector).all():
+            msg = (
+                "predicted_probabilities must contain finite values, "
+                f"got {value!r}"
+            )
+            raise ValueError(msg)
+        if ((vector < 0) | (vector > 1)).any():
+            msg = f"predicted_probabilities must be in [0, 1], got {value!r}"
+            raise ValueError(msg)
+        if not np.isclose(vector.sum(), 1.0, atol=1e-6, rtol=1e-5):
+            msg = (
+                "predicted_probabilities must sum to 1, "
+                f"got {value!r} with sum {vector.sum()}"
+            )
+            raise ValueError(msg)
+        vectors.append(vector.astype(np.float64))
+    return np.stack(vectors)
+
+
 def _classification_metrics(group: pd.DataFrame) -> pd.Series:
     true_class = group["true_class"].to_numpy(dtype=np.int64)
     predicted_class = group["predicted_class"].to_numpy(dtype=np.int64)
+    probabilities = _probability_matrix(
+        cast("pd.Series", group["predicted_probabilities"])
+    )
     return pd.Series(
         {
             "accuracy": accuracy_score(true_class, predicted_class),
             "f_score": f1_score(true_class, predicted_class, average="macro"),
+            "auroc": (
+                roc_auc_score(true_class, probabilities[:, 1])
+                if probabilities.shape[1] == 2
+                # Binary OVR scores avoid sklearn's stricter multiclass
+                # sum check; validation uses the evaluator's tolerance.
+                else np.mean(
+                    [
+                        cast(
+                            "float",
+                            roc_auc_score(
+                                true_class == class_index,
+                                probabilities[:, class_index],
+                            ),
+                        )
+                        for class_index in range(probabilities.shape[1])
+                    ]
+                )
+            ),
         }
     )
 
@@ -113,13 +179,13 @@ def metrics_at_stop(table: pd.DataFrame) -> pd.DataFrame:
     """
     Score each run on its rows, which should be its stop actions.
 
-    Columns: the run columns, `accuracy`, `f_score` (macro F1) and
-    `avg_accumulated_cost`.
+    Columns: the run columns, `accuracy`, `f_score` (macro F1), `auroc`
+    and `avg_accumulated_cost`. Class probabilities use label index order.
     """
     grouped = table.groupby(RUN_COLUMNS, dropna=False)
-    metrics = grouped[["true_class", "predicted_class"]].apply(
-        _classification_metrics
-    )
+    metrics = grouped[
+        ["true_class", "predicted_class", "predicted_probabilities"]
+    ].apply(_classification_metrics)
     metrics["avg_accumulated_cost"] = grouped["accumulated_cost"].mean()
     return metrics.reset_index()
 
@@ -128,7 +194,7 @@ def metrics_at_every_step(table: pd.DataFrame) -> pd.DataFrame:
     """Score each run at each time step (`n_selections_performed`)."""
     return (
         table.groupby([*RUN_COLUMNS, "n_selections_performed"], dropna=False)[
-            ["true_class", "predicted_class"]
+            ["true_class", "predicted_class", "predicted_probabilities"]
         ]
         .apply(_classification_metrics)
         .reset_index()
@@ -136,7 +202,7 @@ def metrics_at_every_step(table: pd.DataFrame) -> pd.DataFrame:
 
 
 def variance_over_seeds_at_stop(metrics: pd.DataFrame) -> pd.DataFrame:
-    """Mean and standard deviation over seeds of `metrics_at_stop` columns."""
+    """Summarize stop metrics over seeds; undefined AUROCs propagate."""
     return (
         metrics.groupby(
             ["afa_method", "dataset", "eval_hard_budget", "soft_budget_param"],
@@ -147,6 +213,8 @@ def variance_over_seeds_at_stop(metrics: pd.DataFrame) -> pd.DataFrame:
             std_accuracy=("accuracy", "std"),
             mean_f_score=("f_score", "mean"),
             std_f_score=("f_score", "std"),
+            mean_auroc=("auroc", lambda values: values.mean(skipna=False)),
+            std_auroc=("auroc", lambda values: values.std(skipna=False)),
             mean_avg_accumulated_cost=("avg_accumulated_cost", "mean"),
             std_avg_accumulated_cost=("avg_accumulated_cost", "std"),
         )
@@ -155,7 +223,7 @@ def variance_over_seeds_at_stop(metrics: pd.DataFrame) -> pd.DataFrame:
 
 
 def variance_over_seeds_at_every_step(metrics: pd.DataFrame) -> pd.DataFrame:
-    """Mean and standard deviation over seeds of `metrics_at_every_step`."""
+    """Summarize per-step metrics over seeds; undefined AUROCs propagate."""
     return (
         metrics.groupby(
             [
@@ -172,6 +240,8 @@ def variance_over_seeds_at_every_step(metrics: pd.DataFrame) -> pd.DataFrame:
             std_accuracy=("accuracy", "std"),
             mean_f_score=("f_score", "mean"),
             std_f_score=("f_score", "std"),
+            mean_auroc=("auroc", lambda values: values.mean(skipna=False)),
+            std_auroc=("auroc", lambda values: values.std(skipna=False)),
         )
         .reset_index()
     )

@@ -6,6 +6,7 @@ import torch
 from afabench.components.methods.common import AFAMethodBase, on_method_device
 from afabench.core.types import (
     AFAAction,
+    ClassifierOutputKind,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -34,6 +35,11 @@ class RandomWithoutClassifierAFAMethod(AFAMethodBase):
         super().__init__(torch.device("cpu") if device is None else device)
         self.n_classes: int = n_classes
         self.prob_select_0: float = prob_select_0
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"
 
     @property
     @override
@@ -155,6 +161,11 @@ class SequentialWithoutClassifierAFAMethod(AFAMethodBase):
         super().__init__(device)
         self.n_classes: int = n_classes
         self.prob_select_0: float = prob_select_0
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"
 
     @property
     @override

@@ -56,6 +56,7 @@ instead of defining a term on a page.
 - [Requested walltime](reference/requested_walltime.md)
 - [Bundle format](reference/bundle_format.md)
 - [Evaluation dataframes](reference/evaluation_dataframes.md)
+- [Evaluation performance plots](reference/evaluation_plots.md)
 - [Job records](reference/job_records.md)
 - [Release manifest](reference/release_manifest.md)
 - [`snapshot.py` command](reference/snapshot_command.md)

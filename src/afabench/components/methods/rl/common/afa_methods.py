@@ -19,6 +19,7 @@ from afabench.components.methods.common import (
 from afabench.core.types import (
     AFAAction,
     AFAClassifier,
+    ClassifierOutputKind,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -46,6 +47,11 @@ class RLAFAMethod(  # pyright: ignore[reportUnsafeMultipleInheritance]
 
     def __post_init__(self):
         self.to(self._device)
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return self.afa_classifier.output_kind
 
     @property
     @override

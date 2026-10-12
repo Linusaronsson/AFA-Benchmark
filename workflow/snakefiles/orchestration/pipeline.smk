@@ -26,6 +26,22 @@ Runtime filters (--config, select subsets to run):
         soft_budget_ignored_datasets. The launcher's --no-soft-budget sets
         it:
             workflow/run.py --no-soft-budget "datasets=[cube]" -n
+    per_dataset_plots (bool, default=False): Request additional per-dataset
+        Accuracy, Macro F1 and AUROC figures, with external and built-in
+        classifier rows. The external usual plot job owns a separately
+        tracked sibling directory once per method set, using the unsplit
+        merged table; built-in usual plots remain separate. The launcher
+        sets it with --per-dataset-plots:
+            workflow/run.py --per-dataset-plots "datasets=[cube]" -n
+        No optional targets are requested with the default false.
+    plotting (mapping, default={}): Headline metric overrides, restricted
+        to dataset_metrics (dataset key -> accuracy, f1 or auroc) and
+        default_metric (accuracy, f1 or auroc). Omitted choices retain the
+        Hydra plotting defaults. The mapping is forwarded to both usual
+        classifier jobs, not used to replace the optional three metrics:
+            workflow/run.py "plotting={dataset_metrics: {cube: auroc}}" -n
+        Invalid keys, types and metric identifiers fail load_config.
+        See docs/reference/evaluation_plots.md for output paths and config.
     device (str, default='cpu'): Deprecated invocation-wide device for
         computational jobs, with a warning. Cannot be combined with execution.
     execution_file (str, default='workflow/profiles/execution/default.yaml'):

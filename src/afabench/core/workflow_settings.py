@@ -110,6 +110,26 @@ ALL_DATASET_SET = "all"
 
 
 @dataclass(frozen=True, kw_only=True)
+class PlottingMetricOverrides:
+    """Only headline metric choices; omitted values retain Hydra defaults."""
+
+    dataset_metrics: dict[str, str] = field(default_factory=dict)
+    default_metric: str | None = None
+
+    def __post_init__(self) -> None:
+        metrics = list(self.dataset_metrics.values())
+        if self.default_metric is not None:
+            metrics.append(self.default_metric)
+        for metric in metrics:
+            if metric not in {"accuracy", "f1", "auroc"}:
+                message = (
+                    f"plotting: unsupported metric {metric!r}; "
+                    "expected accuracy, f1, or auroc."
+                )
+                raise ValueError(message)
+
+
+@dataclass(frozen=True, kw_only=True)
 class WorkflowSettings:
     stages: PipelineStages
     dataset_realization_indices: list[int]
@@ -125,6 +145,8 @@ class WorkflowSettings:
     # Whether the run trains and evaluates in the soft-budget setting too,
     # not only in the hard-budget setting
     soft_budget_setting: bool
+    per_dataset_plots: bool
+    plotting: PlottingMetricOverrides
     # Where the run writes its artifacts and job records
     output_root: str
     # Only the pretrained models a selected method uses.
@@ -299,6 +321,7 @@ class WorkflowSettings:
                 else []
             ),
             f"  soft-budget setting: {self.soft_budget_setting}",
+            f"  per-dataset plots: {self.per_dataset_plots}",
             "  dataset realizations: "
             + _join(self.dataset_realization_indices),
             "  datasets:",
@@ -503,7 +526,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         for method, options in selected_options.items()
     }
 
-    return WorkflowSettings(
+    settings = WorkflowSettings(
         stages=_stages(config.get("stages", {})),
         dataset_realization_indices=config.get(
             "dataset_realization_indices", [0, 1, 2, 3, 4]
@@ -516,6 +539,10 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         smoke_test=smoke_test,
         list_jobs=_config_bool(config.get("list_jobs", False), "list_jobs"),
         soft_budget_setting=soft_budget_setting,
+        per_dataset_plots=_config_bool(
+            config.get("per_dataset_plots", False), "per_dataset_plots"
+        ),
+        plotting=_plotting_metric_overrides(config.get("plotting", {})),
         output_root=output_root,
         pretrain_names=pretrain_names,
         pretrain_script_names={
@@ -564,6 +591,46 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
             _datasets_used_per_method(selected_options, datasets),
         ),
     )
+    if settings.per_dataset_plots:
+        _validate_per_dataset_plot_roots(settings)
+    return settings
+
+
+def _validate_per_dataset_plot_roots(settings: WorkflowSettings) -> None:
+    layout = OutputLayout(
+        root=settings.output_root,
+        initializer=settings.initializer,
+        eval_split=settings.eval_dataset_split,
+    )
+    usual_roots = [
+        layout.eval_perf_plots(
+            method_set=method_set, classifier_type=classifier
+        )
+        for method_set in settings.method_sets
+        for classifier in ["external", "builtin"]
+    ]
+    for method_set in settings.method_sets:
+        optional = layout.per_dataset_eval_perf_plots(method_set=method_set)
+        resolved_optional = Path(optional).resolve()
+        for usual in usual_roots:
+            resolved_usual = Path(usual).resolve()
+            if resolved_optional.is_relative_to(
+                resolved_usual
+            ) or resolved_usual.is_relative_to(resolved_optional):
+                message = (
+                    f"Per-dataset plot output {optional!r} overlaps {usual!r}."
+                )
+                raise ValueError(message)
+
+
+def _plotting_metric_overrides(value: object) -> PlottingMetricOverrides:
+    if not isinstance(value, Mapping):
+        message = f"Expected plotting to be a mapping, got {value!r}."
+        raise TypeError(message)
+    if "default_metric" in value and value["default_metric"] is None:
+        message = "plotting.default_metric: expected a metric, got None."
+        raise ValueError(message)
+    return _parse_strictly(PlottingMetricOverrides, value, "plotting")
 
 
 def _method_options(

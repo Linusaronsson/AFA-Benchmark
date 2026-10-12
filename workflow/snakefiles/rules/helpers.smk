@@ -21,6 +21,13 @@ rule all:
             for method_set in WORKFLOW_SETTINGS.method_sets
             if method_set == HEATMAP_METHOD_SET
         ]
+        + (
+            [
+                OUTPUT_LAYOUT.per_dataset_eval_perf_plots(method_set=method_set)
+                for method_set in WORKFLOW_SETTINGS.method_sets
+            ]
+            if WORKFLOW_SETTINGS.per_dataset_plots else []
+        )
         + [OUTPUT_LAYOUT.time_plots(), OUTPUT_LAYOUT.job_duration_table()]
 
 rule all_generate_datasets:

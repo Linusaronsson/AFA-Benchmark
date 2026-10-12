@@ -182,6 +182,29 @@ Turns whole pipeline stages off. A stage that is off defines no rules, so the ru
 - **Example:** `"stages={dataset_generation: false, training: false}"` to evaluate existing trained methods; add `evaluation: false` to only transform, aggregate and plot existing evaluation tables
 - **Note:** Each value is `true` or `false`, in any case. An unknown key, another value, or a `stages` that is not a mapping is a config error. The dry run's resolved configuration lists the stages that are off
 
+### `per_dataset_plots`
+
+- **Type:** bool
+- **Default:** false
+- **Example:** `--per-dataset-plots`, or `per_dataset_plots=true`
+- **Meaning:** Request additional per-dataset figures, once per method set,
+  alongside usual classifier-selected plots. Each figure shows Accuracy,
+  Macro F1 and AUROC for external and available built-in classifiers.
+  [Plot output layout](evaluation_plots.md#output-layout).
+
+### `plotting`
+
+- **Type:** mapping with only `dataset_metrics` and `default_metric`
+- **Default:** `{}` (keep the Hydra display defaults)
+- **Example:** `"plotting={dataset_metrics: {cube: auroc}, default_metric: accuracy}"`
+- **Meaning:** Choose the headline metric for usual plots. `dataset_metrics`
+  maps dataset keys to exact identifiers `accuracy`, `f1`, `auroc`;
+  `default_metric` is one of those identifiers. Both are optional. Unknown
+  keys, invalid types and unsupported identifiers fail configuration loading.
+  There is no `--plot-metric` flag. These choices are forwarded to Hydra
+  plotting config and do not change the optional three-metric figures.
+  [Defaults and column mapping](evaluation_plots.md#metric-selection).
+
 ## Requested walltime (site configuration)
 
 The site's `site.yaml` can set requested walltime in hours by Snakemake

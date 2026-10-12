@@ -46,6 +46,9 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.use_wandb is False
     assert settings.list_jobs is False
     assert settings.soft_budget_setting is True
+    assert settings.per_dataset_plots is False
+    assert settings.plotting.dataset_metrics == {}
+    assert settings.plotting.default_metric is None
     assert settings.initializer == "cold"
     assert settings.output_root == "output/production"
 
@@ -158,7 +161,9 @@ def test_a_numeric_wandb_group_override_is_a_name() -> None:
     assert load_config(_config() | override).wandb_group == "2026"
 
 
-@pytest.mark.parametrize("key", ["smoke_test", "use_wandb", "list_jobs"])
+@pytest.mark.parametrize(
+    "key", ["smoke_test", "use_wandb", "list_jobs", "per_dataset_plots"]
+)
 @pytest.mark.parametrize("value", ["no", "0", "1", "null", "[]"])
 def test_invalid_boolean_overrides_are_rejected(key: str, value: str) -> None:
     override = parse_config([f"{key}={value}"])
@@ -171,7 +176,9 @@ def test_invalid_boolean_overrides_are_rejected(key: str, value: str) -> None:
     )
 
 
-@pytest.mark.parametrize("key", ["smoke_test", "use_wandb", "list_jobs"])
+@pytest.mark.parametrize(
+    "key", ["smoke_test", "use_wandb", "list_jobs", "per_dataset_plots"]
+)
 def test_null_boolean_settings_are_rejected(key: str) -> None:
     with pytest.raises(ValueError, match=rf"{key}.*None"):
         load_config(_config() | {key: None})
@@ -832,3 +839,51 @@ def _config(
         },
         "classifier_names": {"default": "masked_mlp_classifier"},
     }
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"), [(False, False), (True, True), ("TrUe", True)]
+)
+def test_per_dataset_plots_is_a_validated_opt_in(
+    *, value: bool | str, expected: bool
+) -> None:
+    settings = load_config(_config() | {"per_dataset_plots": value})
+
+    assert settings.per_dataset_plots is expected
+    assert f"  per-dataset plots: {expected}" in settings.summary()
+
+
+def test_plotting_metrics_follow_pipeline_profile_overrides() -> None:
+    override = parse_config(
+        ["plotting={dataset_metrics: {cube: auroc}, default_metric: f1}"]
+    )
+    settings = load_config(_config() | override)
+
+    assert settings.plotting.dataset_metrics == {"cube": "auroc"}
+    assert settings.plotting.default_metric == "f1"
+
+
+@pytest.mark.parametrize(
+    "plotting", [{"default_metric": "ap"}, {"dataset_metrics": {"cube": "F1"}}]
+)
+def test_plotting_rejects_unsupported_metrics(
+    plotting: dict[str, object],
+) -> None:
+    with pytest.raises(ValueError, match=r"plotting.*(ap|F1)"):
+        load_config(_config() | {"plotting": plotting})
+
+
+@pytest.mark.parametrize(
+    ("plotting", "error"),
+    [
+        (None, TypeError),
+        ("auroc", TypeError),
+        ({"default_metric": None}, ValueError),
+        ({"plot_metric": "auroc"}, ValueError),
+    ],
+)
+def test_plotting_rejects_malformed_metric_overrides(
+    plotting: object, error: type[Exception]
+) -> None:
+    with pytest.raises(error, match="plotting"):
+        load_config(_config() | {"plotting": plotting})

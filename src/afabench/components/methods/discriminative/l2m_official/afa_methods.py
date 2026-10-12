@@ -158,6 +158,7 @@ class L2MOfficialAFAMethod(AFAMethodBase):
         return True
 
     @property
+    @override
     def output_kind(self) -> ClassifierOutputKind:
         return "logits"
 

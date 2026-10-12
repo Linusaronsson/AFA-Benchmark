@@ -17,6 +17,7 @@ from afabench.components.unmaskers.utils import (
     get_afa_unmasker_from_config,
 )
 from afabench.core.bundle_system.bundle import LoadedBundle, load_bundle
+from afabench.core.class_probabilities import as_class_probability_fn
 from afabench.core.provenance import (
     ProvenanceRecord,
     capture_provenance,
@@ -241,10 +242,15 @@ class AFAEvaluator:
             n_selection_choices=self._n_selection_choices,
             afa_initialize_fn=self._initializer.initialize,
             dataset=self._dataset,
-            external_afa_predict_fn=self._external_classifier.__call__
+            external_afa_predict_fn=as_class_probability_fn(
+                self._external_classifier,
+                output_kind=self._external_classifier.output_kind,
+            )
             if self._external_classifier is not None
             else None,
-            builtin_afa_predict_fn=self._method.predict
+            builtin_afa_predict_fn=as_class_probability_fn(
+                self._method.predict, output_kind=self._method.output_kind
+            )
             if self._method.has_builtin_classifier
             else None,
             only_n_samples=self._cfg.eval_only_n_samples,

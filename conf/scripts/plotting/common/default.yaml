@@ -117,9 +117,10 @@ dataset_name_mapping:
   physionet_challenge_2012: PhysioNet Challenge 2012
   imagenette: Imagenette
 
-datasets_with_f_score:
-  - physionet_challenge_2012
-  - bank_marketing
+dataset_metrics:
+  physionet_challenge_2012: f1
+  bank_marketing: f1
+default_metric: accuracy
 
 color_palette_name: Dark2
 

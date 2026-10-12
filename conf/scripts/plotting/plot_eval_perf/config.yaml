@@ -15,6 +15,11 @@ defaults:
 
 input: ???
 output_folder: ???
+# Optional additional figures use the unsplit table for this method set and
+# an independent output root (not nested inside output_folder).
+per_dataset_plots: false
+per_dataset_input: null
+per_dataset_output_folder: null
 # Dataset set name -> datasets, given with the force-add prefix:
 # '++dataset_sets={all:[cube,mnist]}'. The pipeline passes the run's
 # dataset sets.

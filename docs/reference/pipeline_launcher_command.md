@@ -6,7 +6,7 @@ profile, an optional site profile and pipeline profile overrides. Steps:
 
 ```shell
 workflow/run.py [<pipeline>] [--site <site>] [-n | -e [<estimate options>]]
-    [--no-soft-budget] [--wandb] [--wandb-group <name>] [--target <rule>] [--jobs <n>] [key=value ...] [-- <Snakemake arguments>]
+    [--no-soft-budget] [--per-dataset-plots] [--wandb] [--wandb-group <name>] [--target <rule>] [--jobs <n>] [key=value ...] [-- <Snakemake arguments>]
 ```
 
 It runs on the host's `python3` (3.9 or newer) with the standard library
@@ -25,6 +25,7 @@ Snakemake from the checkout root, wherever it is started.
 | `-e`, `--estimate` | Print the [compute estimate](estimate_compute_command.md) of the run instead of running it; see [below](#the-compute-estimate). Not with `-n`. |
 | `--job-durations`, `--by`, `--output`, `--strict` | The [compute estimate's options](estimate_compute_command.md#options), with `-e` only. |
 | `--no-soft-budget` | Run only the hard-budget setting: adds the override [`soft_budget_setting=false`](pipeline_configuration.md#soft_budget_setting). Not with a `soft_budget_setting=` override. |
+| `--per-dataset-plots` | Add per-dataset Accuracy, Macro F1 and AUROC figures with both classifier rows, alongside usual plots: adds [`per_dataset_plots=true`](evaluation_plots.md). Default off. Not with a `per_dataset_plots=` override. |
 | `--wandb` | Log to Weights & Biases: adds the override [`use_wandb=true`](pipeline_configuration.md#use_wandb), and the terminal links each job's W&B run. Needs `WANDB_ENTITY` and `WANDB_PROJECT` set. Not with a `use_wandb=` override. Without `--wandb-group` or a `wandb_group=` override, it also adds [`wandb_group=`](pipeline_configuration.md#wandb_group) a new W&B group, such as `all-20261012T121005Z-k3f9`; so does a `use_wandb=true` override. |
 | `--wandb-group <name>` | Log to Weights & Biases as `--wandb` does, every W&B run in the W&B group `<name>`, such as an earlier invocation's to continue it: adds `use_wandb=true wandb_group=<name>`. Not with a `use_wandb=` or `wandb_group=` override. |
 | `--target <rule>` | The rule to run. Default `all`. |

@@ -11,10 +11,16 @@ import pandas as pd
 import pytest
 import torch
 
-from afabench.components.classifiers import WrappedMaskedMLPClassifier
+from afabench.components.classifiers import (
+    UniformDummyAFAClassifier,
+    WrappedMaskedMLPClassifier,
+)
 from afabench.components.classifiers.models import MaskedMLPClassifier
 from afabench.components.initializers.config import InitializerConfig
 from afabench.components.methods.dummy.config import RandomDummyTrainConfig
+from afabench.components.methods.dummy.with_classifier import (
+    SequentialWithClassifierAFAMethod,
+)
 from afabench.components.methods.dummy.without_classifier import (
     RandomWithoutClassifierAFAMethod,
 )
@@ -422,3 +428,48 @@ def test_hand_run_evaluation_identifies_its_table(
             "eval_soft_budget_param": None,
         }
     ]
+
+
+@pytest.mark.parametrize("with_external", [False, True])
+def test_evaluator_adapts_declared_logits_and_round_trips_probabilities(
+    eval_inputs: EvalInputs, tmp_path: Path, *, with_external: bool
+) -> None:
+
+    classifier = UniformDummyAFAClassifier(n_classes=8)
+    save_bundle(
+        SequentialWithClassifierAFAMethod(classifier),
+        eval_inputs.method,
+        metadata={},
+        provenance=placeholder_provenance("training"),
+    )
+    path = tmp_path / "probabilities.parquet"
+    cfg = eval_config(eval_inputs, path, seed=5)
+    if not with_external:
+        cfg.classifier_bundle_path = None
+
+    AFAEvaluator(cfg, initializer_name="warm").run()
+
+    table = pd.read_parquet(path)
+    SavedEvaluationSchema.validate(table)
+    assert table["builtin_predicted_class"].tolist() == [0] * len(table)
+    assert all(
+        vector.tolist() == [0.125] * 8
+        for vector in table["builtin_predicted_probabilities"]
+    )
+    if with_external:
+        assert all(
+            len(vector) == 8 and sum(vector) == pytest.approx(1.0)
+            for vector in table["external_predicted_probabilities"]
+        )
+        assert table["external_predicted_class"].tolist() == [
+            vector.argmax()
+            for vector in table["external_predicted_probabilities"]
+        ]
+    else:
+        assert table["external_predicted_class"].isna().all()
+        assert table["external_predicted_probabilities"].isna().all()
+    assert evaluation_table_provenance(path) is not None
+    assert (
+        table.groupby("episode_id")["step"].apply(list).tolist()
+        == [[0, 1, 2]] * 4
+    )

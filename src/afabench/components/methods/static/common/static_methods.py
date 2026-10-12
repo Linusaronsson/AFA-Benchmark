@@ -12,6 +12,7 @@ from afabench.components.methods.common import AFAMethodBase
 from afabench.components.methods.static.common.utils import restore_parameters
 from afabench.core.types import (
     AFAAction,
+    ClassifierOutputKind,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -469,6 +470,11 @@ class StaticBaseMethod(AFAMethodBase):
         for b in self.predictors:
             self.predictors[b] = self.predictors[b].to(device)
         return self
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"
 
     @property
     @override

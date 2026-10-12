@@ -165,6 +165,7 @@ class L2MAFAMethod(AFAMethodBase):
         return True
 
     @property
+    @override
     def output_kind(self) -> ClassifierOutputKind:
         return "logits"
 

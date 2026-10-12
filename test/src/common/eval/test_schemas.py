@@ -26,6 +26,8 @@ def evaluation_frame() -> pd.DataFrame:
             "action_performed": [1, 0],
             "builtin_predicted_class": [None, None],
             "external_predicted_class": [1, 0],
+            "builtin_predicted_probabilities": [None, None],
+            "external_predicted_probabilities": [[0.25, 0.75], [0.75, 0.25]],
             "true_class": [1, 1],
             "accumulated_cost": [1.0, 1.0],
             "forced_stop": [False, True],

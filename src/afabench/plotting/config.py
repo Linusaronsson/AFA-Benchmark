@@ -22,11 +22,21 @@ class PlottingDisplayConfig:
     method_family_color_schemes: dict[str, dict[str, str]]
     active_method_color_scheme: str
     dataset_name_mapping: dict[str, str]
-    datasets_with_f_score: list[str]
+    dataset_metrics: dict[str, str]
+    default_metric: str
     color_palette_name: str
     # Printed under every evaluation performance plot, for example to mark
     # plots of smoke runs as workflow demonstrations.
     caption: str | None = None
+
+    def __post_init__(self) -> None:
+        for metric in [self.default_metric, *self.dataset_metrics.values()]:
+            if metric not in {"accuracy", "f1", "auroc"}:
+                msg = (
+                    f"Unknown dataset metric {metric!r}; "
+                    "expected accuracy, f1, or auroc"
+                )
+                raise ValueError(msg)
 
 
 @dataclass
@@ -48,6 +58,11 @@ class PlotEvalPerfConfig:
     # plot folder.
     dataset_sets: dict[str, list[str]]
     plotting: PlottingDisplayConfig
+    per_dataset_plots: bool = False
+    # The unsplit merged table for the same method set, not the usual
+    # classifier-selected input. Its figures have an independent output root.
+    per_dataset_input: str | None = None
+    per_dataset_output_folder: str | None = None
 
 
 cs.store(name="plot_eval_perf", node=PlotEvalPerfConfig)

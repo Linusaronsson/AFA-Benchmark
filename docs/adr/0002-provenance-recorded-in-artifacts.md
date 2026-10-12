@@ -6,6 +6,11 @@ status: accepted
 
 > Note (#71): "dataset instance" was renamed to **dataset realization**;
 > `dataset_instance_index` below is now `dataset_realization_index`.
+>
+> Amended by [ADR 0013](0013-evaluation-tables-require-class-probabilities.md):
+> the evaluation-table compatibility promise below no longer covers class-only
+> tables. Probability vectors are required; provenance and legacy-bundle
+> compatibility remain unchanged.
 
 Today an artifact's identity lives in its Snakemake path. An artifact is a
 bundle or an evaluation table (see **Artifact** in `CONTEXT.md`). Nothing inside a

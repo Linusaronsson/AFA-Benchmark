@@ -7,6 +7,7 @@ from afabench.core.types import (
     AFAPredictFn,
     AFASelection,
     AFAUnmaskFn,
+    ClassProbabilities,
     FeatureMask,
     Features,
     Label,
@@ -23,11 +24,11 @@ def get_random_afa_predict_fn(n_classes: int) -> AFAPredictFn:
         feature_mask: FeatureMask,  # noqa: ARG001
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
-    ) -> Label:
+    ) -> ClassProbabilities:
         assert masked_features.ndim == 2
         batch_size = masked_features.shape[0]
-        t = torch.randint(low=0, high=n_classes, size=(batch_size, 1))
-        return F.one_hot(t, num_classes=n_classes)
+        t = torch.randint(low=0, high=n_classes, size=(batch_size,))
+        return F.one_hot(t, num_classes=n_classes).float()
 
     return f
 
@@ -42,7 +43,7 @@ def get_deterministic_afa_predict_fn(
         feature_mask: FeatureMask,
         label: Label | None = None,  # noqa: ARG001
         feature_shape: torch.Size | None = None,  # noqa: ARG001
-    ) -> Label:
+    ) -> ClassProbabilities:
         assert masked_features.ndim == 2
         batch_size = masked_features.shape[0]
         assert batch_size == len(predictions)

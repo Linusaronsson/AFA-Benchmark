@@ -395,3 +395,34 @@ def test_estimate_and_dry_run_exclude_each_other() -> None:
 def test_estimate_options_need_estimate(option: list[str]) -> None:
     with pytest.raises(LauncherError, match=option[0]):
         launcher_command(option)
+
+
+def test_per_dataset_plots_opt_in_reaches_the_site_config() -> None:
+    command = snakemake_command(
+        ["--per-dataset-plots", "-n", "--site", "examples/mixed-gres"]
+    )
+
+    assert command[command.index("--config") :] == [
+        "--config",
+        "per_dataset_plots=true",
+        "execution_site_file=workflow/profiles/site/examples/mixed-gres/site.yaml",
+    ]
+    assert "--dry-run" in command
+
+
+def test_per_dataset_plots_and_its_override_exclude_each_other() -> None:
+    with pytest.raises(LauncherError, match="--per-dataset-plots"):
+        snakemake_command(["--per-dataset-plots", "per_dataset_plots=false"])
+
+
+def test_per_dataset_plots_is_off_without_the_flag() -> None:
+    assert not any(
+        argument.startswith("per_dataset_plots=")
+        for argument in snakemake_command([])
+    )
+
+
+def test_estimate_passes_per_dataset_plots_on() -> None:
+    assert launcher_command(["-e", "--per-dataset-plots"])[-1] == (
+        "--per-dataset-plots"
+    )

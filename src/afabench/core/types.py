@@ -13,11 +13,13 @@ type SelectionMask = Bool[torch.Tensor, "*batch n_selections"]
 # We allow arbitrary labels
 type Label = Float[torch.Tensor, "*batch *label_shape"]
 type Logits = Float[torch.Tensor, "*batch *n_classes"]
+# Last-axis index matches the label's class-vector index (at least 2 classes).
+type ClassProbabilities = Float[torch.Tensor, "*batch n_classes"]
 # Position of each instance in the dataset produced by dataset generation,
 # before splitting (see "Generation index" in CONTEXT.md and ADR 0004)
 type GenerationIndices = Integer[torch.Tensor, "n_instances"]  # noqa: F821
 
-# Explicit output contract for AFAClassifier.__call__: "logits" means
+# Explicit output contract for classifiers and built-in `predict`: "logits" means
 # unnormalized scores that still need a softmax; "probabilities" means
 # already-normalized class probabilities that must not be softmaxed again.
 type ClassifierOutputKind = Literal["logits", "probabilities"]
@@ -157,9 +159,9 @@ class AFAMethod(Protocol):
         feature_mask: FeatureMask,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> torch.Tensor:
+    ) -> Logits | ClassProbabilities:
         """
-        Return the predicted label for the features that have been observed so far.
+        Return class scores of the declared `output_kind` in label index order.
 
         Args:
             masked_features: The features with unobserved features masked out (set to zero).
@@ -193,6 +195,11 @@ class AFAMethod(Protocol):
         ...
 
     @property
+    def output_kind(self) -> ClassifierOutputKind:
+        """Declare the built-in classifier's `predict` output semantics."""
+        ...
+
+    @property
     def cost_param(self) -> float | None:
         """Return the soft-budget parameter, if any. Only applies to methods that make trade-offs between feature cost and accuracy."""
         ...
@@ -220,9 +227,9 @@ class AFAClassifier(Protocol):
         feature_mask: FeatureMask,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> Label:
+    ) -> Logits | ClassProbabilities:
         """
-        Return the predicted label for the features that have been observed so far.
+        Return class scores of the declared `output_kind` in label index order.
 
         Note that the features in general can have *any* feature shape. If your model expects flat features, use `feature_shape` to flatten them first.
 
@@ -290,7 +297,20 @@ class AFAActionFn(Protocol):
         ...
 
 
-# Classifier prediction interface assumed during evaluation
+class AFAClassifierFn(Protocol):
+    """Upstream classifier callable; its owner declares its output kind."""
+
+    def __call__(
+        self,
+        masked_features: MaskedFeatures,
+        feature_mask: FeatureMask,
+        label: Label | None = None,
+        feature_shape: torch.Size | None = None,
+    ) -> Logits | ClassProbabilities: ...
+
+
+# Probability-only classifier interface consumed by evaluation.
+# Declared logits must be converted upstream, never inferred from values.
 class AFAPredictFn(Protocol):
     def __call__(
         self,
@@ -298,9 +318,9 @@ class AFAPredictFn(Protocol):
         feature_mask: FeatureMask,
         label: Label | None = None,
         feature_shape: torch.Size | None = None,
-    ) -> Label:
+    ) -> ClassProbabilities:
         """
-        Make a prediction.
+        Return normalized probabilities in label class-index order.
 
         Note that the features in general can have *any* feature shape. If your model expects flat features, use `feature_shape` to flatten them first.
 

@@ -16,6 +16,7 @@ def plotting_config() -> PlottingDisplayConfig:
         },
         active_method_color_scheme="test",
         dataset_name_mapping={"cube": "Cube", "mnist": "MNIST"},
-        datasets_with_f_score=["mnist"],
+        dataset_metrics={"mnist": "f1"},
+        default_metric="accuracy",
         color_palette_name="Set2",
     )

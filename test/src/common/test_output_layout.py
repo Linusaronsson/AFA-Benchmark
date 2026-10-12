@@ -311,3 +311,12 @@ def test_job_duration_table_covers_every_initializer_and_split() -> None:
         LAYOUT.job_duration_table()
         == "output/merged_results/job_duration_table.parquet"
     )
+
+
+def test_per_dataset_eval_perf_plots_have_an_independent_method_set_root() -> (
+    None
+):
+    assert LAYOUT.per_dataset_eval_perf_plots(method_set="all") == (
+        "output/plots/eval_split-test/initializer-cold/"
+        "eval_perf_per_dataset/method_set-all"
+    )

@@ -50,6 +50,10 @@ SUBPLOT_HEIGHT = 2.0
 PLOT_FONT_SIZE = 12
 SUBPLOT_TITLE_FONT_SIZE = 10
 
+METRIC_COLUMNS = {"accuracy": "accuracy", "f1": "f_score", "auroc": "auroc"}
+METRIC_LABELS = {"accuracy": "Accuracy", "f1": "F1", "auroc": "AUROC"}
+
+
 NON_MYOPIC_METHODS = frozenset(
     {
         "aaco",
@@ -78,9 +82,8 @@ def get_method_color_mapping(
 def get_dataset_name_mapping_including_metric(
     plotting_config: PlottingDisplayConfig,
 ) -> dict[str, str]:
-    datasets_with_f_score = set(plotting_config.datasets_with_f_score)
     return {
-        dataset: f"{name} ({'F1' if dataset in datasets_with_f_score else 'Accuracy'})"
+        dataset: f"{name} ({METRIC_LABELS[plotting_config.dataset_metrics.get(dataset, plotting_config.default_metric)]})"
         for dataset, name in plotting_config.dataset_name_mapping.items()
     }
 
@@ -94,6 +97,7 @@ def get_plot(
     x_error_max: str | None = None,
     *,
     use_line: bool = True,
+    per_dataset: bool = False,
     method_order: list[str] | None = None,
     figure_width: float | None = None,
     figure_height: float | None = None,
@@ -177,12 +181,24 @@ def get_plot(
                 fill="afa_method",
             ),
         )
-        + facet_wrap(
-            "dataset",
-            scales="free",
-            ncol=4,
+        + (
+            facet_wrap(["classifier", "metric"], scales="free_y", ncol=3)
+            if per_dataset
+            else facet_wrap("dataset", scales="free", ncol=4)
         )
-        + labs(color="Policy", fill="Policy", x=x_label, y="Metric")
+        + labs(
+            color="Policy",
+            fill="Policy",
+            x=x_label,
+            y="Metric",
+            title=(
+                plotting_config.dataset_name_mapping.get(
+                    str(df.iloc[0]["dataset"]), str(df.iloc[0]["dataset"])
+                )
+                if per_dataset
+                else None
+            ),
+        )
         + theme_bw()
         + theme(
             figure_size=(figure_width, figure_height),
@@ -230,6 +246,59 @@ def get_plot(
             )
 
     return plot
+
+
+def get_per_dataset_plot(
+    df: pd.DataFrame,
+    x_col: str,
+    x_label: str,
+    plotting_config: PlottingDisplayConfig,
+    *,
+    use_line: bool = True,
+    x_error_min: str | None = None,
+    x_error_max: str | None = None,
+) -> p9.ggplot:
+    """Facet one dataset's classifier-separated seed summaries by metric."""
+    metric_frames = []
+    for metric, column in METRIC_COLUMNS.items():
+        frame = df.assign(
+            metric="Macro F1" if metric == "f1" else METRIC_LABELS[metric],
+            mean_metric=df[f"mean_{column}"],
+            std_metric=df[f"std_{column}"],
+        )
+        metric_frames.append(frame)
+    long = pd.concat(metric_frames, ignore_index=True)
+    long = long.assign(
+        low_metric=long["mean_metric"] - long["std_metric"],
+        high_metric=long["mean_metric"] + long["std_metric"],
+        classifier=pd.Categorical(
+            long["classifier"].replace(
+                {
+                    "external": "External classifier",
+                    "builtin": "Built-in classifier",
+                }
+            ),
+            categories=["External classifier", "Built-in classifier"],
+            ordered=True,
+        ),
+        metric=pd.Categorical(
+            long["metric"],
+            categories=["Accuracy", "Macro F1", "AUROC"],
+            ordered=True,
+        ),
+    )
+    return get_plot(
+        long,
+        x_col,
+        x_label,
+        plotting_config,
+        x_error_min=x_error_min,
+        x_error_max=x_error_max,
+        use_line=use_line,
+        per_dataset=True,
+        figure_width=plotting_config.plot_width,
+        figure_height=SUBPLOT_HEIGHT * df["classifier"].nunique(),
+    )
 
 
 def get_normal_hard_budget_plot(
@@ -334,13 +403,19 @@ def calculate_figure_dimensions(
 def add_metric_column(
     df: pd.DataFrame, plotting_config: PlottingDisplayConfig
 ) -> pd.DataFrame:
-    uses_f_score = df["dataset"].isin(plotting_config.datasets_with_f_score)
-    return df.assign(
-        mean_metric=df["mean_f_score"].where(
-            uses_f_score, df["mean_accuracy"]
-        ),
-        std_metric=df["std_f_score"].where(uses_f_score, df["std_accuracy"]),
+    metrics = (
+        df["dataset"]
+        .map(plotting_config.dataset_metrics.get)
+        .fillna(plotting_config.default_metric)
     )
+    result = df.copy()
+    for metric, column in METRIC_COLUMNS.items():
+        selected = metrics == metric
+        result.loc[selected, "mean_metric"] = df.loc[
+            selected, f"mean_{column}"
+        ]
+        result.loc[selected, "std_metric"] = df.loc[selected, f"std_{column}"]
+    return result
 
 
 def process_df_only_stop_action_and_valid_prediction(
@@ -571,6 +646,125 @@ class EvaluationPlotter:
                     fig_width,
                     fig_height,
                 )
+
+    def generate_per_dataset_plots(
+        self, table: pd.DataFrame, output_folder: Path
+    ) -> None:
+        """
+        Save additional figures from an unsplit, single-method-set table.
+
+        Classifiers are aggregated separately; missing predictions never
+        contribute a built-in row. The output root must be independent of
+        the usual plots so workflow directory outputs cannot overwrite it.
+        """
+        usual_root = self.output_folder.resolve()
+        additional_root = output_folder.resolve()
+        if additional_root.is_relative_to(
+            usual_root
+        ) or usual_root.is_relative_to(additional_root):
+            msg = (
+                f"Per-dataset output {output_folder!s} would overlap "
+                f"usual output {self.output_folder!s}"
+            )
+            raise ValueError(msg)
+        table = combine_soft_budget_params(table)
+        stop_frames: list[pd.DataFrame] = []
+        trajectory_frames: list[pd.DataFrame] = []
+        for classifier in ("external", "builtin"):
+            selected = table.loc[table["classifier"] == classifier]
+            stop = process_df_only_stop_action_and_valid_prediction(
+                selected, self.plotting_config
+            )
+            trajectory = process_df_every_action(
+                selected, self.plotting_config
+            )
+            if stop is not None:
+                stop_frames.append(stop.assign(classifier=classifier))
+            if trajectory is not None:
+                trajectory_frames.append(
+                    trajectory.assign(classifier=classifier)
+                )
+
+        for frames, trajectory in (
+            (stop_frames, False),
+            (trajectory_frames, True),
+        ):
+            if not frames:
+                continue
+            self._save_per_dataset_variants(
+                pd.concat(frames, ignore_index=True),
+                output_folder,
+                trajectory=trajectory,
+            )
+
+    def _save_per_dataset_variants(
+        self,
+        summaries: pd.DataFrame,
+        output_folder: Path,
+        *,
+        trajectory: bool,
+    ) -> None:
+        for dataset, dataset_frame in summaries.groupby("dataset"):
+            hard = apply_exclusions(
+                dataset_frame.loc[dataset_frame["eval_hard_budget"].notna()]
+            )
+            soft = apply_exclusions(
+                dataset_frame.loc[dataset_frame["soft_budget_param"].notna()]
+            )
+            variants = [
+                (
+                    "hard_budget_traj" if trajectory else "hard_budget_normal",
+                    hard,
+                    "n_selections_performed"
+                    if trajectory
+                    else "eval_hard_budget",
+                    "Number of selections" if trajectory else "Hard budget",
+                    True,
+                )
+            ]
+            if not trajectory:
+                variants.extend(
+                    [
+                        (
+                            "soft_budget_2d_errors",
+                            soft,
+                            "mean_avg_accumulated_cost",
+                            "Average cost accumulated per episode",
+                            False,
+                        ),
+                        (
+                            "soft_budget_lines",
+                            soft,
+                            "mean_avg_accumulated_cost",
+                            "Average cost accumulated per episode",
+                            True,
+                        ),
+                    ]
+                )
+            for name, frame, x_col, x_label, use_line in variants:
+                if frame.empty:
+                    continue
+                plot = get_per_dataset_plot(
+                    frame,
+                    x_col,
+                    x_label,
+                    self.plotting_config,
+                    use_line=use_line,
+                    x_error_min=(
+                        "low_avg_accumulated_cost" if not use_line else None
+                    ),
+                    x_error_max=(
+                        "high_avg_accumulated_cost" if not use_line else None
+                    ),
+                )
+                height = SUBPLOT_HEIGHT * frame["classifier"].nunique()
+                for fmt in self.formats:
+                    self.save_plot(
+                        plot,
+                        output_folder / f"dataset-{dataset}" / f"{name}.{fmt}",
+                        self.plotting_config.plot_width,
+                        height,
+                    )
 
     @staticmethod
     def save_plot(

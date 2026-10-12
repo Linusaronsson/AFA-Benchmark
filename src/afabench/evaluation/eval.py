@@ -19,6 +19,7 @@ from afabench.core.types import (
     AFAPredictFn,
     AFASelection,
     AFAUnmaskFn,
+    ClassProbabilities,
     FeatureMask,
     Features,
     Label,
@@ -53,8 +54,8 @@ class AFAStepResult:
     action: AFAAction  # which action was chosen
     masked_features: MaskedFeatures  # new masked features
     feature_mask: FeatureMask  # new feature mask
-    external_prediction: Label | None
-    builtin_prediction: Label | None
+    external_prediction: ClassProbabilities | None
+    builtin_prediction: ClassProbabilities | None
     acquisition_forced: (
         torch.Tensor
     )  # bool tensor, true if acquisition was forced
@@ -145,6 +146,13 @@ def single_afa_step(
     else:
         builtin_prediction = None
 
+    for name, prediction in (
+        ("external", external_prediction),
+        ("builtin", builtin_prediction),
+    ):
+        if prediction is not None:
+            _validate_probabilities(prediction, label.shape, name)
+
     return AFAStepResult(
         action=afa_action,
         masked_features=new_masked_features,
@@ -153,6 +161,56 @@ def single_afa_step(
         builtin_prediction=builtin_prediction,
         acquisition_forced=acquisition_forced,
     )
+
+
+def _validate_probabilities(
+    probabilities: ClassProbabilities,
+    expected_shape: torch.Size,
+    classifier: str,
+) -> None:
+    if len(expected_shape) < 2 or expected_shape[-1] < 2:
+        msg = (
+            "Expected label class-vector shape with >=2 classes, got "
+            f"{tuple(expected_shape)}"
+        )
+        raise ValueError(msg)
+    if probabilities.shape != expected_shape:
+        msg = (
+            f"{classifier} probability shape {tuple(probabilities.shape)} "
+            f"does not match label batch/classes shape {tuple(expected_shape)}"
+        )
+        raise ValueError(msg)
+    if not probabilities.is_floating_point():
+        msg = (
+            f"{classifier} probabilities require floating-point dtype, "
+            f"got {probabilities.dtype}"
+        )
+        raise TypeError(msg)
+    finite = torch.isfinite(probabilities)
+    if not finite.all():
+        msg = (
+            f"{classifier} probabilities must be finite, got "
+            f"{probabilities[~finite].tolist()}"
+        )
+        raise ValueError(msg)
+    in_bounds = (probabilities >= 0) & (probabilities <= 1)
+    if not in_bounds.all():
+        msg = (
+            f"{classifier} probabilities must be in [0, 1], got "
+            f"{probabilities[~in_bounds].tolist()}"
+        )
+        raise ValueError(msg)
+    row_sums = probabilities.sum(-1)
+    # Softmax/Monte Carlo means may accumulate floating-point rounding.
+    normalized = torch.isclose(
+        row_sums, torch.ones_like(row_sums), atol=1e-6, rtol=1e-5
+    )
+    if not normalized.all():
+        msg = (
+            f"{classifier} probability rows must sum to 1, got "
+            f"{row_sums[~normalized].tolist()}"
+        )
+        raise ValueError(msg)
 
 
 @dataclass
@@ -182,7 +240,14 @@ class _RowBuffers:
             # which is the object dtype callers already expect.
             if not buffer:
                 return [None] * n_rows
-            return torch.cat(buffer).reshape(n_rows).cpu().tolist()
+            return torch.cat(buffer).argmax(-1).cpu().tolist()
+
+        def probabilities(
+            buffer: list[torch.Tensor],
+        ) -> list[list[float] | None]:
+            if not buffer:
+                return [None] * n_rows
+            return torch.cat(buffer).cpu().tolist()
 
         frame = pd.DataFrame(
             {
@@ -195,6 +260,10 @@ class _RowBuffers:
                 "action_performed": action,
                 "builtin_predicted_class": classes(self.builtin),
                 "external_predicted_class": classes(self.external),
+                "builtin_predicted_probabilities": probabilities(self.builtin),
+                "external_predicted_probabilities": probabilities(
+                    self.external
+                ),
                 "true_class": true_label.argmax(-1).cpu()[idx].tolist(),
                 "accumulated_cost": torch.cat(self.cost).cpu().tolist(),
                 "forced_stop": torch.cat(self.forced).cpu().tolist(),
@@ -226,7 +295,8 @@ def process_batch(
     1. Stops feature acquisition voluntarily (action=0).
     2. Runs out of selection budget and is forced to stop (action=0). More precisely, this means that if the next action was selected such that the budget would have been **exceeded**, we instead force the stop action.
 
-    Assumes that predictions are for classes, and only stores the most likely class prediction.
+    Predictions must be class probabilities in label class-index order.
+    Retains each vector and derives its most likely class.
 
     Args:
         afa_action_fn (AFAActionFn): How to make AFA actions. Should return 0 to stop or 1-n to select.
@@ -250,6 +320,8 @@ def process_batch(
             - "action_performed" (int): Which action the method chose.
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
+            - "builtin_predicted_probabilities" (list[float]|None)
+            - "external_predicted_probabilities" (list[float]|None)
             - "true_class" (int)
             - "accumulated_cost" (float): Cost including the current action.
             - "forced_stop" (bool): Whether the episode terminated due to budget being exceeded.
@@ -309,16 +381,6 @@ def process_batch(
             selection_mask=active_selection_mask,
             force_acquisition=force_acquisition,
         )
-        # Key assumption: predictions are logits/probabilities for classes
-        if step.builtin_prediction is not None:
-            assert step.builtin_prediction.shape[-1] > 1, (
-                "Expected builtin prediction to have class dimension"
-            )
-        if step.external_prediction is not None:
-            assert step.external_prediction.shape[-1] > 1, (
-                "Expected external prediction to have class dimension"
-            )
-
         # `actions` is a view, so overriding it below also overrides
         # `step.action`, matching the order the unbatched version relied on.
         actions = step.action.squeeze(-1)
@@ -349,9 +411,9 @@ def process_batch(
         rows.cost.append(accumulated_costs[active_indices])
         rows.forced.append(forced_stops[active_indices])
         if step.builtin_prediction is not None:
-            rows.builtin.append(step.builtin_prediction.argmax(-1))
+            rows.builtin.append(step.builtin_prediction.clone())
         if step.external_prediction is not None:
-            rows.external.append(step.external_prediction.argmax(-1))
+            rows.external.append(step.external_prediction.clone())
 
         # Update feature mask, masked features and selection mask
         masked_features[active_indices] = step.masked_features
@@ -430,6 +492,8 @@ def eval_afa_method(
             - "action_performed" (int): Which action the method chose.
             - "builtin_predicted_class" (int|None)
             - "external_predicted_class" (int|None)
+            - "builtin_predicted_probabilities" (list[float]|None)
+            - "external_predicted_probabilities" (list[float]|None)
             - "true_class" (int)
             - "forced_stop" (bool): Whether stopping happened due to exceeding the budget.
     """

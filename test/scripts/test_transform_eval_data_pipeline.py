@@ -70,6 +70,12 @@ def test_transform_fills_identity_of_a_pre_provenance_table_from_arguments(
             "action_performed": [1, 0, 0],
             "builtin_predicted_class": [2, 1, 0],
             "external_predicted_class": [None, None, None],
+            "builtin_predicted_probabilities": [
+                [0.1, 0.2, 0.7],
+                [0.2, 0.6, 0.2],
+                [0.8, 0.1, 0.1],
+            ],
+            "external_predicted_probabilities": [None, None, None],
             "true_class": [1, 1, 0],
             "accumulated_cost": [1.0, 1.0, 0.0],
             "idx": [0, 0, 1],
@@ -142,11 +148,26 @@ def test_transform_fills_identity_of_a_pre_provenance_table_from_arguments(
     ]
     expected_rows = [
         step
-        | {"classifier": "builtin", "predicted_class": prediction}
+        | {
+            "classifier": "builtin",
+            "predicted_class": prediction,
+            "predicted_probabilities": probabilities,
+        }
         | shared
-        for step, prediction in zip(steps, [2, 1, 0], strict=True)
+        for step, prediction, probabilities in zip(
+            steps,
+            [2, 1, 0],
+            [[0.1, 0.2, 0.7], [0.2, 0.6, 0.2], [0.8, 0.1, 0.1]],
+            strict=True,
+        )
     ] + [
-        step | {"classifier": "external", "predicted_class": None} | shared
+        step
+        | {
+            "classifier": "external",
+            "predicted_class": None,
+            "predicted_probabilities": None,
+        }
+        | shared
         for step in steps
     ]
     assert pq.read_table(output_path).to_pylist() == expected_rows
@@ -163,6 +184,7 @@ def test_transform_fills_identity_of_a_pre_provenance_table_from_arguments(
         "n_selections_performed": pa.uint64(),
         "classifier": pa.string(),
         "predicted_class": pa.uint64(),
+        "predicted_probabilities": pa.list_(pa.float64()),
         "afa_method": pa.string(),
         "dataset": pa.string(),
         "dataset_realization_index": pa.uint64(),
@@ -187,6 +209,8 @@ def test_transform_counts_selections_stored_as_strings(
             "action_performed": [2, 0],
             "builtin_predicted_class": [0, 1],
             "external_predicted_class": [1, 1],
+            "builtin_predicted_probabilities": [[0.7, 0.3], [0.2, 0.8]],
+            "external_predicted_probabilities": [[0.1, 0.9], [0.3, 0.7]],
             "true_class": [1, 1],
             "accumulated_cost": [2.0, 2.0],
             "idx": [0, 0],
@@ -236,6 +260,12 @@ def write_identified_table(path: Path) -> None:
             "action_performed": [1, 0, 0],
             "builtin_predicted_class": [None, None, None],
             "external_predicted_class": [2, 1, 0],
+            "builtin_predicted_probabilities": [None, None, None],
+            "external_predicted_probabilities": [
+                [0.1, 0.2, 0.7],
+                [0.2, 0.6, 0.2],
+                [0.8, 0.1, 0.1],
+            ],
             "true_class": [1, 1, 0],
             "accumulated_cost": [1.0, 1.0, 0.0],
             "forced_stop": [False, True, False],
@@ -362,3 +392,31 @@ def test_transform_fills_a_null_identity_column_from_its_argument(
     run_transform(monkeypatch, input_path, output_path, {"train_seed": "5"})
 
     assert set(pd.read_parquet(output_path)["train_seed"]) == {5}
+
+
+def test_transform_pairs_classifier_classes_with_complete_probability_vectors(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    input_path = tmp_path / "eval_data.parquet"
+    output_path = tmp_path / "transformed.parquet"
+    write_identified_table(input_path)
+
+    run_transform(monkeypatch, input_path, output_path, {})
+
+    rows = pq.read_table(output_path).to_pylist()
+    assert [
+        (
+            row["classifier"],
+            row["predicted_class"],
+            row["predicted_probabilities"],
+        )
+        for row in rows
+    ] == [
+        ("builtin", None, None),
+        ("builtin", None, None),
+        ("builtin", None, None),
+        ("external", 2, [0.1, 0.2, 0.7]),
+        ("external", 1, [0.2, 0.6, 0.2]),
+        ("external", 0, [0.8, 0.1, 0.1]),
+    ]

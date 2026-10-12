@@ -5,14 +5,16 @@ Pipeline launcher: run the pipeline from its profiles and overrides.
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
     workflow/run.py [<pipeline>] [--site <site>] [-n | -e] [--no-soft-budget]
-        [--wandb] [--wandb-group <name>] [--target <rule>] [--jobs <n>]
+        [--per-dataset-plots] [--wandb] [--wandb-group <name>]
+        [--target <rule>] [--jobs <n>]
         [key=value ...] [-- <Snakemake arguments>]
 
 It builds the one Snakemake command for them, adding what follows from the
 site profile: its site file, which Snakemake would otherwise drop from the
 site profile whenever overrides are passed, and the interpreter of a site
 whose jobs run in an image. See docs/adr/0009. --no-soft-budget and --wandb
-stand for the overrides soft_budget_setting=false and use_wandb=true, and
+stand for the overrides soft_budget_setting=false and use_wandb=true,
+--per-dataset-plots for per_dataset_plots=true, and
 --wandb-group <name> for use_wandb=true wandb_group=<name>. With W&B logging
 and no group, the launcher names a new W&B group for the invocation, from
 the pipeline profile, the UTC time and random characters.
@@ -168,6 +170,13 @@ def _flag_overrides(
     added = []
     if options.no_soft_budget:
         added.append(_soft_budget_setting_off(overrides))
+    if options.per_dataset_plots:
+        if _overrides(overrides, "per_dataset_plots"):
+            message = (
+                "--per-dataset-plots and per_dataset_plots=: give one of them"
+            )
+            raise LauncherError(message)
+        added.append("per_dataset_plots=true")
     if options.wandb or options.wandb_group is not None:
         added.append(_wandb_logging_on(overrides))
     if options.wandb_group is not None:
@@ -333,6 +342,11 @@ def _parser() -> argparse.ArgumentParser:
         "--no-soft-budget",
         action="store_true",
         help="Run only the hard-budget setting (soft_budget_setting=false)",
+    )
+    parser.add_argument(
+        "--per-dataset-plots",
+        action="store_true",
+        help="Add per-dataset Accuracy, Macro F1 and AUROC figures for both classifiers (per_dataset_plots=true)",
     )
     parser.add_argument(
         "--wandb",

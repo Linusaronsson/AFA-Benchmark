@@ -23,6 +23,7 @@ from afabench.components.methods.discriminative.common.checkpoint import (
 )
 from afabench.core.types import (
     AFAAction,
+    ClassifierOutputKind,
     FeatureMask,
     Label,
     MaskedFeatures,
@@ -76,6 +77,11 @@ class NetworkPairAFAMethod(AFAMethodBase, ABC):
             -math.inf if lambda_threshold is None else lambda_threshold
         )
         self.selection_costs: Tensor | None = selection_costs
+
+    @property
+    @override
+    def output_kind(self) -> ClassifierOutputKind:
+        return "probabilities"
 
     @property
     @override
