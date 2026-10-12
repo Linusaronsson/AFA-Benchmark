@@ -123,6 +123,19 @@ Enables or disables [Weights & Biases](https://wandb.ai/) integration for loggin
   the `WANDB_ENTITY` and `WANDB_PROJECT` environment variables, or the run
   fails before any job. The terminal links each job's W&B run with them
   ([Log to Weights & Biases](../how-to/run_the_pipeline.md#log-to-weights--biases)).
+- **Requirement:** [`wandb_group`](#wandb_group) must be set too; the launcher sets it.
+
+### `wandb_group`
+
+The [W&B group](../../CONTEXT.md) every W&B run of the invocation joins. The
+resolved configuration links it.
+
+- **Default:** none; required with `use_wandb=true`, or the run fails before any job
+- **Example:** the launcher's `--wandb` names a new group per invocation, such as
+  `all-20261012T121005Z-k3f9` (pipeline profile, UTC time, random characters,
+  and `-smoke` for a smoke test); `--wandb-group all-20261012T121005Z-k3f9` sets
+  `use_wandb=true wandb_group=all-20261012T121005Z-k3f9`, so a rerun continues
+  that group
 
 ### `smoke_test`
 

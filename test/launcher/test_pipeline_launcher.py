@@ -1,5 +1,6 @@
 """The command the pipeline launcher (`workflow/run.py`) runs."""
 
+import re
 from pathlib import Path
 
 import pytest
@@ -161,19 +162,75 @@ def test_no_soft_budget_and_its_override_exclude_each_other() -> None:
         snakemake_command(["--no-soft-budget", "soft_budget_setting=true"])
 
 
-def test_wandb_turns_wandb_logging_on() -> None:
+def test_wandb_turns_wandb_logging_on_in_a_new_wandb_group() -> None:
     command = snakemake_command(["--wandb", "methods=[dime]"])
+
+    *config, group = command[command.index("--config") :]
+    assert config == ["--config", "methods=[dime]", "use_wandb=true"]
+    assert re.fullmatch(r"wandb_group=all-\d{8}T\d{6}Z-[a-z0-9]{4}", group)
+
+
+def test_each_invocation_gets_a_new_wandb_group() -> None:
+    first, second = (
+        snakemake_command(["--wandb", "kdd26"])[-1] for _ in range(2)
+    )
+
+    assert first.startswith("wandb_group=kdd26-")
+    assert first != second
+
+
+@pytest.mark.parametrize("smoke_test", ["smoke_test=true", "smoke_test=True"])
+def test_a_smoke_test_wandb_group_says_so(smoke_test: str) -> None:
+    command = snakemake_command(["--wandb", smoke_test])
+
+    assert command[-1].endswith("-smoke")
+
+
+def test_a_wandb_logging_override_gets_a_new_wandb_group_too() -> None:
+    command = snakemake_command(["use_wandb=true"])
+
+    assert command[-1].startswith("wandb_group=all-")
+
+
+def test_wandb_group_continues_a_named_wandb_group() -> None:
+    command = snakemake_command(["--wandb-group", "all-x", "methods=[dime]"])
 
     assert command[command.index("--config") :] == [
         "--config",
         "methods=[dime]",
         "use_wandb=true",
+        "wandb_group=all-x",
     ]
+
+
+def test_a_wandb_group_override_is_kept() -> None:
+    command = snakemake_command(["--wandb", "wandb_group=all-x"])
+
+    assert command[command.index("--config") :] == [
+        "--config",
+        "wandb_group=all-x",
+        "use_wandb=true",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("arguments", "match"),
+    [
+        (["--wandb-group", "all-x", "wandb_group=all-y"], "--wandb-group"),
+        (["--wandb-group", "all-x", "use_wandb=false"], "--wandb-group"),
+        (["--wandb-group", ""], "name"),
+    ],
+)
+def test_wandb_group_rejects_contradictions(
+    arguments: list[str], match: str
+) -> None:
+    with pytest.raises(LauncherError, match=match):
+        snakemake_command(arguments)
 
 
 def test_wandb_logging_is_off_without_wandb() -> None:
     assert not any(
-        argument.startswith("use_wandb")
+        argument.startswith(("use_wandb", "wandb_group"))
         for argument in snakemake_command(["methods=[dime]"])
     )
 

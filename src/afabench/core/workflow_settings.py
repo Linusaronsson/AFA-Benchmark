@@ -116,6 +116,8 @@ class WorkflowSettings:
     initializer: str
     eval_dataset_split: str
     use_wandb: bool
+    # The W&B group of the invocation's W&B runs; set whenever use_wandb is
+    wandb_group: str | None
     smoke_test: bool
     # Whether the terminal shows every job's messages, not only the job
     # counts and progress
@@ -267,13 +269,14 @@ class WorkflowSettings:
     def eval_batch_size(self, method: str, dataset: str) -> int:
         return self.eval_batch_sizes[method][dataset]
 
-    def summary(self) -> str:
+    def summary(self, wandb_group_url: str | None = None) -> str:
         """
         Describe what this run covers, for a reader checking a dry run.
 
         Each method is listed with its classifier and pretrained model, and
         each method and dataset with the hard budgets it is evaluated at and
-        the soft-budget parameters it is trained and evaluated with.
+        the soft-budget parameters it is trained and evaluated with. With
+        W&B logging, the W&B group is linked by `wandb_group_url`, if given.
         """
         lines = [
             "Resolved workflow configuration:",
@@ -290,6 +293,11 @@ class WorkflowSettings:
             f"  eval dataset split: {self.eval_dataset_split}",
             f"  smoke test: {self.smoke_test}",
             f"  W&B logging: {self.use_wandb}",
+            *(
+                [f"  W&B group: {wandb_group_url or self.wandb_group}"]
+                if self.use_wandb
+                else []
+            ),
             f"  soft-budget setting: {self.soft_budget_setting}",
             "  dataset realizations: "
             + _join(self.dataset_realization_indices),
@@ -404,6 +412,8 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     }
 
     smoke_test = _config_bool(config.get("smoke_test", False), "smoke_test")
+    use_wandb = _config_bool(config.get("use_wandb", False), "use_wandb")
+    wandb_group = _wandb_group(config.get("wandb_group"), use_wandb=use_wandb)
     output_root = _output_root(
         config.get("output_root"), smoke_test=smoke_test
     )
@@ -501,7 +511,8 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         initializer=config.get("initializer", "cold"),
         # Switch to val while developing, and train if debugging.
         eval_dataset_split=config.get("eval_dataset_split", "test"),
-        use_wandb=_config_bool(config.get("use_wandb", False), "use_wandb"),
+        use_wandb=use_wandb,
+        wandb_group=wandb_group,
         smoke_test=smoke_test,
         list_jobs=_config_bool(config.get("list_jobs", False), "list_jobs"),
         soft_budget_setting=soft_budget_setting,
@@ -695,6 +706,24 @@ def _config_bool(value: object, key: str) -> bool:
         return value.lower() == "true"
     message = f"Expected {key} to be true or false, got {value!r}."
     raise ValueError(message)
+
+
+def _wandb_group(value: object, *, use_wandb: bool) -> str | None:
+    """Read the W&B group, which W&B logging needs."""
+    # Snakemake parses an override such as wandb_group=2026 as a number.
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        value = str(value)
+    if value is not None and not isinstance(value, str):
+        message = f"Expected wandb_group to be a name, got {value!r}."
+        raise ValueError(message)
+    if use_wandb and not value:
+        message = (
+            "use_wandb=true needs wandb_group, the W&B group every W&B run "
+            "of this invocation joins; workflow/run.py --wandb names a new "
+            "one, and --wandb-group <name> continues an existing one."
+        )
+        raise ValueError(message)
+    return value or None
 
 
 def _method_sets(

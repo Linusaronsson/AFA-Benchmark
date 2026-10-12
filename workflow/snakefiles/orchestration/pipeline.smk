@@ -53,12 +53,17 @@ Runtime filters (--config, select subsets to run):
         See docs/how-to/slurm_integration.md and
         docs/adr/0008-snakemake-on-the-host-scripts-in-the-image.md.
     use_wandb (bool, default=False): Enable W&B logging; the launcher's
-        --wandb sets it. Needs WANDB_ENTITY and WANDB_PROJECT set, or
-        load fails. The classifier training, pretraining, training and
-        evaluation rules then pass each job its W&B run ID and name in
-        WANDB_RUN_ID and WANDB_NAME (workflow/src/wandb_runs.py), and the
-        terminal links the run when the job is submitted or starts and
-        when it finishes.
+        --wandb sets it. Needs WANDB_ENTITY and WANDB_PROJECT set, and
+        wandb_group, or load fails. The classifier training, pretraining,
+        training and evaluation rules then pass each job its W&B run ID,
+        name and group in WANDB_RUN_ID, WANDB_NAME and WANDB_RUN_GROUP
+        (workflow/src/wandb_runs.py), and the terminal links the run when
+        the job is submitted or starts and when it finishes.
+    wandb_group (str, required with use_wandb): The W&B group every W&B
+        run of this invocation joins, linked in the resolved
+        configuration. The launcher's --wandb names a new one per
+        invocation; --wandb-group <name> sets it, to continue a group:
+            workflow/run.py --wandb-group all-20261012T121005Z-k3f9
     list_jobs (bool, default=False): Print every job's messages (its rule
         block, shell command, submission and completion) in the terminal,
         not only the resolved configuration, job counts, progress, each

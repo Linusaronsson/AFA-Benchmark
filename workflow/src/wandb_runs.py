@@ -12,6 +12,10 @@ So a retried or rerun job gets another W&B run, and the link printed for a
 job is the link to the run its script starts. A local job retried within one
 invocation keeps its ID.
 
+Every run joins the invocation's W&B group, which the param passes in
+WANDB_RUN_GROUP. The group is the config's wandb_group, which the pipeline
+launcher names, so that a job's own Snakemake on its node reads the same one.
+
 With use_wandb, WANDB_ENTITY and WANDB_PROJECT must be set: a link needs
 both, and jobs inherit them, so their runs land where the links point.
 """
@@ -20,6 +24,7 @@ import random
 import re
 import shlex
 import string
+import urllib.parse
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from typing import Protocol, Self
@@ -71,20 +76,29 @@ class WandbProject:
     def run_url(self, run_id: str) -> str:
         return f"https://wandb.ai/{self.entity}/{self.project}/runs/{run_id}"
 
+    def group_url(self, group: str) -> str:
+        return f"https://wandb.ai/{self.entity}/{self.project}/groups/{urllib.parse.quote(group, safe='')}"
+
 
 class WandbRuns:
     """Choose, pass on and link the W&B run of each job that logs metrics."""
 
     def __init__(
-        self, project: WandbProject | None, *, slurm_job_id: str | None
+        self,
+        project: WandbProject | None,
+        *,
+        group: str | None,
+        slurm_job_id: str | None,
     ) -> None:
         """
         Name and link W&B runs in `project`, None without use_wandb.
 
+        Every run joins the W&B group `group`, which use_wandb requires.
         `slurm_job_id` is the SLURM job ID inside a job's own Snakemake on a
         cluster, None in the invocation's.
         """
         self.project: WandbProject | None = project
+        self.group: str | None = group
         self.slurm_job_id: str | None = slurm_job_id
         # Each rule whose script starts a W&B run, with its job name field
         self._names: dict[str, JobNameField] = {}
@@ -114,10 +128,13 @@ class WandbRuns:
             run_id = self.run_id(rule, values, self.slurm_job_id)
             if run_id is None:
                 return ""
-            return (
+            command = (
                 f"WANDB_RUN_ID={shlex.quote(run_id)} "
                 f"WANDB_NAME={shlex.quote(job_name(rule, values))} "
             )
+            if self.group is not None:
+                command += f"WANDB_RUN_GROUP={shlex.quote(self.group)} "
+            return command
 
         return wandb
 
@@ -153,6 +170,12 @@ class WandbRuns:
         if self.project is None or run_id is None:
             return None
         return self.project.run_url(run_id)
+
+    def group_url(self) -> str | None:
+        """Return the URL of the invocation's W&B group, or None if none."""
+        if self.project is None or self.group is None:
+            return None
+        return self.project.group_url(self.group)
 
     def _local_suffix(self, rule: str, wildcards: Mapping[str, str]) -> str:
         key = (rule, tuple(sorted(wildcards.items())))

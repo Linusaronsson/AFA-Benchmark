@@ -58,26 +58,16 @@ def initialize_wandb_run(
     job_type: str,
     tags: list[str],
 ) -> Run:
-    # Allow grouping of runs via environment variable `WANDB_GROUP`
-    # or via a `wandb_group` key in the config dict. Environment
-    # variable takes precedence.
-    group = os.environ.get("WANDB_GROUP") or cfg.get("wandb_group")
-
-    init_kwargs: dict[str, Any] = {
-        "config": cfg,
-        "job_type": job_type,
-        "tags": tags,
-        "dir": "logs/wandb",
-    }
-    if group:
-        init_kwargs["group"] = group
-
-    run = wandb.init(**init_kwargs)
+    # W&B reads the run's ID, name and group from WANDB_RUN_ID, WANDB_NAME
+    # and WANDB_RUN_GROUP, which the pipeline sets (workflow/src/wandb_runs.py).
+    run = wandb.init(
+        config=cfg, job_type=job_type, tags=tags, dir="logs/wandb"
+    )
 
     # Log W&B run info
     logger.info(f"W&B run initialized: {run.name} ({run.id})")
-    if group:
-        logger.info(f"W&B run group: {group}")
+    if run.group:
+        logger.info(f"W&B run group: {run.group}")
     logger.info(f"W&B run URL: {run.url}")
     return run
 

@@ -76,6 +76,7 @@ class _FakeWandbRun:
     name = "fake-run"
     id = "fake-id"
     url = "https://wandb.invalid/fake-run"
+    group = ""
 
     def __init__(self, init_kwargs: Mapping[str, object]) -> None:
         self.init_kwargs = init_kwargs
@@ -112,7 +113,6 @@ def fake_wandb_runs(monkeypatch: pytest.MonkeyPatch) -> list[_FakeWandbRun]:
         runs.append(run)
         return run
 
-    monkeypatch.delenv("WANDB_GROUP", raising=False)
     monkeypatch.setattr(wandb, "init", fake_init)
     return runs
 

@@ -67,6 +67,7 @@ def test_list_jobs_prints_every_job(tmp_path: Path) -> None:
 
 WANDB_ENVIRONMENT = {"WANDB_ENTITY": "lab", "WANDB_PROJECT": "afabench"}
 RUN_URL = "https://wandb.ai/lab/afabench/runs/"
+GROUP_URL = "https://wandb.ai/lab/afabench/groups/"
 
 
 def test_a_run_prints_progress_and_logs_every_job(tmp_path: Path) -> None:
@@ -97,17 +98,20 @@ def test_a_local_job_links_the_wandb_run_its_script_starts(
     workflow = WorkflowHarness(tmp_path)
     workflow.config["list_jobs"] = False
     workflow.config["use_wandb"] = True
+    workflow.config["wandb_group"] = "all-x"
 
     result = workflow.run()
 
     output = result.stdout + result.stderr
     assert result.returncode == 0, output
+    assert f"  W&B group: {GROUP_URL}all-x\n" in output
     runs = workflow.wandb_runs()
     assert len(runs) == len(workflow.script_arguments())
-    for run_id, name in runs:
+    for run_id, name, group in runs:
         assert re.fullmatch(
             r"(train|eval)_method-(alpha|beta)-cube-[a-z0-9]{8}", run_id
         )
+        assert group == "all-x"
         assert f"Started {name}: {RUN_URL}{run_id}\n" in output
         assert f"Finished {name}: {RUN_URL}{run_id}\n" in output
 
@@ -119,11 +123,26 @@ def test_wandb_logging_needs_the_entity_and_project(
     monkeypatch.delenv("WANDB_ENTITY", raising=False)
     workflow = WorkflowHarness(tmp_path)
     workflow.config["use_wandb"] = True
+    workflow.config["wandb_group"] = "all-x"
 
     result = workflow.run("--dry-run")
 
     assert result.returncode != 0
     assert "set WANDB_ENTITY" in result.stdout + result.stderr
+
+
+def test_wandb_logging_needs_a_wandb_group(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name, value in WANDB_ENVIRONMENT.items():
+        monkeypatch.setenv(name, value)
+    workflow = WorkflowHarness(tmp_path)
+    workflow.config["use_wandb"] = True
+
+    result = workflow.run("--dry-run")
+
+    assert result.returncode != 0
+    assert "needs wandb_group" in result.stdout + result.stderr
 
 
 # Each job starts a nested Snakemake in the fake sbatch, so this takes ~10 s.
@@ -136,6 +155,7 @@ def test_a_slurm_job_links_the_wandb_run_of_its_slurm_job(
     workflow = WorkflowHarness(tmp_path)
     workflow.config["list_jobs"] = False
     workflow.config["use_wandb"] = True
+    workflow.config["wandb_group"] = "all-x"
     workflow.config["execution_site"] = SITE
 
     result = workflow.submit_first_wave(
@@ -144,8 +164,9 @@ def test_a_slurm_job_links_the_wandb_run_of_its_slurm_job(
 
     runs = workflow.wandb_runs()
     assert len(runs) == 2, result.stdout
-    for run_id, name in runs:
+    for run_id, name, group in runs:
         slurm_job_id = run_id.rsplit("-", 1)[1]
+        assert group == "all-x"
         assert run_id.startswith("train_method-")
         assert (
             f"Submitted {name} as SLURM job {slurm_job_id}: {RUN_URL}{run_id}\n"
@@ -163,6 +184,7 @@ def test_slurm_submissions_name_the_job_and_link_its_wandb_run(
     wandb_runs = _load_wandb_runs_module()
     runs = wandb_runs.WandbRuns(
         wandb_runs.WandbProject(entity="lab", project="afabench"),
+        group="all-x",
         slurm_job_id=None,
     )
     runs.param("train_method", lambda wildcards: wildcards["method"])
@@ -201,6 +223,7 @@ def test_a_job_in_its_slurm_job_starts_the_run_of_its_slurm_job() -> None:
     wandb_runs = _load_wandb_runs_module()
     runs = wandb_runs.WandbRuns(
         wandb_runs.WandbProject(entity="lab", project="afabench"),
+        group="all x",
         slurm_job_id="123",
     )
     param = runs.param("eval_method", lambda wildcards: wildcards["method"])
@@ -210,15 +233,18 @@ def test_a_job_in_its_slurm_job_starts_the_run_of_its_slurm_job() -> None:
     assert command == (
         "WANDB_RUN_ID=eval_method-dime-cube_x-123 "
         "WANDB_NAME='eval_method (method=dime, dataset=cube/x)' "
+        "WANDB_RUN_GROUP='all x' "
     )
+    assert runs.group_url() == f"{GROUP_URL}all%20x"
 
 
 def test_a_job_without_wandb_logging_gets_no_run() -> None:
     wandb_runs = _load_wandb_runs_module()
-    runs = wandb_runs.WandbRuns(None, slurm_job_id="123")
+    runs = wandb_runs.WandbRuns(None, group=None, slurm_job_id="123")
     param = runs.param("eval_method", lambda wildcards: wildcards["method"])
 
     assert param({"method": "dime", "dataset": "cube"}, {}) == ""
+    assert runs.group_url() is None
 
 
 def test_a_failed_job_still_prints_its_error(tmp_path: Path) -> None:

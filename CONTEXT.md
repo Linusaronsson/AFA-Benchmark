@@ -474,6 +474,12 @@ metrics. A retried or rerun job gets another W&B run, so failed and
 successful attempts never share one.
 _Avoid_: Run (on its own), wandb run
 
+**W&B group**:
+The W&B runs of one pipeline invocation, collected under one name. A later
+invocation joins an existing W&B group only when it names that group, so a
+rerun after a failure starts a new group unless told otherwise.
+_Avoid_: Run group, wandb group, experiment
+
 **Job duration table**:
 All job records of a pipeline's outputs collected into one table, one row
 per job, with no aggregation.
@@ -527,6 +533,12 @@ _Avoid_: Cluster config, cluster profile
 The command that runs the pipeline from a pipeline profile, an optional site
 profile and pipeline profile overrides.
 _Avoid_: Wrapper, runner
+
+**Pipeline invocation**:
+One command of the pipeline launcher, from start until Snakemake exits. A
+pipeline run may take several invocations when reruns complete what an
+earlier one left unfinished.
+_Avoid_: Launch, session
 
 **Pipeline profile override**:
 A value given for one run that replaces a pipeline profile's value for the

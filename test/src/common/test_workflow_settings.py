@@ -140,9 +140,22 @@ def test_smoke_test_override_selects_the_correct_output_root(
 def test_logging_overrides_resolve_to_booleans(
     *, key: str, value: str, expected: bool
 ) -> None:
-    settings = load_config(_config() | parse_config([f"{key}={value}"]))
+    settings = load_config(
+        _config() | {"wandb_group": "g"} | parse_config([f"{key}={value}"])
+    )
 
     assert getattr(settings, key) is expected
+
+
+def test_wandb_logging_needs_a_wandb_group() -> None:
+    with pytest.raises(ValueError, match="needs wandb_group"):
+        load_config(_config() | {"use_wandb": True})
+
+
+def test_a_numeric_wandb_group_override_is_a_name() -> None:
+    override = parse_config(["use_wandb=true", "wandb_group=2026"])
+
+    assert load_config(_config() | override).wandb_group == "2026"
 
 
 @pytest.mark.parametrize("key", ["smoke_test", "use_wandb", "list_jobs"])
@@ -765,6 +778,24 @@ def test_summary_lists_the_stages_that_are_off() -> None:
     summary = load_config(config).summary()
 
     assert "  stages off: [training, evaluation]" in summary.splitlines()
+
+
+@pytest.mark.parametrize(
+    ("wandb_group_url", "shown"),
+    [(None, "g"), ("https://wandb.ai/lab/afabench/groups/g", None)],
+)
+def test_summary_shows_the_wandb_group(
+    wandb_group_url: str | None, shown: str | None
+) -> None:
+    config = _config() | {"use_wandb": True, "wandb_group": "g"}
+
+    summary = load_config(config).summary(wandb_group_url=wandb_group_url)
+
+    assert f"  W&B group: {shown or wandb_group_url}" in summary.splitlines()
+
+
+def test_summary_shows_no_wandb_group_without_wandb_logging() -> None:
+    assert "W&B group" not in load_config(_config()).summary()
 
 
 def test_summary_says_whether_the_soft_budget_setting_runs() -> None:

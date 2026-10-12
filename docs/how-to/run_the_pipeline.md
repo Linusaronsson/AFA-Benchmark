@@ -121,6 +121,20 @@ The run ID ends in the SLURM job ID, or in random characters for a local
 job, so a retried job gets a new W&B run. Without either variable the run
 fails before any job.
 
+All W&B runs of one invocation join one [W&B group](../../CONTEXT.md), which
+the resolved configuration links:
+
+```
+  W&B group: https://wandb.ai/<entity>/afabench/groups/all-20261012T121005Z-k3f9
+```
+
+A rerun starts a new group. To add its runs to an earlier group, name it
+instead of passing `--wandb`:
+
+```shell
+workflow/run.py ... --wandb-group all-20261012T121005Z-k3f9
+```
+
 The sections below each add overrides (`key=value`) to the base command.
 They combine freely; see [combine them](#combine-them).
 

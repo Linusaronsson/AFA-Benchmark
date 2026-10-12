@@ -5,14 +5,17 @@ Pipeline launcher: run the pipeline from its profiles and overrides.
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
     workflow/run.py [<pipeline>] [--site <site>] [-n | -e] [--no-soft-budget]
-        [--wandb] [--target <rule>] [--jobs <n>] [key=value ...]
-        [-- <Snakemake arguments>]
+        [--wandb] [--wandb-group <name>] [--target <rule>] [--jobs <n>]
+        [key=value ...] [-- <Snakemake arguments>]
 
 It builds the one Snakemake command for them, adding what follows from the
 site profile: its site file, which Snakemake would otherwise drop from the
 site profile whenever overrides are passed, and the interpreter of a site
 whose jobs run in an image. See docs/adr/0009. --no-soft-budget and --wandb
-stand for the overrides soft_budget_setting=false and use_wandb=true.
+stand for the overrides soft_budget_setting=false and use_wandb=true, and
+--wandb-group <name> for use_wandb=true wandb_group=<name>. With W&B logging
+and no group, the launcher names a new W&B group for the invocation, from
+the pipeline profile, the UTC time and random characters.
 
 With -e it runs the compute estimate of that invocation instead
 (scripts/compute_estimate/estimate_compute.py), which takes the same
@@ -29,10 +32,13 @@ from __future__ import annotations
 
 import argparse
 import os
+import random
 import re
 import shlex
+import string
 import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +58,7 @@ CATALOGS = {
 }
 # The estimate's own options, taken with -e only.
 ESTIMATE_OPTIONS = ("job_durations", "by", "output", "strict")
+WANDB_GROUP_SUFFIX_LENGTH = 4
 
 
 class LauncherError(ValueError):
@@ -120,6 +127,13 @@ def _invocation(
     options = _parse(arguments)
     pipeline, config = _pipeline_and_overrides(options.profile_and_overrides)
     config += _flag_overrides(options, config)
+    if _override_is_true(config, "use_wandb") and not _overrides(
+        config, "wandb_group"
+    ):
+        smoke_test = _override_is_true(config, "smoke_test")
+        config.append(
+            f"wandb_group={new_wandb_group(pipeline, smoke_test=smoke_test)}"
+        )
     interpreter = ["uv", "run", "snakemake"]
     profiles = ["--profile", _profile(checkout, PIPELINE_PROFILES, pipeline)]
     if options.site is not None:
@@ -154,8 +168,10 @@ def _flag_overrides(
     added = []
     if options.no_soft_budget:
         added.append(_soft_budget_setting_off(overrides))
-    if options.wandb:
+    if options.wandb or options.wandb_group is not None:
         added.append(_wandb_logging_on(overrides))
+    if options.wandb_group is not None:
+        added.append(_named_wandb_group(options.wandb_group, overrides))
     return added
 
 
@@ -169,10 +185,47 @@ def _soft_budget_setting_off(overrides: list[str]) -> str:
 
 def _wandb_logging_on(overrides: list[str]) -> str:
     """Return the override --wandb stands for."""
-    if any(word.startswith("use_wandb=") for word in overrides):
-        message = "--wandb and use_wandb=: give one of them"
+    if _overrides(overrides, "use_wandb"):
+        message = "--wandb or --wandb-group, and use_wandb=: give one of them"
         raise LauncherError(message)
     return "use_wandb=true"
+
+
+def _named_wandb_group(name: str, overrides: list[str]) -> str:
+    """Return the override --wandb-group stands for."""
+    if not name:
+        message = "--wandb-group: give the W&B group a name"
+        raise LauncherError(message)
+    if _overrides(overrides, "wandb_group"):
+        message = "--wandb-group and wandb_group=: give one of them"
+        raise LauncherError(message)
+    return f"wandb_group={name}"
+
+
+def new_wandb_group(pipeline: str, *, smoke_test: bool) -> str:
+    """Name a new W&B group for an invocation of `pipeline`."""
+    time = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    suffix = "".join(
+        random.choices(
+            string.ascii_lowercase + string.digits,
+            k=WANDB_GROUP_SUFFIX_LENGTH,
+        )
+    )
+    return f"{pipeline}-{time}-{suffix}" + ("-smoke" if smoke_test else "")
+
+
+def _overrides(overrides: list[str], key: str) -> list[str]:
+    """Return the values the overrides give `key`."""
+    return [
+        word.split("=", 1)[1]
+        for word in overrides
+        if word.startswith(f"{key}=")
+    ]
+
+
+def _override_is_true(overrides: list[str], key: str) -> bool:
+    values = _overrides(overrides, key)
+    return bool(values) and values[-1].lower() == "true"
 
 
 def _pipeline_and_overrides(words: list[str]) -> tuple[str, list[str]]:
@@ -284,7 +337,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--wandb",
         action="store_true",
-        help="Log to W&B and link each job's W&B run in the terminal (use_wandb=true); needs WANDB_ENTITY and WANDB_PROJECT",
+        help="Log to W&B and link each job's W&B run in the terminal (use_wandb=true), every run in a new W&B group; needs WANDB_ENTITY and WANDB_PROJECT",
+    )
+    parser.add_argument(
+        "--wandb-group",
+        metavar="NAME",
+        help="Log to W&B as --wandb does, every run in the W&B group NAME, such as an earlier invocation's to continue it (use_wandb=true wandb_group=NAME)",
     )
     parser.add_argument(
         "--target", default="all", help="The rule to run (default: all)"

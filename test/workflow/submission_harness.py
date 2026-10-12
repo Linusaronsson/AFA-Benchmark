@@ -122,7 +122,7 @@ class WorkflowHarness:
                 "    f.write(json.dumps([sys.argv[0], args]) + '\\n')\n"
                 "if 'WANDB_RUN_ID' in os.environ:\n"
                 "    with Path(os.environ['WANDB_RUNS']).open('a') as f:\n"
-                "        f.write(json.dumps([os.environ['WANDB_RUN_ID'], os.environ['WANDB_NAME']]) + '\\n')\n"
+                "        f.write(json.dumps([os.environ['WANDB_RUN_ID'], os.environ['WANDB_NAME'], os.environ.get('WANDB_RUN_GROUP')]) + '\\n')\n"
                 "out = Path(args['save_path'])\n"
                 "out.parent.mkdir(parents=True, exist_ok=True)\n"
                 "if out.suffix == '.bundle': out.mkdir(exist_ok=True)\n"
@@ -314,8 +314,8 @@ class WorkflowHarness:
             json.loads(line) for line in self.capture.read_text().splitlines()
         ]
 
-    def wandb_runs(self) -> list[tuple[str, str]]:
-        """Return the W&B run ID and name each script was given."""
+    def wandb_runs(self) -> list[tuple[str, str, str | None]]:
+        """Return the W&B run ID, name and group each script was given."""
         if not self.wandb_runs_path.exists():
             return []
         return [

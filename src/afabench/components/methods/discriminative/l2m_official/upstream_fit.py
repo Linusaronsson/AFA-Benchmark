@@ -16,7 +16,7 @@ discarded.
 """
 
 import logging
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from contextlib import contextmanager
 from types import MethodType
 from typing import Any
@@ -69,7 +69,7 @@ class UpstreamAccelerator:
         loss.backward()
 
     @contextmanager
-    def prepared(self, model: L2MOfficialModel) -> Iterator[None]:
+    def prepared(self, model: L2MOfficialModel) -> Generator[None]:
         """Wrap the forward pass of upstream's model as `prepare` does."""
         ltm = model.ltm
         forward = ltm.forward
