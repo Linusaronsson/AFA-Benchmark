@@ -21,7 +21,7 @@ authors:
     given-names: "Morteza"
 version: "1.0.0"
 license: "MIT"
-repository-code: "https://github.com/Linusaronsson/AFA-Benchmark"
+repository-code: "https://github.com/MachineLearning-DecisionMaking/AFABench"
 preferred-citation:
   type: conference-paper
   authors:

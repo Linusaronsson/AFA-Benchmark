@@ -15,8 +15,8 @@ multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 
 ```bash
 # Clone repository
-git clone https://github.com/Linusaronsson/AFA-Benchmark.git
-cd AFA-Benchmark
+git clone https://github.com/MachineLearning-DecisionMaking/AFABench.git
+cd AFABench
 
 # Install dependencies with uv
 uv sync
