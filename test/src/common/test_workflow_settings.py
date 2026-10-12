@@ -43,7 +43,7 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.eval_dataset_split == "test"
     assert settings.dataset_realization_indices == [0, 1, 2, 3, 4]
     assert settings.smoke_test is False
-    assert settings.use_wandb is True
+    assert settings.use_wandb is False
     assert settings.list_jobs is False
     assert settings.soft_budget_setting is True
     assert settings.initializer == "cold"

@@ -5,13 +5,14 @@ Pipeline launcher: run the pipeline from its profiles and overrides.
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
     workflow/run.py [<pipeline>] [--site <site>] [-n | -e] [--no-soft-budget]
-        [--target <rule>] [--jobs <n>] [key=value ...]
+        [--wandb] [--target <rule>] [--jobs <n>] [key=value ...]
         [-- <Snakemake arguments>]
 
 It builds the one Snakemake command for them, adding what follows from the
 site profile: its site file, which Snakemake would otherwise drop from the
 site profile whenever overrides are passed, and the interpreter of a site
-whose jobs run in an image. See docs/adr/0009.
+whose jobs run in an image. See docs/adr/0009. --no-soft-budget and --wandb
+stand for the overrides soft_budget_setting=false and use_wandb=true.
 
 With -e it runs the compute estimate of that invocation instead
 (scripts/compute_estimate/estimate_compute.py), which takes the same
@@ -118,8 +119,7 @@ def _invocation(
         raise LauncherError(message)
     options = _parse(arguments)
     pipeline, config = _pipeline_and_overrides(options.profile_and_overrides)
-    if options.no_soft_budget:
-        config.append(_soft_budget_setting_off(config))
+    config += _flag_overrides(options, config)
     interpreter = ["uv", "run", "snakemake"]
     profiles = ["--profile", _profile(checkout, PIPELINE_PROFILES, pipeline)]
     if options.site is not None:
@@ -147,12 +147,32 @@ def _invocation(
     return interpreter, command
 
 
+def _flag_overrides(
+    options: argparse.Namespace, overrides: list[str]
+) -> list[str]:
+    """Return the overrides the launcher's flags stand for."""
+    added = []
+    if options.no_soft_budget:
+        added.append(_soft_budget_setting_off(overrides))
+    if options.wandb:
+        added.append(_wandb_logging_on(overrides))
+    return added
+
+
 def _soft_budget_setting_off(overrides: list[str]) -> str:
     """Return the override --no-soft-budget stands for."""
     if any(word.startswith("soft_budget_setting=") for word in overrides):
         message = "--no-soft-budget and soft_budget_setting=: give one of them"
         raise LauncherError(message)
     return "soft_budget_setting=false"
+
+
+def _wandb_logging_on(overrides: list[str]) -> str:
+    """Return the override --wandb stands for."""
+    if any(word.startswith("use_wandb=") for word in overrides):
+        message = "--wandb and use_wandb=: give one of them"
+        raise LauncherError(message)
+    return "use_wandb=true"
 
 
 def _pipeline_and_overrides(words: list[str]) -> tuple[str, list[str]]:
@@ -260,6 +280,11 @@ def _parser() -> argparse.ArgumentParser:
         "--no-soft-budget",
         action="store_true",
         help="Run only the hard-budget setting (soft_budget_setting=false)",
+    )
+    parser.add_argument(
+        "--wandb",
+        action="store_true",
+        help="Log to W&B and link each job's W&B run in the terminal (use_wandb=true); needs WANDB_ENTITY and WANDB_PROJECT",
     )
     parser.add_argument(
         "--target", default="all", help="The rule to run (default: all)"

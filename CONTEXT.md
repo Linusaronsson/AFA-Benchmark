@@ -468,6 +468,12 @@ describes the run, not the artifact, and is kept beside the artifact rather
 than inside it.
 _Avoid_: Time file, job log, provenance record (that is per artifact)
 
+**W&B run**:
+The Weights & Biases record of one attempt of one pipeline job that logs
+metrics. A retried or rerun job gets another W&B run, so failed and
+successful attempts never share one.
+_Avoid_: Run (on its own), wandb run
+
 **Job duration table**:
 All job records of a pipeline's outputs collected into one table, one row
 per job, with no aggregation.

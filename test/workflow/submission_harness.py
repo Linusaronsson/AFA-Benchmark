@@ -89,6 +89,7 @@ class WorkflowHarness:
         ).mkdir(parents=True)
         self.capture = root / "submissions.jsonl"
         self.arguments = root / "arguments.jsonl"
+        self.wandb_runs_path = root / "wandb_runs.jsonl"
         self.bin = root / "bin"
         self.bin.mkdir()
         for name in [
@@ -119,6 +120,9 @@ class WorkflowHarness:
                 "args = dict(arg.split('=', 1) for arg in sys.argv[1:])\n"
                 "with Path(os.environ['ARGUMENTS']).open('a') as f:\n"
                 "    f.write(json.dumps([sys.argv[0], args]) + '\\n')\n"
+                "if 'WANDB_RUN_ID' in os.environ:\n"
+                "    with Path(os.environ['WANDB_RUNS']).open('a') as f:\n"
+                "        f.write(json.dumps([os.environ['WANDB_RUN_ID'], os.environ['WANDB_NAME']]) + '\\n')\n"
                 "out = Path(args['save_path'])\n"
                 "out.parent.mkdir(parents=True, exist_ok=True)\n"
                 "if out.suffix == '.bundle': out.mkdir(exist_ok=True)\n"
@@ -298,6 +302,7 @@ class WorkflowHarness:
             "PATH": f"{self.bin}:{Path(sys.executable).parent}:{os.environ['PATH']}",
             "CAPTURE": str(self.capture),
             "ARGUMENTS": str(self.arguments),
+            "WANDB_RUNS": str(self.wandb_runs_path),
         }
         env.pop("SNAKEMAKE_PROFILE", None)
         return env
@@ -307,6 +312,15 @@ class WorkflowHarness:
             return []
         return [
             json.loads(line) for line in self.capture.read_text().splitlines()
+        ]
+
+    def wandb_runs(self) -> list[tuple[str, str]]:
+        """Return the W&B run ID and name each script was given."""
+        if not self.wandb_runs_path.exists():
+            return []
+        return [
+            tuple(json.loads(line))
+            for line in self.wandb_runs_path.read_text().splitlines()
         ]
 
     def script_arguments(self) -> list[tuple[str, dict[str, str]]]:

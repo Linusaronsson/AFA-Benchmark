@@ -52,11 +52,18 @@ Runtime filters (--config, select subsets to run):
         exist and match uv.lock, or planning fails before submission.
         See docs/how-to/slurm_integration.md and
         docs/adr/0008-snakemake-on-the-host-scripts-in-the-image.md.
-    use_wandb (bool, default=True): Enable W&B logging
+    use_wandb (bool, default=False): Enable W&B logging; the launcher's
+        --wandb sets it. Needs WANDB_ENTITY and WANDB_PROJECT set, or
+        load fails. The classifier training, pretraining, training and
+        evaluation rules then pass each job its W&B run ID and name in
+        WANDB_RUN_ID and WANDB_NAME (workflow/src/wandb_runs.py), and the
+        terminal links the run when the job is submitted or starts and
+        when it finishes.
     list_jobs (bool, default=False): Print every job's messages (its rule
         block, shell command, submission and completion) in the terminal,
         not only the resolved configuration, job counts, progress, each
-        finished job's rule and wildcards, and errors. A real run's log file under .snakemake/log has them either
+        submitted or started and each finished job's rule and wildcards,
+        and errors. A real run's log file under .snakemake/log has them either
         way (workflow/src/job_output.py).
     smoke_test (bool, default=False): Run smoke tests, under their own
         output root
@@ -129,7 +136,7 @@ Usage:
     Local CPU smoke test without SLURM or GPUs:
         workflow/run.py --jobs 8 "datasets=[cube]" \
             "dataset_realization_indices=[0]" smoke_test=true \
-            use_wandb=false execution_file=workflow/profiles/execution/cpu.yaml
+            execution_file=workflow/profiles/execution/cpu.yaml
     It writes under output/smoke, so a later real run still runs every
     job.
     See docs/how-to/run_the_pipeline.md and slurm_integration.md.

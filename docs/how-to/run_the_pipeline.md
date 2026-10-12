@@ -86,10 +86,34 @@ Snakemake only runs jobs whose outputs are missing or out of date, so
 running the same command again resumes an interrupted run.
 
 A run prints the resolved configuration, how many jobs of each rule it runs,
-its progress (`N of M steps done`), each finished job's rule and wildcards,
-and any job's error, but not every job's rule block and submission. Those are in the log file under
+its progress (`N of M steps done`), each job's rule and wildcards when it is
+submitted (with its SLURM job ID) or starts locally and when it finishes,
+and any job's error, but not every job's rule block and shell command. Those are in the log file under
 `.snakemake/log` whose path it prints at the end; the override
-`list_jobs=true` prints them in the terminal too.
+`list_jobs=true` prints them in the terminal too, without the lines above.
+
+## Log to Weights & Biases
+
+Runs log nothing to W&B unless you add `--wandb`. Log in once with
+`uv run wandb login`, and set the entity and project the runs go to:
+
+```shell
+export WANDB_ENTITY=<entity> WANDB_PROJECT=afabench
+workflow/run.py ... --wandb
+```
+
+Each classifier training, pretraining, training and evaluation job then
+starts a [W&B run](../../CONTEXT.md), named after the job's rule and
+wildcards, and the terminal links it when the job is submitted and when it
+finishes:
+
+```
+[Mon Oct 12 10:52:37 2026] Submitted train_method (method=dime, dataset=cube, ...) as SLURM job 4818273: https://wandb.ai/<entity>/afabench/runs/train_method-dime-cube-4818273
+```
+
+The run ID ends in the SLURM job ID, or in random characters for a local
+job, so a retried job gets a new W&B run. Without either variable the run
+fails before any job.
 
 The sections below each add overrides (`key=value`) to the base command.
 They combine freely; see [combine them](#combine-them).
@@ -155,7 +179,6 @@ workflow/run.py --jobs 8 \
     "dataset_realization_indices=[0]" \
     "methods=[random_dummy,gdfs]" \
     smoke_test=true \
-    use_wandb=false \
     execution_file=workflow/profiles/execution/cpu.yaml
 ```
 

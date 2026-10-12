@@ -161,6 +161,28 @@ def test_no_soft_budget_and_its_override_exclude_each_other() -> None:
         snakemake_command(["--no-soft-budget", "soft_budget_setting=true"])
 
 
+def test_wandb_turns_wandb_logging_on() -> None:
+    command = snakemake_command(["--wandb", "methods=[dime]"])
+
+    assert command[command.index("--config") :] == [
+        "--config",
+        "methods=[dime]",
+        "use_wandb=true",
+    ]
+
+
+def test_wandb_logging_is_off_without_wandb() -> None:
+    assert not any(
+        argument.startswith("use_wandb")
+        for argument in snakemake_command(["methods=[dime]"])
+    )
+
+
+def test_wandb_and_its_override_exclude_each_other() -> None:
+    with pytest.raises(LauncherError, match="--wandb"):
+        snakemake_command(["--wandb", "use_wandb=false"])
+
+
 def test_estimate_passes_no_soft_budget_on() -> None:
     command = launcher_command(["-e", "--no-soft-budget"])
 

@@ -501,7 +501,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         initializer=config.get("initializer", "cold"),
         # Switch to val while developing, and train if debugging.
         eval_dataset_split=config.get("eval_dataset_split", "test"),
-        use_wandb=_config_bool(config.get("use_wandb", True), "use_wandb"),
+        use_wandb=_config_bool(config.get("use_wandb", False), "use_wandb"),
         smoke_test=smoke_test,
         list_jobs=_config_bool(config.get("list_jobs", False), "list_jobs"),
         soft_budget_setting=soft_budget_setting,

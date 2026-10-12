@@ -4,8 +4,7 @@ The pipeline uses [Snakemake](https://snakemake.readthedocs.io/) for workflow or
 
 The whole pipeline is executable with the following command:
 ```shell
-WANDB_PROJECT=afabench \
-  workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
+workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](../how-to/slurm_integration.md). The command is the [pipeline launcher](pipeline_launcher_command.md); the configuration keys below are its `key=value` overrides.
@@ -118,10 +117,12 @@ Controls the number of jobs Snakemake runs in parallel locally. This is not an o
 
 Enables or disables [Weights & Biases](https://wandb.ai/) integration for logging metrics.
 
-- **Default:** `true`
-- **Example:** `use_wandb=false` to disable W&B logging
-- **Requirement:** You must run `uv run wandb login` before using W&B
-- **Note:** Also set the `WANDB_PROJECT` environment variable (shown in the example command)
+- **Default:** `false`
+- **Example:** the launcher's `--wandb` sets `use_wandb=true`
+- **Requirement:** You must run `uv run wandb login` before using W&B, and set
+  the `WANDB_ENTITY` and `WANDB_PROJECT` environment variables, or the run
+  fails before any job. The terminal links each job's W&B run with them
+  ([Log to Weights & Biases](../how-to/run_the_pipeline.md#log-to-weights--biases)).
 
 ### `smoke_test`
 
@@ -133,7 +134,7 @@ Enables smoke testing mode, where each script runs as fast as possible while sti
 
 ### `list_jobs`
 
-Prints every job's messages in the terminal: its rule block with its resources, and, in a dry run, its script command; in a real run also its submission and completion. Without it, the terminal shows only the resolved configuration, how many jobs of each rule run, progress (`N of M steps done`), each finished job's rule and wildcards, and errors. A real run's log file under `.snakemake/log` keeps every job's messages either way.
+Prints every job's messages in the terminal: its rule block with its resources, and, in a dry run, its script command; in a real run also its submission and completion. Without it, the terminal shows only the resolved configuration, how many jobs of each rule run, progress (`N of M steps done`), each job's rule and wildcards when it is submitted or starts and when it finishes, with its W&B run link under [`use_wandb`](#use_wandb), and errors. A real run's log file under `.snakemake/log` keeps every job's messages either way.
 
 - **Default:** `false`
 - **Example:** `list_jobs=true` to check each job's partition, GPU request and `device=` argument

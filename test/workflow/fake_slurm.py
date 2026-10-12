@@ -26,6 +26,7 @@ if command == "sbatch":
     # sbatch runs the wrapped command in sh, as a site's --precommand needs.
     result = subprocess.run(
         ["sh", "-c", wrap],  # noqa: S607
+        env={**os.environ, "SLURM_JOB_ID": str(job_id)},
         capture_output=True,
         text=True,
         check=False,

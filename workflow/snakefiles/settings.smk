@@ -28,12 +28,20 @@ from execution import ExecutionPolicy
 from images import ImageCommands
 from job_output import hide_job_messages
 from job_records import JobRecordCommands
+from wandb_runs import WandbProject, WandbRuns
 
 WORKFLOW_SETTINGS = load_config(config)
+WANDB_RUNS = WandbRuns(
+    WandbProject.from_environment(os.environ) if WORKFLOW_SETTINGS.use_wandb else None,
+    # A job's own Snakemake on a cluster names its attempt by the SLURM job.
+    slurm_job_id=None if workflow.is_main_process else os.environ.get("SLURM_JOB_ID"),
+)
 # Jobs re-parse this file on their node; only the invocation prints.
 if workflow.is_main_process:
     logger.info(WORKFLOW_SETTINGS.summary())
-    hide_job_messages(logger, list_jobs=WORKFLOW_SETTINGS.list_jobs)
+    hide_job_messages(
+        logger, list_jobs=WORKFLOW_SETTINGS.list_jobs, wandb_runs=WANDB_RUNS
+    )
 EXECUTION = ExecutionPolicy(
     config,
     method_classifiers=WORKFLOW_SETTINGS.method_classifier_script_names,
