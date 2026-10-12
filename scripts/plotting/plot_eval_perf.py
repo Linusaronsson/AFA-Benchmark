@@ -27,7 +27,7 @@ def main(cfg: PlotEvalPerfConfig) -> None:
         cfg.plotting,
         cfg.formats,
     )
-    plotter.generate_all_plots()
+    plotter.generate_all_plots(cfg.dataset_sets)
 
 
 if __name__ == "__main__":

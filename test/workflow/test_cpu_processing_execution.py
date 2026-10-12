@@ -453,8 +453,10 @@ def test_local_cpu_processing_reaches_native_final_outputs(
     assert workflow.submissions() == []
     calls = workflow.script_arguments()
     assert len(calls) == 19
-    for _, args in calls:
+    for script, args in calls:
         if "device" in args:
             assert args["device"] == "cpu"
+        if "plot_eval_perf" in script:
+            assert args["++dataset_sets"] == "{all:[cube]}"
     plots = tmp_path / "output/smoke/plots/eval_split-test/initializer-cold"
     assert len(list(plots.rglob("fixture.svg"))) == 6

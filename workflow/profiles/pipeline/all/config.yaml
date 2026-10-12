@@ -4,6 +4,7 @@ configfile:
   - workflow/conf/eval_hard_budgets/all.yaml
   - workflow/conf/methods/all.yaml
   - workflow/conf/method_sets/all.yaml
+  - workflow/conf/dataset_sets/all.yaml
   - workflow/conf/method_options/all.yaml
   - workflow/conf/pretrain_mappings/all.yaml
   - workflow/conf/soft_budget_params/all.yaml

@@ -15,5 +15,9 @@ defaults:
 
 input: ???
 output_folder: ???
+# Dataset set name -> datasets, given with the force-add prefix:
+# '++dataset_sets={all:[cube,mnist]}'. The pipeline passes the run's
+# dataset sets.
+dataset_sets: ???
 formats:
   - pdf

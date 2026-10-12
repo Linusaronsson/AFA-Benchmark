@@ -172,6 +172,13 @@ validation and a MiniBooNE example.
 
 The `workflow/conf/datasets/` directory contains dataset configuration files. Each file specifies which datasets are used in the pipeline.
 
+`workflow/conf/dataset_sets/` contains files that define *dataset sets*,
+which group related datasets for plotting. Each dataset set gets its own
+`dataset_set-<name>` plot folder for every method set. Datasets outside the
+run are left out of each set, and sets without any dataset of the run are
+skipped. The `all` dataset set, of every dataset of the run, always exists
+and cannot be defined in these files.
+
 ## Unmaskers
 
 `workflow/conf/unmaskers/` contains files that map datasets to unmaskers. The values correspond to files in `conf/components/unmasker/`.

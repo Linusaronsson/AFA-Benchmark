@@ -1,0 +1,23 @@
+# Maps to datasets in `datasets.yaml`. Each dataset set with evaluation
+# results gets a `dataset_set-<name>` plot folder. The `all` dataset set of
+# every dataset of the run always exists and cannot be configured here.
+dataset_sets:
+  cube_nm_pair:
+    - cube_nm
+    - cube_nm_without_noise
+  set1:
+    - cube
+    - cube_without_noise
+    - cube_nm
+    - cube_nm_without_noise
+    - miniboone
+    - bank_marketing
+    - diabetes
+    - physionet
+    - actg
+    - fashion_mnist
+  set2:
+    - imagenette
+    - ckd
+    - mnist
+    - cube_nonuniform_costs

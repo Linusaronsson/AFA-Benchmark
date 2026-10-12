@@ -41,7 +41,7 @@ from afabench.evaluation.tables import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Mapping, Sequence
     from pathlib import Path
 
     from afabench.plotting.config import PlottingDisplayConfig
@@ -49,8 +49,6 @@ if TYPE_CHECKING:
 SUBPLOT_HEIGHT = 2.0
 PLOT_FONT_SIZE = 12
 SUBPLOT_TITLE_FONT_SIZE = 10
-# The dataset set that always exists and holds every dataset in the table
-ALL_DATASET_SET = "all"
 
 NON_MYOPIC_METHODS = frozenset(
     {
@@ -425,7 +423,6 @@ class EvaluationPlotter:
     plotting_config: PlottingDisplayConfig
     df_stop_action: pd.DataFrame | None
     df_traj: pd.DataFrame | None
-    dataset_sets: dict[str, list[str]]
 
     def __init__(
         self,
@@ -442,20 +439,9 @@ class EvaluationPlotter:
             output_folder: Root output directory for plots
             formats: Output formats (e.g. ("pdf", "svg")). Default: ("pdf",)
         """
-        if ALL_DATASET_SET in plotting_config.dataset_sets:
-            message = (
-                f"dataset_sets: {ALL_DATASET_SET!r} is reserved for the "
-                "dataset set of every dataset with evaluation results and "
-                "cannot be configured."
-            )
-            raise ValueError(message)
         self.output_folder = output_folder
         self.plotting_config = plotting_config
         self.formats = formats
-        self.dataset_sets = {
-            ALL_DATASET_SET: list(table["dataset"].unique()),
-            **plotting_config.dataset_sets,
-        }
         table = combine_soft_budget_params(table)
         self.df_stop_action = process_df_only_stop_action_and_valid_prediction(
             table, plotting_config
@@ -594,15 +580,16 @@ class EvaluationPlotter:
         path.parent.mkdir(parents=True, exist_ok=True)
         plot.save(path, width=width, height=height)
 
-    def generate_all_plots(self) -> None:
+    def generate_all_plots(
+        self, dataset_sets: Mapping[str, Sequence[str]]
+    ) -> None:
         """
         Generate all plots for each dataset set.
 
-        Each dataset set, including the `all` dataset set of every dataset
-        in the table, gets a `dataset_set-<name>` subfolder, created only if
-        the set has evaluation results to plot.
+        Each dataset set gets a `dataset_set-<name>` subfolder, created only
+        if the set has evaluation results to plot.
         """
-        for dataset_set_name, dataset_set in self.dataset_sets.items():
+        for dataset_set_name, dataset_set in dataset_sets.items():
             subfolder = self.output_folder / f"dataset_set-{dataset_set_name}"
             self.produce_stop_action_plots(set(dataset_set), subfolder)
             self.produce_trajectory_plots(set(dataset_set), subfolder)

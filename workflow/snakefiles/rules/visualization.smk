@@ -26,8 +26,18 @@ def _plot_time_selection() -> str:
     )
 
 
+def _dataset_sets_override() -> str:
+    """The Hydra override passing the run's dataset sets to plot_eval_perf."""
+    dataset_sets = ",".join(
+        f"{name}:[{','.join(datasets)}]"
+        for name, datasets in WORKFLOW_SETTINGS.dataset_sets.items()
+    )
+    # Hydra rejects new keys in a dict without the force-add prefix.
+    return shlex.quote(f"++dataset_sets={{{dataset_sets}}}")
+
+
 rule plot_eval_perf:
-    """Generate evaluation performance plots."""
+    """Generate evaluation performance plots, one folder per dataset set."""
     input:
         OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type="{classifier_type}"),
     output:
@@ -35,6 +45,7 @@ rule plot_eval_perf:
     params:
         image=IMAGES.param("visualization", lambda wc: "plot_eval_perf"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_perf", resources),
+        dataset_sets=_dataset_sets_override(),
     resources:
         shell_exec="bash",
         **EXECUTION.allocation_resources("visualization", lambda wc: "plot_eval_perf"),
@@ -42,7 +53,8 @@ rule plot_eval_perf:
     shell:
         """
         {params.image}python scripts/plotting/plot_eval_perf.py \
-            input={input} output_folder={output} formats='[pdf,svg]'
+            input={input} output_folder={output} formats='[pdf,svg]' \
+            {params.dataset_sets}
         """
 
 # This rule probably does not need to use both types of classifiers, since the actions are the same (they come from the same original evaluation dataframe).

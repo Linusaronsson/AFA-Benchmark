@@ -416,8 +416,8 @@ _Avoid_: Method group, plot group
 **Dataset set**:
 A named group of datasets plotted together; each gets a `dataset_set-<name>`
 plot folder when any of its datasets has evaluation results. The `all`
-dataset set always exists, holds every dataset with evaluation results, and
-cannot be configured.
+dataset set always exists, holds every dataset of a run, and cannot be
+configured.
 _Avoid_: Dataset group, plot group
 
 **Bundle**:

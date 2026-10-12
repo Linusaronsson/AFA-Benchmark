@@ -302,7 +302,8 @@ workflow/run.py --site <your_site> -n \
 - A dry run prints the resolved configuration (output root, the
   [stages that are off](#use-existing-outputs-without-rerunning-their-stages),
   initializer, dataset realizations, datasets with their unmasker and classifier,
-  methods with their classifier and pretrained model, method sets, and the
+  methods with their classifier and pretrained model, method sets, dataset
+  sets, and the
   hard budgets and soft-budget parameters of every method on every dataset),
   then how many jobs of each rule would run. Check them after every
   change to the overrides.

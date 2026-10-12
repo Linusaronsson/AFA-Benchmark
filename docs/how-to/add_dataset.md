@@ -158,7 +158,7 @@ dataset_name_mapping:
 
 ### 6. Add to dataset sets
 
-(Optional) Add your dataset to one or more *dataset sets* in `dataset_sets` in `conf/scripts/plotting/common/default.yaml`. Dataset sets group datasets for organized plotting: each set with evaluation results gets its own `dataset_set-<name>/` plot folder.
+(Optional) Add your dataset to one or more *dataset sets* in `dataset_sets` in `workflow/conf/dataset_sets/<variant>.yaml`. Dataset sets group datasets for organized plotting: each set with evaluation results gets its own `dataset_set-<name>/` plot folder.
 
 ```yaml
 dataset_sets:
@@ -168,5 +168,4 @@ dataset_sets:
 ```
 
 Your dataset is plotted without this step: the `all` dataset set, which
-holds every dataset with evaluation results, always exists and cannot be
-configured.
+holds every dataset of the run, always exists and cannot be configured.

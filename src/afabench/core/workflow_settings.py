@@ -105,6 +105,8 @@ class PipelineStages:
 
 # The method set that always exists and holds every compared method
 ALL_METHOD_SET = "all"
+# The dataset set that always exists and holds every dataset of the run
+ALL_DATASET_SET = "all"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -141,6 +143,7 @@ class WorkflowSettings:
     budget_params: dict[str, dict[str, list[BudgetCombination]]]
     classifier_names: dict[str, ClassifierScript]
     method_sets: dict[str, list[str]]
+    dataset_sets: dict[str, list[str]]
     eval_batch_sizes: dict[str, dict[str, int]]
     datasets_used_per_pretrain_name: dict[str, list[str]]
 
@@ -320,6 +323,11 @@ class WorkflowSettings:
                 f"    {name}: {_join(methods)}"
                 for name, methods in self.method_sets.items()
             ),
+            "  dataset sets:",
+            *(
+                f"    {name}: {_join(datasets)}"
+                for name, datasets in self.dataset_sets.items()
+            ),
             "  budgets (hard budgets are eval budgets; soft-budget",
             "  parameters are train -> eval):",
         ]
@@ -420,29 +428,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
                 message = f"Method {method!r} is not in {label}."
                 raise ValueError(message)
 
-    # Filter out methods that are neither enabled by the "methods" option nor
-    # reference methods, and remove method_sets without an enabled method:
-    # a set of reference methods only is already plotted in its release.
-    # The reserved "all" method set holds every compared method.
-    configured_method_sets: dict[str, list[str]] = config.get(
-        "method_sets", {}
-    )
-    if ALL_METHOD_SET in configured_method_sets:
-        message = (
-            f"method_sets: {ALL_METHOD_SET!r} is reserved for the method set "
-            "of every compared method and cannot be configured."
-        )
-        raise ValueError(message)
-    method_sets: dict[str, list[str]] = {}
-    for key, method_set in {
-        ALL_METHOD_SET: compared_methods,
-        **configured_method_sets,
-    }.items():
-        filtered_methods = [
-            method for method in method_set if method in compared_methods
-        ]
-        if any(method in methods for method in filtered_methods):
-            method_sets[key] = filtered_methods
+    method_sets = _method_sets(config, methods, compared_methods)
 
     selected_options = {
         method: options
@@ -479,6 +465,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     ]
 
     datasets: list[str] = _required_config(config, "datasets")
+    dataset_sets = _dataset_sets(config, datasets)
     eval_hard_budgets = _fill_missing_datasets_with_default(
         _required_config(config, "eval_hard_budgets"), datasets
     )
@@ -565,6 +552,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         budget_params=budget_params,
         classifier_names=classifier_names,
         method_sets=method_sets,
+        dataset_sets=dataset_sets,
         eval_batch_sizes={
             method: _eval_batch_sizes(method, options, datasets)
             for method, options in selected_options.items()
@@ -748,6 +736,65 @@ def _check_reference_methods(
 
 
 # Snakemake config values are heterogeneous YAML; callers annotate them.
+def _method_sets(
+    config: Mapping[str, Any], methods: list[str], compared_methods: list[str]
+) -> dict[str, list[str]]:
+    """
+    Resolve the method sets of a run, the reserved "all" set first.
+
+    Filter out methods that are neither enabled by the "methods" option nor
+    reference methods, and remove method_sets without an enabled method: a
+    set of reference methods only is already plotted in its release. The
+    "all" method set holds every compared method.
+    """
+    method_sets: dict[str, list[str]] = {}
+    for key, method_set in {
+        ALL_METHOD_SET: compared_methods,
+        **_configured_sets(config, "method_sets", ALL_METHOD_SET),
+    }.items():
+        filtered_methods = [
+            method for method in method_set if method in compared_methods
+        ]
+        if any(method in methods for method in filtered_methods):
+            method_sets[key] = filtered_methods
+    return method_sets
+
+
+def _dataset_sets(
+    config: Mapping[str, Any], datasets: list[str]
+) -> dict[str, list[str]]:
+    """
+    Resolve the dataset sets of a run, the reserved "all" set first.
+
+    Keep the datasets of the run in each dataset set and remove dataset_sets
+    without one. The "all" dataset set holds every dataset of the run.
+    """
+    dataset_sets: dict[str, list[str]] = {ALL_DATASET_SET: datasets}
+    for key, dataset_set in _configured_sets(
+        config, "dataset_sets", ALL_DATASET_SET
+    ).items():
+        filtered_datasets = [
+            dataset for dataset in dataset_set if dataset in datasets
+        ]
+        if filtered_datasets:
+            dataset_sets[key] = filtered_datasets
+    return dataset_sets
+
+
+def _configured_sets(
+    config: Mapping[str, Any], key: str, reserved: str
+) -> dict[str, list[str]]:
+    """Read the named sets under `key`, none of which may be `reserved`."""
+    sets: dict[str, list[str]] = config.get(key, {})
+    if reserved in sets:
+        message = (
+            f"{key}: {reserved!r} is reserved for the set the workflow "
+            "builds itself and cannot be configured."
+        )
+        raise ValueError(message)
+    return sets
+
+
 def _required_config(config: Mapping[str, Any], key: str) -> Any:  # noqa: ANN401
     value = config.get(key, None)
     if value is None:

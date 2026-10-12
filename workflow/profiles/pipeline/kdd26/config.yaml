@@ -4,6 +4,7 @@ configfile:
   - workflow/conf/eval_hard_budgets/kdd26.yaml
   - workflow/conf/methods/kdd26.yaml
   - workflow/conf/method_sets/kdd26.yaml
+  - workflow/conf/dataset_sets/kdd26.yaml
   - workflow/conf/method_options/kdd26.yaml
   - workflow/conf/pretrain_mappings/kdd26.yaml
   - workflow/conf/soft_budget_params/kdd26.yaml

@@ -114,43 +114,6 @@ datasets_with_f_score:
   - physionet
   - bank_marketing
 
-# Each dataset set with evaluation results gets a `dataset_set-<name>` plot
-# folder. The `all` dataset set of every dataset with evaluation results
-# always exists and cannot be configured here.
-dataset_sets:
-  cube_nm_pair:
-    - cube_nm
-    - cube_nm_without_noise
-  set1:
-    - cube
-    - cube_without_noise
-    - cube_nm
-    - cube_nm_without_noise
-    - miniboone
-    - bank_marketing
-    - diabetes
-    - physionet
-    - actg
-    - fashion_mnist
-  set2:
-    - imagenette
-    - ckd
-    - mnist
-    - cube_nonuniform_costs
-  kdd26:
-    - cube
-    - cube_nm
-    - cube_nm_without_noise
-    - bank_marketing
-    - miniboone
-    - actg
-    - physionet
-    - fashion_mnist
-    - imagenette
-    - ckd
-    - mnist
-    - cube_nonuniform_costs
-
 color_palette_name: Dark2
 
 # Printed under every evaluation performance plot when set, for example

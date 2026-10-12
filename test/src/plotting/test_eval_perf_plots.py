@@ -259,7 +259,7 @@ def test_per_time_step_metrics_use_largest_hard_budget_per_dataset(
 @pytest.mark.filterwarnings(
     "ignore::sklearn.exceptions.UndefinedMetricWarning"
 )
-def test_all_dataset_set_gets_every_plot_without_configuration(
+def test_all_plots_are_written_for_each_dataset_set(
     eval_perf_path: Path,
     tmp_path: Path,
     plotting_config: PlottingDisplayConfig,
@@ -271,7 +271,7 @@ def test_all_dataset_set_gets_every_plot_without_configuration(
         plotting_config,
         formats=("png",),
     )
-    plotter.generate_all_plots()
+    plotter.generate_all_plots({"all": ["cube", "mnist"]})
 
     assert sorted(
         path.name for path in (output_folder / "dataset_set-all").iterdir()
@@ -295,31 +295,14 @@ def test_dataset_set_without_results_gets_no_folder(
     plotter = EvaluationPlotter(
         load_plotting_ready_table(eval_perf_path),
         output_folder,
-        replace(
-            plotting_config,
-            dataset_sets={"cube_only": ["cube"], "unrun": ["ckd"]},
-        ),
+        plotting_config,
         formats=("png",),
     )
-    plotter.generate_all_plots()
+    plotter.generate_all_plots({"cube_only": ["cube"], "unrun": ["ckd"]})
 
-    assert sorted(path.name for path in output_folder.iterdir()) == [
-        "dataset_set-all",
-        "dataset_set-cube_only",
+    assert [path.name for path in output_folder.iterdir()] == [
+        "dataset_set-cube_only"
     ]
-
-
-def test_configured_all_dataset_set_is_rejected(
-    eval_perf_path: Path,
-    tmp_path: Path,
-    plotting_config: PlottingDisplayConfig,
-) -> None:
-    with pytest.raises(ValueError, match="'all'"):
-        EvaluationPlotter(
-            load_plotting_ready_table(eval_perf_path),
-            tmp_path / "plots",
-            replace(plotting_config, dataset_sets={"all": ["cube"]}),
-        )
 
 
 @pytest.mark.filterwarnings(
@@ -338,7 +321,7 @@ def test_caption_labels_every_plot(
         replace(plotting_config, caption=caption),
         formats=("svg",),
     )
-    plotter.generate_all_plots()
+    plotter.generate_all_plots({"all": ["cube", "mnist"]})
 
     plots = sorted((output_folder / "dataset_set-all").iterdir())
     assert len(plots) == 4

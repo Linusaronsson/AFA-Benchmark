@@ -23,7 +23,6 @@ class PlottingDisplayConfig:
     active_method_color_scheme: str
     dataset_name_mapping: dict[str, str]
     datasets_with_f_score: list[str]
-    dataset_sets: dict[str, list[str]]
     color_palette_name: str
     # Printed under every evaluation performance plot, for example to mark
     # plots of smoke runs as workflow demonstrations.
@@ -45,6 +44,9 @@ class PlotEvalPerfConfig:
     input: str
     output_folder: str
     formats: list[str]
+    # Each dataset set with evaluation results gets a `dataset_set-<name>`
+    # plot folder.
+    dataset_sets: dict[str, list[str]]
     plotting: PlottingDisplayConfig
 
 

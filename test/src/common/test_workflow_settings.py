@@ -502,6 +502,26 @@ def test_configured_all_method_set_is_rejected() -> None:
         load_config(config)
 
 
+def test_dataset_sets_keep_only_the_datasets_of_the_run() -> None:
+    config = _config(datasets=["cube", "mnist"]) | {
+        "dataset_sets": {
+            "pair": ["cube", "ckd"],
+            "unrun": ["ckd"],
+        }
+    }
+
+    dataset_sets = load_config(config).dataset_sets
+
+    assert dataset_sets == {"all": ["cube", "mnist"], "pair": ["cube"]}
+
+
+def test_configured_all_dataset_set_is_rejected() -> None:
+    config = _config() | {"dataset_sets": {"all": ["cube"]}}
+
+    with pytest.raises(ValueError, match="'all'"):
+        load_config(config)
+
+
 @pytest.mark.parametrize(
     ("method", "pretrain_folder"),
     [
