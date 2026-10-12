@@ -143,6 +143,30 @@ def test_dry_run_target_and_extra_snakemake_arguments() -> None:
     ]
 
 
+def test_no_soft_budget_turns_the_soft_budget_setting_off() -> None:
+    command = snakemake_command(
+        ["--no-soft-budget", "methods=[dime]", "--site", "examples/mixed-gres"]
+    )
+
+    assert command[command.index("--config") :] == [
+        "--config",
+        "methods=[dime]",
+        "soft_budget_setting=false",
+        "execution_site_file=workflow/profiles/site/examples/mixed-gres/site.yaml",
+    ]
+
+
+def test_no_soft_budget_and_its_override_exclude_each_other() -> None:
+    with pytest.raises(LauncherError, match="--no-soft-budget"):
+        snakemake_command(["--no-soft-budget", "soft_budget_setting=true"])
+
+
+def test_estimate_passes_no_soft_budget_on() -> None:
+    command = launcher_command(["-e", "--no-soft-budget"])
+
+    assert command[-1] == "--no-soft-budget"
+
+
 def test_local_run_takes_a_job_count() -> None:
     command = snakemake_command(["--jobs", "8"])
 

@@ -6,7 +6,7 @@ profile, an optional site profile and pipeline profile overrides. Steps:
 
 ```shell
 workflow/run.py [<pipeline>] [--site <site>] [-n | -e [<estimate options>]]
-    [--target <rule>] [--jobs <n>] [key=value ...] [-- <Snakemake arguments>]
+    [--no-soft-budget] [--target <rule>] [--jobs <n>] [key=value ...] [-- <Snakemake arguments>]
 ```
 
 It runs on the host's `python3` (3.9 or newer) with the standard library
@@ -24,6 +24,7 @@ Snakemake from the checkout root, wherever it is started.
 | `-n`, `--dry-run` | Plan the run and print its configuration, job counts and commands without running jobs. |
 | `-e`, `--estimate` | Print the [compute estimate](estimate_compute_command.md) of the run instead of running it; see [below](#the-compute-estimate). Not with `-n`. |
 | `--job-durations`, `--by`, `--output`, `--strict` | The [compute estimate's options](estimate_compute_command.md#options), with `-e` only. |
+| `--no-soft-budget` | Run only the hard-budget setting: adds the override [`soft_budget_setting=false`](pipeline_configuration.md#soft_budget_setting). Not with a `soft_budget_setting=` override. |
 | `--target <rule>` | The rule to run. Default `all`. |
 | `--jobs <n>` | How many jobs run at once locally. Refused with `--site`: the site profile sets it. |
 | `key=value` | A pipeline profile override, as Snakemake's `--config` takes it (`"methods=[gdfs,dime]"`, `"eval_hard_budgets={cube: [2, 4]}"`). Repeat for several. |

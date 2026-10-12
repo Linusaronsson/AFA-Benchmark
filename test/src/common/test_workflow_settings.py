@@ -45,6 +45,7 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.smoke_test is False
     assert settings.use_wandb is True
     assert settings.list_jobs is False
+    assert settings.soft_budget_setting is True
     assert settings.initializer == "cold"
     assert settings.output_root == "output/production"
 
@@ -425,6 +426,53 @@ def test_ignored_dataset_need_not_be_in_this_run() -> None:
     ]
 
 
+@pytest.mark.parametrize("soft_budget_setting", [False, "false"])
+def test_soft_budget_setting_off_leaves_only_hard_budget_runs(
+    soft_budget_setting: object,
+) -> None:
+    config = _config(datasets=["cube", "mnist"]) | {
+        "soft_budget_setting": soft_budget_setting
+    }
+
+    settings = load_config(config)
+
+    assert settings.budget_params["alpha"] == {
+        "cube": [(1, 1, "null", "null")],
+        "mnist": [(1, 1, "null", "null")],
+    }
+
+
+def test_soft_budget_setting_off_skips_pretraining_for_hard_ignored_datasets() -> (
+    None
+):
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "pretrained_model_name": "alpha_model",
+                "hard_budget_ignored_datasets": ["mnist"],
+            }
+        },
+        datasets=["cube", "mnist"],
+        pretrain_mapping={"alpha_model": {"pretrain_script_name": "alpha"}},
+    ) | {"soft_budget_setting": False}
+
+    settings = load_config(config)
+
+    assert settings.budget_params["alpha"]["mnist"] == []
+    assert settings.datasets_used_per_pretrain_name == {
+        "alpha_model": ["cube"]
+    }
+
+
+def test_invalid_soft_budget_setting_is_rejected() -> None:
+    config = _config() | {"soft_budget_setting": "no"}
+
+    with pytest.raises(ValueError, match="soft_budget_setting"):
+        load_config(config)
+
+
 def test_misspelt_classifier_key_is_rejected() -> None:
     config = _config()
     config["classifier_names"] = {
@@ -717,6 +765,14 @@ def test_summary_lists_the_stages_that_are_off() -> None:
     summary = load_config(config).summary()
 
     assert "  stages off: [training, evaluation]" in summary.splitlines()
+
+
+def test_summary_says_whether_the_soft_budget_setting_runs() -> None:
+    config = _config() | {"soft_budget_setting": False}
+
+    summary = load_config(config).summary()
+
+    assert "  soft-budget setting: False" in summary.splitlines()
 
 
 def _config(

@@ -4,8 +4,9 @@ Pipeline launcher: run the pipeline from its profiles and overrides.
 
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
-    workflow/run.py [<pipeline>] [--site <site>] [-n | -e] [--target <rule>]
-        [--jobs <n>] [key=value ...] [-- <Snakemake arguments>]
+    workflow/run.py [<pipeline>] [--site <site>] [-n | -e] [--no-soft-budget]
+        [--target <rule>] [--jobs <n>] [key=value ...]
+        [-- <Snakemake arguments>]
 
 It builds the one Snakemake command for them, adding what follows from the
 site profile: its site file, which Snakemake would otherwise drop from the
@@ -117,6 +118,8 @@ def _invocation(
         raise LauncherError(message)
     options = _parse(arguments)
     pipeline, config = _pipeline_and_overrides(options.profile_and_overrides)
+    if options.no_soft_budget:
+        config.append(_soft_budget_setting_off(config))
     interpreter = ["uv", "run", "snakemake"]
     profiles = ["--profile", _profile(checkout, PIPELINE_PROFILES, pipeline)]
     if options.site is not None:
@@ -142,6 +145,14 @@ def _invocation(
     if config:
         command += ["--config", *config]
     return interpreter, command
+
+
+def _soft_budget_setting_off(overrides: list[str]) -> str:
+    """Return the override --no-soft-budget stands for."""
+    if any(word.startswith("soft_budget_setting=") for word in overrides):
+        message = "--no-soft-budget and soft_budget_setting=: give one of them"
+        raise LauncherError(message)
+    return "soft_budget_setting=false"
 
 
 def _pipeline_and_overrides(words: list[str]) -> tuple[str, list[str]]:
@@ -244,6 +255,11 @@ def _parser() -> argparse.ArgumentParser:
         "--estimate",
         action="store_true",
         help="Print the compute estimate of the run without running jobs",
+    )
+    parser.add_argument(
+        "--no-soft-budget",
+        action="store_true",
+        help="Run only the hard-budget setting (soft_budget_setting=false)",
     )
     parser.add_argument(
         "--target", default="all", help="The rule to run (default: all)"

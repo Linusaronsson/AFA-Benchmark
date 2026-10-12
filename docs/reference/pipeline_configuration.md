@@ -146,6 +146,14 @@ The output root the run writes all its bundles, evaluation tables, job records, 
 - **Example:** `output_root=/scratch/afabench/output`
 - **Note:** An `output_root` that is, contains or lies inside the other kind of run's default root is a config error, for example `smoke_test=true` with `output_root=output/production`, or `output_root=output`
 
+### `soft_budget_setting`
+
+Whether the run trains and evaluates in the [soft-budget setting](../../CONTEXT.md) as well as the hard-budget setting. With `false`, every method runs only its hard budgets, as if its `soft_budget_ignored_datasets` listed every dataset, so pretraining skips the datasets a method also ignores in the hard-budget setting.
+
+- **Default:** `true`
+- **Example:** `soft_budget_setting=false`, or the launcher option `--no-soft-budget`, to run only the hard-budget setting
+- **Note:** `true` or `false`, in any case; another value is a config error. The dry run's resolved configuration shows it, and lists no soft-budget parameters with `false`
+
 ### `stages`
 
 Turns whole pipeline stages off. A stage that is off defines no rules, so the run reads that stage's outputs as they are under the output root, never schedules its jobs, and fails during planning if an output it needs is missing. Transformation, aggregation and visualization are always on.

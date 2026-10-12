@@ -11,7 +11,7 @@ Snakemake imports this module at parse time, so it must not import torch.
 
 import warnings
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any
 
@@ -120,6 +120,9 @@ class WorkflowSettings:
     # Whether the terminal shows every job's messages, not only the job
     # counts and progress
     list_jobs: bool
+    # Whether the run trains and evaluates in the soft-budget setting too,
+    # not only in the hard-budget setting
+    soft_budget_setting: bool
     # Where the run writes its artifacts and job records
     output_root: str
     # Only the pretrained models a selected method uses.
@@ -287,6 +290,7 @@ class WorkflowSettings:
             f"  eval dataset split: {self.eval_dataset_split}",
             f"  smoke test: {self.smoke_test}",
             f"  W&B logging: {self.use_wandb}",
+            f"  soft-budget setting: {self.soft_budget_setting}",
             "  dataset realizations: "
             + _join(self.dataset_realization_indices),
             "  datasets:",
@@ -420,9 +424,17 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
                 raise ValueError(message)
 
     method_sets = _method_sets(config, methods)
+    datasets: list[str] = _required_config(config, "datasets")
 
+    soft_budget_setting = _config_bool(
+        config.get("soft_budget_setting", True), "soft_budget_setting"
+    )
     selected_options = {
         method: options
+        if soft_budget_setting
+        # As if every method ignored every dataset in the soft-budget
+        # setting, which also skips pretraining no hard-budget run needs.
+        else replace(options, soft_budget_ignored_datasets=list(datasets))
         for method, options in method_options.items()
         if method in methods
     }
@@ -450,7 +462,6 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         if name in set(method_to_pretrained_model.values())
     ]
 
-    datasets: list[str] = _required_config(config, "datasets")
     dataset_sets = _dataset_sets(config, datasets)
     eval_hard_budgets = _fill_missing_datasets_with_default(
         _required_config(config, "eval_hard_budgets"), datasets
@@ -493,6 +504,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         use_wandb=_config_bool(config.get("use_wandb", True), "use_wandb"),
         smoke_test=smoke_test,
         list_jobs=_config_bool(config.get("list_jobs", False), "list_jobs"),
+        soft_budget_setting=soft_budget_setting,
         output_root=output_root,
         pretrain_names=pretrain_names,
         pretrain_script_names={

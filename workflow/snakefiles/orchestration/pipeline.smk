@@ -21,6 +21,11 @@ Runtime filters (--config, select subsets to run):
     datasets (list[str], required): Subset of datasets to run. Every dataset
         key needs a file conf/components/dataset_key/<key>.yaml.
     dataset_realization_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
+    soft_budget_setting (bool, default=True): false runs only the
+        hard-budget setting, as if every method listed every dataset in
+        soft_budget_ignored_datasets. The launcher's --no-soft-budget sets
+        it:
+            workflow/run.py --no-soft-budget "datasets=[cube]" -n
     device (str, default='cpu'): Deprecated invocation-wide device for
         computational jobs, with a warning. Cannot be combined with execution.
     execution_file (str, default='workflow/profiles/execution/default.yaml'):

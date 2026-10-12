@@ -250,12 +250,14 @@ workflow/run.py ... "soft_budget_params={jafa: {cube: [[0.001, null], [0.02, nul
 
 The same merging applies as for hard budgets: other methods, and datasets
 you do not name, keep the pipeline profile's values. To run only the
-[hard-budget setting](../../CONTEXT.md), give each method you run an empty
-list for each dataset you run:
+[hard-budget setting](../../CONTEXT.md), turn the soft-budget setting off:
 
 ```shell
-workflow/run.py ... "soft_budget_params={jafa: {cube: []}, gdfs: {cube: []}}"
+workflow/run.py ... --no-soft-budget
 ```
+
+It is short for the override `soft_budget_setting=false`. Pretraining then
+also skips the datasets a method ignores in the hard-budget setting.
 
 Most methods train soft-budget runs with no hard budget; methods with
 `use_max_hard_budget_when_training_soft_budget` train under the largest one
