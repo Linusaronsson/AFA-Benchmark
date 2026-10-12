@@ -245,7 +245,7 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
     assert result.returncode == 0, result.stdout + result.stderr
     seen = set()
     submissions = workflow.submissions()
-    assert len(submissions) == 16
+    assert len(submissions) == 20
     for args in submissions:
         comment = args[args.index("--comment") + 1]
         gpu = "rule_train_method" in comment or "rule_eval_method" in comment
@@ -288,7 +288,7 @@ def test_cpu_processing_submissions_clear_site_gpu_defaults(
     assert seen == CPU_RULES
     # Every job but collect_job_records, which runs for real, runs a stub.
     calls = workflow.script_arguments()
-    assert len(calls) == 15
+    assert len(calls) == 19
     for script, args in calls:
         if "train_method" in script or "eval/" in script:
             assert args["device"] == "cuda"
@@ -327,13 +327,13 @@ WITHOUT_EVALUATION = WITHOUT_TRAINING | {"evaluation": False}
 PROCESSING_JOBS = {
     "all": 1,
     "collect_job_records": 1,
-    "merge_eval_perf": 1,
+    "merge_eval_perf": 2,
     "plot_eval_actions": 1,
-    "plot_eval_perf": 2,
+    "plot_eval_perf": 4,
     "plot_time": 1,
-    "split_by_classifier_type": 1,
+    "split_by_classifier_type": 2,
     "transform_eval_data": 2,
-    "total": 10,
+    "total": 14,
 }
 
 
@@ -419,7 +419,7 @@ def test_without_training_evaluates_the_trained_methods(
     )
     assert job_counts(result.stdout) == PROCESSING_JOBS | {
         "eval_method": 2,
-        "total": 12,
+        "total": 16,
     }
 
 
@@ -452,9 +452,9 @@ def test_local_cpu_processing_reaches_native_final_outputs(
     assert result.returncode == 0, result.stdout + result.stderr
     assert workflow.submissions() == []
     calls = workflow.script_arguments()
-    assert len(calls) == 15
+    assert len(calls) == 19
     for _, args in calls:
         if "device" in args:
             assert args["device"] == "cpu"
     plots = tmp_path / "output/smoke/plots/eval_split-test/initializer-cold"
-    assert len(list(plots.rglob("fixture.svg"))) == 4
+    assert len(list(plots.rglob("fixture.svg"))) == 6

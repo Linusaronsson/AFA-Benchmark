@@ -103,6 +103,10 @@ class PipelineStages:
     evaluation: bool = True
 
 
+# The method set that always exists and holds every compared method
+ALL_METHOD_SET = "all"
+
+
 @dataclass(frozen=True, kw_only=True)
 class WorkflowSettings:
     stages: PipelineStages
@@ -419,8 +423,21 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     # Filter out methods that are neither enabled by the "methods" option nor
     # reference methods, and remove method_sets without an enabled method:
     # a set of reference methods only is already plotted in its release.
+    # The reserved "all" method set holds every compared method.
+    configured_method_sets: dict[str, list[str]] = config.get(
+        "method_sets", {}
+    )
+    if ALL_METHOD_SET in configured_method_sets:
+        message = (
+            f"method_sets: {ALL_METHOD_SET!r} is reserved for the method set "
+            "of every compared method and cannot be configured."
+        )
+        raise ValueError(message)
     method_sets: dict[str, list[str]] = {}
-    for key, method_set in config.get("method_sets", {}).items():
+    for key, method_set in {
+        ALL_METHOD_SET: compared_methods,
+        **configured_method_sets,
+    }.items():
         filtered_methods = [
             method for method in method_set if method in compared_methods
         ]

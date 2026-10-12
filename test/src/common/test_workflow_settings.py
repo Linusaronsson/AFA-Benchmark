@@ -483,6 +483,25 @@ def _compared_methods_config() -> dict[str, object]:
     return config
 
 
+def test_all_method_set_holds_every_compared_method() -> None:
+    config = _compared_methods_config()
+    config["method_sets"] = {"pair": ["alpha", "gamma"]}
+
+    method_sets = load_config(config).method_sets
+
+    assert method_sets == {
+        "all": ["alpha", "beta", "gamma"],
+        "pair": ["alpha", "gamma"],
+    }
+
+
+def test_configured_all_method_set_is_rejected() -> None:
+    config = _config() | {"method_sets": {"all": ["alpha"]}}
+
+    with pytest.raises(ValueError, match="'all'"):
+        load_config(config)
+
+
 @pytest.mark.parametrize(
     ("method", "pretrain_folder"),
     [

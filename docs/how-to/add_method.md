@@ -351,8 +351,10 @@ file name):
         - [0.2, null]
   ```
 
-- **`method_sets/<variant>.yaml`**: add your method name to whichever named
-  plot groups it belongs in (for example `main`).
+- **`method_sets/<variant>.yaml`** (optional): add your method name to
+  whichever named plot groups it belongs in (for example `main`). It is
+  plotted beside every other method of the run in the `all` method set
+  either way.
 
 If your method introduces a new `AFAMethod` or `AFAClassifier` class, add it
 to `REGISTERED_CLASSES` in `src/afabench/core/registry.py` — this is the same

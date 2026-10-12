@@ -158,16 +158,15 @@ dataset_name_mapping:
 
 ### 6. Add to dataset sets
 
-(Optional but recommended) Add your dataset to one or more *dataset sets* in `dataset_sets` in `conf/scripts/plotting/common/default.yaml`. Dataset sets group datasets for organized plotting: each set with evaluation results gets its own `dataset_set-<name>/` plot folder.
+(Optional) Add your dataset to one or more *dataset sets* in `dataset_sets` in `conf/scripts/plotting/common/default.yaml`. Dataset sets group datasets for organized plotting: each set with evaluation results gets its own `dataset_set-<name>/` plot folder.
 
 ```yaml
 dataset_sets:
   set1:
     # ... existing datasets ...
     - my_dataset
-  all:
-    # ... existing datasets ...
-    - my_dataset
 ```
 
-If your dataset is not in any set, the pipeline will still generate and train on it, but plots won't be generated for it. Adding it to the `all` set is typically sufficient.
+Your dataset is plotted without this step: the `all` dataset set, which
+holds every dataset with evaluation results, always exists and cannot be
+configured.

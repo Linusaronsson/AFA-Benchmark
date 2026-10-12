@@ -418,12 +418,16 @@ as a method paired with its external or built-in classifier.
 _Avoid_: Method id, method key
 
 **Method set**:
-A named group of method names plotted together.
+A named group of method names plotted together. The `all` method set always
+exists, holds every method name compared in a run, and cannot be configured.
+Unrelated to the `all` pipeline profile.
 _Avoid_: Method group, plot group
 
 **Dataset set**:
 A named group of datasets plotted together; each gets a `dataset_set-<name>`
-plot folder when any of its datasets has evaluation results.
+plot folder when any of its datasets has evaluation results. The `all`
+dataset set always exists, holds every dataset with evaluation results, and
+cannot be configured.
 _Avoid_: Dataset group, plot group
 
 **Bundle**:

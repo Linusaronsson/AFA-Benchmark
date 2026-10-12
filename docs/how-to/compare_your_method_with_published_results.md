@@ -116,7 +116,8 @@ soft_budget_params:
 - `methods`: only the methods you train and evaluate yourself.
 - `reference_methods`: the published methods to compare with.
 - `method_sets`: the groups plotted together. Sets without one of your
-  methods are skipped; the release has their plots.
+  methods are skipped; the release has their plots. The `all` method set,
+  of your methods and the reference methods, is always plotted.
 
 `comparison.yaml` is given after `release.json`, so it replaces `methods`
 and adds to `method_options` and `soft_budget_params`.

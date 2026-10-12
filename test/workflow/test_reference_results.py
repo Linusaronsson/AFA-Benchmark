@@ -87,14 +87,14 @@ def test_only_local_methods_are_produced_for_a_comparison_with_references(
     assert job_counts(output) == {
         "all": 1,
         "eval_method": 1,
-        "merge_eval_perf": 1,
+        "merge_eval_perf": 2,
         "collect_job_records": 1,
-        "plot_eval_perf": 2,
+        "plot_eval_perf": 4,
         "plot_time": 1,
-        "split_by_classifier_type": 1,
+        "split_by_classifier_type": 2,
         "train_method": 1,
         "transform_eval_data": 1,
-        "total": 10,
+        "total": 14,
     }, output
     merge = output.split("rule merge_eval_perf:", 1)[1].split("output:", 1)[0]
     assert ALPHA_HARD_BUDGET_TABLE in merge

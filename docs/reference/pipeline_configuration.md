@@ -218,7 +218,8 @@ The methods require the most configuration, and use the directories
 
 `methods/` contains files listing which methods are included in the pipeline.
 
-`method_sets/` contains files that define *method sets*, which group related methods to prevent cluttered plots when visualizing results. Each method set gets its own separate plot.
+`method_sets/` contains files that define *method sets*, which group related methods to prevent cluttered plots when visualizing results. Each method set gets its own separate plot. The `all` method set, of every
+method in the run, always exists and cannot be defined in these files.
 
 Some methods require a pretraining stage. For such methods,
 `pretrain_mappings/` provides the mapping to the pretraining script. For example, a file in `workflow/conf/pretrain_mappings/` with contents
