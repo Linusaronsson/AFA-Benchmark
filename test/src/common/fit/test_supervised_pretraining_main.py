@@ -19,7 +19,7 @@ from afabench.core.bundle_system.bundle import (
 )
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.core.types import AFADataset
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.fit.config import (
     SupervisedLearningConfig,
     SupervisedPretrainingConfig,

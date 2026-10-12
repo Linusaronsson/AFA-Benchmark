@@ -1,19 +1,18 @@
+from .actg import ACTG175Dataset
 from .aliases import DATASET_KEY_ALIASES
-from .datasets import (
-    ACTG175Dataset,
-    BankMarketingDataset,
-    CKDDataset,
-    CubeDataset,
-    CubeNMDataset,
-    CubeNonUniformCostsDataset,
-    DiabetesDataset,
-    FashionMNISTDataset,
-    ImagenetteDataset,
-    MiniBooNEDataset,
-    MNISTDataset,
-    PhysionetDataset,
-    SyntheticMNISTDataset,
-)
+from .bank_marketing import BankMarketingDataset
+from .ckd import CKDDataset
+from .cube import CubeDataset
+from .cube_nm import CubeNMDataset
+from .cube_nonuniform_costs import CubeNonUniformCostsDataset
+from .diabetes import DiabetesDataset
+from .fashion_mnist import FashionMNISTDataset
+from .imagenette import ImagenetteDataset
+from .miniboone import MiniBooNEDataset
+from .miniboone_subset import MiniBooNESubsetDataset
+from .mnist import MNISTDataset
+from .physionet import PhysionetDataset
+from .synthetic_mnist import SyntheticMNISTDataset
 
 __all__ = [
     "DATASET_KEY_ALIASES",
@@ -28,6 +27,7 @@ __all__ = [
     "ImagenetteDataset",
     "MNISTDataset",
     "MiniBooNEDataset",
+    "MiniBooNESubsetDataset",
     "PhysionetDataset",
     "SyntheticMNISTDataset",
 ]

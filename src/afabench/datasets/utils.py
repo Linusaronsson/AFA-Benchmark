@@ -3,9 +3,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import torch
+from jaxtyping import Integer
+from torch import Tensor
 
 if TYPE_CHECKING:
-    from afabench.core.types import AFADataset, GenerationIndices
+    from afabench.core.types import AFADataset, GenerationIndices, Label
+
+type ClassIndices = Integer[Tensor, "n_instances"]  # noqa: F821
 
 
 class MissingGenerationIndicesError(ValueError):
@@ -63,3 +67,8 @@ def require_generation_order(dataset: "AFADataset") -> None:
             f"generation order when constructed, got {generation_indices}"
         )
         raise ValueError(msg)
+
+
+def one_hot(labels: ClassIndices, n_classes: int) -> "Label":
+    """Return the one-hot float labels of class indices."""
+    return torch.nn.functional.one_hot(labels, num_classes=n_classes).float()

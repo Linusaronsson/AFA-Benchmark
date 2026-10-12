@@ -110,7 +110,7 @@ When `load_bundle()` reads a manifest, it needs to know which Python class corre
 ```python
 REGISTERED_CLASSES = {
     "MyClass": "my_module.submodule.MyClass",
-    "MyDataset": "afabench.datasets.datasets.MyDataset",
+    "MyDataset": "afabench.datasets.my_dataset.MyDataset",
     "RandomDummyAFAMethod": "afabench.components.methods.dummy.RandomDummyAFAMethod",
     # ... more entries ...
 }

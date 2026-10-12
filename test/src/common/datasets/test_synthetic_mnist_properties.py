@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from afabench.datasets.datasets import SyntheticMNISTDataset
+from afabench.datasets import SyntheticMNISTDataset
 
 
 @pytest.fixture

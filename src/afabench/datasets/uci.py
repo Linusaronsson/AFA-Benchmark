@@ -1,0 +1,37 @@
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import ClassVar, override
+
+import pandas as pd
+import torch
+
+from afabench.datasets.tabular_csv import TabularCSVDataset
+
+
+class UCIDataset(TabularCSVDataset, ABC):
+    """A tabular dataset fetched from the UCI repository into `path` when the file is missing; its feature shape is the file's."""
+
+    config_keys: ClassVar[tuple[str, ...]] = ("path",)
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size(self.features.shape[1:])
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([2])
+
+    def __init__(self, path: str):
+        self.path: str = path
+        super().__init__(Path(path))
+
+    @override
+    def _fetch_source(self) -> None:
+        self.source.parent.mkdir(parents=True, exist_ok=True)
+        self._fetch_uci().to_csv(self.source, index=False)
+
+    @abstractmethod
+    def _fetch_uci(self) -> pd.DataFrame:
+        """Return the UCI repository's data as the frame `_read_source` reads, with the label last."""

@@ -19,8 +19,8 @@ from torchvision import datasets
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.registry import REGISTERED_CLASSES, get_class
 from afabench.core.types import AFADataset
+from afabench.datasets import ImagenetteDataset
 from afabench.datasets.config import SplitRatioConfig
-from afabench.datasets.datasets import ImagenetteDataset
 from afabench.datasets.utils import MissingGenerationIndicesError
 from afabench.testing.provenance import placeholder_provenance
 from scripts.dataset_generation.generate_dataset import generate_and_save_split

@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 
 from afabench.core.bundle_system.bundle import bundle_provenance
+from afabench.datasets import CubeDataset
 from afabench.datasets.config import SplitRatioConfig
-from afabench.datasets.datasets import CubeDataset
 from scripts.dataset_generation.generate_dataset import generate_and_save_split
 
 REPO_ROOT = Path(__file__).parents[2]

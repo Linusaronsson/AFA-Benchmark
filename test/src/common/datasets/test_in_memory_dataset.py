@@ -7,7 +7,7 @@ import pytest
 import torch
 from torch import Tensor
 
-from afabench.datasets.datasets import CubeDataset, DiabetesDataset
+from afabench.datasets import CubeDataset, DiabetesDataset
 from afabench.datasets.feature_costs import MissingFeatureCostsError
 from afabench.datasets.in_memory import (
     InMemoryAFADataset,

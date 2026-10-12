@@ -9,8 +9,8 @@ import pytest
 import torch
 
 from afabench.core.bundle_system.bundle import load_bundle
+from afabench.datasets import MiniBooNEDataset
 from afabench.datasets.config import SplitRatioConfig
-from afabench.datasets.datasets import MiniBooNEDataset
 from scripts.dataset_generation.generate_dataset import generate_and_save_split
 
 N_ROWS = 30

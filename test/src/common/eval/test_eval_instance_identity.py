@@ -14,7 +14,7 @@ from afabench.core.types import (
     MaskedFeatures,
     SelectionMask,
 )
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.evaluation.eval import eval_afa_method
 from afabench.testing.helpers import get_direct_unmask_fn
 from afabench.testing.provenance import placeholder_provenance

@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from afabench.datasets.datasets import MiniBooNEDataset, MiniBooNESubsetDataset
+from afabench.datasets import MiniBooNEDataset, MiniBooNESubsetDataset
 
 PAPER_FEATURES = [
     "Feature 1",

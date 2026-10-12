@@ -6,7 +6,7 @@ import torch
 from afabench.components.unmaskers.image_patch_unmasker import (
     ImagePatchUnmasker,
 )
-from afabench.datasets.datasets import SyntheticMNISTDataset
+from afabench.datasets import SyntheticMNISTDataset
 
 
 @pytest.fixture

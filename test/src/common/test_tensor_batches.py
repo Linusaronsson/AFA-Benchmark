@@ -18,7 +18,7 @@ from afabench.components.methods.rl.common.dataset_utils import (
     DataModuleFromDatasets,
 )
 from afabench.core.types import AFADataset
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.fit.tensor_batches import (
     TensorBatchDataset,
     passthrough_batch,

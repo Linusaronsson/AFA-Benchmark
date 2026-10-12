@@ -31,7 +31,7 @@ from afabench.components.methods.discriminative.gdfs.config import (
 )
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
-from afabench.datasets.datasets import CubeDataset, ImagenetteDataset
+from afabench.datasets import CubeDataset, ImagenetteDataset
 from afabench.fit.inputs import load_inputs
 from afabench.testing.provenance import placeholder_provenance
 

@@ -30,7 +30,7 @@ from afabench.core.bundle_system.bundle import (
     save_bundle,
 )
 from afabench.core.registry import get_class
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.testing.provenance import placeholder_provenance
 
 REPO_ROOT = Path(__file__).parents[2]

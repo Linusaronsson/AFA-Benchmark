@@ -8,7 +8,7 @@ Datasets in AFA-Benchmark are serialized as **bundles** (directories containing 
 
 ### 1. Define a dataset class
 
-Define a dataset class in `src/afabench/datasets/datasets.py` that implements the `AFADataset` protocol from `src/afabench/core/types.py`.
+Define a dataset class in its own module, `src/afabench/datasets/<dataset_key>.py`, that implements the `AFADataset` protocol from `src/afabench/core/types.py`, and export it from `src/afabench/datasets/__init__.py`.
 
 A dataset whose instances fit in memory as tensors subclasses
 `InMemoryAFADataset` from `src/afabench/datasets/in_memory.py`. It supplies
@@ -131,7 +131,7 @@ Add your dataset class to the `REGISTERED_CLASSES` dictionary in `src/afabench/c
 ```python
 REGISTERED_CLASSES = {
     # ... existing entries ...
-    "MyDataset": "afabench.datasets.datasets.MyDataset",
+    "MyDataset": "afabench.datasets.my_dataset.MyDataset",
 }
 ```
 

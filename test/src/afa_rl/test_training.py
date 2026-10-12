@@ -39,7 +39,7 @@ from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
 from afabench.core.utils import get_class_frequencies
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.fit.inputs import load_inputs
 from afabench.fit.run import fit_run
 from afabench.fit.smoke_test import SMOKE_TEST_N_BATCHES

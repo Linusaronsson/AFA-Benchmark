@@ -30,7 +30,7 @@ from afabench.core.provenance import (
     Split,
     capture_provenance,
 )
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.evaluation.config import EvalConfig
 from afabench.evaluation.provenance import (
     evaluation_table_provenance,

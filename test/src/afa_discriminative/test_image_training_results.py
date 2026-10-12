@@ -56,7 +56,7 @@ from afabench.components.methods.static.common.static_methods import (
 )
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
-from afabench.datasets.datasets import ImagenetteDataset
+from afabench.datasets import ImagenetteDataset
 from afabench.fit.inputs import load_inputs
 from afabench.testing.provenance import placeholder_provenance
 

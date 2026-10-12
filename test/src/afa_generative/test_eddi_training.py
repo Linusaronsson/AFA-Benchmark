@@ -10,7 +10,7 @@ from afabench.components.methods.generative.eddi.training import (
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.bundle_system.torch_bundle import TorchModelBundle
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.fit.contract import TrainingContract
 from afabench.fit.inputs import load_inputs
 from afabench.testing.provenance import placeholder_provenance

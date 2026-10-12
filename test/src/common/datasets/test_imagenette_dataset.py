@@ -3,7 +3,7 @@ from typing import cast
 
 import torch
 
-from afabench.datasets.datasets import ImagenetteDataset
+from afabench.datasets import ImagenetteDataset
 
 
 def make_imagenette_dataset(indices: list[int]) -> ImagenetteDataset:

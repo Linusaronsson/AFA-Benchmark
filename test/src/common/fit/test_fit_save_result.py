@@ -21,7 +21,7 @@ from afabench.core.provenance import (
     DatasetIdentityMismatchError,
     ProvenanceInput,
 )
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.fit.contract import PretrainingContract, TrainingContract
 from afabench.fit.inputs import load_inputs
 from afabench.fit.run import fit_run, save_result

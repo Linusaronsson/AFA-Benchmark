@@ -21,7 +21,7 @@ from afabench.core.provenance import (
     ProvenanceRecord,
     capture_provenance,
 )
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 
 
 def _full_record() -> ProvenanceRecord:

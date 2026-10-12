@@ -10,7 +10,7 @@ from afabench.components.initializers.config import InitializerConfig
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
 from afabench.core.provenance import DatasetIdentityMismatchError, Split
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.fit.contract import PretrainingContract, TrainingContract
 from afabench.fit.metric_logger import NullMetricLogger
 from afabench.fit.run import fit_run

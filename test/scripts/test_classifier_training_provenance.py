@@ -16,7 +16,7 @@ from afabench.core.bundle_system.bundle import (
     save_bundle,
 )
 from afabench.core.provenance import ProvenanceInput
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.testing.provenance import placeholder_provenance
 from scripts.train_classifier.masked_mlp_classifier import main
 

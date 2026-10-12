@@ -13,7 +13,7 @@ from afabench.components.methods.oracle.aaco.config import (
 from afabench.components.methods.oracle.aaco.train import run
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import save_bundle
-from afabench.datasets.datasets import CubeDataset
+from afabench.datasets import CubeDataset
 from afabench.testing.provenance import placeholder_provenance
 
 
