@@ -714,11 +714,68 @@ class MiniBooNEDataset(TabularCSVDataset):
 
     @override
     def _read_source(self) -> tuple[pd.DataFrame, pd.Series]:
-        features_df, labels = super()._read_source()
-        keep = ~(features_df == self.PLACEHOLDER).any(axis=1) & (
-            features_df.iloc[:, self.OUTLIER_COLUMN].abs() < self.OUTLIER_BOUND
+        return self.drop_invalid_rows(*super()._read_source())
+
+    @classmethod
+    def drop_invalid_rows(
+        cls, features_df: pd.DataFrame, labels: pd.Series
+    ) -> tuple[pd.DataFrame, pd.Series]:
+        """Drop the placeholder and outlier rows of MiniBooNE's source frames."""
+        keep = ~(features_df == cls.PLACEHOLDER).any(axis=1) & (
+            features_df.iloc[:, cls.OUTLIER_COLUMN].abs() < cls.OUTLIER_BOUND
         )
         return features_df.loc[keep].copy(), labels.loc[keep]
+
+
+@final
+class MiniBooNESubsetDataset(TabularCSVDataset):
+    """
+    MiniBooNE restricted to the 10 features of the L2M paper (arXiv:2510.12624).
+
+    The features are those the authors' loader keeps (`src/data/miniboone.py`
+    in reAIM-Lab/Learning-To-Measure), in source order. It reads MiniBooNE's
+    source file (ADR 0010, amended) and keeps MiniBooNE's instances, dropping
+    the same placeholder and outlier rows.
+    """
+
+    config_keys: ClassVar[tuple[str, ...]] = ("root",)
+
+    # Zero-based positions of source columns "Feature 1", "Feature 2",
+    # "Feature 3", "Feature 4", "Feature 12", "Feature 17", "Feature 23",
+    # "Feature 25", "Feature 27" and "Feature 32".
+    FEATURE_COLUMNS: ClassVar[tuple[int, ...]] = (
+        0,
+        1,
+        2,
+        3,
+        11,
+        16,
+        22,
+        24,
+        26,
+        31,
+    )
+
+    @property
+    @override
+    def feature_shape(self) -> torch.Size:
+        return torch.Size([len(self.FEATURE_COLUMNS)])
+
+    @property
+    @override
+    def label_shape(self) -> torch.Size:
+        return torch.Size([2])
+
+    def __init__(self, root: str = "data/miniboone/miniboone.csv"):
+        self.root = root
+        super().__init__(Path(root))
+
+    @override
+    def _read_source(self) -> tuple[pd.DataFrame, pd.Series]:
+        features, labels = MiniBooNEDataset.drop_invalid_rows(
+            *super()._read_source()
+        )
+        return features.iloc[:, list(self.FEATURE_COLUMNS)].copy(), labels
 
 
 @final

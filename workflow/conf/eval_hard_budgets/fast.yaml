@@ -13,6 +13,7 @@ eval_hard_budgets:
   fashion_mnist: [10, 30]
   imagenette: []
   miniboone: [5, 15] # 40 features
+  miniboone_subset: [3, 7] # 10 features
   physionet: [5, 15] # 40 features
   synthetic_mnist: [1, 3] # 7x7 patches
   synthetic_mnist_without_noise: [1, 3] # 7x7 patches

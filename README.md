@@ -84,7 +84,8 @@ for accurate diagnosis with minimal cost. See the following survey for details: 
 | FashionMNIST | Real World | Image (tabularized) | 36,000 | 12,000 | 12,000 | 784 | 784 | 10 |
 | Diabetes | Real World | Tabular | 55,237 | 18,412 | 18,413 | 45 | 45 | 3 | |
 | PhysioNet | Real World | Tabular | 7,200 | 2,400 | 2,400 | 41 | 41 | 2 |
-| MiniBooNE | Real World | Tabular | 78,038 | 26,012 | 26,014 | 50 | 50 | 2 |
+| MiniBooNE | Real World | Tabular | 77,755 | 25,918 | 25,919 | 50 | 50 | 2 |
+| MiniBooNE (10 features) | Real World | Tabular | 77,755 | 25,918 | 25,919 | 10 | 10 | 2 |
 | ACTG175 | Real World | Tabular | 1,283 | 427 | 429 | 23 | 23 | | 2 |
 | CKD | Real World | Tabular | 240 | 80 | 80 | 24 | 24 | 2 |
 | BankMarketing | Real World | Tabular | 27,126 | 9,042 | 9,043 | 16 | 16 | 2 |

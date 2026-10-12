@@ -25,6 +25,12 @@ generation reads the file, through `feature_costs_path` in
 `src/afabench/datasets/feature_costs.py`, and stores the costs in the
 dataset bundles._
 
+_Amended: a dataset derived from another dataset's source, such as
+`miniboone_subset` from `miniboone`, reads the source from its parent's
+folder instead of keeping a copy, so the two cannot drift apart and each
+checkout places the gitignored source once. Its own folder holds only what
+differs, such as its feature costs._
+
 ## Considered options
 
 - **Flat files directly in `data/`.** Rejected: a dataset's feature costs

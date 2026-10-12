@@ -16,6 +16,7 @@ method_name_mapping:
   aaco_nn: AACO(NN)
   l2m_real_feature_prior: L2M
   l2m_synthetic_feature_prior: L2M(synthetic prior)
+  l2m_official: L2M (official)
   permutation: PT
   cae: CAE
   random_dummy: Random
@@ -35,6 +36,7 @@ method_policy_family_mapping:
   aaco_nn: aaco
   l2m_real_feature_prior: l2m
   l2m_synthetic_feature_prior: l2m_synthetic
+  l2m_official: l2m_official
   permutation: static
   cae: static
   random_dummy: dummy
@@ -53,6 +55,7 @@ method_family_color_schemes:
     dummy: '#AA4499'
     l2m: '#000000'
     l2m_synthetic: '#777777'
+    l2m_official: '#661100'
   colorbrewer_set1:
     eddi: '#E41A1C'
     gdfs: '#377EB8'
@@ -65,6 +68,7 @@ method_family_color_schemes:
     dummy: '#999999'
     l2m: '#000000'
     l2m_synthetic: '#17BECF'
+    l2m_official: '#8C564B'
   colorbrewer_set2:
     eddi: '#66C2A5'
     gdfs: '#FC8D62'
@@ -77,6 +81,7 @@ method_family_color_schemes:
     dummy: '#B3B3B3'
     l2m: '#000000'
     l2m_synthetic: '#1F78B4'
+    l2m_official: '#E31A1C'
   colorbrewer_dark2:
     eddi: '#1B9E77'
     gdfs: '#D95F02'
@@ -89,6 +94,7 @@ method_family_color_schemes:
     dummy: '#666666'
     l2m: '#000000'
     l2m_synthetic: '#1F78B4'
+    l2m_official: '#E31A1C'
 
 active_method_color_scheme: colorbrewer_dark2
 
@@ -107,6 +113,7 @@ dataset_name_mapping:
   diabetes: Diabetes
   fashion_mnist: FashionMNIST
   miniboone: MiniBooNE
+  miniboone_subset: MiniBooNE (10 features)
   physionet: PhysioNet
   imagenette: Imagenette
 

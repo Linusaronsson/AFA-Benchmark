@@ -1,0 +1,39 @@
+hydra:
+  searchpath:
+    - file://conf
+    - file://conf/components
+    - file://conf/global
+
+defaults:
+  - pretrain_l2m_official
+  - hydra: custom
+  - initializer: ???
+  - unmasker: ???
+  - dataset_key: ???
+  - _self_
+  - optional experiment@_global_: ${dataset_key}
+  - override hydra/job_logging: output_dir_colorlog
+  - override hydra/hydra_logging: colorlog
+  - override hydra/launcher: custom_slurm
+
+# The authors' MiniBooNE config (configs/miniboone.yaml in
+# reAIM-Lab/Learning-To-Measure at the vendored commit), the family default
+# for every dataset.
+
+architecture:
+  model_dim: 256 # d_model
+  embedding_depth: 4 # emb_depth
+  prediction_depth: 1 # pred_depth
+  n_layers: 6 # num_layers
+  n_heads: 4 # nhead
+  feedforward_dim: 512 # dim_feedforward
+  dropout: 0.0
+batch_size: 8 # tasks per step
+sequence_length: 1000 # num_points
+n_steps: 50000 # num_steps
+lr: 1e-4
+warmup_steps: 500 # num_warmup_steps
+checkpoint_interval: 500
+n_validation_tasks: 200 # eval_batch_size
+pretraining_pool_size: 5000 # pool_size
+mixed_precision: true

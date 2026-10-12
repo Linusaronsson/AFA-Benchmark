@@ -9,6 +9,7 @@
 REGISTERED_CLASSES = {
     # AFA Method Classes
     "L2MAFAMethod": "afabench.components.methods.discriminative.l2m.afa_methods.L2MAFAMethod",
+    "L2MOfficialAFAMethod": "afabench.components.methods.discriminative.l2m_official.afa_methods.L2MOfficialAFAMethod",
     "RLAFAMethod": "afabench.components.methods.rl.common.afa_methods.RLAFAMethod",
     "GDFSAFAMethod": "afabench.components.methods.discriminative.gdfs.afa_methods.GDFSAFAMethod",
     "DIMEAFAMethod": "afabench.components.methods.discriminative.dime.afa_methods.DIMEAFAMethod",
@@ -35,6 +36,7 @@ REGISTERED_CLASSES = {
     "DiabetesDataset": "afabench.datasets.datasets.DiabetesDataset",
     "PhysionetDataset": "afabench.datasets.datasets.PhysionetDataset",
     "MiniBooNEDataset": "afabench.datasets.datasets.MiniBooNEDataset",
+    "MiniBooNESubsetDataset": "afabench.datasets.datasets.MiniBooNESubsetDataset",
     "FashionMNISTDataset": "afabench.datasets.datasets.FashionMNISTDataset",
     "BankMarketingDataset": "afabench.datasets.datasets.BankMarketingDataset",
     "CKDDataset": "afabench.datasets.datasets.CKDDataset",
@@ -62,6 +64,7 @@ REGISTERED_CLASSES = {
     "RandomInitializer": "afabench.components.initializers.random_initializer.RandomInitializer",
     # In-context pretrained models
     "L2MModel": "afabench.components.methods.discriminative.l2m.models.L2MModel",
+    "L2MOfficialModel": "afabench.components.methods.discriminative.l2m_official.models.L2MOfficialModel",
     # General PyTorch Model Bundle
     "TorchModelBundle": "afabench.core.bundle_system.torch_bundle.TorchModelBundle",
 }

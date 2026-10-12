@@ -314,6 +314,11 @@ The CUBE variant with non-uniform feature costs: the informative features are
 duplicated in a second block that costs twice as much.
 _Avoid_: Cube non-uniform, costly cube
 
+**MiniBooNE subset**:
+MiniBooNE restricted to the 10 features used by the L2M paper, with the
+same instances as MiniBooNE.
+_Avoid_: MiniBooNE-10, small MiniBooNE
+
 **Noiseless variant**:
 A synthetic dataset generated with zero noise, so perfect accuracy is
 attainable and the optimal policy is known.

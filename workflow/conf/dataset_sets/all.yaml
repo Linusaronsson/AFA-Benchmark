@@ -11,6 +11,7 @@ dataset_sets:
     - cube_nm
     - cube_nm_without_noise
     - miniboone
+    - miniboone_subset
     - bank_marketing
     - diabetes
     - physionet

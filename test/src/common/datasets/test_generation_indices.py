@@ -36,6 +36,7 @@ SPLIT_RATIO = SplitRatioConfig(train=0.6, val=0.2, test=0.2)
 TABULAR_SOURCES: dict[str, tuple[int, list[object]]] = {
     "DiabetesDataset": (45, [i % 3 for i in range(N_ROWS)]),
     "MiniBooNEDataset": (50, [i % 2 for i in range(N_ROWS)]),
+    "MiniBooNESubsetDataset": (50, [i % 2 for i in range(N_ROWS)]),
     "PhysionetDataset": (41, [i % 2 for i in range(N_ROWS)]),
     "BankMarketingDataset": (
         5,

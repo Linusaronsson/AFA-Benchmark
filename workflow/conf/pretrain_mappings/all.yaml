@@ -44,6 +44,10 @@ pretrain_mapping:
     pretrain_script_name: "l2m"
     pretrain_params: ["feature_source=synthetic"]
 
+  l2m_official:
+    pretrain_script_name: "l2m_official"
+    pretrain_params: []
+
   # Example: If you need a variant with specific parameters
   # pvae_custom:
   #   pretrain_script_name: "odin"

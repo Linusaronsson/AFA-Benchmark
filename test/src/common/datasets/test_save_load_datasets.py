@@ -14,6 +14,7 @@ DATASETS_TO_TEST = [
     ("CubeDataset", {"n_samples": 10, "seed": 42}),
     ("DiabetesDataset", {"root": "data/diabetes/diabetes.csv"}),
     ("MiniBooNEDataset", {"root": "data/miniboone/miniboone.csv"}),
+    ("MiniBooNESubsetDataset", {"root": "data/miniboone/miniboone.csv"}),
     ("PhysionetDataset", {"root": "data/physionet/physionet.csv"}),
     # No {(Fashion)MNISTDataset, ImagenetteDataset} because of image data and large size
     (
@@ -29,6 +30,7 @@ DATASETS_TO_TEST = [
 MANUAL_LOCAL_ONLY_DATASETS = {
     "DiabetesDataset",
     "MiniBooNEDataset",
+    "MiniBooNESubsetDataset",
     "PhysionetDataset",
 }
 

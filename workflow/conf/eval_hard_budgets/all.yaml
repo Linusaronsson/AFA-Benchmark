@@ -12,4 +12,5 @@ eval_hard_budgets:
   fashion_mnist: [10, 20, 30]
   imagenette: [5, 10, 15]
   miniboone: [5, 10, 15] # 40 features
+  miniboone_subset: [3, 5, 7] # 10 features
   physionet: [5, 10, 15] # 40 features

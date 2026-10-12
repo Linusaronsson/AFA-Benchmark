@@ -3,8 +3,8 @@ Task sampler for L2M's task prior (paper Appendix A.5.2, A.5.3).
 
 Both l2m_real_feature_prior and l2m_synthetic_feature_prior draw every
 training task from `sample_task`; the feature source is their only
-difference. Independently reimplemented from the paper, not from the
-authors' unlicensed repository.
+difference. Independently reimplemented from the paper, before the
+authors' repository had a license; `l2m_official` runs their code.
 
 Missingness is MCAR: each feature's missing rate is drawn independently of
 the features themselves, as in the paper's MiniBooNE setup (Table 2). The

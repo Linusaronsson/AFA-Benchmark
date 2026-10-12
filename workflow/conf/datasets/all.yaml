@@ -9,6 +9,7 @@ datasets:
   - cube_nonuniform_costs
   - diabetes
   - miniboone
+  - miniboone_subset
   - physionet
   - synthetic_mnist
   - synthetic_mnist_without_noise

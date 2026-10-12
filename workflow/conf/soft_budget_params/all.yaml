@@ -380,6 +380,7 @@ soft_budget_params:
   l2m_real_feature_prior: &l2m
     default: []
   l2m_synthetic_feature_prior: *l2m
+  l2m_official: *l2m
   random_dummy:
     default:
       - [0.3, null]

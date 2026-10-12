@@ -1,7 +1,10 @@
 line-length = 79
 # NOTE: These exclude patterns are automatically synced to pyrightconfig.json
 # by scripts/dev/sync_excludes.py (runs as part of `just check`)
-exclude = []
+exclude = [
+  # Vendored third-party code, kept close to verbatim (ADR 0012)
+  "src/afabench/components/methods/discriminative/l2m_official/upstream",
+]
 
 [lint]
 select = ["ALL"]

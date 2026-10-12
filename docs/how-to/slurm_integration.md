@@ -101,8 +101,8 @@ After editing the site's `walltime` table, inspect a narrowed dry run:
 
 ```shell
 workflow/run.py --site arrhenius -n list_jobs=true \
-  "methods=[dime,l2m_real_feature_prior,l2m_synthetic_feature_prior]" \
-  "datasets=[miniboone]" "dataset_realization_indices=[0,1]"
+  "methods=[dime,l2m_real_feature_prior,l2m_synthetic_feature_prior,l2m_official]" \
+  "datasets=[miniboone,miniboone_subset]" "dataset_realization_indices=[0,1]"
 ```
 
 Read each job's `resources: runtime=...` in minutes. Use measured job
