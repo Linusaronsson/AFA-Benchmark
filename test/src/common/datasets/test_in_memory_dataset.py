@@ -209,27 +209,20 @@ def test_a_synthetic_dataset_saved_before_the_base_still_loads(
     assert loaded.get_feature_acquisition_costs().shape == (20,)
 
 
-def test_a_tabular_dataset_saved_before_the_base_still_loads(
+def test_loading_a_tabular_dataset_without_source_rows_names_it(
     tmp_path: Path,
 ) -> None:
-    feature_names = [f"f{i}" for i in range(45)]
     torch.save(
         {
             "features": torch.zeros(2, 45),
             "labels": torch.eye(3)[:2],
             "generation_indices": torch.tensor([1, 0]),
             "feature_costs": torch.full((45,), 2.0),
-            "feature_names": feature_names,
+            "feature_names": [f"f{i}" for i in range(45)],
             "config": {"root": "data/diabetes/diabetes.csv"},
         },
         tmp_path / "dataset.pt",
     )
 
-    loaded = DiabetesDataset.load(tmp_path)
-
-    assert loaded.root == "data/diabetes/diabetes.csv"
-    assert loaded.feature_names == feature_names
-    assert loaded.get_generation_indices().tolist() == [1, 0]
-    torch.testing.assert_close(
-        loaded.get_feature_acquisition_costs(), torch.full((45,), 2.0)
-    )
+    with pytest.raises(TypeError, match=r"dataset\.pt has no source row"):
+        DiabetesDataset.load(tmp_path)

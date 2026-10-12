@@ -284,8 +284,14 @@ The position of an instance in the dataset produced by dataset generation,
 before splitting. Together with the dataset realization it identifies the
 instance. For a real-world dataset, generation keeps the source's order, so
 the generation index also locates the instance in the source, in every
-realization.
+realization, unless the dataset drops source rows; then its source row does.
 _Avoid_: Instance index, original index, row, sample id
+
+**Source row**:
+The row of a tabular instance in its source file, counting data rows from 0.
+It equals the generation index unless the dataset drops rows from its source
+(MiniBooNE drops placeholder and outlier rows); dataset bundles save it.
+_Avoid_: Original index, row id
 
 **Split index**:
 The position of an instance within one split of one dataset realization.

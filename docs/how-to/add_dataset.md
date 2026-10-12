@@ -79,8 +79,11 @@ the indices in `create_subset`, and persists them: `load` raises
 `MissingGenerationIndicesError` for a bundle saved without them. Your class
 must **keep the source order for real-world data**: do not drop, sort or
 shuffle the rows you read, so that generation index `i` is row `i` of the
-source in every dataset realization. If a source must be filtered or
-reordered, keep the mapping to the source yourself.
+source in every dataset realization. A `TabularCSVDataset` whose source
+holds rows that are not instances may drop them in `_read_source`, keeping
+the order and the frame index: the base saves that index as each instance's
+**source row** (`get_source_rows`), as `MiniBooNEDataset` does. Any other
+filtering or reordering must keep the mapping to the source itself.
 
 `test/src/common/datasets/test_generation_indices.py` checks all of this for
 every registered dataset class. Tell its `dataset_kwargs` how to build a

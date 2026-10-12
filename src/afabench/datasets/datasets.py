@@ -540,11 +540,15 @@ class TabularCSVDataset(InMemoryAFADataset, ABC):
     the features; `_read_source` is where a subclass reads its file
     differently, and `_fetch_source` where it downloads a missing file.
     Categorical feature columns are label-encoded, missing values are filled
-    with the column mean, and every feature is z-normalized over the whole
-    file. The feature names are saved in dataset.pt beside the tensors.
+    with the column mean, and every feature is z-normalized over the rows
+    kept. The feature names and each instance's source row are saved in
+    dataset.pt beside the tensors.
     """
 
     feature_names: list[str]
+    # Row of each instance in the source file, counting data rows from 0;
+    # differs from the generation index once `_read_source` drops rows
+    source_rows: Tensor
 
     @classmethod
     @override
@@ -563,7 +567,12 @@ class TabularCSVDataset(InMemoryAFADataset, ABC):
         raise FileNotFoundError(msg)
 
     def _read_source(self) -> tuple[pd.DataFrame, pd.Series]:
-        """Return the feature columns and the integer class label of each row of `source`."""
+        """
+        Return the feature columns and the integer class label of each row of `source`.
+
+        A subclass may drop rows but must keep their order and the frames'
+        index, which is the source row of each instance.
+        """
         frame = pd.read_csv(self.source)
         return frame.iloc[:, :-1].copy(), frame.iloc[:, -1]
 
@@ -593,13 +602,29 @@ class TabularCSVDataset(InMemoryAFADataset, ABC):
             )
             raise ValueError(msg)
         self.feature_names = features_df.columns.tolist()
+        self.source_rows = torch.tensor(
+            features_df.index.to_numpy(), dtype=torch.long
+        )
         return features, _one_hot(
             torch.tensor(labels.values, dtype=torch.long), self.label_shape[0]
         )
 
+    def get_source_rows(self) -> Tensor:
+        """Return the source file row of each instance, in split order."""
+        return self.source_rows
+
+    @override
+    def create_subset(self, indices: Sequence[int]) -> Self:
+        subset = super().create_subset(indices)
+        subset.source_rows = self.source_rows[list(indices)]
+        return subset
+
     @override
     def _saved_data(self) -> dict[str, object]:
-        return super()._saved_data() | {"feature_names": self.feature_names}
+        return super()._saved_data() | {
+            "feature_names": self.feature_names,
+            "source_rows": self.source_rows,
+        }
 
     @override
     def _restore(self, data: Mapping[str, object], file: Path) -> None:
@@ -612,6 +637,16 @@ class TabularCSVDataset(InMemoryAFADataset, ABC):
             )
             raise TypeError(msg)
         self.feature_names = feature_names
+        source_rows = data.get("source_rows")
+        if not isinstance(source_rows, Tensor) or len(source_rows) != len(
+            self.features
+        ):
+            msg = (
+                f"Dataset saved at {file} has no source row per instance, "
+                f"got {source_rows!r}"
+            )
+            raise TypeError(msg)
+        self.source_rows = source_rows
 
 
 @final
@@ -647,9 +682,21 @@ class MiniBooNEDataset(TabularCSVDataset):
 
     This dataset contains particle physics measurements from the MiniBooNE experiment.
     The target variable has 2 classes (signal and background).
+
+    Rows holding the undocumented -999 placeholder (468 in the UCI file, all
+    -999 in every feature) and the four rows whose Feature 20 is off by
+    orders of magnitude (-17256.7 to 1.6e7, against [-5.2, 7.5] elsewhere)
+    are dropped (issue #129); `get_source_rows` maps instances back to the
+    file.
     """
 
     config_keys: ClassVar[tuple[str, ...]] = ("root",)
+
+    PLACEHOLDER: ClassVar[float] = -999.0
+    # Feature 20 is the 20th column; read by position like the base reads
+    # the label
+    OUTLIER_COLUMN: ClassVar[int] = 19
+    OUTLIER_BOUND: ClassVar[float] = 1000.0
 
     @property
     @override
@@ -664,6 +711,14 @@ class MiniBooNEDataset(TabularCSVDataset):
     def __init__(self, root: str = "data/miniboone/miniboone.csv"):
         self.root = root
         super().__init__(Path(root))
+
+    @override
+    def _read_source(self) -> tuple[pd.DataFrame, pd.Series]:
+        features_df, labels = super()._read_source()
+        keep = ~(features_df == self.PLACEHOLDER).any(axis=1) & (
+            features_df.iloc[:, self.OUTLIER_COLUMN].abs() < self.OUTLIER_BOUND
+        )
+        return features_df.loc[keep].copy(), labels.loc[keep]
 
 
 @final
