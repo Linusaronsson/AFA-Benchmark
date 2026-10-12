@@ -1,15 +1,22 @@
 # Compare your method with published results
 
 For a [repository adopter](../explanation/user_types.md#repository-adopter):
-train and evaluate only your own method, and plot it next to the methods of
-a benchmark release. The published methods are used as
-[reference methods](../explanation/reference_methods.md): the workflow
-reads their published tables and never retrains or re-evaluates them.
+run your method next to the methods of a benchmark release, without
+training and evaluating the published methods again.
+
+You download the published methods into your output root and run your own
+pipeline profile, which lists them next to your method. The downloaded
+release is a cache
+([ADR 0012](../adr/0012-a-downloaded-release-is-a-cache.md)): the run
+produces exactly what your profile produces without it. It reuses what the
+release holds and produces the rest: your method, and anything your
+profile asks for that the release lacks, such as a dataset the release does
+not cover, for every method.
 
 Only the `download` step needs network access. Everything else reads and
 writes local files and needs no Hugging Face account.
 
-## 1. Add your method
+## 1. Add your method and a pipeline profile
 
 Fork the repository and add your method as described in
 [add a method](add_method.md). Give it a method name that no published
@@ -29,6 +36,8 @@ method_options:
       default: 32
 ```
 
+and a `soft_budget_params` entry, as for any method.
+
 To make the method appear in plots, add it to
 `conf/scripts/plotting/common/default.yaml`:
 
@@ -36,32 +45,54 @@ To make the method appear in plots, add it to
 - `method_policy_family_mapping`: its colour family, an existing one or a
   new one added to every entry of `method_family_color_schemes`.
 
-## 2. Download the release
+Then give the comparison its own
+[pipeline profile](run_the_pipeline.md#pipeline-profile). Start from the
+one the release was produced with, so the published methods are asked for
+with the settings the release has them at. `download` prints it as
+`Workflow profile`; here it is `kdd26`:
+
+```shell
+cp -r workflow/profiles/pipeline/kdd26 workflow/profiles/pipeline/my_comparison
+```
+
+In `my_comparison/config.yaml`, replace the `methods` and `method_sets`
+files with your own, `workflow/conf/methods/my_comparison.yaml`:
+
+```yaml
+methods: [random_dummy, gdfs, gdfs_low_lr]
+```
+
+and `workflow/conf/method_sets/my_comparison.yaml`:
+
+```yaml
+method_sets:
+  my_comparison: [random_dummy, gdfs, gdfs_low_lr]
+```
+
+- `methods`: the published methods you compare with, and yours.
+- `method_sets`: the groups plotted together. The `all` method set, of
+  every method in `methods`, is always plotted.
+
+To compare on a dataset the release lacks, add it to the profile's
+`datasets` as well.
+
+## 2. Download the published methods
 
 Download into the fork's `output/production`:
 
 ```shell
 uv run python scripts/release/snapshot.py download --repo-id <repo_id> \
-    --payload-category transformed_evaluation_table \
-    --payload-category dataset_bundle \
-    --payload-category classifier_bundle \
-    --payload-category pretrained_model_bundle \
-    --dataset cube --method random_dummy --method gdfs
+    --method random_dummy --method gdfs
 ```
 
-This downloads the latest full release. To use an older or a partial
-release, name its release id after `download`.
-
-`--dataset` and `--method` select the published evaluations to compare
-with; `--method` names published methods, not yours. The payload
-categories decide what of those evaluations is downloaded:
-
-| Payload category | Needed? |
-| --- | --- |
-| `transformed_evaluation_table` | Required: the published methods' tables the comparison plots. |
-| `dataset_bundle` | Required: your method uses exactly the published dataset realizations and splits. |
-| `classifier_bundle` | Required: your method's external-classifier predictions come from the published external classifiers, one per dataset realization, each trained on that realization's train and val splits only. |
-| `pretrained_model_bundle` | Required if your method uses a pretrained model the release has; saves repeating pretraining. |
+This downloads the latest full release's evaluations of those methods with
+their whole chain: the dataset bundles and external classifiers they used,
+their pretrained models, their AFA-method bundles, and their raw and
+plotting-ready evaluation tables. A run reuses a published method's
+evaluations only with all of these; without its AFA-method bundles, it
+trains the method again. To download less, narrow the evaluations with
+coverage options, for example `--dataset cube`. To use an older or a
+partial release, name its release id after `download`.
 
 The command prints what the release lacks of your selection. All options:
 [`download`](../reference/snapshot_command.md#download).
@@ -82,81 +113,41 @@ changes since that commit. If a change affects results (data, splits,
 preprocessing, classifiers, acquisition semantics or metrics), your
 results are not comparable with the published ones, even though every
 file still loads ([why](../explanation/benchmark_releases.md#compatibility-and-comparability)).
+A restored output is not run again when your fork changes its rule's code
+or parameters
+([why](../explanation/output_snapshots.md)).
 
-## 4. Configure the comparison
+## 4. Run your pipeline profile
 
-Keep the configuration of each release you compare with in its own folder:
-
-```shell
-mkdir -p workflow/conf/comparisons/<release_id>
-jq .workflow_config.merged output/production/release_manifest.json \
-    > workflow/conf/comparisons/<release_id>/release.json
-```
-
-`release.json` is the release's own workflow configuration, so the
-workflow looks for the published tables at exactly the release's
-evaluation split, initializer, dataset realizations and budgets. Remove
-cluster-specific keys such as `execution_site_file` from it if you run
-elsewhere.
-
-Next to it, write `comparison.yaml`:
-
-```yaml
-methods: [gdfs_low_lr]
-reference_methods: [random_dummy, gdfs]
-method_sets:
-  my_comparison: [random_dummy, gdfs, gdfs_low_lr]
-method_options:
-  gdfs_low_lr: {...}   # as in step 1, unless it is in your config files
-soft_budget_params:
-  gdfs_low_lr:
-    cube: []
-```
-
-- `methods`: only the methods you train and evaluate yourself.
-- `reference_methods`: the published methods to compare with.
-- `method_sets`: the groups plotted together. Sets without one of your
-  methods are skipped; the release has their plots. The `all` method set,
-  of your methods and the reference methods, is always plotted.
-
-`comparison.yaml` is given after `release.json`, so it replaces `methods`
-and adds to `method_options` and `soft_budget_params`.
-
-If you compare with a smoke release, label the plots: set `caption` in
-`conf/scripts/plotting/common/default.yaml`, for example to
-`"Workflow demonstration from smoke runs, not scientific results"`.
-
-## 5. Check the plan
+Check the plan first; on a cluster, add `--site <site>`:
 
 ```shell
-uv run snakemake \
-    --snakefile workflow/snakefiles/orchestration/pipeline.smk \
-    --configfile workflow/conf/comparisons/<release_id>/release.json \
-                 workflow/conf/comparisons/<release_id>/comparison.yaml \
-    --cores 4 --dry-run all
+workflow/run.py my_comparison -n
 ```
 
 The plan should list only:
 
 - your method's `train_method`, `eval_method` and `transform_eval_data`
-  jobs;
-- `pretrain_model`, only if you did not download its pretrained model;
+  jobs, and its `pretrain_model` if the release lacks its pretrained model;
+- every job of what the release lacks, for example for a new dataset its
+  `dataset_generation`, `train_classifier` and `pretrain_model` jobs, and
+  the training and evaluation of every method on it;
 - the comparison's `merge_eval_perf`, `split_by_classifier_type`,
   `plot_eval_perf`, `collect_job_records` and `plot_time`.
 
-If it lists `dataset_generation` or `train_classifier`, a
-[shared prerequisite](../../CONTEXT.md) is missing: download it (step 2) rather than letting the
-workflow produce a different one.
+If it lists a published method's training or evaluation on a dataset the
+release has, your profile asks for something `output/production` does not
+hold: a budget, dataset realization, evaluation split or initializer the
+release lacks, or an evaluation you did not download. Download it, or
+change the profile to match the release, whose configuration is in the
+manifest's `workflow_config`.
 
-If it fails with a `MissingInputException`, the named published table is
-not in `output/production`. Either you did not download it, or the release does
-not have it: a dataset, dataset realization, budget or evaluation split your
-configuration asks for but the release lacks. Download it, or remove that
-setting from `comparison.yaml`.
+If it lists `dataset_generation` or `train_classifier` for a dataset the
+release has, a [shared prerequisite](../../CONTEXT.md) is missing. Download
+it (step 2) rather than letting the run produce a different one, which
+would also evaluate the published methods again with it.
 
-## 6. Run the comparison
-
-Run the same command without `--dry-run`. The plots end up in:
+Then run it without `-n`. The plots end up in:
 
 ```text
 output/production/plots/eval_split-<split>/initializer-<init>/eval_perf/
@@ -171,9 +162,18 @@ and the tables they plot in
 ## Download more later
 
 `download` writes nothing if a file it would write already exists, and
-lists the conflicts. A second download into the same fork, for example of
-more datasets, needs `--overwrite`, if only for `output/production/release_manifest.json`.
+lists the conflicts. A second download into the same output root, for
+example of more methods, needs `--overwrite`, if only for
+`output/production/release_manifest.json`.
 
-Use one release per output tree. To compare with another release, use a
-separate clone, since the restored manifest describes one release and
-outputs of two releases would be mixed.
+Use one release per output root, since the restored manifest describes one
+release and outputs of two releases would be mixed. To compare with
+another release, download it into another output root and run your
+profile on that root:
+
+```shell
+uv run python scripts/release/snapshot.py download <release_id> \
+    --repo-id <repo_id> --destination-root output/<name> \
+    --method random_dummy --method gdfs
+workflow/run.py my_comparison output_root=output/<name> -n
+```

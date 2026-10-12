@@ -1,8 +1,8 @@
 """
 The native output layout, pinned to the paths the pipeline writes today.
 
-Benchmark releases are restored at these paths and reference methods'
-tables are found by them, so every expected value is a literal.
+Benchmark releases are restored at these paths and a run reuses what they
+hold by them, so every expected value is a literal.
 """
 
 import re

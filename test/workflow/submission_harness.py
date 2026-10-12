@@ -3,6 +3,7 @@
 import csv
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,17 @@ SITE = {
         "gres": "gpu:T4:1",
     },
 }
+
+
+def job_counts(output: str) -> dict[str, int]:
+    """Read the job counts of Snakemake's job stats in `output`."""
+    stats = output.split("Job stats:", 1)[1].split("\n\n\n", 1)[0]
+    return {
+        rule: int(count)
+        for rule, count in re.findall(
+            r"^(\w+)\s+(\d+)$", stats, flags=re.MULTILINE
+        )
+    }
 
 
 class WorkflowHarness:

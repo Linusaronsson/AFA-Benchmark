@@ -64,7 +64,7 @@ def save_smoke(
             "--release-id",
             "smoke-native",
             "--scope",
-            "smoke",
+            "partial",
             *extra,
         ],
     )
@@ -257,7 +257,7 @@ def test_datasets_without_a_review_are_recorded_and_reported_unreviewed(
             "--release-id",
             "smoke-native",
             "--scope",
-            "smoke",
+            "partial",
             "--checkout",
             str(checkout),
         ],
@@ -364,24 +364,16 @@ def test_release_transport_carries_bundles_and_redistribution_warnings(
     transport = FakeReleaseTransport()
     destination_root = tmp_path / "checkout/output"
 
-    published = runner.invoke(
-        app,
-        ["publish", str(tmp_path / "snapshot"), "--repo-id", "fake/repo"]
-        + ["--smoke-release"],
-        obj=lambda _repo_id: transport,
-    )
+    transport.host_locally(tmp_path / "snapshot")
     downloaded = runner.invoke(
         app,
         ["download", "smoke-native", "--repo-id", "fake/repo"]
-        + ["--destination-root", str(destination_root), "--smoke-release"]
-        + ["--all"],
+        + ["--destination-root", str(destination_root), "--all"],
         obj=lambda _repo_id: transport,
     )
 
-    assert published.exit_code == 0, published.output
     assert downloaded.exit_code == 0, downloaded.output
-    for result in [published, downloaded]:
-        assert "Unreviewed dataset redistribution: cube" in result.output
+    assert "Unreviewed dataset redistribution: cube" in downloaded.output
     for path in [TRAIN, ALPHA_METHOD]:
         for file in (source_root / path).rglob("*"):
             restored = destination_root / file.relative_to(source_root)

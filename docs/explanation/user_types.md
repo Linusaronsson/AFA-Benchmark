@@ -17,10 +17,12 @@ reader, and never installs AFABench or runs its pipeline.
 
 Has a new AFA method, or a variant of a published one, and wants it
 compared with the published methods. Forks the repository, adds the
-method, downloads the release's evaluation tables and shared prerequisites,
-then trains and evaluates only their own method. Published methods enter
-the comparison as reference methods and are never retrained or
-re-evaluated (see [reference methods](reference_methods.md)).
+method, downloads the published methods it compares with into its output
+root, then runs its own pipeline profile listing those methods next to its
+own. The downloaded release is a cache: the run reuses what it holds, so
+only the adopter's method is trained and evaluated, and produces whatever
+it lacks, such as a dataset the release does not cover
+([ADR 0012](../adr/0012-a-downloaded-release-is-a-cache.md)).
 
 - [Add a method](../how-to/add_method.md) or
   [add a dataset](../how-to/add_dataset.md)

@@ -33,8 +33,8 @@ which is as the producing job was given it. JSON object keys are strings.
 | --- | --- |
 | `manifest_version` | Schema version, 3. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
-| `scope` | `full`, `partial` or `smoke`, as declared. Only `full` and `partial` are published as benchmark releases; `smoke` only as a smoke release. |
-| `execution_mode` | `smoke` if any artifact's record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `smoke` implies scope `smoke`. |
+| `scope` | `full` or `partial`, as declared. |
+| `execution_mode` | `smoke` if any artifact's record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `publish` refuses `smoke`; such a manifest is only downloaded in tests, from a local host. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
 | `dataset_redistribution` | Per dataset key any record names, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
 | `job_duration_table` | The release's [job duration table](#job-duration-table): `size_bytes`, `job_records` (its rows) and `smoke_test` (whether any row is of a smoke test); null when the output tree holds no job record. |
@@ -47,11 +47,11 @@ produced it. `save` and `publish` print them per pipeline stage (see
 
 The workflow configuration the maintainer declares with `--profile`,
 `--configfile` and `--config`: the one whose targets lay out the release.
-A [repository adopter](../how-to/compare_your_method_with_published_results.md)
-layers a comparison over `merged`, so that the workflow finds the published
-tables where the release has them. It is recorded, never read to describe
-an artifact; a release built across commits has the configuration of the
-final run, which reused the restored outputs because its targets name them.
+It is recorded, never read to describe an artifact or applied by a
+[repository adopter's](../how-to/compare_your_method_with_published_results.md)
+run, which uses their own pipeline profile; a release built across commits
+has the configuration of the final run, which reused the restored outputs
+because its targets name them.
 
 | Field | Meaning |
 | --- | --- |
@@ -68,7 +68,7 @@ final run, which reused the restored outputs because its targets name them.
 | `dirty` | The record's `code_dirty`: whether tracked files differed from the commit; null outside a git work tree. |
 
 An artifact is produced from **clean** code when `commit` is set and
-`dirty` is `false`. `publish` refuses an official release holding any
+`dirty` is `false`. `publish` refuses a release holding any
 other artifact unless the maintainer allows dirty code.
 
 ### `evaluations`
@@ -202,8 +202,8 @@ records it as null, and asking for it reports
 
 Each row keeps the record's `smoke_test`, and a smoke job record marks the
 table `smoke_test`; a compute estimate refuses those rows. Job records do
-not set the release's `execution_mode`, so a failed smoke attempt left in
-`failed_job_records/` does not block a `full` or `partial` release.
+not set the release's `execution_mode`, so `publish` does not refuse a
+release for a failed smoke attempt left in `failed_job_records/`.
 
 `failed_job_records/` is part of the output tree and is snapshotted, listed
 in `output_categories` and downloadable with `--output-category` like any
@@ -219,7 +219,7 @@ the checkout. That file ships empty, so every dataset is `unreviewed`, and
 `save`, `restore`, `publish` and `download` print the unreviewed and
 restricted keys. Only a `permitted` dataset's bundles may be published;
 unreviewed and restricted ones stay out of any public release until
-reviewed. `publish` refuses an official release holding any of them
+reviewed. `publish` refuses a release holding any of them
 unless the maintainer allows each by its dataset key (see
 [`publish`](snapshot_command.md#publish)).
 

@@ -202,19 +202,32 @@ def test_published_release_downloads_with_native_tables_and_plots(
     assert "Release 2026-10-cube" in downloaded.output
 
 
-def test_smoke_package_is_refused_as_an_official_release(
-    tmp_path: Path,
-) -> None:
+def test_smoke_package_is_refused(tmp_path: Path) -> None:
     transport = FakeReleaseTransport()
-    package_dir = prepare_package(
-        tmp_path, "smoke-check", scope="smoke", smoke_test=True
-    )
+    package_dir = prepare_package(tmp_path, "smoke-check", smoke_test=True)
 
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    assert "it can only be a smoke release" in str(result.exception)
+    assert "smoke-test artifacts are never published" in str(result.exception)
     assert transport.files == {}
+
+
+def test_a_refused_smoke_package_names_some_of_its_smoke_artifacts(
+    tmp_path: Path,
+) -> None:
+    transport = FakeReleaseTransport()
+    package_dir = prepare_package(tmp_path, "smoke-check", smoke_test=True)
+    smoke = read_release_manifest(
+        package_dir / "release_manifest.json"
+    ).smoke_artifacts
+    assert len(smoke) > 5
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    message = str(result.exception)
+    assert f"{len(smoke)} smoke-test artifacts" in message
+    assert sum(path in message for path in smoke) == 5
 
 
 def test_permitted_datasets_are_published_without_an_allowance(
@@ -232,7 +245,7 @@ def test_permitted_datasets_are_published_without_an_allowance(
     assert transport.commit_messages == ["Publish benchmark release 2026-10"]
 
 
-def test_unreviewed_dataset_is_refused_as_an_official_release(
+def test_unreviewed_dataset_is_refused(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
@@ -247,7 +260,7 @@ def test_unreviewed_dataset_is_refused_as_an_official_release(
     assert transport.files == {}
 
 
-def test_restricted_dataset_is_refused_as_an_official_release(
+def test_restricted_dataset_is_refused(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
@@ -269,7 +282,7 @@ def test_restricted_dataset_is_refused_as_an_official_release(
     assert transport.files == {}
 
 
-def test_maintainer_allows_named_datasets_into_an_official_release(
+def test_maintainer_allows_named_datasets_into_a_release(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
@@ -347,66 +360,16 @@ def test_allowing_a_dataset_that_needs_no_allowance_is_refused(
     assert transport.files == {}
 
 
-def test_unreviewed_dataset_is_published_as_a_smoke_release(
+def test_smoke_provenance_survives_a_round_trip_through_a_local_host(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
-    package_dir = prepare_package(
-        tmp_path,
-        "smoke-check",
-        scope="smoke",
-        smoke_test=True,
-        checkout=tmp_path / "unreviewed",
-    )
-
-    result = invoke(transport, "publish", str(package_dir), "--smoke-release")
-
-    assert result.exit_code == 0, result.output
-    assert "Unreviewed dataset redistribution: cube" in result.output
-    assert transport.file_exists(
-        "smoke_releases/smoke-check/release_manifest.json"
-    )
-
-
-def test_smoke_release_takes_no_redistribution_allowance(
-    tmp_path: Path,
-) -> None:
-    transport = FakeReleaseTransport()
-    package_dir = prepare_package(
-        tmp_path, "smoke-check", scope="smoke", smoke_test=True
-    )
-
-    result = invoke(
-        transport,
-        "publish",
-        str(package_dir),
-        "--smoke-release",
-        "--allow-redistribution",
-        "cube",
-    )
-
-    assert result.exit_code != 0
-    assert "official releases" in str(result.exception)
-    assert transport.files == {}
-
-
-def test_smoke_provenance_survives_a_smoke_release_round_trip(
-    tmp_path: Path,
-) -> None:
-    transport = FakeReleaseTransport()
-    package_dir = prepare_package(
-        tmp_path, "smoke-check", scope="smoke", smoke_test=True
-    )
+    package_dir = prepare_package(tmp_path, "smoke-check", smoke_test=True)
     destination_root = tmp_path / "fork/output"
 
-    published = invoke(
-        transport, "publish", str(package_dir), "--smoke-release"
-    )
-    downloaded = download(
-        transport, "smoke-check", destination_root, "--smoke-release"
-    )
+    transport.host_locally(package_dir)
+    downloaded = download(transport, "smoke-check", destination_root)
 
-    assert published.exit_code == 0, published.output
     assert downloaded.exit_code == 0, downloaded.output
     restored = read_release_manifest(
         destination_root / "release_manifest.json"
@@ -414,62 +377,31 @@ def test_smoke_provenance_survives_a_smoke_release_round_trip(
     assert restored == read_release_manifest(
         package_dir / "release_manifest.json"
     )
-    assert restored.scope is ReleaseScope.SMOKE
+    assert restored.scope is ReleaseScope.FULL
     assert restored.execution_mode is ExecutionMode.SMOKE
-    assert "scope smoke, execution smoke" in downloaded.output
-
-
-def test_smoke_release_is_not_downloadable_as_an_official_release(
-    tmp_path: Path,
-) -> None:
-    transport = FakeReleaseTransport()
-    package_dir = prepare_package(
-        tmp_path, "smoke-check", scope="smoke", smoke_test=True
-    )
-    invoke(transport, "publish", str(package_dir), "--smoke-release")
-    destination_root = tmp_path / "fork/output"
-
-    result = download(transport, "smoke-check", destination_root)
-
-    assert result.exit_code != 0
-    assert "smoke-check" in str(result.exception)
-    assert not destination_root.exists()
-
-
-def test_smoke_release_flag_does_not_publish_an_official_package(
-    tmp_path: Path,
-) -> None:
-    transport = FakeReleaseTransport()
-    package_dir = prepare_package(tmp_path, "2026-10-cube", scope="full")
-
-    result = invoke(transport, "publish", str(package_dir), "--smoke-release")
-
-    assert result.exit_code != 0
-    assert transport.files == {}
+    assert "scope full, execution smoke" in downloaded.output
 
 
 @pytest.mark.parametrize(
-    ("scope", "output_root"),
-    [("full", "output/production"), ("smoke", "output/smoke")],
+    ("smoke_test", "output_root"),
+    [(False, "output/production"), (True, "output/smoke")],
 )
-def test_a_release_downloads_into_the_output_root_of_its_scope(
+def test_a_release_downloads_into_the_output_root_of_its_execution_mode(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    scope: str,
+    smoke_test: bool,
     output_root: str,
 ) -> None:
-    smoke = scope == "smoke"
     transport = FakeReleaseTransport()
     package_dir = prepare_package(
-        tmp_path, "2026-10-cube", scope=scope, smoke_test=smoke
+        tmp_path, "2026-10-cube", smoke_test=smoke_test
     )
-    flag = ["--smoke-release"] if smoke else []
-    invoke(transport, "publish", str(package_dir), *flag)
+    transport.host_locally(package_dir)
     fork = tmp_path / "fork"
     fork.mkdir()
     monkeypatch.chdir(fork)
 
-    result = invoke(transport, "download", "2026-10-cube", "--all", *flag)
+    result = invoke(transport, "download", "2026-10-cube", "--all")
 
     assert result.exit_code == 0, result.output
     assert (fork / output_root / PLOT).read_bytes() == b"%PDF-1.4 plot"
@@ -480,17 +412,17 @@ def test_a_release_downloads_into_the_output_root_of_its_scope(
 
 
 @pytest.mark.parametrize(
-    ("scope", "output_root"),
-    [("full", "output/production"), ("smoke", "output/smoke")],
+    ("smoke_test", "output_root"),
+    [(False, "output/production"), (True, "output/smoke")],
 )
-def test_a_snapshot_restores_into_the_output_root_of_its_scope(
+def test_a_snapshot_restores_into_the_output_root_of_its_execution_mode(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    scope: str,
+    smoke_test: bool,
     output_root: str,
 ) -> None:
     package_dir = prepare_package(
-        tmp_path, "2026-10-cube", scope=scope, smoke_test=scope == "smoke"
+        tmp_path, "2026-10-cube", smoke_test=smoke_test
     )
     fork = tmp_path / "fork"
     fork.mkdir()
@@ -684,9 +616,7 @@ def test_saving_a_release_snapshot_uploads_nothing(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("scope", ["full", "partial"])
-def test_dirty_producing_code_is_refused_as_an_official_release(
-    tmp_path: Path, scope: str
-) -> None:
+def test_dirty_producing_code_is_refused(tmp_path: Path, scope: str) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(
         tmp_path, "2026-10", scope=scope, code={"training": DIRTY}
@@ -701,7 +631,7 @@ def test_dirty_producing_code_is_refused_as_an_official_release(
     assert transport.files == {}
 
 
-def test_unknown_producing_code_is_refused_as_an_official_release(
+def test_unknown_producing_code_is_refused(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
@@ -720,7 +650,7 @@ def test_unknown_producing_code_is_refused_as_an_official_release(
     assert transport.files == {}
 
 
-def test_maintainer_allows_dirty_code_into_an_official_release(
+def test_maintainer_allows_dirty_code_into_a_release(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
@@ -753,29 +683,3 @@ def test_allowing_dirty_code_in_a_clean_release_is_refused(
     assert result.exit_code != 0
     assert "no allowance is needed" in str(result.exception)
     assert transport.files == {}
-
-
-def test_dirty_code_is_published_as_a_smoke_release(tmp_path: Path) -> None:
-    transport = FakeReleaseTransport()
-    package_dir = prepare_package(
-        tmp_path,
-        "smoke-check",
-        scope="smoke",
-        smoke_test=True,
-        code={"training": DIRTY},
-    )
-
-    published = invoke(
-        transport, "publish", str(package_dir), "--smoke-release"
-    )
-    allowed = invoke(
-        transport,
-        "publish",
-        str(package_dir),
-        "--smoke-release",
-        "--allow-dirty-code",
-    )
-
-    assert published.exit_code == 0, published.output
-    assert allowed.exit_code != 0
-    assert "official releases" in str(allowed.exception)

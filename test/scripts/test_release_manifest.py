@@ -147,52 +147,19 @@ def test_manifest_options_without_release_id_are_refused(
 
 
 @pytest.mark.parametrize("scope", ["full", "partial"])
-def test_smoke_outputs_cannot_be_declared_a_release(
+def test_smoke_outputs_are_recorded_as_smoke(
     tmp_path: Path, scope: str
 ) -> None:
+    # Saved so the test suite can download them; publish refuses them.
     write_catalog(
         tmp_path / "source", Catalog(methods=[ALPHA], smoke_test=True)
     )
 
     result = save(tmp_path, scope=scope)
 
-    assert result.exit_code != 0
-    assert "smoke" in str(result.exception)
-    assert not (tmp_path / "snapshot").exists()
-
-
-def test_a_refused_smoke_release_names_some_of_its_smoke_artifacts(
-    tmp_path: Path,
-) -> None:
-    write_catalog(
-        tmp_path / "source", Catalog(methods=[ALPHA], smoke_test=True)
-    )
-    assert save(tmp_path, scope="smoke").exit_code == 0
-    manifest = read_manifest(tmp_path)
-    smoke = [
-        entry.get("path") or entry["raw_path"] or entry["transformed_path"]
-        for entry in [*manifest["bundles"], *manifest["evaluations"]]
-        if entry["smoke_test"]
-    ]
-    assert len(smoke) > 5
-
-    refused = save(tmp_path, "--overwrite", scope="full")
-
-    message = str(refused.exception)
-    assert f"{len(smoke)} smoke-test artifacts" in message
-    assert sum(path in message for path in smoke) == 5
-
-
-def test_smoke_outputs_are_recorded_as_smoke(tmp_path: Path) -> None:
-    write_catalog(
-        tmp_path / "source", Catalog(methods=[ALPHA], smoke_test=True)
-    )
-
-    result = save(tmp_path, scope="smoke")
-
     assert result.exit_code == 0, result.output
     manifest = read_manifest(tmp_path)
-    assert manifest["scope"] == "smoke"
+    assert manifest["scope"] == scope
     assert manifest["execution_mode"] == "smoke"
 
 
@@ -205,17 +172,13 @@ def test_one_smoke_artifact_makes_the_outputs_smoke(tmp_path: Path) -> None:
         provenance("training", smoke_test=True),
     )
 
-    refused = save(tmp_path, scope="partial")
-    saved = save(tmp_path, scope="smoke")
+    result = save(tmp_path)
 
-    assert refused.exit_code != 0
-    assert "1 smoke-test artifact" in str(refused.exception)
-    assert method_bundle(ALPHA, "cube", 1, HARD_3) in str(refused.exception)
-    assert saved.exit_code == 0, saved.output
+    assert result.exit_code == 0, result.output
     assert read_manifest(tmp_path)["execution_mode"] == "smoke"
 
 
-def test_production_dataset_bundles_go_in_a_smoke_release(
+def test_production_dataset_bundles_of_a_smoke_run_record_smoke(
     tmp_path: Path,
 ) -> None:
     # Dataset generation has no smoke mode: a smoke run's dataset bundles
@@ -227,7 +190,7 @@ def test_production_dataset_bundles_go_in_a_smoke_release(
         shutil.rmtree(source_root / path)
         write_bundle(source_root, path, provenance("dataset_generation"))
 
-    result = save(tmp_path, scope="smoke")
+    result = save(tmp_path)
 
     assert result.exit_code == 0, result.output
     assert read_manifest(tmp_path)["execution_mode"] == "smoke"
@@ -690,7 +653,7 @@ def test_a_smoke_job_record_marks_only_the_job_duration_table_smoke(
 ) -> None:
     # A failed smoke attempt left in failed_job_records/ marks the table,
     # whose smoke durations the compute estimate refuses, but does not make
-    # the production outputs a smoke release.
+    # the production outputs smoke.
     source_root = tmp_path / "source"
     write_catalog(source_root, Catalog(methods=[ALPHA]))
     write_job_record(source_root, ALPHA_METHOD_RECORD)

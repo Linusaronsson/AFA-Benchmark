@@ -1,12 +1,15 @@
 """
-Repository adopter and results-only user workflows on a real smoke run (#41).
+Repository adopter and results-only user workflows on a real smoke run.
 
 A published workspace runs the real pipeline on CUBE with `random_dummy`
-and `gdfs` (see `test_native_bundle_restore`), saves a smoke release
-and publishes it to a fake release host. A separate fork downloads the
-baselines' plotting-ready tables and the shared prerequisites, adds
-`gdfs_adopter`, a configured variant of GDFS, and runs the ordinary `all`
-target with the baselines as reference methods. The comparison is a
+and `gdfs` (see `test_native_bundle_restore`), saves it as a release and
+lays it out on a fake release host; `publish` refuses smoke-test outputs
+(ADR 0012). A separate fork adds `gdfs_adopter`, a configured variant of
+GDFS, downloads the published methods' chains and runs its own pipeline
+profile through the launcher. That profile lists the published methods in
+`methods` next to the variant and adds `cube_without_noise`, a dataset the
+release lacks, so the run reuses the release as a cache: it produces only
+the variant's work and everything on the new dataset. The comparison is a
 workflow demonstration on smoke runs, not a scientific result, and its
 plots say so.
 """
@@ -35,18 +38,29 @@ from test.workflow.test_native_bundle_restore import (
     PROFILE_CONFIGFILES,
     REPO_ROOT,
     SMOKE_SELECTION,
+    snakemake,
     workspace,
 )
+from workflow.run import snakemake_arguments
 
 RELEASE_ID = "smoke-adopter-journey"
 REPO_ID = "afabench-test/releases"
 TAG = "initializer-cold"
 CAPTION = "Workflow demonstration from smoke runs, not scientific results"
-# Layered over the release's own workflow configuration, so the reference
-# tables are expected exactly where the release has them.
+PUBLISHED_METHODS = ["random_dummy", "gdfs"]
+NEW_DATASET = "cube_without_noise"
+# The adopter's own configuration: the published run's settings, the
+# variant and the new dataset, and its own method set.
 ADOPTER_CONFIG: dict[str, Any] = {
-    "methods": ["gdfs_adopter"],
-    "reference_methods": ["random_dummy", "gdfs"],
+    "datasets": ["cube", NEW_DATASET],
+    "dataset_realization_indices": [0],
+    "methods": [*PUBLISHED_METHODS, "gdfs_adopter"],
+    "eval_hard_budgets": {"cube": [2], NEW_DATASET: [2]},
+    "soft_budget_params": {
+        "random_dummy": {"cube": [[0.3, None]], NEW_DATASET: [[0.3, None]]},
+        "gdfs": {"cube": [], NEW_DATASET: []},
+        "gdfs_adopter": {"default": []},
+    },
     "method_options": {
         "gdfs_adopter": {
             "pretrained_model_name": "gdfs",
@@ -57,36 +71,47 @@ ADOPTER_CONFIG: dict[str, Any] = {
         }
     },
     "method_sets": {
-        "adopter_comparison": ["random_dummy", "gdfs", "gdfs_adopter"]
+        "adopter_comparison": [*PUBLISHED_METHODS, "gdfs_adopter"]
     },
-    "soft_budget_params": {"gdfs_adopter": {"cube": []}},
 }
-# The shared prerequisites a new method on CUBE needs, as the fork has them
-# after downloading: the dataset realization's splits, the external classifier
-# and the pretrained model GDFS variants train from.
-SHARED_PREREQUISITES = [
-    "datasets/cube/0/train.bundle",
-    "datasets/cube/0/val.bundle",
-    "datasets/cube/0/test.bundle",
-    f"trained_classifiers/{TAG}/dataset-cube+realization_index-0.bundle",
-    f"pretrained_models/{TAG}/gdfs/dataset-cube+realization_index-0/"
-    "pretrain_seed-0/model.bundle",
+# Without the shipped method sets: the adopter names their own.
+ADOPTER_PROFILE = {
+    "snakefile": "workflow/snakefiles/orchestration/pipeline.smk",
+    "configfile": [
+        *(
+            path.relative_to(REPO_ROOT).as_posix()
+            for path in PROFILE_CONFIGFILES
+            if "method_sets" not in path.parts
+        ),
+        "workflow/conf/adopter.yaml",
+    ],
+}
+LAUNCHER_ARGUMENTS = [
+    "adopter",
+    "--jobs",
+    "4",
+    "smoke_test=true",
+    "use_wandb=false",
+    "execution_file=workflow/profiles/execution/cpu.yaml",
 ]
 EVAL_PERF = f"eval_split-test/{TAG}/eval_perf"
 COMPARISON = "method_set-adopter_comparison"
-# Only the variant's training, evaluation and transformation, the job
-# duration table, and the comparison's aggregation and plots.
-ADOPTER_JOBS = {
-    "all": 1,
-    "eval_method": 1,
-    "merge_eval_perf": 1,
-    "collect_job_records": 1,
-    "plot_eval_perf": 2,
-    "plot_time": 1,
-    "split_by_classifier_type": 1,
-    "train_method": 1,
-    "transform_eval_data": 1,
-    "total": 10,
+# The jobs of each pipeline stage the adopter's run must schedule, by
+# method and dataset; nothing else of those stages.
+PRODUCED_JOBS = {
+    ("dataset_generation", None, NEW_DATASET),
+    ("train_classifier", None, NEW_DATASET),
+    ("pretrain_model", None, NEW_DATASET),
+    *(
+        (rule, method, dataset)
+        for rule in ["train_method", "eval_method", "transform_eval_data"]
+        for method, dataset in [
+            ("gdfs_adopter", "cube"),
+            ("gdfs_adopter", NEW_DATASET),
+            ("gdfs", NEW_DATASET),
+            ("random_dummy", NEW_DATASET),
+        ]
+    ),
 }
 
 
@@ -94,24 +119,35 @@ def fork(root: Path) -> Path:
     """
     Make a checkout-shaped fork that owns its config, as a fork does.
 
-    The display configuration names the variant, and the comparison's
-    plots carry the workflow-demonstration caption.
+    The display configuration names the variant, the comparison's plots
+    carry the workflow-demonstration caption, and the adopter's pipeline
+    profile runs the comparison.
     """
     workspace(root)
-    (root / "conf").unlink()
-    shutil.copytree(REPO_ROOT / "conf", root / "conf")
+    for folder in ["conf", "workflow"]:
+        (root / folder).unlink()
+        shutil.copytree(
+            REPO_ROOT / folder,
+            root / folder,
+            ignore=shutil.ignore_patterns("__pycache__"),
+        )
     display_path = root / "conf/scripts/plotting/common/default.yaml"
     display = yaml.safe_load(display_path.read_text())
     display["method_name_mapping"]["gdfs_adopter"] = "GDFS (adopter)"
     display["method_policy_family_mapping"]["gdfs_adopter"] = "gdfs"
     display["caption"] = CAPTION
     display_path.write_text(yaml.safe_dump(display))
+    (root / "workflow/conf/adopter.yaml").write_text(
+        yaml.safe_dump(ADOPTER_CONFIG)
+    )
+    profile = root / "workflow/profiles/pipeline/adopter/config.yaml"
+    profile.parent.mkdir()
+    profile.write_text(yaml.safe_dump(ADOPTER_PROFILE))
     return root
 
 
-def snakemake(
-    root: Path, configfiles: list[Path], *arguments: str
-) -> subprocess.CompletedProcess[str]:
+def launch(root: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    """Run Snakemake as `workflow/run.py` does in the fork."""
     # No Hugging Face token, and no service: the pipeline reads local files.
     environment = {
         name: value
@@ -128,13 +164,9 @@ def snakemake(
             sys.executable,
             "-m",
             "snakemake",
-            "--snakefile",
-            "workflow/snakefiles/orchestration/pipeline.smk",
-            "--configfile",
-            *(str(path) for path in configfiles),
-            "--cores",
-            "4",
-            *arguments,
+            *snakemake_arguments(
+                [*LAUNCHER_ARGUMENTS, *arguments], checkout=root
+            ),
         ],
         cwd=root,
         env=environment,
@@ -145,14 +177,20 @@ def snakemake(
     )
 
 
-def job_counts(output: str) -> dict[str, int]:
-    stats = output.split("Job stats:", 1)[1].split("\n\n\n", 1)[0]
-    return {
-        rule: int(count)
-        for rule, count in re.findall(
-            r"^(\w+)\s+(\d+)$", stats, flags=re.MULTILINE
+def planned_jobs(output: str) -> Counter[tuple[str, str | None, str | None]]:
+    """Count a listed dry run's jobs by rule, method and dataset."""
+    jobs: Counter[tuple[str, str | None, str | None]] = Counter()
+    for rule, block in re.findall(
+        r"^rule (\w+):\n((?:    .*\n)*)", output, flags=re.MULTILINE
+    ):
+        found = re.search(r"^    wildcards: (.*)$", block, flags=re.MULTILINE)
+        wildcards = dict(
+            item.split("=", 1)
+            for item in (found[1] if found else "").split(", ")
+            if "=" in item
         )
-    }
+        jobs[rule, wildcards.get("method"), wildcards.get("dataset")] += 1
+    return jobs
 
 
 def invoke(transport: FakeReleaseTransport, *args: str) -> Result:
@@ -206,70 +244,56 @@ def journey(tmp_path_factory: pytest.TempPathFactory) -> Journey:
             "--release-id",
             RELEASE_ID,
             "--scope",
-            "smoke",
+            "full",
             "--checkout",
             str(REPO_ROOT),
         ],
     )
     assert saved.exit_code == 0, saved.output
     result.transport = FakeReleaseTransport()
-    published = invoke(
-        result.transport, "publish", str(package), "--smoke-release"
-    )
-    assert published.exit_code == 0, published.output
+    result.transport.host_locally(package)
 
     result.forked = fork(tmp_path / "fork")
     downloaded = invoke(
         result.transport,
         "download",
-        RELEASE_ID,
-        "--smoke-release",
         "--destination-root",
         str(result.forked / "output/smoke"),
-        "--payload-category",
-        "transformed_evaluation_table",
-        "--payload-category",
-        "dataset_bundle",
-        "--payload-category",
-        "classifier_bundle",
-        "--payload-category",
-        "pretrained_model_bundle",
+        *(
+            argument
+            for method in PUBLISHED_METHODS
+            for argument in ["--method", method]
+        ),
     )
     assert downloaded.exit_code == 0, downloaded.output
+    assert "Missing from release" not in downloaded.output
     result.downloaded = files_and_mtimes(result.forked / "output/smoke")
 
-    release_config = tmp_path / "release_config.json"
-    release_config.write_text(
-        json.dumps(
-            json.loads(
-                (
-                    result.forked / "output/smoke/release_manifest.json"
-                ).read_text()
-            )["workflow_config"]["merged"]
-        )
-    )
-    adopter = tmp_path / "adopter.yaml"
-    adopter.write_text(yaml.safe_dump(ADOPTER_CONFIG))
-    adopter_configfiles = [release_config, adopter]
-    result.plan = snakemake(
-        result.forked, adopter_configfiles, "--dry-run", "all"
-    )
-    result.run = snakemake(result.forked, adopter_configfiles, "all")
+    result.plan = launch(result.forked, "-n", "list_jobs=true")
+    result.run = launch(result.forked)
     return result
 
 
 @pytest.mark.pipeline
-def test_fork_downloads_shared_prerequisites_but_no_baseline_bundle(
+def test_fork_downloads_the_published_methods_whole_chains(
     journey: Journey,
 ) -> None:
     downloaded = set(journey.downloaded)
 
-    for prerequisite in SHARED_PREREQUISITES:
-        assert any(path.startswith(f"{prerequisite}/") for path in downloaded)
-    assert not [path for path in downloaded if "trained_methods/" in path]
-    assert not [
-        path for path in downloaded if path.startswith("eval_results/")
-    ]
+    for folder in [
+        "datasets/cube/0/train.bundle",
+        "datasets/cube/0/test.bundle",
+        f"trained_classifiers/{TAG}/dataset-cube+realization_index-0.bundle",
+        f"pretrained_models/{TAG}/gdfs/",
+        *(f"trained_methods/{TAG}/{method}/" for method in PUBLISHED_METHODS),
+        *(
+            f"{tables}/eval_split-test/{TAG}/{method}/"
+            for tables in ["eval_results", "eval_results_transformed"]
+            for method in PUBLISHED_METHODS
+        ),
+    ]:
+        assert any(path.startswith(folder) for path in downloaded), folder
+    assert not [path for path in downloaded if path.startswith("plots/")]
     manifest = read_release_manifest(
         journey.forked / "output/smoke/release_manifest.json"
     )
@@ -278,57 +302,69 @@ def test_fork_downloads_shared_prerequisites_but_no_baseline_bundle(
 
 
 @pytest.mark.pipeline
-def test_adding_a_method_runs_only_its_missing_work(journey: Journey) -> None:
+def test_the_run_produces_only_the_adopters_method_and_the_new_dataset(
+    journey: Journey,
+) -> None:
     planned = journey.plan.stdout + journey.plan.stderr
     executed = journey.run.stdout + journey.run.stderr
 
     assert journey.plan.returncode == 0, planned
-    assert job_counts(planned) == ADOPTER_JOBS, planned
+    jobs = planned_jobs(planned)
+    produced = {
+        job
+        for job in jobs
+        if job[0]
+        in {
+            "dataset_generation",
+            "train_classifier",
+            "train_classifier_for_method",
+            "pretrain_model",
+            "train_method",
+            "eval_method",
+            "transform_eval_data",
+        }
+    }
+    assert produced == PRODUCED_JOBS, planned
     assert journey.run.returncode == 0, executed
-    assert job_counts(executed) == ADOPTER_JOBS, executed
     finished = Counter(
-        re.findall(r"Finished jobid: \d+ \(Rule: (\w+)\)", executed)
+        # The launcher's terminal names each finished job's rule.
+        re.findall(r"\[[^]]*\] Finished (\w+)", executed)
     )
-    assert finished == {
-        rule: count for rule, count in ADOPTER_JOBS.items() if rule != "total"
-    }, executed
-    output = journey.forked / "output/smoke"
-    for method in ["random_dummy", "gdfs"]:
-        assert not (output / f"trained_methods/{TAG}/{method}").exists()
-        assert not (
-            output / f"eval_results/eval_split-test/{TAG}/{method}"
-        ).exists()
-    assert (output / f"trained_methods/{TAG}/gdfs_adopter").is_dir()
+    assert finished == Counter(job[0] for job in jobs.elements()), executed
 
 
 @pytest.mark.pipeline
-def test_adding_a_method_reuses_the_downloaded_shared_prerequisites(
+def test_the_run_leaves_every_downloaded_file_untouched(
     journey: Journey,
 ) -> None:
     assert journey.run.returncode == 0
     after = files_and_mtimes(journey.forked / "output/smoke")
 
-    # Every downloaded file is still there, untouched.
     assert {path: after[path] for path in journey.downloaded} == (
         journey.downloaded
     )
     trained = next(
         (journey.forked / f"output/smoke/trained_methods/{TAG}").glob(
-            "gdfs_adopter/**/method.bundle"
+            "gdfs_adopter/dataset-cube+*/**/method.bundle"
         )
     )
-    contract = json.loads((trained / "manifest.json").read_text())["metadata"][
-        "contract"
-    ]
-    inputs = json.dumps(contract)
-    for prerequisite in SHARED_PREREQUISITES:
-        if prerequisite.endswith("test.bundle"):
-            continue
-        assert f"output/smoke/{prerequisite}" in inputs, prerequisite
+    contract = json.dumps(
+        json.loads((trained / "manifest.json").read_text())["metadata"][
+            "contract"
+        ]
+    )
+    for prerequisite in [
+        "datasets/cube/0/train.bundle",
+        "datasets/cube/0/val.bundle",
+        f"trained_classifiers/{TAG}/dataset-cube+realization_index-0.bundle",
+        f"pretrained_models/{TAG}/gdfs/dataset-cube+realization_index-0/"
+        "pretrain_seed-0/model.bundle",
+    ]:
+        assert f"output/smoke/{prerequisite}" in contract, prerequisite
 
 
 @pytest.mark.pipeline
-def test_comparison_holds_each_baseline_row_once_and_keeps_budgets_apart(
+def test_comparison_holds_each_published_row_once_on_every_dataset(
     journey: Journey,
 ) -> None:
     assert journey.run.returncode == 0
@@ -337,13 +373,13 @@ def test_comparison_holds_each_baseline_row_once_and_keeps_budgets_apart(
         output / f"merged_results/{EVAL_PERF}/{COMPARISON}+all.parquet"
     )
 
-    assert set(merged["afa_method"]) == {
-        "random_dummy",
-        "gdfs",
-        "gdfs_adopter",
+    assert set(zip(merged["afa_method"], merged["dataset"], strict=True)) == {
+        (method, dataset)
+        for method in [*PUBLISHED_METHODS, "gdfs_adopter"]
+        for dataset in ["cube", NEW_DATASET]
     }
     published = journey.published / "output/smoke"
-    for method in ["random_dummy", "gdfs"]:
+    for method in PUBLISHED_METHODS:
         restored = pd.concat(
             pd.read_parquet(path)
             for path in sorted(
@@ -353,15 +389,16 @@ def test_comparison_holds_each_baseline_row_once_and_keeps_budgets_apart(
                 ).rglob("eval_data.parquet")
             )
         )
-        assert (merged["afa_method"] == method).sum() == len(restored)
+        on_cube = (merged["afa_method"] == method) & (
+            merged["dataset"] == "cube"
+        )
+        assert on_cube.sum() == len(restored)
     dummy = merged.loc[merged["afa_method"] == "random_dummy"]
     hard_budget = dummy["eval_hard_budget"].notna()
     soft_budget = dummy["train_soft_budget_param"].notna()
     assert hard_budget.any()
     assert soft_budget.any()
     assert not (hard_budget & soft_budget).any()
-    assert set(dummy.loc[hard_budget, "eval_hard_budget"]) == {2.0}
-    assert set(dummy.loc[soft_budget, "train_soft_budget_param"]) == {0.3}
     for classifier in ["builtin", "external"]:
         split = pd.read_parquet(
             output / f"merged_results/{EVAL_PERF}/"
@@ -378,7 +415,8 @@ def test_comparison_plots_show_both_and_are_labelled_demonstrations(
     assert journey.run.returncode == 0
     plot = (
         journey.forked / f"output/smoke/plots/{EVAL_PERF}/"
-        f"{COMPARISON}+classifier_type-external/all/hard_budget_normal.svg"
+        f"{COMPARISON}+classifier_type-external/dataset_set-all/"
+        "hard_budget_normal.svg"
     ).read_text()
 
     # Matplotlib keeps each text of an SVG as a comment beside its glyphs.
@@ -395,7 +433,6 @@ def test_results_only_journey_needs_no_afabench_loading(
         journey.transport,
         "download",
         RELEASE_ID,
-        "--smoke-release",
         "--destination-root",
         str(destination),
         "--payload-category",
@@ -413,7 +450,7 @@ def test_results_only_journey_needs_no_afabench_loading(
             # The host stores each table as an ordinary file, so a plain
             # download of its URL reads the same as the restored copy.
             hosted = journey.transport.files[
-                f"smoke_releases/{RELEASE_ID}/output/{table[key]}"
+                f"releases/{RELEASE_ID}/output/{table[key]}"
             ]
             pd.testing.assert_frame_equal(
                 pd.read_parquet(destination / table[key]),

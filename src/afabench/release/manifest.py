@@ -13,6 +13,10 @@ is a cache of the records: rebuilding it from the same output tree gives the
 same result. The field list is documented in
 `docs/reference/release_manifest.md`.
 
+A smoke run's tree can be saved with a manifest, whose `execution_mode` is
+then `smoke`, so the test suite can download it from a local host layout;
+`publish` refuses it (`docs/adr/0012-a-downloaded-release-is-a-cache.md`).
+
 Bundles are found anywhere under the output root, evaluation tables under
 the folders that hold the raw and transformed tables. An index entry links
 its inputs to bundles by content hash, never by path. The index also builds
@@ -44,8 +48,6 @@ from afabench.release.workflow_config import WorkflowConfigRecord
 
 MANIFEST_VERSION = 3
 RELEASE_MANIFEST_FILENAME = "release_manifest.json"
-# How many smoke-test artifacts a refused release names
-SMOKE_ARTIFACTS_SHOWN = 5
 # Beside the release manifest, so the pipeline never rewrites it
 JOB_DURATION_TABLE_FILENAME = "release_job_duration_table.parquet"
 # Maintainers' redistribution reviews, relative to the checkout. A dataset
@@ -56,7 +58,6 @@ DATASET_REDISTRIBUTION_FILE = Path("conf/release/dataset_redistribution.yaml")
 class ReleaseScope(StrEnum):
     FULL = "full"
     PARTIAL = "partial"
-    SMOKE = "smoke"
 
 
 class ExecutionMode(StrEnum):
@@ -304,16 +305,15 @@ class ReleaseManifest:
         if not self.release_id:
             msg = "A release manifest needs a non-empty release_id."
             raise ValueError(msg)
-        if (
-            self.execution_mode is ExecutionMode.SMOKE
-            and self.scope is not ReleaseScope.SMOKE
-        ):
-            msg = (
-                f"Smoke-test outputs cannot be declared a {self.scope} "
-                f"release ({self.release_id!r}); use scope "
-                f"{ReleaseScope.SMOKE}."
-            )
-            raise ValueError(msg)
+
+    @property
+    def smoke_artifacts(self) -> list[str]:
+        """The paths of the artifacts whose record is of a smoke test."""
+        return [
+            entry.path
+            for entry in [*self.bundles, *self.evaluations]
+            if entry.smoke_test
+        ]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -382,8 +382,6 @@ def build_release_manifest(
     if not index.evaluations and not index.bundles:
         msg = f"Release {release_id!r} holds no artifact under {output_root}."
         raise ValueError(msg)
-    if scope is not ReleaseScope.SMOKE:
-        _refuse_smoke_artifacts(release_id, scope, output_root, index)
     datasets = sorted(
         {
             entry.dataset_key
@@ -581,36 +579,6 @@ def execution_mode(index: ArtifactIndex) -> ExecutionMode | None:
     return (
         _execution_mode(index) if index.bundles or index.evaluations else None
     )
-
-
-def _refuse_smoke_artifacts(
-    release_id: str,
-    scope: ReleaseScope,
-    output_root: Path,
-    index: ArtifactIndex,
-) -> None:
-    smoke = [
-        entry.path
-        for entry in [*index.bundles, *index.evaluations]
-        if entry.smoke_test
-    ]
-    if not smoke:
-        return
-    shown = SMOKE_ARTIFACTS_SHOWN
-    msg = (
-        f"Smoke-test outputs cannot be declared a {scope} release "
-        f"({release_id!r}): {output_root} holds {len(smoke)} smoke-test "
-        f"artifact{'' if len(smoke) == 1 else 's'}, likely from a smoke test "
-        "run into this output root. Remove them, or use scope "
-        f"{ReleaseScope.SMOKE}:\n  "
-        + "\n  ".join(smoke[:shown])
-        + (
-            f"\n  ... and {len(smoke) - shown} more"
-            if len(smoke) > shown
-            else ""
-        )
-    )
-    raise ValueError(msg)
 
 
 def _execution_mode(index: ArtifactIndex) -> ExecutionMode:

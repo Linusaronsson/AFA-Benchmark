@@ -209,7 +209,7 @@ def test_smoke_snapshot_round_trips_its_smoke_manifest(
             "--release-id",
             "smoke-check",
             "--scope",
-            "smoke",
+            "partial",
         ],
     )
     assert save.exit_code == 0, save.output
@@ -228,7 +228,7 @@ def test_smoke_snapshot_round_trips_its_smoke_manifest(
     manifest = read_release_manifest(
         tmp_path / "fresh/output/smoke/release_manifest.json"
     )
-    assert manifest.scope is ReleaseScope.SMOKE
+    assert manifest.scope is ReleaseScope.PARTIAL
     assert manifest.execution_mode is ExecutionMode.SMOKE
     assert manifest.evaluations
     assert all(evaluation.raw_path for evaluation in manifest.evaluations)

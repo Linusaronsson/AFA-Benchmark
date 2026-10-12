@@ -4,8 +4,8 @@ The pipeline's native output layout of bundles, tables, job records and plots.
 Every Snakemake rule addresses bundles, evaluation tables, the job records
 beside them (`docs/reference/job_records.md`), merged tables, the job
 duration table and plots through this module, so their layout is spelled
-once. Benchmark releases are restored at these paths and reference methods'
-tables are found by them, so the layout must not change.
+once. Benchmark releases are restored at these paths and a run reuses
+what they hold by them, so the layout must not change.
 Artifacts carry their own identity
 (`docs/adr/0002-provenance-recorded-in-artifacts.md`); the paths are
 Snakemake target naming only.

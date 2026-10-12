@@ -12,7 +12,8 @@ and their size, without copying anything.
 `publish` uploads such a snapshot to the release host and `download`
 retrieves one release from it, the latest full one unless a release id is
 given, either whole (`--all`) or the payloads selected by category and
-coverage (see `afabench.release.publishing`, `afabench.release.selection`
+coverage; coverage alone selects the whole chain of the evaluations it
+matches (see `afabench.release.publishing`, `afabench.release.selection`
 and `docs/reference/snapshot_command.md`). Nothing else here touches the
 host.
 """
@@ -34,6 +35,7 @@ from afabench.release.manifest import (
     RELEASE_MANIFEST_FILENAME,
     BudgetSetting,
     ClassifierVariant,
+    ExecutionMode,
     PayloadCategory,
     RedistributionStatus,
     ReleaseManifest,
@@ -55,7 +57,11 @@ from afabench.release.publishing import (
     release_folder,
     resolve_release,
 )
-from afabench.release.selection import ReleaseSelection, select_payloads
+from afabench.release.selection import (
+    CHAIN_CATEGORIES,
+    ReleaseSelection,
+    select_payloads,
+)
 from afabench.release.snapshot import (
     restore_snapshot,
     restored_manifest_location,
@@ -65,13 +71,13 @@ from afabench.release.workflow_config import resolve_workflow_config
 
 app = typer.Typer()
 DEFAULT_OUTPUT_ROOT: Final[Path] = Path(PRODUCTION_OUTPUT_ROOT)
-# A smoke release lands in the smoke output root unless a destination root
-# is given, so it never satisfies a production run.
+# Smoke-test outputs land in the smoke output root unless a destination
+# root is given, so they never satisfy a production run.
 DestinationRootOption = Annotated[
     Path | None,
     typer.Option(
         help=f"Defaults to {PRODUCTION_OUTPUT_ROOT}, or {SMOKE_OUTPUT_ROOT} "
-        "for a smoke release."
+        "for smoke-test outputs."
     ),
 ]
 DEFAULT_CHECKOUT: Final[Path] = Path()
@@ -84,10 +90,6 @@ RepoIdOption = Annotated[
         envvar="AFABENCH_RELEASE_REPO",
         help="Hugging Face dataset repository holding the releases.",
     ),
-]
-SmokeReleaseOption = Annotated[
-    bool,
-    typer.Option(help="A smoke package, kept apart from official releases."),
 ]
 
 
@@ -103,9 +105,7 @@ def save(
     ] = None,
     scope: Annotated[
         ReleaseScope | None,
-        typer.Option(
-            help="Declared coverage; smoke-test outputs are always smoke."
-        ),
+        typer.Option(help="Declared coverage of the benchmark."),
     ] = None,
     profile: Annotated[
         Path | None,
@@ -144,7 +144,7 @@ def save(
             raise typer.BadParameter(msg)
     else:
         if scope is None:
-            msg = "--release-id needs --scope (full, partial or smoke)."
+            msg = "--release-id needs --scope (full or partial)."
             raise typer.BadParameter(msg)
         index = index_artifacts(source_root)
         job_duration_table = index.job_duration_table
@@ -192,12 +192,7 @@ def restore(
         else None
     )
     if destination_root is None:
-        destination_root = Path(
-            default_output_root(
-                smoke_test=manifest is not None
-                and manifest.scope is ReleaseScope.SMOKE
-            )
-        )
+        destination_root = _default_destination_root(manifest)
     restore_snapshot(snapshot_dir, destination_root, overwrite=overwrite)
     if manifest is not None:
         _echo_manifest(
@@ -232,18 +227,17 @@ def publish(
     snapshot_dir: Path,
     *,
     repo_id: RepoIdOption,
-    smoke_release: SmokeReleaseOption = False,
     allow_redistribution: Annotated[
         list[str] | None,
         typer.Option(
-            help="Publish this unreviewed or restricted dataset key in an "
-            "official release anyway; recorded in the host's commit message."
+            help="Publish this unreviewed or restricted dataset key anyway; "
+            "recorded in the host's commit message."
         ),
     ] = None,
     allow_dirty_code: Annotated[
         bool,
         typer.Option(
-            help="Publish an official release holding artifacts produced "
+            help="Publish a release holding artifacts produced "
             "from a dirty tree or unknown code anyway; recorded in the "
             "host's commit message."
         ),
@@ -253,11 +247,10 @@ def publish(
     manifest = publish_release(
         snapshot_dir,
         transport,
-        smoke_release=smoke_release,
         allow_redistribution=allow_redistribution or [],
         allow_dirty_code=allow_dirty_code,
     )
-    folder = release_folder(manifest.release_id, smoke_release=smoke_release)
+    folder = release_folder(manifest.release_id)
     _echo_manifest(
         manifest,
         snapshot_dir / RELEASE_MANIFEST_FILENAME,
@@ -286,7 +279,11 @@ def download(
     ] = False,
     payload_category: Annotated[
         list[PayloadCategory] | None,
-        typer.Option(help="Download this payload category's selected files."),
+        typer.Option(
+            help="Download this payload category of the selected "
+            "evaluations; without one, coverage options download their "
+            "whole chain."
+        ),
     ] = None,
     output_category: Annotated[
         list[str] | None,
@@ -318,14 +315,26 @@ def download(
         typer.Option(help="Only evaluations with these predictions."),
     ] = None,
     overwrite: bool = False,
-    smoke_release: SmokeReleaseOption = False,
 ) -> None:
     """
     Download all of one release, or the selected payloads of it.
 
     Coverage options select evaluations; payload categories then name what
-    of them to fetch: their tables, and the bundles they depend on.
+    of them to fetch: their tables, and the bundles they depend on. Without
+    a payload category, coverage options fetch the evaluations' whole
+    chain, so a run reuses them instead of producing them again.
     """
+    coverage = [
+        dataset,
+        method,
+        dataset_realization,
+        eval_split,
+        initializer,
+        budget_setting,
+        classifier_variant,
+    ]
+    if not payload_category and any(coverage):
+        payload_category = CHAIN_CATEGORIES
     selection = ReleaseSelection(
         payload_categories=payload_category or [],
         output_categories=output_category or [],
@@ -340,23 +349,17 @@ def download(
     if everything == (selection != ReleaseSelection()):
         msg = (
             "Choose what to download: --all for every file of the release, "
-            "or --payload-category/--output-category with optional coverage "
-            "options, not both."
-        )
-        raise typer.BadParameter(msg)
-    if not everything and not (payload_category or output_category):
-        msg = (
-            "Coverage options need --payload-category or --output-category "
-            "to say what to download."
+            "or coverage options, --payload-category or --output-category, "
+            "not both."
         )
         raise typer.BadParameter(msg)
     transport = _transport(ctx, repo_id)
-    resolved = resolve_release(release, transport, smoke_release=smoke_release)
+    resolved = resolve_release(release, transport)
     manifest = resolved.manifest
     if release == LATEST_RELEASE:
         typer.echo(f"Latest full release: {manifest.release_id}")
     if destination_root is None:
-        destination_root = Path(default_output_root(smoke_test=smoke_release))
+        destination_root = _default_destination_root(manifest)
     if everything:
         download_release(
             resolved, transport, destination_root, overwrite=overwrite
@@ -385,6 +388,15 @@ def download(
         manifest,
         restored_manifest_location(destination_root),
         job_duration_table=job_duration_table,
+    )
+
+
+def _default_destination_root(manifest: ReleaseManifest | None) -> Path:
+    return Path(
+        default_output_root(
+            smoke_test=manifest is not None
+            and manifest.execution_mode is ExecutionMode.SMOKE
+        )
     )
 
 
@@ -457,7 +469,7 @@ def _echo_code(manifest: ReleaseManifest) -> None:
     if any(not stage_code.code.clean for stage_code in stage_codes):
         typer.echo(
             "Some artifacts were produced from dirty or unknown code; "
-            "publishing an official release needs --allow-dirty-code."
+            "publishing the release needs --allow-dirty-code."
         )
     typer.echo(
         "Transformed tables carry their evaluation's record; the commits "

@@ -1,7 +1,6 @@
 # Release notes
 
-One entry per benchmark release, newest first. Smoke releases get no
-entry. Each entry has:
+One entry per benchmark release, newest first. Each entry has:
 
 - the release id, scope and producing commit;
 - the previous release it is compared with, if any;

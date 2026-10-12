@@ -5,10 +5,16 @@ Like the hub, it stores file bytes only: file and directory mtimes are not
 kept, and downloaded files are written fresh. `before_download` is called
 with each file or folder path about to be downloaded, so a test can change
 the host in the middle of a download.
+
+`host_locally` puts a package on it as `publish` would, without
+`publish`'s checks: smoke packages, which are never published, check the
+round trip this way.
 """
 
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
+
+from afabench.release.publishing import release_files
 
 
 class FakeReleaseTransport:
@@ -16,6 +22,11 @@ class FakeReleaseTransport:
         self.files: dict[str, bytes] = {}
         self.commit_messages: list[str] = []
         self.before_download: Callable[[str], None] | None = None
+
+    def host_locally(self, package_dir: Path) -> None:
+        self.upload_files(
+            release_files(package_dir), message="Lay out a test release"
+        )
 
     def file_exists(self, path: str) -> bool:
         return path in self.files

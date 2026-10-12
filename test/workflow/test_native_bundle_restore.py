@@ -149,7 +149,7 @@ def restored(
             "--release-id",
             "smoke-native-bundles",
             "--scope",
-            "smoke",
+            "partial",
             "--checkout",
             str(REPO_ROOT),
         ],
@@ -174,12 +174,12 @@ def restored(
 
 
 @pytest.mark.pipeline
-def test_smoke_release_covers_every_payload_category(
+def test_smoke_run_release_covers_every_payload_category(
     restored: tuple[Path, Path, list[Path], ReleaseManifest],
 ) -> None:
     _, _, _, manifest = restored
 
-    assert manifest.scope is ReleaseScope.SMOKE
+    assert manifest.scope is ReleaseScope.PARTIAL
     assert manifest.execution_mode is ExecutionMode.SMOKE
     for payload in manifest.coverage.payloads:
         assert payload.count > 0, payload
@@ -202,7 +202,7 @@ def test_smoke_release_covers_every_payload_category(
 
 
 @pytest.mark.pipeline
-def test_smoke_release_retains_the_provenance_of_its_bundles(
+def test_smoke_run_release_retains_the_provenance_of_its_bundles(
     restored: tuple[Path, Path, list[Path], ReleaseManifest],
 ) -> None:
     _, fresh, _, manifest = restored

@@ -5,8 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from test.workflow.submission_harness import SITE, WorkflowHarness
-from test.workflow.test_reference_results import job_counts
+from test.workflow.submission_harness import (
+    SITE,
+    WorkflowHarness,
+    job_counts,
+)
 
 
 @pytest.mark.parametrize(

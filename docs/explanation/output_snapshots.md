@@ -40,8 +40,8 @@ its mtime only. This is deliberate
   reformatted line.
 - A repository adopter's fork moves on from the release's producing commit.
   With the metadata restored, such unrelated changes would make Snakemake
-  rerun the published methods, which is the retraining reference methods
-  exist to avoid, and an automatic compatibility check that #36 decided
+  rerun the published methods, the retraining a downloaded release exists
+  to avoid, and an automatic compatibility check that #36 decided
   against.
 
 The consequence: after restoring a snapshot into a checkout where a rule's

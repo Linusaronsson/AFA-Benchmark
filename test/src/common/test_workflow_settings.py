@@ -387,22 +387,6 @@ def test_method_missing_from_soft_budget_params_is_rejected() -> None:
         load_config(config)
 
 
-def test_reference_method_missing_from_soft_budget_params_is_rejected() -> (
-    None
-):
-    config = _config(
-        method_options={
-            name: {"train_script_name": name, "eval_batch_size": 1}
-            for name in ["alpha", "beta"]
-        },
-        methods=["beta"],
-    )
-    config["reference_methods"] = ["alpha"]
-
-    with pytest.raises(ValueError, match=r"'alpha'.*soft_budget_params"):
-        load_config(config)
-
-
 @pytest.mark.parametrize(
     "option", ["hard_budget_ignored_datasets", "soft_budget_ignored_datasets"]
 )
@@ -453,10 +437,10 @@ def test_misspelt_classifier_key_is_rejected() -> None:
 
 def _compared_methods_config() -> dict[str, object]:
     """
-    Compare two methods and a reference method.
+    Run two of three configured methods.
 
     Alpha has no pretraining stage and no built-in classifier, beta has
-    both, and gamma, the reference method, has a pretraining stage.
+    both, and gamma is configured but not run.
     """
     config = _config(
         method_options={
@@ -475,7 +459,6 @@ def _compared_methods_config() -> dict[str, object]:
         methods=["alpha", "beta"],
         pretrain_mapping={"shared": {"pretrain_script_name": "shared"}},
     )
-    config["reference_methods"] = ["gamma"]
     config["soft_budget_params"] = {
         method: {"default": [[0.1, 0.2]]}
         for method in ["alpha", "beta", "gamma"]
@@ -483,16 +466,13 @@ def _compared_methods_config() -> dict[str, object]:
     return config
 
 
-def test_all_method_set_holds_every_compared_method() -> None:
+def test_method_sets_hold_only_the_methods_run() -> None:
     config = _compared_methods_config()
-    config["method_sets"] = {"pair": ["alpha", "gamma"]}
+    config["method_sets"] = {"pair": ["alpha", "gamma"], "other": ["gamma"]}
 
     method_sets = load_config(config).method_sets
 
-    assert method_sets == {
-        "all": ["alpha", "beta", "gamma"],
-        "pair": ["alpha", "gamma"],
-    }
+    assert method_sets == {"all": ["alpha", "beta"], "pair": ["alpha"]}
 
 
 def test_configured_all_method_set_is_rejected() -> None:
@@ -527,7 +507,6 @@ def test_configured_all_dataset_set_is_rejected() -> None:
     [
         ("alpha", "NO_PRETRAIN"),
         ("beta", "pretrain_seed-2"),
-        ("gamma", "pretrain_seed-2"),
     ],
 )
 def test_evaluation_run_is_seeded_with_its_dataset_realization_index(
@@ -708,7 +687,6 @@ def test_summary_lists_what_the_run_covers() -> None:
 
     assert "  dataset realizations: [0, 1, 2, 3, 4]" in summary.splitlines()
     assert "  stages off: []" in summary.splitlines()
-    assert "  reference methods: [gamma]" in summary.splitlines()
     assert (
         "  datasets:\n"
         "    cube:\n"
@@ -728,13 +706,9 @@ def test_summary_lists_what_the_run_covers() -> None:
     assert (
         "    beta on cube:\n"
         "      hard budgets: [1 (trained at 3)]\n"
-        "      soft-budget parameters (trained at hard budgets [3]): [0.1 -> 0.2]\n"
+        "      soft-budget parameters (trained at hard budgets [3]): [0.1 -> 0.2]"
     ) in summary
-    assert (
-        "    gamma on cube:\n"
-        "      hard budgets: [1]\n"
-        "      soft-budget parameters: [0.1 -> 0.2]"
-    ) in summary
+    assert "gamma" not in summary
 
 
 def test_summary_lists_the_stages_that_are_off() -> None:

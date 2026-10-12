@@ -36,7 +36,7 @@ as Snakemake does.
 
 ```shell
 snapshot.py save SNAPSHOT_DIR [--source-root output/production] [--overwrite]
-    [--release-id ID --scope full|partial|smoke CONFIGURATION OPTIONS]
+    [--release-id ID --scope full|partial CONFIGURATION OPTIONS]
     [--checkout .]
 ```
 
@@ -61,9 +61,10 @@ is copied:
 - any bundle, or Parquet file under `eval_results/` or
   `eval_results_transformed/`, without a provenance record; they are
   listed;
-- any smoke-test artifact with a scope other than `smoke`; up to five of
-  them are listed, with their total count;
 - a source root without any artifact.
+
+A smoke test's outputs are saved with execution mode `smoke`, which
+`publish` refuses.
 
 `--checkout` names the git checkout whose redistribution reviews are read.
 The command prints the recorded configuration, the release identity, every
@@ -78,7 +79,7 @@ Producing code per pipeline stage:
   training: 9c41… (dirty), 4 artifact(s)
   evaluation: 9c41… (dirty), 4 artifact(s)
 The release mixes 2 producing commits.
-Some artifacts were produced from dirty or unknown code; publishing an official release needs --allow-dirty-code.
+Some artifacts were produced from dirty or unknown code; publishing the release needs --allow-dirty-code.
 Transformed tables carry their evaluation's record; the commits of transformation, aggregation and visualization are not recorded.
 ```
 
@@ -89,7 +90,7 @@ snapshot.py restore SNAPSHOT_DIR [--destination-root ROOT] [--overwrite]
 ```
 
 The destination root defaults to `output/production`, or
-`output/smoke` when the snapshot's release manifest has scope
+`output/smoke` when the snapshot's release manifest has execution mode
 `smoke`, so smoke outputs never satisfy a production run.
 
 Copies `SNAPSHOT_DIR/output` into the destination root, keeping
@@ -121,13 +122,11 @@ would refuse. Writes nothing.
 
 ```shell
 snapshot.py publish SNAPSHOT_DIR --repo-id REPO
-    [--smoke-release] [--allow-redistribution DATASET_KEY ...]
-    [--allow-dirty-code]
+    [--allow-redistribution DATASET_KEY ...] [--allow-dirty-code]
 ```
 
 Uploads the snapshot as the release its manifest names, in one commit, to
-`releases/<release_id>/`, or `smoke_releases/<release_id>/` with
-`--smoke-release`. `--repo-id` defaults to `AFABENCH_RELEASE_REPO`.
+`releases/<release_id>/`. `--repo-id` defaults to `AFABENCH_RELEASE_REPO`.
 Needs a Hugging Face token with write access (`hf auth login` or
 `HF_TOKEN`); the repository must exist.
 
@@ -136,18 +135,18 @@ Refuses:
 - a snapshot without a release manifest, or with a `manifest_version` this
   checkout does not read;
 - a release id already published;
-- scope `smoke` without `--smoke-release`, and `--smoke-release` with any
-  other scope;
-- an official release with an `unreviewed` or `restricted` dataset in
+- any smoke-test artifact, with no override; up to five of them are
+  listed, with their total count;
+- a release with an `unreviewed` or `restricted` dataset in
   `dataset_redistribution`, unless each such dataset key is given
   with `--allow-redistribution`. Allowing a dataset that is neither is an
   error. Allowed dataset keys are named in the host's commit message;
-- an official release holding an artifact produced from a dirty tree or
+- a release holding an artifact produced from a dirty tree or
   outside a git work tree (unknown code), unless `--allow-dirty-code` is
   given. Giving it for a release without one is an error. Its use is
   named in the host's commit message.
 
-Smoke releases take neither allowance. On success, `publish` prints the
+On success, `publish` prints the
 producing code per pipeline stage as `save` does.
 
 ## `download`
@@ -155,11 +154,14 @@ producing code per pipeline stage as `save` does.
 ```shell
 snapshot.py download [RELEASE] --repo-id REPO
     (--all | SELECTION OPTIONS)
-    [--destination-root ROOT] [--overwrite] [--smoke-release]
+    [--destination-root ROOT] [--overwrite]
 ```
 
-The destination root defaults to `output/production`, or
-`output/smoke` with `--smoke-release`.
+The destination root defaults to `output/production`, or `output/smoke`
+for a release whose manifest has execution mode `smoke`, which only the
+test suite's local host holds. One output root holds one release: download
+a second release into another root, with `--destination-root
+output/<name>`, and run the pipeline on it with `output_root=output/<name>`.
 
 Downloads one release and restores it as `restore` does, then prints its
 scope, execution mode and workflow configuration. A public
@@ -170,15 +172,19 @@ repository needs no token.
 `RELEASE` is a release id, or `latest` (the default): the `full` release
 whose manifest `created_at` is newest. `latest` never chooses a `partial`
 release, and fails, listing the published releases, if there is no full
-one. Smoke releases are downloaded only with `--smoke-release` and by
-release id.
+one.
 
 The release is resolved once, before anything is downloaded, and every
 file comes from it.
 
 ### Selection
 
-`--all` downloads every file. Otherwise, name at least one category:
+`--all` downloads every file. Otherwise, select evaluations with coverage
+options, name categories to download, or both. Coverage options without
+`--payload-category` download the whole chain of the selected evaluations:
+every payload category but `job_duration_table`, which is what a run needs
+to reuse a published method instead of producing it again
+([ADR 0012](../adr/0012-a-downloaded-release-is-a-cache.md)). Categories:
 
 | Option (repeatable) | Downloads |
 | --- | --- |
@@ -186,7 +192,7 @@ file comes from it.
 | `--payload-category job_duration_table` | The release's job duration table alone, beside the restored manifest. Coverage options do not narrow it. |
 | `--output-category` | A top-level folder of the output root listed in `coverage.output_categories`, such as `plots` or `merged_results`, whole. Coverage options do not narrow it. |
 
-and optionally narrow the evaluations with coverage options:
+Coverage options select evaluations:
 
 | Option (repeatable) | Selects evaluations with |
 | --- | --- |
@@ -242,7 +248,6 @@ releases/<release_id>/
     release_job_duration_table.parquet     if the release has job records
     output_mtimes.json      modification times of everything under output/
     output/                 the snapshot's output tree
-smoke_releases/<release_id>/    same layout
 ```
 
 Hugging Face keeps no modification times, so `publish` records them in

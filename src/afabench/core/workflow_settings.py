@@ -103,7 +103,7 @@ class PipelineStages:
     evaluation: bool = True
 
 
-# The method set that always exists and holds every compared method
+# The method set that always exists and holds every method
 ALL_METHOD_SET = "all"
 # The dataset set that always exists and holds every dataset of the run
 ALL_DATASET_SET = "all"
@@ -127,11 +127,6 @@ class WorkflowSettings:
     pretrain_script_names: dict[str, str]
     pretrain_params: dict[str, str]
     methods: list[str]
-    # Methods whose plotting-ready tables are restored from a benchmark
-    # release: they join method sets and aggregation, but the workflow never
-    # produces anything for them.
-    reference_methods: list[str]
-    compared_methods_with_pretraining_stage: list[str]
     method_train_script_names: dict[str, str]
     method_classifier_script_names: dict[str, str]
     method_classifier_script_params: dict[str, str]
@@ -175,7 +170,7 @@ class WorkflowSettings:
                 dataset_realization_index=dataset_realization_index,
                 pretrain_folder=pretrain_seed_folder(
                     dataset_realization_index
-                    if method in self.compared_methods_with_pretraining_stage
+                    if method in self.method_to_pretrained_model
                     else None
                 ),
                 train_seed=dataset_realization_index,
@@ -317,7 +312,6 @@ class WorkflowSettings:
                     ),
                 ]
             ),
-            f"  reference methods: {_join(self.reference_methods)}",
             "  method sets:",
             *(
                 f"    {name}: {_join(methods)}"
@@ -331,7 +325,7 @@ class WorkflowSettings:
             "  budgets (hard budgets are eval budgets; soft-budget",
             "  parameters are train -> eval):",
         ]
-        for method in [*self.methods, *self.reference_methods]:
+        for method in self.methods:
             for dataset in self.datasets:
                 lines += [
                     f"    {method} on {dataset}:",
@@ -413,13 +407,10 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     if methods is None:
         message = "Expected methods to be provided."
         raise ValueError(message)
-    reference_methods = config.get("reference_methods", [])
-    _check_reference_methods(reference_methods, methods, method_options)
-    compared_methods = [*methods, *reference_methods]
     raw_soft_budget_params: dict[str, Any] = _required_config(
         config, "soft_budget_params"
     )
-    for method in compared_methods:
+    for method in methods:
         for required, label in [
             (method_options, "method_options"),
             (raw_soft_budget_params, "soft_budget_params"),
@@ -428,20 +419,15 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
                 message = f"Method {method!r} is not in {label}."
                 raise ValueError(message)
 
-    method_sets = _method_sets(config, methods, compared_methods)
+    method_sets = _method_sets(config, methods)
 
     selected_options = {
         method: options
         for method, options in method_options.items()
         if method in methods
     }
-    compared_options = {
-        method: options
-        for method, options in method_options.items()
-        if method in compared_methods
-    }
 
-    for method, options in compared_options.items():
+    for method, options in selected_options.items():
         if (
             options.pretrained_model_name is not None
             and options.pretrained_model_name not in pretrain_mapping
@@ -493,7 +479,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
             )
             for dataset in datasets
         }
-        for method, options in compared_options.items()
+        for method, options in selected_options.items()
     }
 
     return WorkflowSettings(
@@ -518,14 +504,6 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
             for name, model_config in pretrain_mapping.items()
         },
         methods=methods,
-        reference_methods=reference_methods,
-        # Reference tables live under the same pretraining folder as they
-        # would if the method were produced here.
-        compared_methods_with_pretraining_stage=[
-            method
-            for method, options in compared_options.items()
-            if options.pretrained_model_name is not None
-        ],
         method_train_script_names={
             method: options.train_script_name
             for method, options in selected_options.items()
@@ -707,55 +685,24 @@ def _config_bool(value: object, key: str) -> bool:
     raise ValueError(message)
 
 
-def _check_reference_methods(
-    reference_methods: object,
-    methods: Sequence[str],
-    method_options: Mapping[str, MethodOptions],
-) -> None:
-    if not isinstance(reference_methods, list):
-        message = (
-            "Expected reference_methods to be a list, got "
-            f"{reference_methods!r}."
-        )
-        raise TypeError(message)
-    unknown = [
-        method for method in reference_methods if method not in method_options
-    ]
-    if unknown:
-        message = f"Reference methods {unknown} are not in method_options."
-        raise ValueError(message)
-    # Producing a reference method too would compare its restored and its
-    # local tables as one method, duplicating its rows.
-    produced = [method for method in reference_methods if method in methods]
-    if produced:
-        message = (
-            f"Methods {produced} are both in methods and in "
-            "reference_methods; name each method in one of them."
-        )
-        raise ValueError(message)
-
-
-# Snakemake config values are heterogeneous YAML; callers annotate them.
 def _method_sets(
-    config: Mapping[str, Any], methods: list[str], compared_methods: list[str]
+    config: Mapping[str, Any], methods: list[str]
 ) -> dict[str, list[str]]:
     """
     Resolve the method sets of a run, the reserved "all" set first.
 
-    Filter out methods that are neither enabled by the "methods" option nor
-    reference methods, and remove method_sets without an enabled method: a
-    set of reference methods only is already plotted in its release. The
-    "all" method set holds every compared method.
+    Keep the methods of the run in each method set and remove method_sets
+    without one. The "all" method set holds every method of the run.
     """
     method_sets: dict[str, list[str]] = {}
     for key, method_set in {
-        ALL_METHOD_SET: compared_methods,
+        ALL_METHOD_SET: methods,
         **_configured_sets(config, "method_sets", ALL_METHOD_SET),
     }.items():
         filtered_methods = [
-            method for method in method_set if method in compared_methods
+            method for method in method_set if method in methods
         ]
-        if any(method in methods for method in filtered_methods):
+        if filtered_methods:
             method_sets[key] = filtered_methods
     return method_sets
 
@@ -795,6 +742,7 @@ def _configured_sets(
     return sets
 
 
+# Snakemake config values are heterogeneous YAML; callers annotate them.
 def _required_config(config: Mapping[str, Any], key: str) -> Any:  # noqa: ANN401
     value = config.get(key, None)
     if value is None:

@@ -18,16 +18,6 @@ Runtime filters (--config, select subsets to run):
             "stages={dataset_generation: false, training: false,
             evaluation: false}"
     methods (list[str], required): Subset of methods from method_options.yaml
-    reference_methods (list[str], default=[]): Methods from
-        method_options.yaml whose plotting-ready tables were restored from a
-        benchmark release (scripts/release/snapshot.py download). They join
-        method sets and merge_eval_perf, but no rule produces anything for
-        them, so aggregating them never schedules their training or
-        evaluation; a missing reference table fails the plan with
-        MissingInputException. Their tables are expected at this config's
-        eval split, initializer, dataset realizations and budgets. A method
-        cannot be in both lists, and method sets without any method from
-        `methods` are skipped. The time plot covers `methods` only.
     datasets (list[str], required): Subset of datasets to run. Every dataset
         key needs a file conf/components/dataset_key/<key>.yaml.
     dataset_realization_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
@@ -138,14 +128,14 @@ Usage:
     It writes under output/smoke, so a later real run still runs every
     job.
     See docs/how-to/run_the_pipeline.md and slurm_integration.md.
-    Add a method to published baselines: download the baselines'
-    transformed tables and the shared prerequisites into
-    output/production, then run only the new method's missing work
-    and the comparison plots:
-        workflow/run.py --jobs 8 "methods=[my_method]" \
-            "reference_methods=[random_dummy, gdfs]" \
-            "datasets=[cube]" "dataset_realization_indices=[0]" \
-            execution_file=workflow/profiles/execution/cpu.yaml
+    Compare a method with a benchmark release: download the published
+    methods' chains into the output root, then run a pipeline profile
+    listing them in `methods` next to the new method. The release is a
+    cache: the run reuses what it holds and produces the rest, so the
+    outputs are those the profile gives without it (ADR 0012):
+        uv run python scripts/release/snapshot.py download \
+            --method random_dummy --method gdfs
+        workflow/run.py <pipeline> --jobs 8 -n
     See docs/how-to/compare_your_method_with_published_results.md.
     Evaluate trained methods already under the output root, without
     generating datasets or training:

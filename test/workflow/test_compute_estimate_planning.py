@@ -13,10 +13,6 @@ from pathlib import Path
 import pytest
 
 from test.workflow.submission_harness import WorkflowHarness
-from test.workflow.test_reference_results import (
-    ALPHA_HARD_BUDGET_TABLE,
-    adopter_workflow,
-)
 
 type Job = tuple[str, tuple[str, ...], str, int, int]
 
@@ -124,19 +120,6 @@ def test_planned_jobs_depend_on_the_planned_jobs_they_need(
         ("train_method", "beta"): [],
     }
     assert "Minimal wall time" in plan.stdout
-
-
-def test_reference_methods_are_never_planned(tmp_path: Path) -> None:
-    workflow = adopter_workflow(tmp_path, ALPHA_HARD_BUDGET_TABLE)
-
-    plan = workflow.plan("--executor", "local", target="all")
-
-    assert plan.returncode == 0, plan.stdout + plan.stderr
-    jobs = workflow.planned_jobs()
-    assert {
-        wildcards(job)["method"] for job in jobs if "method" in wildcards(job)
-    } == {"beta"}
-    assert "merge_eval_perf" in {job["rule"] for job in jobs}
 
 
 def test_set_resources_overrides_are_reflected_in_the_planned_allocation(

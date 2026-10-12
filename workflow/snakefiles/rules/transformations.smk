@@ -7,20 +7,7 @@ only derives plotting columns and pivots classifier columns to tidy data
 format.
 """
 
-import re
-
 from afabench.core.output_layout import EvaluationRun
-
-# Reference methods' plotting-ready tables are restored from a benchmark
-# release. Not matching them here leaves those tables as plain input files,
-# so aggregating them never schedules their evaluation or training.
-TRANSFORMED_METHOD_PATTERN = (
-    "(?!(?:"
-    + "|".join(map(re.escape, WORKFLOW_SETTINGS.reference_methods))
-    + ")/).+"
-    if WORKFLOW_SETTINGS.reference_methods
-    else ".+"
-)
 
 
 rule transform_eval_data:
@@ -38,8 +25,6 @@ rule transform_eval_data:
     output:
         eval_table=OUTPUT_LAYOUT.transformed_evaluation_table(EvaluationRun.wildcards()),
         job_record=OUTPUT_LAYOUT.transformation_job_record(EvaluationRun.wildcards()),
-    wildcard_constraints:
-        method=TRANSFORMED_METHOD_PATTERN,
     params:
         image=IMAGES.param("transformation", lambda wc: "transform_eval_data"),
         job_record=JOB_RECORDS.param(

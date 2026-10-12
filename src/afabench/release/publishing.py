@@ -18,15 +18,15 @@ chose, into a staging directory, and restores them with
 `output/`, which downloading puts back before restoring: Snakemake judges
 restored outputs by mtime.
 
-Smoke packages (scope `smoke`, see `ReleaseScope`) are only ever
-published under `smoke_releases/<release_id>/`, so a maintainer can check
-the host round trip without promoting them to official releases. An
-official release is refused while any dataset in its manifest's
+A package holding any smoke-test artifact is never published
+(`docs/adr/0012-a-downloaded-release-is-a-cache.md`); the test suite checks
+the round trip by laying a smoke package out on a local host with
+`release_files`. A release is refused while any dataset in its manifest's
 `dataset_redistribution` is not `permitted`, unless the maintainer allows
 that dataset by name, and while any of its artifacts was produced from a
 dirty tree or unknown code, unless the maintainer allows dirty code
 (`docs/adr/0006-release-manifest-indexes-artifact-provenance.md`). The
-scope, redistribution and code checks live here rather than in a
+smoke, redistribution and code checks live here rather than in a
 transport, so no transport can skip them.
 """
 
@@ -53,13 +53,14 @@ from afabench.release.selection import SelectedPayloads
 from afabench.release.snapshot import SNAPSHOT_OUTPUT_SUBDIR, restore_snapshot
 
 RELEASES_FOLDER = "releases"
-SMOKE_RELEASES_FOLDER = "smoke_releases"
 OUTPUT_MTIMES_FILENAME = "output_mtimes.json"
 # One path segment without glob characters, so a release cannot address
 # another release's files or match more than its own folder on download.
 RELEASE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
 # Selects the latest full release, so no release can be named this.
 LATEST_RELEASE = "latest"
+# How many smoke-test artifacts a refused package names
+SMOKE_ARTIFACTS_SHOWN = 5
 
 
 class ReleaseTransport(Protocol):
@@ -94,7 +95,6 @@ def publish_release(
     package_dir: Path,
     transport: ReleaseTransport,
     *,
-    smoke_release: bool = False,
     allow_redistribution: Sequence[str] = (),
     allow_dirty_code: bool = False,
 ) -> ReleaseManifest:
@@ -102,41 +102,47 @@ def publish_release(
     Upload the snapshot in `package_dir` as its manifest's release.
 
     `allow_redistribution` names the unreviewed or restricted dataset keys
-    a maintainer publishes in an official release anyway;
+    a maintainer publishes anyway;
     `allow_dirty_code` publishes one whose artifacts were produced from a
     dirty tree or unknown code anyway.
     """
     manifest = read_release_manifest(package_dir / RELEASE_MANIFEST_FILENAME)
-    _check_scope(manifest, smoke_release=smoke_release)
-    folder = release_folder(manifest.release_id, smoke_release=smoke_release)
+    folder = release_folder(manifest.release_id)
+    _check_smoke(manifest)
+    _check_redistribution(manifest, allow_redistribution)
+    _check_code(manifest, allow_dirty_code=allow_dirty_code)
     message = f"Publish benchmark release {manifest.release_id}"
-    if smoke_release:
-        if allow_redistribution or allow_dirty_code:
-            msg = (
-                "Dataset redistribution and producing code are checked only "
-                "for official releases; a smoke release needs no allowance."
-            )
-            raise ValueError(msg)
-    else:
-        _check_redistribution(manifest, allow_redistribution)
-        _check_code(manifest, allow_dirty_code=allow_dirty_code)
-        # The host's history records what the maintainer allowed through.
-        if allow_redistribution:
-            message += (
-                "; redistribution allowed by the maintainer for unreviewed "
-                "or restricted datasets: "
-                + ", ".join(sorted(allow_redistribution))
-            )
-        if allow_dirty_code:
-            message += (
-                "; artifacts produced from dirty or unknown code allowed by "
-                "the maintainer"
-            )
+    # The host's history records what the maintainer allowed through.
+    if allow_redistribution:
+        message += (
+            "; redistribution allowed by the maintainer for unreviewed "
+            "or restricted datasets: "
+            + ", ".join(sorted(allow_redistribution))
+        )
+    if allow_dirty_code:
+        message += (
+            "; artifacts produced from dirty or unknown code allowed by "
+            "the maintainer"
+        )
     # A published release is never replaced, so its identity keeps naming
     # the same outputs.
     if transport.file_exists(f"{folder}/{RELEASE_MANIFEST_FILENAME}"):
         msg = f"Release {manifest.release_id!r} is already published."
         raise FileExistsError(msg)
+    transport.upload_files(release_files(package_dir), message=message)
+    return manifest
+
+
+def release_files(package_dir: Path) -> dict[str, Path | bytes]:
+    """
+    Lay out the snapshot in `package_dir` as its release on the host.
+
+    Returns `{repository path: content}`, the files `publish_release`
+    uploads after its checks. The test suite uploads them directly to
+    check the round trip of a package `publish_release` refuses.
+    """
+    manifest = read_release_manifest(package_dir / RELEASE_MANIFEST_FILENAME)
+    folder = release_folder(manifest.release_id)
     files: dict[str, Path | bytes] = {
         f"{folder}/{path.relative_to(package_dir).as_posix()}": path
         for path in sorted(package_dir.rglob("*"))
@@ -145,8 +151,7 @@ def publish_release(
     files[f"{folder}/{OUTPUT_MTIMES_FILENAME}"] = _output_mtimes(
         package_dir / SNAPSHOT_OUTPUT_SUBDIR
     )
-    transport.upload_files(files, message=message)
-    return manifest
+    return files
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -164,25 +169,16 @@ class ResolvedRelease:
 
 
 def resolve_release(
-    release: str, transport: ReleaseTransport, *, smoke_release: bool = False
+    release: str, transport: ReleaseTransport
 ) -> ResolvedRelease:
     """Fix the release `release` names: a release id or `LATEST_RELEASE`."""
     if release == LATEST_RELEASE:
-        if smoke_release:
-            msg = (
-                f"{LATEST_RELEASE!r} selects the latest {ReleaseScope.FULL} "
-                "release; name a smoke release by its release id."
-            )
-            raise ValueError(msg)
         return _latest_full_release(transport)
-    folder = release_folder(release, smoke_release=smoke_release)
+    folder = release_folder(release)
     if not transport.file_exists(f"{folder}/{RELEASE_MANIFEST_FILENAME}"):
-        kind = "smoke release" if smoke_release else "official release"
-        msg = f"No {kind} {release!r} is published."
+        msg = f"No release {release!r} is published."
         raise FileNotFoundError(msg)
-    resolved = _fetch_manifest(transport, folder, release)
-    _check_scope(resolved.manifest, smoke_release=smoke_release)
-    return resolved
+    return _fetch_manifest(transport, folder, release)
 
 
 def download_release(
@@ -299,7 +295,7 @@ def _fetch_manifest(
     )
 
 
-def release_folder(release_id: str, *, smoke_release: bool = False) -> str:
+def release_folder(release_id: str) -> str:
     if not RELEASE_ID_PATTERN.fullmatch(release_id):
         msg = (
             f"Release id {release_id!r} must be letters, digits, '.', '_' "
@@ -309,8 +305,7 @@ def release_folder(release_id: str, *, smoke_release: bool = False) -> str:
     if release_id == LATEST_RELEASE:
         msg = f"Release id {release_id!r} is reserved for the latest release."
         raise ValueError(msg)
-    parent = SMOKE_RELEASES_FOLDER if smoke_release else RELEASES_FOLDER
-    return f"{parent}/{release_id}"
+    return f"{RELEASES_FOLDER}/{release_id}"
 
 
 def _output_mtimes(output_root: Path) -> bytes:
@@ -361,21 +356,24 @@ def _set_output_mtimes(
             os.utime(output_root / relative, ns=(mtime_ns, mtime_ns))
 
 
-def _check_scope(manifest: ReleaseManifest, *, smoke_release: bool) -> None:
-    is_smoke = manifest.scope is ReleaseScope.SMOKE
-    if is_smoke and not smoke_release:
-        msg = (
-            f"Release {manifest.release_id!r} has scope "
-            f"{ReleaseScope.SMOKE}; it can only be a smoke release, "
-            "never an official one."
+def _check_smoke(manifest: ReleaseManifest) -> None:
+    smoke = manifest.smoke_artifacts
+    if not smoke:
+        return
+    shown = SMOKE_ARTIFACTS_SHOWN
+    msg = (
+        f"Release {manifest.release_id!r} holds {len(smoke)} smoke-test "
+        f"artifact{'' if len(smoke) == 1 else 's'}, likely from a smoke test "
+        "run into its output root, and smoke-test artifacts are never "
+        "published. Remove them and save the snapshot again:\n  "
+        + "\n  ".join(smoke[:shown])
+        + (
+            f"\n  ... and {len(smoke) - shown} more"
+            if len(smoke) > shown
+            else ""
         )
-        raise ValueError(msg)
-    if smoke_release and not is_smoke:
-        msg = (
-            f"Release {manifest.release_id!r} has scope {manifest.scope}; "
-            f"only {ReleaseScope.SMOKE} packages are smoke releases."
-        )
-        raise ValueError(msg)
+    )
+    raise ValueError(msg)
 
 
 def _check_redistribution(

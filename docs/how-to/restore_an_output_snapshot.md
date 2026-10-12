@@ -11,7 +11,8 @@ uv run python scripts/release/snapshot.py restore /path/to/snapshot-dir
 ```
 
 The outputs are copied back to `output/production`, or to
-`output/smoke` if the snapshot's release manifest has scope `smoke`.
+`output/smoke` if the snapshot's release manifest has execution mode
+`smoke`.
 The release manifest, if the snapshot has one, goes inside that root, to
 `release_manifest.json`. If any of these
 files already exists, nothing is copied and the conflicts are listed; add

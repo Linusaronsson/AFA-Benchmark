@@ -8,11 +8,7 @@ Combines individual results into unified datasets:
 
 
 rule merge_eval_perf:
-    """Merge evaluation performance results from all methods within a method set.
-
-    Reference methods' tables are restored files that no rule produces, so a
-    missing one fails the plan instead of scheduling its production.
-    """
+    """Merge evaluation performance results from all methods within a method set."""
     input: lambda wc:
         [
             OUTPUT_LAYOUT.transformed_evaluation_table(

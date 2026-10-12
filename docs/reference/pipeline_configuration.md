@@ -299,7 +299,7 @@ Each error names the method and the key or value at fault:
   requires, and `pretrain_params`.
 - A method's `classifier`, and a `classifier_names` value given as a
   mapping, take only `script_name` and `script_params`.
-- Every method in `methods` and `reference_methods` must have a
+- Every method in `methods` must have a
   `method_options` entry and a `soft_budget_params` entry, and its
   `pretrained_model_name`, if any, must be a key of `pretrain_mapping`.
 

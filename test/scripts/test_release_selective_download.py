@@ -27,6 +27,8 @@ from test.scripts.release_artifacts import (
     Catalog,
     classifier_bundle,
     dataset_bundle,
+    method_bundle,
+    pretrained_model_bundle,
     write_catalog,
     write_job_record,
 )
@@ -115,7 +117,8 @@ def publish(
     """
     Save and publish a release whose manifest has `created_at`.
 
-    `backdate` gives every saved output a distinct old mtime first.
+    `backdate` gives every saved output a distinct old mtime first. A smoke
+    package, which `publish` refuses, is laid out on the host directly.
     """
     source_root = tmp_path / f"{release_id}-source"
     write_release_outputs(
@@ -127,7 +130,7 @@ def publish(
     )
     configfile = tmp_path / f"{release_id}.yaml"
     configfile.write_text(yaml.safe_dump({"smoke_test": smoke_test}))
-    # Every dataset is reviewed as permitted, so official releases publish.
+    # Every dataset is reviewed as permitted, so releases publish.
     checkout = tmp_path / f"{release_id}-checkout"
     review_file = checkout / "conf/release/dataset_redistribution.yaml"
     review_file.parent.mkdir(parents=True)
@@ -171,12 +174,10 @@ def publish(
         for offset, path in enumerate(paths):
             mtime = 1_700_000_000 + offset
             os.utime(path, (mtime, mtime))
-    published = invoke(
-        transport,
-        "publish",
-        str(package_dir),
-        *(["--smoke-release"] if scope == "smoke" else []),
-    )
+    if smoke_test:
+        transport.host_locally(package_dir)
+        return package_dir
+    published = invoke(transport, "publish", str(package_dir))
     assert published.exit_code == 0, published.output
     return package_dir
 
@@ -499,6 +500,47 @@ def test_model_bundles_come_with_the_job_records_of_their_jobs(
     assert "Downloaded 0 file(s) and 2 folder(s)." in result.output
 
 
+def test_a_method_downloads_its_whole_chain_by_default(
+    tmp_path: Path,
+) -> None:
+    # Without its AFA-method bundles a run would train the method again.
+    transport = FakeReleaseTransport()
+    publish(tmp_path, transport, "2026-10-full", job_records=True)
+    destination_root = tmp_path / "fork/output"
+
+    result = download(
+        transport,
+        destination_root,
+        "--method",
+        "beta",
+        "--dataset",
+        "cube",
+        "--dataset-realization",
+        "1",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert restored_bundles(destination_root) == {
+        "datasets/cube/1/train.bundle",
+        "datasets/cube/1/val.bundle",
+        "datasets/cube/1/test.bundle",
+        # Beta's pretrained model was pretrained with the external one.
+        EXTERNAL_CLASSIFIER,
+        classifier_bundle("cube", 1, "beta"),
+        pretrained_model_bundle("shared", "cube", 1),
+        method_bundle(BETA, "cube", 1, BETA.budgets[0]),
+    }
+    assert {
+        path
+        for path in restored_files(destination_root)
+        if ".bundle/" not in path
+    } == {
+        "eval_results/" + beta_table(1),
+        "eval_results_transformed/" + beta_table(1),
+    }
+    assert "Missing from release" not in result.output
+
+
 def beta_table(index: int) -> str:
     return (
         f"eval_split-test/{TAG}/beta/dataset-cube+realization_index-{index}/"
@@ -636,7 +678,6 @@ def test_selective_download_refuses_to_overwrite_an_existing_output(
     "arguments",
     [
         [],
-        ["--method", "alpha"],
         ["--all", "--payload-category", "raw_evaluation_table"],
         ["--all", "--dataset", "cube"],
     ],
@@ -657,24 +698,17 @@ def test_download_needs_either_all_or_a_category_selection(
     assert not destination_root.exists()
 
 
-def test_selected_payloads_of_a_smoke_release_keep_smoke_provenance(
+def test_selected_payloads_of_a_smoke_run_keep_smoke_provenance(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
-    package_dir = publish(
-        tmp_path,
-        transport,
-        "smoke-check",
-        scope="smoke",
-        smoke_test=True,
-    )
+    package_dir = publish(tmp_path, transport, "smoke-check", smoke_test=True)
     destination_root = tmp_path / "fork/output"
 
     result = download(
         transport,
         destination_root,
         "smoke-check",
-        "--smoke-release",
         "--payload-category",
         "raw_evaluation_table",
         "--dataset",
@@ -684,26 +718,18 @@ def test_selected_payloads_of_a_smoke_release_keep_smoke_provenance(
     assert result.exit_code == 0, result.output
     restored = read_release_manifest(destination_root / RELEASE_MANIFEST)
     assert restored == read_release_manifest(package_dir / RELEASE_MANIFEST)
-    assert "scope smoke, execution smoke" in result.output
+    assert "scope full, execution smoke" in result.output
     assert all(
         path.startswith("eval_results/")
         for path in restored_files(destination_root)
     )
 
 
-def test_latest_is_not_a_smoke_release_and_not_a_release_id(
-    tmp_path: Path,
-) -> None:
+def test_latest_is_not_a_release_id(tmp_path: Path) -> None:
     transport = FakeReleaseTransport()
-    publish(tmp_path, transport, "smoke-check", scope="smoke", smoke_test=True)
 
-    result = download(
-        transport, tmp_path / "fork/output", "--smoke-release", "--all"
-    )
     published = publish_reserved_release_id(tmp_path, transport)
 
-    assert result.exit_code != 0
-    assert "name a smoke release by its release id" in str(result.exception)
     assert published.exit_code != 0
     assert "reserved" in str(published.exception)
     assert transport.list_folders("releases") == []

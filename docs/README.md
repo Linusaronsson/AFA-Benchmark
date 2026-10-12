@@ -69,7 +69,6 @@ instead of defining a term on a page.
 - [User types](explanation/user_types.md)
 - [Benchmark releases](explanation/benchmark_releases.md)
 - [Output snapshots](explanation/output_snapshots.md)
-- [Reference methods](explanation/reference_methods.md)
 - [Framework limitations](explanation/limitations.md)
 - [What GDFS and DIME share, and where the port departs from upstream](explanation/gdfs_dime_shared_code.md)
 - Investigations behind ADRs:

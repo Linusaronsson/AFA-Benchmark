@@ -14,6 +14,10 @@ described per file by the manifest, so they are selected whole. The job
 duration table is one file beside the manifest holding every job of the
 release, so coverage does not narrow it either.
 
+`CHAIN_CATEGORIES` are the payload categories of an evaluation's whole
+chain: what a run needs to reuse a published method's evaluations instead
+of producing them again (`docs/adr/0012-a-downloaded-release-is-a-cache.md`).
+
 Requested coverage the release does not have, and inputs no bundle of the
 release matches, are reported in `missing`, never filled from elsewhere.
 """
@@ -32,6 +36,15 @@ from afabench.release.manifest import (
     PayloadCategory,
     ReleaseManifest,
 )
+
+CHAIN_CATEGORIES = [
+    PayloadCategory.DATASET_BUNDLE,
+    PayloadCategory.CLASSIFIER_BUNDLE,
+    PayloadCategory.PRETRAINED_MODEL_BUNDLE,
+    PayloadCategory.AFA_METHOD_BUNDLE,
+    PayloadCategory.RAW_EVALUATION_TABLE,
+    PayloadCategory.TRANSFORMED_EVALUATION_TABLE,
+]
 
 
 @dataclass(frozen=True, kw_only=True)

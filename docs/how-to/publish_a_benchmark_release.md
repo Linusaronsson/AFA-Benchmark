@@ -20,8 +20,8 @@ Instead of `hf auth login`, the token can be in `HF_TOKEN`. Instead of
 
 ## 2. Review dataset redistribution
 
-Only datasets whose bundles may be published publicly can be in an
-official release. For each dataset of the run, read its source's licence
+Only datasets whose bundles may be published publicly can be in a
+release. For each dataset of the run, read its source's licence
 or terms and record the review in
 `conf/release/dataset_redistribution.yaml` (format in the file's
 header; [what a review covers](../reference/release_manifest.md#dataset-redistribution)).
@@ -54,16 +54,16 @@ tree or unknown code, and any input no bundle of the release matches (a
 bundle regenerated after the artifacts that used it).
 
 Release ids are letters, digits, `.`, `_` and `-`, and are never reused.
-Use scope `full` for a run of the whole benchmark configuration, `partial`
-for anything less, and `smoke` for smoke-test outputs, which can have no
-other scope.
+Use scope `full` for a run of the whole benchmark configuration and
+`partial` for anything less. Smoke-test outputs are never published.
 
 ## 4. Review the package
 
 Read `/path/to/2026-10-kdd26/release_manifest.json`
 ([fields](../reference/release_manifest.md#fields)) and check each item:
 
-- [ ] `execution_mode` is `production`.
+- [ ] `execution_mode` is `production`; `publish` refuses smoke-test
+      artifacts.
 - [ ] The printed producing code has no dirty or unknown commit, so each
       artifact's commit is the code that produced it. If the release mixes
       commits, the release notes say which stage each commit produced.
@@ -97,20 +97,7 @@ format given there. To find the changes since the previous release:
 3. Sort each change into a compatibility change or a result-affecting
    change ([the difference](../explanation/benchmark_releases.md#compatibility-and-comparability)).
 
-## 6. Try the round trip with a smoke release (optional)
-
-Before announcing a release, check the real host with a smoke run's
-package, preferably in a separate scratch repository:
-
-```shell
-uv run python scripts/release/snapshot.py publish /path/to/smoke-check \
-    --repo-id <scratch_repo_id> --smoke-release
-uv run python scripts/release/snapshot.py download smoke-check --all \
-    --repo-id <scratch_repo_id> --smoke-release \
-    --destination-root /tmp/check/output
-```
-
-## 7. Publish
+## 6. Publish
 
 ```shell
 uv run python scripts/release/snapshot.py publish /path/to/2026-10-kdd26 \

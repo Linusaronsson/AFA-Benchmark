@@ -23,10 +23,14 @@ so a release says which code produced each of its artifacts.
 - **A stable default.** Without a release id, downloads use the newest
   `full` release. A newer `partial` release covers only part of the
   benchmark, so it is downloaded only by its id.
-- **Smoke outputs are never benchmark results.** Smoke-test outputs can
-  only have scope `smoke`, and are published as smoke releases in a
-  separate folder that downloads reach only when asked to. They exist to
-  check the publish and download round trip.
+- **Smoke outputs are never benchmark results.** `publish` refuses any
+  package holding a smoke-test artifact. The test suite checks the publish
+  and download round trip on a local host instead.
+- **A downloaded release is a cache.** A run over an output root holding a
+  release produces exactly what its pipeline profile produces without it:
+  it reuses what the release holds and produces the rest. The release's
+  own workflow configuration is never applied
+  ([ADR 0012](../adr/0012-a-downloaded-release-is-a-cache.md)).
 - **Native files.** Tables are the pipeline's own Parquet files and bundles
   its own bundle folders, restored byte for byte to the paths the workflow
   expects. Snakemake then reuses them instead of producing them again, and
@@ -78,12 +82,11 @@ user decides.
 
 Being able to generate a dataset bundle grants no right to publish it:
 most tabular and image datasets come from third parties under their own
-terms. So every dataset starts as `unreviewed`, and an official release
-holding an unreviewed or restricted dataset is refused unless the
-maintainer allows that dataset by name. There is deliberately no option
-to allow every dataset at once, and an allowed dataset's status stays in
-the published manifest. Smoke releases are not checked, since they are not
-public benchmark releases.
+terms. So every dataset starts as `unreviewed`, and a release holding an
+unreviewed or restricted dataset is refused unless the maintainer allows
+that dataset by name. There is deliberately no option to allow every
+dataset at once, and an allowed dataset's status stays in the published
+manifest.
 
 ## Limits
 
