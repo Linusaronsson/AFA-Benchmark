@@ -49,7 +49,9 @@ rebuilding it from the same output tree gives the same result.
   a smoke run's tree holds both kinds; a `full` or `partial` release
   cannot hold a smoke artifact. _Amended by #87: a smoke run writes under
   its own output root, apart from the production one, so its
-  production-mode dataset bundles never stand in for a real run's._
+  production-mode dataset bundles never stand in for a real run's.
+  Amended by [ADR 0012](0012-a-downloaded-release-is-a-cache.md): there
+  is no `smoke` scope, and `publish` refuses any smoke artifact._
 - **An index**: one entry per bundle and per evaluation (its raw and
   transformed tables, paired by equal records). An entry holds a
   projection of the record: stage, code commit and dirty flag, seed, smoke

@@ -319,13 +319,16 @@ _Avoid_: Clean variant, deterministic variant
 A versioned collection of benchmark results and reusable outputs, produced
 with an identified code revision and pipeline configuration and published
 by a maintainer under a release id. It is published from one output
-snapshot and declares full or partial scope.
-_Avoid_: Latest results, pipeline run (a run need not be published)
+snapshot and declares full or partial scope. It never holds smoke-test
+outputs.
+_Avoid_: Smoke release, latest results, pipeline run (a run need not be published)
 
 **Output root**:
 The folder one pipeline run writes all its artifacts and job records under.
 A smoke test has its own output root, apart from the production one, so
-its outputs never stand in for a real run's.
+its outputs never stand in for a real run's. A benchmark release downloaded
+into an output root is a cache: a run reuses what it holds and produces
+the rest, so the release never changes what the run outputs.
 _Avoid_: Output folder, output directory, results dir
 
 **Output snapshot**:
@@ -338,20 +341,19 @@ _Avoid_: Backup, archive, export, package
 
 **Release manifest**:
 The JSON file beside an output snapshot's output tree that identifies its
-benchmark release, declares full, partial or smoke scope, records the
+benchmark release, declares full or partial scope, records the
 maintainers' dataset redistribution review and the workflow configuration
 that lays out the release, and indexes the snapshot's artifacts. The index is generated from the artifacts' provenance records,
 never from the workflow configuration, so it is a cache of those records
 rather than a second source of truth (see
-`docs/reference/release_manifest.md`). Smoke-test outputs always have smoke
-scope.
+`docs/reference/release_manifest.md`).
 _Avoid_: Metadata, release info, provenance record (that is per artifact)
 
 **Payload category**:
 One kind of reusable output a release manifest lists: raw or transformed
 evaluation tables, the job duration table, or dataset, classifier,
-pretrained-model or AFA-method bundles. AFA-method bundles are optional, never needed to plot against
-published results.
+pretrained-model or AFA-method bundles. A run reuses a published method's
+evaluations only if that method's AFA-method bundles were downloaded too.
 _Avoid_: Artifact type, output kind
 
 **Shared prerequisite**:
@@ -360,16 +362,11 @@ that belongs to no single method: the dataset bundles, the external
 classifier and the pretrained models.
 _Avoid_: Shared input, common artifact
 
-**Smoke release**:
-An output snapshot with smoke scope, published apart from benchmark
-releases to check the publish/download round trip. It is never a benchmark
-release and is downloaded only by asking for a smoke release.
-_Avoid_: Test release (test is an evaluation split), staging release
-
 **Repository adopter**:
-A user who forks the repository, adds their own method, and trains and
-evaluates only that method, comparing it with a benchmark release's
-published methods (see `docs/explanation/user_types.md`).
+A user who forks the repository, adds their own method, and runs the
+pipeline over a downloaded benchmark release, so only their method is
+trained and evaluated while the published methods' outputs are reused
+(see `docs/explanation/user_types.md`).
 _Avoid_: Benchmark adopter, adopter
 
 **Library user**:
@@ -382,13 +379,6 @@ _Avoid_: Independent evaluator, package user
 A user who downloads a benchmark release's tables or plots without
 installing AFABench (see `docs/explanation/user_types.md`).
 _Avoid_: Results-only researcher, results-only journey
-
-**Reference method**:
-A method name whose plotting-ready evaluation tables are restored from a
-benchmark release and compared with locally produced methods, without the
-workflow ever training, evaluating or transforming it.
-_Avoid_: Baseline method (any compared method can be a baseline),
-downloaded method
 
 **Pipeline stage**:
 One kind of pipeline job: **dataset generation**, **classifier training**,
