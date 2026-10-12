@@ -7,12 +7,12 @@ from afabench.datasets.tabular_csv import TabularCSVDataset
 
 
 @final
-class PhysionetDataset(TabularCSVDataset):
+class PhysionetChallenge2012Dataset(TabularCSVDataset):
     """
-    Physionet dataset wrapped to follow the AFADataset protocol.
+    PhysioNet Challenge 2012 dataset following the AFADataset protocol.
 
     This dataset contains medical measurements from ICU patients.
-    The target variable has 2 classes (0, 1) representing different outcomes.
+    The target is in-hospital mortality (0: survival, 1: death).
     """
 
     config_keys: ClassVar[tuple[str, ...]] = ("root",)
@@ -27,6 +27,8 @@ class PhysionetDataset(TabularCSVDataset):
     def label_shape(self) -> torch.Size:
         return torch.Size([2])
 
-    def __init__(self, root: str = "data/physionet/physionet.csv"):
+    def __init__(
+        self, root: str = "data/physionet_challenge_2012/physionet.csv"
+    ):
         self.root = root
         super().__init__(Path(root))

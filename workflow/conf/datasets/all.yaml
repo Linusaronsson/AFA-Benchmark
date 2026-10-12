@@ -10,7 +10,7 @@ datasets:
   - diabetes
   - miniboone
   - miniboone_subset
-  - physionet
+  - physionet_challenge_2012
   - synthetic_mnist
   - synthetic_mnist_without_noise
   - mnist

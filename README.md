@@ -83,13 +83,21 @@ for accurate diagnosis with minimal cost. See the following survey for details: 
 | MNIST | Real World | Image (tabularized) | 36,000 | 12,000 | 12,000 | 784 | 784 | 10 |
 | FashionMNIST | Real World | Image (tabularized) | 36,000 | 12,000 | 12,000 | 784 | 784 | 10 |
 | Diabetes | Real World | Tabular | 55,237 | 18,412 | 18,413 | 45 | 45 | 3 | |
-| PhysioNet | Real World | Tabular | 7,200 | 2,400 | 2,400 | 41 | 41 | 2 |
+| PhysioNet Challenge 2012 | Real World | Tabular | 7,200 | 2,400 | 2,400 | 41 | 41 | 2 |
 | MiniBooNE | Real World | Tabular | 77,755 | 25,918 | 25,919 | 50 | 50 | 2 |
 | MiniBooNE (10 features) | Real World | Tabular | 77,755 | 25,918 | 25,919 | 10 | 10 | 2 |
 | ACTG175 | Real World | Tabular | 1,283 | 427 | 429 | 23 | 23 | | 2 |
 | CKD | Real World | Tabular | 240 | 80 | 80 | 24 | 24 | 2 |
 | BankMarketing | Real World | Tabular | 27,126 | 9,042 | 9,043 | 16 | 16 | 2 |
 | Imagenette | Real World | Image | 5,681 | 3,788 | 3,925 | 150,528 | 196 | 10 |
+
+The PhysioNet Challenge 2012 dataset key is `physionet_challenge_2012`
+(previously `physionet`), with source CSV at
+`data/physionet_challenge_2012/physionet.csv`. Existing checkouts should move
+`data/physionet/` to `data/physionet_challenge_2012/` and update overrides.
+There is no compatibility alias: old output paths and bundles using
+`PhysionetDataset` are not supported; regenerate them under the new key.
+This rename does not change the data, preprocessing or split settings.
 
 ## Project structure
 - `afabench`: Main package.

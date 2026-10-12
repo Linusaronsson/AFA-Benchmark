@@ -52,7 +52,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--dataset",
         required=True,
-        help="Dataset config name (e.g. diabetes, physionet, ckd).",
+        help="Dataset config name (e.g. diabetes, physionet_challenge_2012, ckd).",
     )
     parser.add_argument(
         "--config-dir",

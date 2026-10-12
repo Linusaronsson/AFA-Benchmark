@@ -314,6 +314,11 @@ The CUBE variant with non-uniform feature costs: the informative features are
 duplicated in a second block that costs twice as much.
 _Avoid_: Cube non-uniform, costly cube
 
+**PhysioNet Challenge 2012**:
+The ICU in-hospital mortality classification dataset from the
+PhysioNet/Computing in Cardiology Challenge 2012.
+_Avoid_: PhysioNet (the hosting repository, not a specific dataset)
+
 **MiniBooNE subset**:
 MiniBooNE restricted to the 10 features used by the L2M paper, with the
 same instances as MiniBooNE.

@@ -228,7 +228,7 @@ download:
 ```text
 Downloaded 6 file(s) and 1 folder(s).
 Missing from release 2026-11-partial:
-  dataset 'physionet': no evaluation of the release matches
+  dataset 'physionet_challenge_2012': no evaluation of the release matches
   transformed_evaluation_table of the evaluation eval_results/...: not in the release
   classifier_bundle output/production/trained_classifiers/..., classifier input of eval_results/...: not in the release
 ```

@@ -583,13 +583,14 @@ def test_missing_coverage_is_reported_and_not_taken_from_another_release(
         "--dataset",
         "cube",
         "--dataset",
-        "physionet",
+        "physionet_challenge_2012",
     )
 
     assert result.exit_code == 0, result.output
     assert "Missing from release 2026-11-partial:" in result.output
-    assert "dataset 'physionet': no evaluation of the release matches" in (
-        result.output
+    assert (
+        "dataset 'physionet_challenge_2012': no evaluation of the release matches"
+        in (result.output)
     )
     assert (
         "transformed_evaluation_table of the evaluation "

@@ -37,7 +37,7 @@ TABULAR_SOURCES: dict[str, tuple[int, list[object]]] = {
     "DiabetesDataset": (45, [i % 3 for i in range(N_ROWS)]),
     "MiniBooNEDataset": (50, [i % 2 for i in range(N_ROWS)]),
     "MiniBooNESubsetDataset": (50, [i % 2 for i in range(N_ROWS)]),
-    "PhysionetDataset": (41, [i % 2 for i in range(N_ROWS)]),
+    "PhysionetChallenge2012Dataset": (41, [i % 2 for i in range(N_ROWS)]),
     "BankMarketingDataset": (
         5,
         ["yes" if i % 3 == 0 else "no" for i in range(N_ROWS)],

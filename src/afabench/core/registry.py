@@ -34,7 +34,9 @@ REGISTERED_CLASSES = {
     "MNISTDataset": "afabench.datasets.mnist.MNISTDataset",
     "SyntheticMNISTDataset": "afabench.datasets.synthetic_mnist.SyntheticMNISTDataset",
     "DiabetesDataset": "afabench.datasets.diabetes.DiabetesDataset",
-    "PhysionetDataset": "afabench.datasets.physionet.PhysionetDataset",
+    "PhysionetChallenge2012Dataset": (
+        "afabench.datasets.physionet_challenge_2012.PhysionetChallenge2012Dataset"
+    ),
     "MiniBooNEDataset": "afabench.datasets.miniboone.MiniBooNEDataset",
     "MiniBooNESubsetDataset": "afabench.datasets.miniboone_subset.MiniBooNESubsetDataset",
     "FashionMNISTDataset": "afabench.datasets.fashion_mnist.FashionMNISTDataset",

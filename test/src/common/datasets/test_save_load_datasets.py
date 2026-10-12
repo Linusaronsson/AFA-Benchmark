@@ -15,7 +15,10 @@ DATASETS_TO_TEST = [
     ("DiabetesDataset", {"root": "data/diabetes/diabetes.csv"}),
     ("MiniBooNEDataset", {"root": "data/miniboone/miniboone.csv"}),
     ("MiniBooNESubsetDataset", {"root": "data/miniboone/miniboone.csv"}),
-    ("PhysionetDataset", {"root": "data/physionet/physionet.csv"}),
+    (
+        "PhysionetChallenge2012Dataset",
+        {"root": "data/physionet_challenge_2012/physionet.csv"},
+    ),
     # No {(Fashion)MNISTDataset, ImagenetteDataset} because of image data and large size
     (
         "BankMarketingDataset",
@@ -31,7 +34,7 @@ MANUAL_LOCAL_ONLY_DATASETS = {
     "DiabetesDataset",
     "MiniBooNEDataset",
     "MiniBooNESubsetDataset",
-    "PhysionetDataset",
+    "PhysionetChallenge2012Dataset",
 }
 
 

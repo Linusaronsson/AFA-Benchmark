@@ -14,6 +14,6 @@ eval_hard_budgets:
   imagenette: []
   miniboone: [5, 15] # 40 features
   miniboone_subset: [3, 7] # 10 features
-  physionet: [5, 15] # 40 features
+  physionet_challenge_2012: [5, 15] # 40 features
   synthetic_mnist: [1, 3] # 7x7 patches
   synthetic_mnist_without_noise: [1, 3] # 7x7 patches

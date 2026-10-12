@@ -7,7 +7,7 @@ datasets:
   - cube
   - cube_nonuniform_costs
   - miniboone
-  - physionet
+  - physionet_challenge_2012
   - mnist
   - fashion_mnist
   - imagenette

@@ -86,7 +86,7 @@ method_options:
         3: 7
         5: 7
         7: 7
-    hard_budget_ignored_datasets: &l2m_ignored_datasets [actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise, cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist, imagenette, miniboone, mnist, physionet, synthetic_mnist, synthetic_mnist_without_noise]
+    hard_budget_ignored_datasets: &l2m_ignored_datasets [actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise, cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist, imagenette, miniboone, mnist, physionet_challenge_2012, synthetic_mnist, synthetic_mnist_without_noise]
     soft_budget_ignored_datasets: *l2m_ignored_datasets
   l2m_synthetic_feature_prior:
     pretrained_model_name: "l2m_synthetic_feature_prior"

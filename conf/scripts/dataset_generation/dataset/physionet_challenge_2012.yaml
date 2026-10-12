@@ -1,0 +1,3 @@
+class_name: "PhysionetChallenge2012Dataset"
+kwargs:
+  root: "data/physionet_challenge_2012/physionet.csv"

@@ -54,7 +54,7 @@ soft_budget_params:
       - [0.00001, null] # 35% observed
       - [0.001, null] # 25% observed
       - [0.01, null] # 15% observed
-    physionet:
+    physionet_challenge_2012:
       - [0.0001, null] # 40% observed
       - [0.001, null] # 20% observed
       - [0.01, null] # 4% observed
@@ -104,7 +104,7 @@ soft_budget_params:
       - [0.075, null] # 75% observed
       - [0.1, null] # 45% observed
       - [0.125, null] # 33% observed
-    physionet:
+    physionet_challenge_2012:
       - [0.05, null] # 45% observed
       - [0.075, null] # 20% observed
       - [0.1, null] # 13% observed
@@ -155,7 +155,7 @@ soft_budget_params:
       - [null, 0.00001]  # 50% observed
       - [null, 0.0005]  # 30% observed
       - [null, 0.05]  # 10% observed
-    physionet:
+    physionet_challenge_2012:
       - [null, 0.0008]  # 50% observed
       - [null, 0.002]  # 30% observed
       - [null, 0.007]  # 10% observed
@@ -193,7 +193,7 @@ soft_budget_params:
       - [null, 0.0001]  # 40% observed
       - [null, 0.0005]  # 30% observed
       - [null, 0.1]  # 10% observed
-    physionet:
+    physionet_challenge_2012:
       - [null, 0.4]  # 50% observed
       - [null, 0.5]  # 30% observed
       - [null, 0.6]  # 15% observed
@@ -247,7 +247,7 @@ soft_budget_params:
       - [null, 0.000000000001]
       - [null, 0.0000001]
       - [null, 0.0001]
-    physionet:
+    physionet_challenge_2012:
       - [null, 0.0001]
       - [null, 0.0003]
       - [null, 0.0007]

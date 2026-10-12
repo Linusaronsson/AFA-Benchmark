@@ -11,7 +11,7 @@ from .imagenette import ImagenetteDataset
 from .miniboone import MiniBooNEDataset
 from .miniboone_subset import MiniBooNESubsetDataset
 from .mnist import MNISTDataset
-from .physionet import PhysionetDataset
+from .physionet_challenge_2012 import PhysionetChallenge2012Dataset
 from .synthetic_mnist import SyntheticMNISTDataset
 
 __all__ = [
@@ -28,6 +28,6 @@ __all__ = [
     "MNISTDataset",
     "MiniBooNEDataset",
     "MiniBooNESubsetDataset",
-    "PhysionetDataset",
+    "PhysionetChallenge2012Dataset",
     "SyntheticMNISTDataset",
 ]

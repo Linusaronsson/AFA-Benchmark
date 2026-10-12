@@ -114,11 +114,11 @@ dataset_name_mapping:
   fashion_mnist: FashionMNIST
   miniboone: MiniBooNE
   miniboone_subset: MiniBooNE (10 features)
-  physionet: PhysioNet
+  physionet_challenge_2012: PhysioNet Challenge 2012
   imagenette: Imagenette
 
 datasets_with_f_score:
-  - physionet
+  - physionet_challenge_2012
   - bank_marketing
 
 color_palette_name: Dark2

@@ -273,7 +273,9 @@ def test_the_workflow_config_describes_no_artifact(tmp_path: Path) -> None:
     write_catalog(tmp_path / "source", Catalog(methods=[ALPHA]))
     other = tmp_path / "other.yaml"
     other.write_text(
-        yaml.safe_dump({"methods": ["zeta"], "datasets": ["physionet"]})
+        yaml.safe_dump(
+            {"methods": ["zeta"], "datasets": ["physionet_challenge_2012"]}
+        )
     )
 
     result = save(tmp_path, "--configfile", str(other))

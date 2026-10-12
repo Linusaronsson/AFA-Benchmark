@@ -14,7 +14,7 @@ dataset_sets:
     - miniboone_subset
     - bank_marketing
     - diabetes
-    - physionet
+    - physionet_challenge_2012
     - actg
     - fashion_mnist
   set2:
@@ -29,7 +29,7 @@ dataset_sets:
     - bank_marketing
     - miniboone
     - actg
-    - physionet
+    - physionet_challenge_2012
     - fashion_mnist
     - imagenette
     - ckd

@@ -12,4 +12,4 @@ eval_hard_budgets:
   fashion_mnist: [10, 20, 30]
   imagenette: [5, 10, 15]
   miniboone: [5, 10, 15] # 40 features
-  physionet: [5, 10, 15] # 40 features
+  physionet_challenge_2012: [5, 10, 15] # 40 features
