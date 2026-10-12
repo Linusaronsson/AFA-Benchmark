@@ -95,12 +95,18 @@ and any job's error, but not every job's rule block and shell command. Those are
 ## Log to Weights & Biases
 
 Runs log nothing to W&B unless you add `--wandb`. Log in once with
-`uv run wandb login`, and set the entity and project the runs go to:
+`uv run wandb login`, and set the entity and project the runs go to.
+With [direnv](https://direnv.net/), the checkout's `.envrc` sets
+`WANDB_PROJECT=afabench` and loads the gitignored `.envrc.local`, where you
+set your entity:
 
 ```shell
-export WANDB_ENTITY=<entity> WANDB_PROJECT=afabench
+echo 'export WANDB_ENTITY=<entity>' >> .envrc.local
 workflow/run.py ... --wandb
 ```
+
+Without direnv, export both variables in the shell you run the launcher
+from; SLURM jobs inherit them.
 
 Each classifier training, pretraining, training and evaluation job then
 starts a [W&B run](../../CONTEXT.md), named after the job's rule and
