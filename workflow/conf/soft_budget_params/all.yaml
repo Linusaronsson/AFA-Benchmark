@@ -98,10 +98,11 @@ soft_budget_params:
       - [0.01, null] # 8% observed
     mnist: []
     fashion_mnist: []
-    miniboone:
+    miniboone: &jafa_miniboone
       - [0.0001, null] # 50% observed
       - [0.001, null] # 40% observed
       - [0.01, null] # 5% observed
+    miniboone_subset: *jafa_miniboone
 
   ol_without_mask: &ol
     default: []
@@ -128,11 +129,12 @@ soft_budget_params:
       - [0.01, null]
       - [0.02, null] # 30% observed
       - [0.05, null] # 5% observed
-    miniboone:
+    miniboone: &odin_model_free_miniboone
       - [0.01, null]
       - [0.05, null] # 20% observed
       - [0.075, null] # 14% observed
       - [0.1, null] # 9% observed
+    miniboone_subset: *odin_model_free_miniboone
     mnist: []
     fashion_mnist:
         - [0.004, null] # 20% observed
@@ -210,10 +212,11 @@ soft_budget_params:
       - [null, 0.02]  # 50% observed
       - [null, 0.022]  # 30% observed
       - [null, 0.025]  # 10% observed
-    miniboone:
+    miniboone: &eddi_builtin_miniboone
       - [null, 0.0002]  # 40% observed
       - [null, 0.0008]  # 20% observed
       - [null, 0.033]  # 10% observed
+    miniboone_subset: *eddi_builtin_miniboone
   eddi_external:
     default: []
     cube_nonuniform_costs:
@@ -256,10 +259,11 @@ soft_budget_params:
       - [null, 0.0008]  # 50% observed
       - [null, 0.002]  # 30% observed
       - [null, 0.007]  # 10% observed
-    miniboone:
+    miniboone: &eddi_external_miniboone
       - [null, 0.0005]  # 50% observed
       - [null, 0.01]  # 20% observed
       - [null, 0.1]  # 10% observed
+    miniboone_subset: *eddi_external_miniboone
   gdfs:
     default: []
     cube_nonuniform_costs:
@@ -302,10 +306,11 @@ soft_budget_params:
       - [null, 0.4]  # 50% observed
       - [null, 0.5]  # 30% observed
       - [null, 0.6]  # 15% observed
-    miniboone:
+    miniboone: &gdfs_miniboone
       - [null, 0.01] # 50% observed
       - [null, 0.08] # 30% observed
       - [null, 0.3]  # 10% observed
+    miniboone_subset: *gdfs_miniboone
     mnist:
       - [null, 0.01] # 10% observed
       - [null, 0.2] # 3% observed
@@ -348,10 +353,11 @@ soft_budget_params:
       - [null, 0.000000001]
       - [null, 0.0000001]
       - [null, 0.0001]
-    miniboone:
+    miniboone: &dime_miniboone
       - [null, 0.00001]
       - [null, 0.0001]
       - [null, 0.001]
+    miniboone_subset: *dime_miniboone
     mnist:
       - [null, 0.000000000001]
       - [null, 0.0000001]
