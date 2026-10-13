@@ -22,6 +22,8 @@ set-resources:
     cpus_per_task: 10
   plot_eval_perf:
     cpus_per_task: 10
+  plot_eval_perf_per_dataset:
+    cpus_per_task: 10
   plot_eval_actions:
     cpus_per_task: 10
 
