@@ -22,6 +22,14 @@ cd AFABench
 uv sync
 ```
 
+On NixOS, enter `nix develop` before running `uv sync`. The flake provides
+Git, development tools, a launcher Python and runtime libraries for native
+Python wheels on x86_64 and aarch64 Linux. `uv` installs the exact project
+Python version and locked Python dependencies. With direnv installed, run
+`direnv allow` to activate the flake automatically on NixOS; other hosts do
+not activate it. GPU execution still requires host NVIDIA drivers, and
+cluster execution requires the site's SLURM and, when using images, Apptainer.
+
 ## Quickstart
 
 Local execution is not recommended for reproducing the full benchmark because
