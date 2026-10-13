@@ -45,6 +45,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "basedpyright>=1.40.2",
   "csvkit>=2.1.0",
   "dvc>=3.66.1",
   "ipdb>=0.13.13",
@@ -53,6 +54,7 @@ dev = [
   "pytest-watch>=4.2.0",
   "pytest-xdist>=3.8.0",
   "ruff>=0.14.8",
+  "rust-just>=1.58.0",
   "visidata>=3.3",
   { include-group = "orchestration" },
 ]
