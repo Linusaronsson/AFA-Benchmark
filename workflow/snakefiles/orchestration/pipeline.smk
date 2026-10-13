@@ -22,8 +22,8 @@ Runtime filters (--config, select subsets to run):
         key needs a file conf/components/dataset_key/<key>.yaml.
     dataset_realization_indices (list[int], default=[0,1,2,3,4]): Subset of random seeds
     soft_budget_setting (bool, default=True): false runs only the
-        hard-budget setting, as if every method listed every dataset in
-        soft_budget_ignored_datasets. The launcher's --no-soft-budget sets
+        hard-budget setting, as if no method listed any dataset in
+        soft_budget_datasets. The launcher's --no-soft-budget sets
         it:
             workflow/run.py --no-soft-budget "datasets=[cube]" -n
     per_dataset_plots (bool, default=False): Request additional per-dataset
@@ -236,13 +236,14 @@ Config files (--configfile):
         hard_budget_ignored_datasets: [dataset1, dataset2, ...]
     When set, hard budget combinations are excluded for those datasets.
 
-    Note: method_options.yaml can include soft_budget_ignored_datasets to skip
-    soft budget training/evaluation for specific datasets per method. Format:
-     soft_budget_ignored_datasets: [dataset1, dataset2, ...]
-     When set, soft budget combinations are excluded for those datasets.
+    Note: method_options.yaml lists in soft_budget_datasets the datasets a
+    method runs soft budget training/evaluation on (opt-in, ADR 0013). Format:
+        soft_budget_datasets: [dataset1, dataset2, ...]
+    A dataset left out gets no soft budget combinations.
 
-     Note: Pretraining is skipped per pretrained model for datasets ignored by
-     BOTH hard and soft budgets across all methods that consume that model.
+    Note: Pretraining is skipped per pretrained model for datasets that every
+    method consuming that model ignores for hard budgets and does not list
+    for soft budgets.
 """
 
 include: "../settings.smk"

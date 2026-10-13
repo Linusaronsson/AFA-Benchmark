@@ -313,7 +313,10 @@ Methods train with the hard budget they are evaluated with, unless their
 [Soft-budget parameters](../../CONTEXT.md) are set per method and dataset key
 in the pipeline profile's `soft_budget_params` file. Each entry is a pair
 `[train, eval]`; the pipeline trains one model per pair. `null` as the eval
-value means evaluation keeps the parameter the method was trained with:
+value means evaluation keeps the parameter the method was trained with.
+A method only runs them on the datasets its `method_options` entry lists in
+`soft_budget_datasets`
+([ADR 0013](../adr/0013-soft-budget-datasets-are-opt-in.md)):
 
 ```yaml
 soft_budget_params:

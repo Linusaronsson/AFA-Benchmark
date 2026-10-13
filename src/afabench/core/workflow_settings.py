@@ -78,7 +78,9 @@ class MethodOptions:
     # falls back to 1 with a warning.
     eval_batch_size: int | dict[str, int] | None = None
     hard_budget_ignored_datasets: list[str] = field(default_factory=list)
-    soft_budget_ignored_datasets: list[str] = field(default_factory=list)
+    # Opt-in (ADR 0013): the method runs no soft-budget setting on a dataset
+    # left out, whatever soft_budget_params gives it.
+    soft_budget_datasets: list[str] = field(default_factory=list)
     # dataset -> the train hard budget of every hard-budget run on it
     train_hard_budget: dict[str, int | float] = field(default_factory=dict)
     # dataset -> eval hard budget -> train hard budget; covers every eval
@@ -468,9 +470,9 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     selected_options = {
         method: options
         if soft_budget_setting
-        # As if every method ignored every dataset in the soft-budget
-        # setting, which also skips pretraining no hard-budget run needs.
-        else replace(options, soft_budget_ignored_datasets=list(datasets))
+        # As if no method listed any dataset for the soft-budget setting,
+        # which also skips pretraining no hard-budget run needs.
+        else replace(options, soft_budget_datasets=[])
         for method, options in method_options.items()
         if method in methods
     }
@@ -666,10 +668,10 @@ def _method_options(
         )
         raise ValueError(message)
     # Any known dataset key, not only this run's datasets: `datasets` is a
-    # runtime filter, the ignored datasets a property of the method.
+    # runtime filter, the listed datasets a property of the method.
     for label, keys in [
         ("hard_budget_ignored_datasets", parsed.hard_budget_ignored_datasets),
-        ("soft_budget_ignored_datasets", parsed.soft_budget_ignored_datasets),
+        ("soft_budget_datasets", parsed.soft_budget_datasets),
         ("train_hard_budget", list(parsed.train_hard_budget)),
         (
             "eval_to_train_hard_budget_mapping",
@@ -928,7 +930,8 @@ def _create_budget_combinations(
     budget and leave the soft-budget parameters "null"; soft-budget
     combinations leave the hard budgets "null", except the train hard budget
     of a method that trains soft-budget runs under its largest one. A dataset
-    the method ignores in a setting gets no combinations for it.
+    the method ignores in the hard-budget setting, or does not list for the
+    soft-budget setting, gets no combinations for that setting.
     """
     train_hard_budgets = _train_hard_budgets(
         method, options, dataset, eval_hard_budgets
@@ -941,7 +944,7 @@ def _create_budget_combinations(
                 train_hard_budgets, eval_hard_budgets, strict=True
             )
         )
-    if dataset not in options.soft_budget_ignored_datasets:
+    if dataset in options.soft_budget_datasets:
         train_hard_budget = (
             max(train_hard_budgets)
             if options.use_max_hard_budget_when_training_soft_budget
@@ -1000,15 +1003,13 @@ def _normalize_nullable_param(value: NullableParam) -> BudgetParam:
 def _datasets_used_per_method(
     options: Mapping[str, MethodOptions], datasets: Sequence[str]
 ) -> dict[str, list[str]]:
-    """Leave out the datasets a method ignores in both budget settings."""
+    """Leave out the datasets a method runs in neither budget setting."""
     return {
         method: [
             dataset
             for dataset in datasets
-            if not (
-                dataset in method_options.hard_budget_ignored_datasets
-                and dataset in method_options.soft_budget_ignored_datasets
-            )
+            if dataset not in method_options.hard_budget_ignored_datasets
+            or dataset in method_options.soft_budget_datasets
         ]
         for method, method_options in options.items()
     }

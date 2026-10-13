@@ -162,7 +162,7 @@ The output root the run writes all its bundles, evaluation tables, job records, 
 
 ### `soft_budget_setting`
 
-Whether the run trains and evaluates in the [soft-budget setting](../../CONTEXT.md) as well as the hard-budget setting. With `false`, every method runs only its hard budgets, as if its `soft_budget_ignored_datasets` listed every dataset, so pretraining skips the datasets a method also ignores in the hard-budget setting.
+Whether the run trains and evaluates in the [soft-budget setting](../../CONTEXT.md) as well as the hard-budget setting. With `false`, every method runs only its hard budgets, as if its `soft_budget_datasets` listed no dataset, so pretraining skips the datasets a method also ignores in the hard-budget setting.
 
 - **Default:** `true`
 - **Example:** `soft_budget_setting=false`, or the launcher option `--no-soft-budget`, to run only the hard-budget setting
@@ -294,7 +294,7 @@ method_options:
       default: 8
     train_hard_budget: {cube_nonuniform_costs: 20}
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
-    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_datasets: [cube, cube_nonuniform_costs, miniboone]
   odin_model_based:
     pretrained_model_name: "pvae"
     train_script_name: "odin"
@@ -303,9 +303,9 @@ method_options:
     eval_batch_size:
       default: 128
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette, mnist]
+    soft_budget_datasets: [cube, miniboone]
 ```
-defines two methods `eddi_external` and `odin_model_based` which both use the same pretrained `pvae` model. Furthermore, they use different batch sizes during evaluation and ignore some datasets. `eddi_external` is a bit special, in that on `cube_nonuniform_costs` it trains every hard-budget run with hard budget 20, whatever budget it is evaluated with.
+defines two methods `eddi_external` and `odin_model_based` which both use the same pretrained `pvae` model. Furthermore, they use different batch sizes during evaluation, skip some datasets in the hard-budget setting, and run the soft-budget setting only on the datasets they list. `eddi_external` is a bit special, in that on `cube_nonuniform_costs` it trains every hard-budget run with hard budget 20, whatever budget it is evaluated with.
 
 Usually during the *soft-budget* setting, the hard budget is disabled. `use_max_hard_budget_when_training_soft_budget` enforces the largest hard budget instead.
 
@@ -320,7 +320,7 @@ A `method_options` entry takes only these keys:
 | `method_specific_params` | Extra `key=value` arguments for the training script. |
 | `eval_batch_size` | An integer for every dataset, or a mapping from dataset key to integer with a `default` for the others. If absent, evaluation uses batch size 1 and the pipeline warns. |
 | `hard_budget_ignored_datasets` | Dataset keys the method is not trained or evaluated on in the hard-budget setting. |
-| `soft_budget_ignored_datasets` | The same for the soft-budget setting. |
+| `soft_budget_datasets` | Dataset keys the method is trained and evaluated on in the soft-budget setting; it runs no soft budgets on any other dataset, whatever `soft_budget_params` gives it ([ADR 0013](../adr/0013-soft-budget-datasets-are-opt-in.md)). |
 | `train_hard_budget` | Per dataset key, the one train hard budget of every hard-budget run on that dataset, whatever its eval hard budget. Other datasets train at the eval hard budget. |
 | `eval_to_train_hard_budget_mapping` | Per dataset key, the train hard budget for each eval hard budget, when one train hard budget does not fit them all. It must map every eval hard budget the dataset gets. |
 | `use_max_hard_budget_when_training_soft_budget` | `true` to train soft-budget runs under the largest train hard budget. |
@@ -333,7 +333,7 @@ Each error names the method and the key or value at fault:
 - An unknown key in a `method_options` entry, such as a misspelt
   `pretrained_model_nme`, or a missing `train_script_name`, is rejected, for
   every entry, whether or not the method is selected.
-- An ignored dataset, and a dataset in `train_hard_budget` or
+- An ignored or soft-budget dataset, and a dataset in `train_hard_budget` or
   `eval_to_train_hard_budget_mapping`, must be a dataset key, a file in
   `conf/components/dataset_key/`. It need not be in this run's
   `datasets`, which only selects what runs.

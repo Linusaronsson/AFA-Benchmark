@@ -315,7 +315,7 @@ def test_eval_batch_size_mapping_without_default_is_rejected() -> None:
     [
         "pretrained_model_nme",
         "hard_budget_ignored_dataset",
-        "soft_budget_ignored_dataset",
+        "soft_budget_dataset",
         "eval_batch_sise",
     ],
 )
@@ -378,6 +378,7 @@ def test_partial_mapping_is_allowed_on_a_hard_budget_ignored_dataset() -> None:
                 "eval_batch_size": 1,
                 "eval_to_train_hard_budget_mapping": {"cube": {2: 3}},
                 "hard_budget_ignored_datasets": ["cube"],
+                "soft_budget_datasets": ["cube"],
             }
         }
     )
@@ -397,6 +398,7 @@ def test_train_hard_budget_trains_every_eval_hard_budget_at_it() -> None:
                 "eval_batch_size": 1,
                 "use_max_hard_budget_when_training_soft_budget": True,
                 "train_hard_budget": {"cube": 7},
+                "soft_budget_datasets": ["cube", "mnist"],
             }
         },
         datasets=["cube", "mnist"],
@@ -495,7 +497,7 @@ def test_method_missing_from_soft_budget_params_is_rejected() -> None:
     ("option", "value"),
     [
         ("hard_budget_ignored_datasets", ["imagenete"]),
-        ("soft_budget_ignored_datasets", ["imagenete"]),
+        ("soft_budget_datasets", ["imagenete"]),
         ("train_hard_budget", {"imagenete": 7}),
         ("eval_to_train_hard_budget_mapping", {"imagenete": {1: 7}}),
     ],
@@ -524,6 +526,7 @@ def test_ignored_dataset_need_not_be_in_this_run() -> None:
                 "train_script_name": "alpha",
                 "eval_batch_size": 1,
                 "hard_budget_ignored_datasets": ["imagenette"],
+                "soft_budget_datasets": ["cube"],
             }
         },
         datasets=["cube"],
@@ -535,6 +538,53 @@ def test_ignored_dataset_need_not_be_in_this_run() -> None:
         (1, 1, "null", "null"),
         ("null", "null", 0.1, 0.1),
     ]
+
+
+def test_dataset_not_listed_for_soft_budgets_gets_no_soft_budget_runs() -> (
+    None
+):
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "soft_budget_datasets": ["cube"],
+            }
+        },
+        datasets=["cube", "mnist"],
+    )
+    config["soft_budget_params"] = {
+        "alpha": {"default": [[0.1, 0.1]], "mnist": [[0.2, 0.2]]}
+    }
+
+    settings = load_config(config)
+
+    assert settings.budget_params["alpha"] == {
+        "cube": [(1, 1, "null", "null"), ("null", "null", 0.1, 0.1)],
+        "mnist": [(1, 1, "null", "null")],
+    }
+
+
+def test_pretraining_skips_datasets_a_method_runs_in_neither_setting() -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "pretrained_model_name": "alpha_model",
+                "hard_budget_ignored_datasets": ["cube", "mnist"],
+                "soft_budget_datasets": ["mnist"],
+            }
+        },
+        datasets=["cube", "mnist"],
+        pretrain_mapping={"alpha_model": {"pretrain_script_name": "alpha"}},
+    )
+
+    settings = load_config(config)
+
+    assert settings.datasets_used_per_pretrain_name == {
+        "alpha_model": ["mnist"]
+    }
 
 
 @pytest.mark.parametrize("soft_budget_setting", [False, "false"])
@@ -609,6 +659,7 @@ def _compared_methods_config() -> dict[str, object]:
                 "pretrained_model_name": "shared",
                 "classifier": {"script_name": "beta_classifier"},
                 "eval_batch_size": 1,
+                "soft_budget_datasets": ["cube"],
             },
             "gamma": {
                 "train_script_name": "gamma",
@@ -914,7 +965,11 @@ def _config(
     """Build a minimal valid config, with the given parts replaced."""
     if method_options is None:
         method_options = {
-            "alpha": {"train_script_name": "alpha", "eval_batch_size": 1}
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "soft_budget_datasets": datasets or ["cube"],
+            }
         }
     if methods is None:
         methods = list(method_options)

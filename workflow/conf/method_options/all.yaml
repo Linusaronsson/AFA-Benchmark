@@ -13,13 +13,21 @@ method_options:
       synthetic_mnist: 32
       synthetic_mnist_without_noise: 32
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist,
+      miniboone, miniboone_subset, mnist, physionet_challenge_2012,
+      synthetic_mnist, synthetic_mnist_without_noise]
   aaco_nn:
     pretrained_model_name: "aaco"
     train_script_name: "aaco_nn"
     eval_batch_size: *aaco_eval_batch_size
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
-    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, miniboone,
+      miniboone_subset, physionet_challenge_2012, synthetic_mnist,
+      synthetic_mnist_without_noise]
   eddi_builtin:
     pretrained_model_name: "pvae"
     train_script_name: "eddi_builtin"
@@ -28,7 +36,11 @@ method_options:
       default: 8
     train_hard_budget: {cube_nonuniform_costs: 20}
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
-    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, miniboone,
+      miniboone_subset, physionet_challenge_2012, synthetic_mnist,
+      synthetic_mnist_without_noise]
   eddi_external:
     pretrained_model_name: "pvae"
     train_script_name: "eddi_external"
@@ -37,7 +49,11 @@ method_options:
       default: 8
     train_hard_budget: {cube_nonuniform_costs: 20}
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
-    soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, miniboone,
+      miniboone_subset, physionet_challenge_2012, synthetic_mnist,
+      synthetic_mnist_without_noise]
   gdfs:
     pretrained_model_name: "gdfs"
     train_script_name: "gdfs"
@@ -45,6 +61,11 @@ method_options:
     eval_batch_size:
       default: 32
     train_hard_budget: {cube_nonuniform_costs: 20}
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist,
+      imagenette, miniboone, miniboone_subset, mnist, physionet_challenge_2012,
+      synthetic_mnist, synthetic_mnist_without_noise]
   dime:
     pretrained_model_name: "dime"
     train_script_name: "dime"
@@ -52,6 +73,11 @@ method_options:
     eval_batch_size:
       default: 32
     train_hard_budget: {cube_nonuniform_costs: 20}
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist,
+      imagenette, miniboone, miniboone_subset, mnist, physionet_challenge_2012,
+      synthetic_mnist, synthetic_mnist_without_noise]
   l2m_real_feature_prior:
     pretrained_model_name: "l2m_real_feature_prior"
     train_script_name: "l2m"
@@ -67,7 +93,6 @@ method_options:
     # policy serves every evaluation budget.
     train_hard_budget: &l2m_train_hard_budget {miniboone_subset: 7}
     hard_budget_ignored_datasets: &l2m_ignored_datasets [actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise, cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist, imagenette, miniboone, mnist, physionet_challenge_2012, synthetic_mnist, synthetic_mnist_without_noise]
-    soft_budget_ignored_datasets: *l2m_ignored_datasets
   l2m_synthetic_feature_prior:
     pretrained_model_name: "l2m_synthetic_feature_prior"
     train_script_name: "l2m"
@@ -76,31 +101,40 @@ method_options:
     eval_batch_size: *l2m_eval_batch_size
     train_hard_budget: *l2m_train_hard_budget
     hard_budget_ignored_datasets: *l2m_ignored_datasets
-    soft_budget_ignored_datasets: *l2m_ignored_datasets
   l2m_official:
     pretrained_model_name: "l2m_official"
     train_script_name: "l2m_official"
     eval_batch_size: *l2m_eval_batch_size
     train_hard_budget: *l2m_train_hard_budget
     hard_budget_ignored_datasets: *l2m_ignored_datasets
-    soft_budget_ignored_datasets: *l2m_ignored_datasets
   cae:
     train_script_name: "cae"
     train_hard_budget: {cube_nonuniform_costs: 20}
     hard_budget_ignored_datasets: [cube_nm, cube_nm_without_noise, imagenette, synthetic_mnist, synthetic_mnist_without_noise]
-    soft_budget_ignored_datasets: [cube_nm, cube_nm_without_noise, imagenette, synthetic_mnist, synthetic_mnist_without_noise]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nonuniform_costs,
+      cube_without_noise, diabetes, fashion_mnist, miniboone, miniboone_subset,
+      mnist, physionet_challenge_2012]
   permutation:
     train_script_name: "permutation"
     train_hard_budget: {cube_nonuniform_costs: 20}
     hard_budget_ignored_datasets: [cube_nm, cube_nm_without_noise, imagenette, synthetic_mnist, synthetic_mnist_without_noise]
-    soft_budget_ignored_datasets: [cube_nm, cube_nm_without_noise, imagenette, synthetic_mnist, synthetic_mnist_without_noise]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nonuniform_costs,
+      cube_without_noise, diabetes, fashion_mnist, miniboone, miniboone_subset,
+      mnist, physionet_challenge_2012]
   jafa:
     pretrained_model_name: "jafa"
     train_script_name: "jafa"
     eval_batch_size: &rl_eval_batch_size
       default: 128
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette, mnist, fashion_mnist] # (fashion)_mnist needs more tuning
+    # Not mnist or fashion_mnist: they need more tuning.
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, miniboone,
+      miniboone_subset, physionet_challenge_2012, synthetic_mnist,
+      synthetic_mnist_without_noise]
   odin_model_based:
     pretrained_model_name: "pvae"
     train_script_name: "odin"
@@ -108,7 +142,12 @@ method_options:
       - "additional_generation_fraction=1.0"
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette, mnist] # mnist too difficult to tune
+    # Not mnist: too difficult to tune.
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist,
+      miniboone, miniboone_subset, physionet_challenge_2012, synthetic_mnist,
+      synthetic_mnist_without_noise]
   odin_model_free:
     pretrained_model_name: "pvae"
     train_script_name: "odin"
@@ -116,27 +155,48 @@ method_options:
       - "additional_generation_fraction=0.0"
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette, mnist] # mnist too difficult to tune
+    # Not mnist: too difficult to tune.
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist,
+      miniboone, miniboone_subset, physionet_challenge_2012, synthetic_mnist,
+      synthetic_mnist_without_noise]
   ol_without_mask:
     pretrained_model_name: "ol_without_mask"
     train_script_name: "ol"
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist,
+      miniboone, miniboone_subset, mnist, physionet_challenge_2012,
+      synthetic_mnist, synthetic_mnist_without_noise]
   ol_with_mask:
     pretrained_model_name: "ol_with_mask"
     train_script_name: "ol"
     eval_batch_size: *rl_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist,
+      miniboone, miniboone_subset, mnist, physionet_challenge_2012,
+      synthetic_mnist, synthetic_mnist_without_noise]
   random_dummy:
     train_script_name: "random_dummy"
     eval_batch_size: &dummy_eval_batch_size
       default: 128
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist,
+      miniboone, miniboone_subset, mnist, physionet_challenge_2012,
+      synthetic_mnist, synthetic_mnist_without_noise]
   sequential_dummy:
     train_script_name: "sequential_dummy"
     eval_batch_size: *dummy_eval_batch_size
     hard_budget_ignored_datasets: [imagenette]
-    soft_budget_ignored_datasets: [imagenette]
+    soft_budget_datasets: [
+      actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise,
+      cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist,
+      miniboone, miniboone_subset, mnist, physionet_challenge_2012,
+      synthetic_mnist, synthetic_mnist_without_noise]

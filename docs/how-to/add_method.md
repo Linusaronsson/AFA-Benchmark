@@ -324,8 +324,9 @@ file name):
 
 - **`method_options/<variant>.yaml`**: everything the pipeline needs to run
   your method — which training script to call, which pretrained model (if
-  any) it depends on, evaluation batch size, and which datasets to skip for
-  hard- or soft-budget evaluation.
+  any) it depends on, evaluation batch size, which datasets to skip for
+  hard-budget evaluation, and which datasets to run soft-budget evaluation
+  on: soft budgets are opt-in, so a dataset not listed gets none.
 
   ```yaml
   method_options:
@@ -335,7 +336,7 @@ file name):
       eval_batch_size:
         default: 128
       hard_budget_ignored_datasets: [imagenette]
-      soft_budget_ignored_datasets: [imagenette]
+      soft_budget_datasets: [cube, miniboone]
   ```
 
 - **`soft_budget_params/<variant>.yaml`**: the soft-budget parameter values
