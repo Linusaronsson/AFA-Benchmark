@@ -99,14 +99,6 @@ for accurate diagnosis with minimal cost. See the following survey for details: 
 | BankMarketing | Real World | Tabular | 27,126 | 9,042 | 9,043 | 16 | 16 | 2 |
 | Imagenette | Real World | Image | 5,681 | 3,788 | 3,925 | 150,528 | 196 | 10 |
 
-The PhysioNet Challenge 2012 dataset key is `physionet_challenge_2012`
-(previously `physionet`), with source CSV at
-`data/physionet_challenge_2012/physionet.csv`. Existing checkouts should move
-`data/physionet/` to `data/physionet_challenge_2012/` and update overrides.
-There is no compatibility alias: old output paths and bundles using
-`PhysionetDataset` are not supported; regenerate them under the new key.
-This rename does not change the data, preprocessing or split settings.
-
 ## Project structure
 - `afabench`: Main package.
 - `docs`: Documentation.
