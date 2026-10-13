@@ -14,7 +14,7 @@ pretrained model, uses only `prepare_datasets`, `image_loaders` and
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Protocol, override, runtime_checkable
+from typing import Any, Protocol, override
 
 import torch
 from jaxtyping import Float
@@ -51,7 +51,6 @@ type FeatureCosts = Float[Tensor, "*feature_shape"]
 type SelectionCosts = Float[Tensor, "n_selections"]  # noqa: F821
 
 
-@runtime_checkable
 class MLPPolicyArchitecture(Protocol):
     """A method's tabular architecture config: its MLP policy network."""
 
@@ -65,7 +64,6 @@ class MLPPolicyArchitecture(Protocol):
     def dropout(self) -> float: ...
 
 
-@runtime_checkable
 class ResNetPolicyArchitecture(Protocol):
     """A method's image architecture config: its ConvNet's ResNet backbone."""
 
@@ -77,7 +75,10 @@ class ModalityConfig(Protocol):
     """The training-config fields that the setup reads."""
 
     @property
-    def architecture(self) -> object: ...
+    def tabular_architecture(self) -> MLPPolicyArchitecture: ...
+
+    @property
+    def image_architecture(self) -> ResNetPolicyArchitecture: ...
 
     @property
     def batch_size(self) -> int: ...
@@ -318,14 +319,6 @@ def prepare_modality(
 
 
 def _prepare_tabular(cfg: ModalityConfig, inputs: FitInputs) -> TabularSetup:
-    architecture = cfg.architecture
-    if not isinstance(architecture, MLPPolicyArchitecture):
-        msg = (
-            "A tabular pretrained model needs an architecture config with "
-            "activation, hidden_units and dropout, not "
-            f"{type(architecture).__name__}"
-        )
-        raise TypeError(msg)
     device = torch.device(cfg.device)
     train_dataset = inputs.train_dataset()
     unmasker = inputs.unmasker()
@@ -341,7 +334,7 @@ def _prepare_tabular(cfg: ModalityConfig, inputs: FitInputs) -> TabularSetup:
     )
     return TabularSetup(
         device=device,
-        architecture=architecture,
+        architecture=cfg.tabular_architecture,
         train_loader=train_loader,
         val_loader=val_loader,
         d_in=d_in,
@@ -359,13 +352,6 @@ def _prepare_image(
     inputs: FitInputs,
     classifier_arch: dict[str, Any],
 ) -> ImageSetup:
-    architecture = cfg.architecture
-    if not isinstance(architecture, ResNetPolicyArchitecture):
-        msg = (
-            "An image pretrained model needs an architecture config with "
-            f"backbone_type, not {type(architecture).__name__}"
-        )
-        raise TypeError(msg)
     train_dataset = inputs.train_dataset()
     image_size = int(classifier_arch["image_size"])
     patch_size = int(classifier_arch["patch_size"])
@@ -396,7 +382,7 @@ def _prepare_image(
     )
     return ImageSetup(
         device=device,
-        architecture=architecture,
+        architecture=cfg.image_architecture,
         train_loader=train_loader,
         val_loader=val_loader,
         d_in=train_dataset.feature_shape.numel(),

@@ -1,45 +1,25 @@
 from dataclasses import dataclass
 
-from hydra.core.config_store import ConfigStore
-
+from afabench.components.methods.common.architecture import ArchitectureKind
 from afabench.fit.contract import (
     PretrainingContract,
     TrainingContract,
     store_contract_config,
 )
 
-cs = ConfigStore.instance()
-
 
 @dataclass
-class DIMEArchitectureConfig:
-    pass  # base marker
-
-
-@dataclass
-class DIMETabularArchitectureConfig(DIMEArchitectureConfig):
+class DIMETabularArchitectureConfig:
     activation: str
     hidden_units: list[int]
     dropout: float
 
 
 @dataclass
-class DIMEImageArchitectureConfig(DIMEArchitectureConfig):
+class DIMEImageArchitectureConfig:
     backbone_type: str
     image_size: int
     patch_size: int
-
-
-cs.store(
-    group="components/dime_architecture",
-    name="tabular",
-    node=DIMETabularArchitectureConfig,
-)
-cs.store(
-    group="components/dime_architecture",
-    name="image",
-    node=DIMEImageArchitectureConfig,
-)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -51,7 +31,9 @@ class DIMEPretrainingConfig(PretrainingContract):
     min_masking_probability: float
     max_masking_probability: float
 
-    architecture: DIMEArchitectureConfig
+    architecture_kind: ArchitectureKind
+    tabular_architecture: DIMETabularArchitectureConfig
+    image_architecture: DIMEImageArchitectureConfig
 
 
 store_contract_config(name="pretrain_dime", config_class=DIMEPretrainingConfig)
@@ -67,7 +49,9 @@ class DIMETrainingConfig(TrainingContract):
     eps_decay: float
     eps_steps: int
 
-    architecture: DIMEArchitectureConfig
+    # The pretrained model decides which of the two the policy uses
+    tabular_architecture: DIMETabularArchitectureConfig
+    image_architecture: DIMEImageArchitectureConfig
 
     min_lr: float | None = None
 

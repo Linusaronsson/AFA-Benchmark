@@ -157,6 +157,14 @@ setting until the method lists it in `soft_budget_datasets` in
 ([ADR 0013](../adr/0013-soft-budget-datasets-are-opt-in.md)); list it once
 its soft-budget parameters suit it.
 
+The scripts select the dataset through
+`conf/components/dataset_key/my_dataset.yaml`; copy an existing one. Every
+method then runs on its default hyperparameters, which suit tabular
+datasets. Where a method needs other values on your dataset (an image
+backbone, longer training), add a dataset override in
+`conf/scripts/<stage>/<method>/experiment/my_dataset.yaml`; `imagenette`'s
+files show the image case.
+
 ### 5. Add a readable name
 
 (Optional but recommended) Add a display name to `dataset_name_mapping` in `conf/scripts/plotting/common/default.yaml`:

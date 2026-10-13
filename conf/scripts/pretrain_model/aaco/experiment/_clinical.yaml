@@ -1,4 +1,5 @@
 # @package _global_
+# Shared by actg, bank_marketing, ckd, metabric and physionet_challenge_2012
 aco:
   acquisition_cost: 0.02
   eval_only_n_samples: 1000

@@ -15,3 +15,21 @@ defaults:
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
+
+# Defaults for every dataset key; experiment/<key>.yaml overrides them
+batch_size: 128
+lr: 0.001
+nepochs: 250
+patience: 5
+eps: 0.05
+eps_decay: 0.2
+eps_steps: 10
+# The pretrained model decides which architecture the policy uses
+tabular_architecture:
+  activation: ReLU
+  hidden_units: [128, 128]
+  dropout: 0.3
+image_architecture:
+  backbone_type: resnet50
+  image_size: 224
+  patch_size: 16

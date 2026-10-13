@@ -26,7 +26,8 @@ top-level group. That is how scripts select `initializer=<name>`,
   Every dataset key in `workflow/conf/datasets/` needs one.
 - Each method's root config ends with
   `optional experiment@_global_: ${dataset_key}`, which loads the method's
-  `experiment/<key>.yaml` when it exists.
+  `experiment/<key>.yaml` when it exists. The root config holds a default
+  for every hyperparameter; that file only overrides some.
 
 ## Hydra gotchas
 
@@ -49,6 +50,7 @@ All were verified against the Hydra version in `uv.lock`.
   subtree of an interpolated config group"). An experiment file may include a
   group without the keyword (`- /components/x@y: z`) as long as the root
   config does not select that group itself, otherwise Hydra reports
-  "Multiple values". This is why the root configs of DIME, GDFS and CAE do
-  not select an architecture, and why the default masking probabilities live
-  in `components/masked_pretraining/default.yaml` rather than in a group.
+  "Multiple values". This is why DIME, GDFS and CAE choose their
+  architecture with an `architecture_kind` value rather than a group, and
+  why the default masking probabilities live in
+  `components/masked_pretraining/default.yaml` rather than in a group.

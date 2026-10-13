@@ -14,11 +14,8 @@ from afabench.components.methods.discriminative.common.models import (
     resnet18,
     resnet50,
 )
-from afabench.components.methods.discriminative.common.utils import (
-    MaskLayer2d,
-)
+from afabench.components.methods.discriminative.common.utils import MaskLayer2d
 from afabench.components.methods.discriminative.gdfs.config import (
-    GDFSImageArchitectureConfig,
     GDFSPretrainingConfig,
 )
 from afabench.fit.inputs import FitInputs
@@ -33,7 +30,6 @@ def pretrain_image(
     inputs: FitInputs,
 ) -> GreedyAFAClassifier:
     log.debug(cfg)
-    assert isinstance(cfg.architecture, GDFSImageArchitectureConfig)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
     train_dataset = inputs.train_dataset()
@@ -52,7 +48,7 @@ def pretrain_image(
         shuffle=False,
         pin_memory=True,
     )
-    backbone_type = cfg.architecture.backbone_type
+    backbone_type = cfg.image_architecture.backbone_type
     if backbone_type == "resnet18":
         base = resnet18(pretrained=True)
     elif backbone_type == "resnet50":
@@ -62,8 +58,8 @@ def pretrain_image(
         raise ValueError(msg)
     backbone, expansion = ResNet18Backbone(base)
     classifier = Classifier(backbone, expansion, num_classes=d_out).to(device)
-    image_size = cfg.architecture.image_size
-    patch_size = cfg.architecture.patch_size
+    image_size = cfg.image_architecture.image_size
+    patch_size = cfg.image_architecture.patch_size
     assert image_size % patch_size == 0, (
         "image_size must be divisible by patch_size"
     )

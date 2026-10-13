@@ -1,45 +1,25 @@
 from dataclasses import dataclass
 
-from hydra.core.config_store import ConfigStore
-
+from afabench.components.methods.common.architecture import ArchitectureKind
 from afabench.fit.contract import (
     PretrainingContract,
     TrainingContract,
     store_contract_config,
 )
 
-cs = ConfigStore.instance()
-
 
 @dataclass
-class GDFSArchitectureConfig:
-    pass  # base marker
-
-
-@dataclass
-class GDFSTabularArchitectureConfig(GDFSArchitectureConfig):
+class GDFSTabularArchitectureConfig:
     activation: str
     hidden_units: list[int]
     dropout: float
 
 
 @dataclass
-class GDFSImageArchitectureConfig(GDFSArchitectureConfig):
+class GDFSImageArchitectureConfig:
     backbone_type: str
     image_size: int
     patch_size: int
-
-
-cs.store(
-    group="components/gdfs_architecture",
-    name="tabular",
-    node=GDFSTabularArchitectureConfig,
-)
-cs.store(
-    group="components/gdfs_architecture",
-    name="image",
-    node=GDFSImageArchitectureConfig,
-)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -51,7 +31,9 @@ class GDFSPretrainingConfig(PretrainingContract):
     min_masking_probability: float
     max_masking_probability: float
 
-    architecture: GDFSArchitectureConfig
+    architecture_kind: ArchitectureKind
+    tabular_architecture: GDFSTabularArchitectureConfig
+    image_architecture: GDFSImageArchitectureConfig
 
 
 store_contract_config(name="pretrain_gdfs", config_class=GDFSPretrainingConfig)
@@ -64,7 +46,9 @@ class GDFSTrainingConfig(TrainingContract):
     nepochs: int
     patience: int
 
-    architecture: GDFSArchitectureConfig
+    # The pretrained model decides which of the two the policy uses
+    tabular_architecture: GDFSTabularArchitectureConfig
+    image_architecture: GDFSImageArchitectureConfig
 
     min_lr: float | None = None
 

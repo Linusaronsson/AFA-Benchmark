@@ -16,7 +16,6 @@ from afabench.components.methods.discriminative.common.models import (
 from afabench.components.methods.discriminative.common.utils import MaskLayer
 from afabench.components.methods.discriminative.gdfs.config import (
     GDFSPretrainingConfig,
-    GDFSTabularArchitectureConfig,
 )
 from afabench.core.utils import get_class_frequencies
 from afabench.fit.inputs import FitInputs
@@ -31,7 +30,6 @@ def pretrain_tabular(
     inputs: FitInputs,
 ) -> GreedyAFAClassifier:
     log.debug(cfg)
-    assert isinstance(cfg.architecture, GDFSTabularArchitectureConfig)
     torch.set_float32_matmul_precision("medium")
     device = torch.device(cfg.device)
 
@@ -50,9 +48,9 @@ def pretrain_tabular(
 
     in_features: int = int(d_in * 2)
     out_features: int = int(d_out)
-    hidden_units = cfg.architecture.hidden_units
-    activation_name: str = cfg.architecture.activation
-    dropout: float = float(cfg.architecture.dropout)
+    hidden_units = cfg.tabular_architecture.hidden_units
+    activation_name: str = cfg.tabular_architecture.activation
+    dropout: float = float(cfg.tabular_architecture.dropout)
 
     classifier = MLP(
         in_features=in_features,

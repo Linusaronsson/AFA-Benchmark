@@ -1,12 +1,4 @@
-defaults:
-- /components/gdfs_architecture@architecture: image
-batch_size: 128
+architecture_kind: IMAGE
 lr: 1.0e-05
 nepochs: 2
 patience: 2
-min_masking_probability: 0.0
-max_masking_probability: 0.9
-architecture:
-  image_size: 224
-  patch_size: 16
-  backbone_type: resnet50

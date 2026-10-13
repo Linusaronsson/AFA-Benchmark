@@ -3,8 +3,8 @@ from typing import cast
 import hydra
 from omegaconf import OmegaConf
 
+from afabench.components.methods.common.architecture import ArchitectureKind
 from afabench.components.methods.static.cae.config import (
-    CAEImageArchitectureConfig,
     CAETrainingConfig,
 )
 from afabench.components.methods.static.cae.train.image import train_image
@@ -25,14 +25,12 @@ def main(cfg: CAETrainingConfig) -> None:
     cfg = cast("CAETrainingConfig", OmegaConf.to_object(cfg))
     cfg = limit(
         cfg,
-        architecture={
-            "selector": {"nepochs": 1, "patience": 1},
-            "classifier": {"nepochs": 1},
-        },
+        selector={"nepochs": 1, "patience": 1},
+        classifier={"nepochs": 1},
     )
     inputs = load_inputs(cfg)
     with fit_run(cfg, tags=["cae"], inputs=inputs) as metric_logger:
-        if isinstance(cfg.architecture, CAEImageArchitectureConfig):
+        if cfg.architecture_kind is ArchitectureKind.IMAGE:
             result = train_image(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
             )

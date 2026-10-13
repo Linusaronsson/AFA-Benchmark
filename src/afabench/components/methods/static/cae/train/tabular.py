@@ -10,10 +10,7 @@ from torchrl.modules import MLP
 from afabench.components.methods.discriminative.common.datasets import (
     prepare_datasets,
 )
-from afabench.components.methods.static.cae.config import (
-    CAETabularArchitectureConfig,
-    CAETrainingConfig,
-)
+from afabench.components.methods.static.cae.config import CAETrainingConfig
 from afabench.components.methods.static.common.models import BaseModel
 from afabench.components.methods.static.common.static_methods import (
     ConcreteMask,
@@ -34,7 +31,6 @@ def train_tabular(
     inputs: FitInputs,
 ) -> StaticBaseMethod:
     log.debug(cfg)
-    assert isinstance(cfg.architecture, CAETabularArchitectureConfig)
     assert cfg.hard_budget is not None, "hard_budget must be configured"
     print(str(cfg))
     device = torch.device(cfg.device)
@@ -55,7 +51,7 @@ def train_tabular(
     model = MLP(
         in_features=d_in,
         out_features=d_out,
-        num_cells=cfg.architecture.selector.num_cells,
+        num_cells=cfg.selector.num_cells,
         activation_class=nn.ReLU,
     )
     selector_layer = ConcreteMask(d_in, cfg.hard_budget)
@@ -66,10 +62,10 @@ def train_tabular(
     diff_selector.fit(
         train_loader,
         val_loader,
-        lr=cfg.architecture.selector.lr,
-        nepochs=cfg.architecture.selector.nepochs,
+        lr=cfg.selector.lr,
+        nepochs=cfg.selector.nepochs,
         loss_fn=nn.CrossEntropyLoss(weight=class_weights),
-        patience=cfg.architecture.selector.patience,
+        patience=cfg.selector.patience,
         verbose=False,
         metric_logger=metric_logger,
         metric_prefix="cae_selector",
@@ -117,15 +113,15 @@ def train_tabular(
         model = MLP(
             in_features=num,
             out_features=d_out,
-            num_cells=cfg.architecture.classifier.num_cells,
+            num_cells=cfg.classifier.num_cells,
             activation_class=nn.ReLU,
         )
         predictor = BaseModel(model).to(device)
         predictor.fit(
             train_subset_loader,
             val_subset_loader,
-            lr=cfg.architecture.classifier.lr,
-            nepochs=cfg.architecture.classifier.nepochs,
+            lr=cfg.classifier.lr,
+            nepochs=cfg.classifier.nepochs,
             loss_fn=nn.CrossEntropyLoss(weight=class_weights),
             verbose=False,
             metric_logger=metric_logger,

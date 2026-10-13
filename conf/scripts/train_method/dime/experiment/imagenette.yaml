@@ -1,14 +1,4 @@
-defaults:
-- /components/dime_architecture@architecture: image
-batch_size: 128
 lr: 1.0e-05
 min_lr: 1.0e-08
 nepochs: 150
 patience: 3
-eps: 0.05
-eps_decay: 0.2
-eps_steps: 10
-architecture:
-  backbone_type: resnet50
-  image_size: 224
-  patch_size: 16

@@ -98,7 +98,10 @@ def tabular_cfg(tmp_path: Path) -> GDFSTrainingConfig:
         ),
         unmasker=UnmaskerConfig("DirectUnmasker", {}),
         batch_size=8,
-        architecture=GDFSTabularArchitectureConfig("ReLU", [8, 8], 0.0),
+        tabular_architecture=GDFSTabularArchitectureConfig(
+            "ReLU", [8, 8], 0.0
+        ),
+        image_architecture=GDFSImageArchitectureConfig("resnet18", 224, 16),
     )
 
 
@@ -135,7 +138,10 @@ def image_cfg(
         ),
         batch_size=2,
         min_lr=1e-6,
-        architecture=GDFSImageArchitectureConfig("resnet18", 224, 16),
+        tabular_architecture=GDFSTabularArchitectureConfig(
+            "ReLU", [8, 8], 0.0
+        ),
+        image_architecture=GDFSImageArchitectureConfig("resnet18", 224, 16),
     )
 
 

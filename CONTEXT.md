@@ -425,6 +425,17 @@ The pipeline-level identifier of one configured variant of an AFA method, such
 as a method paired with its external or built-in classifier.
 _Avoid_: Method id, method key
 
+**Default hyperparameters**:
+The values a method's pretraining or training uses on every dataset key
+without a dataset override. Every hyperparameter has one, so a method runs
+on any dataset.
+_Avoid_: Base config, tabular config
+
+**Dataset override**:
+The hyperparameters a method uses on one dataset key in place of its
+default hyperparameters, holding only the values that differ.
+_Avoid_: Experiment, experiment config, dataset config
+
 **Method set**:
 A named group of method names plotted together. The `all` method set always
 exists, holds every method name compared in a run, and cannot be configured.

@@ -257,15 +257,28 @@ realization, pretrain seed)` and passes the resulting bundle's path as
 
 Hyperparameters beyond the contract are entirely the method author's choice
 — the contract says nothing about them. The repo's own methods follow one
-convention, recommended as the default: a Hydra experiment file per dataset
-key, selected automatically through `optional experiment@_global_:
-${dataset_key}` in the root config (already present in the YAML in section
-2), so `conf/scripts/train_method/<method>/experiment/<dataset
-key>.yaml` only needs to exist for the dataset keys that need
-non-default values.
+convention, recommended as the default: the root config gives every
+hyperparameter a default, and a dataset override,
+`conf/scripts/train_method/<method>/experiment/<dataset key>.yaml`, changes
+some of them on one dataset key. It is selected automatically through
+`optional experiment@_global_: ${dataset_key}` in the root config (already
+present in the YAML in section 2), so it only exists for dataset keys that
+need other values. A dataset key without one runs on the defaults, so a new
+dataset never fails for lack of a file;
+`test/workflow/test_pipeline_script_configs_complete.py` fails on any
+hyperparameter left without a default.
 
-Two rules keep this convention from drifting back into the duplication
+A method with tabular and image networks keeps both architectures in its
+config and an `architecture_kind` choosing between them (DIME, GDFS and
+CAE), rather than a Hydra group per architecture: an override cannot
+select a group the root config already selects (see the gotchas in
+`conf/components/README.md`).
+
+Three rules keep this convention from drifting back into the duplication
 `docs/explanation/training_contract_inventory.md` describes:
+
+- **Overrides hold only what differs from the defaults.** A file that
+  restates the defaults hides which datasets actually deviate.
 
 - **Experiment files may not set contract fields.** Snakemake always passes
   `hard_budget`, `seed`, `device` and the rest on the command line, so a

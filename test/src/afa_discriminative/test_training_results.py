@@ -7,6 +7,7 @@ import torch
 from torchrl.modules import MLP
 
 from afabench.components.initializers.config import InitializerConfig
+from afabench.components.methods.common.architecture import ArchitectureKind
 from afabench.components.methods.discriminative.common.models import (
     GreedyAFAClassifier,
 )
@@ -14,6 +15,7 @@ from afabench.components.methods.discriminative.dime.afa_methods import (
     DIMEAFAMethod,
 )
 from afabench.components.methods.discriminative.dime.config import (
+    DIMEImageArchitectureConfig,
     DIMEPretrainingConfig,
     DIMETabularArchitectureConfig,
     DIMETrainingConfig,
@@ -28,6 +30,7 @@ from afabench.components.methods.discriminative.gdfs.afa_methods import (
     GDFSAFAMethod,
 )
 from afabench.components.methods.discriminative.gdfs.config import (
+    GDFSImageArchitectureConfig,
     GDFSPretrainingConfig,
     GDFSTabularArchitectureConfig,
     GDFSTrainingConfig,
@@ -39,7 +42,7 @@ from afabench.components.methods.discriminative.gdfs.train import (
     train as train_gdfs,
 )
 from afabench.components.methods.static.cae.config import (
-    CAETabularArchitectureConfig,
+    CAEImageArchitectureConfig,
     CAETrainingConfig,
 )
 from afabench.components.methods.static.cae.train.tabular import (
@@ -81,10 +84,15 @@ def test_pretraining_returns_classifier_without_saving(
     config_type = (
         DIMEPretrainingConfig if method == "dime" else GDFSPretrainingConfig
     )
-    architecture_type = (
+    tabular_architecture_type = (
         DIMETabularArchitectureConfig
         if method == "dime"
         else GDFSTabularArchitectureConfig
+    )
+    image_architecture_type = (
+        DIMEImageArchitectureConfig
+        if method == "dime"
+        else GDFSImageArchitectureConfig
     )
     pretrain = pretrain_tabular if method == "dime" else pretrain_gdfs
     cfg = config_type(
@@ -105,7 +113,9 @@ def test_pretraining_returns_classifier_without_saving(
         patience=1,
         min_masking_probability=0.0,
         max_masking_probability=0.9,
-        architecture=architecture_type("ReLU", [8, 8], 0.0),
+        architecture_kind=ArchitectureKind.TABULAR,
+        tabular_architecture=tabular_architecture_type("ReLU", [8, 8], 0.0),
+        image_architecture=image_architecture_type("resnet18", 224, 16),
     )
 
     result = pretrain(cfg, inputs=load_inputs(cfg))
@@ -128,10 +138,15 @@ def test_training_returns_method_without_saving(
     config_type = (
         DIMETrainingConfig if method == "dime" else GDFSTrainingConfig
     )
-    architecture_type = (
+    tabular_architecture_type = (
         DIMETabularArchitectureConfig
         if method == "dime"
         else GDFSTabularArchitectureConfig
+    )
+    image_architecture_type = (
+        DIMEImageArchitectureConfig
+        if method == "dime"
+        else GDFSImageArchitectureConfig
     )
     train = train_dime if method == "dime" else train_gdfs
     result_type = DIMEAFAMethod if method == "dime" else GDFSAFAMethod
@@ -199,7 +214,8 @@ def test_training_returns_method_without_saving(
         nepochs=1,
         patience=1,
         **method_kwargs,
-        architecture=architecture_type("ReLU", [8, 8], 0.0),
+        tabular_architecture=tabular_architecture_type("ReLU", [8, 8], 0.0),
+        image_architecture=image_architecture_type("resnet18", 224, 16),
     )
 
     result = train(cfg, inputs=load_inputs(cfg))
@@ -246,12 +262,14 @@ def test_cae_training_returns_method_without_saving(tmp_path: Path) -> None:
         hard_budget=3,
         soft_budget_param=None,
         batch_size=32,
-        architecture=CAETabularArchitectureConfig(
-            StaticSelectorConfig(
-                lr=0.001, nepochs=1, patience=1, num_cells=[8, 8]
-            ),
-            StaticClassifierConfig(lr=0.001, nepochs=1, num_cells=[8, 8]),
+        selector=StaticSelectorConfig(
+            lr=0.001, nepochs=1, patience=1, num_cells=[8, 8]
         ),
+        classifier=StaticClassifierConfig(
+            lr=0.001, nepochs=1, num_cells=[8, 8]
+        ),
+        architecture_kind=ArchitectureKind.TABULAR,
+        image_architecture=CAEImageArchitectureConfig("resnet18", 224, 16),
     )
 
     result = train_cae(cfg, inputs=load_inputs(cfg))

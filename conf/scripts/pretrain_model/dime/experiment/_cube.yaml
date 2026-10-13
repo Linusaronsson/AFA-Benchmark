@@ -1,5 +1,1 @@
-defaults:
-  - _tabular
-  - _self_
-
 nepochs: 100

@@ -10,22 +10,15 @@ from afabench.components.methods.discriminative.common.modality import (
     image_loaders,
     load_backbone,
 )
-from afabench.components.methods.discriminative.common.models import (
-    Classifier,
-)
-from afabench.components.methods.static.cae.config import (
-    CAEImageArchitectureConfig,
-    CAETrainingConfig,
-)
+from afabench.components.methods.discriminative.common.models import Classifier
+from afabench.components.methods.static.cae.config import CAETrainingConfig
 from afabench.components.methods.static.common.models import BaseModel
 from afabench.components.methods.static.common.static_methods import (
     ConcreteMask2d,
     DifferentiableSelector,
     StaticBaseMethod,
 )
-from afabench.components.methods.static.common.utils import (
-    make_masked_collate,
-)
+from afabench.components.methods.static.common.utils import make_masked_collate
 from afabench.fit.inputs import FitInputs
 
 log = logging.getLogger(__name__)
@@ -38,7 +31,6 @@ def train_image(
     inputs: FitInputs,
 ) -> StaticBaseMethod:
     log.debug(cfg)
-    assert isinstance(cfg.architecture, CAEImageArchitectureConfig)
     assert cfg.hard_budget is not None, "hard_budget must be configured"
     print(str(cfg))
     device = torch.device(cfg.device)
@@ -53,14 +45,14 @@ def train_image(
         cfg.batch_size,
         smoke_test=cfg.smoke_test,
     )
-    image_size = cfg.architecture.image_size
-    patch_size = cfg.architecture.patch_size
+    image_size = cfg.image_architecture.image_size
+    patch_size = cfg.image_architecture.patch_size
     assert image_size % patch_size == 0, (
         "image_size must be divisible by patch_size"
     )
     mask_width = image_size // patch_size
 
-    backbone_type = cfg.architecture.backbone_type
+    backbone_type = cfg.image_architecture.backbone_type
     backbone, expansion = load_backbone(backbone_type)
     model = Classifier(backbone, expansion, num_classes=d_out).to(device)
     selector_layer = ConcreteMask2d(
@@ -75,10 +67,10 @@ def train_image(
     diff_selector.fit(
         train_loader,
         val_loader,
-        lr=cfg.architecture.selector.lr,
-        nepochs=cfg.architecture.selector.nepochs,
+        lr=cfg.selector.lr,
+        nepochs=cfg.selector.nepochs,
         loss_fn=nn.CrossEntropyLoss(),
-        patience=cfg.architecture.selector.patience,
+        patience=cfg.selector.patience,
         verbose=True,
         metric_logger=metric_logger,
         metric_prefix="cae_selector",
@@ -143,8 +135,8 @@ def train_image(
         predictor.fit(
             masked_train_loader,
             masked_val_loader,
-            lr=cfg.architecture.classifier.lr,
-            nepochs=cfg.architecture.classifier.nepochs,
+            lr=cfg.classifier.lr,
+            nepochs=cfg.classifier.nepochs,
             loss_fn=nn.CrossEntropyLoss(),
             verbose=True,
             metric_logger=metric_logger,

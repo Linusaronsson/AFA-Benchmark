@@ -3,8 +3,8 @@ from typing import cast
 import hydra
 from omegaconf import OmegaConf
 
+from afabench.components.methods.common.architecture import ArchitectureKind
 from afabench.components.methods.discriminative.gdfs.config import (
-    GDFSImageArchitectureConfig,
     GDFSPretrainingConfig,
 )
 from afabench.components.methods.discriminative.gdfs.pretrain.image import (
@@ -28,7 +28,7 @@ def main(cfg: GDFSPretrainingConfig) -> None:
     cfg = limit(cfg, nepochs=1, patience=1)
     inputs = load_inputs(cfg)
     with fit_run(cfg, tags=["gdfs"], inputs=inputs) as metric_logger:
-        if isinstance(cfg.architecture, GDFSImageArchitectureConfig):
+        if cfg.architecture_kind is ArchitectureKind.IMAGE:
             result = pretrain_image(
                 cfg, metric_logger=metric_logger.log, inputs=inputs
             )
