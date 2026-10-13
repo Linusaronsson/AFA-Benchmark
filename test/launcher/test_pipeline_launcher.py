@@ -1,6 +1,8 @@
 """The command the pipeline launcher (`workflow/run.py`) runs."""
 
+import datetime
 import re
+import runpy
 from pathlib import Path
 
 import pytest
@@ -69,6 +71,27 @@ def test_help_advertises_all_catalogs(
     output = capsys.readouterr().out
     for kind in ("methods", "datasets", "unmaskers", "initializers"):
         assert f"--list-{kind}" in output
+
+
+def test_launcher_without_datetime_utc(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Python 3.9 on the login node has timezone.utc, but not datetime.UTC.
+    monkeypatch.delattr(datetime, "UTC")
+    launcher = runpy.run_path(
+        str(Path(__file__).parents[2] / "workflow/run.py")
+    )["launcher_command"]
+
+    with pytest.raises(SystemExit) as exit_info:
+        launcher(["--help"])
+    assert exit_info.value.code == 0
+    assert "Run the pipeline." in capsys.readouterr().out
+
+    command = launcher(["--wandb", "--site", "arrhenius"])
+    assert command[:3] == ["containers/bin/python", "-m", "snakemake"]
+    group = next(word for word in command if word.startswith("wandb_group="))
+    assert re.fullmatch(r"wandb_group=all-\d{8}T\d{6}Z-[a-z0-9]{4}", group)
 
 
 def test_runs_the_all_pipeline_profile_locally_by_default() -> None:

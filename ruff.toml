@@ -6,6 +6,10 @@ exclude = [
   "src/afabench/components/methods/discriminative/l2m_official/upstream",
 ]
 
+[per-file-target-version]
+# The launcher runs before an environment exists on Arrhenius's login node.
+"workflow/run.py" = "py39"
+
 [lint]
 select = ["ALL"]
 ignore = [

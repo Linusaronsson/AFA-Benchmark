@@ -40,7 +40,7 @@ import shlex
 import string
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -213,7 +213,7 @@ def _named_wandb_group(name: str, overrides: list[str]) -> str:
 
 def new_wandb_group(pipeline: str, *, smoke_test: bool) -> str:
     """Name a new W&B group for an invocation of `pipeline`."""
-    time = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    time = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     suffix = "".join(
         random.choices(
             string.ascii_lowercase + string.digits,
