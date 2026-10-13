@@ -60,6 +60,7 @@ instead of defining a term on a page.
 - [Pipeline configuration](reference/pipeline_configuration.md)
 - [Requested walltime](reference/requested_walltime.md)
 - [Bundle format](reference/bundle_format.md)
+- [Datasets](reference/datasets/README.md): one page per dataset
 - [Evaluation dataframes](reference/evaluation_dataframes.md)
 - [Evaluation performance plots](reference/evaluation_plots.md)
 - [Job records](reference/job_records.md)

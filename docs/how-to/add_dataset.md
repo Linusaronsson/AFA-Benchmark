@@ -149,6 +149,14 @@ datasets:
 
 The pipeline will generate `train.bundle`, `val.bundle`, and `test.bundle` under `output/production/datasets/my_dataset/{dataset_realization_index}/` for each selected dataset realization.
 
+Every method then runs on it in the hard-budget setting, at the
+`default` hard budgets of `workflow/conf/eval_hard_budgets/<variant>.yaml`
+unless you give the dataset its own. No method runs it in the soft-budget
+setting until the method lists it in `soft_budget_datasets` in
+`workflow/conf/method_options/<variant>.yaml`
+([ADR 0013](../adr/0013-soft-budget-datasets-are-opt-in.md)); list it once
+its soft-budget parameters suit it.
+
 ### 5. Add a readable name
 
 (Optional but recommended) Add a display name to `dataset_name_mapping` in `conf/scripts/plotting/common/default.yaml`:
@@ -172,3 +180,11 @@ dataset_sets:
 
 Your dataset is plotted without this step: the `all` dataset set, which
 holds every dataset of the run, always exists and cannot be configured.
+
+### 7. Document the dataset
+
+Write its page in `docs/reference/datasets/`, following the template in
+[`docs/reference/datasets/README.md`](../reference/datasets/README.md), and
+list it there: where its data comes from and under which license, what its
+instances, label and features are, and why it keeps only some of its
+source's features, if it does.
