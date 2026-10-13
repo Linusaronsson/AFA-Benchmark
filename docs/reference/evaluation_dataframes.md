@@ -12,15 +12,14 @@ extending `BatchEvaluationSchema` or `EvaluationSchema`:
 - `SavedEvaluationSchema`: the `EvaluationSchema` columns plus the identity
   columns below, added by `AFAEvaluator` before saving Parquet.
 - `PreProvenanceSavedEvaluationSchema`: the `EvaluationSchema` columns plus
-  nullable `eval_seed` and `eval_hard_budget`, as the evaluator saved them
-  before the identity columns existed. These schema columns now also
-  require probability vectors; old class-only tables are not supported.
+  nullable `eval_seed` and `eval_hard_budget`, without the additional
+  identity columns.
 
 `episode_id` identifies an episode, not a dataset position. It is batch-local
 for an individual `process_batch` call, but unique across all batches in one
 `eval_afa_method` result. IDs are local to an evaluation artifact: independently
 produced results must remain in separate namespaces when reconstructing
-histories. `idx` is no longer emitted.
+histories.
 
 `generation_index` and `split_index` identify the instance an episode
 evaluated, and are the same on every row of an episode
@@ -218,16 +217,3 @@ undefined standard deviation. The existing accuracy and F1 summaries remain
 [Evaluation performance plots](evaluation_plots.md) documents headline metric
 configuration and optional per-dataset three-metric figures. Average precision
 (AP) is deferred to [issue #130](https://github.com/MachineLearning-DecisionMaking/AFABench/issues/130).
-
-## Compatibility
-
-[ADR 0013](../adr/0013-evaluation-tables-require-class-probabilities.md) amends
-ADR 0002's evaluation-table compatibility promise: probability retention
-requires a new table contract; class indices cannot recover ranking scores.
-
-Old class-only raw and plotting-ready tables lack the required probabilities
-and cannot be used with this evaluation/metric contract. No conversion from
-class IDs to probabilities or backward-compatible table reader is provided.
-[Reevaluate the trained methods](../how-to/run_the_pipeline.md#reevaluate-class-only-tables),
-then regenerate transformed and merged tables and plots. Generation/split
-indices, provenance and acquisition semantics are retained.

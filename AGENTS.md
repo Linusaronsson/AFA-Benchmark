@@ -5,6 +5,16 @@ code is in `src/afabench/`, pipeline entry points in `scripts/`, Hydra configs,
 Snakemake workflows in `workflow/`, pipeline outputs in `output/`, tests in
 `test/`.
 
+## Development policy
+
+AFABench is in active development. Prefer clean current contracts over
+backward compatibility. Add compatibility shims, legacy readers or migration
+work only when explicitly requested. Update code, tests and docs together
+when a contract changes; routine API/schema evolution needs no compatibility
+ADR or migration narrative. User docs explain the current behavior and how
+to use it, not what earlier versions did. ADRs capture consequential design
+trade-offs, not routine development history.
+
 ## Quality gate
 
 `just qa` (format, lint, type check, fast tests; see `justfile`) must pass

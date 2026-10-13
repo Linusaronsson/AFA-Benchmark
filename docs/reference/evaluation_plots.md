@@ -19,9 +19,9 @@ Only these exact identifiers are supported:
 | `auroc` | AUROC | `mean_auroc` | `std_auroc` |
 
 The Hydra defaults in `conf/scripts/plotting/common/default.yaml` are
-`physionet_challenge_2012: f1`, `bank_marketing: f1`, and `default_metric: accuracy`.
-`datasets_with_f_score` is replaced by this mapping, not supported alongside
-it. The launcher accepts the same choices in a pipeline profile override:
+`physionet_challenge_2012: f1`, `bank_marketing: f1`, and
+`default_metric: accuracy`. The launcher accepts the same choices in a
+pipeline profile override:
 
 ```shell
 workflow/run.py -n "plotting={dataset_metrics: {cube: auroc}, default_metric: accuracy}"

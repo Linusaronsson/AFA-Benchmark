@@ -17,8 +17,9 @@ allowed lint relaxations are enforced by `just qa` (`ruff.toml`,
 - **Vocabulary**: names, messages and docs use `CONTEXT.md` terms (selection
   vs action, classifier, built-in classifier, myopic, hard budget,
   soft-budget parameter, dataset realization).
-- **ADRs**: a change that contradicts a decision in `docs/adr/` must say so
-  and justify reopening it.
+- **ADRs**: explain material changes to architectural decisions and their
+  trade-offs. Apply the development policy in `AGENTS.md` to routine
+  API/schema evolution; compatibility bookkeeping is not an ADR requirement.
 - **Command-line parsing**: new scripts that are not Hydra-configured use
   `typer`, not `argparse`. Existing `argparse` scripts are left alone until
   they are otherwise rewritten.

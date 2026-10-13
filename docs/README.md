@@ -4,6 +4,11 @@ User documentation follows [Diátaxis](https://diataxis.fr/): every page is
 exactly one of four types, and each type has its own folder. Put a new page
 in the folder of its type, and when a page serves two types, split it.
 
+Write for a reader using the current system: describe its contract and the
+steps to use it. Development chronology, retired interfaces and migration
+narratives belong outside these pages. Apply the active-development policy
+in `AGENTS.md` when deciding whether compatibility work is needed.
+
 | Folder | Type | A page here | Example |
 | --- | --- | --- | --- |
 | `tutorials/` | Tutorial | Teaches a newcomer by walking them through a lesson they complete. | None yet. |

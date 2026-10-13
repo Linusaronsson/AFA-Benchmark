@@ -77,12 +77,12 @@ If the concept you need isn't in the glossary yet, that's a signal: either
 you're inventing language the project doesn't use (reconsider) or there's a
 real gap (note it for `/domain-modeling`).
 
-## Flag ADR conflicts
+## Flag material architecture conflicts
 
-If your output contradicts an existing ADR, surface it explicitly rather than
-silently overriding:
-
-> _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
+Surface changes to consequential architectural decisions and explain their
+trade-offs. For routine API/schema evolution, apply `AGENTS.md`'s development
+policy rather than treating an ADR's compatibility language as a permanent
+constraint or adding migration history to user docs.
 
 ## Decisions worth an ADR if reopened
 

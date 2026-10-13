@@ -6,11 +6,6 @@ status: accepted
 
 > Note (#71): "dataset instance" was renamed to **dataset realization**;
 > `dataset_instance_index` below is now `dataset_realization_index`.
->
-> Amended by [ADR 0013](0013-evaluation-tables-require-class-probabilities.md):
-> the evaluation-table compatibility promise below no longer covers class-only
-> tables. Probability vectors are required; provenance and legacy-bundle
-> compatibility remain unchanged.
 
 Today an artifact's identity lives in its Snakemake path. An artifact is a
 bundle or an evaluation table (see **Artifact** in `CONTEXT.md`). Nothing inside a
@@ -157,9 +152,8 @@ The transform step then only derives plotting columns: it adds
 no longer lose them. The Snakemake rule keeps passing its
 wildcards, but they become checks instead of sources: a value that
 disagrees with a non-null column raises, and only a column that is missing
-or null is filled from its argument. That keeps tables written before this
-ADR transformable, including when Snakemake reruns the transform for them.
-They are validated against the column set they were written with.
+or null is filled from its argument. Tables are validated against the
+current evaluation schema.
 
 ## Reproducibility policy
 
@@ -258,9 +252,6 @@ marked `pipeline`.
 - Once artifacts carry identity, the remaining reasons for the long
   artifact paths become Snakemake target naming only; #47 reassesses the
   shared path builder on that basis.
-- Outputs written before this change keep loading. Their records are absent
-  and their identity columns null, and transform fills them from wildcards
-  as today.
 - Out of scope, observed during the investigation: the external classifier
   is trained only on dataset instance 0. For datasets whose instances are
   reshuffles of the same data (`accepts_seed()` is false), the test split of

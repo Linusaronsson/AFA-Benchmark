@@ -253,25 +253,6 @@ Remove `-n` after checking the plan. Usual figures remain in place; the
 additional method-set roots appear under `eval_perf_per_dataset/`, beside
 `eval_perf/`. See [plot configuration and output layout](../reference/evaluation_plots.md).
 
-### Reevaluate class-only tables
-
-Tables written before the probability-vector contract cannot supply AUROC.
-Reevaluate from the existing trained methods; do not infer probabilities from
-predicted classes. Keep dataset generation and training off, but evaluation
-on, and force the evaluation rule for all selected methods/budgets:
-
-```shell
-workflow/run.py ... --per-dataset-plots \
-    "stages={dataset_generation: false, training: false}" \
-    -- --forcerun eval_method
-```
-
-Keep the original profile, dataset realizations, initializer and evaluation
-split. This rewrites raw tables and regenerates their downstream outputs.
-The trained bundles must satisfy the current classifier output declarations.
-No migration of old class-only raw or plotting-ready tables is provided.
-[Probability contract](../reference/evaluation_dataframes.md#class-probabilities).
-
 ### Rerun visualization with different metrics
 
 Once probability-bearing tables exist, change the mapping while disabling
