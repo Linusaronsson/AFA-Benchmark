@@ -135,8 +135,8 @@ EVALUATION_TABLE_FOLDERS = {
     PayloadCategory.TRANSFORMED_EVALUATION_TABLE: "eval_results_transformed",
 }
 PREDICTION_COLUMNS = {
-    ClassifierVariant.BUILTIN: "builtin_predicted_class",
-    ClassifierVariant.EXTERNAL: "external_predicted_class",
+    ClassifierVariant.BUILTIN: "builtin_predicted_probabilities",
+    ClassifierVariant.EXTERNAL: "external_predicted_probabilities",
 }
 
 
@@ -733,8 +733,12 @@ def _raw_classifier_variants(path: Path) -> list[ClassifierVariant]:
 
 
 def _transformed_classifier_variants(path: Path) -> list[ClassifierVariant]:
-    table = pq.read_table(path, columns=["classifier", "predicted_class"])
-    predicted = table.filter(table.column("predicted_class").is_valid())
+    table = pq.read_table(
+        path, columns=["classifier", "predicted_probabilities"]
+    )
+    predicted = table.filter(
+        table.column("predicted_probabilities").is_valid()
+    )
     present = set(predicted.column("classifier").unique().to_pylist())
     return [variant for variant in ClassifierVariant if variant in present]
 

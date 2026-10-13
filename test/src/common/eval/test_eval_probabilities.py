@@ -75,13 +75,21 @@ def test_process_batch_retains_probabilities_at_every_recorded_time_step() -> (
 ):
     result = evaluate_probabilities()
 
-    assert result[
-        ["episode_id", "step", "external_predicted_class"]
-    ].to_numpy().tolist() == [[0, 0, 0], [1, 0, 1], [0, 1, 1]]
+    assert result[["episode_id", "step"]].to_numpy().tolist() == [
+        [0, 0],
+        [1, 0],
+        [0, 1],
+    ]
     expected = [[0.75, 0.25], [0.125, 0.875], [0.125, 0.875]]
     assert result["external_predicted_probabilities"].tolist() == expected
     assert result["builtin_predicted_probabilities"].tolist() == expected
-    assert result["builtin_predicted_class"].tolist() == [0, 1, 1]
+
+
+def test_evaluation_leaves_class_decisions_to_consumers() -> None:
+    result = evaluate_probabilities()
+
+    assert "builtin_predicted_class" not in result.columns
+    assert "external_predicted_class" not in result.columns
 
 
 def constant_output(output: PredictionInput) -> AFAPredictFn:

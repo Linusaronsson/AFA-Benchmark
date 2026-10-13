@@ -44,7 +44,6 @@ def eval_row(
         "eval_seed": 0,
         "eval_hard_budget": hard_budget,
         "n_selections_performed": n_selections,
-        "predicted_class": predicted_class,
         "predicted_probabilities": (
             None
             if predicted_class is None
@@ -71,7 +70,6 @@ EVAL_SCHEMA = pa.schema(
         "eval_seed": pa.uint64(),
         "eval_hard_budget": pa.float64(),
         "n_selections_performed": pa.uint64(),
-        "predicted_class": pa.uint64(),
         "predicted_probabilities": pa.list_(pa.float64()),
         "afa_method": pa.string(),
         "dataset": pa.string(),
@@ -490,12 +488,10 @@ def test_per_dataset_families_are_additional_and_keep_budget_variants(
     # Only JAFA has built-in results; these must not affect headline summaries.
     builtin = table.loc[table["afa_method"] == "jafa"].assign(
         classifier="builtin",
-        predicted_class=0,
     )
     builtin["predicted_probabilities"] = [[0.9, 0.1]] * len(builtin)
     unavailable = table.loc[table["afa_method"] == "gdfs"].assign(
         classifier="builtin",
-        predicted_class=None,
         predicted_probabilities=None,
     )
     both = pd.concat([table, builtin, unavailable], ignore_index=True)

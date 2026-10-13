@@ -199,8 +199,8 @@ def raw_table(evaluation: Evaluation) -> pd.DataFrame:
             "split_index": [0, 0],
             "step": [0, 1],
             "action_performed": [3, 0],
-            "builtin_predicted_class": pd.array([None, None], dtype="Int64"),
-            "external_predicted_class": [1, 0],
+            "builtin_predicted_probabilities": [None, None],
+            "external_predicted_probabilities": [[0.25, 0.75], [0.75, 0.25]],
             "true_class": [0, 0],
             "accumulated_cost": [1.0, 1.0],
             "forced_stop": [False, True],
@@ -214,7 +214,7 @@ def transformed_table(evaluation: Evaluation, content: str) -> pd.DataFrame:
     frame = pd.DataFrame(
         {
             "classifier": ["external"],
-            "predicted_class": pd.array([1], dtype="UInt64"),
+            "predicted_probabilities": [[0.25, 0.75]],
             "true_class": pd.array([0], dtype="UInt64"),
             "n_selections_performed": pd.array([1], dtype="UInt64"),
             "release": [content],

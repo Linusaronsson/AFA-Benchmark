@@ -262,8 +262,18 @@ def test_records_match_dev_implementation(scenario: str) -> None:
     assert compact["step"].tolist() == [
         len(record[0]) for record in GOLDEN_RECORDS[scenario]
     ]
+    # The legacy records stored argmax class decisions, not probabilities.
     actual = compact.assign(
-        prev_selections_performed=reconstruct_selection_history(compact)
+        prev_selections_performed=reconstruct_selection_history(compact),
+        **{
+            f"{classifier}_predicted_class": [
+                None
+                if vector is None
+                else max(range(len(vector)), key=vector.__getitem__)
+                for vector in compact[f"{classifier}_predicted_probabilities"]
+            ]
+            for classifier in ["builtin", "external"]
+        },
     ).rename(columns={"episode_id": "idx"})
     actual = actual[COLUMNS]
     assert_frame_equal(actual, expected, check_exact=True, check_dtype=True)

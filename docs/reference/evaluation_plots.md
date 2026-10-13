@@ -92,7 +92,7 @@ Additional fields:
 | Field | Default | Contract |
 | --- | --- | --- |
 | `per_dataset_plots` | `false` | Enable the additional family. |
-| `per_dataset_input` | `null` | When enabled, required unsplit classifier-long merged table for the same method set, with `classifier`, `predicted_class` and full `predicted_probabilities` vectors. |
+| `per_dataset_input` | `null` | When enabled, required unsplit classifier-long merged table for the same method set, with `classifier` and full `predicted_probabilities` vectors. |
 | `per_dataset_output_folder` | `null` | When enabled, required independent output root, neither equal to nor inside/containing the usual output root. |
 
 Selecting a headline metric does not change the three metrics of the

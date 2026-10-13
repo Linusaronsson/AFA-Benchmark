@@ -37,13 +37,12 @@ Repeated selections count as separate steps, even if no new features appear.
 The initializer's observations are not selections and do not increment `step`.
 
 The other evaluation columns are `action_performed`,
-`builtin_predicted_class`, `external_predicted_class`,
-`builtin_predicted_probabilities`, `external_predicted_probabilities`, `true_class`,
-`accumulated_cost`, and `forced_stop`. Actions are one-based selection IDs;
+`builtin_predicted_probabilities`, `external_predicted_probabilities`,
+`true_class`, `accumulated_cost`, and `forced_stop`. Actions are one-based selection IDs;
 zero means stop. Recorded actions include budget/forced-acquisition overrides,
 not rejected actions or original policy intentions. Predictions use the
 pre-action observations, whereas cost includes the current action.
-Missing classifiers produce null classes and probability vectors together.
+Missing classifiers produce null probability vectors.
 
 Functions return `pandera.typing.DataFrame[EvaluationSchema]`. Runtime
 validation rejects missing, unexpected, or duplicate column names and checks
@@ -72,11 +71,11 @@ outputs are not supported: binary classifiers return two-class vectors.
 Every recorded time step retains the full vector for each available
 classifier, ordered by label class index. Raw Parquet object cells store
 `builtin_predicted_probabilities` and `external_predicted_probabilities` as
-floating vectors; unavailable classifiers have null vectors and classes.
-Predicted classes are the vectors' argmax. The classifier-long transformed
-table pairs each `predicted_class` with its `predicted_probabilities`; it does
-not discard probabilities or replace missing built-in results with external
-results.
+floating vectors; unavailable classifiers have null vectors. Tables hold no
+class decisions: each consumer decides how to turn a vector into a class.
+The classifier-long transformed table holds each classifier's vectors in
+`predicted_probabilities`; it does not replace missing built-in results with
+external results.
 
 ## Identity and provenance
 
@@ -147,8 +146,8 @@ mapping from selections to features.
 `scripts/misc/transform_eval_data_pipeline.py` turns one raw table into one
 plotting-ready table. It reads identity from the raw table's columns and only
 derives plotting columns: `n_selections_performed`, the melt of the
-prediction columns into `classifier` (`builtin` or `external`) and
-`predicted_class` and the paired `predicted_probabilities`, and nullable dtypes. The output keeps `generation_index`,
+probability columns into `classifier` (`builtin` or `external`) and
+`predicted_probabilities`, and nullable dtypes. The output keeps `generation_index`,
 `split_index` and every identity column, including
 `dataset_realization_index` and `eval_split`, and copies the raw table's
 provenance record into its own schema metadata. It discards episode
@@ -202,7 +201,8 @@ their input and call these modules.
 ## Metrics and seed summaries
 
 Pass each classifier's rows separately to the metric interfaces. Accuracy
-and macro F1 (`accuracy`, `f_score`) are retained. AUROC (`auroc`) uses class
+and macro F1 (`accuracy`, `f_score`) decide each row's most probable class,
+the lowest class index on ties. AUROC (`auroc`) uses class
 1 probability for binary classification, or macro one-vs-rest over all vector
 classes for multiclass classification. It is computed within each run before
 across-seed aggregation, at stopping and at each selection-count time step.

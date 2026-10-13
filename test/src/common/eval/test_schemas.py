@@ -24,8 +24,6 @@ def evaluation_frame() -> pd.DataFrame:
             "split_index": [2, 2],
             "step": [0, 1],
             "action_performed": [1, 0],
-            "builtin_predicted_class": [None, None],
-            "external_predicted_class": [1, 0],
             "builtin_predicted_probabilities": [None, None],
             "external_predicted_probabilities": [[0.25, 0.75], [0.75, 0.25]],
             "true_class": [1, 1],
@@ -53,8 +51,6 @@ def test_evaluation_schema_preserves_dtypes(
         ("step", -1),
         ("accumulated_cost", -0.5),
         ("forced_stop", "false"),
-        ("builtin_predicted_class", "1"),
-        ("builtin_predicted_class", -1),
         ("step", "0"),
     ],
 )

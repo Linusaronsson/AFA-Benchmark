@@ -195,6 +195,8 @@ def test_raw_tables_round_trip_values_nulls_schema_and_histories(
         {**table.schema.metadata, PROVENANCE_METADATA_KEY: record}
     )
     pq.write_table(table, raw_path)
+    # Parquet names list items `element`, so compare with the written table.
+    table = pq.read_table(raw_path)
     save_smoke(tmp_path, source_root)
 
     destination_root = tmp_path / "checkout/output"
@@ -208,7 +210,7 @@ def test_raw_tables_round_trip_values_nulls_schema_and_histories(
     )
     assert restored.schema.metadata[PROVENANCE_METADATA_KEY] == record
     assert restored.column("eval_soft_budget_param").null_count == 2
-    assert restored.column("builtin_predicted_class").null_count == 2
+    assert restored.column("builtin_predicted_probabilities").null_count == 2
     costs = restored.column("accumulated_cost").to_pylist()
     assert costs[0] == 1.0
     assert math.isnan(costs[1])

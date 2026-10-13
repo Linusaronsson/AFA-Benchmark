@@ -134,10 +134,11 @@ def _probability_matrix(series: pd.Series) -> NDArray[np.float64]:
 
 def _classification_metrics(group: pd.DataFrame) -> pd.Series:
     true_class = group["true_class"].to_numpy(dtype=np.int64)
-    predicted_class = group["predicted_class"].to_numpy(dtype=np.int64)
     probabilities = _probability_matrix(
         cast("pd.Series", group["predicted_probabilities"])
     )
+    # Accuracy and F1 decide the most probable class, the lowest on ties.
+    predicted_class = probabilities.argmax(axis=1)
     return pd.Series(
         {
             "accuracy": accuracy_score(true_class, predicted_class),
@@ -183,9 +184,9 @@ def metrics_at_stop(table: pd.DataFrame) -> pd.DataFrame:
     and `avg_accumulated_cost`. Class probabilities use label index order.
     """
     grouped = table.groupby(RUN_COLUMNS, dropna=False)
-    metrics = grouped[
-        ["true_class", "predicted_class", "predicted_probabilities"]
-    ].apply(_classification_metrics)
+    metrics = grouped[["true_class", "predicted_probabilities"]].apply(
+        _classification_metrics
+    )
     metrics["avg_accumulated_cost"] = grouped["accumulated_cost"].mean()
     return metrics.reset_index()
 
@@ -194,7 +195,7 @@ def metrics_at_every_step(table: pd.DataFrame) -> pd.DataFrame:
     """Score each run at each time step (`n_selections_performed`)."""
     return (
         table.groupby([*RUN_COLUMNS, "n_selections_performed"], dropna=False)[
-            ["true_class", "predicted_class", "predicted_probabilities"]
+            ["true_class", "predicted_probabilities"]
         ]
         .apply(_classification_metrics)
         .reset_index()

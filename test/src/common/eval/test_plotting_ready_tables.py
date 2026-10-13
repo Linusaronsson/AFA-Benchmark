@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -34,7 +33,9 @@ def test_loaded_table_has_nullable_dtypes_and_nulls_for_upcast_values(
                 "accumulated_cost": pa.array([1.0, 2.0], pa.float64()),
                 "forced_stop": pa.array([False, True]),
                 "n_selections_performed": pa.array([1, 2], pa.int64()),
-                "predicted_class": pa.array([1, None], pa.int64()),
+                "predicted_probabilities": pa.array(
+                    [[0.25, 0.75], None], pa.list_(pa.float64())
+                ),
                 "afa_method": pa.array(["jafa", "jafa"]),
                 "dataset": pa.array(["cube", "cube"]),
                 "initializer": pa.array(["cold", "cold"]),
@@ -55,7 +56,7 @@ def test_loaded_table_has_nullable_dtypes_and_nulls_for_upcast_values(
         "accumulated_cost": "Float64",
         "forced_stop": "boolean",
         "n_selections_performed": "UInt64",
-        "predicted_class": "UInt64",
+        "predicted_probabilities": "object",
         "afa_method": "string",
         "dataset": "string",
         "initializer": "string",
@@ -65,7 +66,8 @@ def test_loaded_table_has_nullable_dtypes_and_nulls_for_upcast_values(
         "eval_soft_budget_param": "Float64",
     }
     assert table["eval_hard_budget"].tolist() == [2.0, pd.NA]
-    assert table["predicted_class"].tolist() == [1, pd.NA]
+    assert table["predicted_probabilities"].iloc[0].tolist() == [0.25, 0.75]
+    assert table["predicted_probabilities"].iloc[1] is None
 
 
 def budget_rows(
@@ -166,7 +168,6 @@ def test_metrics_at_stop_score_each_seed_and_budget() -> None:
             "eval_hard_budget": [2.0, 2.0, 2.0],
             "soft_budget_param": [None, None, None],
             "true_class": [1, 0, 1],
-            "predicted_class": [1, 1, 1],
             "predicted_probabilities": [[0.2, 0.8]] * 3,
             "accumulated_cost": [1.0, 2.0, 2.0],
         }
@@ -261,11 +262,21 @@ def classification_rows(
             "soft_budget_param": None,
             "n_selections_performed": 0,
             "true_class": true_classes,
-            "predicted_class": np.argmax(probabilities, axis=1),
             "predicted_probabilities": probabilities,
             "accumulated_cost": 1.0,
         }
     ).astype({"soft_budget_param": "Float64"})
+
+
+def test_class_metrics_decide_the_most_probable_class_lowest_on_ties() -> None:
+    # Argmax decides [1, 0, 0]; the tie on the last row goes to class 0.
+    table = classification_rows(
+        [1, 0, 0], [[0.4, 0.6], [0.7, 0.3], [0.5, 0.5]]
+    )
+
+    metrics = metrics_at_stop(table)
+
+    assert metrics[["accuracy", "f_score"]].to_numpy().tolist() == [[1.0, 1.0]]
 
 
 def test_metrics_at_stop_binary_auroc_uses_class_one_probabilities() -> None:

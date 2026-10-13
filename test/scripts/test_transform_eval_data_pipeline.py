@@ -68,8 +68,6 @@ def test_transform_fills_identity_of_a_pre_provenance_table_from_arguments(
         {
             "prev_selections_performed": [[], [0], []],
             "action_performed": [1, 0, 0],
-            "builtin_predicted_class": [2, 1, 0],
-            "external_predicted_class": [None, None, None],
             "builtin_predicted_probabilities": [
                 [0.1, 0.2, 0.7],
                 [0.2, 0.6, 0.2],
@@ -150,13 +148,11 @@ def test_transform_fills_identity_of_a_pre_provenance_table_from_arguments(
         step
         | {
             "classifier": "builtin",
-            "predicted_class": prediction,
             "predicted_probabilities": probabilities,
         }
         | shared
-        for step, prediction, probabilities in zip(
+        for step, probabilities in zip(
             steps,
-            [2, 1, 0],
             [[0.1, 0.2, 0.7], [0.2, 0.6, 0.2], [0.8, 0.1, 0.1]],
             strict=True,
         )
@@ -164,7 +160,6 @@ def test_transform_fills_identity_of_a_pre_provenance_table_from_arguments(
         step
         | {
             "classifier": "external",
-            "predicted_class": None,
             "predicted_probabilities": None,
         }
         | shared
@@ -183,7 +178,6 @@ def test_transform_fills_identity_of_a_pre_provenance_table_from_arguments(
         "eval_hard_budget": pa.float64(),
         "n_selections_performed": pa.uint64(),
         "classifier": pa.string(),
-        "predicted_class": pa.uint64(),
         "predicted_probabilities": pa.list_(pa.float64()),
         "afa_method": pa.string(),
         "dataset": pa.string(),
@@ -207,8 +201,6 @@ def test_transform_counts_selections_stored_as_strings(
         {
             "prev_selections_performed": ["[]", "[3, 1]"],
             "action_performed": [2, 0],
-            "builtin_predicted_class": [0, 1],
-            "external_predicted_class": [1, 1],
             "builtin_predicted_probabilities": [[0.7, 0.3], [0.2, 0.8]],
             "external_predicted_probabilities": [[0.1, 0.9], [0.3, 0.7]],
             "true_class": [1, 1],
@@ -237,7 +229,12 @@ def test_transform_counts_selections_stored_as_strings(
         0,
         2,
     ]
-    assert [row["predicted_class"] for row in transformed] == [0, 1, 1, 1]
+    assert [row["predicted_probabilities"] for row in transformed] == [
+        [0.7, 0.3],
+        [0.2, 0.8],
+        [0.1, 0.9],
+        [0.3, 0.7],
+    ]
     assert {
         (
             row["train_seed"],
@@ -258,8 +255,6 @@ def write_identified_table(path: Path) -> None:
             "split_index": [1, 1, 0],
             "step": [0, 1, 0],
             "action_performed": [1, 0, 0],
-            "builtin_predicted_class": [None, None, None],
-            "external_predicted_class": [2, 1, 0],
             "builtin_predicted_probabilities": [None, None, None],
             "external_predicted_probabilities": [
                 [0.1, 0.2, 0.7],
@@ -332,15 +327,19 @@ def test_transform_takes_identity_from_raw_columns(
     for row in transformed:
         assert {name: row[name] for name in identity} == identity
     assert [
-        (row["generation_index"], row["classifier"], row["predicted_class"])
+        (
+            row["generation_index"],
+            row["classifier"],
+            row["predicted_probabilities"],
+        )
         for row in transformed
     ] == [
         (4, "builtin", None),
         (4, "builtin", None),
         (9, "builtin", None),
-        (4, "external", 2),
-        (4, "external", 1),
-        (9, "external", 0),
+        (4, "external", [0.1, 0.2, 0.7]),
+        (4, "external", [0.2, 0.6, 0.2]),
+        (9, "external", [0.8, 0.1, 0.1]),
     ]
     assert evaluation_table_provenance(
         output_path
@@ -394,7 +393,7 @@ def test_transform_fills_a_null_identity_column_from_its_argument(
     assert set(pd.read_parquet(output_path)["train_seed"]) == {5}
 
 
-def test_transform_pairs_classifier_classes_with_complete_probability_vectors(
+def test_transform_keeps_each_classifiers_complete_probability_vectors(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -406,17 +405,13 @@ def test_transform_pairs_classifier_classes_with_complete_probability_vectors(
 
     rows = pq.read_table(output_path).to_pylist()
     assert [
-        (
-            row["classifier"],
-            row["predicted_class"],
-            row["predicted_probabilities"],
-        )
-        for row in rows
+        (row["classifier"], row["predicted_probabilities"]) for row in rows
     ] == [
-        ("builtin", None, None),
-        ("builtin", None, None),
-        ("builtin", None, None),
-        ("external", 2, [0.1, 0.2, 0.7]),
-        ("external", 1, [0.2, 0.6, 0.2]),
-        ("external", 0, [0.8, 0.1, 0.1]),
+        ("builtin", None),
+        ("builtin", None),
+        ("builtin", None),
+        ("external", [0.1, 0.2, 0.7]),
+        ("external", [0.2, 0.6, 0.2]),
+        ("external", [0.8, 0.1, 0.1]),
     ]
+    assert "predicted_class" not in pq.read_schema(output_path).names

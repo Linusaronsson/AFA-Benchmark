@@ -424,7 +424,7 @@ def process_df_only_stop_action_and_valid_prediction(
 ) -> pd.DataFrame | None:
     df_only_stop_action = df.loc[
         (df["action_performed"] == 0).fillna(False)
-        & df["predicted_class"].notna()
+        & df["predicted_probabilities"].notna()
     ]
 
     if df_only_stop_action.empty:
@@ -461,7 +461,7 @@ def process_df_every_action(
     df: pd.DataFrame, plotting_config: PlottingDisplayConfig
 ) -> pd.DataFrame | None:
     # Just like in process_df_only_stop_action, filter out null predictions
-    df = df.loc[df["predicted_class"].notna()]
+    df = df.loc[df["predicted_probabilities"].notna()]
 
     if df.empty:
         return None

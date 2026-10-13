@@ -146,8 +146,8 @@ classifier identity and the rest stay in the record only; they can be
 recovered by following `inputs`.
 
 The transform step then only derives plotting columns: it adds
-`n_selections_performed`, melts the prediction columns into `classifier` and
-`predicted_class`, and normalises nullable dtypes. It carries
+`n_selections_performed`, melts the probability columns into `classifier`
+and `predicted_probabilities`, and normalises nullable dtypes. It carries
 `dataset_instance_index` and `eval_split` through the melt, so transformed tables
 no longer lose them. The Snakemake rule keeps passing its
 wildcards, but they become checks instead of sources: a value that

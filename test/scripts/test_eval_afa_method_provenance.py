@@ -451,7 +451,6 @@ def test_evaluator_adapts_declared_logits_and_round_trips_probabilities(
 
     table = pd.read_parquet(path)
     SavedEvaluationSchema.validate(table)
-    assert table["builtin_predicted_class"].tolist() == [0] * len(table)
     assert all(
         vector.tolist() == [0.125] * 8
         for vector in table["builtin_predicted_probabilities"]
@@ -461,12 +460,7 @@ def test_evaluator_adapts_declared_logits_and_round_trips_probabilities(
             len(vector) == 8 and sum(vector) == pytest.approx(1.0)
             for vector in table["external_predicted_probabilities"]
         )
-        assert table["external_predicted_class"].tolist() == [
-            vector.argmax()
-            for vector in table["external_predicted_probabilities"]
-        ]
     else:
-        assert table["external_predicted_class"].isna().all()
         assert table["external_predicted_probabilities"].isna().all()
     assert evaluation_table_provenance(path) is not None
     assert (

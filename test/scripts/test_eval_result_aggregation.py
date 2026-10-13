@@ -23,7 +23,7 @@ def test_split_by_classifier_writes_one_file_per_classifier(
         pa.table(
             {
                 "classifier": ["builtin", "external", "builtin", "external"],
-                "predicted_class": pa.array([1, None, 0, 2], pa.uint64()),
+                "true_class": pa.array([1, 1, 0, 2], pa.uint64()),
                 "eval_hard_budget": pa.array(
                     [None, None, 3.0, 3.0], pa.float64()
                 ),
@@ -50,15 +50,15 @@ def test_split_by_classifier_writes_one_file_per_classifier(
     split_eval_perf_by_classifier.main()
 
     assert pq.read_table(builtin_path).to_pylist() == [
-        {"predicted_class": 1, "eval_hard_budget": None, "afa_method": "a"},
-        {"predicted_class": 0, "eval_hard_budget": 3.0, "afa_method": "b"},
+        {"true_class": 1, "eval_hard_budget": None, "afa_method": "a"},
+        {"true_class": 0, "eval_hard_budget": 3.0, "afa_method": "b"},
     ]
     assert pq.read_table(external_path).to_pylist() == [
-        {"predicted_class": None, "eval_hard_budget": None, "afa_method": "a"},
-        {"predicted_class": 2, "eval_hard_budget": 3.0, "afa_method": "b"},
+        {"true_class": 1, "eval_hard_budget": None, "afa_method": "a"},
+        {"true_class": 2, "eval_hard_budget": 3.0, "afa_method": "b"},
     ]
     expected_schema = {
-        "predicted_class": pa.uint64(),
+        "true_class": pa.uint64(),
         "eval_hard_budget": pa.float64(),
         "afa_method": pa.string(),
     }

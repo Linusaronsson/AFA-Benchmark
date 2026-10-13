@@ -235,16 +235,10 @@ class _RowBuffers:
         action = torch.cat(self.action).cpu().tolist()
         n_rows = len(idx)
 
-        def classes(buffer: list[torch.Tensor]) -> list[int | None]:
-            # A predict_fn that was never supplied yields a column of None,
-            # which is the object dtype callers already expect.
-            if not buffer:
-                return [None] * n_rows
-            return torch.cat(buffer).argmax(-1).cpu().tolist()
-
         def probabilities(
             buffer: list[torch.Tensor],
         ) -> list[list[float] | None]:
+            # A predict_fn that was never supplied yields a column of None.
             if not buffer:
                 return [None] * n_rows
             return torch.cat(buffer).cpu().tolist()
@@ -258,8 +252,6 @@ class _RowBuffers:
                     for _ in range(len(indices))
                 ],
                 "action_performed": action,
-                "builtin_predicted_class": classes(self.builtin),
-                "external_predicted_class": classes(self.external),
                 "builtin_predicted_probabilities": probabilities(self.builtin),
                 "external_predicted_probabilities": probabilities(
                     self.external
@@ -296,7 +288,7 @@ def process_batch(
     2. Runs out of selection budget and is forced to stop (action=0). More precisely, this means that if the next action was selected such that the budget would have been **exceeded**, we instead force the stop action.
 
     Predictions must be class probabilities in label class-index order.
-    Retains each vector and derives its most likely class.
+    Retains each vector; consumers decide how to turn it into a class.
 
     Args:
         afa_action_fn (AFAActionFn): How to make AFA actions. Should return 0 to stop or 1-n to select.
@@ -318,8 +310,6 @@ def process_batch(
             - "episode_id" (int): Episode identifier local to this batch.
             - "step" (int): Zero-based time step within the episode.
             - "action_performed" (int): Which action the method chose.
-            - "builtin_predicted_class" (int|None)
-            - "external_predicted_class" (int|None)
             - "builtin_predicted_probabilities" (list[float]|None)
             - "external_predicted_probabilities" (list[float]|None)
             - "true_class" (int)
@@ -490,8 +480,6 @@ def eval_afa_method(
             - "split_index" (int): The episode's instance's position in `dataset`.
             - "step" (int): Zero-based time step within the episode.
             - "action_performed" (int): Which action the method chose.
-            - "builtin_predicted_class" (int|None)
-            - "external_predicted_class" (int|None)
             - "builtin_predicted_probabilities" (list[float]|None)
             - "external_predicted_probabilities" (list[float]|None)
             - "true_class" (int)

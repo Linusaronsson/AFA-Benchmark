@@ -46,10 +46,6 @@ class BatchEvaluationSchema(pa.DataFrameModel):
     episode_id: Series[int] = pa.Field(ge=0)
     step: Series[int] = pa.Field(ge=0)
     action_performed: Series[int] = pa.Field(ge=0)
-    # Predictions use int64 when supplied and object/None otherwise. Avoid
-    # coercion so existing callers and Parquet artifacts keep their dtypes.
-    builtin_predicted_class: Series[Any] = pa.Field(nullable=True)
-    external_predicted_class: Series[Any] = pa.Field(nullable=True)
     # Object cells contain a full vector in label class-index order, or None.
     builtin_predicted_probabilities: Series[object] = pa.Field(nullable=True)
     external_predicted_probabilities: Series[object] = pa.Field(nullable=True)
@@ -65,15 +61,6 @@ class BatchEvaluationSchema(pa.DataFrameModel):
         except ValueError:
             return False
         return True
-
-    @pa.check(
-        "builtin_predicted_class",
-        "external_predicted_class",
-        element_wise=True,
-    )
-    @classmethod
-    def valid_prediction(cls, value: object) -> bool:
-        return _nonnegative_integer(value)
 
     class Config(pa.DataFrameModel.Config):
         strict: bool | Literal["filter"] = True
@@ -153,8 +140,7 @@ PLOTTING_READY_DTYPES = {
     "accumulated_cost": "Float64",
     "forced_stop": "boolean",
     "n_selections_performed": "UInt64",
-    "predicted_class": "UInt64",
-    # Full class-index-ordered vector after pairing each classifier's columns.
+    # Full class-index-ordered vector of the row's classifier, or null.
     "predicted_probabilities": "object",
     **IDENTITY_DTYPES,
 }

@@ -80,15 +80,15 @@ def assert_predictions(
     expected_predictions: list[int],
     prediction_type: str,
 ) -> None:
-    if prediction_type == "external":
-        prediction_col = "external_predicted_class"
-    elif prediction_type == "builtin":
-        prediction_col = "builtin_predicted_class"
-    else:
-        raise ValueError
-    predictions = df[df["episode_id"] == idx].sort_values("time")[
-        prediction_col
+    if prediction_type not in {"external", "builtin"}:
+        raise ValueError(prediction_type)
+    probabilities = df[df["episode_id"] == idx].sort_values("time")[
+        f"{prediction_type}_predicted_probabilities"
     ]
+    # The deterministic predict fn returns one-hot vectors.
+    predictions = probabilities.map(
+        lambda vector: max(range(len(vector)), key=vector.__getitem__)
+    )
     assert (predictions == expected_predictions).all(), (
         f"Expected {predictions.tolist()} and {expected_predictions} to be equal."
     )

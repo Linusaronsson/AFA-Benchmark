@@ -284,8 +284,9 @@ granularity:
 - **Raw evaluation tables** (`eval_results/.../eval_data.parquet`,
   `raw_path`) have one row per episode and time step, as described in
   [evaluation dataframes](evaluation_dataframes.md): `episode_id`,
-  `generation_index`, `split_index`, `step`, `action_performed`, `builtin_predicted_class`,
-  `external_predicted_class`, `true_class`, `accumulated_cost`, `forced_stop`,
+  `generation_index`, `split_index`, `step`, `action_performed`,
+  `builtin_predicted_probabilities`, `external_predicted_probabilities`,
+  `true_class`, `accumulated_cost`, `forced_stop`,
   and the identity columns `afa_method`, `dataset`,
   `dataset_realization_index`, `eval_split`, `initializer`, `train_seed`,
   `train_hard_budget`, `train_soft_budget_param`, `eval_seed`,
@@ -297,7 +298,7 @@ granularity:
   `transformed_path`) are produced by
   `scripts/misc/transform_eval_data_pipeline.py`. Each raw row becomes two
   rows, one per `classifier` (`builtin` or `external`) with its
-  `predicted_class`; `episode_id` and `step` are dropped in favour of
+  `predicted_probabilities`; `episode_id` and `step` are dropped in favour of
   `n_selections_performed`, so these are prediction/cost rows, not episode
   logs. They keep `generation_index` and `split_index` (null for tables
   transformed from legacy logs), every identity column and the raw table's
