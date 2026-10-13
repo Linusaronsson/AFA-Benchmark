@@ -6,6 +6,7 @@ their base in `test_in_memory_dataset.py`; Imagenette, which keeps only file
 lists in memory, is tested here.
 """
 
+import hashlib
 from pathlib import Path
 from typing import Any, cast
 
@@ -19,7 +20,7 @@ from torchvision import datasets
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
 from afabench.core.registry import REGISTERED_CLASSES, get_class
 from afabench.core.types import AFADataset
-from afabench.datasets import ImagenetteDataset
+from afabench.datasets import ImagenetteDataset, MetabricDataset
 from afabench.datasets.config import SplitRatioConfig
 from afabench.datasets.utils import MissingGenerationIndicesError
 from afabench.testing.provenance import placeholder_provenance
@@ -44,6 +45,7 @@ TABULAR_SOURCES: dict[str, tuple[int, list[object]]] = {
     ),
     "CKDDataset": (6, [i % 2 for i in range(N_ROWS)]),
     "ACTG175Dataset": (7, [(i // 2) % 2 for i in range(N_ROWS)]),
+    "MetabricDataset": (11, [i % 6 for i in range(N_ROWS)]),
 }
 
 
@@ -56,6 +58,14 @@ def write_tabular_source(class_name: str, path: Path) -> dict[str, Any]:
         columns=[f"f{i}" for i in range(n_features)],
     )
     frame["f0"] = np.arange(N_ROWS, dtype=float)
+    if class_name == "MetabricDataset":
+        frame.columns = list(MetabricDataset.FEATURE_COLUMNS)
+        frame[MetabricDataset.LABEL_COLUMN] = [
+            MetabricDataset.CLASSES[label] for label in labels
+        ]
+        frame.to_csv(path, index=False)
+        sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+        return {"root": str(path), "sha256": sha256}
     if class_name == "BankMarketingDataset":
         frame["y"] = labels
         frame.to_csv(path, sep=";", index=False)

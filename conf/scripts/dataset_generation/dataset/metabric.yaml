@@ -1,0 +1,4 @@
+class_name: "MetabricDataset"
+kwargs:
+  root: "data/metabric/METABRIC_RNA_Mutation.csv"
+  sha256: "d4802594827667a71a75b5ae5c3cad1eb4346222052fcc792361c64abc7e43bc"

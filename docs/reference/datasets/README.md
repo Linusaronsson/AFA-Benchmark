@@ -4,7 +4,8 @@ One page per [dataset key](../../../CONTEXT.md): where its data comes from,
 what its instances, label and features are, and how AFABench prepares it.
 Dataset keys without a page are not documented yet (#133).
 
-None yet.
+- [`metabric`](metabric.md): METABRIC breast tumours, molecular subtype
+  from 11 genes
 
 ## Page template
 

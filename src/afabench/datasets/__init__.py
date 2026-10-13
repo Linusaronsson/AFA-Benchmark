@@ -8,6 +8,7 @@ from .cube_nonuniform_costs import CubeNonUniformCostsDataset
 from .diabetes import DiabetesDataset
 from .fashion_mnist import FashionMNISTDataset
 from .imagenette import ImagenetteDataset
+from .metabric import MetabricDataset
 from .miniboone import MiniBooNEDataset
 from .miniboone_subset import MiniBooNESubsetDataset
 from .mnist import MNISTDataset
@@ -26,6 +27,7 @@ __all__ = [
     "FashionMNISTDataset",
     "ImagenetteDataset",
     "MNISTDataset",
+    "MetabricDataset",
     "MiniBooNEDataset",
     "MiniBooNESubsetDataset",
     "PhysionetChallenge2012Dataset",

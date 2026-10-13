@@ -13,4 +13,5 @@ eval_hard_budgets:
   imagenette: [5, 10, 15]
   miniboone: [5, 10, 15] # 40 features
   miniboone_subset: [1, 2, 3, 4] # 10 features
+  metabric: [3, 5, 7] # 11 features
   physionet_challenge_2012: [5, 10, 15] # 40 features

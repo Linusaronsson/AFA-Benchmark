@@ -37,6 +37,73 @@ def test_shipped_configs_load(profile: str) -> None:
     assert settings.methods
 
 
+def _shipped_all_profile(
+    soft_budget_profile: str, eval_hard_budget_profile: str = "all"
+) -> dict[str, object]:
+    """Return the `all` profile's merged config, with other budget profiles."""
+    configfiles = [
+        path.replace(
+            "soft_budget_params/all.yaml",
+            f"soft_budget_params/{soft_budget_profile}.yaml",
+        ).replace(
+            "eval_hard_budgets/all.yaml",
+            f"eval_hard_budgets/{eval_hard_budget_profile}.yaml",
+        )
+        for path in yaml.safe_load(
+            (
+                REPO_ROOT / "workflow/profiles/pipeline/all/config.yaml"
+            ).read_text()
+        )["configfile"]
+    ]
+    merged = dict(
+        resolve_workflow_config(
+            profile=None,
+            configfiles=[REPO_ROOT / path for path in configfiles],
+            overrides=[],
+        ).merged
+    )
+    # The smaller soft-budget profiles configure only some methods
+    methods = [
+        method
+        for method in merged["methods"]
+        if method in merged["soft_budget_params"]
+    ]
+    return merged | {"methods": methods, "method_sets": {}}
+
+
+@pytest.mark.parametrize("soft_budget_profile", ["all", "fast", "single"])
+def test_no_method_runs_metabric_in_the_soft_budget_setting(
+    soft_budget_profile: str,
+) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        settings = load_config(_shipped_all_profile(soft_budget_profile))
+
+    for method, per_dataset in settings.budget_params.items():
+        combinations = per_dataset["metabric"]
+        assert combinations, method
+        assert all(eval_hard != "null" for _, eval_hard, _, _ in combinations)
+
+
+@pytest.mark.parametrize("eval_hard_budget_profile", ["all", "fast", "single"])
+def test_l2m_trains_one_policy_for_every_metabric_hard_budget(
+    eval_hard_budget_profile: str,
+) -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        settings = load_config(
+            _shipped_all_profile("all", eval_hard_budget_profile)
+        )
+
+    for method in [
+        "l2m_real_feature_prior",
+        "l2m_synthetic_feature_prior",
+        "l2m_official",
+    ]:
+        combinations = settings.budget_params[method]["metabric"]
+        assert {train for train, _, _, _ in combinations} == {7}, method
+
+
 def test_load_config_uses_pipeline_defaults() -> None:
     settings = load_config(_config())
 

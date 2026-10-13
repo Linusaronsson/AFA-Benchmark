@@ -88,10 +88,10 @@ method_options:
     # results.
     eval_batch_size: &l2m_eval_batch_size
       default: 128
-    # Hard-budget setting on miniboone_subset only. L2M has no stop action
+    # Hard-budget setting on miniboone_subset and metabric only. L2M has no stop action
     # and its policy training does not depend on the budget, so one trained
     # policy serves every evaluation budget.
-    train_hard_budget: &l2m_train_hard_budget {miniboone_subset: 7}
+    train_hard_budget: &l2m_train_hard_budget {miniboone_subset: 7, metabric: 7}
     hard_budget_ignored_datasets: &l2m_ignored_datasets [actg, bank_marketing, ckd, cube, cube_nm, cube_nm_without_noise, cube_nonuniform_costs, cube_without_noise, diabetes, fashion_mnist, imagenette, miniboone, mnist, physionet_challenge_2012, synthetic_mnist, synthetic_mnist_without_noise]
   l2m_synthetic_feature_prior:
     pretrained_model_name: "l2m_synthetic_feature_prior"

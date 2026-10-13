@@ -26,6 +26,7 @@ DATASETS_TO_TEST = [
     ),
     ("CKDDataset", {"path": "data/ckd/chronic_kidney_disease.csv"}),
     ("ACTG175Dataset", {"path": "data/actg/actg.csv"}),
+    ("MetabricDataset", {"root": "data/metabric/METABRIC_RNA_Mutation.csv"}),
 ]
 
 # Datasets that require manually placing local files in data/<dataset>/.

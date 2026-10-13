@@ -7,6 +7,7 @@ DATASET_KEY_ALIASES: dict[str, str] = {
     "CubeNonUniformCostsDataset": "cube_nonuniform_costs",
     "FashionMNISTDataset": "fashion_mnist",
     "ImagenetteDataset": "imagenette",
+    "MetabricDataset": "metabric",
     "MiniBooNEDataset": "miniboone",
     "MiniBooNESubsetDataset": "miniboone_subset",
     "MNISTDataset": "mnist",

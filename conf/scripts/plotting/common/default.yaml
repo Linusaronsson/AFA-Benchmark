@@ -114,6 +114,7 @@ dataset_name_mapping:
   fashion_mnist: FashionMNIST
   miniboone: MiniBooNE
   miniboone_subset: MiniBooNE (10 features)
+  metabric: METABRIC
   physionet_challenge_2012: PhysioNet Challenge 2012
   imagenette: Imagenette
 

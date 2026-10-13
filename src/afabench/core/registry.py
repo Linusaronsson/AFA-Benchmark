@@ -44,6 +44,7 @@ REGISTERED_CLASSES = {
     "CKDDataset": "afabench.datasets.ckd.CKDDataset",
     "ACTG175Dataset": "afabench.datasets.actg.ACTG175Dataset",
     "ImagenetteDataset": "afabench.datasets.imagenette.ImagenetteDataset",
+    "MetabricDataset": "afabench.datasets.metabric.MetabricDataset",
     # AFA Classifier Classes
     "RandomDummyAFAClassifier": "afabench.components.classifiers.RandomDummyAFAClassifier",
     "UniformDummyAFAClassifier": "afabench.components.classifiers.UniformDummyAFAClassifier",
