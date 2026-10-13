@@ -155,16 +155,22 @@ def test_context_set_is_validation_instances_drawn_with_the_contract_seed(
     assert not torch.equal(context_sets["a"][0], context_sets["c"][0])
 
 
-def test_training_rejects_validation_split_smaller_than_context_set(
+@pytest.mark.parametrize("n_validation", [7, 8, 9])
+def test_training_caps_context_set_at_validation_size(
     tmp_path: Path,
+    n_validation: int,
 ) -> None:
-    cfg = _config(
-        tmp_path,
-        val_dataset=CubeDataset(n_samples=7, seed=1),
-        context_set_size=8,
+    val_dataset = CubeDataset(n_samples=n_validation, seed=1)
+    cfg = _config(tmp_path, val_dataset=val_dataset, context_set_size=8)
+
+    method = train_l2m(cfg, inputs=load_inputs(cfg))
+
+    assert method.context_features.shape == (min(n_validation, 8), N_FEATURES)
+    assert method.context_labels.shape == (min(n_validation, 8), N_CLASSES)
+    assert _are_instances_of(
+        torch.cat((method.context_features, method.context_labels), dim=1),
+        torch.cat(val_dataset.get_all_data(), dim=1),
     )
-    with pytest.raises(ValueError, match=r"7 instances.*context_set_size=8"):
-        train_l2m(cfg, inputs=load_inputs(cfg))
 
 
 @pytest.mark.parametrize("n_validation_tasks", [0, -1])

@@ -163,11 +163,8 @@ def train_l2m_official(
 def _check_config(cfg: L2MOfficialTrainingConfig, inputs: FitInputs) -> None:
     require_direct_unmasker(cfg.unmasker)
     n_validation = len(inputs.val_dataset())
-    if n_validation < cfg.context_set_size:
-        msg = (
-            f"The validation split has {n_validation} instances, fewer "
-            f"than context_set_size={cfg.context_set_size}"
-        )
+    if n_validation < 1:
+        msg = f"The validation split has {n_validation} instances; need at least 1"
         raise ValueError(msg)
     n_selections = inputs.unmasker().get_n_selections(
         inputs.train_dataset().feature_shape
@@ -189,11 +186,11 @@ def _draw_context_set(
     context_set_size: int,
     seed: int,
 ) -> tuple[Features, Label]:
-    """Draw the context set from the validation split with the contract seed."""
+    """Draw up to context_set_size validation instances with the contract seed."""
     features, labels = validation_data
     generator = torch.Generator().manual_seed(seed)
     indices = torch.randperm(len(features), generator=generator)[
-        :context_set_size
+        : min(len(features), context_set_size)
     ]
     return (
         features.reshape(len(features), n_features)[indices].clone(),

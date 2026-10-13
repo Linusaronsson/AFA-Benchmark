@@ -30,4 +30,4 @@ checkpoint_interval: 200 # checkpoint_interval_afa
 n_validation_tasks: 200 # eval_batch_size
 pretraining_pool_size: 5000 # pool_size
 mixed_precision: true
-context_set_size: 900 # this benchmark's choice, as for the other L2M variants
+context_set_size: 900 # maximum; capped at the validation split size

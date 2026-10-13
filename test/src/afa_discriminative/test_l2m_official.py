@@ -1,6 +1,7 @@
 """The L2M official fit stages and method, around the vendored code."""
 
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -225,6 +226,27 @@ def test_training_returns_a_method_that_survives_its_bundle(
     torch.testing.assert_close(
         restored.predict(features * mask, mask),
         method.predict(features * mask, mask),
+    )
+
+
+@pytest.mark.parametrize("context_set_size", [31, 32, 33])
+def test_training_caps_context_set_at_validation_size(
+    tmp_path: Path,
+    context_set_size: int,
+) -> None:
+    cfg = replace(
+        _training_config(tmp_path), context_set_size=context_set_size
+    )
+
+    method = train_l2m_official(cfg, inputs=load_inputs(cfg))
+
+    assert method.context_features.shape == (
+        min(32, context_set_size),
+        N_FEATURES,
+    )
+    assert method.context_labels.shape == (
+        min(32, context_set_size),
+        N_CLASSES,
     )
 
 

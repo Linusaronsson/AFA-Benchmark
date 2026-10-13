@@ -32,4 +32,4 @@ temperature: 0.1
 checkpoint_interval: 200 # not stated by the paper
 n_validation_tasks: 64 # not stated by the paper
 missingness_cap: 0.5
-context_set_size: 900 # this benchmark's choice; the paper varies it
+context_set_size: 900 # maximum; capped at the validation split size
