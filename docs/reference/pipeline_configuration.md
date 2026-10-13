@@ -292,11 +292,7 @@ method_options:
     use_max_hard_budget_when_training_soft_budget: true
     eval_batch_size:
       default: 8
-    eval_to_train_hard_budget_mapping:
-      cube_nonuniform_costs:
-        2: 20
-        4: 20
-        7: 20
+    train_hard_budget: {cube_nonuniform_costs: 20}
     hard_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
     soft_budget_ignored_datasets: [mnist, fashion_mnist, imagenette]
   odin_model_based:
@@ -309,7 +305,7 @@ method_options:
     hard_budget_ignored_datasets: [imagenette]
     soft_budget_ignored_datasets: [imagenette, mnist]
 ```
-defines two methods `eddi_external` and `odin_model_based` which both use the same pretrained `pvae` model. Furthermore, they use different batch sizes during evaluation and ignore some datasets. `eddi_external` is a bit special, in that it trains with a different hard budget during training compared to evaluation.
+defines two methods `eddi_external` and `odin_model_based` which both use the same pretrained `pvae` model. Furthermore, they use different batch sizes during evaluation and ignore some datasets. `eddi_external` is a bit special, in that on `cube_nonuniform_costs` it trains every hard-budget run with hard budget 20, whatever budget it is evaluated with.
 
 Usually during the *soft-budget* setting, the hard budget is disabled. `use_max_hard_budget_when_training_soft_budget` enforces the largest hard budget instead.
 
@@ -325,7 +321,8 @@ A `method_options` entry takes only these keys:
 | `eval_batch_size` | An integer for every dataset, or a mapping from dataset key to integer with a `default` for the others. If absent, evaluation uses batch size 1 and the pipeline warns. |
 | `hard_budget_ignored_datasets` | Dataset keys the method is not trained or evaluated on in the hard-budget setting. |
 | `soft_budget_ignored_datasets` | The same for the soft-budget setting. |
-| `eval_to_train_hard_budget_mapping` | Per dataset key, the train hard budget for an eval hard budget; unmapped budgets train at the eval hard budget. |
+| `train_hard_budget` | Per dataset key, the one train hard budget of every hard-budget run on that dataset, whatever its eval hard budget. Other datasets train at the eval hard budget. |
+| `eval_to_train_hard_budget_mapping` | Per dataset key, the train hard budget for each eval hard budget, when one train hard budget does not fit them all. It must map every eval hard budget the dataset gets. |
 | `use_max_hard_budget_when_training_soft_budget` | `true` to train soft-budget runs under the largest train hard budget. |
 | `classifier` | The method's built-in classifier: `script_name` and optional `script_params`, trained instead of the external classifier. |
 
@@ -336,9 +333,14 @@ Each error names the method and the key or value at fault:
 - An unknown key in a `method_options` entry, such as a misspelt
   `pretrained_model_nme`, or a missing `train_script_name`, is rejected, for
   every entry, whether or not the method is selected.
-- An ignored dataset must be a dataset key, a file in
+- An ignored dataset, and a dataset in `train_hard_budget` or
+  `eval_to_train_hard_budget_mapping`, must be a dataset key, a file in
   `conf/components/dataset_key/`. It need not be in this run's
   `datasets`, which only selects what runs.
+- A dataset takes `train_hard_budget` or `eval_to_train_hard_budget_mapping`,
+  not both, and its `eval_to_train_hard_budget_mapping` must map every eval
+  hard budget it gets in the run, unless the method ignores it in the
+  hard-budget setting.
 - `eval_batch_size`, when a mapping, needs a `default`.
 - A `pretrain_mapping` entry takes only `pretrain_script_name`, which it
   requires, and `pretrain_params`.

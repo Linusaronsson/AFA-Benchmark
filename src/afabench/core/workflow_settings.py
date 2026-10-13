@@ -79,7 +79,10 @@ class MethodOptions:
     eval_batch_size: int | dict[str, int] | None = None
     hard_budget_ignored_datasets: list[str] = field(default_factory=list)
     soft_budget_ignored_datasets: list[str] = field(default_factory=list)
-    # dataset -> eval hard budget -> train hard budget
+    # dataset -> the train hard budget of every hard-budget run on it
+    train_hard_budget: dict[str, int | float] = field(default_factory=dict)
+    # dataset -> eval hard budget -> train hard budget; covers every eval
+    # hard budget the dataset gets
     eval_to_train_hard_budget_mapping: dict[
         str, dict[int | float, int | float]
     ] = field(default_factory=dict)
@@ -516,6 +519,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     budget_params = {
         method: {
             dataset: _create_budget_combinations(
+                method,
                 options,
                 dataset,
                 eval_hard_budgets[dataset],
@@ -663,17 +667,33 @@ def _method_options(
         raise ValueError(message)
     # Any known dataset key, not only this run's datasets: `datasets` is a
     # runtime filter, the ignored datasets a property of the method.
-    for label, ignored in [
+    for label, keys in [
         ("hard_budget_ignored_datasets", parsed.hard_budget_ignored_datasets),
         ("soft_budget_ignored_datasets", parsed.soft_budget_ignored_datasets),
+        ("train_hard_budget", list(parsed.train_hard_budget)),
+        (
+            "eval_to_train_hard_budget_mapping",
+            list(parsed.eval_to_train_hard_budget_mapping),
+        ),
     ]:
-        unknown = sorted(set(ignored) - known_dataset_keys)
+        unknown = sorted(set(keys) - known_dataset_keys)
         if unknown:
             message = (
                 f"method_options[{method!r}]: {label} {unknown} are not "
                 f"dataset keys (files in {DATASET_KEY_DIR})."
             )
             raise ValueError(message)
+    both = sorted(
+        set(parsed.train_hard_budget)
+        & set(parsed.eval_to_train_hard_budget_mapping)
+    )
+    if both:
+        message = (
+            f"method_options[{method!r}]: {both} have both a "
+            "train_hard_budget and an eval_to_train_hard_budget_mapping; "
+            "give one."
+        )
+        raise ValueError(message)
     return parsed
 
 
@@ -895,6 +915,7 @@ def _eval_batch_sizes(
 
 
 def _create_budget_combinations(
+    method: str,
     options: MethodOptions,
     dataset: str,
     eval_hard_budgets: Sequence[int | float],
@@ -909,14 +930,9 @@ def _create_budget_combinations(
     of a method that trains soft-budget runs under its largest one. A dataset
     the method ignores in a setting gets no combinations for it.
     """
-    dataset_mapping = options.eval_to_train_hard_budget_mapping.get(
-        dataset, {}
+    train_hard_budgets = _train_hard_budgets(
+        method, options, dataset, eval_hard_budgets
     )
-    # An eval hard budget without a mapping is also the train hard budget.
-    train_hard_budgets = [
-        dataset_mapping.get(eval_budget, eval_budget)
-        for eval_budget in eval_hard_budgets
-    ]
     result: list[BudgetCombination] = []
     if dataset not in options.hard_budget_ignored_datasets:
         result.extend(
@@ -944,6 +960,35 @@ def _create_budget_combinations(
             )
         )
     return result
+
+
+def _train_hard_budgets(
+    method: str,
+    options: MethodOptions,
+    dataset: str,
+    eval_hard_budgets: Sequence[int | float],
+) -> list[int | float]:
+    """Return the train hard budget of each eval hard budget."""
+    if dataset in options.train_hard_budget:
+        return [options.train_hard_budget[dataset]] * len(eval_hard_budgets)
+    if dataset not in options.eval_to_train_hard_budget_mapping:
+        return list(eval_hard_budgets)
+    dataset_mapping = options.eval_to_train_hard_budget_mapping[dataset]
+    # A partial mapping once trained the unmapped budgets on their own
+    # without anyone noticing.
+    unmapped = [
+        budget for budget in eval_hard_budgets if budget not in dataset_mapping
+    ]
+    if unmapped and dataset not in options.hard_budget_ignored_datasets:
+        message = (
+            f"method_options[{method!r}]: eval_to_train_hard_budget_mapping "
+            f"for {dataset!r} does not map the eval hard budgets {unmapped}; "
+            "map every one, or use train_hard_budget."
+        )
+        raise ValueError(message)
+    return [
+        dataset_mapping.get(budget, budget) for budget in eval_hard_budgets
+    ]
 
 
 def _normalize_nullable_param(value: NullableParam) -> BudgetParam:

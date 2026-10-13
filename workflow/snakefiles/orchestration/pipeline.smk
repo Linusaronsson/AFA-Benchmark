@@ -219,8 +219,11 @@ Config files (--configfile):
         soft_budget_params_*.yaml,
         unmaskers.yaml (values are files in conf/components/unmasker/)
 
-    Note: method_options.yaml can include eval_to_train_hard_budget_mapping to
-    specify different budgets for training vs evaluation per method/dataset.
+    Note: method_options.yaml can include train_hard_budget to train every
+    hard-budget run of a method on a dataset with one hard budget, or
+    eval_to_train_hard_budget_mapping to give the train hard budget of each
+    eval hard budget per method/dataset; a mapping must cover every eval hard
+    budget the dataset gets.
 
     Note: method_options.yaml can include eval_batch_size to specify different
     batch sizes for evaluation per method and dataset. Format:

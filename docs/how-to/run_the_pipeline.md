@@ -304,7 +304,8 @@ workflow/run.py ... "eval_hard_budgets={cube: [], mnist: []}"
 ```
 
 Methods train with the hard budget they are evaluated with, unless their
-`method_options` entry sets `eval_to_train_hard_budget_mapping` (see
+`method_options` entry sets `train_hard_budget` or
+`eval_to_train_hard_budget_mapping` (see
 [method option keys](../reference/pipeline_configuration.md#method-option-keys-and-validation)).
 
 ## Change the soft-budget parameters

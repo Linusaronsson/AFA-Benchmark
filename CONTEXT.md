@@ -166,7 +166,9 @@ _Avoid_: Oracle (reserved for the oracle-based paradigm)
 
 **Hard budget**:
 A per-instance cap on accumulated selection cost. With unit costs it equals
-the number of allowed selections, not the number of features.
+the number of allowed selections, not the number of features. May differ
+between training and evaluation: a method may train once under one hard
+budget and be evaluated at several.
 _Avoid_: Feature budget, max features, k
 
 **Soft-budget parameter**:

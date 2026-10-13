@@ -352,6 +352,89 @@ def test_eval_to_train_hard_budget_mapping_sets_the_train_hard_budget(
     assert (3, 1, "null", "null") in settings.budget_params["alpha"]["cube"]
 
 
+def test_partial_eval_to_train_hard_budget_mapping_is_rejected() -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "eval_to_train_hard_budget_mapping": {"cube": {1: 3}},
+            }
+        }
+    )
+    config["eval_hard_budgets"] = {"default": [1, 2]}
+
+    with pytest.raises(
+        ValueError, match=r"'alpha'.*'cube'.*eval hard budgets \[2\]"
+    ):
+        load_config(config)
+
+
+def test_partial_mapping_is_allowed_on_a_hard_budget_ignored_dataset() -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "eval_to_train_hard_budget_mapping": {"cube": {2: 3}},
+                "hard_budget_ignored_datasets": ["cube"],
+            }
+        }
+    )
+
+    settings = load_config(config)
+
+    assert settings.budget_params["alpha"]["cube"] == [
+        ("null", "null", 0.1, 0.1)
+    ]
+
+
+def test_train_hard_budget_trains_every_eval_hard_budget_at_it() -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "use_max_hard_budget_when_training_soft_budget": True,
+                "train_hard_budget": {"cube": 7},
+            }
+        },
+        datasets=["cube", "mnist"],
+    )
+    config["eval_hard_budgets"] = {"default": [1, 3]}
+
+    settings = load_config(config)
+
+    assert settings.budget_params["alpha"] == {
+        "cube": [
+            (7, 1, "null", "null"),
+            (7, 3, "null", "null"),
+            (7, "null", 0.1, 0.1),
+        ],
+        "mnist": [
+            (1, 1, "null", "null"),
+            (3, 3, "null", "null"),
+            (3, "null", 0.1, 0.1),
+        ],
+    }
+
+
+def test_train_hard_budget_and_mapping_for_one_dataset_are_rejected() -> None:
+    config = _config(
+        method_options={
+            "alpha": {
+                "train_script_name": "alpha",
+                "eval_batch_size": 1,
+                "train_hard_budget": {"cube": 7},
+                "eval_to_train_hard_budget_mapping": {"cube": {1: 7}},
+            }
+        }
+    )
+
+    with pytest.raises(ValueError, match=r"'alpha'.*\['cube'\].*give one"):
+        load_config(config)
+
+
 def test_method_without_train_script_name_is_rejected() -> None:
     config = _config(method_options={"alpha": {"eval_batch_size": 1}})
 
@@ -409,15 +492,23 @@ def test_method_missing_from_soft_budget_params_is_rejected() -> None:
 
 
 @pytest.mark.parametrize(
-    "option", ["hard_budget_ignored_datasets", "soft_budget_ignored_datasets"]
+    ("option", "value"),
+    [
+        ("hard_budget_ignored_datasets", ["imagenete"]),
+        ("soft_budget_ignored_datasets", ["imagenete"]),
+        ("train_hard_budget", {"imagenete": 7}),
+        ("eval_to_train_hard_budget_mapping", {"imagenete": {1: 7}}),
+    ],
 )
-def test_unknown_ignored_dataset_key_is_rejected(option: str) -> None:
+def test_unknown_dataset_key_in_method_options_is_rejected(
+    option: str, value: object
+) -> None:
     config = _config(
         method_options={
             "alpha": {
                 "train_script_name": "alpha",
                 "eval_batch_size": 1,
-                option: ["imagenete"],
+                option: value,
             }
         }
     )
