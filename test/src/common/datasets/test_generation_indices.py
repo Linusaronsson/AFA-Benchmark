@@ -8,7 +8,7 @@ lists in memory, is tested here.
 
 import hashlib
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 import pandas as pd
@@ -28,6 +28,9 @@ from scripts.dataset_generation.generate_dataset import generate_and_save_split
 from scripts.dataset_generation.generate_image_dataset import (
     generate_and_save_image_split,
 )
+
+if TYPE_CHECKING:
+    from afabench.datasets.tabular_csv import TabularCSVDataset
 
 N_ROWS = 20
 SPLITS = ("train", "val", "test")
@@ -50,7 +53,7 @@ TABULAR_SOURCES: dict[str, tuple[int, list[object]]] = {
 
 
 def write_tabular_source(class_name: str, path: Path) -> dict[str, Any]:
-    """Write a CSV source whose first feature is the row number."""
+    """Write a CSV source whose first feature is the row number; return the kwargs that read it."""
     n_features, labels = TABULAR_SOURCES[class_name]
     rng = np.random.default_rng(0)
     frame = pd.DataFrame(
@@ -58,23 +61,21 @@ def write_tabular_source(class_name: str, path: Path) -> dict[str, Any]:
         columns=[f"f{i}" for i in range(n_features)],
     )
     frame["f0"] = np.arange(N_ROWS, dtype=float)
+    separator = ","
     if class_name == "MetabricDataset":
         frame.columns = list(MetabricDataset.FEATURE_COLUMNS)
         frame[MetabricDataset.LABEL_COLUMN] = [
             MetabricDataset.CLASSES[label] for label in labels
         ]
-        frame.to_csv(path, index=False)
-        sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
-        return {"root": str(path), "sha256": sha256}
-    if class_name == "BankMarketingDataset":
+    elif class_name == "BankMarketingDataset":
         frame["y"] = labels
-        frame.to_csv(path, sep=";", index=False)
-        return {"path": str(path)}
-    frame["target"] = labels
-    frame.to_csv(path, index=False)
-    if class_name in {"BankMarketingDataset", "CKDDataset", "ACTG175Dataset"}:
-        return {"path": str(path)}
-    return {"root": str(path)}
+        separator = ";"
+    else:
+        frame["target"] = labels
+    frame.to_csv(path, sep=separator, index=False)
+    sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+    dataset_class = cast("type[TabularCSVDataset]", get_class(class_name))
+    return {dataset_class.source_config_key: str(path), "sha256": sha256}
 
 
 def fake_torchvision_mnist(

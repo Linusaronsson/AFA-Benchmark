@@ -1,5 +1,6 @@
 """MiniBooNE drops its placeholder and outlier rows and maps the rest to source rows (issue #129, ADR 0004)."""
 
+import hashlib
 from pathlib import Path
 from typing import cast
 
@@ -38,12 +39,18 @@ def write_source(path: Path) -> Path:
     return path
 
 
+def miniboone(path: Path) -> MiniBooNEDataset:
+    source = write_source(path)
+    sha256 = hashlib.sha256(source.read_bytes()).hexdigest()
+    return MiniBooNEDataset(root=str(source), sha256=sha256)
+
+
 def kept_rows() -> list[int]:
     return [i for i in range(N_ROWS) if i not in DROPPED_ROWS]
 
 
 def test_placeholder_and_outlier_rows_are_dropped(tmp_path: Path) -> None:
-    dataset = MiniBooNEDataset(root=str(write_source(tmp_path / "m.csv")))
+    dataset = miniboone(tmp_path / "m.csv")
 
     features, labels = dataset.get_all_data()
 
@@ -54,7 +61,7 @@ def test_placeholder_and_outlier_rows_are_dropped(tmp_path: Path) -> None:
 
 
 def test_source_rows_locate_instances_in_the_source(tmp_path: Path) -> None:
-    dataset = MiniBooNEDataset(root=str(write_source(tmp_path / "m.csv")))
+    dataset = miniboone(tmp_path / "m.csv")
 
     subset = dataset.create_subset([5, 0, 2])
 
@@ -72,7 +79,10 @@ def test_split_bundles_keep_source_rows(tmp_path: Path, split: str) -> None:
         split_ratio=SplitRatioConfig(train=0.6, val=0.2, test=0.2),
         seed_for_split=5,
         save_path=tmp_path / "out",
-        dataset_kwargs={"root": str(source)},
+        dataset_kwargs={
+            "root": str(source),
+            "sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
+        },
         metadata_to_save={},
         dataset_key="miniboone",
         dataset_realization_index=0,

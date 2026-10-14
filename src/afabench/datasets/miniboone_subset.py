@@ -20,6 +20,7 @@ class MiniBooNESubsetDataset(TabularCSVDataset):
     """
 
     config_keys: ClassVar[tuple[str, ...]] = ("root",)
+    SHA256: ClassVar[str] = MiniBooNEDataset.SHA256
 
     # Zero-based positions of source columns "Feature 1", "Feature 2",
     # "Feature 3", "Feature 4", "Feature 12", "Feature 17", "Feature 23",
@@ -47,9 +48,18 @@ class MiniBooNESubsetDataset(TabularCSVDataset):
     def label_shape(self) -> torch.Size:
         return torch.Size([2])
 
-    def __init__(self, root: str = "data/miniboone/miniboone.csv"):
+    def __init__(
+        self,
+        root: str = "data/miniboone/miniboone.csv",
+        sha256: str | None = None,
+    ):
         self.root = root
-        super().__init__(Path(root))
+        super().__init__(Path(root), sha256)
+
+    @classmethod
+    @override
+    def make_prepared_source(cls) -> bytes:
+        return MiniBooNEDataset.make_prepared_source()
 
     @override
     def _read_source(self) -> tuple[pd.DataFrame, pd.Series]:

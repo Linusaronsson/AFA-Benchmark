@@ -9,13 +9,18 @@ from afabench.datasets.tabular_csv import TabularCSVDataset
 @final
 class DiabetesDataset(TabularCSVDataset):
     """
-    Diabetes dataset wrapped to follow the AFADataset protocol.
+    NHANES participants classified as normal, prediabetic or diabetic from 45 features.
 
-    This dataset contains medical measurements and indicators for diabetes classification.
-    The target variable has 3 classes (0, 1, 2) representing different diabetes outcomes.
+    The source is the CSV of the GDFS repository, which holds Kachuee et
+    al.'s preprocessing of NHANES 1999-2016; nothing in this repository
+    rebuilds it, so it has no source preparation.
     """
 
     config_keys: ClassVar[tuple[str, ...]] = ("root",)
+    # datasets/diabetes.csv of iancovert/dynamic-selection at e2b6f74
+    SHA256: ClassVar[str] = (
+        "0a7cb293c8819907a44f993e13e62fa00e93457ee7ccfab36ebe761b66df6c3b"
+    )
 
     @property
     @override
@@ -27,6 +32,10 @@ class DiabetesDataset(TabularCSVDataset):
     def label_shape(self) -> torch.Size:
         return torch.Size([3])
 
-    def __init__(self, root: str = "data/diabetes/diabetes.csv"):
+    def __init__(
+        self,
+        root: str = "data/diabetes/diabetes.csv",
+        sha256: str | None = None,
+    ):
         self.root = root
-        super().__init__(Path(root))
+        super().__init__(Path(root), sha256)

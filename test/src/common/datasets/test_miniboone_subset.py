@@ -1,5 +1,6 @@
 """The MiniBooNE subset is MiniBooNE restricted to the L2M paper's features."""
 
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -38,8 +39,9 @@ def test_subset_is_miniboone_restricted_to_the_paper_features(
     path = tmp_path / "miniboone.csv"
     source.to_csv(path, index=False)
 
-    subset = MiniBooNESubsetDataset(root=str(path))
-    full = MiniBooNEDataset(root=str(path))
+    sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+    subset = MiniBooNESubsetDataset(root=str(path), sha256=sha256)
+    full = MiniBooNEDataset(root=str(path), sha256=sha256)
 
     assert subset.feature_names == PAPER_FEATURES
     columns = [full.feature_names.index(name) for name in PAPER_FEATURES]
