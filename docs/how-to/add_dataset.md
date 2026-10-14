@@ -162,7 +162,7 @@ The scripts select the dataset through
 method then runs on its default hyperparameters, which suit tabular
 datasets. Where a method needs other values on your dataset (an image
 backbone, longer training), add a dataset override in
-`conf/scripts/<stage>/<method>/experiment/my_dataset.yaml`; `imagenette`'s
+`conf/scripts/<stage>/<method>/dataset_override/my_dataset.yaml`; `imagenette`'s
 files show the image case.
 
 ### 5. Add a readable name

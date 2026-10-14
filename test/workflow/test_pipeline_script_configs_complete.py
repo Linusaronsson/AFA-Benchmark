@@ -2,7 +2,7 @@
 Every script config the pipeline runs composes without missing values.
 
 A method's root config gives every hyperparameter a default, and its
-optional `experiment/<key>.yaml` only overrides some on one dataset key
+optional `dataset_override/<key>.yaml` only overrides some on one dataset key
 (`docs/how-to/add_method.md`). A hyperparameter without a default is left
 `???` on every dataset key without an override, and the job fails on the
 cluster with `MissingMandatoryValue`. Composing each (script, dataset) pair

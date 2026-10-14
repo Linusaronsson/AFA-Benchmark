@@ -59,7 +59,7 @@ run_stage dataset python scripts/dataset_generation/generate_dataset.py \
 # L2M does not use the external classifier during fitting. One epoch makes
 # a valid prerequisite bundle and permits throughput-only evaluation.
 run_stage classifier python scripts/train_classifier/masked_mlp_classifier.py \
-    experiment@_global_=miniboone initializer=cold unmasker=direct device=cuda seed=0 \
+    dataset_override@_global_=miniboone initializer=cold unmasker=direct device=cuda seed=0 \
     "train_dataset_path=$root/datasets/0/train.bundle" \
     "val_dataset_path=$root/datasets/0/val.bundle" \
     "save_path=$root/classifier.bundle" epochs=1 use_wandb=false smoke_test=false \

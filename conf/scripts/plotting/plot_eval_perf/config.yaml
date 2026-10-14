@@ -9,7 +9,7 @@ defaults:
   - hydra: custom
   - /scripts/plotting/common@plotting: default
   - _self_
-  - optional experiment@_global_: null
+  - optional dataset_override@_global_: null
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
 

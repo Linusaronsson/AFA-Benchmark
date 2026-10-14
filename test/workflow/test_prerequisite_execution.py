@@ -63,10 +63,10 @@ def test_external_and_method_classifiers_are_independent_of_policy_training(
     assert result.returncode == 0, commands
     external = commands.split(
         "python scripts/train_classifier/masked_mlp_classifier.py", 1
-    )[1].split("experiment@_global_=cube", 1)[0]
+    )[1].split("dataset_override@_global_=cube", 1)[0]
     specific = commands.split("python scripts/train_classifier/special.py", 1)[
         1
-    ].split("experiment@_global_=cube", 1)[0]
+    ].split("dataset_override@_global_=cube", 1)[0]
     assert "device=cuda" in external
     assert "device=cpu" in specific
     assert "dataset-cube+realization_index-0.bundle" in external

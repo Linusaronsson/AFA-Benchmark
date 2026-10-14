@@ -1,12 +1,12 @@
 """
-Experiment files may not set training-contract fields.
+Dataset overrides may not set training-contract fields.
 
 Snakemake always overrides contract fields on the command line, so a
-contract field set in an experiment YAML is dead in the pipeline and only
+contract field set in a dataset override YAML is dead in the pipeline and only
 misleads a developer running the script by hand (see
 `docs/explanation/training_contract_inventory.md`, issue #43). This test covers every
 method under `conf/scripts/`. `NOT_YET_PORTED` lists the methods whose
-experiment files are known to still set contract fields, pending their
+dataset overrides are known to still set contract fields, pending their
 training-contract port (see the open "Port ... to the training contract
 helpers" issues); their cases are `xfail(strict=True)` so a forgotten
 removal from the set turns into a failure once a port actually fixes the
@@ -32,7 +32,7 @@ _STAGE_CONTRACT_FIELDS = {
 NOT_YET_PORTED: dict[str, frozenset[str]] = {}
 
 
-def _experiment_files() -> list[tuple[Path, frozenset[str], bool]]:
+def _dataset_override_files() -> list[tuple[Path, frozenset[str], bool]]:
     cases = []
     for stage, contract_fields in _STAGE_CONTRACT_FIELDS.items():
         stage_dir = SCRIPTS_CONF / stage
@@ -41,40 +41,40 @@ def _experiment_files() -> list[tuple[Path, frozenset[str], bool]]:
             raise FileNotFoundError(msg)
         not_yet_ported = NOT_YET_PORTED.get(stage, frozenset())
         for method_dir in sorted(stage_dir.iterdir()):
-            experiment_dir = method_dir / "experiment"
-            if not experiment_dir.is_dir():
+            override_dir = method_dir / "dataset_override"
+            if not override_dir.is_dir():
                 continue
             is_known_violator = method_dir.name in not_yet_ported
             cases.extend(
-                (experiment_file, contract_fields, is_known_violator)
-                for experiment_file in sorted(experiment_dir.glob("*.yaml"))
+                (override_file, contract_fields, is_known_violator)
+                for override_file in sorted(override_dir.glob("*.yaml"))
             )
     return cases
 
 
-def _case_id(experiment_file: Path) -> str:
-    return "/".join(experiment_file.parts[-4:])
+def _case_id(override_file: Path) -> str:
+    return "/".join(override_file.parts[-4:])
 
 
-_CASES = _experiment_files()
+_CASES = _dataset_override_files()
 assert _CASES, (
-    f"no experiment files found under {SCRIPTS_CONF}; "
+    f"no dataset overrides found under {SCRIPTS_CONF}; "
     "check that the stage/method layout did not change"
 )
 
 
 @pytest.mark.parametrize(
-    ("experiment_file", "contract_fields"),
+    ("override_file", "contract_fields"),
     [
         pytest.param(
-            experiment_file,
+            override_file,
             contract_fields,
-            id=_case_id(experiment_file),
+            id=_case_id(override_file),
             marks=(
                 [
                     pytest.mark.xfail(
                         reason=(
-                            f"{experiment_file.parts[-3]} not yet ported "
+                            f"{override_file.parts[-3]} not yet ported "
                             "to the training contract"
                         ),
                         strict=True,
@@ -84,17 +84,17 @@ assert _CASES, (
                 else []
             ),
         )
-        for experiment_file, contract_fields, is_known_violator in _CASES
+        for override_file, contract_fields, is_known_violator in _CASES
     ],
 )
-def test_experiment_file_does_not_set_a_contract_field(
-    experiment_file: Path, contract_fields: frozenset[str]
+def test_dataset_override_does_not_set_a_contract_field(
+    override_file: Path, contract_fields: frozenset[str]
 ) -> None:
-    content = OmegaConf.load(experiment_file)
+    content = OmegaConf.load(override_file)
     keys = {key for key in content if isinstance(key, str)}
 
     violations = keys & contract_fields
 
     assert violations == set(), (
-        f"{experiment_file} sets contract field(s) {violations}"
+        f"{override_file} sets contract field(s) {violations}"
     )

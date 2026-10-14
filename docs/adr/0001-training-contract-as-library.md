@@ -55,8 +55,8 @@ dataset key is the method's business.
   does it on every parse; a unit test enforces this, and the conformance test
   checks the rendered arguments end to end.
 - **Per-dataset hyperparameters stay with each method.** The repo's own
-  methods keep Hydra experiment-per-dataset files, deduplicated through shared
-  family files. Experiment files may not set contract fields, and a test
+  methods keep Hydra dataset overrides, deduplicated through shared
+  family files. Dataset overrides may not set contract fields, and a test
   enforces this.
 - **Conformance test.** Every method script is run as a subprocess on a
   generated smoke dataset with contract arguments and must produce a loadable

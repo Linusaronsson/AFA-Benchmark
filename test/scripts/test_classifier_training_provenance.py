@@ -67,7 +67,7 @@ def _overrides(train_path: Path, val_path: Path, save_path: Path) -> list[str]:
         f"seed={SEED}",
         "use_wandb=False",
         "smoke_test=True",
-        "experiment@_global_=cube",
+        "dataset_override@_global_=cube",
         "epochs=1",
         "num_cells=[4]",
     ]

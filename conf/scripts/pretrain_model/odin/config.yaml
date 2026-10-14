@@ -12,7 +12,7 @@ defaults:
   - dataset_key: ???
   - /components/masked_pretraining@_global_: default
   - _self_
-  - optional experiment@_global_: ${dataset_key}
+  - optional dataset_override@_global_: ${dataset_key}
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm

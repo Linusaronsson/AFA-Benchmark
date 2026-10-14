@@ -152,7 +152,7 @@ defaults:
   - unmasker: ???
   - dataset_key: ???
   - _self_
-  - optional experiment@_global_: ${dataset_key}
+  - optional dataset_override@_global_: ${dataset_key}
   - override hydra/job_logging: output_dir_colorlog
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
@@ -259,9 +259,9 @@ Hyperparameters beyond the contract are entirely the method author's choice
 — the contract says nothing about them. The repo's own methods follow one
 convention, recommended as the default: the root config gives every
 hyperparameter a default, and a dataset override,
-`conf/scripts/train_method/<method>/experiment/<dataset key>.yaml`, changes
+`conf/scripts/train_method/<method>/dataset_override/<dataset key>.yaml`, changes
 some of them on one dataset key. It is selected automatically through
-`optional experiment@_global_: ${dataset_key}` in the root config (already
+`optional dataset_override@_global_: ${dataset_key}` in the root config (already
 present in the YAML in section 2), so it only exists for dataset keys that
 need other values. A dataset key without one runs on the defaults, so a new
 dataset never fails for lack of a file;
@@ -280,15 +280,15 @@ Three rules keep this convention from drifting back into the duplication
 - **Overrides hold only what differs from the defaults.** A file that
   restates the defaults hides which datasets actually deviate.
 
-- **Experiment files may not set contract fields.** Snakemake always passes
+- **Dataset overrides may not set contract fields.** Snakemake always passes
   `hard_budget`, `seed`, `device` and the rest on the command line, so a
-  value set in an experiment file is silently dead in the pipeline and only
-  misleads someone running the script by hand. `test/workflow/test_experiment_files_omit_contract_fields.py`
+  value set in a dataset override is silently dead in the pipeline and only
+  misleads someone running the script by hand. `test/workflow/test_dataset_overrides_omit_contract_fields.py`
   enforces this for every method; add your method's name there if you
   intentionally leave this for later (see `NOT_YET_PORTED` in that file for
   the pattern), but satisfy it before considering the method done.
 - **Deduplicate across dataset keys through shared family files**, pulled in
-  via the experiment file's own `defaults:` list, rather than copying the
+  via the dataset override's own `defaults:` list, rather than copying the
   same hyperparameters into every dataset key's file. Group by whatever the
   hyperparameters actually vary with (for example tabular vs. image
   datasets), not by listing every dataset key's file by hand.

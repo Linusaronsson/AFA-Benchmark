@@ -181,7 +181,7 @@ class TabularSetup(ModalitySetup):
     def min_lr(
         self, configured: float | None, *, upstream_default: float
     ) -> float:
-        # The tabular experiment configs set no min_lr
+        # The tabular dataset overrides set no min_lr
         return upstream_default if configured is None else configured
 
     @override

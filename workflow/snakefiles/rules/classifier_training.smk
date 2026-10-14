@@ -95,7 +95,7 @@ rule train_classifier:
             seed={wildcards.dataset_realization_index} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            experiment@_global_={wildcards.dataset} \
+            dataset_override@_global_={wildcards.dataset} \
             {params.script_params}
         """
 
@@ -162,6 +162,6 @@ rule train_classifier_for_method:
             seed={wildcards.dataset_realization_index} \
             use_wandb={USE_WANDB} \
             smoke_test={SMOKE_TEST} \
-            experiment@_global_={wildcards.dataset} \
+            dataset_override@_global_={wildcards.dataset} \
             {params.script_params}
         """
