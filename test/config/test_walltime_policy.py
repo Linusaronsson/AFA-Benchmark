@@ -1,6 +1,9 @@
 """Site walltime lookup and eager configuration validation."""
 
+from pathlib import Path
+
 import pytest
+import yaml
 
 from workflow.src.walltime import WalltimePolicy
 
@@ -11,6 +14,34 @@ def policy(config: object) -> WalltimePolicy:
         methods={"dime", "l2m_real_feature_prior"},
         pretrained_models={"dime", "shared"},
         datasets={"miniboone", "cube"},
+    )
+
+
+def test_arrhenius_l2m_training_limit_is_dataset_specific() -> None:
+    site_path = (
+        Path(__file__).resolve().parents[2]
+        / "workflow/profiles/site/arrhenius/site.yaml"
+    )
+    site = yaml.safe_load(site_path.read_text())
+    walltime = WalltimePolicy(
+        site["walltime"],
+        methods={"l2m_official", "dime"},
+        pretrained_models={"l2m_official"},
+        datasets={"miniboone_subset", "metabric"},
+    )
+
+    assert (
+        walltime.minutes("train_method", "l2m_official", "miniboone_subset")
+        == 480
+    )
+    assert walltime.minutes("train_method", "l2m_official", "metabric") == 240
+    assert walltime.minutes("train_method", "dime", "miniboone_subset") == 240
+    assert (
+        walltime.minutes("pretrain_model", "l2m_official", "miniboone_subset")
+        == 240
+    )
+    assert (
+        walltime.minutes("pretrain_model", "l2m_official", "metabric") == 480
     )
 
 

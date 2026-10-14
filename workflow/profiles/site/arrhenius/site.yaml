@@ -2,6 +2,13 @@
 walltime:
   default_hours: 4
   rules:
+    train_method:
+      methods:
+        l2m_official:
+          # MiniBooNE training reached ~38,000/50,000 steps in 4 hours;
+          # allow headroom above the projected ~5.3-hour full run.
+          datasets:
+            miniboone_subset: 8
     pretrain_model:
       pretrained_models:
         l2m_official:
