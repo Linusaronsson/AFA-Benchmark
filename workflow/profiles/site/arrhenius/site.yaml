@@ -1,6 +1,14 @@
 # Preserve existing requested limits until measured durations justify changes.
 walltime:
   default_hours: 4
+  rules:
+    pretrain_model:
+      pretrained_models:
+        l2m_official:
+          # The authors' METABRIC config doubles the steps of the family
+          # default (50,000 steps ran in about 3 hours on miniboone_subset).
+          datasets:
+            metabric: 8
 
 # CPU nodes are x86_64 and GPU nodes aarch64 (GH200), so each allocation
 # names the image built for its nodes by containers/build.sbatch.
