@@ -5,7 +5,6 @@ import io
 import re
 import zipfile
 from pathlib import Path
-from typing import Self
 
 import numpy as np
 import pandas as pd
@@ -13,9 +12,9 @@ import pytest
 import torch
 
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
-from afabench.datasets import MetabricDataset
-from afabench.datasets import metabric as metabric_module
+from afabench.datasets import MetabricDataset, tabular_csv
 from afabench.datasets.metabric import MetabricSourceError
+from afabench.datasets.tabular_csv import SourceChecksumError
 from afabench.testing.provenance import placeholder_provenance
 
 PAPER_GENES = [
@@ -125,7 +124,7 @@ def test_source_with_another_checksum_is_rejected(tmp_path: Path) -> None:
     write_source(path, source_frame())
 
     with pytest.raises(
-        MetabricSourceError, match=r"SHA-256 [0-9a-f]{64}, expected 0{64}"
+        SourceChecksumError, match=r"SHA-256 [0-9a-f]{64}, expected 0{64}"
     ):
         MetabricDataset(root=str(path), sha256="0" * 64)
 
@@ -163,20 +162,6 @@ def test_unknown_subtype_is_rejected(tmp_path: Path) -> None:
         metabric(tmp_path, frame)
 
 
-class FakeResponse:
-    def __init__(self, content: bytes) -> None:
-        self.content = content
-
-    def __enter__(self) -> Self:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        pass
-
-    def read(self) -> bytes:
-        return self.content
-
-
 def serve_archive(
     monkeypatch: pytest.MonkeyPatch, members: dict[str, bytes]
 ) -> list[str]:
@@ -187,55 +172,27 @@ def serve_archive(
             archive.writestr(name, content)
     requested: list[str] = []
 
-    def fake_urlopen(url: str, timeout: float) -> FakeResponse:  # noqa: ARG001
+    def fake_download(url: str) -> bytes:
         requested.append(url)
-        return FakeResponse(buffer.getvalue())
+        return buffer.getvalue()
 
-    monkeypatch.setattr(metabric_module, "urlopen", fake_urlopen)
+    monkeypatch.setattr(tabular_csv, "download", fake_download)
     return requested
 
 
-def source_bytes() -> bytes:
-    return source_frame().to_csv(index=False).encode()
-
-
-def test_missing_source_is_downloaded(
+def test_source_is_prepared_from_the_kaggle_archive(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    content = source_bytes()
+    content = source_frame().to_csv(index=False).encode()
     requested = serve_archive(
         monkeypatch, {"METABRIC_RNA_Mutation.csv": content}
     )
     path = tmp_path / "metabric" / "METABRIC_RNA_Mutation.csv"
 
-    dataset = MetabricDataset(
-        root=str(path), sha256=hashlib.sha256(content).hexdigest()
-    )
+    MetabricDataset.prepare_source(path, hashlib.sha256(content).hexdigest())
 
     assert requested == [MetabricDataset.URL]
     assert path.read_bytes() == content
-    assert len(dataset) == 7
-
-
-def test_present_source_is_not_downloaded(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    requested = serve_archive(monkeypatch, {})
-
-    metabric(tmp_path, source_frame())
-
-    assert requested == []
-
-
-def test_downloaded_source_with_another_checksum_is_not_kept(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    serve_archive(monkeypatch, {"METABRIC_RNA_Mutation.csv": source_bytes()})
-    path = tmp_path / "METABRIC_RNA_Mutation.csv"
-
-    with pytest.raises(MetabricSourceError, match="SHA-256"):
-        MetabricDataset(root=str(path), sha256="0" * 64)
-    assert list(tmp_path.iterdir()) == []
 
 
 def test_archive_without_the_source_file_is_rejected(
@@ -244,12 +201,12 @@ def test_archive_without_the_source_file_is_rejected(
     serve_archive(monkeypatch, {"other.csv": b"a,b\n"})
 
     with pytest.raises(MetabricSourceError, match=r"no METABRIC_RNA.*other"):
-        MetabricDataset(root=str(tmp_path / "METABRIC_RNA_Mutation.csv"))
+        MetabricDataset.prepare_source(tmp_path / "METABRIC_RNA_Mutation.csv")
 
 
 @pytest.mark.optional
 def test_real_source_has_the_paper_cohort() -> None:
-    """Downloads the source into data/metabric/ if it is not there."""
+    """Reads the committed source in data/metabric/."""
     dataset = MetabricDataset()
 
     assert len(dataset) == 1898

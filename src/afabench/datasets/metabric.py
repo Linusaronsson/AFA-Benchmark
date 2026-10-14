@@ -6,21 +6,20 @@ Appendix A.7.1); `docs/reference/datasets/metabric.md` describes the source,
 its license and how AFABench departs from the paper.
 """
 
-import hashlib
 import io
 import zipfile
 from pathlib import Path
 from typing import ClassVar, final, override
-from urllib.request import urlopen
 
 import pandas as pd
 import torch
 
+from afabench.datasets import tabular_csv
 from afabench.datasets.tabular_csv import TabularCSVDataset
 
 
 class MetabricSourceError(ValueError):
-    """The METABRIC source file is not the one the dataset is defined on."""
+    """The METABRIC source file does not hold the columns and subtypes the dataset is defined on."""
 
 
 @final
@@ -28,11 +27,10 @@ class MetabricDataset(TabularCSVDataset):
     """
     METABRIC restricted to the 11 genes of the L2M paper, labelled with the PAM50 + claudin-low subtype.
 
-    The source is Kaggle's copy of cBioPortal's METABRIC study, downloaded
-    when missing and checked against `sha256` on every generation, so a
-    generation index names the same tumour in every checkout. The 6 tumours
-    of subtype NC (not classified) are dropped; `get_source_rows` maps
-    instances back to the file.
+    The source is Kaggle's copy of cBioPortal's METABRIC study, unchanged;
+    `sha256` is part of the config, so a bundle names the file it was
+    generated from. The 6 tumours of subtype NC (not classified) are
+    dropped; `get_source_rows` maps instances back to the file.
     """
 
     config_keys: ClassVar[tuple[str, ...]] = ("root", "sha256")
@@ -90,41 +88,23 @@ class MetabricDataset(TabularCSVDataset):
     ):
         self.root = root
         self.sha256 = sha256
-        super().__init__(Path(root))
+        super().__init__(Path(root), sha256)
 
+    @classmethod
     @override
-    def _fetch_source(self) -> None:
-        with urlopen(self.URL, timeout=60) as response:  # noqa: S310
-            archive = zipfile.ZipFile(io.BytesIO(response.read()))
-        if self.SOURCE_FILE not in archive.namelist():
+    def make_prepared_source(cls) -> bytes:
+        archive = zipfile.ZipFile(io.BytesIO(tabular_csv.download(cls.URL)))
+        if cls.SOURCE_FILE not in archive.namelist():
             msg = (
-                f"The archive downloaded from {self.URL} has no "
-                f"{self.SOURCE_FILE}, only {archive.namelist()}"
+                f"The archive downloaded from {cls.URL} has no "
+                f"{cls.SOURCE_FILE}, only {archive.namelist()}"
             )
             raise MetabricSourceError(msg)
-        content = archive.read(self.SOURCE_FILE)
-        # Checked before writing, so a changed upstream file is not kept
-        self._check_sha256(content, self.URL)
-        self.source.parent.mkdir(parents=True, exist_ok=True)
-        partial = self.source.with_name(self.source.name + ".partial")
-        partial.write_bytes(content)
-        partial.replace(self.source)
-
-    def _check_sha256(self, content: bytes, origin: object) -> None:
-        sha256 = hashlib.sha256(content).hexdigest()
-        if sha256 != self.sha256:
-            msg = (
-                f"METABRIC source from {origin} has SHA-256 {sha256}, "
-                f"expected {self.sha256}; remove it to download the "
-                "expected file again"
-            )
-            raise MetabricSourceError(msg)
+        return archive.read(cls.SOURCE_FILE)
 
     @override
     def _read_source(self) -> tuple[pd.DataFrame, pd.Series]:
-        content = self.source.read_bytes()
-        self._check_sha256(content, self.source)
-        frame = pd.read_csv(io.BytesIO(content), low_memory=False)
+        frame = pd.read_csv(self.source, low_memory=False)
         columns = [*self.FEATURE_COLUMNS, self.LABEL_COLUMN]
         missing = [column for column in columns if column not in frame]
         if missing:

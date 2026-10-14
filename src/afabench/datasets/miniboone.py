@@ -1,19 +1,23 @@
+import io
+import zipfile
 from pathlib import Path
 from typing import ClassVar, final, override
 
 import pandas as pd
 import torch
 
+from afabench.datasets import tabular_csv
 from afabench.datasets.tabular_csv import TabularCSVDataset
 
 
 @final
 class MiniBooNEDataset(TabularCSVDataset):
     """
-    MiniBooNE dataset wrapped to follow the AFADataset protocol.
+    MiniBooNE particle identification events, labelled 1 for signal (electron neutrinos) and 0 for background.
 
-    This dataset contains particle physics measurements from the MiniBooNE experiment.
-    The target variable has 2 classes (signal and background).
+    The source is UCI's `MiniBooNE_PID.txt` as a CSV with the label last,
+    in the provider's order: its first line counts the signal and the
+    background events, which follow in that order.
 
     Rows holding the undocumented -999 placeholder (468 in the UCI file, all
     -999 in every feature) and the four rows whose Feature 20 is off by
@@ -23,6 +27,15 @@ class MiniBooNEDataset(TabularCSVDataset):
     """
 
     config_keys: ClassVar[tuple[str, ...]] = ("root",)
+    URL: ClassVar[str] = (
+        "https://archive.ics.uci.edu/static/public/199/"
+        "miniboone+particle+identification.zip"
+    )
+    RAW_FILE: ClassVar[str] = "MiniBooNE_PID.txt"
+    # Also the file the GDFS repository holds as datasets/miniboone.csv
+    SHA256: ClassVar[str] = (
+        "e8f5a61b08ac12304086a0326603dabb3400d57c691d4630c37e69492effb0ea"
+    )
 
     PLACEHOLDER: ClassVar[float] = -999.0
     # Feature 20 is the 20th column; read by position like the base reads
@@ -40,9 +53,25 @@ class MiniBooNEDataset(TabularCSVDataset):
     def label_shape(self) -> torch.Size:
         return torch.Size([2])
 
-    def __init__(self, root: str = "data/miniboone/miniboone.csv"):
+    def __init__(
+        self,
+        root: str = "data/miniboone/miniboone.csv",
+        sha256: str | None = None,
+    ):
         self.root = root
-        super().__init__(Path(root))
+        super().__init__(Path(root), sha256)
+
+    @classmethod
+    @override
+    def make_prepared_source(cls) -> bytes:
+        archive = zipfile.ZipFile(io.BytesIO(tabular_csv.download(cls.URL)))
+        with archive.open(cls.RAW_FILE) as raw:
+            text = io.TextIOWrapper(raw)
+            n_signal, n_background = map(int, text.readline().split())
+            frame = pd.read_csv(text, sep=r"\s+", header=None)
+        frame.columns = [f"Feature {i + 1}" for i in range(frame.shape[1])]
+        frame["Outcome"] = [1] * n_signal + [0] * n_background
+        return frame.to_csv(index=False).encode()
 
     @override
     def _read_source(self) -> tuple[pd.DataFrame, pd.Series]:

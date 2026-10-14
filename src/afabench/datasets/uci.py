@@ -9,9 +9,10 @@ from afabench.datasets.tabular_csv import TabularCSVDataset
 
 
 class UCIDataset(TabularCSVDataset, ABC):
-    """A tabular dataset fetched from the UCI repository into `path` when the file is missing; its feature shape is the file's."""
+    """A tabular dataset from the UCI repository, prepared as the frame `ucimlrepo` returns; its feature shape is the file's."""
 
     config_keys: ClassVar[tuple[str, ...]] = ("path",)
+    source_config_key: ClassVar[str] = "path"
 
     @property
     @override
@@ -23,15 +24,16 @@ class UCIDataset(TabularCSVDataset, ABC):
     def label_shape(self) -> torch.Size:
         return torch.Size([2])
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, sha256: str | None = None):
         self.path: str = path
-        super().__init__(Path(path))
+        super().__init__(Path(path), sha256)
 
+    @classmethod
     @override
-    def _fetch_source(self) -> None:
-        self.source.parent.mkdir(parents=True, exist_ok=True)
-        self._fetch_uci().to_csv(self.source, index=False)
+    def make_prepared_source(cls) -> bytes:
+        return cls._fetch_uci().to_csv(index=False).encode()
 
+    @classmethod
     @abstractmethod
-    def _fetch_uci(self) -> pd.DataFrame:
+    def _fetch_uci(cls) -> pd.DataFrame:
         """Return the UCI repository's data as the frame `_read_source` reads, with the label last."""
