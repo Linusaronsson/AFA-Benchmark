@@ -62,7 +62,7 @@ variable measures, and none has a unit. No value is missing.
 ## Preprocessing in AFABench
 
 - Every feature is z-normalized over the 129,592 instances, before dataset
-  generation splits them.
+  generation splits them (#150).
 - All feature costs are 1.
 - Splits are the pipeline's: 60% train, 20% validation, 20% test, for each
   dataset realization.

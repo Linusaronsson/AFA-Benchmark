@@ -114,14 +114,18 @@ A few things follow from the aggregation and the records:
 - `Urine` is the mean of the recorded outputs, not their total.
 - PhysioNet warns that "occasional outliers should be expected", and some
   means are implausible, such as a `pH` of 128.5, a `Temp` of 21.6 °C or a
-  `Height` of 462 cm. Source preparation keeps them.
+  `Height` of 462 cm, and some blood pressures are 0. Source preparation
+  keeps them (#148).
+- Whether a mean suits each variable is open (#149).
 
 ## Preprocessing in AFABench
 
 - A missing value is filled with its feature's mean over the 12,000
-  instances; `MechVent` becomes constant and carries no information.
+  instances, so whether a variable was measured is lost (#142); `MechVent`
+  becomes constant and carries no information (#140).
 - Every feature is then z-normalized over the 12,000 instances, before
-  dataset generation splits them.
+  dataset generation splits them (#150). `ICUType`'s codes are treated as
+  numbers (#143).
 - All feature costs are 1.
 - Splits are the pipeline's: 60% train, 20% validation, 20% test, for each
   dataset realization.

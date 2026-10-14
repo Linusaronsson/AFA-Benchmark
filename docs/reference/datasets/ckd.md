@@ -75,12 +75,12 @@ missing each:
 
 - Every categorical feature is label-encoded in alphabetical order of its
   values. The source's one `\tno` in `dm` is a value of its own, so `dm`
-  has three categories.
+  has three categories (#146).
 - A missing value is filled with its feature's mean over the 400
   instances, after encoding, so a categorical feature can take a value
-  between its categories.
+  between its categories (#142).
 - Every feature is then z-normalized over the 400 instances, before
-  dataset generation splits them.
+  dataset generation splits them (#150).
 - All feature costs are 1.
 - Splits are the pipeline's: 60% train, 20% validation, 20% test, for each
   dataset realization.
