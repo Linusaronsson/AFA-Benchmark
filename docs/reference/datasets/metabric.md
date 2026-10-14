@@ -6,9 +6,10 @@ molecular subtype: one of the five PAM50 subtypes or claudin-low.
 
 ## Source
 
-Dataset generation downloads the source when it is missing and checks it on
-every generation, so that a generation index names the same tumour in every
-checkout.
+The source is committed to the repository unchanged (ADR 0014) and checked
+on every generation, so that a generation index names the same tumour in
+every checkout. `scripts/dataset_generation/prepare_source.py metabric`
+downloads it again from Kaggle.
 
 | | |
 | --- | --- |
@@ -21,16 +22,16 @@ checkout.
 
 The ODbL requires attributing any public use of the data and sharing any
 adapted database under the same license. Cite the METABRIC papers and
-cBioPortal below. The source file is not committed to the repository.
+cBioPortal below. `data/metabric/LICENSE.md` repeats this beside the file.
 
 The raw genotype and expression data of METABRIC are at the European
 Genome-phenome Archive, study EGAS00000000083, under controlled access; the
 processed data used here are public.
 
 A different source file, such as a newer cBioPortal export, is not the same
-dataset: generation rejects it. To use one, pass its SHA-256 as `sha256` in
-`conf/scripts/dataset_generation/dataset/metabric.yaml`, under a new dataset
-key.
+dataset: generation rejects it. To use one, give it a dataset configuration
+of its own in `conf/scripts/dataset_generation/dataset/`, under a new
+dataset key, with its path as `root` and its SHA-256 as `sha256`.
 
 ## References
 
