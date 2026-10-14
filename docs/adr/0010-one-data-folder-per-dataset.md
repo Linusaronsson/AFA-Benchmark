@@ -45,5 +45,8 @@ differs, such as its feature costs._
 - Files inside a dataset folder keep their upstream names
   (`bank-marketing.csv`, torchvision's `MNIST/`), so they still match what
   their source provides; the folder carries the dataset key.
-- Most of `data/` is gitignored, so moving a dataset's folder means every
-  checkout moves its local files by hand.
+- Moving a dataset's folder means every checkout moves its gitignored
+  local files by hand. _Amended by
+  [ADR 0014](0014-prepared-sources-are-committed.md): prepared sources are
+  committed, so only the sources a license keeps out of the repository and
+  the files generation extracts or downloads are gitignored._

@@ -289,6 +289,23 @@ the generation index also locates the instance in the source, in every
 realization, unless the dataset drops source rows; then its source row does.
 _Avoid_: Instance index, original index, row, sample id
 
+**Provider**:
+The organization that originally publishes a real-world dataset, such as
+UCI or PhysioNet, as opposed to a mirror that copies its files.
+_Avoid_: Host, upstream (ambiguous with vendored code)
+
+**Prepared source**:
+The file in a dataset's data folder that dataset generation reads, made
+from the provider's raw files by source preparation. It is committed unless
+the dataset's license forbids redistributing it.
+_Avoid_: Raw data (the provider's files), processed data (the bundles)
+
+**Source preparation**:
+Turning a provider's raw files into a dataset's prepared source. It runs
+rarely and reproduces the committed file exactly; dataset generation, which
+runs on every pipeline run, starts from the prepared source.
+_Avoid_: Preprocessing (also covers what dataset generation does)
+
 **Source row**:
 The row of a tabular instance in its source file, counting data rows from 0.
 It equals the generation index unless the dataset drops rows from its source

@@ -40,7 +40,7 @@ Single-context repo:
 ├── scripts/             ← pipeline entry points
 ├── conf/                ← Hydra configs
 ├── workflow/            ← Snakemake workflows
-├── data/                ← one folder per dataset key (ADR 0010; mostly gitignored)
+├── data/                ← one folder per dataset key (ADR 0010), prepared sources committed (ADR 0014)
 └── logs/, output/       ← generated files (gitignored)
 ```
 
