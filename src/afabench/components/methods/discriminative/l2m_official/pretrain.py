@@ -57,7 +57,10 @@ def pretrain_l2m_official(
     ).to(device)
     sampler = make_sampler(
         draw_pretraining_pool(
-            train_dataset, size=cfg.pretraining_pool_size, seed=cfg.seed
+            train_dataset,
+            size=cfg.pretraining_pool_size,
+            sequence_length=cfg.sequence_length,
+            seed=cfg.seed,
         ),
         label_dim=model.label_dim,
     )

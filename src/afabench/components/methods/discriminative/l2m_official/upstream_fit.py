@@ -105,18 +105,25 @@ def _to_float32(outputs: object) -> object:
 
 
 def draw_pretraining_pool(
-    train_dataset: AFADataset, *, size: int, seed: int
+    train_dataset: AFADataset,
+    *,
+    size: int,
+    sequence_length: int,
+    seed: int,
 ) -> Features:
-    """Draw the pretraining pool's features from the train split."""
+    """Draw up to `size` train instances' features as the pretraining pool."""
     features, _ = train_dataset.get_all_data()
-    if len(features) < size:
+    # A task draws its instances from the pool without replacement.
+    if len(features) < sequence_length:
         msg = (
             f"The train split has {len(features)} instances, fewer than "
-            f"pretraining_pool_size={size}"
+            f"sequence_length={sequence_length}"
         )
         raise ValueError(msg)
     generator = torch.Generator().manual_seed(seed)
-    indices = torch.randperm(len(features), generator=generator)[:size]
+    indices = torch.randperm(len(features), generator=generator)[
+        : min(len(features), size)
+    ]
     return features.reshape(len(features), -1)[indices].clone()
 
 

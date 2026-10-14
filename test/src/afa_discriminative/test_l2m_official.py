@@ -205,6 +205,25 @@ def test_pretraining_never_reads_train_labels(tmp_path: Path) -> None:
         assert torch.equal(first, second)
 
 
+def test_pretraining_caps_pool_at_train_size(tmp_path: Path) -> None:
+    cfg = replace(_pretraining_config(tmp_path), pretraining_pool_size=200)
+
+    model = pretrain_l2m_official(cfg, inputs=load_inputs(cfg))
+
+    assert isinstance(model, L2MOfficialModel)
+
+
+def test_pretraining_requires_a_train_split_that_fills_a_task(
+    tmp_path: Path,
+) -> None:
+    cfg = _pretraining_config(
+        tmp_path,
+        train_dataset=CubeDataset(n_samples=SEQUENCE_LENGTH - 1, seed=0),
+    )
+    with pytest.raises(ValueError, match=f"sequence_length={SEQUENCE_LENGTH}"):
+        pretrain_l2m_official(cfg, inputs=load_inputs(cfg))
+
+
 def test_training_returns_a_method_that_survives_its_bundle(
     tmp_path: Path,
 ) -> None:

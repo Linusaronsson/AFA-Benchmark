@@ -28,6 +28,6 @@ backbone_lr: 1e-5 # lr_backbone
 temperature: 0.1 # temp
 checkpoint_interval: 200 # checkpoint_interval_afa
 n_validation_tasks: 200 # eval_batch_size
-pretraining_pool_size: 5000 # pool_size
+pretraining_pool_size: 5000 # pool_size; capped at the train split size
 mixed_precision: true
 context_set_size: 900 # maximum; capped at the validation split size
