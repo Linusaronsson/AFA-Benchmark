@@ -17,8 +17,8 @@ defaults:
   - override hydra/launcher: custom_slurm
 
 # The authors' MiniBooNE config (configs/miniboone.yaml in
-# reAIM-Lab/Learning-To-Measure at the vendored commit), the family default
-# for every dataset.
+# reAIM-Lab/Learning-To-Measure at the vendored commit), the family default.
+# experiment/<dataset_key>.yaml applies the authors' config for that dataset.
 
 architecture:
   model_dim: 256 # d_model

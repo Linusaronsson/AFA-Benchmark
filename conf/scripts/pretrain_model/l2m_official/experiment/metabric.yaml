@@ -1,0 +1,7 @@
+# @package _global_
+# The authors' METABRIC config (configs/metabric.yaml in
+# reAIM-Lab/Learning-To-Measure at the vendored commit), where it differs
+# from the family default.
+sequence_length: 500 # num_points
+n_steps: 100000 # num_steps
+pretraining_pool_size: 1000 # pool_size
