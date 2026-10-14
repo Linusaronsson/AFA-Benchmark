@@ -84,27 +84,30 @@ for accurate diagnosis with minimal cost. See the following survey for details: 
 |   **CAE**   |                                                   [link](https://proceedings.mlr.press/v97/balin19a.html)                                                    |    Global feature importance     |    N/A     |
 
 ## Datasets
+Each dataset's source, license, instances and features are described on its
+page in [`docs/reference/datasets/`](docs/reference/datasets/README.md).
+
 | Dataset | Type | Modality | Train Size | Val Size | Test Size | \# Features | \# Groups | \# Classes |
 | :-----: | :--: | :------: | :--------: | :------: | :-------: | :---------: | :-------: | :--------: |
-| CUBE | Synthetic | Tabular | 600 | 200 | 200 | 20 | | 20 | 8 |
-| CUBE-NM | Synthetic | Tabular | 600 | 200 | 200 | 55 | 51 | 8 |
-| MNIST | Real World | Image (tabularized) | 36,000 | 12,000 | 12,000 | 784 | 784 | 10 |
-| FashionMNIST | Real World | Image (tabularized) | 36,000 | 12,000 | 12,000 | 784 | 784 | 10 |
-| Diabetes | Real World | Tabular | 55,237 | 18,412 | 18,413 | 45 | 45 | 3 | |
-| PhysioNet Challenge 2012 | Real World | Tabular | 7,200 | 2,400 | 2,400 | 41 | 41 | 2 |
-| MiniBooNE | Real World | Tabular | 77,755 | 25,918 | 25,919 | 50 | 50 | 2 |
-| MiniBooNE (10 features) | Real World | Tabular | 77,755 | 25,918 | 25,919 | 10 | 10 | 2 |
-| ACTG175 | Real World | Tabular | 1,283 | 427 | 429 | 23 | 23 | | 2 |
-| CKD | Real World | Tabular | 240 | 80 | 80 | 24 | 24 | 2 |
-| BankMarketing | Real World | Tabular | 27,126 | 9,042 | 9,043 | 16 | 16 | 2 |
-| Imagenette | Real World | Image | 5,681 | 3,788 | 3,925 | 150,528 | 196 | 10 |
+| [CUBE](docs/reference/datasets/cube.md) | Synthetic | Tabular | 600 | 200 | 200 | 20 | 20 | 8 |
+| [CUBE-NM](docs/reference/datasets/cube_nm.md) | Synthetic | Tabular | 600 | 200 | 200 | 55 | 51 | 8 |
+| [MNIST](docs/reference/datasets/mnist.md) | Real World | Image (tabularized) | 36,000 | 12,000 | 12,000 | 784 | 784 | 10 |
+| [Fashion-MNIST](docs/reference/datasets/fashion_mnist.md) | Real World | Image (tabularized) | 36,000 | 12,000 | 12,000 | 784 | 784 | 10 |
+| [Diabetes](docs/reference/datasets/diabetes.md) | Real World | Tabular | 55,237 | 18,412 | 18,413 | 45 | 45 | 3 |
+| [PhysioNet Challenge 2012](docs/reference/datasets/physionet_challenge_2012.md) | Real World | Tabular | 7,200 | 2,400 | 2,400 | 41 | 41 | 2 |
+| [MiniBooNE](docs/reference/datasets/miniboone.md) | Real World | Tabular | 77,755 | 25,918 | 25,919 | 50 | 50 | 2 |
+| [MiniBooNE subset](docs/reference/datasets/miniboone_subset.md) | Real World | Tabular | 77,755 | 25,918 | 25,919 | 10 | 10 | 2 |
+| [ACTG 175](docs/reference/datasets/actg.md) | Real World | Tabular | 1,283 | 427 | 429 | 23 | 23 | 2 |
+| [Chronic Kidney Disease](docs/reference/datasets/ckd.md) | Real World | Tabular | 240 | 80 | 80 | 24 | 24 | 2 |
+| [Bank Marketing](docs/reference/datasets/bank_marketing.md) | Real World | Tabular | 27,126 | 9,042 | 9,043 | 16 | 16 | 2 |
+| [Imagenette](docs/reference/datasets/imagenette.md) | Real World | Image | 5,681 | 3,788 | 3,925 | 150,528 | 196 | 10 |
 
 ## Project structure
 - `afabench`: Main package.
 - `docs`: Documentation.
 - `conf`: All the **script** configuration files. Each configuration file
   corresponds to a class in `config_classes.py`.
-- `data`: Miscellaneous files for datasets (e.g., CSVs, custom generated costs, etc.).
+- `data`: One folder per dataset key, with its committed source and license (ADR 0014).
 - `workflow`: Snakemake workflows for running the full pipeline.
 - `output`: Outputs from the Snakemake pipeline (gitignored).
 - `logs`: W&B, Lightning and Hydra logs (gitignored).

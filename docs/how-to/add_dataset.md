@@ -65,10 +65,26 @@ class MyDataset(InMemoryAFADataset):
 The constructor sets the config attributes, then `super().__init__()` calls
 `_build`, checks the tensors against `feature_shape` and `label_shape`, and
 numbers the instances. A real-world tabular dataset read from one CSV file
-subclasses `TabularCSVDataset` instead and only declares its shapes and its
-file argument; see `DiabetesDataset`. A dataset that cannot hold its
-instances in memory, like `ImagenetteDataset`, implements the protocol
-itself.
+subclasses `TabularCSVDataset` instead and declares its shapes, its file
+argument and the file's SHA-256; see `DiabetesDataset`. A dataset that
+cannot hold its instances in memory, like `ImagenetteDataset`, implements
+the protocol itself.
+
+A `TabularCSVDataset` reads its **prepared source**
+(`docs/adr/0014-prepared-sources-are-committed.md`):
+
+1. Implement `make_prepared_source`, which downloads the provider's raw
+   files, checking each against a SHA-256 you pin, and returns the file's
+   bytes; see `MiniBooNEDataset` or `PhysionetChallenge2012Dataset`.
+2. Write the file with
+   `uv run python scripts/dataset_generation/prepare_source.py <dataset key>`
+   once its generation config exists (step 2), and set the class's `SHA256` to its SHA-256; the
+   script refuses a file with another.
+3. If the license permits redistributing the data, commit the file to
+   `data/<dataset key>/` with a `LICENSE.md` giving its license and
+   attribution. If it does not, or the provider states none, set
+   `SOURCE_COMMITTED = False` and gitignore the folder instead; dataset
+   generation then prepares the file when it is missing.
 
 Every instance carries its **generation index**, its position in the
 dataset your class produces, before dataset generation splits it

@@ -227,10 +227,9 @@ What a dataset bundle holds decides what the review covers:
 
 - Synthetic datasets (CUBE and its variants, synthetic MNIST) are generated
   by this repository's code; their bundles hold generated tensors.
-- Tabular datasets come from third parties: diabetes, MiniBooNE and
-  PhysioNet Challenge 2012 from the CSV files in `data/<dataset>/`, ACTG, CKD and bank
-  marketing from the UCI repository. Their bundles hold the preprocessed
-  data itself.
+- Tabular datasets come from third parties, each under the license its
+  page in [`datasets/`](datasets/README.md) gives. Their bundles hold the
+  preprocessed data itself.
 - MNIST and Fashion-MNIST bundles hold the downloaded data; Imagenette
   bundles hold only generation indices and configuration, so the images must be
   obtained from the source by each user.
