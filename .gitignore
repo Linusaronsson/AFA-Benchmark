@@ -185,8 +185,13 @@ cython_debug/
 # Everything that the snakefiles produce
 /output
 
-# Data
-/data
+# Data: prepared sources are committed (ADR 0014), except those a license
+# keeps out and the files generation downloads or extracts
+/data/actg/
+/data/mnist/
+/data/imagenette/
+/data/fashion_mnist/FashionMNIST/raw/*-ubyte
+/data/**/*.partial
 
 # Temporary folder for storing intermediate files
 /tmp
