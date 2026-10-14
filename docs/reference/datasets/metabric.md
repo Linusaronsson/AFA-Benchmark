@@ -102,13 +102,13 @@ start; v2 drops both, as does the published loader.
 BCL2, CCNB1, EGFR and ERBB2 are among the 50 genes of the PAM50 classifier,
 and the subtypes were assigned from the tumours' expression profiles, so the
 label partly derives from the features rather than being independent of
-them.
+them (#151).
 
 ## Preprocessing in AFABench
 
 - Every gene is z-normalized again over the 1,898 kept instances, as for
-  every tabular CSV dataset, before dataset generation splits them; this
-  changes the source values only slightly.
+  every tabular CSV dataset, before dataset generation splits them (#150);
+  this changes the source values only slightly.
 - All feature costs are 1.
 - Splits are the pipeline's: 60% train, 20% validation, 20% test, for each
   dataset realization.

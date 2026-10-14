@@ -58,25 +58,26 @@ value empty where UCI's documentation lists `unknown`.
 | 6 | `housing` | Has a housing loan | 0 |
 | 7 | `loan` | Has a personal loan | 0 |
 | 8 | `contact` | Contact type: `cellular` or `telephone` | 13,020 |
-| 9 | `day_of_week` | Day of the month of the last contact, 1–31 (UCI's column name notwithstanding) | 0 |
+| 9 | `day_of_week` | Day of the month of the last contact, 1–31 (UCI's column name notwithstanding, #147) | 0 |
 | 10 | `month` | Month of the last contact | 0 |
 | 11 | `duration` | Duration of the last contact, seconds | 0 |
 | 12 | `campaign` | Contacts with the client during this campaign, the last included | 0 |
-| 13 | `pdays` | Days since the client was last contacted in a previous campaign; −1 if never | 0 |
+| 13 | `pdays` | Days since the client was last contacted in a previous campaign; −1 if never, read as a number (#144) | 0 |
 | 14 | `previous` | Contacts with the client before this campaign | 0 |
 | 15 | `poutcome` | Outcome of the previous campaign: `failure`, `other` or `success` | 36,959 |
 
 UCI notes that `duration` "highly affects the output target (e.g., if
 duration=0 then y='no')" and is not known before a call is made, so it
 "should be discarded if the intention is to have a realistic predictive
-model". AFABench keeps it.
+model". AFABench keeps it (#139).
 
 ## Preprocessing in AFABench
 
 - Every categorical feature is label-encoded in alphabetical order of its
-  values, a missing value being the value `nan`, a category of its own.
+  values, a missing value being the value `nan`, a category of its own;
+  the codes are then treated as numbers (#143).
 - Every feature is z-normalized over the 45,211 instances before dataset
-  generation splits them.
+  generation splits them (#150).
 - All feature costs are 1.
 - Splits are the pipeline's: 60% train, 20% validation, 20% test, for each
   dataset realization.

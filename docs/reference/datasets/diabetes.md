@@ -68,14 +68,15 @@ participant without a measurement therefore gets the class of the mean,
 and the file does not record which participants those are. The 80% of
 instances in class 1 suggest that the mean fell there and that most class 1
 labels are imputed. Results on this dataset measure, in part, how well a
-method predicts that a glucose measurement is missing.
+method predicts that a glucose measurement is missing (#137).
 
 ## Features
 
 The file's columns are numbered, and neither repository documents which
 column holds which variable. Kachuee's loader builds the features from
 these NHANES variables, in this order; one-hot encoding expands the race
-and smoking variables into several columns, for 45 in all:
+and smoking variables into several columns, for 45 in all, each acquired
+on its own (#145):
 
 - Demographics: gender (`RIAGENDR`), age (`RIDAGEYR`), race and ethnicity
   (`RIDRETH3` and `RIDRETH1`, one-hot), annual household income
@@ -96,12 +97,13 @@ mean and z-normalizes it; a one-hot column is 0 or 1, all 0 where the
 variable is missing. The file has no missing value. Its columns 2–12 and
 38–41 are the 15 one-hot columns, the others have mean 0 and standard
 deviation 1, which fits the order above, but the file does not confirm it
-column by column.
+column by column. Columns `40` and `41` are 1 for only 18 and 40
+instances (#140).
 
 ## Preprocessing in AFABench
 
 - Every feature is z-normalized over the 92,062 instances, before dataset
-  generation splits them; this rescales the one-hot columns and leaves the
+  generation splits them (#150); this rescales the one-hot columns and leaves the
   others nearly unchanged.
 - All feature costs are 1.
 - Splits are the pipeline's: 60% train, 20% validation, 20% test, for each

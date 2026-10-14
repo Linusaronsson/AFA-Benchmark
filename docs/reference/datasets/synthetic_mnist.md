@@ -35,7 +35,8 @@ the noise pixels are 0. Rows and columns count from 0 at the top left:
 | 9 | Dots | 12 dots of 2 × 2 pixels at rows 6, 10, 14, 18 and columns 16, 20, 24 |
 
 The patterns of classes 4, 5 and 7 replace the noise under them with 0.8;
-the others add 0.8 to it.
+the others add 0.8 to it. Pixels of exactly 0.8 therefore identify classes
+4, 5 and 7 (#152).
 
 A selection reveals a 4 × 4 pixel patch: 49 feature groups on a 7 × 7
 grid (`28x28_to_7x7` unmasker).

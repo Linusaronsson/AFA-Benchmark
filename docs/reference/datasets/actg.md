@@ -76,12 +76,14 @@ As UCI describes them, in feature order:
 
 `time` and `offtrt` are recorded during follow-up, so they carry
 information about the outcome: a failure event ends a patient's follow-up
-time. `zprior` is constant, so it carries no information.
+time (#138). `zprior` is constant, so it carries no information (#140).
+`str2` is exactly `strat` > 1 and `treat` exactly `trt` > 0 (#141).
 
 ## Preprocessing in AFABench
 
 - No value is missing. Every feature is z-normalized over the 2,139
-  instances before dataset generation splits them; `zprior` becomes 0.
+  instances before dataset generation splits them (#150); `zprior` becomes
+  0. The integer codes of `trt` and `strat` are treated as numbers (#143).
 - All feature costs are 1.
 - Splits are the pipeline's: 60% train, 20% validation, 20% test, for each
   dataset realization.

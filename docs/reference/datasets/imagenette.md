@@ -17,7 +17,7 @@ configuration, so every user reads the images from their own download.
 | Provider | [fast.ai, `fastai/imagenette`](https://github.com/fastai/imagenette), made by Jeremy Howard: Imagenette 2, released 2019-12-06, in its 320 px version, each image's shortest side resized to 320 px |
 | Download | <https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-320.tgz> |
 | Files | `data/imagenette/imagenette2-320/train/` (9,469 images) and `val/` (3,925 images), one folder per class |
-| SHA-256 | `569b4497c98db6dd29f335d1f109cf315fe127053cedf69010d047f0188e158c` for the archive downloaded on 2026-10-14; generation does not check it |
+| SHA-256 | `569b4497c98db6dd29f335d1f109cf315fe127053cedf69010d047f0188e158c` for the archive downloaded on 2026-10-14; generation does not check it (#136) |
 | Original provider | [ImageNet](https://www.image-net.org/), whose images Imagenette selects and resizes |
 | License | The `fastai/imagenette` repository is under the Apache License 2.0 and states no license for the images. ImageNet's [terms of access](https://www.image-net.org/download.php) allow use "only for non-commercial research and educational purposes" and make the user responsible for any "copies of copyrighted images" made from it |
 

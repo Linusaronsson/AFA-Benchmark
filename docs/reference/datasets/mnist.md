@@ -8,7 +8,8 @@ features the 784 pixel values, and its label the digit, 0–9.
 The images are not committed to the repository: their provider states no
 license (ADR 0014). Dataset generation downloads them through
 torchvision's `MNIST` into `data/mnist/MNIST/raw/` when they are missing;
-torchvision checks each file against the MD5 it pins.
+torchvision checks each file against the MD5 it pins, and AFABench pins
+nothing of its own (#136).
 
 | | |
 | --- | --- |
