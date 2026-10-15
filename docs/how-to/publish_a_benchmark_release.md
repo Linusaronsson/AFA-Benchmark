@@ -10,11 +10,11 @@ Create a Hugging Face dataset repository, public for an announced release,
 and log in with a token that can write to it:
 
 ```shell
-hf repo create <repo_id> --repo-type dataset
-hf auth login
+uv run hf repo create <repo_id> --repo-type dataset
+uv run hf auth login
 ```
 
-Instead of `hf auth login`, the token can be in `HF_TOKEN`. Instead of
+Instead of `uv run hf auth login`, the token can be in `HF_TOKEN`. Instead of
 `--repo-id <repo_id>` below, the repository can be in
 `AFABENCH_RELEASE_REPO`.
 

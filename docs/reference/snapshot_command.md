@@ -127,7 +127,7 @@ snapshot.py publish SNAPSHOT_DIR --repo-id REPO
 
 Uploads the snapshot as the release its manifest names, in one commit, to
 `releases/<release_id>/`. `--repo-id` defaults to `AFABENCH_RELEASE_REPO`.
-Needs a Hugging Face token with write access (`hf auth login` or
+Needs a Hugging Face token with write access (`uv run hf auth login` or
 `HF_TOKEN`); the repository must exist.
 
 Refuses:
