@@ -28,7 +28,7 @@ workflow/profiles/site/<site>/
 | `examples/mixed-gpus/` | Illustrative mixed CPU/GPU site requesting GPUs as `--gpus=a100:1` |
 | `vera/` | Our team's CPU cluster; its site map has only a CPU allocation, so `cuda` jobs fail before submission |
 | `alvis/` | Our team's GPU cluster; `cuda` jobs request `--gres=gpu:T4:1` |
-| `arrhenius/` | Our team's mixed cluster, whose jobs run in an image; see [Run jobs in an image](#run-jobs-in-an-image) |
+| `arrhenius/` | Our team's mixed cluster, x86_64 CPU nodes and aarch64 GPU nodes; see [Run on a cluster of mixed architectures](#run-on-a-cluster-of-mixed-architectures) |
 
 Except `arrhenius/`, none of these is verified against a live cluster, and
 they are unlikely to work for you unchanged.
@@ -112,56 +112,57 @@ Changes affect future submissions only, not running or pending jobs.
 To override one rule for a run, append, for example,
 `-- --set-resources pretrain_model:runtime=240`.
 
-## Run jobs in an image
+## Run on a cluster of mixed architectures
 
-On a cluster that limits the number of files per project, run every job in
-an [image](../../CONTEXT.md) instead of a venv: an image is one file, while a
-venv is tens of thousands. The `arrhenius/` profile does this. Its CPU nodes
-are x86_64 and its GPU nodes aarch64, so it uses one image per architecture.
-The scripts run in the image, while Snakemake runs on the host from a small
-environment built beside each image
-([ADR 0008](../adr/0008-snakemake-on-the-host-scripts-in-the-image.md)).
+When a cluster's nodes differ in CPU architecture, one venv cannot serve
+every job, so each architecture gets its own, `.venv-<arch>` in the
+checkout, where `<arch>` is the nodes' `uname -m`. The `arrhenius/` profile
+does this: its login and CPU nodes are x86_64 and its GPU nodes aarch64
+([ADR 0015](../adr/0015-one-venv-per-architecture.md)). The checkout must be
+on a filesystem every node shares.
 
-1. In `<site>/site.yaml`, name each allocation's image, relative to the
-   repository root or as an absolute path:
+1. In `<site>/site.yaml`, name each allocation's venv, relative to the
+   repository root:
 
    ```yaml
    execution_site:
      cpu:
        ...
-       image: containers/afabench-x86_64.sif
+       venv: .venv-x86_64
      gpu:
        ...
-       image: containers/afabench-aarch64.sif
+       venv: .venv-aarch64
    ```
 
-   Jobs of a GPU allocation run with `--nv`. A missing image fails before
-   submission.
-2. Build the image and the host environment on a node of each architecture
-   your allocations use, from the checkout root:
+2. Build the venvs on a node of each architecture your allocations use,
+   from the checkout root:
 
    ```shell
-   python3 containers/submit_builds.py arrhenius
+   python3 workflow/venvs/submit_builds.py arrhenius
    ```
 
-   It submits `containers/build.sbatch` once per image, to the allocation
-   naming it, with that allocation's account, partition and GPU request
-   from `site.yaml`; `--dry-run` prints the `sbatch` commands instead.
-   `just build-images arrhenius` does the same where `just` is installed.
-   It needs only the host's `python3`, since no environment exists yet.
+   It submits `workflow/venvs/build.sbatch` once per venv, to the
+   allocation naming it, with that allocation's account, partition and GPU
+   request from `site.yaml`; `--dry-run` prints the `sbatch` commands
+   instead. `just build-venvs arrhenius` does the same where `just` is
+   installed. It needs only the host's `python3` and `uv`, since no venv
+   exists yet. Logs land in `workflow/venvs/build-<job id>.log`.
 
-   Each job writes `containers/afabench-<arch>.sif`, the `uv.lock` it was
-   built from beside it, and `containers/orchestration-<arch>-<lock hash>/`. Rebuild both after any
-   change to `uv.lock` or `containers/afabench.def`: the pipeline refuses an image built from another
-   lock before submitting anything, and a job finds no host environment for
-   it.
-3. In `<site>/config.yaml`, make each job start Snakemake from
-   `containers/bin/python`, which picks the host environment of the node's
+   Each job syncs `.venv-<arch>` from `uv.lock` without the dev group and
+   records the `uv.lock` it synced from as `.venv-<arch>/afabench.uv.lock`.
+   Rebuild after any change to `uv.lock`, while no job of the pipeline
+   runs: the pipeline launcher refuses to run while a venv is missing or
+   built from another lock. The build copies packages out of uv's cache
+   rather than hardlinking them, since the cache may sit on another
+   filesystem, so each venv counts its files in full against a file quota
+   (about 85,000 each).
+3. In `<site>/config.yaml`, make each job start Snakemake and its scripts
+   from `workflow/venvs/bin/python`, which runs the venv of the node's
    architecture:
 
    ```yaml
    shared-fs-usage: [persistence, input-output, sources, source-cache, storage-local-copies]
-   precommand: export PATH=$PWD/containers/bin:$PATH
+   precommand: export PATH=$PWD/workflow/venvs/bin:$PATH
    ```
 
 4. Run the pipeline as on any site:
@@ -170,10 +171,9 @@ environment built beside each image
    workflow/run.py kdd26 --site arrhenius -n
    ```
 
-   Because the site file names images, the pipeline launcher runs Snakemake
-   from `containers/bin/python` instead of uv. It prints progress on the
-   login node as usual. To run a single command in the image by hand, use
-   `containers/run.sh`.
+   Because the site file names venvs, the pipeline launcher runs Snakemake
+   from `workflow/venvs/bin/python` instead of uv. To run a single command
+   by hand on any node, start it with `workflow/venvs/bin/python` too.
 
 ## A site map is required for SLURM
 

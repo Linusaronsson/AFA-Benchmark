@@ -25,7 +25,6 @@ rule merge_eval_perf:
             for budget_combination in WORKFLOW_SETTINGS.budget_params[method][dataset]
         ]
     params:
-        image=IMAGES.param("aggregation", lambda wc: "merge_eval_perf"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "merge_eval_perf", resources),
     resources:
         shell_exec="bash",
@@ -35,7 +34,7 @@ rule merge_eval_perf:
         OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type=None),
     shell:
         """
-            {params.image}python scripts/misc/merge_dataframes.py {input} --output {output}
+            python scripts/misc/merge_dataframes.py {input} --output {output}
         """
 
 rule split_by_classifier_type:
@@ -45,7 +44,6 @@ rule split_by_classifier_type:
         OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type="builtin"),
         OUTPUT_LAYOUT.merged_table(method_set="{method_set}", classifier_type="external"),
     params:
-        image=IMAGES.param("aggregation", lambda wc: "split_by_classifier_type"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "split_by_classifier_type", resources),
     resources:
         shell_exec="bash",
@@ -53,7 +51,7 @@ rule split_by_classifier_type:
         **EXECUTION.walltime.resources("split_by_classifier_type"),
     shell:
         """
-            {params.image}python scripts/misc/split_eval_perf_by_classifier.py \
+            python scripts/misc/split_eval_perf_by_classifier.py \
                 --input_path {input} \
                 --output_builtin {output[0]} \
                 --output_external {output[1]}
@@ -88,7 +86,6 @@ rule collect_job_records:
     output:
         OUTPUT_LAYOUT.job_duration_table(),
     params:
-        image=IMAGES.param("aggregation", lambda wc: "collect_job_records"),
         output_root=OUTPUT_LAYOUT.root,
         allocation_check=lambda wc, resources: EXECUTION.checked_device("aggregation", "collect_job_records", resources),
     resources:
@@ -97,7 +94,7 @@ rule collect_job_records:
         **EXECUTION.walltime.resources("collect_job_records"),
     shell:
         """
-        {params.image}python scripts/misc/collect_job_records.py \
+        python scripts/misc/collect_job_records.py \
             --output-root {params.output_root} \
             --output {output}
         """

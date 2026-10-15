@@ -25,7 +25,6 @@ rule eval_method:
         eval_table=OUTPUT_LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()),
         job_record=OUTPUT_LAYOUT.evaluation_job_record(EvaluationRun.wildcards()),
     params:
-        image=IMAGES.param("evaluation", lambda wc: wc.method),
         wandb=WANDB_RUNS.param("eval_method", lambda wc: wc["method"]),
         device=lambda wildcards, resources: EXECUTION.checked_device("evaluation", wildcards.method, resources),
         job_record=JOB_RECORDS.param(
@@ -42,7 +41,7 @@ rule eval_method:
         **EXECUTION.walltime.resources("eval_method"),
     shell:
         """
-        {params.wandb}{params.image}{params.job_record} \
+        {params.wandb}{params.job_record} \
         python scripts/eval/eval_afa_method.py \
             method_bundle_path={input[1]} \
             initializer={INITIALIZER} \

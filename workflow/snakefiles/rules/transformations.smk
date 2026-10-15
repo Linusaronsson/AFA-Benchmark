@@ -26,7 +26,6 @@ rule transform_eval_data:
         eval_table=OUTPUT_LAYOUT.transformed_evaluation_table(EvaluationRun.wildcards()),
         job_record=OUTPUT_LAYOUT.transformation_job_record(EvaluationRun.wildcards()),
     params:
-        image=IMAGES.param("transformation", lambda wc: "transform_eval_data"),
         job_record=JOB_RECORDS.param(
             "transformation",
             lambda wc: "transform_eval_data",
@@ -38,7 +37,7 @@ rule transform_eval_data:
         **EXECUTION.walltime.resources("transform_eval_data"),
     shell:
         """
-        {params.image}{params.job_record} \
+        {params.job_record} \
         python scripts/misc/transform_eval_data_pipeline.py \
             --input_path {input} \
             --output_path {output.eval_table} \

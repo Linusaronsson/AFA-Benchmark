@@ -1,9 +1,4 @@
-"""
-Executable fake SLURM service: records sbatch and runs its real job wrapper.
-
-It also fakes `apptainer exec`: the command runs on the host, in the given
-working directory and environment, whatever the image.
-"""
+"""Executable fake SLURM service: records sbatch and runs its real job wrapper."""
 
 import json
 import os
@@ -50,29 +45,6 @@ elif command == "sacct":
     for status_file in sorted(capture.parent.glob("job-*.status")):
         job_id = status_file.stem.removeprefix("job-")
         print(f"{job_id}|{status_file.read_text()}")
-elif command == "apptainer":
-    with capture.with_name("apptainer.jsonl").open("a") as stream:
-        stream.write(json.dumps(args) + "\n")
-    assert args.pop(0) == "exec"
-    options: dict[str, list[str]] = {}
-    while args[0].startswith("--"):
-        option = args.pop(0)
-        values = options.setdefault(option, [])
-        if option != "--nv":
-            values.append(args.pop(0))
-    args.pop(0)  # The image
-    environment = dict(os.environ)
-    for assignment in options.get("--env", []):
-        name, value = assignment.split("=", 1)
-        environment[name] = value
-    sys.exit(
-        subprocess.run(
-            args,
-            cwd=options["--pwd"][0],
-            env=environment,
-            check=False,
-        ).returncode
-    )
 elif command == "srun":
     while args and args[0].startswith("-"):
         args.pop(0)

@@ -36,14 +36,14 @@ qa-full: (_qa "full")
 estimate-compute *args:
     uv run python scripts/compute_estimate/estimate_compute.py "$@"
 
-# Submit containers/build.sbatch for each image a site profile names, with
+# Submit workflow/venvs/build.sbatch for each venv a site profile names, with
 # its allocations' accounts and partitions; takes the site and --dry-run
 [positional-arguments]
-build-images *args:
-    python3 containers/submit_builds.py "$@"
+build-venvs *args:
+    python3 workflow/venvs/submit_builds.py "$@"
 
 # Paths the workflow tier depends on
-workflow_paths := "workflow/ containers/submit_builds.py conf/ test/workflow/ src/afabench/release/ src/afabench/fit/contract src/afabench/core/bundle_system/ src/afabench/core/output_layout src/afabench/core/workflow_settings src/afabench/compute_estimate/ scripts/compute_estimate/ src/afabench/core/job_record.py src/afabench/core/code_identity.py src/afabench/core/job_duration_table.py scripts/misc/collect_job_records.py scripts/plotting/plot_total_time.py scripts/plotting/plot_eval_perf.py src/afabench/plotting/eval_perf.py src/afabench/plotting/config.py src/afabench/plotting/total_time.py"
+workflow_paths := "workflow/ conf/ test/workflow/ src/afabench/release/ src/afabench/fit/contract src/afabench/core/bundle_system/ src/afabench/core/output_layout src/afabench/core/workflow_settings src/afabench/compute_estimate/ scripts/compute_estimate/ src/afabench/core/job_record.py src/afabench/core/code_identity.py src/afabench/core/job_duration_table.py scripts/misc/collect_job_records.py scripts/plotting/plot_total_time.py scripts/plotting/plot_eval_perf.py src/afabench/plotting/eval_perf.py src/afabench/plotting/config.py src/afabench/plotting/total_time.py"
 
 # Type check and tests run concurrently after the file-rewriting steps
 _qa tier: fix

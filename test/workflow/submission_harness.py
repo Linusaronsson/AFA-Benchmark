@@ -93,7 +93,6 @@ class WorkflowHarness:
         self.bin = root / "bin"
         self.bin.mkdir()
         for name in [
-            "apptainer",
             "sbatch",
             "sacct",
             "sacctmgr",

@@ -20,7 +20,6 @@ rule dataset_generation:
     wildcard_constraints:
         dataset_realization_index=r"\d+",
     params:
-        image=IMAGES.param("dataset_generation", lambda wc: wc.dataset),
         job_record=JOB_RECORDS.param("dataset_generation", lambda wc: wc.dataset),
         save_path=lambda wc: OUTPUT_LAYOUT.dataset_folder(dataset=wc.dataset),
         # Image datasets use a separate generation script because they are
@@ -40,7 +39,7 @@ rule dataset_generation:
         **EXECUTION.walltime.resources("dataset_generation"),
     shell:
         """
-        {params.image}{params.job_record} \
+        {params.job_record} \
         python scripts/dataset_generation/{params.dataset_generation_script} \
             dataset={wildcards.dataset} \
             dataset_realization_indices=[{wildcards.dataset_realization_index}] \

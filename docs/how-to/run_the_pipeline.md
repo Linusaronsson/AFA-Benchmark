@@ -71,9 +71,9 @@ Swap `-n` for `-e` to print the compute it will take instead
 ([estimate the compute of a run](estimate_compute.md)). Then remove `-n` to
 submit. Adapt `<your_site>` from
 `examples/mixed-gres` or `examples/mixed-gpus` as described in
-[SLURM integration](slurm_integration.md). On a site whose jobs run in an
-image, such as `arrhenius`, build the images and host environments first;
-see [run jobs in an image](slurm_integration.md#run-jobs-in-an-image).
+[SLURM integration](slurm_integration.md). On a site whose nodes differ in
+architecture, such as `arrhenius`, build a venv per architecture first; see
+[run on a cluster of mixed architectures](slurm_integration.md#run-on-a-cluster-of-mixed-architectures).
 
 On a workstation, use the CPU execution file and say how many jobs run in
 parallel:
@@ -398,8 +398,7 @@ workflow/run.py --site <your_site> -n \
   job then shows its `resources:` line (`slurm_partition`, `slurm_account`,
   `gpu`, `gres`, `gpu_model`, runtime, CPUs, memory) and, in a dry run, the
   script command, including the `device=` argument passed to computational
-  scripts and, on a site whose jobs run in an image, the `apptainer exec`
-  prefix.
+  scripts.
 - Pass a narrower target with `--target`, such as `all_train_classifiers`,
   `all_pretrain_models`, `all_train_methods` or `all_eval_methods`, to
   inspect or run only part of the graph. These are subsets of the same graph, not

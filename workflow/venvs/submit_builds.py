@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
 """
-Submit containers/build.sbatch once per image a site profile names.
+Submit workflow/venvs/build.sbatch once per venv a site profile names.
 
-    python3 containers/submit_builds.py arrhenius [--dry-run]
+    python3 workflow/venvs/submit_builds.py arrhenius [--dry-run]
 
-Each allocation of the site file (`execution_site.<cpu|gpu>`) that names an
-image is built on that allocation, with its account, partition and GPU
-request, so they are written down once, in the site profile. The argument is
-a site profile under workflow/profiles/site/, whose site.yaml is read, or the
-path of a site file.
+Each allocation of the site file (`execution_site.<cpu|gpu>`) that names a
+venv is built on that allocation, with its account, partition and GPU
+request, so they are written down once, in the site profile: a cluster
+whose nodes differ in architecture needs a venv built on each (ADR 0015).
+The argument is a site profile under workflow/profiles/site/, whose
+site.yaml is read, or the path of a site file.
 
-This runs on the login node before any environment exists, since the
-orchestration environment is what the build creates. It therefore runs on
-the host's python3 (3.9 on Arrhenius) with the standard library only:
-argparse instead of typer, and a reader for the subset of YAML that site
-files use instead of PyYAML.
+This runs on the login node before any venv exists, and the pipeline
+launcher imports it to check the venvs, so it runs on the host's python3
+(3.9 on Arrhenius) with the standard library only: argparse instead of
+typer, and a reader for the subset of YAML that site files use instead of
+PyYAML.
 """
 
 from __future__ import annotations
@@ -26,10 +27,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SITES = REPO_ROOT / "workflow" / "profiles" / "site"
-# build.sbatch writes afabench-<arch>.sif, <arch> being the node's `uname -m`
-IMAGE_NAME = re.compile(r"afabench-[A-Za-z0-9_]+\.sif")
+# build.sbatch builds only .venv-<arch>, <arch> being the node's `uname -m`,
+# the venv workflow/venvs/bin/python runs.
+VENV_NAME = re.compile(r"\.venv-[A-Za-z0-9_]+")
+BUILD_SCRIPT = "workflow/venvs/build.sbatch"
 
 
 def read_site_yaml(text: str, label: str) -> dict[str, object]:
@@ -119,36 +122,69 @@ def site_file(site: str) -> Path:
     return path
 
 
+def lock_record(venv: Path) -> Path:
+    """Return where build.sbatch records the uv.lock `venv` was synced from."""
+    return venv / "afabench.uv.lock"
+
+
+def site_venvs(site: dict[str, object], label: str) -> dict[str, str]:
+    """Return the venv each allocation of `site` names, by its hardware."""
+    allocations = site.get("execution_site")
+    if not isinstance(allocations, dict):
+        message = f"{label} has no execution_site mapping"
+        raise TypeError(message)
+    venvs: dict[str, str] = {}
+    for hardware in ["cpu", "gpu"]:
+        allocation = allocations.get(hardware)
+        if isinstance(allocation, dict) and "venv" in allocation:
+            venvs[hardware] = str(allocation["venv"])
+    return venvs
+
+
+def venv_problem(checkout: Path, venv: str) -> str | None:
+    """
+    Return why the venv `venv` of `checkout` cannot run jobs, or None.
+
+    The record is written only once the venv is synced, and is read rather
+    than the venv's packages, because a login node cannot run a venv of
+    another architecture.
+    """
+    record = lock_record(checkout / venv)
+    if not record.is_file():
+        return f"No venv built at {checkout / venv}"
+    if record.read_bytes() != (checkout / "uv.lock").read_bytes():
+        return f"The venv {checkout / venv} was built from another uv.lock than {checkout / 'uv.lock'}"
+    return None
+
+
 def build_commands(site: dict[str, object], label: str) -> list[list[str]]:
-    """Return one sbatch command per distinct image the site names."""
+    """Return one sbatch command per distinct venv the site names."""
     allocations = site.get("execution_site")
     if not isinstance(allocations, dict):
         message = f"{label} has no execution_site mapping"
         raise TypeError(message)
     commands: list[list[str]] = []
-    images: set[Path] = set()
+    built: set[str] = set()
     for hardware in ["cpu", "gpu"]:
         allocation = allocations.get(hardware)
-        if not isinstance(allocation, dict) or "image" not in allocation:
+        if not isinstance(allocation, dict) or "venv" not in allocation:
             continue
-        image = REPO_ROOT / str(allocation["image"])
-        if not IMAGE_NAME.fullmatch(image.name):
-            message = f"execution_site.{hardware}.image {allocation['image']!r} in {label} is not named afabench-<arch>.sif, the image containers/build.sbatch writes"
+        venv = str(allocation["venv"])
+        if not VENV_NAME.fullmatch(venv):
+            message = f"execution_site.{hardware}.venv {venv!r} in {label} is not named .venv-<arch> in the checkout root, the venv build.sbatch builds"
             raise ValueError(message)
-        if image in images:
+        if venv in built:
             # Both allocations run on one architecture: one build serves both.
             continue
-        images.add(image)
-        commands.append(_sbatch_command(allocation, image.parent))
+        built.add(venv)
+        commands.append(_sbatch_command(allocation, venv))
     if not commands:
-        message = f"{label} names no image in execution_site.cpu or execution_site.gpu"
+        message = f"{label} names no venv in execution_site.cpu or execution_site.gpu"
         raise ValueError(message)
     return commands
 
 
-def _sbatch_command(
-    allocation: dict[str, object], image_dir: Path
-) -> list[str]:
+def _sbatch_command(allocation: dict[str, object], venv: str) -> list[str]:
     command = ["sbatch"]
     if allocation.get("slurm_account"):
         command += ["-A", str(allocation["slurm_account"])]
@@ -166,15 +202,15 @@ def _sbatch_command(
     command += shlex.split(str(allocation.get("slurm_extra", "")))
     return [
         *command,
-        f"--output={image_dir}/build-%j.log",
-        "containers/build.sbatch",
-        str(image_dir),
+        f"--output={REPO_ROOT}/workflow/venvs/build-%j.log",
+        BUILD_SCRIPT,
+        venv,
     ]
 
 
 def main(arguments: list[str]) -> int:
     parser = argparse.ArgumentParser(
-        description="Submit containers/build.sbatch once per image a site profile names."
+        description="Submit workflow/venvs/build.sbatch once per venv a site profile names."
     )
     parser.add_argument(
         "site",

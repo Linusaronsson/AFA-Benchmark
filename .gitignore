@@ -201,9 +201,6 @@ cython_debug/
 /.checkpoint.error
 /.claude/worktrees
 
-# Apptainer images and their build logs (containers/build.sbatch)
-/containers/*.sif
-/containers/*.sif.uv.lock
-/containers/*.log
-# Host environments Snakemake runs in beside the images
-/containers/orchestration-*/
+# Per-architecture venvs and their build logs (workflow/venvs/build.sbatch)
+/.venv-*/
+/workflow/venvs/*.log

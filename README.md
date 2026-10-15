@@ -28,7 +28,7 @@ Python wheels on x86_64 and aarch64 Linux. `uv` installs the exact project
 Python version and locked Python dependencies. With direnv installed, run
 `direnv allow` to activate the flake automatically on NixOS; other hosts do
 not activate it. GPU execution still requires host NVIDIA drivers, and
-cluster execution requires the site's SLURM and, when using images, Apptainer.
+cluster execution requires the site's SLURM.
 
 ## Quickstart
 

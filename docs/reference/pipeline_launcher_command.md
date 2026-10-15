@@ -55,10 +55,13 @@ The launcher prints the command it runs, then runs it:
     [--config <key=value ...> [execution_site_file=workflow/profiles/site/<site>/site.yaml]]
 ```
 
-- **Interpreter.** `containers/bin/python -m snakemake`, the orchestration
-  environment built by `containers/build.sbatch`, when the site's
-  `site.yaml` names an `image` in either allocation; otherwise
+- **Interpreter.** `workflow/venvs/bin/python -m snakemake`, the venv of the
+  host's architecture built by `workflow/venvs/build.sbatch`, when the
+  site's `site.yaml` names a `venv` in either allocation; otherwise
   `uv run snakemake`.
+- **Venv check.** When the site's `site.yaml` names venvs, the launcher
+  fails before running anything while one of them is missing or was built
+  from another `uv.lock`.
 - **Site file.** With `--site`, `execution_site_file` is added to the
   overrides, so the site's allocations apply whatever overrides are given.
 
@@ -72,7 +75,7 @@ arguments unchanged, so swapping `-n` for `-e` estimates the same run:
 <interpreter> scripts/compute_estimate/estimate_compute.py <arguments without -e>
 ```
 
-The interpreter is `containers/run.sh python`, the image of the host's
-architecture, when the site's `site.yaml` names an `image`; otherwise
+The interpreter is `workflow/venvs/bin/python`, the venv of the host's
+architecture, when the site's `site.yaml` names a `venv`; otherwise
 `uv run python`. `just estimate-compute` is the same as `-e` with
 `uv run python`.

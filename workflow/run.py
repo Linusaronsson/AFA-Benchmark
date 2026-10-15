@@ -12,7 +12,9 @@ A pipeline profile, an optional site profile and pipeline profile overrides:
 It builds the one Snakemake command for them, adding what follows from the
 site profile: its site file, which Snakemake would otherwise drop from the
 site profile whenever overrides are passed, and the interpreter of a site
-whose jobs run in an image. See docs/adr/0009. --no-soft-budget and --wandb
+whose allocations name venvs: workflow/venvs/bin/python, the venv of the
+login node's architecture, which it refuses to run while any of the site's
+venvs is missing or built from another uv.lock. See docs/adr/0009 and docs/adr/0015. --no-soft-budget and --wandb
 stand for the overrides soft_budget_setting=false and use_wandb=true,
 --per-dataset-plots for per_dataset_plots=true, and
 --wandb-group <name> for use_wandb=true wandb_group=<name>. With W&B logging
@@ -21,12 +23,11 @@ the pipeline profile, the UTC time and random characters.
 
 With -e it runs the compute estimate of that invocation instead
 (scripts/compute_estimate/estimate_compute.py), which takes the same
-arguments and, with -e only, the estimate's options. On a site whose jobs
-run in an image, the estimate runs in the image: it needs both Snakemake and
-the libraries the orchestration environment lacks.
+arguments and, with -e only, the estimate's options, with the same
+interpreter.
 
-It runs on a login node before any environment exists, like
-containers/submit_builds.py, so on the host's python3 (3.9 on Arrhenius)
+It runs on a login node before any venv exists, like
+workflow/venvs/submit_builds.py, so on the host's python3 (3.9 on Arrhenius)
 with the standard library only: argparse instead of typer.
 """
 
@@ -46,11 +47,17 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 # Run as a script, this directory is on sys.path, not the checkout root.
 sys.path.insert(0, str(REPO_ROOT))
-from containers.submit_builds import read_site_yaml  # noqa: E402
+from workflow.venvs.submit_builds import (  # noqa: E402
+    read_site_yaml,
+    site_venvs,
+    venv_problem,
+)
 
 PIPELINE_PROFILES = "workflow/profiles/pipeline"
 SITE_PROFILES = "workflow/profiles/site"
 ESTIMATE_SCRIPT = "scripts/compute_estimate/estimate_compute.py"
+# The Python of the node's venv, on a site whose allocations name venvs
+VENV_PYTHON = "workflow/venvs/bin/python"
 ESTIMATE_FLAGS = ("-e", "--estimate")
 CATALOGS = {
     "methods": "workflow/conf/methods/all.yaml",
@@ -82,11 +89,8 @@ def launcher_command(
     # Check the run's arguments, as the estimate will.
     snakemake_arguments(arguments, checkout)
     interpreter = ["uv", "run", "python"]
-    if options.site is not None and _names_an_image(
-        checkout,
-        f"{_profile(checkout, SITE_PROFILES, options.site)}/site.yaml",
-    ):
-        interpreter = ["containers/run.sh", "python"]
+    if options.site is not None and _site_venvs(checkout, options.site):
+        interpreter = [VENV_PYTHON]
     return [*interpreter, ESTIMATE_SCRIPT, *_without_estimate_flag(arguments)]
 
 
@@ -143,13 +147,10 @@ def _invocation(
             message = f"--jobs {options.jobs}: a cluster run submits as many jobs as the site profile {options.site!r} sets"
             raise LauncherError(message)
         site = _profile(checkout, SITE_PROFILES, options.site)
-        site_file = f"{site}/site.yaml"
-        if _names_an_image(checkout, site_file):
-            # Jobs run in an image, and the host has only the orchestration
-            # environment containers/build.sbatch built (ADR 0008).
-            interpreter = ["containers/bin/python", "-m", "snakemake"]
+        if _site_venvs(checkout, options.site):
+            interpreter = [VENV_PYTHON, "-m", "snakemake"]
         profiles += ["--workflow-profile", site]
-        config.append(f"execution_site_file={site_file}")
+        config.append(f"execution_site_file={site}/site.yaml")
     # The target first: a multi-value option among the extra arguments
     # would take it as one of its values.
     command = [*profiles, options.target]
@@ -402,24 +403,40 @@ def _profile(checkout: Path, profiles: str, name: str) -> str:
     return path
 
 
-def _names_an_image(checkout: Path, site_file: str) -> bool:
+def _site_venvs(checkout: Path, site: str) -> dict[str, str]:
+    """Return the venv each allocation of the site profile `site` names."""
+    site_file = f"{_profile(checkout, SITE_PROFILES, site)}/site.yaml"
     if not (checkout / site_file).is_file():
         message = f"The site profile has no site file {site_file}"
         raise LauncherError(message)
-    site = read_site_yaml((checkout / site_file).read_text(), site_file)
-    allocations = site.get("execution_site")
-    if not isinstance(allocations, dict):
-        message = f"{site_file} has no execution_site mapping"
+    try:
+        return site_venvs(
+            read_site_yaml((checkout / site_file).read_text(), site_file),
+            site_file,
+        )
+    except TypeError as error:
+        raise LauncherError(str(error)) from error
+
+
+def check_site_venvs(arguments: list[str], checkout: Path = REPO_ROOT) -> None:
+    """Fail unless every venv the run's site names is built from uv.lock."""
+    site = _parse(arguments).site
+    if site is None:
+        return
+    problems = [
+        problem
+        for venv in sorted(set(_site_venvs(checkout, site).values()))
+        if (problem := venv_problem(checkout, venv)) is not None
+    ]
+    if problems:
+        message = f"{'; '.join(problems)}. Build the site's venvs with `just build-venvs {site}` (docs/how-to/slurm_integration.md), and run this again once those jobs finished"
         raise LauncherError(message)
-    return any(
-        isinstance(allocation, dict) and "image" in allocation
-        for allocation in allocations.values()
-    )
 
 
 def main(arguments: list[str]) -> int:
     try:
         command = launcher_command(arguments)
+        check_site_venvs(arguments)
     except LauncherError as error:
         print(f"workflow/run.py: error: {error}", file=sys.stderr)
         return 2

@@ -114,7 +114,7 @@ class WandbRuns:
         Return the `wandb` param of `rule`, whose script starts a W&B run.
 
         The param is empty or ends in a space, so a rule's shell command
-        reads `{params.wandb}{params.image}...`. It takes the resources only
+        reads `{params.wandb}{params.job_record}...`. It takes the resources only
         because Snakemake does not track params that do: a new attempt's ID
         reruns no job.
         """

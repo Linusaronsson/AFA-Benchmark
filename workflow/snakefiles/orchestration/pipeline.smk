@@ -61,13 +61,15 @@ Runtime filters (--config, select subsets to run):
         --site <site>) sets it, also with overrides, which replace the site
         profile's config. Alternatively provide execution_site in a
         configuration file.
-        An allocation may name an image (execution_site.<cpu|gpu>.image,
-        relative to the repository root): its jobs then run their
-        commands in it through apptainer exec, with --nv on GPU
-        allocations, while Snakemake stays on the host. The image must
-        exist and match uv.lock, or planning fails before submission.
+        An allocation may name the venv its jobs run in
+        (execution_site.<cpu|gpu>.venv, relative to the repository root),
+        on a cluster whose nodes differ in architecture: the pipeline
+        launcher then runs Snakemake from the login node's venv and refuses
+        to submit while a venv is missing or built from another uv.lock,
+        and the site profile's precommand puts workflow/venvs/bin, whose
+        python runs the node's venv, on PATH.
         See docs/how-to/slurm_integration.md and
-        docs/adr/0008-snakemake-on-the-host-scripts-in-the-image.md.
+        docs/adr/0015-one-venv-per-architecture.md.
     use_wandb (bool, default=False): Enable W&B logging; the launcher's
         --wandb sets it. Needs WANDB_ENTITY and WANDB_PROJECT set, and
         wandb_group, or load fails. The classifier training, pretraining,

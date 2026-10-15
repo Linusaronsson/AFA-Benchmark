@@ -60,7 +60,6 @@ rule plot_eval_perf:
     wildcard_constraints:
         classifier_type="builtin" if WORKFLOW_SETTINGS.per_dataset_plots else "builtin|external",
     params:
-        image=IMAGES.param("visualization", lambda wc: "plot_eval_perf"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_perf", resources),
         dataset_sets=_dataset_sets_override(),
         metrics=_plotting_metric_overrides(),
@@ -70,7 +69,7 @@ rule plot_eval_perf:
         **EXECUTION.walltime.resources("plot_eval_perf"),
     shell:
         """
-        {params.image}python scripts/plotting/plot_eval_perf.py \
+        python scripts/plotting/plot_eval_perf.py \
             input={input} output_folder={output} formats='[pdf,svg]' \
             {params.dataset_sets} {params.metrics}
         """
@@ -85,7 +84,6 @@ if WORKFLOW_SETTINGS.per_dataset_plots:
             usual=directory(OUTPUT_LAYOUT.eval_perf_plots(method_set="{method_set}", classifier_type="external")),
             per_dataset=directory(OUTPUT_LAYOUT.per_dataset_eval_perf_plots(method_set="{method_set}")),
         params:
-            image=IMAGES.param("visualization", lambda wc: "plot_eval_perf"),
             allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_perf", resources),
             dataset_sets=_dataset_sets_override(),
             metrics=_plotting_metric_overrides(),
@@ -95,7 +93,7 @@ if WORKFLOW_SETTINGS.per_dataset_plots:
             **EXECUTION.walltime.resources("plot_eval_perf"),
         shell:
             """
-            {params.image}python scripts/plotting/plot_eval_perf.py \
+            python scripts/plotting/plot_eval_perf.py \
                 input={input.selected} output_folder={output.usual} formats='[pdf,svg]' \
                 {params.dataset_sets} {params.metrics} per_dataset_plots=true \
                 per_dataset_input={input.unsplit} \
@@ -109,7 +107,6 @@ rule plot_eval_actions:
     output:
         directory(OUTPUT_LAYOUT.eval_actions_plots(method_set="{method_set}", classifier_type="{classifier_type}")),
     params:
-        image=IMAGES.param("visualization", lambda wc: "plot_eval_actions"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_eval_actions", resources),
     resources:
         shell_exec="bash",
@@ -117,7 +114,7 @@ rule plot_eval_actions:
         **EXECUTION.walltime.resources("plot_eval_actions"),
     shell:
         """
-        {params.image}python scripts/plotting/plot_eval_actions.py \
+        python scripts/plotting/plot_eval_actions.py \
             input={input} output_folder={output} formats='[pdf,svg]'
         """
 
@@ -134,7 +131,6 @@ rule plot_time:
     output:
         directory(OUTPUT_LAYOUT.time_plots()),
     params:
-        image=IMAGES.param("visualization", lambda wc: "plot_time"),
         allocation_check=lambda wc, resources: EXECUTION.checked_device("visualization", "plot_time", resources),
         selection=_plot_time_selection(),
     resources:
@@ -143,7 +139,7 @@ rule plot_time:
         **EXECUTION.walltime.resources("plot_time"),
     shell:
         """
-        {params.image}python scripts/plotting/plot_total_time.py \
+        python scripts/plotting/plot_total_time.py \
             input={input} output_folder={output} {params.selection} \
             formats='[pdf,svg]'
         """

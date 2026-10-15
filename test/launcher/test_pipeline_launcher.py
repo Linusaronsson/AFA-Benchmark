@@ -3,6 +3,7 @@
 import datetime
 import re
 import runpy
+import shutil
 from pathlib import Path
 
 import pytest
@@ -10,12 +11,14 @@ import pytest
 from workflow.run import (
     LauncherError,
     available_names,
+    check_site_venvs,
     launcher_command,
     snakemake_arguments,
     snakemake_command,
 )
 
 ESTIMATE_SCRIPT = "scripts/compute_estimate/estimate_compute.py"
+REPO_ROOT = Path(__file__).parents[2]
 
 
 @pytest.mark.parametrize(
@@ -89,7 +92,7 @@ def test_launcher_without_datetime_utc(
     assert "Run the pipeline." in capsys.readouterr().out
 
     command = launcher(["--wandb", "--site", "arrhenius"])
-    assert command[:3] == ["containers/bin/python", "-m", "snakemake"]
+    assert command[:3] == ["workflow/venvs/bin/python", "-m", "snakemake"]
     group = next(word for word in command if word.startswith("wandb_group="))
     assert re.fullmatch(r"wandb_group=all-\d{8}T\d{6}Z-[a-z0-9]{4}", group)
 
@@ -132,10 +135,55 @@ def test_site_and_overrides_share_one_config() -> None:
     ]
 
 
-def test_site_whose_jobs_run_in_an_image_uses_the_host_environment() -> None:
+def test_site_naming_venvs_runs_snakemake_from_the_nodes_venv() -> None:
     command = snakemake_command(["--site", "arrhenius"])
 
-    assert command[:3] == ["containers/bin/python", "-m", "snakemake"]
+    assert command[:3] == ["workflow/venvs/bin/python", "-m", "snakemake"]
+
+
+def checkout_with_venvs(tmp_path: Path, *, lock: str) -> Path:
+    """Copy the site profiles into a checkout with both Arrhenius venvs."""
+    shutil.copytree(
+        REPO_ROOT / "workflow/profiles", tmp_path / "workflow/profiles"
+    )
+    (tmp_path / "uv.lock").write_text("# the locked dependencies\n")
+    for venv in [".venv-x86_64", ".venv-aarch64"]:
+        (tmp_path / venv).mkdir()
+        (tmp_path / venv / "afabench.uv.lock").write_text(lock)
+    return tmp_path
+
+
+def test_venvs_built_from_the_lock_pass_the_check(tmp_path: Path) -> None:
+    checkout = checkout_with_venvs(
+        tmp_path, lock="# the locked dependencies\n"
+    )
+
+    check_site_venvs(["--site", "arrhenius"], checkout)
+
+
+def test_a_stale_or_missing_venv_is_refused_before_launching(
+    tmp_path: Path,
+) -> None:
+    checkout = checkout_with_venvs(tmp_path, lock="# an older lock\n")
+    shutil.rmtree(checkout / ".venv-aarch64")
+
+    with pytest.raises(LauncherError) as error:
+        check_site_venvs(["--site", "arrhenius", "-n"], checkout)
+
+    assert "No venv built at" in str(error.value)
+    assert ".venv-x86_64 was built from another uv.lock" in str(error.value)
+    assert "just build-venvs arrhenius" in str(error.value)
+
+
+def test_sites_without_venvs_and_local_runs_need_no_check(
+    tmp_path: Path,
+) -> None:
+    shutil.copytree(
+        REPO_ROOT / "workflow/profiles", tmp_path / "workflow/profiles"
+    )
+
+    check_site_venvs([], tmp_path)
+    check_site_venvs(["--site", "vera"], tmp_path)
 
 
 def test_dry_run_target_and_extra_snakemake_arguments() -> None:
@@ -350,16 +398,13 @@ def test_estimate_takes_the_arguments_of_the_run() -> None:
     ]
 
 
-def test_estimate_on_a_site_whose_jobs_run_in_an_image_runs_in_the_image() -> (
-    None
-):
+def test_estimate_on_a_site_naming_venvs_runs_in_the_nodes_venv() -> None:
     command = launcher_command(
         ["--site", "arrhenius", "-e", "datasets=[cube]"]
     )
 
     assert command == [
-        "containers/run.sh",
-        "python",
+        "workflow/venvs/bin/python",
         ESTIMATE_SCRIPT,
         "--site",
         "arrhenius",

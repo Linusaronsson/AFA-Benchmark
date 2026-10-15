@@ -560,8 +560,8 @@ _Avoid_: Device config, hardware profile, execution profile
 
 **Site profile**:
 The configuration that places pipeline jobs on one computing site: its
-scheduler settings, its allocations and, where the site needs one, the image
-jobs run in. Running locally needs no site profile.
+scheduler settings and its allocations. Running locally needs no site
+profile.
 _Avoid_: Cluster config, cluster profile
 
 **Pipeline launcher**:
@@ -585,13 +585,6 @@ The scheduler resources a site profile requests for a pipeline job, such as
 account, partition and GPUs. A site profile has one for CPU jobs and may have
 one for GPU jobs; a job's declared device selects which.
 _Avoid_: Resources (Snakemake's term covers runtime and memory too), partition
-
-**Image**:
-A single file holding the locked Python environment that pipeline jobs run
-in, without the project code, which jobs read from the checkout. An image
-serves one CPU architecture, and it goes stale when the locked dependencies
-change.
-_Avoid_: Container (an image while it runs), sif, environment
 
 **Contract**:
 The fixed set of inputs the pipeline gives a pretraining or training script,

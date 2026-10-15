@@ -1,0 +1,19 @@
+#!/bin/sh
+# The Python of this node's architecture: .venv-<arch> in the checkout.
+#
+# A cluster's nodes may differ in architecture (Arrhenius: x86_64 login and
+# CPU nodes, aarch64 GPU nodes), and each job's Snakemake starts a bare
+# `python` from PATH (ADR 0015). A site profile that puts this directory on
+# PATH, through --precommand, starts it here, which finds the node's venv
+# only on the node: the SLURM executor submits the precommand through a
+# shell on the login node, which would expand $(uname -m) there.
+
+set -eu
+
+checkout="$(cd "$(dirname "$0")/../../.." && pwd)"
+venv="$checkout/.venv-$(uname -m)"
+if [ ! -x "$venv/bin/python" ]; then
+    echo "No venv for $(uname -m) at $venv; build it with just build-venvs <site> (docs/how-to/slurm_integration.md)" >&2
+    exit 1
+fi
+exec "$venv/bin/python" "$@"

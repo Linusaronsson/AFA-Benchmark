@@ -1,4 +1,4 @@
-"""Submitting containers/build.sbatch from a site profile's allocations."""
+"""Submitting workflow/venvs/build.sbatch from a site profile's allocations."""
 
 import json
 import os
@@ -10,7 +10,7 @@ import pytest
 import yaml
 
 REPO_ROOT = Path(__file__).parents[2]
-SCRIPT = REPO_ROOT / "containers" / "submit_builds.py"
+SCRIPT = REPO_ROOT / "workflow" / "venvs" / "submit_builds.py"
 SITE_FILES = sorted((REPO_ROOT / "workflow/profiles/site").rglob("site.yaml"))
 
 
@@ -55,16 +55,16 @@ def test_arrhenius_builds_on_each_allocation_with_its_account(
     completed, calls = submit(["arrhenius"], tmp_path)
 
     assert completed.returncode == 0, completed.stderr
-    containers = REPO_ROOT / "containers"
+    logs = REPO_ROOT / "workflow/venvs"
     assert calls == [
         [
             "-A",
             "naiss2026-4-1737-cpu",
             "-p",
             "cpu",
-            f"--output={containers}/build-%j.log",
-            "containers/build.sbatch",
-            str(containers),
+            f"--output={logs}/build-%j.log",
+            "workflow/venvs/build.sbatch",
+            ".venv-x86_64",
         ],
         [
             "-A",
@@ -72,9 +72,9 @@ def test_arrhenius_builds_on_each_allocation_with_its_account(
             "-p",
             "gpu",
             "--gpus=1",
-            f"--output={containers}/build-%j.log",
-            "containers/build.sbatch",
-            str(containers),
+            f"--output={logs}/build-%j.log",
+            "workflow/venvs/build.sbatch",
+            ".venv-aarch64",
         ],
     ]
 
@@ -95,12 +95,12 @@ def test_gres_model_and_extra_arguments_reach_sbatch(tmp_path: Path) -> None:
         "    slurm_partition: cpu\n"
         "    slurm_account: acct\n"
         "    slurm_extra: '--qos=long'\n"
-        "    image: images/afabench-x86_64.sif\n"
+        "    venv: .venv-x86_64\n"
         "  gpu:\n"
         "    slurm_partition: gpu\n"
         "    gpu: 2\n"
         "    gpu_model: a100\n"
-        "    image: images/afabench-aarch64.sif\n",
+        "    venv: .venv-aarch64\n",
     )
 
     completed, calls = submit([str(site)], tmp_path)
@@ -108,10 +108,10 @@ def test_gres_model_and_extra_arguments_reach_sbatch(tmp_path: Path) -> None:
     assert completed.returncode == 0, completed.stderr
     assert calls[0][:5] == ["-A", "acct", "-p", "cpu", "--qos=long"]
     assert calls[1][:3] == ["-p", "gpu", "--gpus=a100:2"]
-    assert calls[1][-1] == str(REPO_ROOT / "images")
+    assert calls[1][-1] == ".venv-aarch64"
 
 
-def test_one_image_named_by_both_allocations_is_built_once(
+def test_one_venv_named_by_both_allocations_is_built_once(
     tmp_path: Path,
 ) -> None:
     site = write_site(
@@ -119,11 +119,11 @@ def test_one_image_named_by_both_allocations_is_built_once(
         "execution_site:\n"
         "  cpu:\n"
         "    slurm_partition: cpu\n"
-        "    image: containers/afabench-x86_64.sif\n"
+        "    venv: .venv-x86_64\n"
         "  gpu:\n"
         "    slurm_partition: gpu\n"
         "    gres: gpu:T4:1\n"
-        "    image: containers/afabench-x86_64.sif\n",
+        "    venv: .venv-x86_64\n",
     )
 
     completed, calls = submit([str(site)], tmp_path)
@@ -137,13 +137,13 @@ def test_one_image_named_by_both_allocations_is_built_once(
     [
         (
             "execution_site:\n  cpu:\n    slurm_partition: cpu\n",
-            "names no image",
+            "names no venv",
         ),
         (
-            "execution_site:\n  cpu:\n    image: containers/mine.sif\n",
-            "not named afabench-<arch>.sif",
+            "execution_site:\n  cpu:\n    venv: venvs/mine\n",
+            "not named .venv-<arch>",
         ),
-        ("execution_site:\n  cpu:\n    - image\n", "unsupported YAML"),
+        ("execution_site:\n  cpu:\n    - venv\n", "unsupported YAML"),
     ],
 )
 def test_unbuildable_site_fails_without_submitting(

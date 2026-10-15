@@ -20,21 +20,22 @@ Two things follow from the site profile:
   dropped the site's allocations, and submission failed until the user
   repeated `execution_site_file=` on the command line. Every documented
   cluster command carried that line.
-- **Its interpreter.** On a site whose jobs run in an image, Snakemake runs
-  from the host's orchestration environment, not uv
-  ([ADR 0008](0008-snakemake-on-the-host-scripts-in-the-image.md)), and
-  users had to remember to start `containers/snakemake.sh` instead.
+- **Its interpreter.** On a site whose allocations name venvs, one per
+  node architecture, Snakemake runs from the venv of the login node's
+  architecture, not uv's
+  ([ADR 0015](0015-one-venv-per-architecture.md)), and users would have to
+  remember to start `workflow/venvs/bin/python -m snakemake` instead.
 
 The launcher adds `execution_site_file` to the one `--config` it builds
 from the overrides, and chooses the interpreter from whether the site file
-names an image.
+names venvs.
 
 ## Considered options
 
 Every option has to reach the jobs, not just the submitting Snakemake: each
-job parses the Snakefile again and needs its allocation, for its image and
-the allocation checks. Snakemake 9 passes jobs the `--config`,
-`--configfiles` and resource arguments and the environment, but never the
+job parses the Snakefile again and needs its allocation, for the allocation
+checks. Snakemake 9 passes jobs the `--config`, `--configfiles` and
+resource arguments and the environment, but never the
 profiles, and keeps no record of `--workflow-profile` a Snakefile can read.
 
 - **The site file path as a default resource** of the site profile, which

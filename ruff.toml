@@ -7,8 +7,9 @@ exclude = [
 ]
 
 [per-file-target-version]
-# The launcher runs before an environment exists on Arrhenius's login node.
+# These run before a venv exists, on Arrhenius's login node.
 "workflow/run.py" = "py39"
+"workflow/venvs/submit_builds.py" = "py39"
 
 [lint]
 select = ["ALL"]

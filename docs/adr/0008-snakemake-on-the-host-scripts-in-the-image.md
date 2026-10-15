@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0015
 ---
 
 # Snakemake runs on the host, natively per architecture; scripts run in the image

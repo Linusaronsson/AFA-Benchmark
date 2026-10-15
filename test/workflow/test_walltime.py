@@ -26,7 +26,7 @@ def test_site_walltime_overrides_arrhenius_legacy_rule_limit(
     tmp_path: Path,
 ) -> None:
     workflow = WorkflowHarness(tmp_path)
-    # Exercise the real Arrhenius profile without requiring its images.
+    # The real Arrhenius config.yaml, with a site file of test walltimes.
     site = tmp_path / "workflow/profiles/site/arrhenius/site.yaml"
     site.write_text(
         yaml.safe_dump(

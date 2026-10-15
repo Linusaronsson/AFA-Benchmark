@@ -1,22 +1,18 @@
 # Run with workflow/run.py --site arrhenius, which runs Snakemake from the
-# orchestration environment, after building both images and orchestration
-# environments with containers/build.sbatch
-# (docs/how-to/slurm_integration.md).
+# login node's venv, after building the venv of each architecture with
+# just build-venvs arrhenius (docs/how-to/slurm_integration.md).
 executor: slurm
 jobs: 9001
 latency-wait: 30 # seconds
 
-# Each job's Snakemake runs on the host of its node's architecture, from
-# containers/bin/python; its scripts run in the allocation's image (ADR 0008).
-# Without software-deployment, jobs start `python` from PATH rather than the
-# login node's x86_64 interpreter. Snakemake expands $PWD and $PATH when it
-# reads this profile, so run it from the checkout root.
+# Login and CPU nodes are x86_64 and GPU nodes aarch64, so each job runs in
+# the venv of its node's architecture, which site.yaml names per allocation
+# (ADR 0015). Without software-deployment, jobs start `python` from PATH
+# rather than the login node's x86_64 interpreter: workflow/venvs/bin/python,
+# which runs the node's venv. Snakemake expands $PWD and $PATH when it reads
+# this profile, so run it from the checkout root.
 shared-fs-usage: [persistence, input-output, sources, source-cache, storage-local-copies]
-precommand: export PATH=$PWD/containers/bin:$PATH
-# Snakemake creates its own image cache, used or not, in APPTAINER_CACHEDIR by
-# default, which Arrhenius sets to node-local /scratch/local, missing on the
-# login node.
-apptainer-prefix: .snakemake/apptainer
+precommand: export PATH=$PWD/workflow/venvs/bin:$PATH
 
 default-resources:
   runtime: 120 # minutes

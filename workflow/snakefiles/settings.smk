@@ -25,7 +25,6 @@ sys.path.insert(
 from afabench.core.output_layout import OutputLayout
 from afabench.core.workflow_settings import load_config
 from execution import ExecutionPolicy
-from images import ImageCommands
 from job_output import hide_job_messages
 from job_records import JobRecordCommands
 from wandb_runs import WandbProject, WandbRuns
@@ -64,7 +63,6 @@ JOB_RECORDS = JobRecordCommands(
     output_root=WORKFLOW_SETTINGS.output_root,
     smoke_test=WORKFLOW_SETTINGS.smoke_test,
 )
-IMAGES = ImageCommands(EXECUTION, output_root=WORKFLOW_SETTINGS.output_root)
 # The scalars the rules read; everything else they ask of
 # WORKFLOW_SETTINGS and OUTPUT_LAYOUT.
 INITIALIZER = WORKFLOW_SETTINGS.initializer

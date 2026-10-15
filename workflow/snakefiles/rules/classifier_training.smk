@@ -59,7 +59,6 @@ rule train_classifier:
             method=None,
         ),
     params:
-        image=IMAGES.param("classifier_training", lambda wc: None),
         wandb=WANDB_RUNS.param(
             "train_classifier",
             lambda wc: _classifier_script_name(wc["dataset"]),
@@ -84,7 +83,7 @@ rule train_classifier:
         **EXECUTION.walltime.resources("train_classifier"),
     shell:
         """
-        {params.wandb}{params.image}{params.job_record} \
+        {params.wandb}{params.job_record} \
         python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
@@ -126,7 +125,6 @@ rule train_classifier_for_method:
             method="{method}",
         ),
     params:
-        image=IMAGES.param("classifier_training", lambda wc: wc.method),
         wandb=WANDB_RUNS.param(
             "train_classifier_for_method",
             lambda wc: _method_classifier_script_name(wc["method"], wc["dataset"]),
@@ -151,7 +149,7 @@ rule train_classifier_for_method:
         **EXECUTION.walltime.resources("train_classifier_for_method"),
     shell:
         """
-        {params.wandb}{params.image}{params.job_record} \
+        {params.wandb}{params.job_record} \
         python scripts/train_classifier/{params.script_name}.py \
             train_dataset_path={input[0]} \
             val_dataset_path={input[1]} \
