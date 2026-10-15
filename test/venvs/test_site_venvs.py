@@ -45,6 +45,16 @@ def test_jobs_start_the_venvs_the_site_names(site: Path) -> None:
         assert VENV_NAME.fullmatch(allocation["venv"])
 
 
+def test_arrhenius_keeps_snakemakes_image_cache_off_node_local_storage() -> (
+    None
+):
+    # Snakemake creates it whether or not a job uses Apptainer, and
+    # Arrhenius's APPTAINER_CACHEDIR is missing on the login node.
+    profile = yaml.safe_load((SITES / "arrhenius/config.yaml").read_text())
+
+    assert profile["apptainer-prefix"] == ".snakemake/apptainer"
+
+
 def built_venv(checkout: Path, venv: str, lock: str) -> None:
     (checkout / "uv.lock").write_text(LOCK)
     lock_record(checkout / venv).parent.mkdir(parents=True)
