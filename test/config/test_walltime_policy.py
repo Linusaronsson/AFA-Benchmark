@@ -27,14 +27,15 @@ def test_arrhenius_l2m_training_limit_is_dataset_specific() -> None:
         site["walltime"],
         methods={"l2m_official", "dime"},
         pretrained_models={"l2m_official"},
-        datasets={"miniboone_subset", "metabric"},
+        datasets={"miniboone_subset", "metabric", "cube"},
     )
 
     assert (
         walltime.minutes("train_method", "l2m_official", "miniboone_subset")
         == 480
     )
-    assert walltime.minutes("train_method", "l2m_official", "metabric") == 240
+    assert walltime.minutes("train_method", "l2m_official", "metabric") == 480
+    assert walltime.minutes("train_method", "l2m_official", "cube") == 240
     assert walltime.minutes("train_method", "dime", "miniboone_subset") == 240
     assert (
         walltime.minutes("pretrain_model", "l2m_official", "miniboone_subset")

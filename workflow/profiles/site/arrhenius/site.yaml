@@ -7,8 +7,10 @@ walltime:
         l2m_official:
           # MiniBooNE training reached ~38,000/50,000 steps in 4 hours;
           # allow headroom above the projected ~5.3-hour full run.
+          # METABRIC training reached 39,600-49,600/50,000 steps in 4 hours.
           datasets:
             miniboone_subset: 8
+            metabric: 8
     pretrain_model:
       pretrained_models:
         l2m_official:
