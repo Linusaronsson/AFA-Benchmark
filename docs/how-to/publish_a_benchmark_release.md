@@ -23,13 +23,25 @@ before creating the repository:
    overrides a saved login; if authentication fails, check for an invalid
    or expired token in that variable as well.
 3. Create a dataset repository, public for an announced release. Replace
-   `<repo_id>` with `<username>/afabench` or `<organization>/afabench`;
+   `<repo_id>` with `<username>/results` or `<organization>/results`;
    for an organization, your account must have permission to create and
    write repositories there:
 
    ```shell
    uv run hf repo create <repo_id> --repo-type dataset
    ```
+
+   Organization membership does not select the repository's owner
+   automatically. Using just `results` creates it under your personal
+   account. To create it under the `AFABench` organization, explicitly use:
+
+   ```shell
+   uv run hf repo create AFABench/results --repo-type dataset
+   ```
+
+   Use the same full repository id when publishing:
+   `--repo-id AFABench/results` (or set
+   `AFABENCH_RELEASE_REPO=AFABench/results`).
 
 A `401 Unauthorized` error means authentication failed: check
 `uv run hf auth whoami` and log in with a valid token before retrying.
@@ -121,7 +133,7 @@ format given there. To find the changes since the previous release:
 
 ```shell
 uv run python scripts/release/snapshot.py publish /path/to/2026-10-kdd26 \
-    --repo-id <repo_id>
+    --repo-id AFABench/results
 ```
 
 The release is uploaded in one commit, and the command prints its

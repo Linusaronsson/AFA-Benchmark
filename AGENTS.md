@@ -17,6 +17,9 @@ trade-offs, not routine development history.
 
 ## Quality gate
 
+For documentation-only changes, review the diff and run `git diff --check`;
+skip `just qa` and `just qa-full`.
+
 `just qa` (format, lint, type check, fast tests; see `justfile`) must pass
 before any code change is reported complete or committed. Focused commands
 are for iterating only. If it fails, fix it or report the failure verbatim.
