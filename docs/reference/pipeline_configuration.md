@@ -182,6 +182,25 @@ Turns whole pipeline stages off. A stage that is off defines no rules, so the ru
 - **Example:** `"stages={dataset_generation: false, training: false}"` to evaluate existing trained methods; add `evaluation: false` to only transform, aggregate and plot existing evaluation tables
 - **Note:** Each value is `true` or `false`, in any case. An unknown key, another value, or a `stages` that is not a mapping is a config error. The dry run's resolved configuration lists the stages that are off
 
+### `reuse_release`
+
+- **Type:** `bool`
+- **Default:** `false`
+- **Requires:** `<output_root>/release_manifest.json` and
+  `stages={dataset_generation: false}`. Generate missing datasets first with
+  the `all_generate_datasets` target and reuse disabled.
+- **Behavior:** Checks actual dataset bundle content hashes against existing
+  released artifacts' recorded input hashes, for the selected datasets and
+  realizations. A mismatch, unknown hash or missing required dataset fails
+  planning. Only matching dataset dependencies of existing released outputs
+  ignore timestamps. Missing outputs, locally replaced model bundles and
+  non-release artifacts retain normal dependencies. Other dependency edges
+  remain unchanged, so a newly trained prerequisite can invalidate evaluations.
+- **Example:** `reuse_release=true "stages={dataset_generation: false}"`
+- **Scope:** Bundle contents, not external source files, code compatibility
+  or changed hyperparameters. Ordinary runs with the default `false` retain
+  normal invalidation. See the [adopter workflow](../how-to/compare_your_method_with_published_results.md).
+
 ### `per_dataset_plots`
 
 - **Type:** bool

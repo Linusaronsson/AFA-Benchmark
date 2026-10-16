@@ -33,18 +33,26 @@ def _method_classifier_script_params(method: str, dataset: str) -> str:
     return _classifier_script_params(dataset)
 
 
+def _classifier_dataset(split, method=None):
+    return release_dataset_input(
+        OUTPUT_LAYOUT.classifier_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            method=method,
+        ),
+        OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split=split,
+        ),
+        f"{split}_dataset",
+    )
+
+
 rule train_classifier:
     input:
-        OUTPUT_LAYOUT.dataset_bundle(
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            split="train",
-        ),
-        OUTPUT_LAYOUT.dataset_bundle(
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            split="val",
-        ),
+        _classifier_dataset("train"),
+        _classifier_dataset("val"),
     output:
         classifier_bundle=directory(
             OUTPUT_LAYOUT.classifier_bundle(
@@ -101,16 +109,8 @@ rule train_classifier:
 
 rule train_classifier_for_method:
     input:
-        OUTPUT_LAYOUT.dataset_bundle(
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            split="train",
-        ),
-        OUTPUT_LAYOUT.dataset_bundle(
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            split="val",
-        ),
+        _classifier_dataset("train", method="{method}"),
+        _classifier_dataset("val", method="{method}"),
     output:
         classifier_bundle=directory(
             OUTPUT_LAYOUT.classifier_bundle(

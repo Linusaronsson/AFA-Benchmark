@@ -69,3 +69,36 @@ INITIALIZER = WORKFLOW_SETTINGS.initializer
 EVAL_DATASET_SPLIT = WORKFLOW_SETTINGS.eval_dataset_split
 USE_WANDB = WORKFLOW_SETTINGS.use_wandb
 SMOKE_TEST = WORKFLOW_SETTINGS.smoke_test
+
+# Import release readers only for explicit reuse; ordinary DAG construction
+# stays independent of torch and Parquet.
+RELEASE_REUSE = None
+if WORKFLOW_SETTINGS.reuse_release:
+    if WORKFLOW_SETTINGS.stages.dataset_generation:
+        raise ValueError(
+            "reuse_release=true requires stages={dataset_generation: false}; "
+            "run all_generate_datasets first without reuse_release."
+        )
+    from pathlib import Path
+    from afabench.release.reuse import ReleaseReuse
+    RELEASE_REUSE = ReleaseReuse(Path(WORKFLOW_SETTINGS.output_root))
+    RELEASE_REUSE.validate_datasets(
+        OUTPUT_LAYOUT, WORKFLOW_SETTINGS.datasets,
+        WORKFLOW_SETTINGS.dataset_realization_indices,
+    )
+
+
+def release_dataset_input(consumer, dataset, role):
+    from pathlib import Path
+    from snakemake.io import apply_wildcards
+
+    def resolve(wildcards):
+        path = apply_wildcards(dataset, wildcards)
+        target = apply_wildcards(consumer, wildcards)
+        if RELEASE_REUSE is not None and RELEASE_REUSE.compatible(
+            Path(target), Path(path), role
+        ):
+            return ancient(path)
+        return path
+
+    return resolve

@@ -117,9 +117,47 @@ A restored output is not run again when your fork changes its rule's code
 or parameters
 ([why](../explanation/output_snapshots.md)).
 
-## 4. Run your pipeline profile
+## 4. Regenerate omitted dataset bundles when needed
 
-Check the plan first; on a cluster, add `--site <site>`:
+If the release omitted dataset bundles for redistribution reasons, prepare
+any required local sources following the [dataset guide](../reference/datasets/README.md),
+then generate the dataset realizations selected by your profile:
+
+```shell
+workflow/run.py my_comparison --target all_generate_datasets
+```
+
+On a cluster, add `--site <site>`. Keep the release's dataset generation
+settings and environment to reproduce its realization. Generating bundles
+locally does not grant permission to redistribute them.
+
+For subsequent invocations, enable checked reuse and turn dataset generation
+off so that the checked bundles cannot be replaced during the run:
+
+```shell
+workflow/run.py my_comparison reuse_release=true \
+    "stages={dataset_generation: false}" -n
+```
+
+This requires the downloaded `release_manifest.json`. Reuse verifies the
+actual dataset bundle contents against the input hashes recorded for existing
+released classifiers, pretrained models, methods and evaluations on your
+selected dataset realizations. Identical bundles do not invalidate those
+outputs just because they are newer. Unknown or different hashes stop the
+plan with an incompatibility error; reproduce the release's dataset settings
+or use a separate output root to train on changed data. Missing models and
+new methods still run normally.
+
+Hashes identify the bundle's saved data, not external source files. For image
+datasets that save indices and configuration instead of pixels, ensure your
+local source files match the release's sources too. Reuse does not establish
+code or hyperparameter compatibility; still perform step 3.
+
+## 5. Run your pipeline profile
+
+Check the plan first; on a cluster, add `--site <site>`. If you regenerated
+omitted bundles, keep `reuse_release=true "stages={dataset_generation: false}"`
+on the commands in this step, including the real run:
 
 ```shell
 workflow/run.py my_comparison -n
@@ -143,9 +181,10 @@ change the profile to match the release, whose configuration is in the
 manifest's `workflow_config`.
 
 If it lists `dataset_generation` or `train_classifier` for a dataset the
-release has, a [shared prerequisite](../../CONTEXT.md) is missing. Download
-it (step 2) rather than letting the run produce a different one, which
-would also evaluate the published methods again with it.
+release has, a [shared prerequisite](../../CONTEXT.md) is missing or newer
+than a released output. Download available prerequisites (step 2). For
+omitted dataset bundles, follow step 4 instead. A genuinely missing classifier
+must be trained and can cause evaluations to run again.
 
 Then run it without `-n`. The plots end up in:
 

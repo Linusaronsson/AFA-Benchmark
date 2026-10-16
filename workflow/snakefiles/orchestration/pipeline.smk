@@ -17,6 +17,16 @@ Runtime filters (--config, select subsets to run):
         Transform, aggregate and plot existing evaluation tables:
             "stages={dataset_generation: false, training: false,
             evaluation: false}"
+    reuse_release (bool, default=False): Reuse existing restored release
+        artifacts after regenerating omitted dataset bundles. First run
+        --target all_generate_datasets without this option, then run with
+        reuse_release=true "stages={dataset_generation: false}". Requires
+        <output_root>/release_manifest.json and all dataset inputs of existing
+        released artifacts on the selected dataset realizations. Their actual
+        bundle content hashes must match the release's recorded input hashes;
+        unknown or mismatched hashes fail before planning. Only verified
+        dataset edges to existing released outputs ignore mtimes; missing
+        outputs and ordinary development retain normal dependencies.
     methods (list[str], required): Subset of methods from method_options.yaml
     datasets (list[str], required): Subset of datasets to run. Every dataset
         key needs a file conf/components/dataset_key/<key>.yaml.
@@ -171,6 +181,10 @@ Usage:
         uv run python scripts/release/snapshot.py download \
             --method random_dummy --method gdfs
         workflow/run.py <pipeline> --jobs 8 -n
+    For datasets whose bundles were omitted from the release:
+        workflow/run.py <pipeline> --jobs 8 --target all_generate_datasets
+        workflow/run.py <pipeline> --jobs 8 reuse_release=true \
+            "stages={dataset_generation: false}" -n
     See docs/how-to/compare_your_method_with_published_results.md.
     Evaluate trained methods already under the output root, without
     generating datasets or training:

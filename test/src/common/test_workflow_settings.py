@@ -114,6 +114,7 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.list_jobs is False
     assert settings.soft_budget_setting is True
     assert settings.per_dataset_plots is False
+    assert settings.reuse_release is False
     assert settings.plotting.dataset_metrics == {}
     assert settings.plotting.default_metric is None
     assert settings.initializer == "cold"
@@ -229,7 +230,14 @@ def test_a_numeric_wandb_group_override_is_a_name() -> None:
 
 
 @pytest.mark.parametrize(
-    "key", ["smoke_test", "use_wandb", "list_jobs", "per_dataset_plots"]
+    "key",
+    [
+        "smoke_test",
+        "use_wandb",
+        "list_jobs",
+        "per_dataset_plots",
+        "reuse_release",
+    ],
 )
 @pytest.mark.parametrize("value", ["no", "0", "1", "null", "[]"])
 def test_invalid_boolean_overrides_are_rejected(key: str, value: str) -> None:
@@ -244,7 +252,14 @@ def test_invalid_boolean_overrides_are_rejected(key: str, value: str) -> None:
 
 
 @pytest.mark.parametrize(
-    "key", ["smoke_test", "use_wandb", "list_jobs", "per_dataset_plots"]
+    "key",
+    [
+        "smoke_test",
+        "use_wandb",
+        "list_jobs",
+        "per_dataset_plots",
+        "reuse_release",
+    ],
 )
 def test_null_boolean_settings_are_rejected(key: str) -> None:
     with pytest.raises(ValueError, match=rf"{key}.*None"):

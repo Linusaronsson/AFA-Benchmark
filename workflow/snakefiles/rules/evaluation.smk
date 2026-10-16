@@ -9,10 +9,14 @@ from afabench.core.output_layout import EvaluationRun, TrainingRun
 
 rule eval_method:
     input:
-        OUTPUT_LAYOUT.dataset_bundle(
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            split=EVAL_DATASET_SPLIT,
+        release_dataset_input(
+            OUTPUT_LAYOUT.raw_evaluation_table(EvaluationRun.wildcards()),
+            OUTPUT_LAYOUT.dataset_bundle(
+                dataset="{dataset}",
+                dataset_realization_index="{dataset_realization_index}",
+                split=EVAL_DATASET_SPLIT,
+            ),
+            "eval_dataset",
         ),
         OUTPUT_LAYOUT.method_bundle(TrainingRun.wildcards()),
         lambda wildcards: WORKFLOW_SETTINGS.classifier_bundle(

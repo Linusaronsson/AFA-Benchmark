@@ -64,18 +64,39 @@ def _training_contract(wildcards, input, output, resources) -> str:
     )
 
 
+def _pretrain_dataset(split):
+    return release_dataset_input(
+        OUTPUT_LAYOUT.pretrained_model_bundle(
+            pretrained_model_name="{pretrained_model_name}",
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            pretrain_seed="{pretrain_seed}",
+        ),
+        OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split=split,
+        ),
+        f"{split}_dataset",
+    )
+
+
+def _train_dataset(split):
+    return release_dataset_input(
+        OUTPUT_LAYOUT.method_bundle(TrainingRun.wildcards()),
+        OUTPUT_LAYOUT.dataset_bundle(
+            dataset="{dataset}",
+            dataset_realization_index="{dataset_realization_index}",
+            split=split,
+        ),
+        f"{split}_dataset",
+    )
+
+
 rule pretrain_model:
     input:
-        train_dataset=OUTPUT_LAYOUT.dataset_bundle(
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            split="train",
-        ),
-        val_dataset=OUTPUT_LAYOUT.dataset_bundle(
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            split="val",
-        ),
+        train_dataset=_pretrain_dataset("train"),
+        val_dataset=_pretrain_dataset("val"),
         classifier=ancient(
             OUTPUT_LAYOUT.classifier_bundle(
                 dataset="{dataset}",
@@ -125,16 +146,8 @@ rule pretrain_model:
 
 rule train_method:
     input:
-        train_dataset=OUTPUT_LAYOUT.dataset_bundle(
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            split="train",
-        ),
-        val_dataset=OUTPUT_LAYOUT.dataset_bundle(
-            dataset="{dataset}",
-            dataset_realization_index="{dataset_realization_index}",
-            split="val",
-        ),
+        train_dataset=_train_dataset("train"),
+        val_dataset=_train_dataset("val"),
         pretrained_model=lambda wildcards: WORKFLOW_SETTINGS.pretrained_model_bundle(
             OUTPUT_LAYOUT,
             method=wildcards.method,

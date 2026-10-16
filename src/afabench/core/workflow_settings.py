@@ -151,6 +151,7 @@ class WorkflowSettings:
     # not only in the hard-budget setting
     soft_budget_setting: bool
     per_dataset_plots: bool
+    reuse_release: bool
     plotting: PlottingMetricOverrides
     # Where the run writes its artifacts and job records
     output_root: str
@@ -327,6 +328,7 @@ class WorkflowSettings:
             ),
             f"  soft-budget setting: {self.soft_budget_setting}",
             f"  per-dataset plots: {self.per_dataset_plots}",
+            f"  checked release reuse: {self.reuse_release}",
             "  dataset realizations: "
             + _join(self.dataset_realization_indices),
             "  datasets:",
@@ -544,6 +546,9 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         wandb_group=wandb_group,
         smoke_test=smoke_test,
         list_jobs=_config_bool(config.get("list_jobs", False), "list_jobs"),
+        reuse_release=_config_bool(
+            config.get("reuse_release", False), "reuse_release"
+        ),
         soft_budget_setting=soft_budget_setting,
         per_dataset_plots=_config_bool(
             config.get("per_dataset_plots", False), "per_dataset_plots"

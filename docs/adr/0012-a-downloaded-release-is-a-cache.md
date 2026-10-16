@@ -17,13 +17,33 @@ dataset the release lacks generates it, trains its classifier and
 evaluates every method on it. The release's own workflow configuration is
 never applied.
 
-This works because downloads keep their recorded mtimes
-([ADR 0003](0003-snapshots-omit-snakemake-metadata.md)), so Snakemake judges
-restored outputs by mtime alone and reruns only what is missing or older
-than an input. It also keeps the comparison consistent: a shared
+Downloads keep their recorded mtimes
+([ADR 0003](0003-snapshots-omit-snakemake-metadata.md)), so ordinary runs judge
+restored outputs by mtime and rerun what is missing or older than an input.
+Explicit checked reuse handles locally regenerated dataset bundles, as below.
+Ordinary dependency tracking also keeps the comparison consistent: a shared
 prerequisite that was not downloaded is produced again, is newer than the
 published method's tables, and so re-evaluates that method instead of
 plotting its cached rows next to rows made with a different classifier.
+
+## Content-checked dataset reuse (#154)
+
+A release can omit dataset bundles without redistribution permission while
+retaining their consumers. Regenerating identical bundles then makes their
+mtimes newer than the released models and evaluations. `reuse_release=true`
+checks actual dataset content hashes against those consumers' recorded input
+hashes and ignores mtimes only on verified dataset edges to existing released
+outputs. Unknown or mismatched hashes fail explicitly; missing outputs keep
+ordinary dependencies. Validation includes existing released consumers on the
+selected dataset realizations even when Snakemake prunes upstream jobs.
+
+Dataset generation must finish in a separate invocation and be disabled during
+reuse: a DAG-time check must not bless bytes a scheduled job will replace.
+This costs an extra invocation rather than coupling generation to release
+handling or manipulating timestamps. Globally ancient dataset inputs would
+hide real changes; ordinary development therefore keeps its existing triggers.
+Hash identity has ADR 0002's scope: saved bundle data, not external image pixels
+or code compatibility. Redistribution review remains unchanged.
 
 ## Considered options
 
