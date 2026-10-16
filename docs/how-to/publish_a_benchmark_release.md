@@ -33,15 +33,16 @@ before creating the repository:
 
    Organization membership does not select the repository's owner
    automatically. Using just `results` creates it under your personal
-   account. To create it under the `AFABench` organization, explicitly use:
+   account. Use the exact organization slug shown by `hf auth whoami`,
+   not its display name. For AFABench, the slug is lowercase `afabench`:
 
    ```shell
-   uv run hf repo create AFABench/results --repo-type dataset
+   uv run hf repo create afabench/results --repo-type dataset
    ```
 
    Use the same full repository id when publishing:
-   `--repo-id AFABench/results` (or set
-   `AFABENCH_RELEASE_REPO=AFABench/results`).
+   `--repo-id afabench/results` (or set
+   `AFABENCH_RELEASE_REPO=afabench/results`).
 
 A `401 Unauthorized` error means authentication failed: check
 `uv run hf auth whoami` and log in with a valid token before retrying.
@@ -133,7 +134,7 @@ format given there. To find the changes since the previous release:
 
 ```shell
 uv run python scripts/release/snapshot.py publish /path/to/2026-10-kdd26 \
-    --repo-id AFABench/results
+    --repo-id afabench/results
 ```
 
 The release is uploaded in one commit, and the command prints its
