@@ -17,4 +17,44 @@
 #       source: <where the data comes from>
 #       reviewed_by: <who reviewed it, and when>
 #       notes: <conditions, attribution, or null>
-datasets: {}
+datasets:
+  bank_marketing:
+    status: permitted
+    license: CC-BY-4.0
+    source: https://archive.ics.uci.edu/dataset/222/bank+marketing
+    reviewed_by: valterschutz
+  ckd:
+    status: permitted
+    license: CC-BY-4.0
+    source: https://archive.ics.uci.edu/dataset/336/chronic+kidney+disease
+    reviewed_by: valterschutz
+  diabetes:
+    status: permitted
+    license: https://www.cdc.gov/nchs/policy/data-user-agreement.html
+    source: https://github.com/iancovert/dynamic-selection
+    reviewed_by: valterschutz
+  fashion_mnist:
+    status: permitted
+    license: MIT
+    source: https://github.com/zalandoresearch/fashion-mnist
+    reviewed_by: valterschutz
+  metabric:
+    status: permitted
+    license: ODbL-1.0
+    source: https://www.kaggle.com/datasets/raghadalharbi/breast-cancer-gene-expression-profiles-metabric
+    reviewed_by: valterschutz
+  miniboone:
+    status: permitted
+    license: CC-BY-4.0
+    source: https://archive.ics.uci.edu/dataset/199/miniboone+particle+identification
+    reviewed_by: valterschutz
+  miniboone_subset:
+    status: permitted
+    license: CC-BY-4.0
+    source: https://archive.ics.uci.edu/dataset/199/miniboone+particle+identification
+    reviewed_by: valterschutz
+  physionet_challenge_2012:
+    status: permitted
+    license: ODC-By-1.0
+    source: https://physionet.org/content/challenge-2012/1.0.0/
+    reviewed_by: valterschutz
