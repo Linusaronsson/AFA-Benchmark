@@ -2,7 +2,8 @@
 
 An output snapshot is a copy of everything the pipeline wrote under its
 output root, made so it can be put back where Snakemake expects it. A
-benchmark release is published from one. To make one, see
+benchmark release is published from a release package prepared from those
+outputs. To make one, see
 [create output snapshots](../how-to/create_output_snapshots.md); to put
 it back, [restore an output snapshot](../how-to/restore_an_output_snapshot.md).
 
@@ -12,8 +13,14 @@ A snapshot copies the whole output root as it is, including stale files no
 current rule would produce (#39). It does not select by dataset, method or
 output category; selection happens when downloading a published release
 ([`download`](../reference/snapshot_command.md#selection)). Its bundles
-and evaluation tables carry their own provenance records; a release
-manifest, written only when it is saved with a release id, indexes them.
+and evaluation tables carry their own provenance records.
+
+Saving with a release id instead prepares a release package: it omits
+dataset bundles without explicit redistribution permission and indexes only
+the included artifacts in a release manifest. Models and results remain
+included even when their dataset bundles are omitted. This keeps local
+snapshots suitable for complete restoration without publishing datasets
+that have not been approved for redistribution.
 
 ## Why a snapshot keeps mtimes
 

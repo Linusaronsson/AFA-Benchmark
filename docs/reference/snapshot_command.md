@@ -14,7 +14,8 @@ uv run python scripts/release/snapshot.py <subcommand> ...
 `save`, `restore` and `download` check every file they would write before
 writing anything. If any exists, nothing is written and the existing paths
 are listed. With `--overwrite`, exactly those files are replaced; nothing
-else in the destination is deleted.
+else in the destination is deleted, except that `save --release-id --overwrite` removes previously copied bundles now omitted by the release
+manifest.
 
 ## Workflow configuration options
 
@@ -62,6 +63,13 @@ is copied:
   `eval_results_transformed/`, without a provenance record; they are
   listed;
 - a source root without any artifact.
+
+Dataset bundles are included only when their dataset key has an explicit
+`permitted` review. Other dataset bundles are omitted from the output tree,
+the manifest's bundle index and payload coverage, and their paths are printed.
+Models and evaluation results remain included regardless of dataset status.
+A release with no artifacts left after omission is refused. Plain snapshots
+without `--release-id` remain verbatim copies.
 
 A smoke test's outputs are saved with execution mode `smoke`, which
 `publish` refuses.
@@ -121,8 +129,7 @@ would refuse. Writes nothing.
 ## `publish`
 
 ```shell
-snapshot.py publish SNAPSHOT_DIR --repo-id REPO
-    [--allow-redistribution DATASET_KEY ...] [--allow-dirty-code]
+snapshot.py publish SNAPSHOT_DIR --repo-id REPO [--allow-dirty-code]
 ```
 
 Uploads the snapshot as the release its manifest names, in one commit, to
@@ -137,10 +144,12 @@ Refuses:
 - a release id already published;
 - any smoke-test artifact, with no override; up to five of them are
   listed, with their total count;
-- a release with an `unreviewed` or `restricted` dataset in
-  `dataset_redistribution`, unless each such dataset key is given
-  with `--allow-redistribution`. Allowing a dataset that is neither is an
-  error. Allowed dataset keys are named in the host's commit message;
+- any dataset bundle without an explicit `permitted` review in the saved
+  manifest, with no override. Models and results from restricted or
+  unreviewed datasets are allowed;
+- bundles added, removed or changed since saving the manifest, bundles
+  outside `output/`, or artifacts without provenance records. The package
+  is inspected before any upload;
 - a release holding an artifact produced from a dirty tree or
   outside a git work tree (unknown code), unless `--allow-dirty-code` is
   given. Giving it for a release without one is an error. Its use is

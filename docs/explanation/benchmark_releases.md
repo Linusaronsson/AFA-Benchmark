@@ -82,11 +82,12 @@ user decides.
 
 Being able to generate a dataset bundle grants no right to publish it:
 most tabular and image datasets come from third parties under their own
-terms. So every dataset starts as `unreviewed`, and a release holding an
-unreviewed or restricted dataset is refused unless the maintainer allows
-that dataset by name. There is deliberately no option to allow every
-dataset at once, and an allowed dataset's status stays in the published
-manifest.
+terms. So every dataset starts as `unreviewed`. Release creation omits
+unreviewed and restricted dataset bundles, but keeps models trained on
+those datasets and evaluation results. Publication independently checks the
+package and refuses any dataset bundle without explicit permission; there
+is no override. Reviews remain visible in the manifest even when only
+models or results for a dataset are included.
 
 ## Limits
 
@@ -100,7 +101,7 @@ manifest.
   the manifest of every published release.
 - Output categories other than payload categories, such as `plots`
   and `merged_results`, are downloaded whole, not by dataset or method.
-- `publish` refuses a release with an unreviewed or restricted dataset
-  rather than leaving that dataset's payloads out, and cannot leave out
-  payloads by category.
+- Redistribution status applies to dataset bundles only; it is not a legal
+  determination about models or results. Maintainers remain responsible
+  for the terms applying to those outputs.
 - A file's bytes and modification time are kept; nothing else about it is.

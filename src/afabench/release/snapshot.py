@@ -1,5 +1,8 @@
 """
-Save and restore a verbatim copy of the pipeline's output root.
+Save and restore the pipeline's output root.
+
+Local snapshots are verbatim; release packages omit dataset bundles without
+explicit redistribution permission, matching their filtered manifest.
 
 A snapshot may carry a release manifest beside its `output/` tree
 (`afabench.release.manifest`), and the release's job duration table beside
@@ -33,20 +36,37 @@ def save_snapshot(
     job_duration_table: bytes | None = None,
 ) -> None:
     """
-    Copy every file under `source_root` into `snapshot_dir/output`.
+    Copy `source_root` into `snapshot_dir/output`.
 
-    `job_duration_table` is the Parquet of the release `manifest` describes.
+    With a release manifest, omit bundles absent from its index (dataset
+    bundles without permission). `job_duration_table` describes the release.
     """
     manifest_path = snapshot_dir / RELEASE_MANIFEST_FILENAME
     table_path = snapshot_dir / JOB_DURATION_TABLE_FILENAME
     if manifest is not None:
         _refuse_existing(manifest_path, overwrite=overwrite)
         _refuse_existing(table_path, overwrite=overwrite)
+    skip = [source_root / name for name in RELEASE_FILENAMES]
+    if manifest is not None:
+        included = {bundle.path for bundle in manifest.bundles}
+        # Include destination-only bundles too: --overwrite must not keep
+        # an earlier release's unindexed data just because it left the source.
+        bundle_paths = {
+            path.relative_to(root)
+            for root in [source_root, snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR]
+            for path in root.rglob("*.bundle")
+            if path.is_dir()
+        }
+        skip.extend(
+            source_root / path
+            for path in sorted(bundle_paths)
+            if path.as_posix() not in included
+        )
     _verbatim_copy(
         source_root,
         snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR,
         overwrite=overwrite,
-        skip=[source_root / name for name in RELEASE_FILENAMES],
+        skip=skip,
     )
     if manifest is not None:
         write_release_manifest(manifest, manifest_path)
@@ -92,6 +112,27 @@ def _refuse_existing(path: Path, *, overwrite: bool) -> None:
         raise FileExistsError(msg)
 
 
+def _remove_omitted(
+    source: Path,
+    destination: Path,
+    skip: Sequence[Path],
+    *,
+    overwrite: bool,
+) -> None:
+    # Overwriting a release must not retain a dataset bundle from an
+    # earlier save whose redistribution review has since changed.
+    for omitted in skip:
+        if omitted.suffix != ".bundle":
+            continue
+        target = destination / omitted.relative_to(source)
+        if target.exists():
+            _refuse_existing(target, overwrite=overwrite)
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
+
+
 def _verbatim_copy(
     source: Path,
     destination: Path,
@@ -102,10 +143,14 @@ def _verbatim_copy(
     if not source.is_dir():
         msg = f"Source root does not exist: {source}"
         raise FileNotFoundError(msg)
+
+    def skipped(path: Path) -> bool:
+        return any(path.is_relative_to(omitted) for omitted in skip)
+
     files = [
         path
         for path in source.rglob("*")
-        if path.is_file() and path not in skip
+        if path.is_file() and not skipped(path)
     ]
     if not files:
         msg = f"Source root is empty: {source}"
@@ -123,6 +168,8 @@ def _verbatim_copy(
             )
             raise FileExistsError(msg)
 
+    _remove_omitted(source, destination, skip, overwrite=overwrite)
+
     for source_file, target_file in targets:
         target_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_file, target_file)
@@ -135,7 +182,7 @@ def _verbatim_copy(
         (source_dir, destination / source_dir.relative_to(source))
         for source_dir in [
             source,
-            *(p for p in source.rglob("*") if p.is_dir()),
+            *(p for p in source.rglob("*") if p.is_dir() and not skipped(p)),
         ]
     ]
     for _, target_dir in directories:

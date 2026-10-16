@@ -28,7 +28,7 @@ pipeline rewrites.
 import io
 import json
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -370,7 +370,9 @@ def build_release_manifest(
     `index` is `index_artifacts(output_root)`. `workflow_config` is the
     maintainer's declaration of the configuration whose targets lay out the
     release; it is recorded, never read. `checkout` supplies the
-    maintainers' dataset redistribution review.
+    maintainers' dataset redistribution review. Dataset bundles without
+    explicit permission are omitted from the index; models and evaluations
+    remain. The release copy must omit those same bundles.
     """
     if index.unrecorded:
         msg = (
@@ -389,6 +391,22 @@ def build_release_manifest(
             if entry.dataset_key is not None
         }
     )
+    reviews = _dataset_redistribution(checkout, datasets)
+    index = replace(
+        index,
+        bundles=[
+            bundle
+            for bundle in index.bundles
+            if bundle.category is not PayloadCategory.DATASET_BUNDLE
+            or dataset_bundle_permitted(bundle, reviews)
+        ],
+    )
+    if not index.evaluations and not index.bundles:
+        msg = (
+            f"Release {release_id!r} has no publishable artifact after "
+            "omitting unreviewed or restricted dataset bundles."
+        )
+        raise ValueError(msg)
     return ReleaseManifest(
         manifest_version=MANIFEST_VERSION,
         release_id=release_id,
@@ -396,12 +414,20 @@ def build_release_manifest(
         execution_mode=_execution_mode(index),
         created_at=datetime.now(UTC).isoformat(),
         workflow_config=workflow_config,
-        dataset_redistribution=_dataset_redistribution(checkout, datasets),
+        dataset_redistribution=reviews,
         coverage=_coverage(index, output_root),
         job_duration_table=job_duration_table_entry(index),
         evaluations=index.evaluations,
         bundles=index.bundles,
     )
+
+
+def dataset_bundle_permitted(
+    bundle: BundleEntry, reviews: dict[str, DatasetRedistribution]
+) -> bool:
+    """Only an explicit permission for the bundle's dataset allows it."""
+    review = reviews.get(bundle.dataset_key or "", UNREVIEWED_REDISTRIBUTION)
+    return review.status is RedistributionStatus.PERMITTED
 
 
 def index_artifacts(output_root: Path) -> ArtifactIndex:
@@ -793,6 +819,13 @@ def _dataset_redistribution(
 
 def _coverage(index: ArtifactIndex, output_root: Path) -> Coverage:
     evaluations = index.evaluations
+    included = {bundle.path for bundle in index.bundles}
+    omitted = [
+        path
+        for path in output_root.rglob("*.bundle")
+        if path.is_dir()
+        and path.relative_to(output_root).as_posix() not in included
+    ]
 
     def values[T](name: str) -> list[T]:
         return sorted(
@@ -820,7 +853,11 @@ def _coverage(index: ArtifactIndex, output_root: Path) -> Coverage:
             category.name
             for category in output_root.iterdir()
             if category.is_dir()
-            and any(path.is_file() for path in category.rglob("*"))
+            and any(
+                path.is_file()
+                and not any(path.is_relative_to(bundle) for bundle in omitted)
+                for path in category.rglob("*")
+            )
         ),
         payloads=payload_coverage(index),
     )

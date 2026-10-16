@@ -138,7 +138,8 @@ otherwise.
 
 ## Payload categories
 
-Snapshots copy the output root verbatim, so every payload is restored
+Local snapshots copy the output root verbatim; release packages omit
+unapproved dataset bundles. Every included payload is restored
 byte for byte into the path the workflow expects, and Snakemake reuses it
 instead of regenerating it. Native bundles load with
 `afabench.core.bundle_system.bundle.load_bundle` (datasets without
@@ -217,10 +218,15 @@ dataset key any record names is recorded in `dataset_redistribution` from the
 maintainers' reviews in `conf/release/dataset_redistribution.yaml` of
 the checkout. That file ships empty, so every dataset is `unreviewed`, and
 `save`, `restore`, `publish` and `download` print the unreviewed and
-restricted keys. Only a `permitted` dataset's bundles may be published;
-unreviewed and restricted ones stay out of any public release until
-reviewed. `publish` refuses a release holding any of them
-unless the maintainer allows each by its dataset key (see
+restricted keys. Only a `permitted` dataset's bundles may be published.
+`save --release-id` omits unreviewed and restricted dataset bundles from
+both the package and its bundle index and payload coverage. Models and
+evaluation results remain included regardless of their dataset's status;
+the dataset's review remains visible in the manifest. Inputs referring to
+omitted bundles remain as dangling inputs, so download reports them missing.
+`publish` inspects the package's actual bundles and refuses any dataset
+bundle without explicit permission, with no override. It also refuses
+bundles that differ from the manifest or have no provenance record (see
 [`publish`](snapshot_command.md#publish)).
 
 What a dataset bundle holds decides what the review covers:
@@ -240,13 +246,13 @@ A review entry records:
 - `license`: the licence or terms the review relied on.
 - `source`: where the data comes from, so users can obtain it themselves.
 - `reviewed_by`: who reviewed it, and when.
-- `notes`: attribution or other conditions, such as whether models trained
-  on the data (classifier, pretrained-model and AFA-method bundles) may be
-  published when the data itself may not.
+- `notes`: attribution or other conditions for publishing the dataset bundles.
 
-Evaluation tables hold predictions, costs and true class labels, not
-features; whether labels of a restricted dataset may be published is part
-of its review.
+The status controls dataset bundles only, not classifier, pretrained-model
+or AFA-method bundles, or evaluation tables. Evaluation tables hold
+predictions, costs and true class labels, not features. The command does
+not determine legal rights automatically; maintainers remain responsible
+for the terms applying to what they publish.
 
 ## Smoke-scale inventory
 

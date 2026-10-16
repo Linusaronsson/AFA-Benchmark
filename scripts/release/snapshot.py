@@ -127,6 +127,7 @@ def save(
     ] = DEFAULT_CHECKOUT,
 ) -> None:
     manifest = None
+    omitted: list[str] = []
     job_duration_table = None
     if release_id is None:
         given = [
@@ -160,6 +161,12 @@ def save(
             index=index,
             checkout=checkout,
         )
+        included = {bundle.path for bundle in manifest.bundles}
+        omitted = [
+            bundle.path
+            for bundle in index.bundles
+            if bundle.path not in included
+        ]
     save_snapshot(
         source_root,
         snapshot_dir,
@@ -168,6 +175,11 @@ def save(
         job_duration_table=job_duration_table,
     )
     if manifest is not None:
+        if omitted:
+            typer.echo(
+                "Omitted dataset bundles without redistribution permission:\n  "
+                + "\n  ".join(omitted)
+            )
         _echo_manifest(
             manifest,
             snapshot_dir / RELEASE_MANIFEST_FILENAME,
@@ -227,13 +239,6 @@ def publish(
     snapshot_dir: Path,
     *,
     repo_id: RepoIdOption,
-    allow_redistribution: Annotated[
-        list[str] | None,
-        typer.Option(
-            help="Publish this unreviewed or restricted dataset key anyway; "
-            "recorded in the host's commit message."
-        ),
-    ] = None,
     allow_dirty_code: Annotated[
         bool,
         typer.Option(
@@ -247,7 +252,6 @@ def publish(
     manifest = publish_release(
         snapshot_dir,
         transport,
-        allow_redistribution=allow_redistribution or [],
         allow_dirty_code=allow_dirty_code,
     )
     folder = release_folder(manifest.release_id)

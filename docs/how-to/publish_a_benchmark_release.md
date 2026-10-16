@@ -53,12 +53,15 @@ Instead of `--repo-id <repo_id>` below, the repository can be in
 
 ## 2. Review dataset redistribution
 
-Only datasets whose bundles may be published publicly can be in a
-release. For each dataset of the run, read its source's licence
-or terms and record the review in
+Only dataset bundles explicitly approved for public redistribution can
+be in a release. Models trained on restricted or unreviewed datasets and
+evaluation results remain eligible. For each dataset whose bundles you
+want to include, read its source's licence or terms and record the review in
 `conf/release/dataset_redistribution.yaml` (format in the file's
 header; [what a review covers](../reference/release_manifest.md#dataset-redistribution)).
-A dataset without an entry is `unreviewed`.
+A dataset without an entry is `unreviewed`. Release creation automatically
+omits `unreviewed` and `restricted` dataset bundles, while retaining models
+and results. Plain local snapshots without a release id still copy everything.
 
 ## 3. Save the release package
 
@@ -111,10 +114,11 @@ Read `/path/to/2026-10-kdd26/release_manifest.json`
 - [ ] `scope` is `full` only if the release covers the whole benchmark
       configuration, since the newest full release becomes everyone's
       default download. Otherwise it is `partial`.
-- [ ] `output/` holds no stale or unrelated files; the snapshot copied the
-      output root as it was.
-- [ ] Every dataset in `dataset_redistribution` is `permitted`.
-      `save` printed those that are not.
+- [ ] `output/` holds no stale or unrelated files; release creation omitted
+      unapproved dataset bundles but copied the other outputs as they were.
+- [ ] The printed omitted dataset bundles are those you intended to leave
+      out. Only dataset bundles with a `permitted` review are included;
+      models and results may name restricted or unreviewed datasets.
 
 ## 5. Write the release notes entry
 
@@ -140,11 +144,11 @@ uv run python scripts/release/snapshot.py publish /path/to/2026-10-kdd26 \
 The release is uploaded in one commit, and the command prints its
 provenance and web address.
 
-If `publish` refuses a dataset as `unreviewed` or `restricted`, finish its
-review (step 2) and save the package again (step 3), or remove the dataset
-from the run. To publish it anyway, allow it by its dataset key:
-`--allow-redistribution <dataset key>`, once per dataset. Its status stays
-in the published manifest for everyone to read.
+If `publish` finds a dataset bundle without explicit permission, it refuses
+the whole package before uploading anything. Finish its review (step 2) and
+save the package again (step 3); release creation omits any dataset bundles
+still restricted or unreviewed. There is no redistribution override.
+Do not add bundles to the package after saving it.
 
 If `publish` refuses artifacts produced from dirty or unknown code,
 regenerate them from a clean commit and save the package again. To publish

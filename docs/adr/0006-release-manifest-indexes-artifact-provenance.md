@@ -20,8 +20,10 @@ duplicate could go stale (#74).
 
 The release manifest stays, shrunk to release-level facts plus an index
 generated from the artifacts' provenance records at save time. The index
-never reads the workflow config: it is a cache of the records, and
-rebuilding it from the same output tree gives the same result.
+never reads the workflow config: it is a cache of the included artifacts'
+records. Release creation filters dataset bundles by the maintainers'
+redistribution reviews; rebuilding with the same tree and reviews gives
+the same result.
 
 ## Considered options
 
@@ -97,6 +99,23 @@ identified by the producing commit.
   outside a git work tree (unknown code), unless the maintainer passes
   `--allow-dirty-code`, which the host's commit message records. Smoke
   releases are never refused for it.
+
+## Dataset bundle redistribution
+
+Release packages omit dataset bundles unless explicitly permitted by the
+maintainers' redistribution review. Their models and evaluation results
+remain included. The manifest indexes only included bundles, retaining
+reviews for every dataset the source artifacts name and inputs pointing to
+omitted bundles as dangling inputs. Local snapshots without a release id
+remain verbatim.
+
+Filtering at save time makes the package safe to inspect and share without
+raw dataset bundles that lack permission. Publication also inspects actual
+bundles and requires their index to match the manifest, rather than trusting
+that the package has not changed since save. There is no redistribution
+override: allowing one would defeat the guarantee. The trade-off is that a
+download may lack dataset inputs and need local dataset generation, while
+still reusing published models and results.
 
 ## Consequences
 

@@ -22,8 +22,10 @@ A package holding any smoke-test artifact is never published
 (`docs/adr/0012-a-downloaded-release-is-a-cache.md`); the test suite checks
 the round trip by laying a smoke package out on a local host with
 `release_files`. A release is refused while any dataset in its manifest's
-`dataset_redistribution` is not `permitted`, unless the maintainer allows
-that dataset by name, and while any of its artifacts was produced from a
+`dataset_redistribution` is not `permitted` and its dataset bundles are
+present. There is no redistribution override. Models and results remain
+eligible regardless of their dataset's status. It is also refused while
+any of its artifacts was produced from a
 dirty tree or unknown code, unless the maintainer allows dirty code
 (`docs/adr/0006-release-manifest-indexes-artifact-provenance.md`). The
 smoke, redistribution and code checks live here rather than in a
@@ -43,10 +45,12 @@ from afabench.release.manifest import (
     DATASET_REDISTRIBUTION_FILE,
     JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
-    RedistributionStatus,
+    PayloadCategory,
     ReleaseManifest,
     ReleaseScope,
     code_by_stage,
+    dataset_bundle_permitted,
+    index_artifacts,
     read_release_manifest,
 )
 from afabench.release.selection import SelectedPayloads
@@ -95,30 +99,22 @@ def publish_release(
     package_dir: Path,
     transport: ReleaseTransport,
     *,
-    allow_redistribution: Sequence[str] = (),
     allow_dirty_code: bool = False,
 ) -> ReleaseManifest:
     """
     Upload the snapshot in `package_dir` as its manifest's release.
 
-    `allow_redistribution` names the unreviewed or restricted dataset keys
-    a maintainer publishes anyway;
-    `allow_dirty_code` publishes one whose artifacts were produced from a
+    Dataset bundles require explicit redistribution permission, with no
+    override. `allow_dirty_code` publishes artifacts produced from a
     dirty tree or unknown code anyway.
     """
     manifest = read_release_manifest(package_dir / RELEASE_MANIFEST_FILENAME)
     folder = release_folder(manifest.release_id)
     _check_smoke(manifest)
-    _check_redistribution(manifest, allow_redistribution)
+    _check_redistribution(package_dir, manifest)
     _check_code(manifest, allow_dirty_code=allow_dirty_code)
     message = f"Publish benchmark release {manifest.release_id}"
     # The host's history records what the maintainer allowed through.
-    if allow_redistribution:
-        message += (
-            "; redistribution allowed by the maintainer for unreviewed "
-            "or restricted datasets: "
-            + ", ".join(sorted(allow_redistribution))
-        )
     if allow_dirty_code:
         message += (
             "; artifacts produced from dirty or unknown code allowed by "
@@ -377,37 +373,54 @@ def _check_smoke(manifest: ReleaseManifest) -> None:
 
 
 def _check_redistribution(
-    manifest: ReleaseManifest, allow_redistribution: Sequence[str]
+    package_dir: Path, manifest: ReleaseManifest
 ) -> None:
-    unresolved = {
-        dataset: review.status
-        for dataset, review in manifest.dataset_redistribution.items()
-        if review.status is not RedistributionStatus.PERMITTED
-    }
-    needless = [
-        dataset
-        for dataset in allow_redistribution
-        if dataset not in unresolved
+    # Inspect the package, not just the saved index: a bundle added after
+    # save must not silently bypass the redistribution gate.
+    output_root = package_dir / SNAPSHOT_OUTPUT_SUBDIR
+    misplaced = [
+        path.relative_to(package_dir).as_posix()
+        for path in package_dir.rglob("*.bundle")
+        if not path.is_relative_to(output_root)
     ]
-    if needless:
+    if misplaced:
         msg = (
-            f"Release {manifest.release_id!r} has no unreviewed or "
-            f"restricted dataset {', '.join(needless)}; only those can be "
-            "allowed."
+            f"Release {manifest.release_id!r} holds bundles outside output/: "
+            + ", ".join(misplaced)
+        )
+        raise ValueError(msg)
+    index = index_artifacts(output_root)
+    if index.unrecorded:
+        msg = (
+            f"Release {manifest.release_id!r} holds artifacts without "
+            "provenance; save the package again:\n  "
+            + "\n  ".join(index.unrecorded)
         )
         raise ValueError(msg)
     refused = [
-        f"{dataset} ({status})"
-        for dataset, status in unresolved.items()
-        if dataset not in allow_redistribution
+        bundle
+        for bundle in index.bundles
+        if bundle.category is PayloadCategory.DATASET_BUNDLE
+        and not dataset_bundle_permitted(
+            bundle, manifest.dataset_redistribution
+        )
     ]
     if refused:
+        described = ", ".join(
+            f"{bundle.dataset_key or 'unknown dataset'} ({bundle.path})"
+            for bundle in refused
+        )
         msg = (
-            f"Release {manifest.release_id!r} holds datasets whose "
-            f"redistribution is not {RedistributionStatus.PERMITTED}: "
-            f"{', '.join(refused)}. Review them in "
-            f"{DATASET_REDISTRIBUTION_FILE} and save the snapshot again, or "
-            "allow each by name."
+            f"Release {manifest.release_id!r} holds dataset bundles without "
+            f"permitted redistribution: {described}. Review them in "
+            f"{DATASET_REDISTRIBUTION_FILE} and save the package again; "
+            "unreviewed and restricted dataset bundles cannot be published."
+        )
+        raise ValueError(msg)
+    if index.bundles != manifest.bundles:
+        msg = (
+            f"Release {manifest.release_id!r} bundle contents do not match "
+            "its manifest; save the package again."
         )
         raise ValueError(msg)
 

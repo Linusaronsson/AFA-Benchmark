@@ -1,6 +1,7 @@
 """Publish and download benchmark releases through a fake release host."""
 
 import os
+import shutil
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -15,7 +16,9 @@ from afabench.core.provenance import Stage
 from afabench.release.manifest import (
     CodeIdentity,
     ExecutionMode,
+    PayloadCategory,
     ReleaseScope,
+    index_artifacts,
     read_release_manifest,
 )
 from scripts.release.snapshot import app
@@ -24,7 +27,10 @@ from test.scripts.release_artifacts import (
     HARD_3,
     Catalog,
     Method,
+    dataset_bundle,
     evaluation_table,
+    provenance,
+    write_bundle,
     write_catalog,
 )
 
@@ -245,27 +251,61 @@ def test_permitted_datasets_are_published_without_an_allowance(
     assert transport.commit_messages == ["Publish benchmark release 2026-10"]
 
 
-def test_unreviewed_dataset_is_refused(
+@pytest.mark.parametrize("status", ["unreviewed", "restricted"])
+def test_unapproved_dataset_bundles_are_omitted_but_models_and_results_publish(
     tmp_path: Path,
-) -> None:
-    transport = FakeReleaseTransport()
-    package_dir = prepare_package(
-        tmp_path, "2026-10-cube", checkout=tmp_path / "unreviewed"
-    )
-
-    result = invoke(transport, "publish", str(package_dir))
-
-    assert result.exit_code != 0
-    assert "cube (unreviewed)" in str(result.exception)
-    assert transport.files == {}
-
-
-def test_restricted_dataset_is_refused(
-    tmp_path: Path,
+    status: str,
 ) -> None:
     transport = FakeReleaseTransport()
     checkout = reviewed_checkout(
-        tmp_path, {"cube": "permitted", "diabetes": "restricted"}
+        tmp_path, {} if status == "unreviewed" else {"cube": status}
+    )
+    package_dir = prepare_package(tmp_path, "2026-10-cube", checkout=checkout)
+    manifest = read_release_manifest(package_dir / "release_manifest.json")
+    assert manifest.dataset_redistribution["cube"].status == status
+    assert not any(
+        b.category is PayloadCategory.DATASET_BUNDLE for b in manifest.bundles
+    )
+    assert list((package_dir / "output/datasets").rglob("*.bundle")) == []
+    assert {b.category for b in manifest.bundles} == {
+        PayloadCategory.CLASSIFIER_BUNDLE,
+        PayloadCategory.AFA_METHOD_BUNDLE,
+    }
+    assert manifest.evaluations
+    output = package_dir / "output"
+    assert index_artifacts(output).bundles == manifest.bundles
+    coverage = next(
+        p
+        for p in manifest.coverage.payloads
+        if p.category is PayloadCategory.DATASET_BUNDLE
+    )
+    assert coverage.count == coverage.size_bytes == 0
+    assert "datasets" not in manifest.coverage.output_categories
+    assert list((tmp_path / "2026-10-cube-source/datasets").rglob("*.bundle"))
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code == 0, result.output
+    assert transport.files
+    assert not any(
+        ".bundle/" in path and "/datasets/" in path for path in transport.files
+    )
+
+
+@pytest.mark.parametrize("status", ["unreviewed", "restricted"])
+@pytest.mark.parametrize("location", ["original", "renamed", "outside"])
+def test_added_unapproved_dataset_bundle_is_refused(
+    tmp_path: Path,
+    status: str,
+    location: str,
+) -> None:
+    transport = FakeReleaseTransport()
+    checkout = reviewed_checkout(
+        tmp_path,
+        {
+            "cube": "permitted",
+            **({"diabetes": status} if status != "unreviewed" else {}),
+        },
     )
     package_dir = prepare_package(
         tmp_path,
@@ -274,15 +314,50 @@ def test_restricted_dataset_is_refused(
         checkout=checkout,
     )
 
+    bundle = dataset_bundle("diabetes", 0, "train")
+    target = {
+        "original": package_dir / "output" / bundle,
+        "renamed": package_dir / "output/other/copied.bundle",
+        "outside": package_dir / "copied.bundle",
+    }[location]
+    shutil.copytree(tmp_path / "2026-10-source" / bundle, target)
+
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    assert "diabetes (restricted)" in str(result.exception)
-    assert "cube" not in str(result.exception)
+    assert "dataset bundles" in str(
+        result.exception
+    ) or "outside output/" in str(result.exception)
     assert transport.files == {}
 
 
-def test_maintainer_allows_named_datasets_into_a_release(
+def test_mixed_release_keeps_only_permitted_dataset_bundles(
+    tmp_path: Path,
+) -> None:
+    checkout = reviewed_checkout(
+        tmp_path, {"cube": "permitted", "diabetes": "restricted"}
+    )
+    package_dir = prepare_package(
+        tmp_path, "2026-10", datasets=["cube", "diabetes"], checkout=checkout
+    )
+    manifest = read_release_manifest(package_dir / "release_manifest.json")
+    datasets = [
+        b
+        for b in manifest.bundles
+        if b.category is PayloadCategory.DATASET_BUNDLE
+    ]
+    assert len(datasets) == 3
+    assert {b.dataset_key for b in datasets} == {"cube"}
+    assert {e.dataset_key for e in manifest.evaluations} == {
+        "cube",
+        "diabetes",
+    }
+    transport = FakeReleaseTransport()
+    result = invoke(transport, "publish", str(package_dir))
+    assert result.exit_code == 0, result.output
+
+
+def test_redistribution_override_is_not_available(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
@@ -304,60 +379,69 @@ def test_maintainer_allows_named_datasets_into_a_release(
         "diabetes",
     )
 
-    assert result.exit_code == 0, result.output
-    assert transport.file_exists("releases/2026-10/release_manifest.json")
-    # The published manifest still shows the reviews, and the host's
-    # history names who was allowed through.
-    assert "Unreviewed dataset redistribution: cube" in result.output
-    assert "Restricted dataset redistribution: diabetes" in result.output
-    assert transport.commit_messages == [
-        "Publish benchmark release 2026-10; redistribution allowed by the "
-        "maintainer for unreviewed or restricted datasets: cube, diabetes"
-    ]
-
-
-def test_allowing_one_dataset_does_not_allow_the_others(
-    tmp_path: Path,
-) -> None:
-    transport = FakeReleaseTransport()
-    package_dir = prepare_package(
-        tmp_path,
-        "2026-10",
-        datasets=["cube", "diabetes"],
-        checkout=tmp_path / "unreviewed",
-    )
-
-    result = invoke(
-        transport,
-        "publish",
-        str(package_dir),
-        "--allow-redistribution",
-        "cube",
-    )
-
     assert result.exit_code != 0
-    assert "diabetes (unreviewed)" in str(result.exception)
-    assert "cube" not in str(result.exception)
+    assert "No such option: --allow-redistribution" in result.output
     assert transport.files == {}
 
 
-def test_allowing_a_dataset_that_needs_no_allowance_is_refused(
+@pytest.mark.parametrize("recorded", [False, True])
+def test_dataset_bundle_without_provenance_or_dataset_identity_is_refused(
     tmp_path: Path,
+    recorded: bool,
 ) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(tmp_path, "2026-10")
-
-    result = invoke(
-        transport,
-        "publish",
-        str(package_dir),
-        "--allow-redistribution",
-        "cueb",
+    write_bundle(
+        package_dir / "output",
+        "extra.bundle",
+        provenance("dataset_generation") if recorded else None,
     )
 
+    result = invoke(transport, "publish", str(package_dir))
+
     assert result.exit_code != 0
-    assert "cueb" in str(result.exception)
+    assert "extra.bundle" in str(result.exception)
     assert transport.files == {}
+
+
+@pytest.mark.parametrize("remove_source_bundle", [False, True])
+def test_overwriting_release_removes_newly_restricted_dataset_bundles(
+    tmp_path: Path,
+    remove_source_bundle: bool,
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10")
+    if remove_source_bundle:
+        shutil.rmtree(
+            tmp_path / "2026-10-source" / dataset_bundle("cube", 0, "train")
+        )
+    checkout = reviewed_checkout(
+        tmp_path / "restricted", {"cube": "restricted"}
+    )
+    result = runner.invoke(
+        app,
+        [
+            "save",
+            str(package_dir),
+            "--source-root",
+            str(tmp_path / "2026-10-source"),
+            "--release-id",
+            "2026-10",
+            "--scope",
+            "full",
+            "--configfile",
+            str(tmp_path / "2026-10.yaml"),
+            "--checkout",
+            str(checkout),
+            "--overwrite",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "Omitted dataset bundles" in result.output
+    assert not list((package_dir / "output/datasets").rglob("*.bundle"))
+    transport = FakeReleaseTransport()
+    published = invoke(transport, "publish", str(package_dir))
+    assert published.exit_code == 0, published.output
 
 
 def test_smoke_provenance_survives_a_round_trip_through_a_local_host(

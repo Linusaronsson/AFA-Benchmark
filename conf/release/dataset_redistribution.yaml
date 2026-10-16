@@ -2,7 +2,9 @@
 #
 # Read by the release manifest (`docs/reference/release_manifest.md`, "Dataset
 # redistribution"). A dataset key not listed here is recorded as
-# `unreviewed`, and unreviewed or restricted datasets are not publishable.
+# `unreviewed`. Release creation omits unreviewed or restricted dataset
+# bundles, and publishing refuses them without an override. Models and
+# evaluation results remain eligible regardless of their dataset's status.
 # Being able to generate a dataset bundle grants no right to redistribute
 # it: add an entry only after reviewing the source's terms.
 #

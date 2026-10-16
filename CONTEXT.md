@@ -353,8 +353,8 @@ _Avoid_: Clean variant, deterministic variant
 **Benchmark release**:
 A versioned collection of benchmark results and reusable outputs, produced
 with an identified code revision and pipeline configuration and published
-by a maintainer under a release id. It is published from one output
-snapshot and declares full or partial scope. It never holds smoke-test
+by a maintainer under a release id. It is published from one release
+package and declares full or partial scope. It never holds smoke-test
 outputs.
 _Avoid_: Smoke release, latest results, pipeline run (a run need not be published)
 
@@ -369,16 +369,21 @@ _Avoid_: Output folder, output directory, results dir
 **Output snapshot**:
 A verbatim copy of everything the pipeline has written under its output
 root, taken so it can later be put back exactly where the workflow expects
-it. It holds every file, with no selection; a benchmark release is
-published from one. Its artifacts carry their own provenance records; it
-may also carry a release manifest beside it.
-_Avoid_: Backup, archive, export, package
+it. It holds every file, with no selection.
+_Avoid_: Backup, archive, export, release package
+
+**Release package**:
+The outputs prepared for publication as a benchmark release, omitting dataset
+bundles without explicit redistribution permission while retaining models
+and results. Unlike a local output snapshot, it need not contain every dataset
+bundle of the benchmark run.
+_Avoid_: Backup, verbatim snapshot
 
 **Release manifest**:
-The JSON file beside an output snapshot's output tree that identifies its
+The JSON file beside a release package's output tree that identifies its
 benchmark release, declares full or partial scope, records the
 maintainers' dataset redistribution review and the workflow configuration
-that lays out the release, and indexes the snapshot's artifacts. The index is generated from the artifacts' provenance records,
+that lays out the release, and indexes the package's included artifacts. The index is generated from the artifacts' provenance records,
 never from the workflow configuration, so it is a cache of those records
 rather than a second source of truth (see
 `docs/reference/release_manifest.md`).
