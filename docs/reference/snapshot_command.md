@@ -19,25 +19,38 @@ manifest.
 
 ## Workflow configuration options
 
-`save` with `--release-id` takes the workflow configuration whose targets
-lay out the release, given the way it was given to Snakemake. It is
-recorded as the manifest's `workflow_config`, never read to describe an
-artifact:
+The pipeline writes `workflow_config.json` under its output root before
+executing jobs, capturing Snakemake's merged configuration, config file
+paths and hashes, overrides, and the pipeline profile when launched through
+`workflow/run.py`. Dry runs, compute estimates and invocations with nothing
+to execute do not replace it. Cluster workers do not write it.
+
+`save --release-id` reads that record automatically into the manifest's
+`workflow_config`; it does not reread the checkout's config files. This
+configuration is never used to describe an artifact. An output root without
+a record is refused; execute pipeline jobs to record their configuration
+(a dry run or no-op invocation does not create the record).
+
+These optional arguments assert a configuration against the recorded run.
+A mismatch in merged values, overrides, file paths or hashes, or an
+explicit profile mismatch, is refused before copying anything:
 
 | Option | Meaning |
 | --- | --- |
-| `--profile DIR` | The profile's `config.yaml` supplies `configfile` and `config`. |
+| `--profile DIR` | Check the profile identity; its `config.yaml` supplies the asserted `configfile` and `config`. |
 | `--configfile PATH` (repeatable) | Replaces the profile's `configfile`. |
-| `--config KEY=VALUE` (repeatable) | Replaces the profile's `config`, as Snakemake's `--config` does. Values are parsed as YAML. |
+| `--config KEY=VALUE` (repeatable) | Replaces the profile's `config`, using Snakemake's value parsing. |
 
 Config files are merged recursively in order and the overrides over them,
-as Snakemake does.
+as Snakemake does. Override scalars are parsed as integers, floats or
+Python booleans (`True`/`False`), then as YAML with string scalars. For
+example, `false` stays a string, and `[1, 2]` becomes a list of strings.
 
 ## `save`
 
 ```shell
 snapshot.py save SNAPSHOT_DIR [--source-root output/production] [--overwrite]
-    [--release-id ID --scope full|partial CONFIGURATION OPTIONS]
+    [--release-id ID --scope full|partial [CONFIGURATION OPTIONS]]
     [--checkout .]
 ```
 
@@ -52,8 +65,8 @@ missing or empty source root is an error.
 
 With `--release-id`, also writes `SNAPSHOT_DIR/release_manifest.json`
 ([release manifest](release_manifest.md)), indexing the source root's
-artifacts by their provenance records, and `--scope` and the workflow
-configuration options are required. If the source root holds any job
+artifacts by their provenance records. `--scope` and a recorded workflow
+configuration are required; configuration options are optional assertions. If the source root holds any job
 record, it also writes the release's
 [job duration table](release_manifest.md#job-duration-table) to
 `SNAPSHOT_DIR/release_job_duration_table.parquet`. Refused before anything

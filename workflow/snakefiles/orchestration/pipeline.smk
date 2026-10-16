@@ -146,6 +146,13 @@ Job records:
     attempts are left out. See docs/reference/job_records.md and
     docs/adr/0007-job-records-beside-artifacts.md.
 
+Workflow configuration recording:
+    Before executing jobs, the main process writes the effective Snakemake
+    config, config file paths and hashes, and overrides to
+    <output_root>/workflow_config.json. Release creation reads this record
+    automatically. Dry runs, estimates, and invocations with no jobs do not
+    replace it; cluster workers never write it.
+
 Execution configuration and required files:
     Methods retain their independent scripts and native bundle/result paths.
     Site profiles own CPU/GPU partition, account and GPU request syntax;

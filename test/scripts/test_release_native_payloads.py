@@ -33,6 +33,7 @@ from test.scripts.release_artifacts import (
     method_bundle,
     provenance,
     raw_table,
+    record_run_config,
     write_bundle,
     write_catalog,
     write_job_record,
@@ -51,6 +52,7 @@ def save_smoke(
 ) -> dict[str, Any]:
     configfile = tmp_path / "smoke.yaml"
     configfile.write_text(yaml.safe_dump({"smoke_test": True}))
+    record_run_config(source_root, configfile)
     snapshot_dir = tmp_path / "snapshot"
     if "--checkout" not in extra:
         checkout = tmp_path / "permitted-checkout"
@@ -266,6 +268,7 @@ def test_datasets_without_a_review_are_recorded_and_reported_unreviewed(
     checkout.mkdir()
     configfile = tmp_path / "smoke.yaml"
     configfile.write_text(yaml.safe_dump({"smoke_test": True}))
+    record_run_config(source_root, configfile)
 
     result = runner.invoke(
         app,

@@ -45,17 +45,21 @@ produced it. `save` and `publish` print them per pipeline stage (see
 
 ### `workflow_config`
 
-The workflow configuration the maintainer declares with `--profile`,
-`--configfile` and `--config`: the one whose targets lay out the release.
-It is recorded, never read to describe an artifact or applied by a
+The effective workflow configuration recorded by the pipeline in
+`<output_root>/workflow_config.json` before its last invocation that
+executed jobs. `save` reads it automatically, rather than reconstructing
+it from the packaging checkout. Optional configuration arguments to `save`
+are checked against this record.
+
+It is never read to describe an artifact or applied by a
 [repository adopter's](../how-to/compare_your_method_with_published_results.md)
-run, which uses their own pipeline profile; a release built across commits
-has the configuration of the final run, which reused the restored outputs
-because its targets name them.
+run, which uses their own pipeline profile. A release built across commits
+keeps the last executing invocation's configuration; each artifact's own
+provenance record describes how that artifact was produced.
 
 | Field | Meaning |
 | --- | --- |
-| `profile` | The `--profile` directory, or null. |
+| `profile` | The pipeline profile directory recorded by `workflow/run.py`, or null when launched directly with Snakemake. |
 | `configfiles` | One `{path, sha256}` per config file, in merge order. |
 | `overrides` | The `--config` (or profile `config`) values. |
 | `merged` | The full config Snakemake sees after merging. |

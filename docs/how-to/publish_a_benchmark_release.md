@@ -65,24 +65,36 @@ and results. Plain local snapshots without a release id still copy everything.
 
 ## 3. Save the release package
 
-Run the benchmark ([run the pipeline](run_the_pipeline.md)).
-Then save its outputs as an
-[output snapshot](create_output_snapshots.md) with a release manifest, by
-giving a release id, a scope and the workflow configuration whose targets
-lay out the outputs, the same way it was given to Snakemake. For a release
-built across several runs, that is the configuration of the final run:
+First, [run the benchmark pipeline](run_the_pipeline.md) and wait for it
+to finish. The command below does **not** run the benchmark.
+
+Then run the following command to copy the existing outputs from
+`output/production` into an [output snapshot](create_output_snapshots.md)
+at `~/data/afabench-releases/example/` and create its release manifest.
+Save this package outside the repository. Replace the example path with
+the destination folder you want to use, and choose a release id and scope.
+The pipeline records its configuration automatically when it executes jobs;
+`save` uses that record, so you do not need to repeat or manually verify
+profiles, config files or overrides. For outputs built across several
+invocations, the record is from the last invocation that executed jobs:
 
 ```shell
-uv run python scripts/release/snapshot.py save /path/to/2026-10-kdd26 \
-    --release-id 2026-10-kdd26 --scope full \
-    --profile workflow/profiles/pipeline/kdd26
+uv run python scripts/release/snapshot.py save ~/data/afabench-releases/example \
+    --release-id example --scope full
 ```
 
-This also writes `/path/to/2026-10-kdd26/release_manifest.json`, indexing
+The snapshot's outputs are saved under `~/data/afabench-releases/example/output/`.
+The command also writes `~/data/afabench-releases/example/release_manifest.json`, indexing
 every bundle and evaluation table by its provenance record, and prints what
-it recorded. Check that the printed profile, config files and overrides are
-those of the run. `save` refuses outputs without a provenance record,
-written before artifacts recorded their provenance; regenerate them.
+it recorded. Configuration is read from `output/production/workflow_config.json`,
+not from the current checkout's configuration files. If you supply optional
+configuration arguments, `save` refuses any mismatch with the recorded run
+before copying anything. Nothing is uploaded until step 6.
+
+`save` refuses an output root without a recorded workflow configuration;
+execute pipeline jobs to create it (a dry run or an invocation with nothing
+to do does not create a record). It also refuses outputs without a
+provenance record; regenerate those outputs.
 
 It also prints which commits produced each pipeline stage, whether the
 release mixes commits, whether any artifact was produced from a dirty
@@ -95,7 +107,7 @@ Use scope `full` for a run of the whole benchmark configuration and
 
 ## 4. Review the package
 
-Read `/path/to/2026-10-kdd26/release_manifest.json`
+Read `~/data/afabench-releases/example/release_manifest.json`
 ([fields](../reference/release_manifest.md#fields)) and check each item:
 
 - [ ] `execution_mode` is `production`; `publish` refuses smoke-test
@@ -105,7 +117,6 @@ Read `/path/to/2026-10-kdd26/release_manifest.json`
       commits, the release notes say which stage each commit produced.
 - [ ] No input was reported as matching no bundle, unless you left that
       bundle out on purpose.
-- [ ] `workflow_config` is the configuration of the intended run.
 - [ ] `coverage` lists the datasets, dataset realizations, methods,
       evaluation splits, budget settings, classifier variants and output
       categories you mean to publish.
@@ -137,7 +148,7 @@ format given there. To find the changes since the previous release:
 ## 6. Publish
 
 ```shell
-uv run python scripts/release/snapshot.py publish /path/to/2026-10-kdd26 \
+uv run python scripts/release/snapshot.py publish ~/data/afabench-releases/example \
     --repo-id afabench/results
 ```
 

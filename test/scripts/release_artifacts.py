@@ -31,6 +31,10 @@ from afabench.core.provenance import (
 from afabench.evaluation.provenance import save_evaluation_table
 from afabench.evaluation.schemas import IDENTITY_DTYPES
 from afabench.release.manifest import CodeIdentity
+from afabench.release.workflow_config import (
+    record_workflow_config,
+    resolve_workflow_config,
+)
 from test import job_record_examples
 
 TAG = "initializer-cold"
@@ -365,6 +369,26 @@ class Catalog:
     smoke_test: bool = False
     # Code per stage; an absent stage is clean code
     code: Mapping[Stage, CodeIdentity] = field(default_factory=dict)
+
+
+def record_run_config(
+    root: Path,
+    configfile: Path,
+    *,
+    profile: Path | None = None,
+    overrides: tuple[str, ...] = (),
+) -> None:
+    """Stand in for the configuration recorded by an executing workflow."""
+    record = resolve_workflow_config(
+        profile=profile, configfiles=[configfile], overrides=overrides
+    )
+    record_workflow_config(
+        root,
+        profile=record.profile,
+        configfiles=[Path(item.path) for item in record.configfiles],
+        overrides=record.overrides,
+        merged=record.merged,
+    )
 
 
 def write_catalog(

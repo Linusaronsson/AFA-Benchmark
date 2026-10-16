@@ -30,6 +30,7 @@ from test.scripts.release_artifacts import (
     evaluation_table,
     method_bundle,
     provenance,
+    record_run_config,
     write_bundle,
     write_catalog,
     write_evaluation,
@@ -56,6 +57,8 @@ def write_configfile(path: Path) -> Path:
 def save(tmp_path: Path, *extra: str, scope: str | None = "partial") -> Result:
     """Save `tmp_path/source` as release `2026-10-cube`."""
     configfile = write_configfile(tmp_path / "run.yaml")
+    if not (tmp_path / "source/workflow_config.json").exists():
+        record_run_config(tmp_path / "source", configfile)
     checkout = tmp_path / "reviewed-checkout"
     review_file = checkout / "conf/release/dataset_redistribution.yaml"
     review_file.parent.mkdir(parents=True, exist_ok=True)
@@ -128,6 +131,37 @@ def test_save_with_release_id_writes_manifest_beside_output(
     assert "code" not in manifest
     assert "settings" not in manifest
     assert str(tmp_path / "run.yaml") in result.output
+
+
+@pytest.mark.parametrize("mismatch", [False, True])
+def test_release_refuses_missing_or_conflicting_run_config_before_copying(
+    tmp_path: Path,
+    mismatch: bool,
+) -> None:
+    write_catalog(tmp_path / "source", Catalog(methods=[ALPHA]))
+    configfile = write_configfile(tmp_path / "run.yaml")
+    if mismatch:
+        record_run_config(tmp_path / "source", configfile)
+        configfile.write_text("methods: [beta]\n")
+    result = runner.invoke(
+        app,
+        [
+            "save",
+            str(tmp_path / "snapshot"),
+            "--source-root",
+            str(tmp_path / "source"),
+            "--configfile",
+            str(configfile),
+            "--release-id",
+            "example",
+            "--scope",
+            "partial",
+        ],
+    )
+
+    assert result.exit_code != 0
+    assert "configuration" in str(result.exception)
+    assert not (tmp_path / "snapshot").exists()
 
 
 def test_save_without_release_id_writes_no_manifest(tmp_path: Path) -> None:
@@ -219,14 +253,26 @@ def test_production_dataset_bundles_of_a_smoke_run_record_smoke(
 def test_manifest_records_each_configfile_and_override(
     tmp_path: Path,
 ) -> None:
-    save_catalog(
-        tmp_path,
-        None,
-        "--config",
-        "initializer=warm",
-        "--config",
-        "datasets=[cube]",
+    write_catalog(tmp_path / "source", Catalog(methods=[ALPHA]))
+    record_run_config(
+        tmp_path / "source",
+        write_configfile(tmp_path / "run.yaml"),
+        overrides=("initializer=warm", "datasets=[cube]"),
     )
+    result = runner.invoke(
+        app,
+        [
+            "save",
+            str(tmp_path / "snapshot"),
+            "--source-root",
+            str(tmp_path / "source"),
+            "--release-id",
+            "example",
+            "--scope",
+            "partial",
+        ],
+    )
+    assert result.exit_code == 0, result.exception
 
     workflow = read_manifest(tmp_path)["workflow_config"]
     assert workflow["profile"] is None
@@ -258,6 +304,12 @@ def test_profile_supplies_configfiles_and_cli_config_replaces_its_config(
         )
     )
 
+    record_run_config(
+        tmp_path / "source",
+        configfile,
+        profile=profile,
+        overrides=("initializer=random",),
+    )
     result = runner.invoke(
         app,
         [
@@ -298,7 +350,20 @@ def test_the_workflow_config_describes_no_artifact(tmp_path: Path) -> None:
         )
     )
 
-    result = save(tmp_path, "--configfile", str(other))
+    record_run_config(tmp_path / "source", other)
+    result = runner.invoke(
+        app,
+        [
+            "save",
+            str(tmp_path / "snapshot"),
+            "--source-root",
+            str(tmp_path / "source"),
+            "--release-id",
+            "example",
+            "--scope",
+            "partial",
+        ],
+    )
 
     assert result.exit_code == 0, result.output
     manifest = read_manifest(tmp_path)

@@ -1,23 +1,29 @@
 """
-Resolve the Snakemake workflow configuration a pipeline run used.
+Record Snakemake's effective configuration and consume it for releases.
 
 Snakemake is a development dependency, so its config merging is mirrored
 here: config files are merged recursively in order, then `--config` values
 are merged over them. A CLI `--configfile` or `--config` replaces the
 profile's value for that option, as Snakemake's own option parsing does.
 
-A release manifest records the result as the configuration whose targets
-lay out the release; nothing per artifact is derived from it
+The pipeline records its actual merged configuration before executing
+jobs. Release creation uses that record and checks any optional supplied
+configuration against it. Nothing per artifact is derived from it
 (`docs/adr/0006-release-manifest-indexes-artifact-provenance.md`).
 """
 
 import hashlib
+import json
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+import dacite
 import yaml
+
+WORKFLOW_CONFIG_FILENAME = "workflow_config.json"
+PIPELINE_PROFILE_ENV = "AFABENCH_PIPELINE_PROFILE"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -82,6 +88,88 @@ def resolve_workflow_config(
     )
 
 
+def record_workflow_config(
+    output_root: Path,
+    *,
+    profile: str | None,
+    configfiles: Sequence[Path],
+    overrides: Mapping[str, Any],
+    merged: Mapping[str, Any],
+) -> None:
+    """Record Snakemake's actual configuration before it executes jobs."""
+    record = WorkflowConfigRecord(
+        profile=profile,
+        configfiles=[
+            ConfigFileRecord(
+                path=str(path),
+                sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+            )
+            for path in configfiles
+        ],
+        overrides=dict(overrides),
+        merged=dict(merged),
+    )
+    output_root.mkdir(parents=True, exist_ok=True)
+    path = output_root / WORKFLOW_CONFIG_FILENAME
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(asdict(record), indent=2) + "\n")
+    temporary.replace(path)
+
+
+def release_workflow_config(
+    output_root: Path,
+    *,
+    profile: Path | None = None,
+    configfiles: Sequence[Path] = (),
+    overrides: Sequence[str] = (),
+) -> WorkflowConfigRecord:
+    """Use the run's saved configuration, checking any supplied assertion."""
+    path = output_root / WORKFLOW_CONFIG_FILENAME
+    if not path.is_file():
+        msg = (
+            f"No recorded workflow configuration at {path}. Execute pipeline "
+            "jobs to record their workflow configuration before saving a "
+            "release; a dry run or no-op invocation does not create it."
+        )
+        raise FileNotFoundError(msg)
+    recorded = dacite.from_dict(
+        WorkflowConfigRecord,
+        json.loads(path.read_text()),
+        config=dacite.Config(strict=True),
+    )
+    if profile is not None or configfiles or overrides:
+        supplied = resolve_workflow_config(
+            profile=profile, configfiles=configfiles, overrides=overrides
+        )
+        recorded_files = [
+            (Path(item.path).resolve(), item.sha256)
+            for item in recorded.configfiles
+        ]
+        supplied_files = [
+            (Path(item.path).resolve(), item.sha256)
+            for item in supplied.configfiles
+        ]
+        if (
+            supplied.merged != recorded.merged
+            or supplied.overrides != recorded.overrides
+            or supplied_files != recorded_files
+            or (
+                profile is not None
+                and (
+                    recorded.profile is None
+                    or profile.resolve() != Path(recorded.profile).resolve()
+                )
+            )
+        ):
+            msg = (
+                f"Supplied workflow configuration does not match {path}. "
+                "Omit --profile, --configfile and --config to use the "
+                "recorded run configuration."
+            )
+            raise ValueError(msg)
+    return recorded
+
+
 def _read_profile(profile: Path) -> tuple[list[Path], dict[str, Any]]:
     profile_file = profile / "config.yaml"
     if not profile_file.is_file():
@@ -91,8 +179,10 @@ def _read_profile(profile: Path) -> tuple[list[Path], dict[str, Any]]:
     configfile = content.get("configfile", [])
     configfiles = [configfile] if isinstance(configfile, str) else configfile
     config = content.get("config", {})
-    overrides = (
-        dict(config) if isinstance(config, dict) else _parse_overrides(config)
+    overrides = _parse_overrides(
+        [f"{key}={value}" for key, value in config.items()]
+        if isinstance(config, dict)
+        else config
     )
     return [Path(path) for path in configfiles], overrides
 
@@ -104,8 +194,27 @@ def _parse_overrides(overrides: Sequence[str]) -> dict[str, Any]:
         if not separator or not key:
             msg = f"Workflow config override is not KEY=VALUE: {override!r}"
             raise ValueError(msg)
-        parsed[key] = yaml.safe_load(value)
+        parsed[key] = _config_value(value)
     return parsed
+
+
+def _config_value(value: str) -> object:
+    # Match Snakemake's parse_config: numeric scalars, Python booleans,
+    # then YAML BaseLoader (which leaves nested scalars as strings).
+    if not value:
+        return None
+    for parse in (int, float):
+        try:
+            return parse(value)
+        except ValueError:
+            pass
+    if value in {"True", "False"}:
+        return value == "True"
+    try:
+        # BaseLoader constructs only strings and containers, never objects.
+        return yaml.load(value, Loader=yaml.BaseLoader)  # noqa: S506
+    except yaml.YAMLError:
+        return value
 
 
 def _merge(config: dict[str, Any], update: Mapping[str, Any]) -> None:

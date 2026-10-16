@@ -22,6 +22,12 @@ sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(workflow.basedir))), "src")
 )
 
+from pathlib import Path
+
+from afabench.release.workflow_config import (
+    PIPELINE_PROFILE_ENV,
+    record_workflow_config,
+)
 from afabench.core.output_layout import OutputLayout
 from afabench.core.workflow_settings import load_config
 from execution import ExecutionPolicy
@@ -30,6 +36,19 @@ from job_records import JobRecordCommands
 from wandb_runs import WandbProject, WandbRuns
 
 WORKFLOW_SETTINGS = load_config(config)
+
+# Hooks run only for an executing DAG, not dry runs, estimates or cluster
+# workers. Capture Snakemake's merged values, not a later reread of configs.
+onstart:
+    if workflow.is_main_process:
+        record_workflow_config(
+            Path(WORKFLOW_SETTINGS.output_root),
+            profile=os.environ.get(PIPELINE_PROFILE_ENV),
+            configfiles=[Path(path) for path in workflow.configfiles],
+            overrides=workflow.config_settings.config,
+            merged=config,
+        )
+
 WANDB_RUNS = WandbRuns(
     WandbProject.from_environment(os.environ) if WORKFLOW_SETTINGS.use_wandb else None,
     group=WORKFLOW_SETTINGS.wandb_group,

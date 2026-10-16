@@ -29,6 +29,7 @@ from test.scripts.release_artifacts import (
     dataset_bundle,
     method_bundle,
     pretrained_model_bundle,
+    record_run_config,
     write_catalog,
     write_job_record,
 )
@@ -130,6 +131,7 @@ def publish(
     )
     configfile = tmp_path / f"{release_id}.yaml"
     configfile.write_text(yaml.safe_dump({"smoke_test": smoke_test}))
+    record_run_config(source_root, configfile)
     # Every dataset is reviewed as permitted, so releases publish.
     checkout = tmp_path / f"{release_id}-checkout"
     review_file = checkout / "conf/release/dataset_redistribution.yaml"
@@ -743,6 +745,7 @@ def publish_reserved_release_id(
     write_release_outputs(source_root, "latest")
     configfile = tmp_path / "latest.yaml"
     configfile.write_text(yaml.safe_dump({"smoke_test": False}))
+    record_run_config(source_root, configfile)
     package_dir = tmp_path / "latest-package"
     runner.invoke(
         app,

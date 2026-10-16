@@ -444,6 +444,10 @@ def main(arguments: list[str]) -> int:
     # Site profiles expand $PWD when Snakemake reads them, as the checkout
     # root, which a changed working directory alone does not set.
     environment = {**os.environ, "PWD": str(REPO_ROOT)}
+    # Snakemake exposes its merged config and files, but not its profile.
+    if not _parse(arguments).estimate:
+        profile_index = command.index("--profile") + 1
+        environment["AFABENCH_PIPELINE_PROFILE"] = command[profile_index]
     return subprocess.run(
         command, cwd=REPO_ROOT, env=environment, check=False
     ).returncode

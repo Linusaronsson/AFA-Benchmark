@@ -4,6 +4,7 @@ import datetime
 import re
 import runpy
 import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,7 @@ from workflow.run import (
     available_names,
     check_site_venvs,
     launcher_command,
+    main,
     snakemake_arguments,
     snakemake_command,
 )
@@ -95,6 +97,37 @@ def test_launcher_without_datetime_utc(
     assert command[:3] == ["workflow/venvs/bin/python", "-m", "snakemake"]
     group = next(word for word in command if word.startswith("wandb_group="))
     assert re.fullmatch(r"wandb_group=all-\d{8}T\d{6}Z-[a-z0-9]{4}", group)
+
+
+@pytest.mark.parametrize("estimate", [False, True])
+def test_launcher_passes_profile_identity_to_the_executing_workflow(
+    monkeypatch: pytest.MonkeyPatch,
+    estimate: bool,
+) -> None:
+    monkeypatch.delenv("AFABENCH_PIPELINE_PROFILE", raising=False)
+    environments: list[dict[str, str]] = []
+
+    def launch(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        check: bool,
+    ) -> subprocess.CompletedProcess[str]:
+        assert cwd == REPO_ROOT
+        assert check is False
+        environments.append(env)
+        return subprocess.CompletedProcess(command, 17)
+
+    monkeypatch.setattr("workflow.run.subprocess.run", launch)
+
+    assert main(["kdd26", "-e"] if estimate else ["kdd26"]) == 17
+    if estimate:
+        assert "AFABENCH_PIPELINE_PROFILE" not in environments[0]
+    else:
+        assert environments[0]["AFABENCH_PIPELINE_PROFILE"] == (
+            "workflow/profiles/pipeline/kdd26"
+        )
 
 
 def test_runs_the_all_pipeline_profile_locally_by_default() -> None:

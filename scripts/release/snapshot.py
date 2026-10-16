@@ -3,7 +3,7 @@ Save and restore an output snapshot (see `afabench.release.snapshot`).
 
 `save --release-id` also writes a release manifest indexing the output
 root's artifacts by their provenance records, recording the workflow
-configuration given by `--profile`, `--configfile` and `--config`, and
+configuration recorded by the pipeline, and
 prints which commits produced each pipeline stage (see
 `docs/reference/release_manifest.md`).
 `inventory` reports how many payloads of each category an output root holds
@@ -67,7 +67,7 @@ from afabench.release.snapshot import (
     restored_manifest_location,
     save_snapshot,
 )
-from afabench.release.workflow_config import resolve_workflow_config
+from afabench.release.workflow_config import release_workflow_config
 
 app = typer.Typer()
 DEFAULT_OUTPUT_ROOT: Final[Path] = Path(PRODUCTION_OUTPUT_ROOT)
@@ -109,15 +109,21 @@ def save(
     ] = None,
     profile: Annotated[
         Path | None,
-        typer.Option(help="Snakemake profile whose targets lay out the run."),
+        typer.Option(
+            help="Check this profile against the recorded run configuration."
+        ),
     ] = None,
     configfile: Annotated[
         list[Path] | None,
-        typer.Option(help="Workflow config file; replaces the profile's."),
+        typer.Option(
+            help="Check config files against the recorded run configuration."
+        ),
     ] = None,
     config: Annotated[
         list[str] | None,
-        typer.Option(help="KEY=VALUE override; replaces the profile's."),
+        typer.Option(
+            help="Check overrides against the recorded run configuration."
+        ),
     ] = None,
     checkout: Annotated[
         Path,
@@ -152,7 +158,8 @@ def save(
         manifest = build_release_manifest(
             release_id=release_id,
             scope=scope,
-            workflow_config=resolve_workflow_config(
+            workflow_config=release_workflow_config(
+                source_root,
                 profile=profile,
                 configfiles=configfile or [],
                 overrides=config or [],

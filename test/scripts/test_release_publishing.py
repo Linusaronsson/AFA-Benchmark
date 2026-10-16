@@ -30,6 +30,7 @@ from test.scripts.release_artifacts import (
     dataset_bundle,
     evaluation_table,
     provenance,
+    record_run_config,
     write_bundle,
     write_catalog,
 )
@@ -129,6 +130,7 @@ def prepare_package(
     configfile.write_text(
         yaml.safe_dump(workflow_config(smoke_test=smoke_test))
     )
+    record_run_config(source_root, configfile)
     if checkout is None:
         checkout = reviewed_checkout(
             tmp_path / release_id, dict.fromkeys(datasets, "permitted")
@@ -677,6 +679,7 @@ def test_saving_a_release_snapshot_uploads_nothing(tmp_path: Path) -> None:
     build_output_tree(source_root)
     configfile = tmp_path / "run.yaml"
     configfile.write_text(yaml.safe_dump(workflow_config(smoke_test=False)))
+    record_run_config(source_root, configfile)
 
     result = runner.invoke(
         app,

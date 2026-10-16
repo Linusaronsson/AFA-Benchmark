@@ -192,8 +192,25 @@ def test_smoke_snapshot_round_trips_its_smoke_manifest(
     assert prerequisites.returncode == 0, prerequisites.stderr
     run = completed.run("--executor", "local", target="all_eval_methods")
     assert run.returncode == 0, run.stdout + run.stderr
-    configfile = tmp_path / "smoke.yaml"
-    configfile.write_text(yaml.safe_dump(completed.config))
+    # This round trip needs the dataset bundles too, not a package that
+    # omits them for lack of a redistribution review.
+    review = tmp_path / "completed/conf/release/dataset_redistribution.yaml"
+    review.parent.mkdir(parents=True)
+    review.write_text(
+        yaml.safe_dump(
+            {
+                "datasets": {
+                    "cube": {
+                        "status": "permitted",
+                        "license": "MIT",
+                        "source": "generated",
+                        "reviewed_by": "test maintainer",
+                        "notes": None,
+                    }
+                }
+            }
+        )
+    )
     snapshot_dir = tmp_path / "snapshot"
     runner = CliRunner()
 
@@ -204,8 +221,8 @@ def test_smoke_snapshot_round_trips_its_smoke_manifest(
             str(snapshot_dir),
             "--source-root",
             str(tmp_path / "completed/output/smoke"),
-            "--configfile",
-            str(configfile),
+            "--checkout",
+            str(tmp_path / "completed"),
             "--release-id",
             "smoke-check",
             "--scope",
