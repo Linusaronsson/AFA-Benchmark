@@ -23,6 +23,15 @@ from pathlib import Path
 from typing import Annotated, Final
 
 import typer
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from afabench.core.output_layout import (
     PRODUCTION_OUTPUT_ROOT,
@@ -126,6 +135,7 @@ def save(
         ),
     ] = DEFAULT_CHECKOUT,
 ) -> None:
+    console = Console(stderr=True)
     manifest = None
     omitted: list[str] = []
     job_duration_table = None
@@ -143,33 +153,68 @@ def save(
             msg = f"{', '.join(given)} only apply with --release-id."
             raise typer.BadParameter(msg)
     else:
-        index = index_artifacts(source_root)
+        typer.echo(f"Indexing artifacts in {source_root}...", err=True)
+        with console.status("Indexing artifacts..."):
+            index = index_artifacts(source_root)
         job_duration_table = index.job_duration_table
-        manifest = build_release_manifest(
-            release_id=release_id,
-            workflow_config=release_workflow_config(
-                source_root,
-                profile=profile,
-                configfiles=configfile or [],
-                overrides=config or [],
-            ),
-            output_root=source_root,
-            index=index,
-            checkout=checkout,
-        )
+        typer.echo("Building release manifest...", err=True)
+        with console.status("Building release manifest..."):
+            manifest = build_release_manifest(
+                release_id=release_id,
+                workflow_config=release_workflow_config(
+                    source_root,
+                    profile=profile,
+                    configfiles=configfile or [],
+                    overrides=config or [],
+                ),
+                output_root=source_root,
+                index=index,
+                checkout=checkout,
+            )
         included = {bundle.path for bundle in manifest.bundles}
         omitted = [
             bundle.path
             for bundle in index.bundles
             if bundle.path not in included
         ]
-    save_snapshot(
-        source_root,
-        snapshot_dir,
-        overwrite=overwrite,
-        manifest=manifest,
-        job_duration_table=job_duration_table,
-    )
+    typer.echo(f"Scanning snapshot files in {source_root}...", err=True)
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("files"),
+        TimeElapsedColumn(),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Scanning snapshot files", total=None)
+
+        def on_copy_progress(completed: int, total: int) -> None:
+            if completed == 0:
+                typer.echo(
+                    f"Copying {total} files to {snapshot_dir / 'output'}...",
+                    err=True,
+                )
+            progress.update(
+                task,
+                description=(
+                    "Finalizing snapshot"
+                    if completed == total
+                    else "Copying snapshot"
+                ),
+                total=total,
+                completed=completed,
+            )
+
+        save_snapshot(
+            source_root,
+            snapshot_dir,
+            overwrite=overwrite,
+            manifest=manifest,
+            job_duration_table=job_duration_table,
+            on_copy_progress=on_copy_progress,
+        )
+    typer.echo(f"Saved snapshot to {snapshot_dir}", err=True)
     if manifest is not None:
         if omitted:
             typer.echo(

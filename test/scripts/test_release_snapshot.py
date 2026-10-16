@@ -32,6 +32,11 @@ def test_save_then_restore_commands_round_trip_a_tree(
         ["save", str(snapshot_dir), "--source-root", str(source_root)],
     )
     assert save_result.exit_code == 0, save_result.output
+    assert "Scanning snapshot files" in save_result.stderr
+    assert "Copying 2 files" in save_result.stderr
+    assert "2/2 files" in save_result.stderr
+    assert "Saved snapshot to" in save_result.stderr
+    assert "Indexing artifacts" not in save_result.stderr
 
     restore_result = runner.invoke(
         app,
@@ -67,6 +72,8 @@ def test_save_refuses_a_conflicting_target_without_overwrite_flag(
     )
 
     assert result.exit_code != 0
+    assert "Scanning snapshot files" in result.stderr
+    assert "Saved snapshot to" not in result.stderr
     assert conflicting.read_text() == "pre-existing"
 
 

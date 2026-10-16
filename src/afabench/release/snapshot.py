@@ -13,7 +13,7 @@ release gets its own manifest, never the one restored before.
 """
 
 import shutil
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from afabench.release.manifest import (
@@ -34,12 +34,16 @@ def save_snapshot(
     overwrite: bool = False,
     manifest: ReleaseManifest | None = None,
     job_duration_table: bytes | None = None,
+    on_copy_progress: Callable[[int, int], None] | None = None,
 ) -> None:
     """
     Copy `source_root` into `snapshot_dir/output`.
 
     With a release manifest, omit bundles absent from its index (dataset
     bundles without permission). `job_duration_table` describes the release.
+    `on_copy_progress` receives (completed files, total files) before copying
+    starts and after each successful file copy. Completion does not include
+    directory timestamp preservation or writing the release files.
     """
     manifest_path = snapshot_dir / RELEASE_MANIFEST_FILENAME
     table_path = snapshot_dir / JOB_DURATION_TABLE_FILENAME
@@ -67,6 +71,7 @@ def save_snapshot(
         snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR,
         overwrite=overwrite,
         skip=skip,
+        on_copy_progress=on_copy_progress,
     )
     if manifest is not None:
         write_release_manifest(manifest, manifest_path)
@@ -139,6 +144,7 @@ def _verbatim_copy(
     *,
     overwrite: bool,
     skip: Sequence[Path] = (),
+    on_copy_progress: Callable[[int, int], None] | None = None,
 ) -> None:
     if not source.is_dir():
         msg = f"Source root does not exist: {source}"
@@ -170,9 +176,15 @@ def _verbatim_copy(
 
     _remove_omitted(source, destination, skip, overwrite=overwrite)
 
-    for source_file, target_file in targets:
+    report_progress: Callable[[int, int], None] = on_copy_progress or (
+        lambda _completed, _total: None
+    )
+    total = len(targets)
+    report_progress(0, total)
+    for completed, (source_file, target_file) in enumerate(targets, start=1):
         target_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_file, target_file)
+        report_progress(completed, total)
 
     # Snakemake falls back to a directory's own mtime for directory outputs
     # with no `.snakemake_timestamp`, so that mtime must round-trip too.

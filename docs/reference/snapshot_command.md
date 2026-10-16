@@ -63,6 +63,20 @@ except a restored release's `release_manifest.json` and
 `release_job_duration_table.parquet` at the top of the source root. A
 missing or empty source root is an error.
 
+Progress is written to stderr: release artifact indexing and manifest
+construction (with `--release-id`), file scanning, then copying with a
+completed/total file count and elapsed time. Interactive terminals also show
+animated activity indicators. Phase messages remain visible in redirected
+logs. A file is counted after its copy finishes, so the count can pause on a
+large file; directory timestamps and release files are finalized afterward.
+The command reports success only after the whole save finishes.
+
+Saving can take substantial time on a large output root or shared
+filesystem. Release indexing reads provenance records and evaluation table
+columns, and scans bundle files for sizes before any copying starts. The
+copy itself reads and writes every included file and preserves timestamps;
+it is not an incremental transfer.
+
 With `--release-id`, also writes `SNAPSHOT_DIR/release_manifest.json`
 ([release manifest](release_manifest.md)), indexing the source root's
 artifacts by their provenance records. A recorded workflow configuration

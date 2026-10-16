@@ -144,6 +144,15 @@ def test_save_with_release_id_writes_manifest_beside_output(
     assert "code" not in manifest
     assert "settings" not in manifest
     assert str(tmp_path / "run.yaml") in result.output
+    phases = [
+        "Indexing artifacts",
+        "Building release manifest",
+        "Scanning snapshot files",
+        "Copying ",
+        "Saved snapshot to",
+    ]
+    positions = [result.stderr.index(phase) for phase in phases]
+    assert positions == sorted(positions)
 
 
 @pytest.mark.parametrize("mismatch", [False, True])

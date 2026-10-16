@@ -21,6 +21,26 @@ def build_output_tree(root: Path) -> None:
             os.utime(path, (backdated, backdated))
 
 
+def test_save_reports_copy_progress_before_and_after_each_file(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    build_output_tree(source)
+    destination = tmp_path / "snapshot"
+    updates: list[tuple[int, int]] = []
+
+    def progress(completed: int, total: int) -> None:
+        copied = sum(
+            path.is_file() for path in (destination / "output").rglob("*")
+        )
+        assert copied == completed
+        updates.append((completed, total))
+
+    save_snapshot(source, destination, on_copy_progress=progress)
+
+    assert updates == [(0, 3), (1, 3), (2, 3), (3, 3)]
+
+
 def test_round_trip_reproduces_every_file_byte_for_byte_with_mtimes(
     tmp_path: Path,
 ) -> None:
