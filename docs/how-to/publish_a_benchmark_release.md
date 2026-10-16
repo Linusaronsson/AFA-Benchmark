@@ -6,16 +6,36 @@ outputs of a benchmark run on Hugging Face as a benchmark release.
 
 ## 1. Set up the host (once)
 
-Create a Hugging Face dataset repository, public for an announced release,
-and log in with a token that can write to it:
+Authenticate on the machine where you will create and publish the release
+before creating the repository:
 
-```shell
-uv run hf repo create <repo_id> --repo-type dataset
-uv run hf auth login
-```
+1. Sign in to Hugging Face and [create a user access token](https://huggingface.co/settings/tokens)
+   with the `write` role. Treat the token as a secret; do not commit it.
+2. Log in and paste the token at the prompt, then verify the active account:
 
-Instead of `uv run hf auth login`, the token can be in `HF_TOKEN`. Instead of
-`--repo-id <repo_id>` below, the repository can be in
+   ```shell
+   uv run hf auth login
+   uv run hf auth whoami
+   ```
+
+   For non-interactive use, supply the token through the `HF_TOKEN`
+   environment variable instead of running `hf auth login`. `HF_TOKEN`
+   overrides a saved login; if authentication fails, check for an invalid
+   or expired token in that variable as well.
+3. Create a dataset repository, public for an announced release. Replace
+   `<repo_id>` with `<username>/afabench` or `<organization>/afabench`;
+   for an organization, your account must have permission to create and
+   write repositories there:
+
+   ```shell
+   uv run hf repo create <repo_id> --repo-type dataset
+   ```
+
+A `401 Unauthorized` error means authentication failed: check
+`uv run hf auth whoami` and log in with a valid token before retrying.
+The uv hardlink warning is unrelated to Hugging Face authentication.
+
+Instead of `--repo-id <repo_id>` below, the repository can be in
 `AFABENCH_RELEASE_REPO`.
 
 ## 2. Review dataset redistribution
