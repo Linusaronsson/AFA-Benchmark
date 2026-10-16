@@ -36,8 +36,6 @@ def regenerated_release(
             str(completed / "output/smoke"),
             "--release-id",
             "omitted-dataset",
-            "--scope",
-            "partial",
             "--checkout",
             str(checkout),
             *(

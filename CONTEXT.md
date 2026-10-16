@@ -354,7 +354,7 @@ _Avoid_: Clean variant, deterministic variant
 A versioned collection of benchmark results and reusable outputs, produced
 with an identified code revision and pipeline configuration and published
 by a maintainer under a release id. It is published from one release
-package and declares full or partial scope. It never holds smoke-test
+package. Users choose it by its release id; it never holds smoke-test
 outputs.
 _Avoid_: Smoke release, latest results, pipeline run (a run need not be published)
 
@@ -381,8 +381,8 @@ _Avoid_: Backup, verbatim snapshot
 
 **Release manifest**:
 The JSON file beside a release package's output tree that identifies its
-benchmark release, declares full or partial scope, records the
-maintainers' dataset redistribution review and the workflow configuration
+benchmark release, records the maintainers' dataset redistribution review
+and the workflow configuration
 that lays out the release, and indexes the package's included artifacts. The index is generated from the artifacts' provenance records,
 never from the workflow configuration, so it is a cache of those records
 rather than a second source of truth (see

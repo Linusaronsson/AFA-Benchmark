@@ -7,7 +7,7 @@ needed to publish only: public releases download anonymously.
 """
 
 from collections.abc import Mapping, Sequence
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from huggingface_hub import (
     CommitOperationAdd,
@@ -16,8 +16,6 @@ from huggingface_hub import (
     hf_hub_download,
     snapshot_download,
 )
-from huggingface_hub.errors import RemoteEntryNotFoundError
-from huggingface_hub.hf_api import RepoFolder
 
 REPO_TYPE = "dataset"
 
@@ -41,22 +39,6 @@ class HuggingFaceTransport:
             ],
             commit_message=message,
             repo_type=REPO_TYPE,
-        )
-
-    def list_folders(self, folder: str) -> list[str]:
-        try:
-            entries = list(
-                self._api.list_repo_tree(
-                    self.repo_id, path_in_repo=folder, repo_type=REPO_TYPE
-                )
-            )
-        except RemoteEntryNotFoundError:
-            # Nothing has been published under `folder` yet.
-            return []
-        return sorted(
-            PurePosixPath(entry.path).name
-            for entry in entries
-            if isinstance(entry, RepoFolder)
         )
 
     def download_files(self, paths: Sequence[str], local_dir: Path) -> None:

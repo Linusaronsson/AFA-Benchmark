@@ -2,8 +2,8 @@
 The release manifest: identity, redistribution review and artifact index.
 
 A release manifest is a JSON file written beside an output snapshot's
-`output/` tree. It holds the facts that belong to the release (its id,
-declared scope and the maintainers' dataset redistribution review) and an
+`output/` tree. It holds the facts that belong to the release (its id
+and the maintainers' dataset redistribution review) and an
 index of the snapshot's artifacts, generated from their provenance records
 and never from the workflow configuration. That configuration is recorded
 as the maintainer declares it, for users who lay out a comparison against
@@ -46,18 +46,13 @@ from afabench.evaluation.provenance import evaluation_table_provenance
 from afabench.evaluation.schemas import IDENTITY_DTYPES
 from afabench.release.workflow_config import WorkflowConfigRecord
 
-MANIFEST_VERSION = 3
+MANIFEST_VERSION = 4
 RELEASE_MANIFEST_FILENAME = "release_manifest.json"
 # Beside the release manifest, so the pipeline never rewrites it
 JOB_DURATION_TABLE_FILENAME = "release_job_duration_table.parquet"
 # Maintainers' redistribution reviews, relative to the checkout. A dataset
 # key it does not list is unreviewed.
 DATASET_REDISTRIBUTION_FILE = Path("conf/release/dataset_redistribution.yaml")
-
-
-class ReleaseScope(StrEnum):
-    FULL = "full"
-    PARTIAL = "partial"
 
 
 class ExecutionMode(StrEnum):
@@ -291,7 +286,6 @@ class Coverage:
 class ReleaseManifest:
     manifest_version: int
     release_id: str
-    scope: ReleaseScope
     execution_mode: ExecutionMode
     created_at: str
     workflow_config: WorkflowConfigRecord
@@ -358,7 +352,6 @@ class UnrecordedArtifactsError(ValueError):
 def build_release_manifest(
     *,
     release_id: str,
-    scope: ReleaseScope,
     workflow_config: WorkflowConfigRecord,
     output_root: Path,
     index: ArtifactIndex,
@@ -410,7 +403,6 @@ def build_release_manifest(
     return ReleaseManifest(
         manifest_version=MANIFEST_VERSION,
         release_id=release_id,
-        scope=scope,
         execution_mode=_execution_mode(index),
         created_at=datetime.now(UTC).isoformat(),
         workflow_config=workflow_config,
@@ -544,7 +536,6 @@ def read_release_manifest(path: Path) -> ReleaseManifest:
         data,
         config=dacite.Config(
             cast=[
-                ReleaseScope,
                 ExecutionMode,
                 BudgetSetting,
                 ClassifierVariant,

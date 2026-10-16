@@ -185,8 +185,8 @@ Usage:
     listing them in `methods` next to the new method. The release is a
     cache: the run reuses what it holds and produces the rest, so the
     outputs are those the profile gives without it (ADR 0012):
-        uv run python scripts/release/snapshot.py download \
-            --method random_dummy --method gdfs
+        uv run python scripts/release/snapshot.py download <release_id> \
+            --repo-id <repo_id> --method random_dummy --method gdfs
         workflow/run.py <pipeline> --jobs 8 -n
     For datasets whose bundles were omitted from the release:
         workflow/run.py <pipeline> --jobs 8 --target all_generate_datasets

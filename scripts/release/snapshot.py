@@ -10,8 +10,8 @@ prints which commits produced each pipeline stage (see
 and their size, without copying anything.
 
 `publish` uploads such a snapshot to the release host and `download`
-retrieves one release from it, the latest full one unless a release id is
-given, either whole (`--all`) or the payloads selected by category and
+retrieves one explicitly named release from it, either whole (`--all`)
+or the payloads selected by category and
 coverage; coverage alone selects the whole chain of the evaluations it
 matches (see `afabench.release.publishing`, `afabench.release.selection`
 and `docs/reference/snapshot_command.md`). Nothing else here touches the
@@ -39,7 +39,6 @@ from afabench.release.manifest import (
     PayloadCategory,
     RedistributionStatus,
     ReleaseManifest,
-    ReleaseScope,
     build_release_manifest,
     code_by_stage,
     dangling_inputs,
@@ -49,7 +48,6 @@ from afabench.release.manifest import (
     read_release_manifest,
 )
 from afabench.release.publishing import (
-    LATEST_RELEASE,
     ReleaseTransport,
     download_release,
     download_selection,
@@ -103,10 +101,6 @@ def save(
         str | None,
         typer.Option(help="Write a release manifest with this identity."),
     ] = None,
-    scope: Annotated[
-        ReleaseScope | None,
-        typer.Option(help="Declared coverage of the benchmark."),
-    ] = None,
     profile: Annotated[
         Path | None,
         typer.Option(
@@ -139,7 +133,6 @@ def save(
         given = [
             name
             for name, value in [
-                ("--scope", scope),
                 ("--profile", profile),
                 ("--configfile", configfile),
                 ("--config", config),
@@ -150,14 +143,10 @@ def save(
             msg = f"{', '.join(given)} only apply with --release-id."
             raise typer.BadParameter(msg)
     else:
-        if scope is None:
-            msg = "--release-id needs --scope (full or partial)."
-            raise typer.BadParameter(msg)
         index = index_artifacts(source_root)
         job_duration_table = index.job_duration_table
         manifest = build_release_manifest(
             release_id=release_id,
-            scope=scope,
             workflow_config=release_workflow_config(
                 source_root,
                 profile=profile,
@@ -274,13 +263,7 @@ def publish(
 @app.command()
 def download(
     ctx: typer.Context,
-    release: Annotated[
-        str,
-        typer.Argument(
-            help=f"Release id, or {LATEST_RELEASE!r} for the latest full "
-            "release."
-        ),
-    ] = LATEST_RELEASE,
+    release: Annotated[str, typer.Argument(help="Release id to download.")],
     destination_root: DestinationRootOption = None,
     *,
     repo_id: RepoIdOption,
@@ -367,8 +350,6 @@ def download(
     transport = _transport(ctx, repo_id)
     resolved = resolve_release(release, transport)
     manifest = resolved.manifest
-    if release == LATEST_RELEASE:
-        typer.echo(f"Latest full release: {manifest.release_id}")
     if destination_root is None:
         destination_root = _default_destination_root(manifest)
     if everything:
@@ -431,7 +412,7 @@ def _echo_manifest(
         record.path for record in workflow_config.configfiles
     )
     typer.echo(
-        f"Release {manifest.release_id}: scope {manifest.scope}, "
+        f"Release {manifest.release_id}: "
         f"execution {manifest.execution_mode}\n"
         f"Workflow profile: {workflow_config.profile}\n"
         f"Workflow config files: {configfiles}\n"

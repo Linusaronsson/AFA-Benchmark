@@ -14,7 +14,6 @@ from typer.testing import CliRunner
 from afabench.core.job_duration_table import load_job_duration_table
 from afabench.release.manifest import (
     CodeIdentity,
-    ReleaseScope,
     read_release_manifest,
 )
 from scripts.release.snapshot import app
@@ -54,7 +53,7 @@ def write_configfile(path: Path) -> Path:
     return path
 
 
-def save(tmp_path: Path, *extra: str, scope: str | None = "partial") -> Result:
+def save(tmp_path: Path, *extra: str) -> Result:
     """Save `tmp_path/source` as release `2026-10-cube`."""
     configfile = write_configfile(tmp_path / "run.yaml")
     if not (tmp_path / "source/workflow_config.json").exists():
@@ -88,7 +87,6 @@ def save(tmp_path: Path, *extra: str, scope: str | None = "partial") -> Result:
             str(configfile),
             "--release-id",
             "2026-10-cube",
-            *(["--scope", scope] if scope else []),
             "--checkout",
             str(checkout),
             *extra,
@@ -117,6 +115,22 @@ def bundles(tmp_path: Path) -> dict[str, dict[str, Any]]:
     }
 
 
+def test_release_manifest_records_coverage_without_a_scope(
+    tmp_path: Path,
+) -> None:
+    write_catalog(tmp_path / "source", Catalog(methods=[ALPHA]))
+
+    result = save(tmp_path)
+
+    assert result.exit_code == 0, result.output
+    path = tmp_path / "snapshot/release_manifest.json"
+    assert "scope" not in json.loads(path.read_text())
+    restored = read_release_manifest(path)
+    assert restored.release_id == "2026-10-cube"
+    assert restored.coverage.datasets == ["cube"]
+    assert restored.coverage.methods == ["alpha"]
+
+
 def test_save_with_release_id_writes_manifest_beside_output(
     tmp_path: Path,
 ) -> None:
@@ -124,9 +138,8 @@ def test_save_with_release_id_writes_manifest_beside_output(
 
     assert (tmp_path / "snapshot/output" / ALPHA_METHOD).is_dir()
     manifest = read_manifest(tmp_path)
-    assert manifest["manifest_version"] == 3
+    assert manifest["manifest_version"] == 4
     assert manifest["release_id"] == "2026-10-cube"
-    assert manifest["scope"] == "partial"
     assert manifest["execution_mode"] == "production"
     assert "code" not in manifest
     assert "settings" not in manifest
@@ -154,8 +167,6 @@ def test_release_refuses_missing_or_conflicting_run_config_before_copying(
             str(configfile),
             "--release-id",
             "example",
-            "--scope",
-            "partial",
         ],
     )
 
@@ -200,20 +211,16 @@ def test_manifest_options_without_release_id_are_refused(
     assert not (tmp_path / "snapshot").exists()
 
 
-@pytest.mark.parametrize("scope", ["full", "partial"])
-def test_smoke_outputs_are_recorded_as_smoke(
-    tmp_path: Path, scope: str
-) -> None:
+def test_smoke_outputs_are_recorded_as_smoke(tmp_path: Path) -> None:
     # Saved so the test suite can download them; publish refuses them.
     write_catalog(
         tmp_path / "source", Catalog(methods=[ALPHA], smoke_test=True)
     )
 
-    result = save(tmp_path, scope=scope)
+    result = save(tmp_path)
 
     assert result.exit_code == 0, result.output
     manifest = read_manifest(tmp_path)
-    assert manifest["scope"] == scope
     assert manifest["execution_mode"] == "smoke"
 
 
@@ -268,8 +275,6 @@ def test_manifest_records_each_configfile_and_override(
             str(tmp_path / "source"),
             "--release-id",
             "example",
-            "--scope",
-            "partial",
         ],
     )
     assert result.exit_code == 0, result.exception
@@ -323,8 +328,6 @@ def test_profile_supplies_configfiles_and_cli_config_replaces_its_config(
             "initializer=random",
             "--release-id",
             "2026-10-cube",
-            "--scope",
-            "partial",
         ],
     )
 
@@ -360,8 +363,6 @@ def test_the_workflow_config_describes_no_artifact(tmp_path: Path) -> None:
             str(tmp_path / "source"),
             "--release-id",
             "example",
-            "--scope",
-            "partial",
         ],
     )
 
@@ -751,7 +752,7 @@ def test_a_smoke_job_record_marks_only_the_job_duration_table_smoke(
         smoke_test=True,
     )
 
-    result = save(tmp_path, scope="partial")
+    result = save(tmp_path)
 
     assert result.exit_code == 0, result.output
     manifest = read_manifest(tmp_path)
@@ -802,7 +803,6 @@ def test_restore_puts_the_manifest_inside_the_restored_root(
     )
     assert (tmp_path / "checkout/output/eval_results" / ALPHA_HARD).is_file()
     manifest = read_release_manifest(restored)
-    assert manifest.scope is ReleaseScope.PARTIAL
     assert manifest.evaluations[0].method_name == "alpha"
 
 
@@ -853,8 +853,6 @@ def test_a_restored_root_saves_as_a_new_release_without_the_old_files(
             str(configfile),
             "--release-id",
             "2026-11-cube",
-            "--scope",
-            "partial",
         ],
     )
     restored = runner.invoke(

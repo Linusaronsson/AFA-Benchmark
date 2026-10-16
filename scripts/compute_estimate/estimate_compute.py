@@ -178,10 +178,7 @@ def _described_source(job_durations: Path) -> str:
             f"{job_durations} (not the table of release "
             f"{manifest.release_id}, whose manifest is beside it)"
         )
-    return (
-        f"{job_durations} (release {manifest.release_id}, "
-        f"{manifest.scope} scope)"
-    )
+    return f"{job_durations} (release {manifest.release_id})"
 
 
 if __name__ == "__main__":

@@ -20,9 +20,10 @@ so a release says which code produced each of its artifacts.
   takes every file from it, so outputs of different releases are never
   mixed, even if a release is published while it runs. What the release
   lacks is reported, not filled in from elsewhere.
-- **A stable default.** Without a release id, downloads use the newest
-  `full` release. A newer `partial` release covers only part of the
-  benchmark, so it is downloaded only by its id.
+- **Explicit choice.** Every download requires a release id. Publishing
+  another release never changes which release a download command selects.
+  Releases can cover any selection of datasets, methods and settings;
+  their manifests record actual coverage.
 - **Smoke outputs are never benchmark results.** `publish` refuses any
   package holding a smoke-test artifact. The test suite checks the publish
   and download round trip on a local host instead.
@@ -97,8 +98,6 @@ models or results for a dataset are included.
   known. Merged tables and plots are published but not indexed.
 - Bundle content hashes are recorded and link inputs, but neither
   `publish` nor `download` verifies them against the bundles' files.
-- "Latest" is decided by the manifests' `created_at`, so finding it reads
-  the manifest of every published release.
 - Output categories other than payload categories, such as `plots`
   and `merged_results`, are downloaded whole, not by dataset or method.
 - Redistribution status applies to dataset bundles only; it is not a legal

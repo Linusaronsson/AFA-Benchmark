@@ -13,10 +13,10 @@ repository:
 https://huggingface.co/datasets/<repo_id>/tree/main/releases
 ```
 
-Prefer the newest release with scope `full`; a `partial` release covers
-only some datasets, methods or settings. Each release's entry in the
-[release notes](../reference/release_notes.md) says what changed since the
-previous one.
+Choose a release id explicitly, using its manifest's coverage to check
+that it includes the datasets, methods and settings you need. Each
+release's entry in the [release notes](../reference/release_notes.md) says
+what changed since the previous one.
 
 ## 2. Read the release manifest
 

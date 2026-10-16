@@ -85,8 +85,6 @@ def save_smoke(
             str(configfile),
             "--release-id",
             "smoke-native",
-            "--scope",
-            "partial",
             *extra,
         ],
     )
@@ -281,8 +279,6 @@ def test_datasets_without_a_review_are_recorded_and_reported_unreviewed(
             str(configfile),
             "--release-id",
             "smoke-native",
-            "--scope",
-            "partial",
             "--checkout",
             str(checkout),
         ],

@@ -243,8 +243,6 @@ def journey(tmp_path_factory: pytest.TempPathFactory) -> Journey:
             ),
             "--release-id",
             RELEASE_ID,
-            "--scope",
-            "full",
             "--checkout",
             str(REPO_ROOT),
         ],

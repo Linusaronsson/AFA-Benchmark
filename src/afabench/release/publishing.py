@@ -7,9 +7,8 @@ adapts Hugging Face to it. A published release is the snapshot directory
 uploaded file by file under `releases/<release_id>/`, so its Parquet tables
 and plots stay ordinary downloadable files.
 
-A download first resolves one release, by id or as the latest `full` one
-(by manifest `created_at`; partial releases are never the latest), and
-keeps its manifest. Everything it then fetches comes from that release's
+A download first resolves one release by its explicit id and keeps its
+manifest. Everything it then fetches comes from that release's
 folder, so a release published meanwhile cannot be mixed in. It fetches
 either the whole release or the payloads `afabench.release.selection`
 chose, into a staging directory, and restores them with
@@ -47,7 +46,6 @@ from afabench.release.manifest import (
     RELEASE_MANIFEST_FILENAME,
     PayloadCategory,
     ReleaseManifest,
-    ReleaseScope,
     code_by_stage,
     dataset_bundle_permitted,
     index_artifacts,
@@ -61,8 +59,6 @@ OUTPUT_MTIMES_FILENAME = "output_mtimes.json"
 # One path segment without glob characters, so a release cannot address
 # another release's files or match more than its own folder on download.
 RELEASE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-# Selects the latest full release, so no release can be named this.
-LATEST_RELEASE = "latest"
 # How many smoke-test artifacts a refused package names
 SMOKE_ARTIFACTS_SHOWN = 5
 
@@ -76,10 +72,6 @@ class ReleaseTransport(Protocol):
         self, files: Mapping[str, Path | bytes], message: str
     ) -> None:
         """Upload every `{repository path: content}` in one commit."""
-        ...
-
-    def list_folders(self, folder: str) -> list[str]:
-        """Return the names of the folders directly under `folder`."""
         ...
 
     def download_files(self, paths: Sequence[str], local_dir: Path) -> None:
@@ -167,9 +159,7 @@ class ResolvedRelease:
 def resolve_release(
     release: str, transport: ReleaseTransport
 ) -> ResolvedRelease:
-    """Fix the release `release` names: a release id or `LATEST_RELEASE`."""
-    if release == LATEST_RELEASE:
-        return _latest_full_release(transport)
+    """Resolve the explicitly named release and keep its manifest."""
     folder = release_folder(release)
     if not transport.file_exists(f"{folder}/{RELEASE_MANIFEST_FILENAME}"):
         msg = f"No release {release!r} is published."
@@ -240,36 +230,6 @@ def download_selection(
         restore_snapshot(package_dir, destination_root, overwrite=overwrite)
 
 
-def _latest_full_release(transport: ReleaseTransport) -> ResolvedRelease:
-    releases = [
-        _fetch_manifest(transport, release_folder(release_id), release_id)
-        for release_id in transport.list_folders(RELEASES_FOLDER)
-    ]
-    full = [
-        release
-        for release in releases
-        if release.manifest.scope is ReleaseScope.FULL
-    ]
-    if not full:
-        others = ", ".join(
-            f"{release.manifest.release_id} ({release.manifest.scope})"
-            for release in releases
-        )
-        msg = (
-            f"No {ReleaseScope.FULL} release is published, so there is no "
-            "latest one; name a release id to download it. Published: "
-            f"{others or 'none'}."
-        )
-        raise LookupError(msg)
-    return max(
-        full,
-        key=lambda release: (
-            release.manifest.created_at,
-            release.manifest.release_id,
-        ),
-    )
-
-
 def _fetch_manifest(
     transport: ReleaseTransport, folder: str, release_id: str
 ) -> ResolvedRelease:
@@ -297,9 +257,6 @@ def release_folder(release_id: str) -> str:
             f"Release id {release_id!r} must be letters, digits, '.', '_' "
             "or '-', starting with a letter or digit."
         )
-        raise ValueError(msg)
-    if release_id == LATEST_RELEASE:
-        msg = f"Release id {release_id!r} is reserved for the latest release."
         raise ValueError(msg)
     return f"{RELEASES_FOLDER}/{release_id}"
 

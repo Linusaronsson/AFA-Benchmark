@@ -31,14 +31,13 @@ the same result.
   command's arguments or host metadata, and selective download would read the
   records directly. Rejected: a selective download would fetch every bundle
   manifest and raw table footer from the host before deciding anything,
-  thousands of requests for a production release. The scope and the
-  redistribution review that `publish` checked would also need another home
-  on the host.
+  thousands of requests for a production release. The redistribution
+  review that `publish` checked would also need another home on the host.
 - **Shrink it to release-level facts plus an index of the records.** Chosen.
 
 ## What the manifest holds
 
-- **Release-level facts**: `release_id`, `scope`, `created_at`, the
+- **Release-level facts**: `release_id`, `created_at`, the
   maintainers' `dataset_redistribution` review for every dataset key any
   record names, and `workflow_config`: the configuration the maintainer
   declares, whose targets lay out the release. A repository adopter
@@ -48,8 +47,8 @@ the same result.
   its targets name them. It is recorded, never read to describe an
   artifact. `execution_mode` is `smoke` if any record has `smoke_test`.
   Dataset generation has no smoke mode and always records production, so
-  a smoke run's tree holds both kinds; a `full` or `partial` release
-  cannot hold a smoke artifact. _Amended by #87: a smoke run writes under
+  a smoke run's tree holds both kinds; a published release cannot hold a
+  smoke artifact. _Amended by #87: a smoke run writes under
   its own output root, apart from the production one, so its
   production-mode dataset bundles never stand in for a real run's.
   Amended by [ADR 0012](0012-a-downloaded-release-is-a-cache.md): there
@@ -86,7 +85,7 @@ identified by the producing commit.
   different code; the hash links to nothing. Such a **dangling input** is
   kept in the index, reported by `save`, and reported as missing by
   selective download. It is not refused, since a maintainer may leave
-  bundles out of a partial release on purpose.
+  bundles out of a release on purpose.
 - **Producing commits are reported per stage.** `save` and `publish` print,
   for dataset generation, classifier training, pretraining, training and
   evaluation, each producing commit with its artifact count, and flag dirty
@@ -94,11 +93,10 @@ identified by the producing commit.
   the evaluation's record, and aggregation and visualization write none, so
   the commits of transformation, aggregation and visualization are not
   reported.
-- **Dirty code blocks official releases.** `publish` refuses a `full` or
-  `partial` release in which any artifact was produced from a dirty tree or
-  outside a git work tree (unknown code), unless the maintainer passes
-  `--allow-dirty-code`, which the host's commit message records. Smoke
-  releases are never refused for it.
+- **Dirty code blocks official releases.** `publish` refuses a release
+  in which any artifact was produced from a dirty tree or outside a git
+  work tree (unknown code), unless the maintainer passes
+  `--allow-dirty-code`, which the host's commit message records.
 
 ## Dataset bundle redistribution
 

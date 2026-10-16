@@ -26,7 +26,6 @@ from afabench.release.manifest import (
     ExecutionMode,
     PayloadCategory,
     ReleaseManifest,
-    ReleaseScope,
     Stage,
     code_by_stage,
     dangling_inputs,
@@ -166,8 +165,6 @@ def restored(
             ),
             "--release-id",
             "smoke-native-bundles",
-            "--scope",
-            "partial",
             "--checkout",
             str(checkout),
         ],
@@ -197,7 +194,6 @@ def test_smoke_run_release_covers_every_payload_category(
 ) -> None:
     _, _, _, manifest = restored
 
-    assert manifest.scope is ReleaseScope.PARTIAL
     assert manifest.execution_mode is ExecutionMode.SMOKE
     for payload in manifest.coverage.payloads:
         assert payload.count > 0, payload

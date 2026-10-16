@@ -55,7 +55,7 @@ Printed to standard output, in this order:
 2. The source of the job durations, and the distinct SLURM clusters
    (sites), hosts, CPU models and GPU models of the matched job records.
    For a `release_job_duration_table.parquet` with a release manifest
-   beside it, the source names the release id and scope, or says that the
+   beside it, the source names the release id, or says that the
    table is not that release's when its size differs from the manifest's
    `job_duration_table` entry.
 3. The number of refused smoke-test job records, if any.

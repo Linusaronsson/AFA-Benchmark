@@ -148,8 +148,7 @@ def test_a_restored_release_table_is_named_by_its_release(
 
     assert result.exit_code == 0, result.output
     assert (
-        f"Job durations from {table} (release 2026-10-cube, partial scope)"
-        in result.output
+        f"Job durations from {table} (release 2026-10-cube)" in result.output
     )
     assert "0 exact, 1 pooled, 1 unestimated" in result.output
 

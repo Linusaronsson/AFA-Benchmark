@@ -2,7 +2,7 @@
 
 One entry per benchmark release, newest first. Each entry has:
 
-- the release id, scope and producing commit;
+- the release id, coverage and producing commits;
 - the previous release it is compared with, if any;
 - **compatibility changes** since that release: changes to formats,
   schemas, output paths or APIs, and what an older checkout or release

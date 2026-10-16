@@ -50,7 +50,7 @@ example, `false` stays a string, and `[1, 2]` becomes a list of strings.
 
 ```shell
 snapshot.py save SNAPSHOT_DIR [--source-root output/production] [--overwrite]
-    [--release-id ID --scope full|partial [CONFIGURATION OPTIONS]]
+    [--release-id ID [CONFIGURATION OPTIONS]]
     [--checkout .]
 ```
 
@@ -65,8 +65,8 @@ missing or empty source root is an error.
 
 With `--release-id`, also writes `SNAPSHOT_DIR/release_manifest.json`
 ([release manifest](release_manifest.md)), indexing the source root's
-artifacts by their provenance records. `--scope` and a recorded workflow
-configuration are required; configuration options are optional assertions. If the source root holds any job
+artifacts by their provenance records. A recorded workflow configuration
+is required; configuration options are optional assertions. If the source root holds any job
 record, it also writes the release's
 [job duration table](release_manifest.md#job-duration-table) to
 `SNAPSHOT_DIR/release_job_duration_table.parquet`. Refused before anything
@@ -174,7 +174,7 @@ producing code per pipeline stage as `save` does.
 ## `download`
 
 ```shell
-snapshot.py download [RELEASE] --repo-id REPO
+snapshot.py download RELEASE --repo-id REPO
     (--all | SELECTION OPTIONS)
     [--destination-root ROOT] [--overwrite]
 ```
@@ -186,15 +186,14 @@ a second release into another root, with `--destination-root
 output/<name>`, and run the pipeline on it with `output_root=output/<name>`.
 
 Downloads one release and restores it as `restore` does, then prints its
-scope, execution mode and workflow configuration. A public
+identity, execution mode and workflow configuration. A public
 repository needs no token.
 
 ### Release
 
-`RELEASE` is a release id, or `latest` (the default): the `full` release
-whose manifest `created_at` is newest. `latest` never chooses a `partial`
-release, and fails, listing the published releases, if there is no full
-one.
+`RELEASE` is a required release id. There is no automatic release
+selection; `latest` is an ordinary id, not an alias. An unpublished id
+fails without restoring anything.
 
 The release is resolved once, before anything is downloaded, and every
 file comes from it.

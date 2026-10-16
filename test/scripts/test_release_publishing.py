@@ -17,7 +17,6 @@ from afabench.release.manifest import (
     CodeIdentity,
     ExecutionMode,
     PayloadCategory,
-    ReleaseScope,
     index_artifacts,
     read_release_manifest,
 )
@@ -106,7 +105,6 @@ def prepare_package(
     tmp_path: Path,
     release_id: str,
     *,
-    scope: str = "full",
     smoke_test: bool = False,
     plot: bytes = b"%PDF-1.4 plot",
     datasets: Sequence[str] = ("cube",),
@@ -147,8 +145,6 @@ def prepare_package(
             str(configfile),
             "--release-id",
             release_id,
-            "--scope",
-            scope,
             "--checkout",
             str(checkout),
         ],
@@ -428,8 +424,6 @@ def test_overwriting_release_removes_newly_restricted_dataset_bundles(
             str(tmp_path / "2026-10-source"),
             "--release-id",
             "2026-10",
-            "--scope",
-            "full",
             "--configfile",
             str(tmp_path / "2026-10.yaml"),
             "--checkout",
@@ -463,9 +457,8 @@ def test_smoke_provenance_survives_a_round_trip_through_a_local_host(
     assert restored == read_release_manifest(
         package_dir / "release_manifest.json"
     )
-    assert restored.scope is ReleaseScope.FULL
     assert restored.execution_mode is ExecutionMode.SMOKE
-    assert "scope full, execution smoke" in downloaded.output
+    assert "execution smoke" in downloaded.output
 
 
 @pytest.mark.parametrize(
@@ -692,8 +685,6 @@ def test_saving_a_release_snapshot_uploads_nothing(tmp_path: Path) -> None:
             str(configfile),
             "--release-id",
             "2026-10",
-            "--scope",
-            "full",
         ],
         obj=lambda _repo_id: transport,
     )
@@ -702,11 +693,10 @@ def test_saving_a_release_snapshot_uploads_nothing(tmp_path: Path) -> None:
     assert transport.files == {}
 
 
-@pytest.mark.parametrize("scope", ["full", "partial"])
-def test_dirty_producing_code_is_refused(tmp_path: Path, scope: str) -> None:
+def test_dirty_producing_code_is_refused(tmp_path: Path) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(
-        tmp_path, "2026-10", scope=scope, code={"training": DIRTY}
+        tmp_path, "2026-10", code={"training": DIRTY}
     )
 
     result = invoke(transport, "publish", str(package_dir))

@@ -10,9 +10,8 @@ own [provenance records](../adr/0002-provenance-recorded-in-artifacts.md),
 never from the workflow configuration: it is a cache of those records, and
 saving the same output tree again gives the same index
 ([ADR 0006](../adr/0006-release-manifest-indexes-artifact-provenance.md)).
-The schema is `afabench.release.manifest.ReleaseManifest`, version 3.
-Version 3 added the [job duration table](#job-duration-table); version 2
-manifests are not read, since no release was published with one.
+The schema is `afabench.release.manifest.ReleaseManifest`, version 4.
+Readers reject other schema versions.
 
 `save --release-id` refuses an output tree holding any bundle, or any
 Parquet file under `eval_results/` or `eval_results_transformed/`, without
@@ -31,9 +30,8 @@ which is as the producing job was given it. JSON object keys are strings.
 
 | Field | Meaning |
 | --- | --- |
-| `manifest_version` | Schema version, 3. Readers reject versions they do not know. |
+| `manifest_version` | Schema version, 4. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
-| `scope` | `full` or `partial`, as declared. |
 | `execution_mode` | `smoke` if any artifact's record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `publish` refuses `smoke`; such a manifest is only downloaded in tests, from a local host. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
 | `dataset_redistribution` | Per dataset key any record names, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
@@ -121,8 +119,8 @@ An input is the bundle in the release with its `content_hash`, not the
 bundle at its `path`: a bundle regenerated after the artifact was produced
 still has the path, but not the hash. An input no bundle of the release
 matches is a **dangling input**. `save` lists them, and a selective download
-reports those of the categories it fetches as missing. A partial release
-may leave bundles out on purpose.
+reports those of the categories it fetches as missing. A release may
+leave bundles out on purpose.
 
 ### `coverage`
 

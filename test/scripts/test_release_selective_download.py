@@ -2,8 +2,7 @@
 Choose a release and download part of it through a fake release host.
 
 The catalogs are synthetic: production-mode packages whose payloads are a
-few bytes, declared `full` or `partial` only to exercise release selection.
-They are not benchmark results.
+few bytes. They are not benchmark results.
 """
 
 import json
@@ -108,7 +107,6 @@ def publish(
     transport: FakeReleaseTransport,
     release_id: str,
     *,
-    scope: str = "full",
     created_at: str = "2026-10-01T00:00:00+00:00",
     smoke_test: bool = False,
     omit: Iterable[str] = (),
@@ -158,8 +156,6 @@ def publish(
             str(configfile),
             "--release-id",
             release_id,
-            "--scope",
-            scope,
             "--checkout",
             str(checkout),
         ],
@@ -219,76 +215,58 @@ def restored_bundles(destination_root: Path) -> set[str]:
     }
 
 
-def test_default_download_takes_the_latest_full_release_not_a_newer_partial(
+def test_download_requires_a_release_id_before_contacting_host(
     tmp_path: Path,
 ) -> None:
-    transport = FakeReleaseTransport()
-    for release_id, scope, created_at in [
-        ("2026-10-full", "full", "2026-10-01T00:00:00+00:00"),
-        ("2026-11-partial", "partial", "2026-11-01T00:00:00+00:00"),
-        ("2026-09-full", "full", "2026-09-01T00:00:00+00:00"),
-    ]:
-        publish(
-            tmp_path / release_id,
-            transport,
-            release_id,
-            scope=scope,
-            created_at=created_at,
-        )
-    destination_root = tmp_path / "fork/output"
+    destination_root = tmp_path / "output"
+    contacted: list[str] = []
 
-    result = download(transport, destination_root, "--all")
+    def transport_factory(repo_id: str) -> FakeReleaseTransport:
+        contacted.append(repo_id)
+        return FakeReleaseTransport()
 
-    assert result.exit_code == 0, result.output
-    assert restored_release_id(destination_root) == "2026-10-full"
-    assert (destination_root / PLOT).read_text() == "2026-10-full"
-    assert "Latest full release: 2026-10-full" in result.output
+    result = runner.invoke(
+        app,
+        [
+            "download",
+            "--all",
+            "--repo-id",
+            REPO_ID,
+            "--destination-root",
+            str(destination_root),
+        ],
+        obj=transport_factory,
+    )
 
-
-def test_default_download_without_a_full_release_names_the_partial_ones(
-    tmp_path: Path,
-) -> None:
-    transport = FakeReleaseTransport()
-    publish(tmp_path, transport, "2026-11-partial", scope="partial")
-    destination_root = tmp_path / "fork/output"
-
-    result = download(transport, destination_root, "--all")
-
-    assert result.exit_code != 0
-    message = str(result.exception)
-    assert "No full release is published" in message
-    assert "2026-11-partial (partial)" in message
+    assert result.exit_code == 2, result.output
+    assert "Missing argument" in result.output
+    assert not contacted
     assert not destination_root.exists()
 
 
-def test_older_and_partial_releases_download_when_named(
+def test_download_fetches_the_named_release_regardless_of_creation_time(
     tmp_path: Path,
 ) -> None:
     transport = FakeReleaseTransport()
-    for release_id, scope, created_at in [
-        ("2026-09-full", "full", "2026-09-01T00:00:00+00:00"),
-        ("2026-10-full", "full", "2026-10-01T00:00:00+00:00"),
-        ("2026-11-partial", "partial", "2026-11-01T00:00:00+00:00"),
+    for release_id, created_at in [
+        ("2026-09", "2026-09-01T00:00:00+00:00"),
+        ("2026-10", "2026-10-01T00:00:00+00:00"),
+        ("2026-11", "2026-11-01T00:00:00+00:00"),
     ]:
         publish(
             tmp_path / release_id,
             transport,
             release_id,
-            scope=scope,
             created_at=created_at,
         )
 
-    for release_id, scope in [
-        ("2026-09-full", "full"),
-        ("2026-11-partial", "partial"),
-    ]:
+    for release_id in ["2026-09", "2026-11"]:
         destination_root = tmp_path / release_id / "fork/output"
         result = download(transport, destination_root, release_id, "--all")
         assert result.exit_code == 0, result.output
         assert restored_release_id(destination_root) == release_id
         assert (destination_root / PLOT).read_text() == release_id
-        assert f"Release {release_id}: scope {scope}" in result.output
-        assert "Latest full release" not in result.output
+        assert f"Release {release_id}: execution production" in result.output
 
 
 @pytest.mark.parametrize(
@@ -313,8 +291,7 @@ def test_a_release_published_during_a_download_is_not_mixed_in(
     published_newer: list[str] = []
 
     def publish_newer_release(path: str) -> None:
-        # Right after the catalog is listed, as the first file is fetched,
-        # a newer full release appears.
+        # As the first file is fetched, a newer release appears.
         if not published_newer:
             published_newer.append(path)
             publish(
@@ -327,7 +304,7 @@ def test_a_release_published_during_a_download_is_not_mixed_in(
     transport.before_download = publish_newer_release
     destination_root = tmp_path / "fork/output"
 
-    result = download(transport, destination_root, *selection)
+    result = download(transport, destination_root, "2026-10-full", *selection)
 
     assert result.exit_code == 0, result.output
     assert published_newer
@@ -372,6 +349,7 @@ def test_results_only_selection_fetches_no_bundle(tmp_path: Path) -> None:
     result = download(
         transport,
         destination_root,
+        "2026-10-full",
         "--payload-category",
         "raw_evaluation_table",
         "--payload-category",
@@ -411,6 +389,7 @@ def test_shared_prerequisites_download_without_afa_method_bundles(
     result = download(
         transport,
         destination_root,
+        "2026-10-full",
         "--payload-category",
         "dataset_bundle",
         "--payload-category",
@@ -448,6 +427,7 @@ def test_method_bundles_follow_the_selected_budget_setting(
     result = download(
         transport,
         destination_root,
+        "2026-10-full",
         "--payload-category",
         "afa_method_bundle",
         "--payload-category",
@@ -481,6 +461,7 @@ def test_model_bundles_come_with_the_job_records_of_their_jobs(
     result = download(
         transport,
         destination_root,
+        "2026-10-full",
         "--payload-category",
         "afa_method_bundle",
         "--method",
@@ -513,6 +494,7 @@ def test_a_method_downloads_its_whole_chain_by_default(
     result = download(
         transport,
         destination_root,
+        "2026-10-full",
         "--method",
         "beta",
         "--dataset",
@@ -568,7 +550,6 @@ def test_missing_coverage_is_reported_and_not_taken_from_another_release(
         tmp_path / "partial",
         transport,
         "2026-11-partial",
-        scope="partial",
         created_at="2026-11-01T00:00:00+00:00",
         omit=[missing_table],
     )
@@ -614,6 +595,7 @@ def test_selection_the_release_does_not_cover_downloads_nothing(
     result = download(
         transport,
         destination_root,
+        "2026-10-full",
         "--payload-category",
         "raw_evaluation_table",
         "--output-category",
@@ -655,7 +637,7 @@ def test_selective_download_refuses_to_overwrite_an_existing_output(
         "alpha",
     ]
 
-    refused = download(transport, destination_root, *selection)
+    refused = download(transport, destination_root, "2026-10-full", *selection)
 
     assert refused.exit_code != 0
     assert str(existing) in str(refused.exception)
@@ -665,7 +647,9 @@ def test_selective_download_refuses_to_overwrite_an_existing_output(
     }
     assert not (destination_root / RELEASE_MANIFEST).exists()
 
-    replaced = download(transport, destination_root, *selection, "--overwrite")
+    replaced = download(
+        transport, destination_root, "2026-10-full", *selection, "--overwrite"
+    )
 
     assert replaced.exit_code == 0, replaced.output
     assert (
@@ -693,7 +677,7 @@ def test_download_needs_either_all_or_a_category_selection(
     requested = requested_paths(transport)
     destination_root = tmp_path / "fork/output"
 
-    result = download(transport, destination_root, *arguments)
+    result = download(transport, destination_root, "2026-10-full", *arguments)
 
     assert result.exit_code != 0
     assert "--payload-category" in result.output
@@ -721,39 +705,30 @@ def test_selected_payloads_of_a_smoke_run_keep_smoke_provenance(
     assert result.exit_code == 0, result.output
     restored = read_release_manifest(destination_root / RELEASE_MANIFEST)
     assert restored == read_release_manifest(package_dir / RELEASE_MANIFEST)
-    assert "scope full, execution smoke" in result.output
+    assert "execution smoke" in result.output
     assert all(
         path.startswith("eval_results/")
         for path in restored_files(destination_root)
     )
 
 
-def test_latest_is_not_a_release_id(tmp_path: Path) -> None:
+def test_latest_is_a_literal_release_id_not_an_alias(tmp_path: Path) -> None:
     transport = FakeReleaseTransport()
+    publish(tmp_path / "other", transport, "2026-10")
+    destination_root = tmp_path / "output"
 
-    published = publish_reserved_release_id(tmp_path, transport)
+    missing = download(transport, destination_root, "latest", "--all")
 
-    assert published.exit_code != 0
-    assert "reserved" in str(published.exception)
-    assert transport.list_folders("releases") == []
+    assert missing.exit_code != 0
+    assert "No release 'latest' is published" in str(missing.exception)
+    assert not destination_root.exists()
 
+    publish(tmp_path / "literal", transport, "latest")
+    result = download(transport, destination_root, "latest", "--all")
 
-def publish_reserved_release_id(
-    tmp_path: Path, transport: FakeReleaseTransport
-) -> Result:
-    source_root = tmp_path / "latest-source"
-    write_release_outputs(source_root, "latest")
-    configfile = tmp_path / "latest.yaml"
-    configfile.write_text(yaml.safe_dump({"smoke_test": False}))
-    record_run_config(source_root, configfile)
-    package_dir = tmp_path / "latest-package"
-    runner.invoke(
-        app,
-        ["save", str(package_dir), "--source-root", str(source_root)]
-        + ["--configfile", str(configfile), "--release-id", "latest"]
-        + ["--scope", "full"],
-    )
-    return invoke(transport, "publish", str(package_dir))
+    assert result.exit_code == 0, result.output
+    assert restored_release_id(destination_root) == "latest"
+    assert (destination_root / PLOT).read_text() == "latest"
 
 
 def test_selected_outputs_keep_their_published_mtimes(tmp_path: Path) -> None:
@@ -765,6 +740,7 @@ def test_selected_outputs_keep_their_published_mtimes(tmp_path: Path) -> None:
     result = download(
         transport,
         destination_root,
+        "2026-10-full",
         "--payload-category",
         "transformed_evaluation_table",
         "--payload-category",
@@ -796,7 +772,6 @@ def test_inputs_the_release_lacks_are_reported_for_their_category(
         tmp_path,
         transport,
         "2026-11-partial",
-        scope="partial",
         omit=[EXTERNAL_CLASSIFIER],
     )
     selection = ["--method", "alpha", "--dataset", "cube"]
@@ -847,7 +822,7 @@ def test_the_job_duration_table_downloads_inside_the_output_root(
     requested = requested_paths(transport)
     destination_root = tmp_path / "fork/output"
 
-    result = download(transport, destination_root, *selection)
+    result = download(transport, destination_root, "2026-10-full", *selection)
 
     assert result.exit_code == 0, result.output
     table = destination_root / TABLE
@@ -869,12 +844,14 @@ def test_a_release_without_a_job_duration_table_reports_it_missing(
     alone = download(
         transport,
         destination_root,
+        "2026-10-full",
         "--payload-category",
         "job_duration_table",
     )
     with_tables = download(
         transport,
         destination_root,
+        "2026-10-full",
         "--payload-category",
         "job_duration_table",
         "--payload-category",

@@ -78,21 +78,21 @@ To compare on a dataset the release lacks, add it to the profile's
 
 ## 2. Download the published methods
 
-Download into the fork's `output/production`:
+Choose a release id from the [published releases](download_published_results.md#1-choose-a-release),
+then download into the fork's `output/production`:
 
 ```shell
-uv run python scripts/release/snapshot.py download --repo-id <repo_id> \
+uv run python scripts/release/snapshot.py download <release_id> --repo-id <repo_id> \
     --method random_dummy --method gdfs
 ```
 
-This downloads the latest full release's evaluations of those methods with
+This downloads the named release's evaluations of those methods with
 their whole chain: the dataset bundles and external classifiers they used,
 their pretrained models, their AFA-method bundles, and their raw and
 plotting-ready evaluation tables. A run reuses a published method's
 evaluations only with all of these; without its AFA-method bundles, it
 trains the method again. To download less, narrow the evaluations with
-coverage options, for example `--dataset cube`. To use an older or a
-partial release, name its release id after `download`.
+coverage options, for example `--dataset cube`.
 
 The command prints what the release lacks of your selection. All options:
 [`download`](../reference/snapshot_command.md#download).

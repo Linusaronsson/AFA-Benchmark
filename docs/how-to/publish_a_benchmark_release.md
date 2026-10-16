@@ -72,7 +72,7 @@ Then run the following command to copy the existing outputs from
 `output/production` into an [output snapshot](create_output_snapshots.md)
 at `~/data/afabench-releases/example/` and create its release manifest.
 Save this package outside the repository. Replace the example path with
-the destination folder you want to use, and choose a release id and scope.
+the destination folder you want to use, and choose a release id.
 The pipeline records its configuration automatically when it executes jobs;
 `save` uses that record, so you do not need to repeat or manually verify
 profiles, config files or overrides. For outputs built across several
@@ -80,7 +80,7 @@ invocations, the record is from the last invocation that executed jobs:
 
 ```shell
 uv run python scripts/release/snapshot.py save ~/data/afabench-releases/example \
-    --release-id example --scope full
+    --release-id example
 ```
 
 The snapshot's outputs are saved under `~/data/afabench-releases/example/output/`.
@@ -102,8 +102,9 @@ tree or unknown code, and any input no bundle of the release matches (a
 bundle regenerated after the artifacts that used it).
 
 Release ids are letters, digits, `.`, `_` and `-`, and are never reused.
-Use scope `full` for a run of the whole benchmark configuration and
-`partial` for anything less. Smoke-test outputs are never published.
+A release can cover any selection of datasets, methods and settings;
+its manifest records what is included. Users must name its release id to
+download it. Smoke-test outputs are never published.
 
 ## 4. Review the package
 
@@ -122,9 +123,6 @@ Read `~/data/afabench-releases/example/release_manifest.json`
       categories you mean to publish.
 - [ ] Every entry of `evaluations` has a `raw_path` and a
       `transformed_path`.
-- [ ] `scope` is `full` only if the release covers the whole benchmark
-      configuration, since the newest full release becomes everyone's
-      default download. Otherwise it is `partial`.
 - [ ] `output/` holds no stale or unrelated files; release creation omitted
       unapproved dataset bundles but copied the other outputs as they were.
 - [ ] The printed omitted dataset bundles are those you intended to leave

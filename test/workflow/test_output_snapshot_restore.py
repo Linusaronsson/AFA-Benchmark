@@ -12,7 +12,6 @@ from typer.testing import CliRunner
 from afabench.release.manifest import (
     ClassifierVariant,
     ExecutionMode,
-    ReleaseScope,
     read_release_manifest,
 )
 from afabench.release.snapshot import restore_snapshot, save_snapshot
@@ -225,8 +224,6 @@ def test_smoke_snapshot_round_trips_its_smoke_manifest(
             str(tmp_path / "completed"),
             "--release-id",
             "smoke-check",
-            "--scope",
-            "partial",
         ],
     )
     assert save.exit_code == 0, save.output
@@ -245,7 +242,6 @@ def test_smoke_snapshot_round_trips_its_smoke_manifest(
     manifest = read_release_manifest(
         tmp_path / "fresh/output/smoke/release_manifest.json"
     )
-    assert manifest.scope is ReleaseScope.PARTIAL
     assert manifest.execution_mode is ExecutionMode.SMOKE
     assert manifest.evaluations
     assert all(evaluation.raw_path for evaluation in manifest.evaluations)
