@@ -80,6 +80,10 @@ class ReleaseTransport(Protocol):
         """Upload every `{repository path: content}` in one commit."""
         ...
 
+    def file_sizes(self, folder: str) -> dict[str, int]:
+        """Return repository paths and byte sizes of every file under folder."""
+        ...
+
     def download_files(self, paths: Sequence[str], local_dir: Path) -> None:
         """Write each file in `paths` to `local_dir/<repository path>`."""
         ...

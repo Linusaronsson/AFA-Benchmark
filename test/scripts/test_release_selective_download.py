@@ -218,6 +218,53 @@ def restored_bundles(destination_root: Path) -> set[str]:
     }
 
 
+@pytest.mark.parametrize(
+    "selection",
+    [
+        ["--all"],
+        ["--output-category", "plots"],
+        ["--payload-category", "job_duration_table"],
+        [
+            "--payload-category",
+            "transformed_evaluation_table",
+            "--output-category",
+            "plots",
+        ],
+        ["--method", "beta", "--dataset", "cube"],
+    ],
+)
+def test_download_reports_size_before_fetching_payloads(
+    tmp_path: Path, selection: list[str]
+) -> None:
+    transport = FakeReleaseTransport()
+    publish(tmp_path, transport, "sized", job_records=True)
+    fetched: dict[str, bytes] = {}
+
+    def before_download(path: str) -> None:
+        if path.endswith("/release_manifest.json"):
+            return
+        print("Payload transfer started.")
+        fetched.update(
+            (name, content)
+            for name, content in transport.files.items()
+            if name == path or name.startswith(f"{path}/")
+        )
+
+    transport.before_download = before_download
+    result = download(transport, tmp_path / "destination", "sized", *selection)
+
+    assert result.exit_code == 0, result.output
+    assert fetched
+    total = sum(len(content) for content in fetched.values())
+    assert (
+        f"({total:,} bytes across {len(fetched):,} files; before cache reuse)."
+        in result.output
+    )
+    assert result.output.index("Download size:") < result.output.index(
+        "Payload transfer started."
+    )
+
+
 def test_download_requires_a_release_id_before_contacting_host(
     tmp_path: Path,
 ) -> None:

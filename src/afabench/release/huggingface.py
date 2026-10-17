@@ -16,6 +16,7 @@ from huggingface_hub import (
     hf_hub_download,
     snapshot_download,
 )
+from huggingface_hub.hf_api import RepoFile
 
 REPO_TYPE = "dataset"
 
@@ -40,6 +41,18 @@ class HuggingFaceTransport:
             commit_message=message,
             repo_type=REPO_TYPE,
         )
+
+    def file_sizes(self, folder: str) -> dict[str, int]:
+        return {
+            entry.path: entry.size
+            for entry in self._api.list_repo_tree(
+                self.repo_id,
+                path_in_repo=folder,
+                recursive=True,
+                repo_type=REPO_TYPE,
+            )
+            if isinstance(entry, RepoFile)
+        }
 
     def download_files(self, paths: Sequence[str], local_dir: Path) -> None:
         for path in paths:

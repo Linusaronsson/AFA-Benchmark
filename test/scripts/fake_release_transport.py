@@ -51,6 +51,13 @@ class FakeReleaseTransport:
             }
         )
 
+    def file_sizes(self, folder: str) -> dict[str, int]:
+        return {
+            path: len(content)
+            for path, content in self.files.items()
+            if path.startswith(f"{folder}/")
+        }
+
     def download_files(self, paths: Sequence[str], local_dir: Path) -> None:
         for path in paths:
             self._notify(path)

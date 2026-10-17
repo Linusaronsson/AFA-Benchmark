@@ -235,6 +235,11 @@ Downloads one release and restores it as `restore` does, then prints its
 identity, execution mode and workflow configuration. A public
 repository needs no token.
 
+After resolving the manifest, it lists the selected files on the host and
+prints their total size and file count before fetching the payloads. The
+size includes release bookkeeping files being fetched; cache reuse can
+reduce the actual network transfer.
+
 ### Release
 
 `RELEASE` is a required release id. There is no automatic release

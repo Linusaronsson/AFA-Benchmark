@@ -59,6 +59,7 @@ from afabench.release.manifest import (
     read_release_manifest,
 )
 from afabench.release.publishing import (
+    OUTPUT_MTIMES_FILENAME,
     ReleaseTransport,
     download_release,
     download_selection,
@@ -69,6 +70,7 @@ from afabench.release.publishing import (
 from afabench.release.selection import (
     CHAIN_CATEGORIES,
     ReleaseSelection,
+    SelectedPayloads,
     select_payloads,
 )
 from afabench.release.snapshot import (
@@ -412,12 +414,15 @@ def download(
         destination_root = _default_destination_root(manifest)
     omitted = manifest.omitted_dataset_bundles
     if everything:
+        _echo_download_size(transport, resolved.folder)
         download_release(
             resolved, transport, destination_root, overwrite=overwrite
         )
         job_duration_table = manifest.job_duration_table is not None
     else:
         payloads = select_payloads(manifest, selection)
+        if payloads.files or payloads.folders or payloads.job_duration_table:
+            _echo_download_size(transport, resolved.folder, payloads)
         download_selection(
             resolved,
             payloads,
@@ -441,6 +446,40 @@ def download(
         restored_manifest_location(destination_root),
         job_duration_table=job_duration_table,
         omitted_dataset_bundles=omitted,
+    )
+
+
+def _echo_download_size(
+    transport: ReleaseTransport,
+    folder: str,
+    payloads: SelectedPayloads | None = None,
+) -> None:
+    sizes = transport.file_sizes(folder)
+    if payloads is not None:
+        files = {
+            f"{folder}/{OUTPUT_MTIMES_FILENAME}",
+            *(f"{folder}/output/{path}" for path in payloads.files),
+        }
+        if payloads.job_duration_table:
+            files.add(f"{folder}/{JOB_DURATION_TABLE_FILENAME}")
+        prefixes = tuple(
+            f"{folder}/output/{path}/" for path in payloads.folders
+        )
+        sizes = {
+            path: size
+            for path, size in sizes.items()
+            if path in files or path.startswith(prefixes)
+        }
+    total = sum(sizes.values())
+    human_size = float(total)
+    unit = "B"
+    for unit in ("B", "kB", "MB", "GB", "TB"):
+        if human_size < 1000 or unit == "TB":
+            break
+        human_size /= 1000
+    typer.echo(
+        f"Download size: {human_size:.2f} {unit} "
+        f"({total:,} bytes across {len(sizes):,} files; before cache reuse)."
     )
 
 
