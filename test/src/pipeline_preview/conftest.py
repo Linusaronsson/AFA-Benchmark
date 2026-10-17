@@ -13,17 +13,23 @@ import pytest
 
 from afabench.core.job_record import JobIdentity
 from afabench.pipeline_plan.plan_json import dump_plan
-from afabench.pipeline_plan.planning import PipelinePlan, PlannedJob
+from afabench.pipeline_plan.planning import (
+    JobStatus,
+    PipelinePlan,
+    PlannedJob,
+    StatusReason,
+)
 
 # The script, run as `<interpreter> -m afabench.pipeline_plan --output
 # <path> -- <arguments>`, reads the output path from its arguments.
 OUTPUT_ARGUMENT = "sys.argv[sys.argv.index('--output') + 1]"
 
 
-def scheduled(
+def planned(
     rule: str,
     jobid: int,
     identity: JobIdentity | None,
+    status: JobStatus = "run",
     dependencies: frozenset[int] | None = None,
 ) -> PlannedJob:
     return PlannedJob(
@@ -34,12 +40,20 @@ def scheduled(
         cpus=2,
         gpus=0,
         jobid=jobid,
+        status=status,
+        reasons=(
+            StatusReason(kind="outputs_up_to_date")
+            if status == "reuse"
+            else StatusReason(kind="missing_output", files=(f"{rule}.out",)),
+        ),
         dependencies=dependencies or frozenset(),
     )
 
 
-def training(jobid: int, method: str, realization: int) -> PlannedJob:
-    return scheduled(
+def training(
+    jobid: int, method: str, realization: int, status: JobStatus = "run"
+) -> PlannedJob:
+    return planned(
         "train_method",
         jobid,
         JobIdentity(
@@ -49,18 +63,19 @@ def training(jobid: int, method: str, realization: int) -> PlannedJob:
             dataset_realization_index=realization,
             train_hard_budget=4,
         ),
+        status=status,
     )
 
 
 @pytest.fixture
 def plan() -> PipelinePlan:
-    """Two training jobs of alpha, one of beta, and alpha's evaluation."""
+    """Alpha trained twice, once reused, beta once, and alpha's evaluation."""
     return PipelinePlan(
-        scheduled_jobs=[
+        jobs=[
             training(1, "alpha", 0),
-            training(2, "alpha", 1),
+            training(2, "alpha", 1, status="reuse"),
             training(3, "beta", 0),
-            scheduled(
+            planned(
                 "eval_method",
                 4,
                 JobIdentity(

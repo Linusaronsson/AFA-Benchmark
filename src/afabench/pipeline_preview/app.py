@@ -2,17 +2,19 @@
 The terminal application browsing a pipeline plan (`--interactive-preview`).
 
 It opens at once with a planning indicator while a child process plans the
-invocation (`planning_process`), then shows the scheduled jobs as a tree,
-stage → method → dataset → job, beside the selected group's summary or
-job's details (`model`). A narrow terminal shows one pane at a time. When
-planning fails, the child's diagnostics replace the panes and quitting
-exits with 1. Browsing changes nothing: the app runs no job and writes no
-file.
+invocation (`planning_process`), then shows the plan's jobs, run and
+reused, as a tree, stage → method → dataset → job, beside the selected
+group's summary or job's details (`model`). Each job wears its status as a
+colored text badge, and each group its counts by status. A narrow terminal
+shows one pane at a time. When planning fails, the child's diagnostics
+replace the panes and quitting exits with 1. Browsing changes nothing: the
+app runs no job and writes no file.
 """
 
 import asyncio
 from typing import TYPE_CHECKING, ClassVar, Literal, final, override
 
+from rich.text import Text
 from textual import events, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
@@ -20,11 +22,14 @@ from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import Footer, Header, Static, TextArea, Tree
 from textual.widgets.tree import TreeNode
 
+from afabench.pipeline_plan.planning import JobStatus
 from afabench.pipeline_preview.model import (
+    STATUS_LABELS,
     GroupNode,
     JobNode,
     group_summary,
     job_details,
+    plan_summary,
     preview_tree,
 )
 from afabench.pipeline_preview.planning_process import (
@@ -39,6 +44,11 @@ type PlanningState = Literal["planning", "planned", "failed"]
 type PreviewNode = GroupNode | JobNode
 # Below this many columns, the tree and the details take turns.
 NARROW_WIDTH = 80
+# The color of each status's badge, beside its text
+STATUS_STYLES: dict[JobStatus, str] = {
+    "run": "bold white on dark_green",
+    "reuse": "bold white on dark_blue",
+}
 
 
 @final
@@ -67,10 +77,10 @@ class PlanTree(Tree[PreviewNode]):
 
 @final
 class PipelinePreviewApp(App[None]):
-    """Browse the jobs a pipeline invocation would schedule."""
+    """Browse the jobs a pipeline invocation would run and reuse."""
 
     TITLE = "Pipeline preview"
-    SUB_TITLE = "scheduled jobs"
+    SUB_TITLE = "jobs run and reused"
     CSS = """
     #status { padding: 0 1; height: 1; }
     #panes { height: 1fr; }
@@ -101,7 +111,7 @@ class PipelinePreviewApp(App[None]):
         yield Header()
         yield Static("Planning the invocation…", id="status")
         with Horizontal(id="panes"):
-            tree = PlanTree("Scheduled jobs", id="tree")
+            tree = PlanTree("Jobs", id="tree")
             tree.show_root = False
             tree.border_title = "Jobs (↑↓ move, → expand, ← collapse)"
             yield tree
@@ -142,11 +152,7 @@ class PipelinePreviewApp(App[None]):
             return
         self.planning_state = "planned"
         self.plan = result.plan
-        count = len(result.plan.scheduled_jobs)
-        self.query_one("#status", Static).update(
-            f"{count} scheduled job{'' if count == 1 else 's'}; "
-            "existing outputs are not shown"
-        )
+        self.query_one("#status", Static).update(plan_summary(result.plan))
         tree = self.query_one(PlanTree)
         for group in preview_tree(result.plan):
             self._add_group(tree.root, group)
@@ -154,12 +160,12 @@ class PipelinePreviewApp(App[None]):
     def _add_group(
         self, parent: TreeNode[PreviewNode], group: GroupNode
     ) -> None:
-        node = parent.add(f"{group.label} ({group.job_count})", data=group)
+        node = parent.add(f"{group.label} ({group.counts_label})", data=group)
         for child in group.children:
             if isinstance(child, GroupNode):
                 self._add_group(node, child)
             else:
-                node.add_leaf(child.label, data=child)
+                node.add_leaf(_badged(child), data=child)
 
     def on_tree_node_highlighted(
         self, event: Tree.NodeHighlighted[PreviewNode]
@@ -231,3 +237,12 @@ class PipelinePreviewApp(App[None]):
     async def action_quit(self) -> None:
         self.planning.cancel()
         self.exit(return_code=1 if self.planning_state == "failed" else 0)
+
+
+def _badged(job: JobNode) -> Text:
+    """Return the job's label behind its status badge, colored by status."""
+    return Text.assemble(
+        (STATUS_LABELS[job.status], STATUS_STYLES[job.status]),
+        " ",
+        job.label,
+    )

@@ -80,7 +80,8 @@ Printed to standard output, in this order:
 How long the planned jobs take if each starts as soon as the planned jobs it
 depends on are done, with no limit on how many run at once: the longest
 chain of dependent jobs, each taking its mean (or p90) job duration. Jobs
-whose outputs exist are not planned, so they add nothing. Unestimated jobs
+whose existing outputs the run reuses are not scheduled, so they add
+nothing. Unestimated jobs
 and jobs of rules without job records take no time, but still link the jobs
 before them to those after them, so the wall time is too low when the
 chain holds unestimated jobs. Queueing, the site's job limit and the

@@ -584,16 +584,29 @@ _Avoid_: Launch, session
 
 **Pipeline plan**:
 What a pipeline invocation would do, read from its Snakemake job graph
-without running anything: the jobs it schedules, which of them each needs
-and the allocation each would request. A compute estimate estimates the
-scheduled jobs of a pipeline plan.
+without running anything: every job of the requested targets' dependency
+graph with its job status and Snakemake's reasons for it, which jobs each
+needs and the allocation each would request. Target rules, which have no
+action, are no jobs of it. A compute estimate estimates the scheduled jobs
+of a pipeline plan.
 _Avoid_: Dry run (Snakemake's printed listing of an invocation), job list
+
+**Job status**:
+What a pipeline invocation does with a job of its pipeline plan, as
+Snakemake decides it. **Run**: the invocation schedules the job, including
+to replace outputs that exist but are stale. **Reuse**: the invocation
+uses the job's existing outputs without running it. Both come from
+Snakemake's need-run decision, never from whether output files happen to
+exist: a missing output nothing needs leaves a job reused.
+_Avoid_: Cached, skipped, up to date (a reused job's description, not its
+status), scheduled (the dry run's term for Run)
 
 **Interactive preview**:
 The terminal browser of a pipeline plan that the pipeline launcher opens
-with `--interactive-preview`: the scheduled jobs grouped by pipeline stage,
-method and dataset, with each job's identity and allocation. It runs and
-submits nothing and changes no invocation.
+with `--interactive-preview`: the jobs grouped by pipeline stage, method
+and dataset, each with its job status, Snakemake's reasons for it, its
+identity, paths and allocation, and each group counting its jobs by
+status. It runs and submits nothing and changes no invocation.
 _Avoid_: TUI, job browser, dry-run viewer
 
 **Pipeline profile override**:

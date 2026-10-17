@@ -47,7 +47,10 @@ workflow/run.py --configfile output/new_method/benchmark.yaml \
 
 Expect jobs for your method and missing release coverage. Investigate any
 unexpected training or evaluation of published methods before proceeding;
-check for missing downloads or changed settings.
+check for missing downloads or changed settings. To tell the jobs that run
+from the published outputs that are reused, and read the reason for each,
+replace `-n` with `--interactive-preview`
+([interactive preview](../../reference/interactive_preview.md)).
 
 Run the same configuration without `-n`:
 
