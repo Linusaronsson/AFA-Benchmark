@@ -13,8 +13,9 @@ The plan comes from Snakemake's own command-line handling, so profiles,
 workflow profiles, `--config` and `--set-resources` resolve exactly as in a
 real run, and an invalid invocation fails with the same error. Only the
 scheduling step is replaced: the DAG is built and every job's resources
-and params are evaluated, but nothing is submitted or run, and the
-workflow's onstart hook, which records the workflow config, never runs.
+and params are evaluated, and its shell command formatted from them as a
+dry run prints it, but nothing is submitted or run, and the workflow's
+onstart hook, which records the workflow config, never runs.
 
 The plan holds every job of the requested targets' dependency graph that
 has an action, with the status Snakemake decided for it: a job it would
@@ -36,8 +37,9 @@ datasets whose check it left to execution.
 Needs Snakemake, a development dependency that `uv sync` installs.
 """
 
+import textwrap
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from graphlib import TopologicalSorter
 from pathlib import Path
 from typing import Literal
@@ -45,7 +47,7 @@ from unittest import mock
 
 from snakemake.cli import args_to_api, parse_args
 from snakemake.common import async_run
-from snakemake.exceptions import print_exception
+from snakemake.exceptions import RuleException, print_exception
 from snakemake.jobs import Job, Reason
 from snakemake.workflow import Workflow
 from snakemake_interface_executor_plugins.registry import Plugin
@@ -68,6 +70,21 @@ from afabench.release.reuse import ReleaseReuse
 # whether its output files happen to exist.
 type JobStatus = Literal["run", "reuse", "conditional_reuse"]
 JOB_STATUSES: tuple[JobStatus, ...] = ("run", "reuse", "conditional_reuse")
+
+# The resources the SLURM executor places a job with, beyond its CPUs, GPUs
+# and time limit
+PLACEMENT_RESOURCES = (
+    "slurm_partition",
+    "slurm_account",
+    "clusters",
+    "qos",
+    "constraint",
+    "gres",
+    "gpu_model",
+    "mem_mb",
+    "mem_mb_per_cpu",
+    "slurm_extra",
+)
 
 # Why a job has its status. "outputs_up_to_date" is Snakemake's one reason
 # to reuse: the outputs its consumers need exist and are up to date, so an
@@ -117,6 +134,8 @@ class PlannedJob:
     # None when the cluster's default applies.
     cpus: int | None
     gpus: int
+    # The placement resources it requests (PLACEMENT_RESOURCES), by name
+    placement: dict[str, str] = field(default_factory=dict)
     # Snakemake's id of the job in this plan
     jobid: int
     status: JobStatus
@@ -127,6 +146,9 @@ class PlannedJob:
     dependencies: frozenset[int] = frozenset()
     # Requested walltime, not the measured duration used for the estimate.
     time_limit_minutes: int | None = None
+    # The shell command it would run, without its indentation; None when
+    # the rule has none or it cannot be formatted without running the job.
+    shell_command: str | None = None
 
     @property
     def job_type(self) -> JobType | None:
@@ -336,6 +358,11 @@ def _planned_job(
         device="cuda" if gpus else "cpu",
         cpus=allocated_cpus(resources, job.threads),
         gpus=gpus,
+        placement={
+            name: str(value)
+            for name in PLACEMENT_RESOURCES
+            if (value := resources.get(name))
+        },
         jobid=jobid,
         status=status,
         reasons=reasons,
@@ -343,7 +370,17 @@ def _planned_job(
         outputs=_paths(job.output),
         dependencies=dependencies,
         time_limit_minutes=runtime if isinstance(runtime, int) else None,
+        shell_command=_shell_command(job),
     )
+
+
+def _shell_command(job: Job) -> str | None:
+    """Format the job's shell command from its evaluated params, running nothing."""
+    try:
+        command = job.shellcmd
+    except RuleException:
+        return None
+    return None if command is None else textwrap.dedent(command).strip()
 
 
 def _paths(files: Iterable[object]) -> tuple[str, ...]:

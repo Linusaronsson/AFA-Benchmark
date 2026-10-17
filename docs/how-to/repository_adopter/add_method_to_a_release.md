@@ -36,30 +36,61 @@ Leave the released methods' settings, datasets, budgets and realization
 indices unchanged.
 [Configuration keys](../../reference/pipeline_configuration.md#method-option-keys-and-validation).
 
-## 3. Preview and run the extended comparison
+## 3. Preview the extended comparison
 
-Preview the work:
+Open the [interactive preview](../../reference/interactive_preview.md) of
+the run:
 
 ```shell
 workflow/run.py --configfile output/new_method/benchmark.yaml \
-    --site <your_site> -n
+    --site <your_site> --interactive-preview
 ```
 
-Expect jobs for your method and missing release coverage. Investigate any
-unexpected training or evaluation of published methods before proceeding;
-check for missing downloads or changed settings. To tell the jobs that run
-from the published outputs that are reused, and read the reason for each,
-replace `-n` with `--interactive-preview`
-([interactive preview](../../reference/interactive_preview.md)). In the
-preview, press `f`, `→` and `Enter`, and choose your method to list its
-jobs with the prerequisites they need.
+Without an interactive terminal, replace `--interactive-preview` with `-n`.
 
-Expect `Conditional reuse` for published outputs on datasets the release
-omits. If the run stops because a regenerated dataset differs from the
-release, fix the data or recompute in a separate output root; do not bypass
-the check.
+Expect `Run` jobs for your method and missing release coverage, and `Reuse`
+for published outputs. Expect `Conditional reuse` for published outputs on
+datasets the release omits.
 
-Run the same configuration without `-n`:
+To list your method's jobs with the prerequisites they need, press `f`, `→`
+and `Enter`, and choose your method.
+
+## 4. Investigate unexpected retraining
+
+Check every `Run` job of a published method or shared prerequisite before
+proceeding:
+
+1. Press `f`, then `→` three times to the status filter, press `Enter` and
+   choose `Run`. Press `Escape` to return to the tree.
+2. Expand each stage, then each published method and `Shared
+   prerequisites`. Select a job and press `Enter`; read `Reason`.
+3. If the reason is `Inputs another job of this plan rewrites`, press `Tab`
+   to the relations, select a `Needs` job marked `Run` and press `Enter`.
+   Repeat until the job runs for a reason of its own. A job marked
+   `outside the filtered tree` opens all the same; press `Backspace` to
+   retrace.
+4. Act on that job's reason:
+   - `Missing outputs`: check that the download into this output root
+     included the job's `Outputs`. If the budgets, seeds or realization in
+     its details differ from the release's, restore those settings in
+     `benchmark.yaml`.
+   - `Params changed`, `The set of inputs changed` or `The code changed`:
+     restore the release's settings for the job, or check out the release's
+     compatible code.
+5. Compare the job's training and evaluation hard budgets and soft-budget
+   parameters with the release's. Expect a new evaluation budget to add
+   evaluation jobs only, with the training job reused.
+6. Press `s` to inspect the job's shell command, and `Escape` to close it.
+7. Press `q`, fix the cause and reopen the preview until only expected jobs
+   are `Run`.
+
+If the run stops because a regenerated dataset differs from the release,
+fix the data or recompute in a separate output root; do not bypass the
+check.
+
+## 5. Run the extended comparison
+
+Run the same configuration without `--interactive-preview`:
 
 ```shell
 workflow/run.py --configfile output/new_method/benchmark.yaml \

@@ -132,6 +132,11 @@ Retain step 5's overrides when applicable. Without GPUs, replace
 
 Check for new evaluations and any required training. Investigate unexpected
 old jobs for missing downloads, changed mappings or incomplete release coverage.
+To tell the jobs that run from the published outputs that are reused,
+replace `-n` with `--interactive-preview`
+([interactive preview](../../reference/interactive_preview.md)).
+Investigate unexpected `Run` jobs as in [Add a method to a
+release](add_method_to_a_release.md#4-investigate-unexpected-retraining).
 Keep training enabled unless every required trained bundle exists.
 
 Remove `-n` to run, retaining all options. Repeat the command to resume.

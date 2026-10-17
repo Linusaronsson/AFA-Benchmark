@@ -12,6 +12,7 @@ from afabench.pipeline_plan.planning import (
     StatusReason,
 )
 from afabench.pipeline_preview.model import (
+    DEFAULT_VIEW,
     GROUPINGS,
     Dimension,
     GroupNode,
@@ -20,11 +21,13 @@ from afabench.pipeline_preview.model import (
     filter_values,
     group_summary,
     job_details,
+    job_relations,
     parse_grouping,
     plan_statuses,
     plan_summary,
     preview_tree,
     release_warning,
+    shell_command_text,
     shown_jobs,
     view_summary,
 )
@@ -41,6 +44,8 @@ def job(
     outputs: tuple[str, ...] = (),
     dependencies: frozenset[int] | None = None,
     cpus: int | None = 4,
+    placement: dict[str, str] | None = None,
+    shell_command: str | None = None,
 ) -> PlannedJob:
     return PlannedJob(
         rule=rule,
@@ -56,6 +61,8 @@ def job(
         outputs=outputs,
         dependencies=dependencies or frozenset(),
         time_limit_minutes=30,
+        placement=placement or {},
+        shell_command=shell_command,
     )
 
 
@@ -318,7 +325,7 @@ def test_a_group_summary_counts_its_jobs_by_status_and_subgroup() -> None:
     assert "By method: alpha (1 Run, 1 Reuse), beta (1 Run)" in summary
 
 
-def test_job_details_explain_a_run_and_name_what_it_needs() -> None:
+def test_job_details_explain_a_run_and_its_budgets() -> None:
     details = dict(job_details(EVALUATION, PLAN))
 
     assert details["Status"] == "Run"
@@ -328,13 +335,59 @@ def test_job_details_explain_a_run_and_name_what_it_needs() -> None:
     )
     assert details["Inputs"] == "alpha/0.bundle\ndatasets/cube/0/test.bundle"
     assert details["Outputs"] == "eval/alpha/0.csv"
-    assert details["Needs"] == (
-        "Reuse train_classifier: realization 0\n"
-        "Run train_method: realization 0, train seed 0, train hard budget 4"
-    )
-    assert details["Needed by"] == "Run plot_eval_perf: metric=accuracy"
     assert details["Training hard budget"] == "4"
     assert details["Evaluation hard budget"] == "2"
+    assert details["Training soft-budget parameter"] == "not applicable"
+    assert details["Evaluation soft-budget parameter"] == "not applicable"
+
+
+def relations(
+    job: PlannedJob, plan: PipelinePlan, view: PlanView = DEFAULT_VIEW
+) -> list[tuple[str, JobStatus, str, bool]]:
+    return [
+        (
+            relation.direction,
+            relation.job.status,
+            relation.title,
+            relation.shown,
+        )
+        for relation in job_relations(job, plan, view)
+    ]
+
+
+def test_job_relations_name_the_jobs_it_needs_and_the_jobs_needing_it() -> (
+    None
+):
+    assert relations(EVALUATION, PLAN) == [
+        (
+            "needs",
+            "reuse",
+            "train_classifier: realization 0 (masked_mlp_classifier, cube)",
+            True,
+        ),
+        (
+            "needs",
+            "run",
+            "train_method: realization 0, train seed 0, train hard budget 4 "
+            "(alpha, cube)",
+            True,
+        ),
+        ("needed_by", "run", "plot_eval_perf: metric=accuracy", True),
+    ]
+    # A job no job of the plan needs is needed by none.
+    assert [direction for direction, _, _, _ in relations(PLOT, PLAN)] == [
+        "needs"
+    ]
+
+
+def test_job_relations_tell_the_jobs_the_view_hides() -> None:
+    view = PlanView(stage="evaluation")
+
+    assert [
+        (direction, shown)
+        for direction, _, _, shown in relations(EVALUATION, PLAN, view)
+    ] == [("needs", False), ("needs", False), ("needed_by", False)]
+    assert relations(PLOT, PLAN, PlanView(search="eval_method"))[0][3]
 
 
 def test_job_details_explain_a_reuse_and_its_consuming_methods() -> None:
@@ -346,6 +399,8 @@ def test_job_details_explain_a_reuse_and_its_consuming_methods() -> None:
         "it needs is rerun"
     )
     assert details["Method"] == "not applicable"
+    # The job record's name is a classifier's, not a method's.
+    assert details["Classifier"] == "masked_mlp_classifier"
     assert details["Consuming methods"] == "alpha, beta"
 
 
@@ -355,7 +410,20 @@ def test_job_details_show_inputs_no_job_of_the_plan_makes() -> None:
     details = dict(job_details(CLASSIFIER, plan))
 
     assert details["Existing inputs"] == "datasets/cube/0/train.bundle"
-    assert details["Needs"] == "no job of this plan"
+    # Its prerequisite made by no job is no relation; its consumers are.
+    assert [
+        relation.job
+        for relation in job_relations(CLASSIFIER, plan, PlanView())
+    ] == [
+        EVALUATION,
+        training(1, "alpha", 0),
+        training(3, "beta", 0),
+        training(2, "alpha", 1, status="reuse"),
+    ]
+    assert all(
+        relation.direction == "needed_by"
+        for relation in job_relations(CLASSIFIER, plan, PlanView())
+    )
     assert dict(job_details(CLASSIFIER, PLAN))["Existing inputs"] == "none"
 
 
@@ -366,7 +434,7 @@ def test_job_details_say_which_dimensions_a_job_has_no_identity_for() -> None:
     assert details["Method"] == "not applicable"
     assert details["Dataset"] == "not applicable"
     assert details["Wildcards"] == "metric=accuracy"
-    assert details["Needed by"] == "no job of this plan"
+    assert "Classifier" not in details
     assert "Consuming methods" not in details
     assert "Training hard budget" not in details
 
@@ -380,6 +448,30 @@ def test_job_details_show_the_allocation_a_job_requests() -> None:
     assert details["CPUs"] == "cluster default"
     assert details["GPUs"] == "0"
     assert details["Time limit"] == "30 minutes"
+    assert details["Placement"] == "none requested"
+
+
+def test_job_details_show_where_a_job_requests_to_be_placed() -> None:
+    placed = job(
+        "train_method",
+        5,
+        None,
+        placement={"slurm_partition": "gpu-queue", "gres": "gpu:T4:1"},
+    )
+
+    assert dict(job_details(placed, PLAN))["Placement"] == (
+        "slurm_partition=gpu-queue\ngres=gpu:T4:1"
+    )
+
+
+def test_a_jobs_shell_command_is_shown_or_its_absence_explained() -> None:
+    assert (
+        shell_command_text(job("plot_time", 6, None, shell_command="plot x"))
+        == "plot x"
+    )
+    absent = shell_command_text(job("plot_time", 6, None))
+    assert absent.startswith("No shell command")
+    assert "runs nothing" in absent
 
 
 def leaves(nodes: tuple[GroupNode | JobNode, ...]) -> list[tuple[str, ...]]:
@@ -657,10 +749,15 @@ def test_job_details_name_the_dataset_checks_a_conditional_reuse_waits_for() -> 
         "Reads outputs that are themselves conditionally reused: "
         "trained_classifiers/cube-0.bundle"
     )
-    assert details["Needs"] == (
-        "Run dataset_generation: realization 0\n"
-        "Conditional reuse train_classifier: realization 0"
-    )
+    assert [
+        (relation.job.status, relation.job.rule)
+        for relation in job_relations(
+            CONDITIONAL_TRAINING, RELEASE_PLAN, PlanView()
+        )
+    ] == [
+        ("run", "dataset_generation"),
+        ("conditional_reuse", "train_classifier"),
+    ]
 
 
 def test_a_plan_with_conditional_reuse_warns_that_its_checks_are_pending() -> (

@@ -16,8 +16,11 @@ from pathlib import Path
 
 from afabench.pipeline_plan.planning import PipelinePlan, PlannedJob
 from afabench.pipeline_preview.model import (
+    SHARED_PREREQUISITES,
     consuming_methods,
     existing_inputs,
+    group_of,
+    job_details,
     preview_tree,
 )
 from test.workflow.submission_harness import WorkflowHarness
@@ -266,3 +269,80 @@ def test_training_and_evaluation_budgets_are_planned_as_distinct_jobs(
         ("training", "4 Run"),
         ("evaluation", "5 Run"),
     ]
+
+
+def test_a_planned_job_has_its_identity_paths_placement_and_command(
+    tmp_path: Path,
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    workflow.config["execution"] = {"methods": {"alpha": {"training": "cuda"}}}
+    profile = str(tmp_path / "workflow/profiles/site/examples/mixed-gres")
+
+    plan = workflow.planned_graph(
+        "--workflow-profile", profile, target="all_train_methods"
+    )
+
+    jobs = by_key(plan)
+    alpha = jobs[("train_method", "alpha")]
+    assert alpha.identity is not None
+    assert (
+        alpha.identity.stage,
+        alpha.identity.name,
+        alpha.identity.dataset_key,
+        alpha.identity.dataset_realization_index,
+        alpha.identity.train_hard_budget,
+    ) == ("training", "alpha", "cube", 0, 1)
+    assert reasons(alpha) == ["missing_output"]
+    assert set(alpha.reasons[0].files) <= set(alpha.outputs)
+    assert alpha.inputs == (
+        "output/smoke/datasets/cube/0/train.bundle",
+        "output/smoke/datasets/cube/0/val.bundle",
+        "output/smoke/trained_classifiers/initializer-cold/"
+        "dataset-cube+realization_index-0.bundle",
+    )
+    # The site's GPU allocation and the profile's resources
+    assert (alpha.device, alpha.cpus, alpha.gpus) == ("cuda", 8, 1)
+    assert alpha.time_limit_minutes == 600
+    assert alpha.placement == {
+        "slurm_partition": "gpu-queue",
+        "slurm_account": "gpu-account",
+        "gres": "gpu:T4:1",
+        "mem_mb": "4000",
+    }
+    beta = jobs[("train_method", "beta")]
+    assert beta.placement["slurm_partition"] == "cpu-queue"
+    # The command Snakemake would run, formatted while planning
+    assert alpha.shell_command is not None
+    assert "python scripts/train_method/alpha.py" in alpha.shell_command
+    assert f"save_path={alpha.outputs[0]}" in alpha.shell_command
+    assert "device=cuda" in alpha.shell_command
+    assert workflow.submissions() == []
+    assert not workflow.arguments.exists()
+
+
+def test_a_pretrained_model_is_a_shared_prerequisite_not_a_method(
+    tmp_path: Path,
+) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    options = workflow.config["method_options"]
+    assert isinstance(options, dict)
+    options["alpha"]["pretrained_model_name"] = "shared"
+    workflow.config["pretrain_mapping"] = {
+        "shared": {"pretrain_script_name": "shared"}
+    }
+
+    plan = workflow.planned_graph("--executor", "local")
+
+    jobs = by_key(plan)
+    pretraining = jobs[("pretrain_model", None)]
+    assert pretraining.status == "run"
+    assert pretraining.identity is not None
+    assert pretraining.identity.stage == "pretraining"
+    assert pretraining.identity.name == "shared"
+    assert group_of(pretraining, "method") == SHARED_PREREQUISITES
+    assert consuming_methods(pretraining, plan) == ["alpha"]
+    details = dict(job_details(pretraining, plan))
+    assert details["Method"] == "not applicable"
+    assert details["Pretrained model"] == "shared"
+    assert pretraining.jobid in jobs[("train_method", "alpha")].dependencies
+    assert pretraining.jobid not in jobs[("train_method", "beta")].dependencies

@@ -54,10 +54,12 @@ def test_a_plan_is_read_back_unchanged_from_its_json() -> None:
                 device="cuda",
                 cpus=8,
                 gpus=1,
+                placement={"slurm_partition": "gpu", "gres": "gpu:T4:1"},
                 jobid=7,
                 status="reuse",
                 reasons=(StatusReason(kind="outputs_up_to_date"),),
                 time_limit_minutes=90,
+                shell_command="python scripts/train_method/alpha.py seed=1",
             ),
         ]
     )

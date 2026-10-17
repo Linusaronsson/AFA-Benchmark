@@ -54,6 +54,8 @@ training or evaluation on existing datasets before proceeding. To tell the
 jobs that run from the published outputs that are reused, replace `-n` with
 `--interactive-preview`
 ([interactive preview](../../reference/interactive_preview.md)).
+Investigate unexpected `Run` jobs as in [Add a method to a
+release](add_method_to_a_release.md#4-investigate-unexpected-retraining).
 
 Expect `Conditional reuse` for published outputs on datasets the release
 omits. If the run stops because a regenerated dataset differs from the
