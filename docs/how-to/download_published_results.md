@@ -6,12 +6,8 @@ AFABench. Public releases need no Hugging Face account.
 
 ## 1. Choose a release
 
-Releases are folders under `releases/` of the `afabench/results` Hugging Face
-dataset repository:
-
-```text
-https://huggingface.co/datasets/afabench/results/tree/main/releases
-```
+Releases are folders under `releases/` of the
+[`afabench/results` Hugging Face dataset repository](https://huggingface.co/datasets/afabench/results/tree/main/releases).
 
 Open a release folder and read its `README.md`. The generated summary lists
 included datasets, methods, evaluation counts, splits, budgets and seeds,
