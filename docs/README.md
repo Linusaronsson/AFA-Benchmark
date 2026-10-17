@@ -12,14 +12,18 @@ in `AGENTS.md` when deciding whether compatibility work is needed.
 | Folder | Type | A page here | Example |
 | --- | --- | --- | --- |
 | `tutorials/` | Tutorial | Teaches a newcomer by walking them through a lesson they complete. | None yet. |
-| `how-to/` | How-to guide | Tells a user with a goal what to do, as steps. No background beyond what a step needs; link to explanation instead. | `how-to/add_method.md` |
+| `how-to/` | How-to guide | Tells a user with a goal what to do, as steps. No background beyond what a step needs; link to explanation instead. | `how-to/repository_adopter/add_method.md` |
 | `reference/` | Reference | Describes a thing (a file format, a command, a configuration option) completely and neutrally, for lookup. | `reference/release_manifest.md` |
 | `explanation/` | Explanation | Says why: design reasons, trade-offs, limits, background. | `explanation/output_snapshots.md` |
 
 Most AFABench users want to run the benchmark, not learn it, so most guides
 are how-to guides. A how-to guide names its reader by one of the user types
 in [`explanation/user_types.md`](explanation/user_types.md) and links to
-that page rather than describing the reader itself.
+that page rather than describing the reader itself. Store each guide under
+`how-to/<user_type>/`: `results_only_user`, `repository_adopter`,
+`library_user` or `maintainer`. Keep shared guides in one audience's folder
+and link to them from the other audiences' indexes rather than duplicating
+pages.
 
 Name a how-to guide after the task, with a verb (`create_output_snapshots.md`)
 and its section headings after steps the reader performs. Name a
@@ -39,45 +43,45 @@ instead of defining a term on a page.
 
 ### How-to guides
 
-Guides are grouped by [user type](explanation/user_types.md). Shared guides
-appear under each audience they serve.
+Guides live in folders by [user type](explanation/user_types.md). Shared
+guides appear under each audience they serve, linking to one canonical page.
 
 #### Results-only user
 
-- [Download published results](how-to/download_published_results.md)
+- [Download published results](how-to/results_only_user/download_published_results.md)
 
 #### Repository adopter
 
-- [Add a dataset](how-to/add_dataset.md)
-- [Add a method](how-to/add_method.md)
-- [Compare your method with published results](how-to/compare_your_method_with_published_results.md)
-- [Evaluate a release's methods on a new dataset](how-to/evaluate_release_methods_on_a_new_dataset.md)
-- [Add more seeds to a release's datasets and methods](how-to/add_seeds_to_a_release.md)
-- [Add hard budgets or soft-budget parameters to a release](how-to/add_budget_settings_to_a_release.md)
-- [Estimate the compute of a run](how-to/estimate_compute.md)
-- [Run on SLURM](how-to/slurm_integration.md)
-- [Choose per-method training and evaluation execution](how-to/mixed_execution.md)
-- [Choose classifier and pretrained-model execution](how-to/prerequisite_execution.md)
-- [Use CPU-only dataset and result processing](how-to/cpu_processing_execution.md)
+- [Add a dataset](how-to/repository_adopter/add_dataset.md)
+- [Add a method](how-to/repository_adopter/add_method.md)
+- [Compare your method with published results](how-to/repository_adopter/compare_your_method_with_published_results.md)
+- [Evaluate a release's methods on a new dataset](how-to/repository_adopter/evaluate_release_methods_on_a_new_dataset.md)
+- [Add more seeds to a release's datasets and methods](how-to/repository_adopter/add_seeds_to_a_release.md)
+- [Add hard budgets or soft-budget parameters to a release](how-to/repository_adopter/add_budget_settings_to_a_release.md)
+- [Estimate the compute of a run](how-to/maintainer/estimate_compute.md)
+- [Run on SLURM](how-to/maintainer/slurm_integration.md)
+- [Choose per-method training and evaluation execution](how-to/maintainer/mixed_execution.md)
+- [Choose classifier and pretrained-model execution](how-to/maintainer/prerequisite_execution.md)
+- [Use CPU-only dataset and result processing](how-to/maintainer/cpu_processing_execution.md)
 
 #### Library user
 
-No how-to guide yet. See the library interfaces for
-[loading and plotting evaluation dataframes](reference/evaluation_dataframes.md#loading-and-plotting).
+No how-to guide yet. See the
+[library-user folder](how-to/library_user/README.md) for the available reference.
 
 #### Maintainer
 
-- [Run the pipeline](how-to/run_the_pipeline.md)
-- [Run on SLURM](how-to/slurm_integration.md)
-- [Choose per-method training and evaluation execution](how-to/mixed_execution.md)
-- [Choose classifier and pretrained-model execution](how-to/prerequisite_execution.md)
-- [Use CPU-only dataset and result processing](how-to/cpu_processing_execution.md)
-- [Estimate the compute of a run](how-to/estimate_compute.md)
-- [Add a dataset](how-to/add_dataset.md)
-- [Add a method](how-to/add_method.md)
-- [Create output snapshots](how-to/create_output_snapshots.md)
-- [Restore an output snapshot](how-to/restore_an_output_snapshot.md)
-- [Publish a benchmark release](how-to/publish_a_benchmark_release.md)
+- [Run the pipeline](how-to/maintainer/run_the_pipeline.md)
+- [Run on SLURM](how-to/maintainer/slurm_integration.md)
+- [Choose per-method training and evaluation execution](how-to/maintainer/mixed_execution.md)
+- [Choose classifier and pretrained-model execution](how-to/maintainer/prerequisite_execution.md)
+- [Use CPU-only dataset and result processing](how-to/maintainer/cpu_processing_execution.md)
+- [Estimate the compute of a run](how-to/maintainer/estimate_compute.md)
+- [Add a dataset](how-to/repository_adopter/add_dataset.md)
+- [Add a method](how-to/repository_adopter/add_method.md)
+- [Create output snapshots](how-to/maintainer/create_output_snapshots.md)
+- [Restore an output snapshot](how-to/maintainer/restore_an_output_snapshot.md)
+- [Publish a benchmark release](how-to/maintainer/publish_a_benchmark_release.md)
 
 ### Reference
 

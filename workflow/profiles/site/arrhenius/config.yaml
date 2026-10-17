@@ -1,6 +1,6 @@
 # Run with workflow/run.py --site arrhenius, which runs Snakemake from the
 # login node's venv, after building the venv of each architecture with
-# just build-venvs arrhenius (docs/how-to/slurm_integration.md).
+# just build-venvs arrhenius (docs/how-to/maintainer/slurm_integration.md).
 executor: slurm
 jobs: 9001
 latency-wait: 30 # seconds

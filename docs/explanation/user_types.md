@@ -11,7 +11,7 @@ compare with results produced elsewhere. Downloads tables and plots of a
 benchmark release from Hugging Face, reads the tables with any Parquet
 reader, and never installs AFABench or runs its pipeline.
 
-- [Download published results](../how-to/download_published_results.md)
+- [Download published results](../how-to/results_only_user/download_published_results.md)
 
 ## Repository adopter
 
@@ -24,12 +24,12 @@ only the adopter's method is trained and evaluated, and produces whatever
 it lacks, such as a dataset the release does not cover
 ([ADR 0012](../adr/0012-a-downloaded-release-is-a-cache.md)).
 
-- [Add a method](../how-to/add_method.md) or
-  [add a dataset](../how-to/add_dataset.md)
-- [Compare your method with published results](../how-to/compare_your_method_with_published_results.md)
-- [Evaluate a release's methods on a new dataset](../how-to/evaluate_release_methods_on_a_new_dataset.md)
-- [Add more seeds to a release's datasets and methods](../how-to/add_seeds_to_a_release.md)
-- [Add hard budgets or soft-budget parameters to a release](../how-to/add_budget_settings_to_a_release.md)
+- [Add a method](../how-to/repository_adopter/add_method.md) or
+  [add a dataset](../how-to/repository_adopter/add_dataset.md)
+- [Compare your method with published results](../how-to/repository_adopter/compare_your_method_with_published_results.md)
+- [Evaluate a release's methods on a new dataset](../how-to/repository_adopter/evaluate_release_methods_on_a_new_dataset.md)
+- [Add more seeds to a release's datasets and methods](../how-to/repository_adopter/add_seeds_to_a_release.md)
+- [Add hard budgets or soft-budget parameters to a release](../how-to/repository_adopter/add_budget_settings_to_a_release.md)
 
 ## Library user
 
@@ -46,7 +46,7 @@ and plotting-ready evaluation tables load and plot through the interfaces in
 Runs the full benchmark and publishes its results as benchmark releases
 for the other users.
 
-- [Run the pipeline](../how-to/run_the_pipeline.md)
-- [Create output snapshots](../how-to/create_output_snapshots.md)
-- [Restore an output snapshot](../how-to/restore_an_output_snapshot.md)
-- [Publish a benchmark release](../how-to/publish_a_benchmark_release.md)
+- [Run the pipeline](../how-to/maintainer/run_the_pipeline.md)
+- [Create output snapshots](../how-to/maintainer/create_output_snapshots.md)
+- [Restore an output snapshot](../how-to/maintainer/restore_an_output_snapshot.md)
+- [Publish a benchmark release](../how-to/maintainer/publish_a_benchmark_release.md)

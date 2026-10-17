@@ -1,13 +1,13 @@
 # Compare your method with published results
 
-For a [repository adopter](../explanation/user_types.md#repository-adopter):
+For a [repository adopter](../../explanation/user_types.md#repository-adopter):
 run your method next to the methods of a benchmark release, without
 training and evaluating the published methods again.
 
 You download the published methods into your output root and run your own
 pipeline profile, which lists them next to your method. The downloaded
 release is a cache
-([ADR 0012](../adr/0012-a-downloaded-release-is-a-cache.md)): the run
+([ADR 0012](../../adr/0012-a-downloaded-release-is-a-cache.md)): the run
 produces exactly what your profile produces without it. It reuses what the
 release holds and produces the rest: your method, and anything your
 profile asks for that the release lacks, such as a dataset the release does
@@ -46,7 +46,7 @@ To make the method appear in plots, add it to
   new one added to every entry of `method_family_color_schemes`.
 
 Then give the comparison its own
-[pipeline profile](run_the_pipeline.md#pipeline-profile). Start from the
+[pipeline profile](../maintainer/run_the_pipeline.md#pipeline-profile). Start from the
 one the release was produced with, so the published methods are asked for
 with the settings the release has them at. `download` prints it as
 `Workflow profile`; here it is `kdd26`:
@@ -78,7 +78,7 @@ To compare on a dataset the release lacks, add it to the profile's
 
 ## 2. Download the published methods
 
-Choose a release id from the [published releases](download_published_results.md#1-choose-a-release),
+Choose a release id from the [published releases](../results_only_user/download_published_results.md#1-choose-a-release),
 then download into the fork's `output/production`:
 
 ```shell
@@ -95,7 +95,7 @@ trains the method again. To download less, narrow the evaluations with
 coverage options, for example `--dataset cube`.
 
 The command prints what the release lacks of your selection. All options:
-[`download`](../reference/snapshot_command.md#download).
+[`download`](../../reference/snapshot_command.md#download).
 
 ## 3. Check the release's provenance
 
@@ -113,16 +113,16 @@ changes (data, splits, preprocessing, classifiers, acquisition semantics or
 metrics). Check the release's `README.md` on Hugging Face for known
 caveats, not a complete change history. If a change affects results, your
 results are not comparable with the published ones, even though every
-file still loads ([why](../explanation/benchmark_releases.md#compatibility-and-comparability)).
+file still loads ([why](../../explanation/benchmark_releases.md#compatibility-and-comparability)).
 A restored output is not run again when your fork changes its rule's code
 or parameters
-([why](../explanation/output_snapshots.md)).
+([why](../../explanation/output_snapshots.md)).
 
 ## 4. Regenerate omitted dataset bundles when needed
 
 If the release omitted dataset bundles for local regeneration or
 redistribution reasons, prepare any required local sources following the
-[dataset guide](../reference/datasets/README.md),
+[dataset guide](../../reference/datasets/README.md),
 then generate the dataset realizations selected by your profile:
 
 ```shell
@@ -183,7 +183,7 @@ change the profile to match the release, whose configuration is in the
 manifest's `workflow_config`.
 
 If it lists `dataset_generation` or `train_classifier` for a dataset the
-release has, a [shared prerequisite](../../CONTEXT.md) is missing or newer
+release has, a [shared prerequisite](../../../CONTEXT.md) is missing or newer
 than a released output. Download available prerequisites (step 2). For
 omitted dataset bundles, follow step 4 instead. A genuinely missing classifier
 must be trained and can cause evaluations to run again.

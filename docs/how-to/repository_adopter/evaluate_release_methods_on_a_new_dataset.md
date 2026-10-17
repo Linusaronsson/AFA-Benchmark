@@ -1,6 +1,6 @@
 # Evaluate a release's methods on a new dataset
 
-For a [repository adopter](../explanation/user_types.md#repository-adopter):
+For a [repository adopter](../../explanation/user_types.md#repository-adopter):
 add a dataset and train and evaluate every method of a chosen benchmark
 release on it.
 
@@ -12,7 +12,7 @@ on other datasets and do not replace training on yours.
 ## 1. Choose a release and inspect its configuration
 
 Choose an explicit release id from the
-[published releases](download_published_results.md#1-choose-a-release), and
+[published releases](../results_only_user/download_published_results.md#1-choose-a-release), and
 read its README for coverage and caveats. Download its manifest:
 
 ```shell
@@ -27,7 +27,7 @@ Use `coverage.methods` as the list of published methods, and
 `workflow_config` to identify the pipeline profile, configuration files and
 overrides. Coverage lists do not guarantee every combination was evaluated;
 inspect `evaluations` for exact identities
-([manifest fields](../reference/release_manifest.md#fields)).
+([manifest fields](../../reference/release_manifest.md#fields)).
 
 Check the producing commits before choosing the code to run:
 
@@ -52,7 +52,7 @@ is `my_dataset`.
 Check the Unmasker, feature costs, external classifier and method dataset
 overrides against your data. Defaults suit tabular datasets; image data
 usually needs explicit choices. See
-[pipeline configuration](../reference/pipeline_configuration.md#unmaskers).
+[pipeline configuration](../../reference/pipeline_configuration.md#unmaskers).
 
 ## 3. Create a profile containing the release's methods and your dataset
 
@@ -99,7 +99,7 @@ paths before editing. In those copies:
   training-budget choices. Keep method hyperparameters at the release's
   values unless the new dataset requires an explicit dataset override.
 
-See [method options and validation](../reference/pipeline_configuration.md#method-option-keys-and-validation).
+See [method options and validation](../../reference/pipeline_configuration.md#method-option-keys-and-validation).
 
 ## 4. Inspect the work and run it
 
@@ -112,7 +112,7 @@ workflow/run.py my_dataset --site <your_site> \
 
 On a workstation without GPUs, replace `--site <your_site>` with
 `--jobs 8 execution_file=workflow/profiles/execution/cpu.yaml`.
-See [execution choices](run_the_pipeline.md#execution-file) before running
+See [execution choices](../maintainer/run_the_pipeline.md#execution-file) before running
 GPU methods locally.
 
 Verify that the resolved configuration lists only `my_dataset` and every
@@ -135,8 +135,8 @@ output/my_dataset/plots/eval_split-<split>/initializer-<init>/eval_perf/
 ```
 
 External and built-in classifier results are separate. See
-[plot layout](../reference/evaluation_plots.md#output-layout) and
-[evaluation table columns](../reference/evaluation_dataframes.md).
+[plot layout](../../reference/evaluation_plots.md#output-layout) and
+[evaluation table columns](../../reference/evaluation_dataframes.md).
 These are new results on your dataset, not results supplied by the release.
 
 To include the release's original datasets and reuse their results in the

@@ -1,14 +1,14 @@
 # Add more seeds to a release's datasets and methods
 
-For a [repository adopter](../explanation/user_types.md#repository-adopter):
+For a [repository adopter](../../explanation/user_types.md#repository-adopter):
 keep a benchmark release's datasets and methods, compute additional seeded
 repetitions, and plot the published and new results together.
 
 The pipeline controls repetitions through
-[`dataset_realization_indices`](../reference/pipeline_configuration.md#dataset_realization_indices).
+[`dataset_realization_indices`](../../reference/pipeline_configuration.md#dataset_realization_indices).
 Each index seeds dataset generation and splitting, classifier training,
 pretraining, method training and evaluation. Adding indices therefore adds
-[dataset realizations](../../CONTEXT.md#datasets), not just training seeds
+[dataset realizations](../../../CONTEXT.md#datasets), not just training seeds
 on an unchanged split. This guide does not vary training or evaluation seeds
 independently on a fixed realization.
 
@@ -17,7 +17,7 @@ Run commands from your fork's repository root, after `uv sync`.
 ## 1. Download the chosen release into its own output root
 
 Choose an explicit release id from the
-[published releases](download_published_results.md#1-choose-a-release), and
+[published releases](../results_only_user/download_published_results.md#1-choose-a-release), and
 read its README for coverage, exclusions and caveats. Download its full cache:
 
 ```shell
@@ -67,7 +67,7 @@ fork, including generation, preprocessing, splits, method implementations,
 classifiers and metrics. Use the corresponding code and environment for the
 new repetitions. A restored output is not invalidated by changes to rule
 code or parameters, so a successful dry run does not prove comparability.
-See [compatibility and comparability](../explanation/benchmark_releases.md#compatibility-and-comparability).
+See [compatibility and comparability](../../explanation/benchmark_releases.md#compatibility-and-comparability).
 
 ## 3. Extend the realization list without dropping existing indices
 
@@ -98,7 +98,7 @@ profile, root, realization list and execution options in subsequent commands.
 ## 4. Generate missing dataset bundles before checked reuse
 
 If the release omitted dataset bundles, first prepare any required local
-sources according to the [dataset reference](../reference/datasets/README.md).
+sources according to the [dataset reference](../../reference/datasets/README.md).
 Then generate the selected realizations in a separate invocation:
 
 ```shell
@@ -158,8 +158,8 @@ Find them under `output/more_seeds/merged_results/` and
 `output/more_seeds/plots/`; per-evaluation tables under
 `eval_results_transformed/` retain `dataset_realization_index`, `train_seed`
 and `eval_seed`. Check those columns to confirm both old and new repetitions
-are present. See [evaluation dataframes](../reference/evaluation_dataframes.md)
-and [plot layout](../reference/evaluation_plots.md#output-layout).
+are present. See [evaluation dataframes](../../reference/evaluation_dataframes.md)
+and [plot layout](../../reference/evaluation_plots.md#output-layout).
 
 The downloaded `release_manifest.json` still describes the original release,
 not the additional local outputs. Keep your profile and full invocation with

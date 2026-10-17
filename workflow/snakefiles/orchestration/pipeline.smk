@@ -78,7 +78,7 @@ Runtime filters (--config, select subsets to run):
         to submit while a venv is missing or built from another uv.lock,
         and the site profile's precommand puts workflow/venvs/bin, whose
         python runs the node's venv, on PATH.
-        See docs/how-to/slurm_integration.md and
+        See docs/how-to/maintainer/slurm_integration.md and
         docs/adr/0015-one-venv-per-architecture.md.
     use_wandb (bool, default=False): Enable W&B logging; the launcher's
         --wandb sets it. Needs WANDB_ENTITY and WANDB_PROJECT set, and
@@ -160,7 +160,7 @@ Execution configuration and required files:
     Invalid selected-method and prerequisite execution fails before submission,
     including conflicting device arguments in classifier/pretraining params,
     unknown pretrained_models names and default-resources slurm_extra.
-    See docs/how-to/mixed_execution.md and prerequisite_execution.md for
+    See docs/how-to/maintainer/mixed_execution.md and prerequisite_execution.md for
     execution YAML, site.yaml, migration and captured-submission tests.
 
 Usage:
@@ -179,7 +179,7 @@ Usage:
             execution_file=workflow/profiles/execution/cpu.yaml
     It writes under output/smoke, so a later real run still runs every
     job.
-    See docs/how-to/run_the_pipeline.md and slurm_integration.md.
+    See docs/how-to/maintainer/run_the_pipeline.md and slurm_integration.md.
     Compare a method with a benchmark release: download the published
     methods' chains into the output root, then run a pipeline profile
     listing them in `methods` next to the new method. The release is a
@@ -192,7 +192,7 @@ Usage:
         workflow/run.py <pipeline> --jobs 8 --target all_generate_datasets
         workflow/run.py <pipeline> --jobs 8 reuse_release=true \
             "stages={dataset_generation: false}" -n
-    See docs/how-to/compare_your_method_with_published_results.md.
+    See docs/how-to/repository_adopter/compare_your_method_with_published_results.md.
     Evaluate trained methods already under the output root, without
     generating datasets or training:
         workflow/run.py <pipeline> --site <site> -n \
@@ -207,7 +207,7 @@ CPU-only processing:
     requests; CPU counts, memory and runtime remain independently configurable.
     Conflicting rule allocation overrides fail before any submission. Heavy
     processing is submitted normally, not designated as login-node/local work.
-    See docs/how-to/cpu_processing_execution.md for site requirements and
+    See docs/how-to/maintainer/cpu_processing_execution.md for site requirements and
     final-target command-boundary verification.
 
 Output namespacing:

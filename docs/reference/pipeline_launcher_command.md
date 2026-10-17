@@ -2,7 +2,7 @@
 
 The [pipeline launcher](../../CONTEXT.md) runs the pipeline from a pipeline
 profile, an optional site profile and pipeline profile overrides. Steps:
-[run the pipeline](../how-to/run_the_pipeline.md).
+[run the pipeline](../how-to/maintainer/run_the_pipeline.md).
 
 ```shell
 workflow/run.py [<pipeline>] [--site <site>] [-n | -e [<estimate options>]]

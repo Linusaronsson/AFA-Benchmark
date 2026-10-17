@@ -26,7 +26,7 @@ execution:
   downstream method's training/evaluation choice. They retain one native bundle
   per dataset realization and initializer, trained on that realization with
   its index as seed
-  ([ADR 0005](../adr/0005-classifiers-trained-per-dataset-realization.md)).
+  ([ADR 0005](../../adr/0005-classifiers-trained-per-dataset-realization.md)).
 - Method-specific classifiers use `methods.<method name>.classifier_training`,
   then `defaults.classifier_training`. The existing `method_options.<name>.classifier` script
   selection and parameters still decide which variant is trained, not hardware.

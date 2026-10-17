@@ -1,6 +1,6 @@
 # Add hard budgets or soft-budget parameters to a release
 
-For a [repository adopter](../explanation/user_types.md#repository-adopter):
+For a [repository adopter](../../explanation/user_types.md#repository-adopter):
 keep a release's datasets, methods and seeded repetitions, but evaluate
 additional hard budgets or soft-budget parameters. Reuse released training
 outputs where the requested evaluation uses the same trained method.
@@ -11,7 +11,7 @@ extends your local results; it does not modify the published release.
 ## 1. Download the release and match its configuration
 
 Choose an explicit release id from the
-[published releases](download_published_results.md#1-choose-a-release), read
+[published releases](../results_only_user/download_published_results.md#1-choose-a-release), read
 its README for coverage and caveats, and download into a fresh output root:
 
 ```shell
@@ -48,7 +48,7 @@ lack some combinations. Downloading it does not apply its configuration.
 Check producing commits against your fork for result-affecting differences.
 Use corresponding implementations and environments for comparable results;
 restored outputs are not automatically rerun when code or parameters change.
-See [compatibility and comparability](../explanation/benchmark_releases.md#compatibility-and-comparability).
+See [compatibility and comparability](../../explanation/benchmark_releases.md#compatibility-and-comparability).
 
 ## 2. Copy the configuration groups you will change
 
@@ -146,7 +146,7 @@ also need the intended hard-budget list to retain their training identity.
 ## 5. Regenerate omitted dataset bundles when necessary
 
 If the release omitted dataset bundles, prepare required local sources using
-the [dataset reference](../reference/datasets/README.md), then generate the
+the [dataset reference](../../reference/datasets/README.md), then generate the
 profile's selected realizations separately:
 
 ```shell
@@ -163,7 +163,7 @@ the data rather than mixing incompatible outputs. External source files,
 code and hyperparameters still need your own compatibility checks.
 
 Skip this step if all needed dataset bundles were downloaded. See
-[checked reuse](../reference/pipeline_configuration.md#reuse_release).
+[checked reuse](../../reference/pipeline_configuration.md#reuse_release).
 
 ## 6. Inspect the plan and run the extension
 
@@ -195,8 +195,8 @@ tables, and `output/more_budgets/merged_results/` and
 `output/more_budgets/plots/` for combined comparisons. Verify
 `train_hard_budget`, `eval_hard_budget`, `train_soft_budget_param` and
 `eval_soft_budget_param` in the tables; hard- and soft-budget figures remain
-separate. See [table columns](../reference/evaluation_dataframes.md) and
-[plot layout](../reference/evaluation_plots.md#output-layout).
+separate. See [table columns](../../reference/evaluation_dataframes.md) and
+[plot layout](../../reference/evaluation_plots.md#output-layout).
 
 Keep the modified profile and invocation with your results. The downloaded
 `release_manifest.json` describes the original release, not your local

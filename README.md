@@ -43,7 +43,7 @@ workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
 The CPU execution file runs every job on CPU. To reproduce the full
 benchmark results, use SLURM instead: one command submits CPU and GPU jobs
 together. See the
-[run the pipeline](docs/how-to/run_the_pipeline.md) guide
+[run the pipeline](docs/how-to/maintainer/run_the_pipeline.md) guide
 for the exact command.
 
 ## Features
@@ -119,12 +119,12 @@ page in [`docs/reference/datasets/`](docs/reference/datasets/README.md).
 ## Documentation
 
 The full index is [`docs/README.md`](docs/README.md). To get started:
-  - [Run the pipeline](docs/how-to/run_the_pipeline.md)
+  - [Run the pipeline](docs/how-to/maintainer/run_the_pipeline.md)
   - [Pipeline configuration](docs/reference/pipeline_configuration.md)
-  - [Add a dataset](docs/how-to/add_dataset.md)
-  - [Add a method](docs/how-to/add_method.md)
-  - [Compare your method with published results](docs/how-to/compare_your_method_with_published_results.md)
-  - [Download published results](docs/how-to/download_published_results.md)
+  - [Add a dataset](docs/how-to/repository_adopter/add_dataset.md)
+  - [Add a method](docs/how-to/repository_adopter/add_method.md)
+  - [Compare your method with published results](docs/how-to/repository_adopter/compare_your_method_with_published_results.md)
+  - [Download published results](docs/how-to/results_only_user/download_published_results.md)
 
 ## Development
 

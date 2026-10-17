@@ -1,6 +1,6 @@
 # Adding a new method
 
-An AFA method (see [`CONTEXT.md`](../../CONTEXT.md)) is added to the
+An AFA method (see [`CONTEXT.md`](../../../CONTEXT.md)) is added to the
 benchmark as one or two plain scripts under `scripts/train_method/` and
 `scripts/pretrain_model/`, registered with the pipeline. There is exactly one
 hard rule for those scripts. Everything else — Hydra, the config
@@ -12,9 +12,9 @@ constrain you.
 The pipeline (Snakemake) invokes your training script as a subprocess with a
 fixed set of `key=value` command-line arguments, and your pretraining script
 (if you have one) with its own set. These are the **training contract** and
-the **pretraining contract** (glossary entries in [`CONTEXT.md`](../../CONTEXT.md)), and its design is
+the **pretraining contract** (glossary entries in [`CONTEXT.md`](../../../CONTEXT.md)), and its design is
 recorded in
-[ADR-0001](../adr/0001-training-contract-as-library.md).
+[ADR-0001](../../adr/0001-training-contract-as-library.md).
 
 **The hard rule: accept the training contract's arguments on the command
 line, and write a loadable bundle to the `save_path` argument.** Nothing
@@ -116,7 +116,7 @@ writes `obj` as a bundle to `contract.save_path`, with metadata recording the
 stage, the contract values and the config fields the contract doesn't cover,
 and with the bundle's provenance record (seed, inputs, `method_name` and
 dataset identity; see
-[`docs/reference/bundle_format.md`](../reference/bundle_format.md)).
+[`docs/reference/bundle_format.md`](../../reference/bundle_format.md)).
 Both helpers take the method config from the contract, since your config
 dataclass inherits it; pass `config=` only if the method config is a
 separate object. Pass both helpers the script's `inputs`, so that each
@@ -163,7 +163,7 @@ in all the contract fields, leaving the config otherwise empty since
 `RandomDummyTrainConfig` adds none.
 
 If your method class is new, register it in `REGISTERED_CLASSES` in
-`src/afabench/core/registry.py` ([`docs/reference/bundle_format.md`](../reference/bundle_format.md))
+`src/afabench/core/registry.py` ([`docs/reference/bundle_format.md`](../../reference/bundle_format.md))
 so `load_bundle` can reconstruct it; `RandomWithoutClassifierAFAMethod` is
 already there as `"RandomWithoutClassifierAFAMethod"`.
 
@@ -310,7 +310,7 @@ still has to:
 - Call `afabench.core.bundle_system.bundle.save_bundle` to write a loadable
   bundle to the `save_path` argument, with your method's class registered in
   `REGISTERED_CLASSES` (`src/afabench/core/registry.py`,
-  [`docs/reference/bundle_format.md`](../reference/bundle_format.md)).
+  [`docs/reference/bundle_format.md`](../../reference/bundle_format.md)).
   `save_bundle` requires a provenance record; build it with
   `afabench.core.provenance.capture_provenance` from the contract's seed,
   `method_name` and input bundles (`bundle_input`), copying the dataset
@@ -373,7 +373,7 @@ file name):
 If your method introduces a new `AFAMethod` or `AFAClassifier` class, add it
 to `REGISTERED_CLASSES` in `src/afabench/core/registry.py` — this is the same
 registration the bundle system needs (section 2 and
-[`docs/reference/bundle_format.md`](../reference/bundle_format.md)); there's no separate pipeline
+[`docs/reference/bundle_format.md`](../../reference/bundle_format.md)); there's no separate pipeline
 registry.
 
 To also show up in plots, add it to `method_name_mapping` in

@@ -1,6 +1,6 @@
 # Download published results
 
-For a [results-only user](../explanation/user_types.md#results-only-user):
+For a [results-only user](../../explanation/user_types.md#results-only-user):
 download a benchmark release's tables and plots without installing
 AFABench. Public releases need no Hugging Face account.
 
@@ -25,7 +25,7 @@ workflow configuration, the `coverage` of the release, and one
 `evaluations` entry per evaluation with the path of its tables, the commit
 that produced it, and its identity: method, dataset, dataset realization,
 evaluation split, budgets and seeds.
-[Fields](../reference/release_manifest.md#fields).
+[Fields](../../reference/release_manifest.md#fields).
 
 ## 3. Download tables and plots
 
@@ -54,8 +54,8 @@ Take `<path>` from the manifest:
 - For plots, browse `output/plots/`; they are PDF and SVG files.
 
 Both tables carry their identity as columns. The
-[columns of each table](../reference/release_manifest.md#raw-versus-plotting-ready-tables).
+[columns of each table](../../reference/release_manifest.md#raw-versus-plotting-ready-tables).
 
 To download many tables at once, selected by dataset, method or budget
 setting, use the `download` command from a checkout of AFABench
-([reference](../reference/snapshot_command.md#download)).
+([reference](../../reference/snapshot_command.md#download)).

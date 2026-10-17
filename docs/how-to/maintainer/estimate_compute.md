@@ -1,13 +1,13 @@
 # Estimate the compute of a run
 
-For a [maintainer](../explanation/user_types.md#maintainer) applying for a
+For a [maintainer](../../explanation/user_types.md#maintainer) applying for a
 compute allocation, or a
-[repository adopter](../explanation/user_types.md#repository-adopter)
+[repository adopter](../../explanation/user_types.md#repository-adopter)
 checking that their quota suffices: predict the CPU core-hours and GPU-hours
 a pipeline invocation will consume before running it. The
-[compute estimate](../../CONTEXT.md) comes from the job durations of earlier
+[compute estimate](../../../CONTEXT.md) comes from the job durations of earlier
 runs, either your own or a benchmark release's. Options and output columns:
-[`estimate-compute` command](../reference/estimate_compute_command.md).
+[`estimate-compute` command](../../reference/estimate_compute_command.md).
 
 ## 1. Write the invocation you will run
 
@@ -38,7 +38,7 @@ GPUs your site profile will request.
 
   It lands at `output/production/release_job_duration_table.parquet`,
   beside the release manifest, where the pipeline never rewrites it
-  ([`download`](../reference/snapshot_command.md#download)). Pass it with
+  ([`download`](../../reference/snapshot_command.md#download)). Pass it with
   `--job-durations output/production/release_job_duration_table.parquet`.
 
 The durations are used as measured: they are not scaled to your hardware.
@@ -67,16 +67,16 @@ same way.
 
 ## 4. Read the report
 
-The [report](../reference/estimate_compute_command.md#report) gives
+The [report](../../reference/estimate_compute_command.md#report) gives
 job-hours, core-hours and GPU-hours per pipeline stage and device, as a
 mean and a pessimistic p90.
 
 - Request the p90 `total` for a safety margin.
-- The [minimal wall time](../reference/estimate_compute_command.md#minimal-wall-time)
+- The [minimal wall time](../../reference/estimate_compute_command.md#minimal-wall-time)
   is how long the run takes at the least, with every job running as soon as
   the jobs it needs are done. Its longest chain shows the jobs that set it.
 - Check the counts of `pooled` and `unestimated` jobs on the first line
-  ([match levels](../reference/estimate_compute_command.md#matching)).
+  ([match levels](../../reference/estimate_compute_command.md#matching)).
   Unestimated jobs are not in the totals; estimate them some other way, or
   first run a few of them to record their job durations.
 

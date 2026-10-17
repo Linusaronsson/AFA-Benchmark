@@ -71,7 +71,7 @@ they are unlikely to work for you unchanged.
 4. Size memory and CPUs in `<site>/config.yaml` with `default-resources`
    and `set-resources` (`mem_mb`, `cpus_per_task`). Set requested walltime in
    `<site>/site.yaml` using the hours-based
-   [walltime lookup](../reference/requested_walltime.md), per rule,
+   [walltime lookup](../../reference/requested_walltime.md), per rule,
    method/pretrained model and dataset. Remove any profile
    `set-resources.*.runtime` entries that would shadow the table; an explicit
    command-line `--set-resources <rule>:runtime=<minutes>` still wins.
@@ -107,7 +107,7 @@ workflow/run.py --site arrhenius -n list_jobs=true \
 
 Read each job's `resources: runtime=...` in minutes. Use measured job
 durations with a safety margin, not the illustrative limits in the
-[reference example](../reference/requested_walltime.md#miniboone-example).
+[reference example](../../reference/requested_walltime.md#miniboone-example).
 Changes affect future submissions only, not running or pending jobs.
 To override one rule for a run, append, for example,
 `-- --set-resources pretrain_model:runtime=240`.
@@ -118,7 +118,7 @@ When a cluster's nodes differ in CPU architecture, one venv cannot serve
 every job, so each architecture gets its own, `.venv-<arch>` in the
 checkout, where `<arch>` is the nodes' `uname -m`. The `arrhenius/` profile
 does this: its login and CPU nodes are x86_64 and its GPU nodes aarch64
-([ADR 0015](../adr/0015-one-venv-per-architecture.md)). The checkout must be
+([ADR 0015](../../adr/0015-one-venv-per-architecture.md)). The checkout must be
 on a filesystem every node shares.
 
 1. In `<site>/site.yaml`, name each allocation's venv, relative to the
@@ -187,5 +187,5 @@ declare one generic GPU (`gpu=1`), which local runs can bound with
 
 - [Run the pipeline](run_the_pipeline.md) - the base
   command, how to narrow or change a run, and where to run it
-- [Pipeline configuration](../reference/pipeline_configuration.md) - overview of the pipeline
+- [Pipeline configuration](../../reference/pipeline_configuration.md) - overview of the pipeline
   and its configuration

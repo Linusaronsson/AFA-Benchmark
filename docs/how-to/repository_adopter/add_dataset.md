@@ -170,7 +170,7 @@ Every method then runs on it in the hard-budget setting, at the
 unless you give the dataset its own. No method runs it in the soft-budget
 setting until the method lists it in `soft_budget_datasets` in
 `workflow/conf/method_options/<variant>.yaml`
-([ADR 0013](../adr/0013-soft-budget-datasets-are-opt-in.md)); list it once
+([ADR 0013](../../adr/0013-soft-budget-datasets-are-opt-in.md)); list it once
 its soft-budget parameters suit it.
 
 The scripts select the dataset through
@@ -199,7 +199,7 @@ with a `permitted` review; `omit` always excludes them and requires an
 use `omit` with a reason such as `synthetic dataset; regenerate locally`.
 Copy an appropriate existing entry; never label a synthetic exclusion as a
 redistribution restriction.
-[Policy fields and what a review covers](../reference/release_manifest.md#dataset-redistribution).
+[Policy fields and what a review covers](../../reference/release_manifest.md#dataset-redistribution).
 
 ### 6. Add a readable name
 
@@ -228,7 +228,7 @@ holds every dataset of the run, always exists and cannot be configured.
 ### 8. Document the dataset
 
 Write its page in `docs/reference/datasets/`, following the template in
-[`docs/reference/datasets/README.md`](../reference/datasets/README.md), and
+[`docs/reference/datasets/README.md`](../../reference/datasets/README.md), and
 list it there: where its data comes from and under which license, what its
 instances, label and features are, and why it keeps only some of its
 source's features, if it does.

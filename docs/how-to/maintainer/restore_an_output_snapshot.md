@@ -1,7 +1,7 @@
 # Restore an output snapshot
 
-For a [maintainer](../explanation/user_types.md#maintainer): put a saved
-[output snapshot](../explanation/output_snapshots.md) back under
+For a [maintainer](../../explanation/user_types.md#maintainer): put a saved
+[output snapshot](../../explanation/output_snapshots.md) back under
 `output/production`, where Snakemake reuses it instead of producing it again.
 
 ## 1. Restore the snapshot
@@ -34,6 +34,6 @@ was incomplete, or an input changed after the snapshot was taken.
 The dry run does not notice a change in a rule's code or parameters since
 the snapshot was taken. If you changed one, delete or regenerate the
 outputs of that rule yourself
-([why](../explanation/output_snapshots.md#why-a-snapshot-omits-snakemake-metadata)).
+([why](../../explanation/output_snapshots.md#why-a-snapshot-omits-snakemake-metadata)).
 
-All options: [`snapshot.py` reference](../reference/snapshot_command.md#restore).
+All options: [`snapshot.py` reference](../../reference/snapshot_command.md#restore).

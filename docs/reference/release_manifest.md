@@ -52,7 +52,7 @@ it from the packaging checkout. Optional configuration arguments to `save`
 are checked against this record.
 
 It is never read to describe an artifact or applied by a
-[repository adopter's](../how-to/compare_your_method_with_published_results.md)
+[repository adopter's](../how-to/repository_adopter/compare_your_method_with_published_results.md)
 run, which uses their own pipeline profile. A release built across commits
 keeps the last executing invocation's configuration; each artifact's own
 provenance record describes how that artifact was produced.

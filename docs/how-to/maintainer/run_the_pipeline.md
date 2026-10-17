@@ -1,6 +1,6 @@
 # Run the pipeline
 
-For the [maintainer](../explanation/user_types.md#maintainer).
+For the [maintainer](../../explanation/user_types.md#maintainer).
 
 The benchmark is one Snakemake dependency graph, from dataset generation
 through classifiers, pretrained models, method training and evaluation to
@@ -10,7 +10,7 @@ dependencies complete. The pipeline profile decides what the graph contains;
 overrides narrow or change it for one run.
 
 Every command on this page runs the
-[pipeline launcher](../reference/pipeline_launcher_command.md),
+[pipeline launcher](../../reference/pipeline_launcher_command.md),
 `workflow/run.py`, from the repository root.
 
 ## 1. Choose the configuration
@@ -30,7 +30,7 @@ config file per configuration group under `workflow/conf/`: datasets,
 methods, method options, hard budgets, soft-budget parameters, unmaskers,
 classifiers and pretrained models. Together they are the whole pipeline
 configuration, described in
-[pipeline configuration](../reference/pipeline_configuration.md). Two ship:
+[pipeline configuration](../../reference/pipeline_configuration.md). Two ship:
 
 | Pipeline profile | Contains |
 | --- | --- |
@@ -109,7 +109,7 @@ Without direnv, export both variables in the shell you run the launcher
 from; SLURM jobs inherit them.
 
 Each classifier training, pretraining, training and evaluation job then
-starts a [W&B run](../../CONTEXT.md), named after the job's rule and
+starts a [W&B run](../../../CONTEXT.md), named after the job's rule and
 wildcards, and the terminal links it when the job is submitted and when it
 finishes:
 
@@ -121,7 +121,7 @@ The run ID ends in the SLURM job ID, or in random characters for a local
 job, so a retried job gets a new W&B run. Without either variable the run
 fails before any job.
 
-All W&B runs of one invocation join one [W&B group](../../CONTEXT.md), which
+All W&B runs of one invocation join one [W&B group](../../../CONTEXT.md), which
 the resolved configuration links:
 
 ```
@@ -150,7 +150,7 @@ The list replaces the pipeline profile's `methods`. Every method needs an
 entry in the pipeline profile's `method_options` and `soft_budget_params`
 files. To compare your own
 method with published methods without rerunning them, follow
-[compare your method with published results](compare_your_method_with_published_results.md)
+[compare your method with published results](../repository_adopter/compare_your_method_with_published_results.md)
 instead.
 
 ## Run a subset of datasets
@@ -167,7 +167,7 @@ The list replaces the pipeline profile's `datasets`. Each key needs a file
 ## Change the number of dataset realizations
 
 Results average over several
-[dataset realizations](../../CONTEXT.md). The default is five, indices
+[dataset realizations](../../../CONTEXT.md). The default is five, indices
 `[0,1,2,3,4]`. Choose fewer for a quicker run, or more, such as
 `[0,1,2,3,4,5,6,7,8,9]`, for tighter results. Two realizations:
 
@@ -251,7 +251,7 @@ workflow/run.py ... --per-dataset-plots -n
 
 Remove `-n` after checking the plan. Usual figures remain in place; the
 additional method-set roots appear under `eval_perf_per_dataset/`, beside
-`eval_perf/`. See [plot configuration and output layout](../reference/evaluation_plots.md).
+`eval_perf/`. See [plot configuration and output layout](../../reference/evaluation_plots.md).
 
 ### Rerun visualization with different metrics
 
@@ -273,7 +273,7 @@ with the flag on; with the flag off, force only `plot_eval_perf`.
 
 ## Change the hard budgets
 
-The [hard budgets](../../CONTEXT.md) evaluated per dataset come from the
+The [hard budgets](../../../CONTEXT.md) evaluated per dataset come from the
 pipeline profile's `eval_hard_budgets` file, for example:
 
 ```yaml
@@ -296,7 +296,7 @@ workflow/run.py ... "eval_hard_budgets={cube: [2, 4], mnist: [10]}"
 > leaves `cube` at `[3, 5, 10]` in every shipped pipeline profile. Name each
 > dataset you run.
 
-To run only the [soft-budget setting](../../CONTEXT.md), give the datasets
+To run only the [soft-budget setting](../../../CONTEXT.md), give the datasets
 you run no hard budgets:
 
 ```shell
@@ -306,17 +306,17 @@ workflow/run.py ... "eval_hard_budgets={cube: [], mnist: []}"
 Methods train with the hard budget they are evaluated with, unless their
 `method_options` entry sets `train_hard_budget` or
 `eval_to_train_hard_budget_mapping` (see
-[method option keys](../reference/pipeline_configuration.md#method-option-keys-and-validation)).
+[method option keys](../../reference/pipeline_configuration.md#method-option-keys-and-validation)).
 
 ## Change the soft-budget parameters
 
-[Soft-budget parameters](../../CONTEXT.md) are set per method and dataset key
+[Soft-budget parameters](../../../CONTEXT.md) are set per method and dataset key
 in the pipeline profile's `soft_budget_params` file. Each entry is a pair
 `[train, eval]`; the pipeline trains one model per pair. `null` as the eval
 value means evaluation keeps the parameter the method was trained with.
 A method only runs them on the datasets its `method_options` entry lists in
 `soft_budget_datasets`
-([ADR 0013](../adr/0013-soft-budget-datasets-are-opt-in.md)):
+([ADR 0013](../../adr/0013-soft-budget-datasets-are-opt-in.md)):
 
 ```yaml
 soft_budget_params:
@@ -335,7 +335,7 @@ workflow/run.py ... "soft_budget_params={jafa: {cube: [[0.001, null], [0.02, nul
 
 The same merging applies as for hard budgets: other methods, and datasets
 you do not name, keep the pipeline profile's values. To run only the
-[hard-budget setting](../../CONTEXT.md), turn the soft-budget setting off:
+[hard-budget setting](../../../CONTEXT.md), turn the soft-budget setting off:
 
 ```shell
 workflow/run.py ... --no-soft-budget
@@ -346,7 +346,7 @@ also skips the datasets a method ignores in the hard-budget setting.
 
 Most methods train soft-budget runs with no hard budget; methods with
 `use_max_hard_budget_when_training_soft_budget` train under the largest one
-(see [method option keys](../reference/pipeline_configuration.md#method-option-keys-and-validation)).
+(see [method option keys](../../reference/pipeline_configuration.md#method-option-keys-and-validation)).
 
 ## Make a change durable
 
@@ -415,7 +415,7 @@ Which hardware each job runs on, and how to change it, is described in
 [per-method execution](mixed_execution.md),
 [classifiers and pretrained models](prerequisite_execution.md) and
 [CPU-only processing](cpu_processing_execution.md); the format is in
-[pipeline configuration](../reference/pipeline_configuration.md#execution).
+[pipeline configuration](../../reference/pipeline_configuration.md#execution).
 
 ## Where to run it
 

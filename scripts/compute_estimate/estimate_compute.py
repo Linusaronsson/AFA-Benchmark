@@ -8,7 +8,7 @@ arguments. It plans the jobs that invocation would run, matches each to job
 durations and prints the compute estimate: job-hours, core-hours and
 GPU-hours, mean and p90, per pipeline stage and device. It warns about
 planned job types that failed or timed out before. See
-`afabench.compute_estimate` and `docs/how-to/estimate_compute.md`.
+`afabench.compute_estimate` and `docs/how-to/maintainer/estimate_compute.md`.
 
 Options, before or among the launcher's arguments:
     --job-durations PATH  A job duration table, or an output root of job

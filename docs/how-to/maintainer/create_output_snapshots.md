@@ -1,8 +1,8 @@
 # Create output snapshots
 
-For a [maintainer](../explanation/user_types.md#maintainer): copy
+For a [maintainer](../../explanation/user_types.md#maintainer): copy
 everything the pipeline wrote under `output/production` to a folder outside the
-repository. [What a snapshot holds and why](../explanation/output_snapshots.md).
+repository. [What a snapshot holds and why](../../explanation/output_snapshots.md).
 To put it back, see [restore an output snapshot](restore_an_output_snapshot.md).
 
 ## 1. Preview the snapshot (optional)
@@ -27,4 +27,4 @@ The outputs are copied to `/path/to/snapshot-dir/output`, with their
 modification times. If any file there already exists, nothing is copied
 and the conflicts are listed; add `--overwrite` to replace them.
 
-All options: [`snapshot.py` reference](../reference/snapshot_command.md#save).
+All options: [`snapshot.py` reference](../../reference/snapshot_command.md#save).

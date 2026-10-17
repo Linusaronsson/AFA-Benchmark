@@ -1,8 +1,8 @@
 # Publish a benchmark release
 
-For a [maintainer](../explanation/user_types.md#maintainer): publish benchmark
+For a [maintainer](../../explanation/user_types.md#maintainer): publish benchmark
 outputs on Hugging Face. For background, see
-[benchmark releases](../explanation/benchmark_releases.md).
+[benchmark releases](../../explanation/benchmark_releases.md).
 
 ## 1. Set up the host (once)
 
@@ -37,7 +37,7 @@ value, and log in again with a valid token.
    publish.
 2. Check the datasets' entries in `conf/release/dataset_redistribution.yaml`
    against the intended
-   [dataset release policy](../reference/release_manifest.md#dataset-redistribution).
+   [dataset release policy](../../reference/release_manifest.md#dataset-redistribution).
 3. Choose a new release id and a fresh package directory outside the
    repository. Use letters, digits, `.`, `_` and `-` for the id, starting
    with a letter or digit. Replace `example` below with your choices:
@@ -49,7 +49,7 @@ value, and log in again with a valid token.
 
 Do not repeat the pipeline's configuration arguments; `save` reads the
 recorded run configuration. Nothing is uploaded yet. See the
-[`save` reference](../reference/snapshot_command.md#save) for other options.
+[`save` reference](../../reference/snapshot_command.md#save) for other options.
 
 Inspect the generated `README.md` in the package directory to check its
 coverage summary and output links. To include a description and caveats,
@@ -75,7 +75,7 @@ save to a fresh package directory before retrying. Restore missing inputs or
 regenerate incomplete evaluations as directed; do not edit the manifest to
 bypass a failure. For dirty or unknown producing code, regenerate from a
 clean commit, or explicitly pass `--allow-dirty-code` if intentional. See
-[publication checks and overrides](../reference/snapshot_command.md#publish).
+[publication checks and overrides](../../reference/snapshot_command.md#publish).
 
 To correct an already published release, use a new release id. You can note
 what it corrects in the new release's README by supplying `--release-notes`
