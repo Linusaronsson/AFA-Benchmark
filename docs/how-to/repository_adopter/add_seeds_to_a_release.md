@@ -9,7 +9,7 @@ Run commands from your fork's repository root, after `uv sync`.
 
 ## 1. Download the release
 
-Choose a [release id](../results_only_user/download_published_results.md#1-choose-a-release),
+[Choose a release](https://huggingface.co/datasets/afabench/results/tree/main/releases),
 read its README, and download into a fresh output root. Use one release per root.
 
 ```shell
