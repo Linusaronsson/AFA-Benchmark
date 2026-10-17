@@ -27,6 +27,9 @@ it lacks, such as a dataset the release does not cover
 - [Add a method](../how-to/add_method.md) or
   [add a dataset](../how-to/add_dataset.md)
 - [Compare your method with published results](../how-to/compare_your_method_with_published_results.md)
+- [Evaluate a release's methods on a new dataset](../how-to/evaluate_release_methods_on_a_new_dataset.md)
+- [Add more seeds to a release's datasets and methods](../how-to/add_seeds_to_a_release.md)
+- [Add hard budgets or soft-budget parameters to a release](../how-to/add_budget_settings_to_a_release.md)
 
 ## Library user
 

@@ -39,21 +39,45 @@ instead of defining a term on a page.
 
 ### How-to guides
 
-- Running the benchmark: [run the pipeline](how-to/run_the_pipeline.md),
-  [run on SLURM](how-to/slurm_integration.md), choose hardware
-  [per method](how-to/mixed_execution.md) and
-  [for classifiers and pretrained models](how-to/prerequisite_execution.md),
-  [CPU-only processing](how-to/cpu_processing_execution.md),
-  [estimate the compute of a run](how-to/estimate_compute.md).
-- Extending the benchmark: [add a dataset](how-to/add_dataset.md),
-  [add a method](how-to/add_method.md).
-- Using published results:
-  [download published results](how-to/download_published_results.md),
-  [compare your method with published results](how-to/compare_your_method_with_published_results.md).
-- Maintaining releases:
-  [create output snapshots](how-to/create_output_snapshots.md),
-  [restore an output snapshot](how-to/restore_an_output_snapshot.md),
-  [publish a benchmark release](how-to/publish_a_benchmark_release.md).
+Guides are grouped by [user type](explanation/user_types.md). Shared guides
+appear under each audience they serve.
+
+#### Results-only user
+
+- [Download published results](how-to/download_published_results.md)
+
+#### Repository adopter
+
+- [Add a dataset](how-to/add_dataset.md)
+- [Add a method](how-to/add_method.md)
+- [Compare your method with published results](how-to/compare_your_method_with_published_results.md)
+- [Evaluate a release's methods on a new dataset](how-to/evaluate_release_methods_on_a_new_dataset.md)
+- [Add more seeds to a release's datasets and methods](how-to/add_seeds_to_a_release.md)
+- [Add hard budgets or soft-budget parameters to a release](how-to/add_budget_settings_to_a_release.md)
+- [Estimate the compute of a run](how-to/estimate_compute.md)
+- [Run on SLURM](how-to/slurm_integration.md)
+- [Choose per-method training and evaluation execution](how-to/mixed_execution.md)
+- [Choose classifier and pretrained-model execution](how-to/prerequisite_execution.md)
+- [Use CPU-only dataset and result processing](how-to/cpu_processing_execution.md)
+
+#### Library user
+
+No how-to guide yet. See the library interfaces for
+[loading and plotting evaluation dataframes](reference/evaluation_dataframes.md#loading-and-plotting).
+
+#### Maintainer
+
+- [Run the pipeline](how-to/run_the_pipeline.md)
+- [Run on SLURM](how-to/slurm_integration.md)
+- [Choose per-method training and evaluation execution](how-to/mixed_execution.md)
+- [Choose classifier and pretrained-model execution](how-to/prerequisite_execution.md)
+- [Use CPU-only dataset and result processing](how-to/cpu_processing_execution.md)
+- [Estimate the compute of a run](how-to/estimate_compute.md)
+- [Add a dataset](how-to/add_dataset.md)
+- [Add a method](how-to/add_method.md)
+- [Create output snapshots](how-to/create_output_snapshots.md)
+- [Restore an output snapshot](how-to/restore_an_output_snapshot.md)
+- [Publish a benchmark release](how-to/publish_a_benchmark_release.md)
 
 ### Reference
 
