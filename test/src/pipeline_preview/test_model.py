@@ -24,6 +24,7 @@ from afabench.pipeline_preview.model import (
     plan_statuses,
     plan_summary,
     preview_tree,
+    release_warning,
     shown_jobs,
     view_summary,
 )
@@ -559,3 +560,133 @@ def test_the_filters_offer_the_values_and_statuses_of_the_plan() -> None:
     assert plan_statuses(PipelinePlan(jobs=[training(1, "alpha", 0)])) == [
         "run"
     ]
+
+
+# A release preview: the classifier and alpha's training on realization 0
+# wait for a regenerated dataset's check; beta's training runs.
+REGENERATED = job(
+    "dataset_generation",
+    50,
+    JobIdentity(
+        stage="dataset_generation",
+        name="cube",
+        dataset_key="cube",
+        dataset_realization_index=0,
+    ),
+    reasons=(
+        StatusReason(
+            kind="missing_output", files=("datasets/cube/0/train.bundle",)
+        ),
+    ),
+    outputs=("datasets/cube/0/train.bundle",),
+)
+CONDITIONAL_CLASSIFIER = job(
+    "train_classifier",
+    51,
+    CLASSIFIER.identity,
+    status="conditional_reuse",
+    reasons=(
+        StatusReason(
+            kind="pending_dataset_check",
+            files=("datasets/cube/0/train.bundle",),
+        ),
+    ),
+    inputs=("datasets/cube/0/train.bundle",),
+    outputs=("trained_classifiers/cube-0.bundle",),
+    dependencies=frozenset({50}),
+)
+CONDITIONAL_TRAINING = job(
+    "train_method",
+    52,
+    JobIdentity(
+        stage="training",
+        name="alpha",
+        dataset_key="cube",
+        dataset_realization_index=0,
+        train_hard_budget=4,
+    ),
+    status="conditional_reuse",
+    reasons=(
+        StatusReason(
+            kind="pending_dataset_check",
+            files=("datasets/cube/0/train.bundle",),
+        ),
+        StatusReason(
+            kind="conditional_input",
+            files=("trained_classifiers/cube-0.bundle",),
+        ),
+    ),
+    dependencies=frozenset({50, 51}),
+)
+RELEASE_PLAN = PipelinePlan(
+    jobs=[
+        REGENERATED,
+        CONDITIONAL_CLASSIFIER,
+        CONDITIONAL_TRAINING,
+        training(53, "beta", 0),
+    ]
+)
+
+
+def test_conditional_reuse_is_counted_apart_from_run_and_reuse() -> None:
+    assert plan_summary(RELEASE_PLAN) == (
+        "4 jobs: 2 Run, 0 Reuse, 2 Conditional reuse"
+    )
+    # A plan without it does not mention it.
+    assert plan_summary(PLAN) == "7 jobs: 4 Run, 3 Reuse"
+    assert [
+        (group.label, group.counts_label)
+        for group in preview_tree(RELEASE_PLAN)
+    ] == [
+        ("dataset generation", "1 Run"),
+        ("classifier training", "1 Conditional reuse"),
+        ("training", "1 Run, 1 Conditional reuse"),
+    ]
+
+
+def test_job_details_name_the_dataset_checks_a_conditional_reuse_waits_for() -> (
+    None
+):
+    details = dict(job_details(CONDITIONAL_TRAINING, RELEASE_PLAN))
+
+    assert details["Status"] == "Conditional reuse"
+    assert details["Reason"] == (
+        "Released outputs, reused during execution only if these regenerated "
+        "dataset bundles match the release's recorded content: "
+        "datasets/cube/0/train.bundle\n"
+        "Reads outputs that are themselves conditionally reused: "
+        "trained_classifiers/cube-0.bundle"
+    )
+    assert details["Needs"] == (
+        "Run dataset_generation: realization 0\n"
+        "Conditional reuse train_classifier: realization 0"
+    )
+
+
+def test_a_plan_with_conditional_reuse_warns_that_its_checks_are_pending() -> (
+    None
+):
+    warning = release_warning(RELEASE_PLAN)
+
+    assert warning is not None
+    assert "regenerated datasets must match" in warning
+    assert "not checked" in warning
+    assert release_warning(PLAN) is None
+
+
+def test_conditional_reuse_can_be_filtered_like_any_status() -> None:
+    view = PlanView(status="conditional_reuse")
+
+    assert plan_statuses(RELEASE_PLAN) == ["run", "conditional_reuse"]
+    assert sorted(job.jobid for job in shown_jobs(RELEASE_PLAN, view)) == [
+        51,
+        52,
+    ]
+    assert view_summary(RELEASE_PLAN, view) == (
+        "Shown: 2 of 4 jobs: 2 Conditional reuse | Whole plan: 4 jobs: "
+        "2 Run, 0 Reuse, 2 Conditional reuse"
+    )
+    # Alpha's conditionally reused training keeps what it needs.
+    assert sorted(
+        job.jobid for job in shown_jobs(RELEASE_PLAN, PlanView(method="alpha"))
+    ) == [50, 51, 52]

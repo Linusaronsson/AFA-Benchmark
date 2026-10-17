@@ -592,14 +592,18 @@ of a pipeline plan.
 _Avoid_: Dry run (Snakemake's printed listing of an invocation), job list
 
 **Job status**:
-What a pipeline invocation does with a job of its pipeline plan, as
-Snakemake decides it. **Run**: the invocation schedules the job, including
-to replace outputs that exist but are stale. **Reuse**: the invocation
-uses the job's existing outputs without running it. Both come from
-Snakemake's need-run decision, never from whether output files happen to
-exist: a missing output nothing needs leaves a job reused.
+What a pipeline invocation does with a job of its pipeline plan. **Run**:
+the invocation schedules the job, including to replace outputs that exist
+but are stale. **Reuse**: the invocation uses the job's existing outputs
+without running it. Both come from Snakemake's need-run decision, never
+from whether output files happen to exist: a missing output nothing needs
+leaves a job reused. **Conditional reuse**: in the plan of a config
+invocation of a downloaded release, the job's released outputs are reused
+only if the dataset bundles it reads, which must be regenerated first,
+match the release's recorded content; Snakemake alone would run it. A
+compute estimate counts conditionally reused jobs among the scheduled ones.
 _Avoid_: Cached, skipped, up to date (a reused job's description, not its
-status), scheduled (the dry run's term for Run)
+status), scheduled (the dry run's term for Run), verified reuse (Reuse)
 
 **Interactive preview**:
 The terminal browser of a pipeline plan that the pipeline launcher opens

@@ -12,10 +12,18 @@ import time
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
+import pytest
 from textual.pilot import Pilot
 from textual.widgets import Static, TextArea, Tree
 
-from afabench.pipeline_preview.app import PipelinePreviewApp
+from afabench.core.job_record import JobIdentity
+from afabench.pipeline_plan.planning import (
+    JobStatus,
+    PipelinePlan,
+    PlannedJob,
+    StatusReason,
+)
+from afabench.pipeline_preview.app import STATUS_STYLES, PipelinePreviewApp
 from afabench.pipeline_preview.model import (
     DEFAULT_VIEW,
     GROUPINGS,
@@ -116,6 +124,7 @@ def test_the_tree_counts_the_jobs_of_each_group_by_status(
         tree = app.query_one(Tree)
         labels.extend(str(node.label) for node in tree.root.children)
         assert "4 jobs: 3 Run, 1 Reuse" in status(app)
+        assert not app.query_one("#release-warning").display
         await pilot.press("q")
 
     browse(planning_interpreter, scenario)
@@ -152,6 +161,82 @@ def test_jobs_wear_their_status_as_a_badge_and_a_color(
     assert run_styles
     assert reuse_styles
     assert run_styles != reuse_styles
+
+
+def released_training(realization: int, status: JobStatus) -> PlannedJob:
+    """Alpha's training on a realization of a release preview."""
+    return PlannedJob(
+        rule="train_method",
+        wildcards={},
+        identity=JobIdentity(
+            stage="training",
+            name="alpha",
+            dataset_key="cube",
+            dataset_realization_index=realization,
+            train_hard_budget=4,
+        ),
+        device="cpu",
+        cpus=2,
+        gpus=0,
+        jobid=realization,
+        status=status,
+        reasons=(
+            StatusReason(kind="outputs_up_to_date")
+            if status == "reuse"
+            else StatusReason(
+                kind="pending_dataset_check",
+                files=(f"datasets/cube/{realization}/train.bundle",),
+            ),
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "plan",
+    [
+        PipelinePlan(
+            jobs=[
+                released_training(0, "conditional_reuse"),
+                released_training(1, "reuse"),
+            ]
+        )
+    ],
+)
+def test_conditional_reuse_wears_its_own_badge_below_the_release_warning(
+    planning_interpreter: list[str],
+) -> None:
+    seen: dict[str, object] = {}
+
+    async def scenario(pilot: Pilot[None], app: PipelinePreviewApp) -> None:
+        await planned(pilot, app)
+        seen["status"] = status(app)
+        warning = app.query_one("#release-warning", Static)
+        seen["warning"] = str(warning.content) if warning.display else None
+        # Expand training, alpha and cube.
+        await pilot.press("down", "right", "down", "right", "down", "right")
+        tree = app.query_one(Tree)
+        assert tree.cursor_node is not None
+        jobs = [node.label for node in tree.cursor_node.children]
+        seen["labels"] = [str(label) for label in jobs]
+        seen["styles"] = [
+            {span.style for span in label.spans if isinstance(span.style, str)}
+            for label in jobs
+        ]
+        await pilot.press("q")
+
+    browse(planning_interpreter, scenario)
+
+    assert seen["status"] == "2 jobs: 0 Run, 1 Reuse, 1 Conditional reuse"
+    assert "regenerated datasets must match" in str(seen["warning"])
+    assert seen["labels"] == [
+        "Conditional reuse train_method: realization 0, train hard budget 4",
+        "Reuse train_method: realization 1, train hard budget 4",
+    ]
+    conditional_styles, reuse_styles = seen["styles"]
+    assert conditional_styles == {STATUS_STYLES["conditional_reuse"]}
+    assert reuse_styles == {STATUS_STYLES["reuse"]}
+    # Each status has a color of its own.
+    assert len(set(STATUS_STYLES.values())) == len(STATUS_STYLES)
 
 
 def test_arrows_walk_the_tree_and_enter_opens_the_details(

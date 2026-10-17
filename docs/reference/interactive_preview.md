@@ -4,7 +4,8 @@ The [interactive preview](../../CONTEXT.md) is a terminal browser of the
 [pipeline plan](../../CONTEXT.md) of one pipeline invocation: every job of
 the requested targets' dependency graph, grouped by pipeline stage, method
 and dataset, with its [job status](../../CONTEXT.md) and Snakemake's reasons
-for it, which can be regrouped, filtered and searched. It runs no job, submits nothing and writes no file. The
+for it, which can be regrouped, filtered and searched. It runs no job,
+submits nothing and writes no file. The
 [pipeline launcher](pipeline_launcher_command.md#the-interactive-preview) opens
 it with `--interactive-preview`; steps:
 [run the pipeline](../how-to/maintainer/run_the_pipeline.md#inspect-planned-work).
@@ -12,29 +13,42 @@ it with `--interactive-preview`; steps:
 ## Statuses
 
 Each job wears its status as a text badge with a color of its own, and
-each group counts its jobs by status. Both statuses are shown; each job
+each group counts its jobs by status. All statuses are shown; each job
 appears and counts once, a shared prerequisite included.
 
 | Status | Badge | Meaning |
 | --- | --- | --- |
 | Run | `Run`, green | The invocation schedules the job, including to replace outputs that exist but are stale. |
 | Reuse | `Reuse`, blue | The invocation uses the job's existing outputs without running it. |
+| Conditional reuse | `Conditional reuse`, orange | Only for a config invocation of a downloaded release: execution reuses the job's released outputs once the dataset bundles it reads are regenerated and match the release's recorded content. |
 
-The statuses and reasons are Snakemake's own need-run decisions for the
-invocation, as a real run would make them: the preview forces no job and
+`Run`, `Reuse` and their reasons are Snakemake's own need-run decisions for
+the invocation, as a real run would make them: the preview forces no job and
 reads no file existence itself. A plan with nothing to run is a valid
 preview that still shows the jobs it reuses. A file an input needs that no
 rule of the invocation produces, such as the output of a stage that is off,
 is no job of the plan: a job reading it lists it under `Existing inputs`.
+
+Conditional reuse is the release's decision. A config invocation of a
+downloaded release is planned as its release preview, as a dry run is: dataset
+generation and the jobs reading its datasets in one graph, so Snakemake would
+run every released job whose dataset bundles the release omits. Execution
+generates the datasets first and checks their content before it reuses
+those jobs. A job the preview runs only for such datasets, directly or
+through other conditionally reused jobs, is conditionally reused; any
+other reason, such as a missing released output, keeps it `Run`. Released
+outputs on datasets that exist are checked while planning and are `Reuse`.
+Existing dataset content that differs from the release's record fails
+planning. The [compute estimate](estimate_compute_command.md) counts
+conditionally reused jobs as scheduled.
 
 ## Planning
 
 The preview opens at once with a planning indicator and plans the invocation
 in a child process, `python -m afabench.pipeline_plan`, through the shared
 planner that the [compute estimate](estimate_compute_command.md) uses, so both
-describe the same scheduled jobs. A config invocation of a downloaded release
-is planned as its release preview, as a dry run is. Quitting while planning
-ends the child process.
+describe the same scheduled jobs. Quitting while planning ends the child
+process.
 
 When planning fails, as it does for an invocation Snakemake rejects, the
 preview shows a failure state and the child's output in a scrollable text
@@ -65,7 +79,8 @@ with its status, among the jobs another job needs or is needed by.
 | Pane | Contents |
 | --- | --- |
 | Controls | The grouping, the stage, method, dataset and status filters, and the search field. |
-| Status line | The planning state, then the number of jobs and their counts by status, and when some are hidden, the shown jobs' counts beside the whole plan's. |
+| Status line | The planning state, then the number of jobs and their counts by status, and when some are hidden, the shown jobs' counts beside the whole plan's. `Conditional reuse` is counted only when the plan has it. |
+| Release warning | Only when the plan has conditionally reused jobs: regenerated datasets must match the release's recorded content before released outputs are reused during execution, and the preview has not checked them because they do not exist yet. |
 | Jobs | The jobs as a tree, grouped as the controls choose, each group labelled with its counts by status. Stages come in pipeline order. Where a method level applies, a job whose job record names no method, such as a dataset generation, classifier training or pretraining job, is under `Shared prerequisites`, and a job that writes no job record, such as an aggregation or visualization job, under `Across methods`; where a dataset level applies, such a job is under `Across datasets`. Each job is in one place and counts once. Jobs below the last level are labelled by their status badge, rule, dataset realization, seeds and training and evaluation budgets. |
 | Details | For a group: its dimension value, its jobs by status and its subgroups' counts. For a job: its status and the reasons for it, rule, stage, method, dataset, dataset realization, seeds, training and evaluation hard budgets and soft-budget parameters, evaluation batch size, wildcards, device, CPUs, GPUs, requested time limit, input and output paths, existing inputs no job of the plan makes, the jobs it needs and the jobs that need it, each with its status, and for a shared prerequisite the methods that consume it. A dimension or identity field the job has none of reads `not applicable`. |
 
@@ -73,7 +88,9 @@ The reasons are Snakemake's: missing outputs, inputs newer than the job's
 outputs, inputs another job of the plan rewrites, a changed set of inputs,
 code, params or software environment, a forced run, or for a reused job that
 the outputs it is needed for exist and are up to date and nothing it needs
-is rerun.
+is rerun. A conditionally reused job names the regenerated dataset bundles
+whose content check its reuse waits for, and the conditionally reused
+outputs it reads.
 
 Both panes are side by side in a terminal of 80 columns or more. In a
 narrower terminal the controls take two columns and the focused pane fills

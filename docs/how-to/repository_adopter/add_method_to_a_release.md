@@ -54,6 +54,11 @@ replace `-n` with `--interactive-preview`
 preview, press `f`, `→` and `Enter`, and choose your method to list its
 jobs with the prerequisites they need.
 
+Expect `Conditional reuse` for published outputs on datasets the release
+omits. If the run stops because a regenerated dataset differs from the
+release, fix the data or recompute in a separate output root; do not bypass
+the check.
+
 Run the same configuration without `-n`:
 
 ```shell

@@ -636,6 +636,29 @@ def test_interactive_preview_browses_the_runs_snakemake_arguments() -> None:
     ]
 
 
+def test_interactive_preview_of_a_config_file_plans_instead_of_running_it(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "benchmark.yaml"
+    config.write_text("{}\n")
+
+    command = launcher_command(
+        ["--configfile", str(config), "--interactive-preview"]
+    )
+
+    # Not the config invocation's phases (workflow/run_from_config.py): the
+    # planner prepares a release preview itself, for planning only.
+    assert command == [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "afabench.pipeline_preview",
+        *snakemake_arguments(["--configfile", str(config)]),
+    ]
+    assert not any("release_preview" in argument for argument in command)
+
+
 def test_interactive_preview_on_a_site_naming_venvs_runs_in_the_nodes_venv() -> (
     None
 ):

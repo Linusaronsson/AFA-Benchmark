@@ -48,11 +48,13 @@ and runs the requested target with checked release reuse. A failed preparation
 or validation stops the invocation. Disabling dataset generation skips preparation,
 not validation. Targeting `all_generate_datasets` only prepares datasets.
 
-A dry run or estimate generates nothing. It previews release reuse conditional
-on regenerated datasets passing validation during execution; existing datasets
-are still checked. The normal run performs those checks after preparation,
-before scheduling consumers. No user-supplied stage switches or reuse flags
-are needed. Named-profile runs retain their ordinary dependency behavior.
+A dry run, estimate or interactive preview generates nothing. Each previews
+release reuse conditional on regenerated datasets passing validation during
+execution; existing datasets are still checked. The interactive preview marks
+such jobs [`Conditional reuse`](interactive_preview.md#statuses). The normal
+run performs those checks after preparation, before scheduling consumers. No
+user-supplied stage switches or reuse flags are needed. Named-profile runs
+retain their ordinary dependency behavior.
 
 A benchmark config preserves pipeline-level settings and defaults, not a
 self-contained checkout, environment, external data, or transitive Hydra
