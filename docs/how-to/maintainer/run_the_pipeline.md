@@ -221,6 +221,10 @@ using alternative budget files.
   dataset. In the preview, press `g` to regroup, `f` to filter by stage,
   method, dataset or status and `/` to search
   ([controls](../../reference/interactive_preview.md#grouping-filters-and-search)).
+- To find what makes a job run, select it, press `Tab` twice to its
+  relations and `Enter` on a `Needs` job marked `Run`; `Backspace` returns
+  ([following relations](../../reference/interactive_preview.md#following-relations)).
+  Press `s` for the selected job's shell command.
 - Use `--target all_train_classifiers`, `all_pretrain_models`,
   `all_train_methods` or `all_eval_methods` to narrow the target.
 - Read detailed logs under `.snakemake/log/` when troubleshooting.

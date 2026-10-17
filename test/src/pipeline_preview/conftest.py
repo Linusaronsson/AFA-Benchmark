@@ -99,13 +99,23 @@ def interpreter(tmp_path: Path, name: str, body: str) -> list[str]:
 
 
 @pytest.fixture
-def planning_interpreter(tmp_path: Path, plan: PipelinePlan) -> list[str]:
+def plannings(tmp_path: Path) -> Path:
+    """Return where `planning_interpreter` logs each planning, a line each."""
+    return tmp_path / "plannings.txt"
+
+
+@pytest.fixture
+def planning_interpreter(
+    tmp_path: Path, plan: PipelinePlan, plannings: Path
+) -> list[str]:
     """Return an interpreter whose planning child writes `plan`."""
     encoded = tmp_path / "encoded_plan.json"
     encoded.write_text(dump_plan(plan))
     return interpreter(
         tmp_path,
         "planning",
+        f"open({str(plannings)!r}, 'a').write("
+        "' '.join(sys.argv[1:]) + '\\n')\n"
         f"print('Building DAG of jobs...')\n"
         f"shutil.copyfile({str(encoded)!r}, {OUTPUT_ARGUMENT})\n",
     )

@@ -8,7 +8,10 @@ selected group's summary or job's details (`model`). Each job wears its
 status as a colored text badge, and each group its counts by status.
 Controls above the tree regroup the jobs, filter them by stage, method,
 dataset and status, and search them; all of it reshapes the loaded plan,
-and nothing plans again. A release preview with conditionally reused jobs
+and nothing plans again. Below a job's details, its relations, the jobs
+it needs and the jobs needing it, can be followed, also to jobs the
+filters hide, and returned from; its shell command shows apart, on
+request. A release preview with conditionally reused jobs
 keeps a warning that execution checks the regenerated datasets they wait
 for. A narrow terminal shows one pane at a time. When planning fails, the
 child's diagnostics replace the panes and quitting exits with 1. Browsing
@@ -23,34 +26,43 @@ from rich.text import Text
 from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingType
-from textual.containers import Container, Horizontal, VerticalScroll
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.screen import ModalScreen
 from textual.widgets import (
     Footer,
     Header,
     Input,
     Label,
+    OptionList,
     Select,
     Static,
     TextArea,
     Tree,
 )
+from textual.widgets.option_list import Option
 from textual.widgets.tree import TreeNode
 
-from afabench.pipeline_plan.planning import JobStatus
+from afabench.pipeline_plan.planning import JobStatus, PlannedJob
 from afabench.pipeline_preview.model import (
     DEFAULT_VIEW,
     DIMENSIONS,
     GROUPINGS,
+    OUTSIDE_FILTERED_TREE,
     STATUS_LABELS,
     GroupNode,
     JobNode,
     PlanView,
+    Relation,
     filter_values,
     group_summary,
     job_details,
+    job_relations,
+    job_title,
     plan_statuses,
     preview_tree,
     release_warning,
+    shell_command_text,
+    shown_jobs,
     view_summary,
 )
 from afabench.pipeline_preview.planning_process import (
@@ -68,6 +80,8 @@ NARROW_WIDTH = 80
 # The view's fields the filter controls set, in the controls' order
 FILTERS = (*DIMENSIONS, "status")
 NO_MATCH = "No job matches the filters and search"
+NO_RELATIONS = "Needs no job of this plan, and no job of it needs this one"
+DIRECTION_LABELS = {"needs": "Needs", "needed_by": "Needed by"}
 # The color of each status's badge, beside its text
 STATUS_STYLES: dict[JobStatus, str] = {
     "run": "bold white on dark_green",
@@ -97,7 +111,8 @@ class PlanTree(Tree[PreviewNode]):
         if node.is_expanded:
             node.collapse()
         elif node.parent is not None and node.parent is not self.root:
-            self.select_node(node.parent)
+            # Moving, not selecting, keeps the focus in the tree.
+            self.move_cursor(node.parent)
 
 
 @final
@@ -115,6 +130,38 @@ class Controls(Container):
             if select is self.app.focused:
                 selects[(index + step) % len(selects)].focus()
                 return
+
+
+@final
+class ShellCommandScreen(ModalScreen[None]):
+    """A job's shell command, or why it has none, over the browser."""
+
+    BINDINGS: ClassVar[list[BindingType]] = [
+        Binding("escape", "dismiss", "Close"),
+        Binding("c", "copy", "Copy"),
+    ]
+    CSS = """
+    ShellCommandScreen { align: center middle; }
+    #command { width: 90%; height: 70%; border: round $accent; }
+    """
+
+    def __init__(self, title: str, command: str) -> None:
+        super().__init__()
+        self._title: str = title
+        self._command: str = command
+
+    @override
+    def compose(self) -> ComposeResult:
+        command = TextArea(
+            self._command, id="command", read_only=True, soft_wrap=True
+        )
+        command.border_title = f"Shell command of {self._title}"
+        command.border_subtitle = "Escape closes, c copies; nothing runs"
+        yield command
+        yield Footer()
+
+    def action_copy(self) -> None:
+        self.app.copy_to_clipboard(self._command)
 
 
 @final
@@ -139,7 +186,9 @@ class PipelinePreviewApp(App[None]):
     #release-warning { padding: 0 1; height: auto; background: $warning; color: $text; text-style: bold; }
     #panes { height: 1fr; }
     #tree { width: 1fr; border: round $primary; }
-    #details { width: 1fr; border: round $secondary; padding: 0 1; }
+    #details-pane { width: 1fr; }
+    #details { height: 1fr; border: round $secondary; padding: 0 1; }
+    #relations { height: auto; max-height: 50%; border: round $secondary; }
     #diagnostics { height: 1fr; border: round $error; }
     """
     BINDINGS: ClassVar[list[BindingType]] = [
@@ -151,6 +200,8 @@ class PipelinePreviewApp(App[None]):
         Binding("tab", "switch_pane", "Switch pane", priority=True),
         Binding("enter", "show_details", "Details"),
         Binding("escape", "show_tree", "Tree", show=False),
+        Binding("backspace", "go_back", "Back"),
+        Binding("s", "show_command", "Shell command"),
         Binding("c", "copy_diagnostics", "Copy diagnostics"),
     ]
 
@@ -166,6 +217,13 @@ class PipelinePreviewApp(App[None]):
         # The child's output, shown when planning failed
         self.diagnostics: str = ""
         self.narrow: bool = False
+        # The job whose details show, None for a group or nothing
+        self.inspected: PlannedJob | None = None
+        # The relations listed below the inspected job's details
+        self._relations: list[Relation] = []
+        # The jobs inspected before following a relation, each with the
+        # relation followed from it, latest last
+        self._followed_from: list[tuple[PlannedJob, int]] = []
 
     @override
     def compose(self) -> ComposeResult:
@@ -205,9 +263,16 @@ class PipelinePreviewApp(App[None]):
             tree.show_root = False
             tree.border_title = "Jobs (↑↓ move, → expand, ← collapse)"
             yield tree
-            with VerticalScroll(id="details", can_focus=True) as details:
-                details.border_title = "Details"
-                yield Static("", id="details-text")
+            with Vertical(id="details-pane"):
+                with VerticalScroll(id="details", can_focus=True) as details:
+                    details.border_title = "Details"
+                    yield Static("", id="details-text")
+                relations = OptionList(id="relations")
+                relations.border_title = (
+                    "Needs and needed by (Enter follows, Backspace goes back)"
+                )
+                relations.display = False
+                yield relations
         diagnostics = TextArea(id="diagnostics", read_only=True)
         diagnostics.display = False
         diagnostics.border_title = "Planning diagnostics (select, c copies)"
@@ -233,7 +298,7 @@ class PipelinePreviewApp(App[None]):
             self.query_one("#status", Static).update(
                 "Planning failed: the invocation was not planned; q quits with exit status 1"
             )
-            for pane in self.query("#controls, #search, #tree, #details"):
+            for pane in self.query("#controls, #search, #tree, #details-pane"):
                 pane.display = False
             diagnostics = self.query_one(TextArea)
             diagnostics.load_text(result.diagnostics)
@@ -265,8 +330,8 @@ class PipelinePreviewApp(App[None]):
         self.query_one("#status", Static).update(
             view_summary(self.plan, self.view)
         )
-        # The details of a job the view may hide go with the old tree.
-        self.query_one("#details-text", Static).update("")
+        # The details go with the old tree.
+        self._show_group(None)
         tree = self.query_one(PlanTree)
         tree.clear()
         groups = preview_tree(self.plan, self.view)
@@ -327,25 +392,104 @@ class PipelinePreviewApp(App[None]):
     def on_tree_node_highlighted(
         self, event: Tree.NodeHighlighted[PreviewNode]
     ) -> None:
+        self._show_node(event.node.data)
+
+    def _show_node(self, node: PreviewNode | None) -> None:
+        """Show the tree node's group summary or job details."""
+        if not isinstance(node, JobNode):
+            self._show_group(node)
+        elif self.inspected is None or self.inspected.jobid != node.job.jobid:
+            self._inspect(node.job)
+
+    def _show_group(self, group: GroupNode | None) -> None:
+        """Show the group's summary, or nothing, in place of job details."""
+        self.inspected = None
         self.query_one("#details-text", Static).update(
-            self._described(event.node.data)
+            "" if group is None else group_summary(group)
+        )
+        self.query_one("#relations").display = False
+
+    def _inspect(self, job: PlannedJob, relation: int = 0) -> None:
+        """Show the job's details and relations, the given one highlighted."""
+        assert self.plan is not None
+        self.inspected = job
+        shown = any(
+            shown.jobid == job.jobid
+            for shown in shown_jobs(self.plan, self.view)
+        )
+        self.query_one("#details-text", Static).update(
+            "\n".join(
+                ([] if shown else [OUTSIDE_FILTERED_TREE, ""])
+                + [
+                    f"{label}: {value}".replace("\n", "\n    ")
+                    for label, value in job_details(job, self.plan)
+                ]
+            )
+        )
+        self._relations = job_relations(job, self.plan, self.view)
+        relations = self.query_one("#relations", OptionList)
+        relations.set_options(
+            [Option(_relation_label(related)) for related in self._relations]
+            or [Option(NO_RELATIONS, disabled=True)]
+        )
+        relations.display = True
+        if self._relations:
+            relations.highlighted = relation
+
+    @on(OptionList.OptionSelected, "#relations")
+    def _follow(self, event: OptionList.OptionSelected) -> None:
+        """Inspect the selected relation, remembering where it was followed from."""
+        assert self.inspected is not None
+        self._followed_from.append((self.inspected, event.option_index))
+        self._go_to(self._relations[event.option_index].job)
+
+    def action_go_back(self) -> None:
+        """Return to the job a relation was last followed from."""
+        if self.planning_state != "planned" or not self._followed_from:
+            return
+        job, relation = self._followed_from.pop()
+        self._go_to(job, relation)
+        self._focus_pane("#relations")
+
+    def _go_to(self, job: PlannedJob, relation: int = 0) -> None:
+        """Inspect the job, with the tree's cursor on it if the tree shows it."""
+        self._inspect(job, relation)
+        tree = self.query_one(PlanTree)
+        node = _tree_node(tree.root, job)
+        if node is None:
+            return
+        parent = node.parent
+        while parent is not None:
+            parent.expand()
+            parent = parent.parent
+        # The tree places expanded nodes when it next refreshes.
+        self.call_after_refresh(tree.move_cursor, node)
+
+    def action_show_command(self) -> None:
+        if self.planning_state != "planned":
+            return
+        if self.inspected is None:
+            self.notify("Select a job to show its shell command")
+            return
+        self.push_screen(
+            ShellCommandScreen(
+                job_title(self.inspected), shell_command_text(self.inspected)
+            )
         )
 
-    def _described(self, node: PreviewNode | None) -> str:
-        if node is None:
-            return ""
-        if isinstance(node, GroupNode):
-            return group_summary(node)
-        assert self.plan is not None
-        return "\n".join(
-            f"{label}: {value}".replace("\n", "\n    ")
-            for label, value in job_details(node.job, self.plan)
-        )
+    @override
+    def check_action(
+        self, action: str, parameters: tuple[object, ...]
+    ) -> bool | None:
+        # Over a shell command, only quitting acts on the browser.
+        return action == "quit" or not isinstance(self.screen, ModalScreen)
 
     def on_tree_node_selected(
         self, event: Tree.NodeSelected[PreviewNode]
     ) -> None:
         event.stop()
+        # The details may still show a job a relation was followed to.
+        self._show_node(event.node.data)
         self.action_show_details()
 
     def on_resize(self, event: events.Resize) -> None:
@@ -357,16 +501,21 @@ class PipelinePreviewApp(App[None]):
         if self.planning_state == "failed":
             return
         self.query_one(Controls).set_class(self.narrow, "-narrow")
-        tree, details = self.query_one("#tree"), self.query_one("#details")
+        tree, pane = self.query_one("#tree"), self.query_one("#details-pane")
         # The app's focus moves at once; a widget's has_focus follows later.
-        details_focused = self.focused is details
-        tree.display = not (self.narrow and details_focused)
-        details.display = not self.narrow or details_focused
+        pane_focused = (
+            self.focused is not None and pane in self.focused.ancestors
+        )
+        tree.display = not (self.narrow and pane_focused)
+        pane.display = not self.narrow or pane_focused
 
     def action_switch_pane(self) -> None:
         if self.planning_state == "failed":
             return
-        if self.focused is self.query_one("#details"):
+        relations = self.query_one("#relations")
+        if self.focused is self.query_one("#details") and relations.display:
+            self._focus_pane("#relations")
+        elif self.focused in (self.query_one("#details"), relations):
             self.action_show_tree()
         else:
             self.action_show_details()
@@ -383,6 +532,8 @@ class PipelinePreviewApp(App[None]):
         pane = self.query_one(selector)
         # A hidden pane cannot take focus, so show it first. The screen
         # moves the focus at once, where Widget.focus would defer it.
+        if selector != "#tree":
+            self.query_one("#details-pane").display = True
         pane.display = True
         self.screen.set_focus(pane)
         self._apply_layout()
@@ -395,6 +546,34 @@ class PipelinePreviewApp(App[None]):
     async def action_quit(self) -> None:
         self.planning.cancel()
         self.exit(return_code=1 if self.planning_state == "failed" else 0)
+
+
+def _tree_node(
+    parent: TreeNode[PreviewNode], job: PlannedJob
+) -> TreeNode[PreviewNode] | None:
+    """Return the tree's node of the job, None when the tree omits it."""
+    for child in parent.children:
+        if (
+            isinstance(child.data, JobNode)
+            and child.data.job.jobid == job.jobid
+        ):
+            return child
+        found = _tree_node(child, job)
+        if found is not None:
+            return found
+    return None
+
+
+def _relation_label(relation: Relation) -> Text:
+    """Return the related job behind its direction and status badge."""
+    return Text.assemble(
+        DIRECTION_LABELS[relation.direction],
+        " ",
+        _badge(relation.job.status),
+        " ",
+        relation.title,
+        ("" if relation.shown else (" — outside the filtered tree", "italic")),
+    )
 
 
 def _badged(job: JobNode) -> Text:

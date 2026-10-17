@@ -30,6 +30,9 @@ rule train_method:
             "--record r --failed-record f --stage training --device cpu "
             f"--name {wc.method} --dataset-key cube --"
         ),
+    resources:
+        slurm_partition="cpu-queue",
+        mem_mb=2000,
     shell: "touch {output}"
 
 rule prepare:
@@ -124,6 +127,21 @@ def test_the_scheduled_jobs_depend_on_scheduled_jobs_only() -> None:
     assert scheduled[("train_method", "alpha")].dependencies == {
         scheduled[("prepare", "alpha")].jobid
     }
+
+
+@pytest.mark.usefixtures("workflow")
+def test_the_plan_holds_each_jobs_shell_command_and_placement() -> None:
+    plan = plan_invocation(["--snakefile", "Snakefile", "--cores", "1"])
+
+    jobs = {(job.rule, job.wildcards["method"]): job for job in plan.jobs}
+    alpha = jobs[("train_method", "alpha")]
+    assert alpha.shell_command == "touch alpha.txt"
+    assert dict(alpha.placement) == {
+        "slurm_partition": "cpu-queue",
+        "mem_mb": "2000",
+    }
+    assert jobs[("prepare", "beta")].shell_command == "touch beta.data"
+    assert dict(jobs[("prepare", "beta")].placement) == {}
 
 
 @pytest.mark.usefixtures("workflow")

@@ -4,8 +4,9 @@ The [interactive preview](../../CONTEXT.md) is a terminal browser of the
 [pipeline plan](../../CONTEXT.md) of one pipeline invocation: every job of
 the requested targets' dependency graph, grouped by pipeline stage, method
 and dataset, with its [job status](../../CONTEXT.md) and Snakemake's reasons
-for it, which can be regrouped, filtered and searched. It runs no job,
-submits nothing and writes no file. The
+for it, which can be regrouped, filtered and searched, and whose
+prerequisites and consumers can be followed. It runs no job, submits nothing
+and writes no file. The
 [pipeline launcher](pipeline_launcher_command.md#the-interactive-preview) opens
 it with `--interactive-preview`; steps:
 [run the pipeline](../how-to/maintainer/run_the_pipeline.md#inspect-planned-work).
@@ -71,8 +72,9 @@ and configuration stay as they are. Settings last until the preview quits.
 Filters and search compose. Groups count the jobs shown. When some jobs are
 hidden, the status line counts the shown jobs beside the whole plan's, as
 `Shown: 3 of 9 jobs: 1 Run, 2 Reuse | Whole plan: 9 jobs: 5 Run, 4 Reuse`;
-when none match, the tree says so. A job hidden by a filter is still named,
-with its status, among the jobs another job needs or is needed by.
+when none match, the tree says so. A job hidden by a filter is still listed,
+with its status, among the relations of the jobs it needs or is needed by,
+and can be inspected from there.
 
 ## Panes
 
@@ -82,7 +84,14 @@ with its status, among the jobs another job needs or is needed by.
 | Status line | The planning state, then the number of jobs and their counts by status, and when some are hidden, the shown jobs' counts beside the whole plan's. `Conditional reuse` is counted only when the plan has it. |
 | Release warning | Only when the plan has conditionally reused jobs: regenerated datasets must match the release's recorded content before released outputs are reused during execution, and the preview has not checked them because they do not exist yet. |
 | Jobs | The jobs as a tree, grouped as the controls choose, each group labelled with its counts by status. Stages come in pipeline order. Where a method level applies, a job whose job record names no method, such as a dataset generation, classifier training or pretraining job, is under `Shared prerequisites`, and a job that writes no job record, such as an aggregation or visualization job, under `Across methods`; where a dataset level applies, such a job is under `Across datasets`. Each job is in one place and counts once. Jobs below the last level are labelled by their status badge, rule, dataset realization, seeds and training and evaluation budgets. |
-| Details | For a group: its dimension value, its jobs by status and its subgroups' counts. For a job: its status and the reasons for it, rule, stage, method, dataset, dataset realization, seeds, training and evaluation hard budgets and soft-budget parameters, evaluation batch size, wildcards, device, CPUs, GPUs, requested time limit, input and output paths, existing inputs no job of the plan makes, the jobs it needs and the jobs that need it, each with its status, and for a shared prerequisite the methods that consume it. A dimension or identity field the job has none of reads `not applicable`. |
+| Details | For a group: its dimension value, its jobs by status and its subgroups' counts. For a job: its status and the reasons for it, rule, stage, method, dataset, the classifier or pretrained model a classifier training or pretraining job's record names, dataset realization, seeds, training and evaluation hard budgets and soft-budget parameters, evaluation batch size, wildcards, device, CPUs, GPUs, requested time limit, placement, input and output paths, existing inputs no job of the plan makes, and for a shared prerequisite the methods that consume it. A dimension or identity field the job has none of reads `not applicable`; a job that writes no job record says so instead of listing identity fields. |
+| Relations | Below a job's details: the jobs of the plan it needs (`Needs`), then the jobs that need it (`Needed by`), each with its status badge, its tree label and the method, classifier, pretrained model or dataset its job record names. A job the filters or search hide is marked `outside the filtered tree`. Existing inputs are no relations: no job of the plan makes them. |
+
+Placement lists the SLURM placement resources the job requests besides its
+CPUs, GPUs and time limit, as `name=value` lines: `slurm_partition`,
+`slurm_account`, `clusters`, `qos`, `constraint`, `gres`, `gpu_model`,
+`mem_mb`, `mem_mb_per_cpu` and `slurm_extra`, each when set. A job requesting
+none reads `none requested`.
 
 The reasons are Snakemake's: missing outputs, inputs newer than the job's
 outputs, inputs another job of the plan rewrites, a changed set of inputs,
@@ -94,8 +103,27 @@ outputs it reads.
 
 Both panes are side by side in a terminal of 80 columns or more. In a
 narrower terminal the controls take two columns and the focused pane fills
-the terminal: `Tab` and `Enter` switch to the details, `Tab` and `Escape`
+the terminal: `Enter` switches to the details, `Tab` from the tree to the
+details and on to the relations, and `Tab` from the relations or `Escape`
 back to the tree.
+
+## Following relations
+
+`Enter` on a relation inspects that job: its details and relations replace
+the previous job's. If the tree shows the job, the tree's cursor moves to it,
+expanding its groups. If the filters or search hide it, its details start
+with `Outside the filtered tree`, and the filters, search, tree and counts
+stay as they are. `Backspace` returns to the job the last relation was
+followed from, with that relation selected; repeated, it retraces the
+followed relations in reverse.
+
+## Shell commands
+
+`s` shows the selected job's shell command over the browser, as Snakemake
+formats it from the job's evaluated params while planning, as a dry run
+prints it. `c` copies it and `Escape` closes it. Nothing runs. When the rule
+has no shell command, or Snakemake cannot format it without running the job,
+the preview says so instead.
 
 ## Keys
 
@@ -105,7 +133,10 @@ back to the tree.
 | `→` | Expand the selected group. |
 | `←` | Collapse the selected group, or move to its parent. |
 | `Enter` | Show the selected group's summary or job's details. |
-| `Tab` | Switch between the tree and the details. |
+| `Tab` | Move from the tree to the details, the relations, and back to the tree. |
+| `↑`, `↓`, `Enter` | On the relations, choose a relation and inspect its job. |
+| `Backspace` | Return to the job the last relation was followed from. |
+| `s` | Show the selected job's shell command; `c` copies it, `Escape` closes it. |
 | `Escape` | Back to the tree. |
 | `g` | Go to the grouping control. |
 | `f` | Go to the filters, starting at the stage filter. |
@@ -115,4 +146,5 @@ back to the tree.
 | `c` | After a planning failure, copy the diagnostics to the clipboard. |
 | `q` | Quit: exit status 1 after a planning failure, else 0. |
 
-The footer lists the keys, and the tree's border the arrow keys.
+The footer lists the keys, the tree's border the arrow keys, and the
+relations' border how to follow and return.

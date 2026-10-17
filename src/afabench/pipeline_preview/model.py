@@ -6,8 +6,10 @@ dataset by default or any ordered subset of those dimensions, with the
 individual jobs below the last level; every job is in one place and counts
 once. A view (`PlanView`) chooses the grouping and filters and searches the
 jobs, all on the loaded plan. Each group counts its jobs by status, and a
-job's details give its status with Snakemake's reasons for it, its paths
-and what it needs. The dimensions come from each job's identity, what its
+job's details give its status with Snakemake's reasons for it, its
+identity, paths and allocation; its relations are the jobs it needs and
+the jobs needing it, whether the view shows them or not, and its shell
+command is apart. The dimensions come from each job's identity, what its
 job record will say. A shared prerequisite's job record names a classifier
 or pretrained model, not a method, so those jobs are grouped as "Shared
 prerequisites"; a job without a job record, such as an aggregation or
@@ -75,6 +77,19 @@ ACROSS_DATASETS = "Across datasets"
 EXPLICIT_GROUPS = (SHARED_PREREQUISITES, ACROSS_METHODS, ACROSS_DATASETS)
 NO_STAGE = "no stage"
 NOT_APPLICABLE = "not applicable"
+# What a shared prerequisite's job record names, by stage: not a method
+NAME_LABELS = {
+    "classifier_training": "Classifier",
+    "pretraining": "Pretrained model",
+}
+OUTSIDE_FILTERED_TREE = (
+    "Outside the filtered tree: the filters or search hide this job. They, "
+    "the tree and its counts are unchanged."
+)
+NO_SHELL_COMMAND = (
+    "No shell command: the rule has none, or Snakemake could not format it "
+    "without running the job. The preview runs nothing to obtain one."
+)
 # The text badge of each status, beside its color
 STATUS_LABELS: dict[JobStatus, str] = {
     "run": "Run",
@@ -432,7 +447,7 @@ def group_summary(group: GroupNode) -> str:
 
 
 def job_details(job: PlannedJob, plan: PipelinePlan) -> list[tuple[str, str]]:
-    """Return the job's status, identity, allocation, paths and dependencies."""
+    """Return the job's status, identity, allocation, paths and existing inputs."""
     details = [
         ("Status", STATUS_LABELS[job.status]),
         ("Reason", "\n".join(map(reason_text, job.reasons)) or "none given"),
@@ -447,6 +462,10 @@ def job_details(job: PlannedJob, plan: PipelinePlan) -> list[tuple[str, str]]:
         ("Dataset", _shown(dimension_of(job, "dataset"))),
     ]
     if identity is not None:
+        if identity.stage in NAME_LABELS:
+            details.append(
+                (NAME_LABELS[identity.stage], _shown(identity.name))
+            )
         details += _identity_details(identity)
     details += [
         ("Wildcards", _wildcards(job)),
@@ -459,11 +478,16 @@ def job_details(job: PlannedJob, plan: PipelinePlan) -> list[tuple[str, str]]:
             if job.time_limit_minutes is None
             else f"{job.time_limit_minutes} minutes",
         ),
+        (
+            "Placement",
+            "\n".join(
+                f"{name}={value}" for name, value in job.placement.items()
+            )
+            or "none requested",
+        ),
         ("Inputs", _lines(job.inputs)),
         ("Outputs", _lines(job.outputs)),
         ("Existing inputs", _lines(existing_inputs(job, plan))),
-        ("Needs", _named(prerequisites(job, plan))),
-        ("Needed by", _named(consumers(job, plan))),
     ]
     if group_of(job, "method") == SHARED_PREREQUISITES:
         details.append(
@@ -515,6 +539,61 @@ def consuming_methods(job: PlannedJob, plan: PipelinePlan) -> list[str]:
     return sorted(methods)
 
 
+type Direction = Literal["needs", "needed_by"]
+
+
+@dataclass(frozen=True)
+class Relation:
+    """A job another job needs or is needed by, and whether the view shows it."""
+
+    direction: Direction
+    job: PlannedJob
+    shown: bool
+
+    @property
+    def title(self) -> str:
+        return job_title(self.job)
+
+
+def job_relations(
+    job: PlannedJob, plan: PipelinePlan, view: PlanView
+) -> list[Relation]:
+    """Return the jobs the job needs, then the jobs needing it, by title."""
+    shown = {shown.jobid for shown in shown_jobs(plan, view)}
+    related: list[tuple[Direction, list[PlannedJob]]] = [
+        ("needs", prerequisites(job, plan)),
+        ("needed_by", consumers(job, plan)),
+    ]
+    return [
+        Relation(direction=direction, job=other, shown=other.jobid in shown)
+        for direction, others in related
+        for other in sorted(others, key=job_title)
+    ]
+
+
+def job_title(job: PlannedJob) -> str:
+    """Name the job apart from its groups: its label, then its names."""
+    identity = job.identity
+    names = (
+        []
+        if identity is None
+        else list(
+            dict.fromkeys(
+                name
+                for name in (identity.name, identity.dataset_key)
+                if name is not None
+            )
+        )
+    )
+    label = job_label(job)
+    return f"{label} ({', '.join(names)})" if names else label
+
+
+def shell_command_text(job: PlannedJob) -> str:
+    """Return the job's shell command, or why there is none."""
+    return job.shell_command or NO_SHELL_COMMAND
+
+
 def _identity_details(identity: JobIdentity) -> list[tuple[str, str]]:
     return [
         (label, _shown(getattr(identity, field)))
@@ -535,14 +614,3 @@ def _wildcards(job: PlannedJob) -> str:
 
 def _lines(items: Iterable[str], separator: str = "\n") -> str:
     return separator.join(items) or "none"
-
-
-def _named(jobs: Iterable[PlannedJob]) -> str:
-    """Name the jobs with their status badges, or say there are none."""
-    return (
-        "\n".join(
-            f"{STATUS_LABELS[job.status]} {job_label(job)}"
-            for job in sorted(jobs, key=job_label)
-        )
-        or "no job of this plan"
-    )
