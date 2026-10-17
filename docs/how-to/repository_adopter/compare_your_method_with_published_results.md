@@ -68,9 +68,16 @@ the download. [Download options](../../reference/snapshot_command.md#download).
 Inspect the restored manifest:
 
 ```shell
-jq '.workflow_config' output/production/release_manifest.json
-jq -r '[.evaluations[], .bundles[]] | .[].code.commit' \
-    output/production/release_manifest.json | sort -u
+uv run python - <<'PY'
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("output/production/release_manifest.json").read_text())
+print(json.dumps(manifest["workflow_config"], indent=2))
+commits = {entry["code"]["commit"] for entry in manifest["evaluations"] + manifest["bundles"]}
+for commit in sorted(commits, key=lambda value: value or ""):
+    print("null" if commit is None else commit)
+PY
 ```
 
 Match the published methods' settings in your profile to `workflow_config`.

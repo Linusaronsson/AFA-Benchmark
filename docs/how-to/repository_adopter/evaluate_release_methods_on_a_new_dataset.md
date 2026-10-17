@@ -16,9 +16,16 @@ mkdir -p output/release_info
 curl -fL \
     'https://huggingface.co/datasets/afabench/results/resolve/main/releases/<release_id>/release_manifest.json' \
     -o output/release_info/release_manifest.json
-jq '{coverage, workflow_config}' output/release_info/release_manifest.json
-jq -r '[.evaluations[], .bundles[]] | .[].code.commit' \
-    output/release_info/release_manifest.json | sort -u
+uv run python - <<'PY'
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("output/release_info/release_manifest.json").read_text())
+print(json.dumps({key: manifest[key] for key in ("coverage", "workflow_config")}, indent=2))
+commits = {entry["code"]["commit"] for entry in manifest["evaluations"] + manifest["bundles"]}
+for commit in sorted(commits, key=lambda value: value or ""):
+    print("null" if commit is None else commit)
+PY
 ```
 
 Use `coverage.methods` for the method list and `workflow_config` for the

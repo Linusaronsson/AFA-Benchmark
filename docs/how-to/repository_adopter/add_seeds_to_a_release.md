@@ -23,9 +23,16 @@ uv run python scripts/release/snapshot.py download <release_id> \
 Inspect the configuration and producing commits:
 
 ```shell
-jq '{coverage, workflow_config}' output/more_seeds/release_manifest.json
-jq -r '[.evaluations[], .bundles[]] | .[].code.commit' \
-    output/more_seeds/release_manifest.json | sort -u
+uv run python - <<'PY'
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("output/more_seeds/release_manifest.json").read_text())
+print(json.dumps({key: manifest[key] for key in ("coverage", "workflow_config")}, indent=2))
+commits = {entry["code"]["commit"] for entry in manifest["evaluations"] + manifest["bundles"]}
+for commit in sorted(commits, key=lambda value: value or ""):
+    print("null" if commit is None else commit)
+PY
 ```
 
 Copy the profile printed as `Workflow profile`; here, `kdd26`:
@@ -48,7 +55,13 @@ before combining old and new results.
 Read the existing indices:
 
 ```shell
-jq '.coverage.dataset_realization_indices' output/more_seeds/release_manifest.json
+uv run python - <<'PY'
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("output/more_seeds/release_manifest.json").read_text())
+print(json.dumps(manifest["coverage"]["dataset_realization_indices"]))
+PY
 ```
 
 Keep them and append unused non-negative indices. For a release with

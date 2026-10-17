@@ -14,9 +14,16 @@ read its README, and download into a fresh root. Use one release per root.
 uv run python scripts/release/snapshot.py download <release_id> \
     --repo-id afabench/results --all \
     --destination-root output/more_budgets
-jq '{coverage, workflow_config}' output/more_budgets/release_manifest.json
-jq -r '[.evaluations[], .bundles[]] | .[].code.commit' \
-    output/more_budgets/release_manifest.json | sort -u
+uv run python - <<'PY'
+import json
+from pathlib import Path
+
+manifest = json.loads(Path("output/more_budgets/release_manifest.json").read_text())
+print(json.dumps({key: manifest[key] for key in ("coverage", "workflow_config")}, indent=2))
+commits = {entry["code"]["commit"] for entry in manifest["evaluations"] + manifest["bundles"]}
+for commit in sorted(commits, key=lambda value: value or ""):
+    print("null" if commit is None else commit)
+PY
 ```
 
 Copy the profile printed as `Workflow profile`; here, `kdd26`:
