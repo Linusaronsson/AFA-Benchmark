@@ -8,12 +8,16 @@ from afabench.pipeline_plan.plan_json import (
     dump_plan,
     load_plan,
 )
-from afabench.pipeline_plan.planning import PipelinePlan, PlannedJob
+from afabench.pipeline_plan.planning import (
+    PipelinePlan,
+    PlannedJob,
+    StatusReason,
+)
 
 
 def test_a_plan_is_read_back_unchanged_from_its_json() -> None:
     plan = PipelinePlan(
-        scheduled_jobs=[
+        jobs=[
             PlannedJob(
                 rule="plot_eval_perf",
                 wildcards={},
@@ -22,6 +26,15 @@ def test_a_plan_is_read_back_unchanged_from_its_json() -> None:
                 cpus=None,
                 gpus=0,
                 jobid=3,
+                status="run",
+                reasons=(
+                    StatusReason(
+                        kind="input_from_rerun", files=("eval/perf.csv",)
+                    ),
+                    StatusReason(kind="params_changed", detail="metric"),
+                ),
+                inputs=("eval/perf.csv",),
+                outputs=("plots/perf.pdf",),
                 dependencies=frozenset({7}),
             ),
             PlannedJob(
@@ -42,6 +55,8 @@ def test_a_plan_is_read_back_unchanged_from_its_json() -> None:
                 cpus=8,
                 gpus=1,
                 jobid=7,
+                status="reuse",
+                reasons=(StatusReason(kind="outputs_up_to_date"),),
                 time_limit_minutes=90,
             ),
         ]
@@ -51,5 +66,5 @@ def test_a_plan_is_read_back_unchanged_from_its_json() -> None:
 
 
 def test_json_that_is_no_plan_is_refused() -> None:
-    with pytest.raises(PlanJsonError, match="scheduled_jobs"):
-        load_plan('{"jobs": []}')
+    with pytest.raises(PlanJsonError, match="jobs"):
+        load_plan('{"scheduled_jobs": []}')

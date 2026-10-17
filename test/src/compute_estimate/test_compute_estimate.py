@@ -116,6 +116,7 @@ def planned(
         cpus=cpus,
         gpus=gpus,
         jobid=next(JOBIDS),
+        status="run",
         dependencies=frozenset(job.jobid for job in after),
     )
 

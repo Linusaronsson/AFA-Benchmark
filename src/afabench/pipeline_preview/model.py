@@ -1,21 +1,31 @@
 """
 What the interactive preview shows of a pipeline plan, apart from widgets.
 
-The scheduled jobs form a tree of groups, stage → method → dataset, with the
-individual jobs below the last level. A group's summary and a job's details
-are plain text lines. The dimensions come from each job's identity, what
-its job record will say; a job without one, such as an aggregation or
-visualization job, falls under explicit "no method" and "no dataset"
-groups rather than an identity read off its wildcards.
+The plan's jobs, run and reused, form a tree of groups, stage → method →
+dataset, with the individual jobs below the last level; every job is in
+one place and counts once. Each group counts its jobs by status, and a
+job's details give its status with Snakemake's reasons for it, its paths
+and what it needs. The dimensions come from each job's identity, what its
+job record will say. A shared prerequisite's job record names a classifier
+or pretrained model, not a method, so those jobs are grouped as "Shared
+prerequisites"; a job without a job record, such as an aggregation or
+visualization job, is grouped as "Across methods" and "Across datasets".
 """
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
 from afabench.core.job_record import JobIdentity
-from afabench.pipeline_plan.planning import PipelinePlan, PlannedJob
+from afabench.pipeline_plan.planning import (
+    JOB_STATUSES,
+    JobStatus,
+    PipelinePlan,
+    PlannedJob,
+    ReasonKind,
+    StatusReason,
+)
 
 type Dimension = Literal["stage", "method", "dataset"]
 GROUPING: tuple[Dimension, ...] = ("stage", "method", "dataset")
@@ -40,11 +50,34 @@ STAGE_OF_RULE = {
     "plot_eval_actions": "visualization",
     "plot_time": "visualization",
 }
-# The stages whose job record names a method; a classifier training or
-# pretraining job's name is a classifier or pretrained model, shared by
-# methods.
+# The stages whose job record names a method; a dataset generation,
+# classifier training or pretraining job's name is a dataset, classifier
+# or pretrained model: a shared prerequisite of methods.
 METHOD_STAGES = {"training", "evaluation", "transformation"}
+# The groups of jobs a dimension does not apply to
+SHARED_PREREQUISITES = "Shared prerequisites"
+ACROSS_METHODS = "Across methods"
+ACROSS_DATASETS = "Across datasets"
+NO_STAGE = "no stage"
 NOT_APPLICABLE = "not applicable"
+# The text badge of each status, beside its color
+STATUS_LABELS: dict[JobStatus, str] = {"run": "Run", "reuse": "Reuse"}
+REASON_TEXTS: dict[ReasonKind, str] = {
+    "missing_output": "Missing outputs",
+    "incomplete_output": "Incomplete outputs",
+    "updated_input": "Inputs newer than its outputs",
+    "input_from_rerun": "Inputs another job of this plan rewrites",
+    "input_set_changed": "The set of inputs changed since the last run",
+    "code_changed": "The code changed since the last run",
+    "params_changed": "Params changed since the last run",
+    "software_changed": "The software environment changed since the last run",
+    "forced": "Forced by the invocation",
+    "no_output": "The rule has no output, so it always runs",
+    "outputs_up_to_date": (
+        "The outputs it is needed for exist and are up to date, and nothing "
+        "it needs is rerun"
+    ),
+}
 # A job's identity fields beyond its group's dimensions, with the short
 # label of its tree entry and the label of its details.
 IDENTITY_LABELS: tuple[tuple[str, str, str], ...] = (
@@ -74,10 +107,14 @@ LABEL_FIELDS = tuple(
 
 @dataclass(frozen=True)
 class JobNode:
-    """One scheduled job below the last grouping level."""
+    """One job below the last grouping level."""
 
     label: str
     job: PlannedJob
+
+    @property
+    def status(self) -> JobStatus:
+        return self.job.status
 
 
 @dataclass(frozen=True)
@@ -85,20 +122,10 @@ class GroupNode:
     """The jobs sharing one value of a dimension, under their parent group."""
 
     dimension: Dimension
-    # None: the dimension does not apply to the group's jobs.
-    value: str | None
+    # The dimension's value, or the explicit group of jobs it does not
+    # apply to.
+    label: str
     children: tuple["GroupNode | JobNode", ...]
-
-    @property
-    def label(self) -> str:
-        return f"no {self.dimension}" if self.value is None else self.value
-
-    @property
-    def job_count(self) -> int:
-        return sum(
-            child.job_count if isinstance(child, GroupNode) else 1
-            for child in self.children
-        )
 
     @property
     def jobs(self) -> list[PlannedJob]:
@@ -110,10 +137,44 @@ class GroupNode:
             )
         ]
 
+    @property
+    def job_count(self) -> int:
+        return len(self.jobs)
+
+    @property
+    def status_counts(self) -> dict[JobStatus, int]:
+        return status_counts(self.jobs)
+
+    @property
+    def counts_label(self) -> str:
+        """The group's jobs by status, leaving out statuses it has none of."""
+        return counts_text(self.status_counts, with_zero=False)
+
+
+def status_counts(jobs: Iterable[PlannedJob]) -> dict[JobStatus, int]:
+    counted = Counter(job.status for job in jobs)
+    return {status: counted[status] for status in JOB_STATUSES}
+
+
+def counts_text(counts: dict[JobStatus, int], *, with_zero: bool) -> str:
+    return ", ".join(
+        f"{count} {STATUS_LABELS[status]}"
+        for status, count in counts.items()
+        if count or with_zero
+    )
+
+
+def plan_summary(plan: PipelinePlan) -> str:
+    """Count the plan's jobs, once each, by status."""
+    count = len(plan.jobs)
+    return f"{count} job{'' if count == 1 else 's'}: " + counts_text(
+        status_counts(plan.jobs), with_zero=True
+    )
+
 
 def preview_tree(plan: PipelinePlan) -> tuple[GroupNode, ...]:
-    """Return the plan's scheduled jobs grouped stage → method → dataset."""
-    return _grouped(plan.scheduled_jobs, GROUPING)
+    """Return the plan's jobs grouped stage → method → dataset."""
+    return _grouped(plan.jobs, GROUPING)
 
 
 def _grouped(
@@ -122,13 +183,13 @@ def _grouped(
     if not grouping:
         return ()
     dimension, below = grouping[0], grouping[1:]
-    groups: defaultdict[str | None, list[PlannedJob]] = defaultdict(list)
+    groups: defaultdict[str, list[PlannedJob]] = defaultdict(list)
     for job in jobs:
-        groups[dimension_of(job, dimension)].append(job)
+        groups[group_of(job, dimension)].append(job)
     return tuple(
         GroupNode(
             dimension=dimension,
-            value=value,
+            label=label,
             children=_grouped(members, below)
             if below
             else tuple(
@@ -136,19 +197,19 @@ def _grouped(
                 for job in sorted(members, key=job_label)
             ),
         )
-        for value, members in sorted(
+        for label, members in sorted(
             groups.items(), key=lambda item: _group_order(dimension, item[0])
         )
     )
 
 
-def _group_order(dimension: Dimension, value: str | None) -> tuple[int, str]:
+def _group_order(dimension: Dimension, label: str) -> tuple[int, str]:
     """Order stages as the pipeline runs them; other values alphabetically."""
-    if value is None:
-        return (len(STAGES) + 1, "")
+    if label in (SHARED_PREREQUISITES, ACROSS_METHODS, ACROSS_DATASETS):
+        return (len(STAGES) + 1, label)
     if dimension == "stage":
-        return (STAGES.index(value) if value in STAGES else len(STAGES), value)
-    return (0, value)
+        return (STAGES.index(label) if label in STAGES else len(STAGES), label)
+    return (0, label)
 
 
 def dimension_of(job: PlannedJob, dimension: Dimension) -> str | None:
@@ -163,6 +224,18 @@ def dimension_of(job: PlannedJob, dimension: Dimension) -> str | None:
     if dimension == "method":
         return identity.name if identity.stage in METHOD_STAGES else None
     return identity.dataset_key
+
+
+def group_of(job: PlannedJob, dimension: Dimension) -> str:
+    """Return the job's group of the dimension: its value or an explicit group."""
+    value = dimension_of(job, dimension)
+    if value is not None:
+        return value
+    if dimension == "stage":
+        return NO_STAGE
+    if dimension == "dataset":
+        return ACROSS_DATASETS
+    return ACROSS_METHODS if job.identity is None else SHARED_PREREQUISITES
 
 
 def job_label(job: PlannedJob) -> str:
@@ -180,24 +253,31 @@ def job_label(job: PlannedJob) -> str:
 
 
 def group_summary(group: GroupNode) -> str:
-    """Describe the group: its dimension values and its jobs by subgroup."""
-    lines = [f"{group.dimension.capitalize()}: {group.label}"]
+    """Describe the group: its dimension value and its jobs by status and subgroup."""
     count = group.job_count
-    lines.append(f"{count} scheduled job{'' if count == 1 else 's'}")
+    lines = [
+        f"{group.dimension.capitalize()}: {group.label}",
+        f"{count} job{'' if count == 1 else 's'}: "
+        + counts_text(group.status_counts, with_zero=False),
+    ]
     subgroups = [
         child for child in group.children if isinstance(child, GroupNode)
     ]
     if subgroups:
         lines.append(
             f"By {subgroups[0].dimension}: "
-            + ", ".join(f"{sub.label} ({sub.job_count})" for sub in subgroups)
+            + ", ".join(
+                f"{sub.label} ({sub.counts_label})" for sub in subgroups
+            )
         )
     return "\n".join(lines)
 
 
 def job_details(job: PlannedJob, plan: PipelinePlan) -> list[tuple[str, str]]:
-    """Return the job's rule, identity, allocation and prerequisites."""
+    """Return the job's status, identity, allocation, paths and dependencies."""
     details = [
+        ("Status", STATUS_LABELS[job.status]),
+        ("Reason", "\n".join(map(reason_text, job.reasons)) or "none given"),
         ("Rule", job.rule),
         ("Stage", _shown(dimension_of(job, "stage"))),
     ]
@@ -221,9 +301,60 @@ def job_details(job: PlannedJob, plan: PipelinePlan) -> list[tuple[str, str]]:
             if job.time_limit_minutes is None
             else f"{job.time_limit_minutes} minutes",
         ),
-        ("Needs", _needs(job, plan)),
+        ("Inputs", _lines(job.inputs)),
+        ("Outputs", _lines(job.outputs)),
+        ("Existing inputs", _lines(existing_inputs(job, plan))),
+        ("Needs", _named(prerequisites(job, plan))),
+        ("Needed by", _named(consumers(job, plan))),
     ]
+    if group_of(job, "method") == SHARED_PREREQUISITES:
+        details.append(
+            ("Consuming methods", _lines(consuming_methods(job, plan), ", "))
+        )
     return details
+
+
+def reason_text(reason: StatusReason) -> str:
+    """Put one of Snakemake's reasons in words."""
+    text = REASON_TEXTS[reason.kind]
+    if reason.detail is not None:
+        text += f": {reason.detail}"
+    if reason.files:
+        text += ": " + ", ".join(reason.files)
+    return text
+
+
+def existing_inputs(job: PlannedJob, plan: PipelinePlan) -> list[str]:
+    """Return the job's inputs no job of the plan makes, as a stage that is off writes."""
+    made = {output for other in plan.jobs for output in other.outputs}
+    return [path for path in job.inputs if path not in made]
+
+
+def prerequisites(job: PlannedJob, plan: PipelinePlan) -> list[PlannedJob]:
+    """Return the jobs of the plan whose outputs the job needs."""
+    return [needed for needed in plan.jobs if needed.jobid in job.dependencies]
+
+
+def consumers(job: PlannedJob, plan: PipelinePlan) -> list[PlannedJob]:
+    """Return the jobs of the plan that need the job's outputs."""
+    return [other for other in plan.jobs if job.jobid in other.dependencies]
+
+
+def consuming_methods(job: PlannedJob, plan: PipelinePlan) -> list[str]:
+    """Return the methods whose jobs need the job's outputs, directly or not."""
+    methods: set[str] = set()
+    pending = consumers(job, plan)
+    seen: set[int] = set()
+    while pending:
+        consumer = pending.pop()
+        if consumer.jobid in seen:
+            continue
+        seen.add(consumer.jobid)
+        method = dimension_of(consumer, "method")
+        if method is not None:
+            methods.add(method)
+        pending.extend(consumers(consumer, plan))
+    return sorted(methods)
 
 
 def _identity_details(identity: JobIdentity) -> list[tuple[str, str]]:
@@ -244,11 +375,16 @@ def _wildcards(job: PlannedJob) -> str:
     )
 
 
-def _needs(job: PlannedJob, plan: PipelinePlan) -> str:
-    """Name the scheduled jobs whose outputs the job needs."""
-    labels = sorted(
-        job_label(needed)
-        for needed in plan.scheduled_jobs
-        if needed.jobid in job.dependencies
+def _lines(items: Iterable[str], separator: str = "\n") -> str:
+    return separator.join(items) or "none"
+
+
+def _named(jobs: Iterable[PlannedJob]) -> str:
+    """Name the jobs with their status badges, or say there are none."""
+    return (
+        "\n".join(
+            f"{STATUS_LABELS[job.status]} {job_label(job)}"
+            for job in sorted(jobs, key=job_label)
+        )
+        or "no job of this plan"
     )
-    return "\n".join(labels) if labels else "nothing scheduled"

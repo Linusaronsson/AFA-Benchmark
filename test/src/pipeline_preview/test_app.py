@@ -87,7 +87,7 @@ def test_opens_planning_and_quitting_ends_the_child(
     assert not alive(int(pid_file.read_text()))
 
 
-def test_the_tree_groups_the_scheduled_jobs_with_counts(
+def test_the_tree_counts_the_jobs_of_each_group_by_status(
     planning_interpreter: list[str],
 ) -> None:
     labels: list[str] = []
@@ -96,12 +96,43 @@ def test_the_tree_groups_the_scheduled_jobs_with_counts(
         await planned(pilot, app)
         tree = app.query_one(Tree)
         labels.extend(str(node.label) for node in tree.root.children)
-        assert "4 scheduled jobs" in status(app)
+        assert "4 jobs: 3 Run, 1 Reuse" in status(app)
         await pilot.press("q")
 
     browse(planning_interpreter, scenario)
 
-    assert labels == ["training (3)", "evaluation (1)"]
+    assert labels == ["training (2 Run, 1 Reuse)", "evaluation (1 Run)"]
+
+
+def test_jobs_wear_their_status_as_a_badge_and_a_color(
+    planning_interpreter: list[str],
+) -> None:
+    seen: dict[str, object] = {}
+
+    async def scenario(pilot: Pilot[None], app: PipelinePreviewApp) -> None:
+        await planned(pilot, app)
+        # Expand training, alpha and cube: a run job, then a reused one.
+        await pilot.press("down", "right", "down", "right", "down", "right")
+        tree = app.query_one(Tree)
+        assert tree.cursor_node is not None
+        jobs = [node.label for node in tree.cursor_node.children]
+        seen["labels"] = [str(label) for label in jobs]
+        seen["styles"] = [
+            {span.style for span in label.spans if isinstance(span.style, str)}
+            for label in jobs
+        ]
+        await pilot.press("q")
+
+    browse(planning_interpreter, scenario)
+
+    assert seen["labels"] == [
+        "Run train_method: realization 0, train hard budget 4",
+        "Reuse train_method: realization 1, train hard budget 4",
+    ]
+    run_styles, reuse_styles = seen["styles"]
+    assert run_styles
+    assert reuse_styles
+    assert run_styles != reuse_styles
 
 
 def test_arrows_walk_the_tree_and_enter_opens_the_details(
@@ -124,10 +155,16 @@ def test_arrows_walk_the_tree_and_enter_opens_the_details(
 
     browse(planning_interpreter, scenario)
 
-    assert seen["group"] == "training (3)"
-    assert "By method: alpha (2), beta (1)" in seen["group details"]
-    assert seen["job"] == "train_method: realization 0, train hard budget 4"
+    assert seen["group"] == "training (2 Run, 1 Reuse)"
+    assert "By method: alpha (1 Run, 1 Reuse), beta (1 Run)" in str(
+        seen["group details"]
+    )
+    assert (
+        seen["job"] == "Run train_method: realization 0, train hard budget 4"
+    )
     assert seen["focused"] == "details"
+    assert "Status: Run" in seen["job details"]
+    assert "Reason: Missing outputs: train_method.out" in seen["job details"]
     assert "Training hard budget: 4" in seen["job details"]
 
 

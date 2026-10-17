@@ -17,12 +17,16 @@ from afabench.core.output_layout import (
     PRODUCTION_OUTPUT_ROOT,
     SMOKE_OUTPUT_ROOT,
 )
+from afabench.pipeline_plan.plan_json import load_plan
+from afabench.pipeline_plan.planning import PipelinePlan
 from workflow.run import snakemake_arguments
 
 REPO_ROOT = Path(__file__).parents[2]
 # The pipeline profile of the fixture's config, written into its checkout
 PIPELINE_PROFILE = "harness"
 ESTIMATE_COMPUTE = REPO_ROOT / "scripts/compute_estimate/estimate_compute.py"
+# The interactive preview's planning child
+PLANNER_MODULE = "afabench.pipeline_plan"
 # Cluster submission needs a site map; this one mirrors profiles/site/examples/mixed-gres.
 SITE = {
     "cpu": {"slurm_partition": "cpu-queue", "slurm_account": "cpu-account"},
@@ -202,6 +206,47 @@ class WorkflowHarness:
             timeout=timeout,
             check=False,
         )
+
+    def plan_graph(
+        self,
+        *options: str,
+        target: str = "all_eval_methods",
+        timeout: int = 240,
+    ) -> subprocess.CompletedProcess[str]:
+        """
+        Plan, as the interactive preview's child does, the graph of `run`.
+
+        The plan, the jobs `run` would run and reuse, is at `plan_path`.
+        """
+        return subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                PLANNER_MODULE,
+                "--output",
+                str(self.plan_path),
+                "--",
+                *self.invocation_arguments(*options, target=target),
+            ],
+            cwd=self.root,
+            env=self.environment(),
+            text=True,
+            capture_output=True,
+            timeout=timeout,
+            check=False,
+        )
+
+    def planned_graph(
+        self, *options: str, target: str = "all_eval_methods"
+    ) -> PipelinePlan:
+        """Return the plan of `run`; fail on an invocation Snakemake rejects."""
+        planned = self.plan_graph(*options, target=target)
+        assert planned.returncode == 0, planned.stdout + planned.stderr
+        return load_plan(self.plan_path.read_text())
+
+    @property
+    def plan_path(self) -> Path:
+        return self.root / "plan.json"
 
     def invocation_arguments(
         self, *options: str, target: str = "all_eval_methods"

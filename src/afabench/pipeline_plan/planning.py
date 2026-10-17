@@ -1,5 +1,5 @@
 """
-Plan a pipeline invocation: the jobs its Snakemake graph schedules.
+Plan a pipeline invocation: the jobs of its Snakemake graph and their status.
 
 A pipeline plan is plain data, free of Snakemake's objects: the first half
 of a compute estimate (`docs/adr/0007-job-records-beside-artifacts.md`),
@@ -12,21 +12,30 @@ condition that regenerated datasets pass the release's content checks.
 The plan comes from Snakemake's own command-line handling, so profiles,
 workflow profiles, `--config` and `--set-resources` resolve exactly as in a
 real run, and an invalid invocation fails with the same error. Only the
-scheduling step is replaced: the DAG is built and every scheduled job's
-resources and params are evaluated, but nothing is submitted or run, and
-the workflow's onstart hook, which records the workflow config, never runs.
+scheduling step is replaced: the DAG is built and every job's resources
+and params are evaluated, but nothing is submitted or run, and the
+workflow's onstart hook, which records the workflow config, never runs.
+
+The plan holds every job of the requested targets' dependency graph that
+has an action, with the status Snakemake decided for it: a job it would
+run, or a job whose existing outputs it reuses. Both decisions and their
+reasons are Snakemake's own; the planner neither forces jobs nor reads
+file existence itself. A file an input needs that no rule of the
+invocation produces, such as the output of a stage that is off, is read
+as it is and is no job of the plan.
 
 Needs Snakemake, a development dependency that `uv sync` installs.
 """
 
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, replace
+from typing import Literal
 from unittest import mock
 
 from snakemake.cli import args_to_api, parse_args
 from snakemake.common import async_run
 from snakemake.exceptions import print_exception
-from snakemake.jobs import Job
+from snakemake.jobs import Job, Reason
 from snakemake.workflow import Workflow
 from snakemake_interface_executor_plugins.registry import Plugin
 
@@ -40,10 +49,46 @@ from afabench.core.job_record import (
 )
 from afabench.release.config_run import config_run_commands
 
+# What the invocation does with a job: run it, including to replace its
+# existing but stale outputs, or reuse its existing outputs without
+# running it. Independent of whether its output files happen to exist.
+type JobStatus = Literal["run", "reuse"]
+JOB_STATUSES: tuple[JobStatus, ...] = ("run", "reuse")
+
+# Why a job has its status, as Snakemake decided it. "outputs_up_to_date"
+# is the one reason to reuse: the outputs its consumers need exist and are
+# up to date, so an output nothing needs may still be missing. The others
+# are reasons to run. The files a reason names are the job's missing
+# outputs, its inputs newer than its outputs, or its inputs another job of
+# the plan rewrites.
+type ReasonKind = Literal[
+    "missing_output",
+    "incomplete_output",
+    "updated_input",
+    "input_from_rerun",
+    "input_set_changed",
+    "code_changed",
+    "params_changed",
+    "software_changed",
+    "forced",
+    "no_output",
+    "outputs_up_to_date",
+]
+
+
+@dataclass(frozen=True, kw_only=True)
+class StatusReason:
+    """One of Snakemake's reasons for a job's status."""
+
+    kind: ReasonKind
+    files: tuple[str, ...] = ()
+    # What Snakemake adds, such as which params changed.
+    detail: str | None = None
+
 
 @dataclass(frozen=True, kw_only=True)
 class PlannedJob:
-    """A job an invocation would run, and the allocation it would request."""
+    """A job of an invocation's graph, and the allocation it would request."""
 
     rule: str
     wildcards: dict[str, str]
@@ -56,8 +101,11 @@ class PlannedJob:
     gpus: int
     # Snakemake's id of the job in this plan
     jobid: int
-    # The scheduled jobs whose outputs it needs; jobs whose outputs exist
-    # are not scheduled.
+    status: JobStatus
+    reasons: tuple[StatusReason, ...] = ()
+    inputs: tuple[str, ...] = ()
+    outputs: tuple[str, ...] = ()
+    # The jobs of the plan whose outputs it needs, run or reused.
     dependencies: frozenset[int] = frozenset()
     # Requested walltime, not the measured duration used for the estimate.
     time_limit_minutes: int | None = None
@@ -71,9 +119,20 @@ class PlannedJob:
 class PipelinePlan:
     """What a pipeline invocation would do, without Snakemake's objects."""
 
-    # The jobs it would run, sorted by rule and wildcards. Rules without an
-    # action, such as target rules, never run and are not among them.
-    scheduled_jobs: list[PlannedJob]
+    # Every job of the requested targets' graph that has an action, run or
+    # reused, sorted by rule and wildcards. Rules without an action, such as
+    # target rules, never run and are not among them.
+    jobs: list[PlannedJob]
+
+    @property
+    def scheduled_jobs(self) -> list[PlannedJob]:
+        """The jobs it would run, depending on scheduled jobs only."""
+        scheduled = {job.jobid for job in self.jobs if job.status == "run"}
+        return [
+            replace(job, dependencies=job.dependencies & scheduled)
+            for job in self.jobs
+            if job.jobid in scheduled
+        ]
 
 
 class InvocationError(Exception):
@@ -83,11 +142,11 @@ class InvocationError(Exception):
 def plan_invocation(snakemake_arguments: Sequence[str]) -> PipelinePlan:
     """Plan `snakemake <snakemake_arguments>` as the launcher would run it."""
     arguments = config_run_commands(snakemake_arguments, preview=True)[0]
-    return PipelinePlan(scheduled_jobs=_scheduled_jobs(arguments))
+    return PipelinePlan(jobs=_graph_jobs(arguments))
 
 
-def _scheduled_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
-    """Return the jobs `snakemake <arguments>` would run."""
+def _graph_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
+    """Return the jobs of the graph `snakemake <arguments>` would run from."""
     planned: list[PlannedJob] = []
 
     def plan(workflow: Workflow, executor_plugin: Plugin, **_: object) -> None:
@@ -104,13 +163,14 @@ def _scheduled_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
             nolock=True,
             shadow_prefix=workflow.execution_settings.shadow_prefix,
         )
+        # Building the DAG decides which jobs need to run and why.
         workflow._build_dag()  # noqa: SLF001
         dag = workflow.dag
         assert dag is not None
         async_run(dag.postprocess(update_needrun=False, check_initial=True))
         jobs = [
             job
-            for job in dag.needrun_jobs()
+            for job in dag.jobs
             # Rules without an action, such as target rules, never run.
             if not job.is_norun
         ]
@@ -119,6 +179,8 @@ def _scheduled_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
             _planned_job(
                 job,
                 jobid=jobids[job],
+                status="run" if dag.needrun(job) else "reuse",
+                reasons=tuple(_reasons(dag.reason(job))),
                 dependencies=frozenset(
                     jobids[dependency]
                     for dependency in dag.dependencies[job]
@@ -142,7 +204,12 @@ def _scheduled_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
 
 
 def _planned_job(
-    job: Job, *, jobid: int, dependencies: frozenset[int]
+    job: Job,
+    *,
+    jobid: int,
+    status: JobStatus,
+    reasons: tuple[StatusReason, ...],
+    dependencies: frozenset[int],
 ) -> PlannedJob:
     # As at submission, release the initial deferral of input-dependent
     # resources. Missing input files can still resolve to <TBD> in a plan.
@@ -168,6 +235,57 @@ def _planned_job(
         cpus=allocated_cpus(resources, job.threads),
         gpus=gpus,
         jobid=jobid,
+        status=status,
+        reasons=reasons,
+        inputs=_paths(job.input),
+        outputs=_paths(job.output),
         dependencies=dependencies,
         time_limit_minutes=runtime if isinstance(runtime, int) else None,
     )
+
+
+def _paths(files: Iterable[object]) -> tuple[str, ...]:
+    return tuple(str(file) for file in files)
+
+
+def _reasons(reason: Reason) -> Iterable[StatusReason]:
+    """Translate Snakemake's reason to run a job; none means it is reused."""
+    if not reason:
+        yield StatusReason(kind="outputs_up_to_date")
+    elif reason.forced:
+        yield StatusReason(kind="forced")
+    else:
+        if reason.noio or reason.nooutput:
+            yield StatusReason(kind="no_output")
+        yield from _file_reasons(reason)
+        yield from _change_reasons(reason)
+
+
+def _file_reasons(reason: Reason) -> Iterable[StatusReason]:
+    # Snakemake counts an input another job rewrites among the updated
+    # inputs too; it is the rerun that explains it.
+    # Snakemake's files are str subclasses.
+    named: list[tuple[ReasonKind, set[str]]] = [
+        ("missing_output", reason.missing_output),
+        ("incomplete_output", reason.incomplete_output),
+        ("updated_input", reason.updated_input - reason.updated_input_run),
+        ("input_from_rerun", reason.updated_input_run),
+    ]
+    for kind, files in named:
+        if files:
+            yield StatusReason(kind=kind, files=_paths(sorted(files)))
+
+
+def _change_reasons(reason: Reason) -> Iterable[StatusReason]:
+    flagged: list[tuple[ReasonKind, bool]] = [
+        ("input_set_changed", reason.input_changed),
+        ("code_changed", reason.code_changed),
+        ("software_changed", reason.software_stack_changed),
+    ]
+    for kind, changed in flagged:
+        if changed:
+            yield StatusReason(kind=kind)
+    if reason.params_changed:
+        yield StatusReason(
+            kind="params_changed", detail=str(reason.params_changed)
+        )

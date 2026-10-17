@@ -3,7 +3,7 @@ The shared planner turns Snakemake arguments into a pipeline plan (#157).
 
 A minimal Snakefile stands in for the pipeline: an actionless target rule
 over a job that writes a job record and the job preparing its input. The
-pipeline itself is covered by `test/workflow/test_compute_estimate_planning.py`.
+pipeline itself is covered by `test/workflow/test_pipeline_plan.py`.
 """
 
 from pathlib import Path
@@ -11,7 +11,11 @@ from pathlib import Path
 import pytest
 
 from afabench.core.job_record import JobIdentity
-from afabench.pipeline_plan.planning import InvocationError, plan_invocation
+from afabench.pipeline_plan.planning import (
+    InvocationError,
+    StatusReason,
+    plan_invocation,
+)
 
 SNAKEFILE = """
 rule all:
@@ -43,39 +47,83 @@ def workflow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     return tmp_path
 
 
-def test_the_plan_schedules_the_jobs_to_run_with_their_dependencies(
+def test_the_plan_holds_the_jobs_to_run_and_the_jobs_reused(
     workflow: Path,
 ) -> None:
     plan = plan_invocation(["--snakefile", "Snakefile", "--cores", "1"])
 
-    jobs = {job.jobid: job for job in plan.scheduled_jobs}
+    jobs = {(job.rule, job.wildcards["method"]): job for job in plan.jobs}
+    by_id = {job.jobid: job for job in plan.jobs}
     needed = {
-        (job.rule, job.wildcards["method"]): sorted(
-            (jobs[jobid].rule, jobs[jobid].wildcards["method"])
+        key: sorted(
+            (by_id[jobid].rule, by_id[jobid].wildcards["method"])
             for jobid in job.dependencies
         )
-        for job in jobs.values()
+        for key, job in jobs.items()
     }
-    # The target rule has no action and beta's input exists.
+    # The target rule has no action and beta's input exists, so preparing
+    # it is reused, not run.
     assert needed == {
         ("prepare", "alpha"): [],
+        ("prepare", "beta"): [],
         ("train_method", "alpha"): [("prepare", "alpha")],
-        ("train_method", "beta"): [],
+        ("train_method", "beta"): [("prepare", "beta")],
     }
-    identities = {
-        (job.rule, job.wildcards["method"]): job.identity
-        for job in plan.scheduled_jobs
+    assert {key: job.status for key, job in jobs.items()} == {
+        ("prepare", "alpha"): "run",
+        ("prepare", "beta"): "reuse",
+        ("train_method", "alpha"): "run",
+        ("train_method", "beta"): "run",
     }
-    assert identities[("train_method", "alpha")] == JobIdentity(
+    assert jobs[("train_method", "alpha")].identity == JobIdentity(
         stage="training", name="alpha", dataset_key="cube"
     )
-    assert identities[("prepare", "alpha")] is None
+    assert jobs[("prepare", "alpha")].identity is None
+    assert jobs[("train_method", "beta")].inputs == ("beta.data",)
+    assert jobs[("train_method", "beta")].outputs == ("beta.txt",)
     # Planning runs nothing.
     assert not [
         name
         for name in ["alpha.data", "alpha.txt", "beta.txt"]
         if (workflow / name).exists()
     ]
+
+
+@pytest.mark.usefixtures("workflow")
+def test_the_plan_gives_snakemakes_reasons_for_each_status() -> None:
+    plan = plan_invocation(["--snakefile", "Snakefile", "--cores", "1"])
+
+    reasons = {
+        (job.rule, job.wildcards["method"]): job.reasons for job in plan.jobs
+    }
+    assert reasons[("train_method", "beta")] == (
+        StatusReason(kind="missing_output", files=("beta.txt",)),
+    )
+    assert reasons[("prepare", "alpha")] == (
+        StatusReason(kind="missing_output", files=("alpha.data",)),
+    )
+    assert reasons[("prepare", "beta")] == (
+        StatusReason(kind="outputs_up_to_date"),
+    )
+
+
+@pytest.mark.usefixtures("workflow")
+def test_the_scheduled_jobs_depend_on_scheduled_jobs_only() -> None:
+    plan = plan_invocation(["--snakefile", "Snakefile", "--cores", "1"])
+
+    scheduled = {
+        (job.rule, job.wildcards["method"]): job for job in plan.scheduled_jobs
+    }
+    assert set(scheduled) == {
+        ("prepare", "alpha"),
+        ("train_method", "alpha"),
+        ("train_method", "beta"),
+    }
+    # The compute estimate chains scheduled jobs; a reused job is no link.
+    assert scheduled[("train_method", "beta")].dependencies == frozenset()
+    assert scheduled[("train_method", "alpha")].dependencies == {
+        scheduled[("prepare", "alpha")].jobid
+    }
 
 
 @pytest.mark.usefixtures("workflow")

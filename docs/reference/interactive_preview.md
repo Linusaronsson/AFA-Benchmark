@@ -1,15 +1,31 @@
 # Interactive preview
 
 The [interactive preview](../../CONTEXT.md) is a terminal browser of the
-[pipeline plan](../../CONTEXT.md) of one pipeline invocation: the jobs the
-invocation would schedule, grouped by pipeline stage, method and dataset. It
-runs no job, submits nothing and writes no file. The
+[pipeline plan](../../CONTEXT.md) of one pipeline invocation: every job of
+the requested targets' dependency graph, grouped by pipeline stage, method
+and dataset, with its [job status](../../CONTEXT.md) and Snakemake's reasons
+for it. It runs no job, submits nothing and writes no file. The
 [pipeline launcher](pipeline_launcher_command.md#the-interactive-preview) opens
 it with `--interactive-preview`; steps:
 [run the pipeline](../how-to/maintainer/run_the_pipeline.md#inspect-planned-work).
 
-It shows scheduled work only. Jobs whose existing outputs the invocation
-reuses are not shown, and the preview says so in its status line.
+## Statuses
+
+Each job wears its status as a text badge with a color of its own, and
+each group counts its jobs by status. Both statuses are shown; each job
+appears and counts once, a shared prerequisite included.
+
+| Status | Badge | Meaning |
+| --- | --- | --- |
+| Run | `Run`, green | The invocation schedules the job, including to replace outputs that exist but are stale. |
+| Reuse | `Reuse`, blue | The invocation uses the job's existing outputs without running it. |
+
+The statuses and reasons are Snakemake's own need-run decisions for the
+invocation, as a real run would make them: the preview forces no job and
+reads no file existence itself. A plan with nothing to run is a valid
+preview that still shows the jobs it reuses. A file an input needs that no
+rule of the invocation produces, such as the output of a stage that is off,
+is no job of the plan: a job reading it lists it under `Existing inputs`.
 
 ## Planning
 
@@ -29,9 +45,15 @@ partial plan is shown. Quitting then exits with status 1.
 
 | Pane | Contents |
 | --- | --- |
-| Status line | The planning state, then the number of scheduled jobs. |
-| Jobs | The scheduled jobs as a tree: pipeline stage → method → dataset → job, each group labelled with its job count. Stages come in pipeline order. A job whose job record names no method, such as a classifier training job, is under `no method`; a job that writes no job record, such as an aggregation or visualization job, is under `no method` and `no dataset`. Jobs below the last level are labelled by their rule, dataset realization, seeds and training and evaluation budgets. |
-| Details | For a group: its dimension value, its number of scheduled jobs and its subgroups' counts. For a job: its rule, stage, method, dataset, dataset realization, seeds, training and evaluation hard budgets and soft-budget parameters, evaluation batch size, wildcards, device, CPUs, GPUs, requested time limit, and the scheduled jobs it needs. A dimension or identity field the job has none of reads `not applicable`. |
+| Status line | The planning state, then the number of jobs and their counts by status. |
+| Jobs | The jobs as a tree: pipeline stage → method → dataset → job, each group labelled with its counts by status. Stages come in pipeline order. A job whose job record names no method, such as a dataset generation, classifier training or pretraining job, is under `Shared prerequisites`; a job that writes no job record, such as an aggregation or visualization job, is under `Across methods` and `Across datasets`. Jobs below the last level are labelled by their status badge, rule, dataset realization, seeds and training and evaluation budgets. |
+| Details | For a group: its dimension value, its jobs by status and its subgroups' counts. For a job: its status and the reasons for it, rule, stage, method, dataset, dataset realization, seeds, training and evaluation hard budgets and soft-budget parameters, evaluation batch size, wildcards, device, CPUs, GPUs, requested time limit, input and output paths, existing inputs no job of the plan makes, the jobs it needs and the jobs that need it, each with its status, and for a shared prerequisite the methods that consume it. A dimension or identity field the job has none of reads `not applicable`. |
+
+The reasons are Snakemake's: missing outputs, inputs newer than the job's
+outputs, inputs another job of the plan rewrites, a changed set of inputs,
+code, params or software environment, a forced run, or for a reused job that
+the outputs it is needed for exist and are up to date and nothing it needs
+is rerun.
 
 Both panes are side by side in a terminal of 80 columns or more. In a
 narrower terminal the focused pane fills the terminal: `Tab` and `Enter`
