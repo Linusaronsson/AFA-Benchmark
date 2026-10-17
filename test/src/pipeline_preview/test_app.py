@@ -24,6 +24,12 @@ from afabench.pipeline_plan.planning import (
     StatusReason,
 )
 from afabench.pipeline_preview.app import STATUS_STYLES, PipelinePreviewApp
+from afabench.pipeline_preview.model import (
+    DEFAULT_VIEW,
+    GROUPINGS,
+    Dimension,
+    PlanView,
+)
 from afabench.pipeline_preview.planning_process import PlanningProcess
 
 ARGUMENTS = ["--profile", "workflow/profiles/pipeline/all", "all"]
@@ -38,10 +44,11 @@ def browse(
     scenario: Callable[[Pilot[None], PipelinePreviewApp], Awaitable[None]],
     *,
     size: tuple[int, int] = WIDE,
+    view: PlanView = DEFAULT_VIEW,
 ) -> PipelinePreviewApp:
     """Run the app over the interpreter's planning child; return it exited."""
     app = PipelinePreviewApp(
-        PlanningProcess(ARGUMENTS, interpreter=interpreter)
+        PlanningProcess(ARGUMENTS, interpreter=interpreter), view=view
     )
 
     async def run() -> None:
@@ -76,6 +83,18 @@ def cursor_label(app: PipelinePreviewApp) -> str:
     node = app.query_one(Tree).cursor_node
     assert node is not None
     return str(node.label)
+
+
+def top_groups(app: PipelinePreviewApp) -> list[str]:
+    return [str(node.label) for node in app.query_one(Tree).root.children]
+
+
+def moves(
+    selected: tuple[Dimension, ...], chosen: tuple[Dimension, ...]
+) -> list[str]:
+    """Return the keys moving from a grouping to another in its options."""
+    steps = GROUPINGS.index(chosen) - GROUPINGS.index(selected)
+    return ["down"] * steps if steps > 0 else ["up"] * -steps
 
 
 def test_opens_planning_and_quitting_ends_the_child(
@@ -313,6 +332,103 @@ def test_a_planning_failure_stays_visible_and_exits_nonzero(
     assert seen["clipboard"] == seen["diagnostics"]
     assert seen["tree shown"] is False
     assert app.return_code == 1
+
+
+def test_the_grouping_control_regroups_the_tree(
+    planning_interpreter: list[str],
+) -> None:
+    seen: dict[str, list[str]] = {}
+
+    async def scenario(pilot: Pilot[None], app: PipelinePreviewApp) -> None:
+        await planned(pilot, app)
+        seen["initial"] = top_groups(app)
+        # Choose method, then dataset → method.
+        await pilot.press("g", "enter", *moves(("dataset",), ("method",)))
+        await pilot.press("enter")
+        seen["by method"] = top_groups(app)
+        await pilot.press("enter", *moves(("method",), ("dataset", "method")))
+        await pilot.press("enter")
+        seen["by dataset, method"] = top_groups(app)
+        tree = app.query_one(Tree)
+        seen["below cube"] = [
+            str(node.label) for node in tree.root.children[0].children
+        ]
+        await pilot.press("q")
+
+    browse(
+        planning_interpreter, scenario, view=PlanView(grouping=("dataset",))
+    )
+
+    assert seen["initial"] == ["cube (3 Run, 1 Reuse)"]
+    assert seen["by method"] == ["alpha (2 Run, 1 Reuse)", "beta (1 Run)"]
+    assert seen["by dataset, method"] == ["cube (3 Run, 1 Reuse)"]
+    assert seen["below cube"] == ["alpha (2 Run, 1 Reuse)", "beta (1 Run)"]
+
+
+def test_filters_compose_and_the_status_line_tells_shown_from_whole(
+    planning_interpreter: list[str],
+) -> None:
+    seen: dict[str, object] = {}
+
+    async def scenario(pilot: Pilot[None], app: PipelinePreviewApp) -> None:
+        await planned(pilot, app)
+        # The stage filter: its second option, training.
+        await pilot.press("f", "enter", "down", "enter")
+        seen["training"] = top_groups(app)
+        seen["training status"] = status(app)
+        # Three controls on, the status filter: its third option, Reuse.
+        await pilot.press("right", "right", "right", "enter", "down", "down")
+        await pilot.press("enter")
+        seen["reused training"] = top_groups(app)
+        await pilot.press("q")
+
+    browse(planning_interpreter, scenario)
+
+    assert seen["training"] == ["training (2 Run, 1 Reuse)"]
+    assert seen["training status"] == (
+        "Shown: 3 of 4 jobs: 2 Run, 1 Reuse | Whole plan: 4 jobs: 3 Run, "
+        "1 Reuse"
+    )
+    assert seen["reused training"] == ["training (1 Reuse)"]
+
+
+def test_search_narrows_the_tree_and_says_when_nothing_matches(
+    planning_interpreter: list[str],
+) -> None:
+    seen: dict[str, object] = {}
+
+    async def scenario(pilot: Pilot[None], app: PipelinePreviewApp) -> None:
+        await planned(pilot, app)
+        await pilot.press("slash", *"beta")
+        seen["beta"] = top_groups(app)
+        # The matches are expanded down to the job.
+        seen["job"] = [
+            str(node.label)
+            for node in app.query_one(Tree)
+            .root.children[0]
+            .children[0]
+            .children[0]
+            .children
+        ]
+        await pilot.press("q", "space", "f", "i", "t")
+        seen["nothing"] = top_groups(app)
+        seen["nothing status"] = status(app)
+        await pilot.press("escape")
+        seen["focused"] = focused(app)
+        await pilot.press("q")
+
+    app = browse(planning_interpreter, scenario)
+
+    assert seen["beta"] == ["training (1 Run)"]
+    assert seen["job"] == [
+        "Run train_method: realization 0, train hard budget 4"
+    ]
+    assert seen["nothing"] == ["No job matches the filters and search"]
+    assert str(seen["nothing status"]).startswith(
+        "Shown: no job matches the filters and search"
+    )
+    assert seen["focused"] == "tree"
+    assert app.return_code == 0
 
 
 def alive(pid: int) -> bool:

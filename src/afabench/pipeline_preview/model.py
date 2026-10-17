@@ -2,8 +2,10 @@
 What the interactive preview shows of a pipeline plan, apart from widgets.
 
 The plan's jobs, run and reused, form a tree of groups, stage → method →
-dataset, with the individual jobs below the last level; every job is in
-one place and counts once. Each group counts its jobs by status, and a
+dataset by default or any ordered subset of those dimensions, with the
+individual jobs below the last level; every job is in one place and counts
+once. A view (`PlanView`) chooses the grouping and filters and searches the
+jobs, all on the loaded plan. Each group counts its jobs by status, and a
 job's details give its status with Snakemake's reasons for it, its paths
 and what it needs. The dimensions come from each job's identity, what its
 job record will say. A shared prerequisite's job record names a classifier
@@ -17,6 +19,7 @@ execution checks the regenerated datasets they wait for.
 from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
+from itertools import permutations
 from typing import Literal
 
 from afabench.core.job_record import JobIdentity
@@ -30,7 +33,15 @@ from afabench.pipeline_plan.planning import (
 )
 
 type Dimension = Literal["stage", "method", "dataset"]
-GROUPING: tuple[Dimension, ...] = ("stage", "method", "dataset")
+DIMENSIONS: tuple[Dimension, ...] = ("stage", "method", "dataset")
+# The default grouping
+GROUPING: tuple[Dimension, ...] = DIMENSIONS
+# Every grouping: each ordered subset of the dimensions, the default first
+GROUPINGS: tuple[tuple[Dimension, ...], ...] = tuple(
+    grouping
+    for size in (3, 2, 1)
+    for grouping in permutations(DIMENSIONS, size)
+)
 # The pipeline stages (CONTEXT.md) in pipeline order, as displayed.
 STAGES = (
     "dataset generation",
@@ -56,10 +67,12 @@ STAGE_OF_RULE = {
 # classifier training or pretraining job's name is a dataset, classifier
 # or pretrained model: a shared prerequisite of methods.
 METHOD_STAGES = {"training", "evaluation", "transformation"}
-# The groups of jobs a dimension does not apply to
+# The groups of jobs a dimension does not apply to, in their order after
+# the groups of values
 SHARED_PREREQUISITES = "Shared prerequisites"
 ACROSS_METHODS = "Across methods"
 ACROSS_DATASETS = "Across datasets"
+EXPLICIT_GROUPS = (SHARED_PREREQUISITES, ACROSS_METHODS, ACROSS_DATASETS)
 NO_STAGE = "no stage"
 NOT_APPLICABLE = "not applicable"
 # The text badge of each status, beside its color
@@ -200,9 +213,126 @@ def release_warning(plan: PipelinePlan) -> str | None:
     return None
 
 
-def preview_tree(plan: PipelinePlan) -> tuple[GroupNode, ...]:
-    """Return the plan's jobs grouped stage → method → dataset."""
-    return _grouped(plan.jobs, GROUPING)
+class GroupingError(ValueError):
+    """A grouping that names no dimension, an unknown one or one twice."""
+
+
+def parse_grouping(text: str) -> tuple[Dimension, ...]:
+    """Return the grouping comma-separated dimensions name, in their order."""
+    names = text.split(",")
+    for name in names:
+        if name not in DIMENSIONS:
+            message = f"Unknown grouping dimension {name!r} in {text!r}; choose from {', '.join(DIMENSIONS)}"
+            raise GroupingError(message)
+    for name in names:
+        if names.count(name) > 1:
+            message = f"Grouping dimension {name!r} repeats in {text!r}"
+            raise GroupingError(message)
+    return tuple(DIMENSIONS[DIMENSIONS.index(name)] for name in names)
+
+
+@dataclass(frozen=True, kw_only=True)
+class PlanView:
+    """
+    How the preview shows a plan: its grouping, filters and search.
+
+    A filter of None shows every value. The stage, dataset and status
+    filters are strict; the method filter also shows the jobs its
+    method's jobs need, directly or not, as far as the other filters do.
+    """
+
+    grouping: tuple[Dimension, ...] = GROUPING
+    stage: str | None = None
+    method: str | None = None
+    dataset: str | None = None
+    status: JobStatus | None = None
+    # Whitespace-separated terms a shown job's rule, groups or label all
+    # contain, regardless of case
+    search: str = ""
+
+
+# Every job in the default grouping
+DEFAULT_VIEW = PlanView()
+
+
+def preview_tree(
+    plan: PipelinePlan, view: PlanView = DEFAULT_VIEW
+) -> tuple[GroupNode, ...]:
+    """Return the jobs the view shows of the plan, in its grouping."""
+    return _grouped(shown_jobs(plan, view), view.grouping)
+
+
+def shown_jobs(plan: PipelinePlan, view: PlanView) -> list[PlannedJob]:
+    """Return the jobs of the plan the view's filters and search show."""
+    jobs = (
+        plan.jobs
+        if view.method is None
+        else _with_prerequisites(plan, view.method)
+    )
+    terms = view.search.lower().split()
+    return [
+        job
+        for job in jobs
+        if (view.stage is None or dimension_of(job, "stage") == view.stage)
+        and (
+            view.dataset is None
+            or dimension_of(job, "dataset") == view.dataset
+        )
+        and (view.status is None or job.status == view.status)
+        and all(term in _searched_text(job) for term in terms)
+    ]
+
+
+def _with_prerequisites(plan: PipelinePlan, method: str) -> list[PlannedJob]:
+    """Return the method's jobs and the jobs they need, directly or not."""
+    by_id = {job.jobid: job for job in plan.jobs}
+    pending = [
+        job.jobid for job in plan.jobs if dimension_of(job, "method") == method
+    ]
+    kept: set[int] = set()
+    while pending:
+        jobid = pending.pop()
+        if jobid not in kept:
+            kept.add(jobid)
+            pending.extend(by_id[jobid].dependencies)
+    return [job for job in plan.jobs if job.jobid in kept]
+
+
+def _searched_text(job: PlannedJob) -> str:
+    return " ".join(
+        [job.rule, job_label(job)]
+        + [group_of(job, dimension) for dimension in DIMENSIONS]
+    ).lower()
+
+
+def filter_values(plan: PipelinePlan, dimension: Dimension) -> list[str]:
+    """Return the values of the dimension the plan's jobs have, in order."""
+    values = {
+        value
+        for job in plan.jobs
+        if (value := dimension_of(job, dimension)) is not None
+    }
+    return sorted(values, key=lambda value: _group_order(dimension, value))
+
+
+def plan_statuses(plan: PipelinePlan) -> list[JobStatus]:
+    """Return the statuses the plan's jobs have, in their order."""
+    present = {job.status for job in plan.jobs}
+    return [status for status in JOB_STATUSES if status in present]
+
+
+def view_summary(plan: PipelinePlan, view: PlanView) -> str:
+    """Count the jobs the view shows, beside the whole plan's when fewer."""
+    jobs = shown_jobs(plan, view)
+    if len(jobs) == len(plan.jobs):
+        return plan_summary(plan)
+    shown = (
+        f"{len(jobs)} of {len(plan.jobs)} jobs: "
+        + counts_text(status_counts(jobs), with_zero=False)
+        if jobs
+        else "no job matches the filters and search"
+    )
+    return f"Shown: {shown} | Whole plan: {plan_summary(plan)}"
 
 
 def _grouped(
@@ -233,8 +363,8 @@ def _grouped(
 
 def _group_order(dimension: Dimension, label: str) -> tuple[int, str]:
     """Order stages as the pipeline runs them; other values alphabetically."""
-    if label in (SHARED_PREREQUISITES, ACROSS_METHODS, ACROSS_DATASETS):
-        return (len(STAGES) + 1, label)
+    if label in EXPLICIT_GROUPS:
+        return (len(STAGES) + 1 + EXPLICIT_GROUPS.index(label), label)
     if dimension == "stage":
         return (STAGES.index(label) if label in STAGES else len(STAGES), label)
     return (0, label)

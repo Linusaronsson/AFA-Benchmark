@@ -5,7 +5,8 @@ Pipeline launcher: run the pipeline from its profiles and overrides.
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
     workflow/run.py [<pipeline> | --configfile <path>] [--site <site>]
-        [-n | -e | --interactive-preview] [--no-soft-budget]
+        [-n | -e | --interactive-preview [--group-by <dimensions>]]
+        [--no-soft-budget]
         [--per-dataset-plots] [--wandb] [--wandb-group <name>]
         [--target <rule>] [--jobs <n>]
         [key=value ...] [-- <Snakemake arguments>]
@@ -29,7 +30,9 @@ interpreter. With --interactive-preview it opens the interactive preview
 of that invocation instead (python -m afabench.pipeline_preview, with the
 resolved Snakemake arguments), with the same interpreter; the preview
 needs a terminal and runs no job, so -n changes nothing and -e, --wandb
-and --wandb-group are refused.
+and --wandb-group are refused. --group-by, with --interactive-preview
+only, passes the preview its initial grouping: stage, method and dataset,
+or some of them, comma-separated in order.
 
 It runs on a login node before any venv exists, like
 workflow/venvs/submit_builds.py, so on the host's python3 (3.9 on Arrhenius)
@@ -63,6 +66,9 @@ SITE_PROFILES = "workflow/profiles/site"
 ESTIMATE_SCRIPT = "scripts/compute_estimate/estimate_compute.py"
 # The interactive preview, run as a module in the selected environment
 INTERACTIVE_PREVIEW_MODULE = "afabench.pipeline_preview"
+# The dimensions the interactive preview groups jobs by
+# (afabench.pipeline_preview.model, which the launcher cannot import)
+GROUPING_DIMENSIONS = ("stage", "method", "dataset")
 # The Python of the node's venv, on a site whose allocations name venvs
 VENV_PYTHON = "workflow/venvs/bin/python"
 ESTIMATE_FLAGS = ("-e", "--estimate")
@@ -92,6 +98,11 @@ def launcher_command(
             *_environment_interpreter(options, checkout),
             "-m",
             INTERACTIVE_PREVIEW_MODULE,
+            *(
+                []
+                if options.group_by is None
+                else ["--group-by", options.group_by]
+            ),
             *snakemake_arguments(arguments, checkout),
         ]
     if not options.estimate:
@@ -343,7 +354,25 @@ def _parse(arguments: list[str]) -> argparse.Namespace:
                     f"{flag} is an option of the compute estimate: add -e"
                 )
                 raise LauncherError(message)
+    if options.group_by is not None:
+        if not options.interactive_preview:
+            message = "--group-by groups the jobs of the interactive preview: add --interactive-preview"
+            raise LauncherError(message)
+        _check_grouping(options.group_by)
     return options
+
+
+def _check_grouping(grouping: str) -> None:
+    """Refuse a grouping naming an unknown dimension or one twice."""
+    names = grouping.split(",")
+    choices = f"give {', '.join(GROUPING_DIMENSIONS)} or some of them, each once, comma-separated in order"
+    for name in names:
+        if name not in GROUPING_DIMENSIONS:
+            message = f"--group-by {grouping!r}: unknown dimension {name!r}; {choices}"
+            raise LauncherError(message)
+        if names.count(name) > 1:
+            message = f"--group-by {grouping!r}: {name!r} repeats; {choices}"
+            raise LauncherError(message)
 
 
 def available_names(kind: str, checkout: Path = REPO_ROOT) -> list[str]:
@@ -422,6 +451,11 @@ def _parser() -> argparse.ArgumentParser:
         "--interactive-preview",
         action="store_true",
         help="Browse the jobs the run would schedule in the terminal without running them (implies -n)",
+    )
+    parser.add_argument(
+        "--group-by",
+        metavar="DIMENSIONS",
+        help="With --interactive-preview, group the jobs first by these comma-separated dimensions in order: stage, method and dataset, or some of them (default: stage,method,dataset)",
     )
     parser.add_argument(
         "--no-soft-budget",
