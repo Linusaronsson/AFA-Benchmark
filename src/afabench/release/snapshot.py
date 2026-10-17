@@ -17,23 +17,28 @@ from collections.abc import Callable, Sequence
 from dataclasses import replace
 from pathlib import Path
 
+import yaml
+
 from afabench.release.integrity import package_file_inventory
 from afabench.release.manifest import (
     JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
     ReleaseManifest,
+    read_release_manifest,
     write_release_manifest,
 )
 from afabench.release.readme import (
     RELEASE_README_FILENAME,
     render_release_readme,
 )
+from afabench.release.workflow_config import BENCHMARK_CONFIG_FILENAME
 
 SNAPSHOT_OUTPUT_SUBDIR = "output"
 RELEASE_FILENAMES = (
     RELEASE_MANIFEST_FILENAME,
     JOB_DURATION_TABLE_FILENAME,
     RELEASE_README_FILENAME,
+    BENCHMARK_CONFIG_FILENAME,
 )
 
 
@@ -64,7 +69,11 @@ def save_snapshot(
     if manifest is not None:
         for name in RELEASE_FILENAMES:
             _refuse_existing(snapshot_dir / name, overwrite=overwrite)
-    skip = [source_root / name for name in RELEASE_FILENAMES]
+    skip = [
+        source_root / name
+        for name in RELEASE_FILENAMES
+        if manifest is not None or name != BENCHMARK_CONFIG_FILENAME
+    ]
     if manifest is not None:
         included = {bundle.path for bundle in manifest.bundles}
         # Include destination-only bundles too: --overwrite must not keep
@@ -93,6 +102,9 @@ def save_snapshot(
             table_path.unlink(missing_ok=True)
         else:
             table_path.write_bytes(job_duration_table)
+        (snapshot_dir / BENCHMARK_CONFIG_FILENAME).write_text(
+            yaml.safe_dump(manifest.workflow_config.benchmark, sort_keys=False)
+        )
         output = snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR
         (snapshot_dir / RELEASE_README_FILENAME).write_text(
             render_release_readme(
@@ -120,10 +132,22 @@ def restore_snapshot(
 
     The release manifest and job duration table, if any, go inside it.
     """
+    manifest_path = snapshot_dir / RELEASE_MANIFEST_FILENAME
+    benchmark = None
+    if manifest_path.is_file():
+        benchmark = {
+            **read_release_manifest(manifest_path).workflow_config.benchmark,
+            "output_root": str(destination_root.resolve()),
+        }
+        _refuse_existing(
+            destination_root / BENCHMARK_CONFIG_FILENAME,
+            overwrite=overwrite,
+        )
     release_files = [
         (snapshot_dir / name, destination_root / name)
         for name in RELEASE_FILENAMES
-        if (snapshot_dir / name).is_file()
+        if name != BENCHMARK_CONFIG_FILENAME
+        and (snapshot_dir / name).is_file()
     ]
     for _, restored in release_files:
         _refuse_existing(restored, overwrite=overwrite)
@@ -135,6 +159,10 @@ def restore_snapshot(
     for path, restored in release_files:
         restored.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, restored)
+    if benchmark is not None:
+        (destination_root / BENCHMARK_CONFIG_FILENAME).write_text(
+            yaml.safe_dump(benchmark, sort_keys=False)
+        )
 
 
 def restored_manifest_location(destination_root: Path) -> Path:

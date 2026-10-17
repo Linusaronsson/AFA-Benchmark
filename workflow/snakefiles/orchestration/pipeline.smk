@@ -20,13 +20,16 @@ Runtime filters (--config, select subsets to run):
     reuse_release (bool, default=False): Reuse existing restored release
         artifacts after regenerating omitted dataset bundles. First run
         --target all_generate_datasets without this option, then run with
-        reuse_release=true "stages={dataset_generation: false}". Requires
+        reuse_release=true "stages={dataset_generation: false}". The launcher's
+        --configfile mode manages these phases automatically. Requires
         <output_root>/release_manifest.json and all dataset inputs of existing
         released artifacts on the selected dataset realizations. Their actual
         bundle content hashes must match the release's recorded input hashes;
         unknown or mismatched hashes fail before planning. Only verified
         dataset edges to existing released outputs ignore mtimes; missing
         outputs and ordinary development retain normal dependencies.
+        Internal release_preview=true permits a dry run or estimate to show
+        reuse conditional on matching regenerated data; execution refuses it.
     methods (list[str], required): Subset of methods from method_options.yaml
     datasets (list[str], required): Subset of datasets to run. Every dataset
         key needs a file conf/components/dataset_key/<key>.yaml.
@@ -150,7 +153,10 @@ Workflow configuration recording:
     Before executing jobs, the main process writes the effective Snakemake
     config, config file paths and hashes, and overrides to
     <output_root>/workflow_config.json. Release creation reads this record
-    automatically. Dry runs, estimates, and invocations with no jobs do not
+    automatically. The record also freezes pipeline-level benchmark defaults
+    for the release's runnable benchmark.yaml; publisher execution/site and
+    invocation controls are excluded from that mapping.
+    Dry runs, estimates, and invocations with no jobs do not
     replace it; cluster workers never write it.
 
 Execution configuration and required files:
@@ -173,6 +179,8 @@ Usage:
     list_jobs=true to also list every job with its resources and device
     arguments. Then remove -n.
     Full method set: workflow/run.py --site <site> (pipeline profile all).
+    Extend a downloaded benchmark without reconstructing a profile:
+        workflow/run.py --configfile output/more_seeds/benchmark.yaml --site <site> -n
     Local CPU smoke test without SLURM or GPUs:
         workflow/run.py --jobs 8 "datasets=[cube]" \
             "dataset_realization_indices=[0]" smoke_test=true \

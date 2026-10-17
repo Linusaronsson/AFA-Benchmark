@@ -10,12 +10,14 @@ resolves #99 differently from the design the issue proposed._
 
 A repository adopter downloads a benchmark release into their output root
 and runs their own pipeline profile, which lists the published methods
-they compare with in `methods` next to their own. The release is only a
+they compare with in `methods` next to their own. Alternatively they explicitly
+select the downloaded benchmark config with the launcher's `--configfile`
+([ADR 0016](0016-runnable-release-configuration.md)). The release is only a
 cache: the run produces exactly what that profile would produce without
 it, reusing what the release holds and producing the rest. Adding a
 dataset the release lacks generates it, trains its classifier and
-evaluates every method on it. The release's own workflow configuration is
-never applied.
+evaluates every method on it. The release's workflow configuration is
+never implicitly applied to a named-profile run.
 
 Downloads keep their recorded mtimes
 ([ADR 0003](0003-snapshots-omit-snakemake-metadata.md)), so ordinary runs judge
@@ -37,10 +39,11 @@ outputs. Unknown or mismatched hashes fail explicitly; missing outputs keep
 ordinary dependencies. Validation includes existing released consumers on the
 selected dataset realizations even when Snakemake prunes upstream jobs.
 
-Dataset generation must finish in a separate invocation and be disabled during
-reuse: a DAG-time check must not bless bytes a scheduled job will replace.
-This costs an extra invocation rather than coupling generation to release
-handling or manipulating timestamps. Globally ancient dataset inputs would
+Dataset generation must finish in a separate Snakemake invocation and be
+disabled during reuse: a DAG-time check must not bless bytes a scheduled job
+will replace. In config-file mode the launcher manages both invocations
+(ADR 0016); named-profile users coordinate them explicitly. Neither path
+manipulates timestamps. Globally ancient dataset inputs would
 hide real changes; ordinary development therefore keeps its existing triggers.
 Hash identity has ADR 0002's scope: saved bundle data, not external image pixels
 or code compatibility. Redistribution review remains unchanged.

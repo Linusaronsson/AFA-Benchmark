@@ -41,6 +41,8 @@ WORKFLOW_SETTINGS = load_config(config)
 # workers. Capture Snakemake's merged values, not a later reread of configs.
 onstart:
     if workflow.is_main_process:
+        if str(config.get("release_preview", False)).lower() == "true":
+            raise ValueError("release_preview=true is only valid in a dry run or estimate")
         record_workflow_config(
             Path(WORKFLOW_SETTINGS.output_root),
             profile=os.environ.get(PIPELINE_PROFILE_ENV),
@@ -93,14 +95,22 @@ SMOKE_TEST = WORKFLOW_SETTINGS.smoke_test
 # stays independent of torch and Parquet.
 RELEASE_REUSE = None
 if WORKFLOW_SETTINGS.reuse_release:
-    if WORKFLOW_SETTINGS.stages.dataset_generation:
+    release_preview = str(config.get("release_preview", False)).lower() == "true"
+    if WORKFLOW_SETTINGS.stages.dataset_generation and not release_preview:
         raise ValueError(
             "reuse_release=true requires stages={dataset_generation: false}; "
             "run all_generate_datasets first without reuse_release."
         )
     from pathlib import Path
     from afabench.release.reuse import ReleaseReuse
-    RELEASE_REUSE = ReleaseReuse(Path(WORKFLOW_SETTINGS.output_root))
+    RELEASE_REUSE = ReleaseReuse(
+        Path(WORKFLOW_SETTINGS.output_root), preview=release_preview,
+    )
+    if release_preview and workflow.is_main_process:
+        logger.info(
+            "Release reuse preview: regenerated datasets must pass content validation "
+            "before released outputs can be reused during execution."
+        )
     RELEASE_REUSE.validate_datasets(
         OUTPUT_LAYOUT, WORKFLOW_SETTINGS.datasets,
         WORKFLOW_SETTINGS.dataset_realization_indices,

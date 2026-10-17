@@ -70,6 +70,22 @@ def test_round_trip_reproduces_every_file_byte_for_byte_with_mtimes(
         assert destination_file.stat().st_mtime == source_file.stat().st_mtime
 
 
+def test_verbatim_snapshot_preserves_an_edited_benchmark_config(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    build_output_tree(source)
+    config = source / "benchmark.yaml"
+    config.write_text(
+        "dataset_realization_indices: [0, 7]\noutput_root: /chosen/root\n"
+    )
+    save_snapshot(source, tmp_path / "snapshot")
+    restore_snapshot(tmp_path / "snapshot", tmp_path / "restored")
+    assert (
+        tmp_path / "restored/benchmark.yaml"
+    ).read_bytes() == config.read_bytes()
+
+
 def test_round_trip_preserves_directory_mtimes_including_empty_directories(
     tmp_path: Path,
 ) -> None:

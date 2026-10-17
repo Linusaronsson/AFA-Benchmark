@@ -130,6 +130,91 @@ def test_launcher_passes_profile_identity_to_the_executing_workflow(
         )
 
 
+def test_configfile_replaces_profile_and_keeps_site_and_overrides(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "benchmark.yaml"
+    config.write_text("{}\n")
+    command = snakemake_arguments(
+        [
+            "--configfile",
+            str(config),
+            "--site",
+            "examples/mixed-gres",
+            "dataset_realization_indices=[0,1,2]",
+            "-n",
+        ]
+    )
+    assert "--profile" not in command
+    assert command[:6] == [
+        "all",
+        "--snakefile",
+        "workflow/snakefiles/orchestration/pipeline.smk",
+        "--configfile",
+        str(config),
+        "--workflow-profile",
+    ]
+    assert "dataset_realization_indices=[0,1,2]" in command
+    assert (
+        "execution_site_file=workflow/profiles/site/examples/mixed-gres/site.yaml"
+        in command
+    )
+    assert "--dry-run" in command
+    assert launcher_command(["--configfile", str(config)]) == [
+        "uv",
+        "run",
+        "python",
+        "workflow/run_from_config.py",
+        "--configfile",
+        str(config),
+    ]
+
+
+def test_configfile_main_clears_inherited_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = tmp_path / "benchmark.yaml"
+    config.write_text("{}\n")
+    monkeypatch.setenv("AFABENCH_PIPELINE_PROFILE", "publisher-profile")
+
+    def launch(
+        command: list[str], *, cwd: Path, env: dict[str, str], check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert "workflow/run_from_config.py" in command
+        assert "AFABENCH_PIPELINE_PROFILE" not in env
+        assert cwd == REPO_ROOT
+        assert check is False
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr("workflow.run.subprocess.run", launch)
+    assert main(["--configfile", str(config)]) == 0
+
+
+def test_configfile_refuses_named_profile_or_missing_file(
+    tmp_path: Path,
+) -> None:
+    config = tmp_path / "benchmark.yaml"
+    config.write_text("{}\n")
+    with pytest.raises(LauncherError, match="not both"):
+        snakemake_arguments(["kdd26", "--configfile", str(config)])
+    with pytest.raises(LauncherError, match="No benchmark config"):
+        snakemake_arguments(["--configfile", str(tmp_path / "missing.yaml")])
+
+
+def test_configfile_estimate_keeps_config_input(tmp_path: Path) -> None:
+    config = tmp_path / "benchmark.yaml"
+    config.write_text("{}\n")
+    assert launcher_command(["--configfile", str(config), "-e"]) == [
+        "uv",
+        "run",
+        "python",
+        ESTIMATE_SCRIPT,
+        "--configfile",
+        str(config),
+    ]
+
+
 def test_runs_the_all_pipeline_profile_locally_by_default() -> None:
     assert snakemake_command([]) == [
         "uv",

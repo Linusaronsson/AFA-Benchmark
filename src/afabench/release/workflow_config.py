@@ -23,6 +23,7 @@ import dacite
 import yaml
 
 WORKFLOW_CONFIG_FILENAME = "workflow_config.json"
+BENCHMARK_CONFIG_FILENAME = "benchmark.yaml"
 PIPELINE_PROFILE_ENV = "AFABENCH_PIPELINE_PROFILE"
 
 
@@ -40,6 +41,7 @@ class WorkflowConfigRecord:
     configfiles: list[ConfigFileRecord]
     overrides: dict[str, Any]
     merged: dict[str, Any]
+    benchmark: dict[str, Any]
 
 
 def resolve_workflow_config(
@@ -48,6 +50,11 @@ def resolve_workflow_config(
     configfiles: Sequence[Path],
     overrides: Sequence[str],
 ) -> WorkflowConfigRecord:
+    # Reading release manifests needs no checkout; recording defaults does.
+    from afabench.core.workflow_settings import (  # noqa: PLC0415
+        benchmark_config,
+    )
+
     profile_configfiles: list[Path] = []
     profile_overrides: dict[str, Any] = {}
     if profile is not None:
@@ -85,6 +92,7 @@ def resolve_workflow_config(
         configfiles=records,
         overrides=used_overrides,
         merged=merged,
+        benchmark=benchmark_config(merged),
     )
 
 
@@ -97,6 +105,10 @@ def record_workflow_config(
     merged: Mapping[str, Any],
 ) -> None:
     """Record Snakemake's actual configuration before it executes jobs."""
+    from afabench.core.workflow_settings import (  # noqa: PLC0415
+        benchmark_config,
+    )
+
     record = WorkflowConfigRecord(
         profile=profile,
         configfiles=[
@@ -108,6 +120,7 @@ def record_workflow_config(
         ],
         overrides=dict(overrides),
         merged=dict(merged),
+        benchmark=benchmark_config(merged),
     )
     output_root.mkdir(parents=True, exist_ok=True)
     path = output_root / WORKFLOW_CONFIG_FILENAME

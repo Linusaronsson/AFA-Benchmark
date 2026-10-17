@@ -9,9 +9,10 @@ The rules are documented in `docs/reference/pipeline_configuration.md`.
 Snakemake imports this module at parse time, so it must not import torch.
 """
 
+import copy
 import warnings
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, fields, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any
 
@@ -421,8 +422,82 @@ def _describe_budgets(
     return [f"hard budgets: {_join(hard)}", f"{soft_label}: {_join(soft)}"]
 
 
+# Shared with the runnable configuration recorded for a benchmark release.
+PIPELINE_DEFAULTS: dict[str, Any] = {
+    "stages": asdict(PipelineStages()),
+    "dataset_realization_indices": [0, 1, 2, 3, 4],
+    "initializer": "cold",
+    "eval_dataset_split": "test",
+    "use_wandb": False,
+    "wandb_group": None,
+    "smoke_test": False,
+    "list_jobs": False,
+    "soft_budget_setting": True,
+    "per_dataset_plots": False,
+    "reuse_release": False,
+    "plotting": {},
+    "methods": [],
+}
+
+
+def benchmark_config(config: Mapping[str, Any]) -> dict[str, Any]:
+    """Freeze pipeline defaults, excluding the producer's invocation controls."""
+    result = copy.deepcopy({**PIPELINE_DEFAULTS, **config})
+    result["stages"] = asdict(PipelineStages())
+    result["dataset_realization_indices"] = _realization_indices(
+        result["dataset_realization_indices"]
+    )
+    for key in (
+        "output_root",
+        "execution",
+        "execution_file",
+        "execution_site",
+        "execution_site_file",
+        "device",
+        "wandb_group",
+        "reuse_release",
+        "release_preview",
+        "list_jobs",
+        "use_wandb",
+    ):
+        result.pop(key, None)
+    result["method_options"] = {
+        name: {
+            **asdict(
+                MethodOptions(train_script_name=options["train_script_name"])
+            ),
+            **options,
+            "eval_batch_size": (
+                1
+                if options.get("eval_batch_size") is None
+                else options["eval_batch_size"]
+            ),
+        }
+        for name, options in config.get("method_options", {}).items()
+    }
+    result["pretrain_mapping"] = {
+        name: {
+            **asdict(
+                PretrainedModelOptions(
+                    pretrain_script_name=options["pretrain_script_name"]
+                )
+            ),
+            **options,
+        }
+        for name, options in config.get("pretrain_mapping", {}).items()
+    }
+    # An omitted plotting metric must remain omitted, rather than become null.
+    result["plotting"] = {
+        key: value
+        for key, value in result["plotting"].items()
+        if value is not None
+    }
+    return result
+
+
 def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     """Validate the merged Snakemake `config` and resolve its settings."""
+    config = {**copy.deepcopy(PIPELINE_DEFAULTS), **config}
     pretrain_mapping = {
         name: _parse_strictly(
             PretrainedModelOptions,
@@ -441,13 +516,13 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
         ).items()
     }
 
-    smoke_test = _config_bool(config.get("smoke_test", False), "smoke_test")
-    use_wandb = _config_bool(config.get("use_wandb", False), "use_wandb")
-    wandb_group = _wandb_group(config.get("wandb_group"), use_wandb=use_wandb)
+    smoke_test = _config_bool(config["smoke_test"], "smoke_test")
+    use_wandb = _config_bool(config["use_wandb"], "use_wandb")
+    wandb_group = _wandb_group(config["wandb_group"], use_wandb=use_wandb)
     output_root = _output_root(
         config.get("output_root"), smoke_test=smoke_test
     )
-    methods: list[str] | None = config.get("methods", [])
+    methods: list[str] | None = config["methods"]
     if methods is None:
         message = "Expected methods to be provided."
         raise ValueError(message)
@@ -467,7 +542,7 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     datasets: list[str] = _required_config(config, "datasets")
 
     soft_budget_setting = _config_bool(
-        config.get("soft_budget_setting", True), "soft_budget_setting"
+        config["soft_budget_setting"], "soft_budget_setting"
     )
     selected_options = {
         method: options
@@ -535,25 +610,22 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     }
 
     settings = WorkflowSettings(
-        stages=_stages(config.get("stages", {})),
-        dataset_realization_indices=config.get(
-            "dataset_realization_indices", [0, 1, 2, 3, 4]
+        stages=_stages(config["stages"]),
+        dataset_realization_indices=_realization_indices(
+            config["dataset_realization_indices"]
         ),
-        initializer=config.get("initializer", "cold"),
-        # Switch to val while developing, and train if debugging.
-        eval_dataset_split=config.get("eval_dataset_split", "test"),
+        initializer=config["initializer"],
+        eval_dataset_split=config["eval_dataset_split"],
         use_wandb=use_wandb,
         wandb_group=wandb_group,
         smoke_test=smoke_test,
-        list_jobs=_config_bool(config.get("list_jobs", False), "list_jobs"),
-        reuse_release=_config_bool(
-            config.get("reuse_release", False), "reuse_release"
-        ),
+        list_jobs=_config_bool(config["list_jobs"], "list_jobs"),
+        reuse_release=_config_bool(config["reuse_release"], "reuse_release"),
         soft_budget_setting=soft_budget_setting,
         per_dataset_plots=_config_bool(
-            config.get("per_dataset_plots", False), "per_dataset_plots"
+            config["per_dataset_plots"], "per_dataset_plots"
         ),
-        plotting=_plotting_metric_overrides(config.get("plotting", {})),
+        plotting=_plotting_metric_overrides(config["plotting"]),
         output_root=output_root,
         pretrain_names=pretrain_names,
         pretrain_script_names={
@@ -605,6 +677,24 @@ def load_config(config: Mapping[str, Any]) -> WorkflowSettings:
     if settings.per_dataset_plots:
         _validate_per_dataset_plot_roots(settings)
     return settings
+
+
+def _realization_indices(value: object) -> list[int]:
+    if not isinstance(value, list):
+        message = f"dataset_realization_indices must be a list, got {value!r}."
+        raise TypeError(message)
+    result = []
+    for item in value:
+        message = f"dataset_realization_indices requires non-negative integers, got {item!r}."
+        if isinstance(item, bool) or not isinstance(item, (int, str)):
+            raise TypeError(message)
+        if isinstance(item, str) and not item.isdecimal():
+            raise ValueError(message)
+        index = int(item)
+        if index < 0:
+            raise ValueError(message)
+        result.append(index)
+    return result
 
 
 def _validate_per_dataset_plot_roots(settings: WorkflowSettings) -> None:

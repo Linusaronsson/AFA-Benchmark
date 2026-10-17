@@ -236,6 +236,43 @@ def test_published_release_downloads_with_native_tables_and_plots(
     assert "Release 2026-10-cube" in downloaded.output
 
 
+@pytest.mark.parametrize(
+    "selection",
+    [
+        ["--all"],
+        ["--method", "alpha"],
+        ["--payload-category", "transformed_evaluation_table"],
+    ],
+)
+def test_every_download_includes_frozen_config_rebased_to_destination(
+    tmp_path: Path,
+    selection: list[str],
+) -> None:
+    transport = FakeReleaseTransport()
+    package = prepare_package(tmp_path, "config-release")
+    packaged = yaml.safe_load((package / "benchmark.yaml").read_text())
+    assert "output_root" not in packaged
+    assert packaged["dataset_realization_indices"] == [0, 1, 2, 3, 4]
+    assert invoke(transport, "publish", str(package)).exit_code == 0
+    destination = tmp_path / "downloaded"
+    result = invoke(
+        transport,
+        "download",
+        "config-release",
+        "--destination-root",
+        str(destination),
+        *selection,
+    )
+    assert result.exit_code == 0, result.output
+    config = yaml.safe_load((destination / "benchmark.yaml").read_text())
+    assert config == {**packaged, "output_root": str(destination.resolve())}
+    copied = tmp_path / "edited.yaml"
+    shutil.copy2(destination / "benchmark.yaml", copied)
+    assert yaml.safe_load(copied.read_text())["output_root"] == str(
+        destination.resolve()
+    )
+
+
 def test_smoke_package_is_refused(tmp_path: Path) -> None:
     transport = FakeReleaseTransport()
     package_dir = prepare_package(tmp_path, "smoke-check", smoke_test=True)

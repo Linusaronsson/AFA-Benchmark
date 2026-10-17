@@ -140,7 +140,7 @@ def test_save_with_release_id_writes_manifest_beside_output(
 
     assert (tmp_path / "snapshot/output" / ALPHA_METHOD).is_dir()
     manifest = read_manifest(tmp_path)
-    assert manifest["manifest_version"] == 6
+    assert manifest["manifest_version"] == 7
     assert manifest["release_id"] == "2026-10-cube"
     assert manifest["execution_mode"] == "production"
     assert "code" not in manifest

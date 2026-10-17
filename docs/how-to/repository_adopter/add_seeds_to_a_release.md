@@ -1,16 +1,13 @@
 # Add more seeds to a release's datasets and methods
 
 For a [repository adopter](../../explanation/user_types.md#repository-adopter):
-add [dataset realizations](../../reference/pipeline_configuration.md#dataset_realization_indices)
-to a release's comparison. To vary seeds on a fixed split instead, do not use
-this procedure.
+add dataset realizations to a release's comparison while reusing its existing
+outputs.
 
-Run commands from your fork's repository root, after `uv sync`.
+## 1. Download the release and its config
 
-## 1. Download the release
-
-[Choose a release](https://huggingface.co/datasets/afabench/results/tree/main/releases),
-read its README, and download into a fresh output root. Use one release per root.
+[Choose a release](https://huggingface.co/datasets/afabench/results/tree/main/releases)
+and download it into a fresh output root. Use one release per root.
 
 ```shell
 uv run python scripts/release/snapshot.py download <release_id> \
@@ -18,109 +15,29 @@ uv run python scripts/release/snapshot.py download <release_id> \
     --destination-root output/more_seeds
 ```
 
-## 2. Match its configuration and code
+## 2. Extend the realization list
 
-Inspect the configuration and producing commits:
+Open `output/more_seeds/benchmark.yaml`, find
+`dataset_realization_indices`, and append unused non-negative indices.
+Retain every existing index and leave the other benchmark settings unchanged.
 
-```shell
-uv run python - <<'PY'
-import json
-from pathlib import Path
+Alternatively, leave the downloaded config unchanged and append
+`"dataset_realization_indices=[0,1,2,3,4,5,6,7,8,9]"` to both commands below,
+using your release's actual indices. Command-line overrides take precedence
+over the config.
 
-manifest = json.loads(Path("output/more_seeds/release_manifest.json").read_text())
-print(json.dumps({key: manifest[key] for key in ("coverage", "workflow_config")}, indent=2))
-commits = {entry["code"]["commit"] for entry in manifest["evaluations"] + manifest["bundles"]}
-for commit in sorted(commits, key=lambda value: value or ""):
-    print("null" if commit is None else commit)
-PY
-```
+## 3. Preview and run the extended comparison
 
-Copy the profile printed as `Workflow profile`; here, `kdd26`:
+Preview the work:
 
 ```shell
-cp -r workflow/profiles/pipeline/kdd26 workflow/profiles/pipeline/more_seeds
+workflow/run.py --configfile output/more_seeds/benchmark.yaml \
+    --site <your_site> -n
 ```
 
-Match its config files to `workflow_config.merged` and `overrides`. Keep all
-settings except the realization list unchanged. Copy any files you edit to
-`workflow/conf/<group>/more_seeds.yaml` and repoint the profile's configfile paths.
-Check `evaluations` for combinations missing from the release.
-
-Use code and an environment matching the released results. Check
-[result-affecting differences](../../explanation/benchmark_releases.md#compatibility-and-comparability)
-before combining old and new results.
-
-## 3. Extend the realization list
-
-Read the existing indices:
+Run the same configuration without `-n`:
 
 ```shell
-uv run python - <<'PY'
-import json
-from pathlib import Path
-
-manifest = json.loads(Path("output/more_seeds/release_manifest.json").read_text())
-print(json.dumps(manifest["coverage"]["dataset_realization_indices"]))
-PY
+workflow/run.py --configfile output/more_seeds/benchmark.yaml \
+    --site <your_site>
 ```
-
-Keep them and append unused non-negative indices. For a release with
-`[0,1,2,3,4]`, add five realizations with:
-
-```shell
-workflow/run.py more_seeds --site <your_site> \
-    output_root=output/more_seeds \
-    "dataset_realization_indices=[0,1,2,3,4,5,6,7,8,9]" -n
-```
-
-Use your release's actual indices. Keep the complete list on every command
-below to include both old and new results.
-
-Without GPUs, replace `--site <your_site>` with
-`--jobs 8 execution_file=workflow/profiles/execution/cpu.yaml` throughout.
-
-## 4. Generate omitted dataset bundles, if needed
-
-Skip this step if all required released dataset bundles were downloaded.
-Otherwise, prepare the [local sources](../../reference/datasets/README.md)
-and generate the selected realizations using the release's settings and environment:
-
-```shell
-workflow/run.py more_seeds --site <your_site> \
-    output_root=output/more_seeds \
-    "dataset_realization_indices=[0,1,2,3,4,5,6,7,8,9]" \
-    --target all_generate_datasets
-```
-
-After generation succeeds, add these overrides to every subsequent dry run
-and real run:
-
-```shell
-reuse_release=true "stages={dataset_generation: false}"
-```
-
-If the [reuse check](../../reference/pipeline_configuration.md#reuse_release)
-fails, reproduce the released data or recompute in a separate root. Do not
-bypass the check. Verify external source files match the release too.
-
-## 5. Check the plan and run
-
-Repeat step 3's dry run with step 4's overrides when applicable. Check that:
-
-- New indices have generation, training and evaluation jobs as needed.
-- Existing released evaluations are reused. Investigate old-index jobs for
-  missing downloads, configuration differences or incomplete release coverage.
-- The selected indices include both old and new realizations.
-
-Leave training and evaluation enabled. Remove `-n` to run, retaining every
-override. Repeat the same command to resume.
-
-## 6. Check the combined results
-
-Open `output/more_seeds/merged_results/` and `output/more_seeds/plots/`.
-Check `dataset_realization_index`, `train_seed` and `eval_seed` in
-`output/more_seeds/eval_results_transformed/` for both old and new repetitions.
-[Table columns](../../reference/evaluation_dataframes.md).
-
-Save the profile and invocation with your results. Do not treat the downloaded
-`release_manifest.json` as an inventory of the extended run.

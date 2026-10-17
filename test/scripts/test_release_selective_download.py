@@ -18,6 +18,7 @@ from click.testing import Result
 from typer.testing import CliRunner
 
 from afabench.release.manifest import read_release_manifest
+from afabench.release.workflow_config import BENCHMARK_CONFIG_FILENAME
 from scripts.release.snapshot import app
 from test.scripts.fake_release_transport import FakeReleaseTransport
 from test.scripts.release_artifacts import (
@@ -202,7 +203,7 @@ def restored_release_id(destination_root: Path) -> str:
 
 def restored_files(destination_root: Path) -> set[str]:
     """Return the restored outputs, leaving out the release's own files."""
-    release_files = {RELEASE_MANIFEST, TABLE}
+    release_files = {RELEASE_MANIFEST, TABLE, BENCHMARK_CONFIG_FILENAME}
     return {
         path.relative_to(destination_root).as_posix()
         for path in destination_root.rglob("*")

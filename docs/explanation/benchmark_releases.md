@@ -29,9 +29,11 @@ so a release says which code produced each of its artifacts.
   and download round trip on a local host instead.
 - **A downloaded release is a cache.** A run over an output root holding a
   release produces exactly what its pipeline profile produces without it:
-  it reuses what the release holds and produces the rest. The release's
-  own workflow configuration is never applied
-  ([ADR 0012](../adr/0012-a-downloaded-release-is-a-cache.md)).
+  it reuses what the release holds and produces the rest. Downloads include
+  a runnable `benchmark.yaml` with the release's pipeline settings and
+  defaults, but only explicitly selecting it with `--configfile` applies
+  those settings. Named-profile runs are unaffected
+  ([ADR 0016](../adr/0016-runnable-release-configuration.md)).
 - **Native files.** Tables are the pipeline's own Parquet files and bundles
   its own bundle folders, restored byte for byte to the paths the workflow
   expects. Snakemake then reuses them instead of producing them again, and

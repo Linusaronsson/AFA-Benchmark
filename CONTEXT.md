@@ -553,10 +553,10 @@ no job duration, but warn that the compute estimate of its jobs may be low.
 _Avoid_: Timeout history, failure count
 
 **Pipeline profile**:
-The configuration that decides what a pipeline run contains: one config file
-per configuration group (datasets, methods, method options, hard budgets,
-soft-budget parameters and the rest). It says nothing about where jobs run or
-on which device. Pipeline profile overrides narrow or change it for one run.
+The configuration that decides what a pipeline run contains, either grouped
+by benchmark setting or supplied as one runnable benchmark config. It says
+nothing about where jobs run or on which device; overrides narrow or change
+it for one run.
 _Avoid_: Preset, pipeline config, experiment config
 
 **Execution file**:
@@ -572,8 +572,8 @@ profile.
 _Avoid_: Cluster config, cluster profile
 
 **Pipeline launcher**:
-The command that runs the pipeline from a pipeline profile, an optional site
-profile and pipeline profile overrides.
+The command that runs the pipeline from a pipeline profile or runnable
+benchmark config, an optional site profile and overrides.
 _Avoid_: Wrapper, runner
 
 **Pipeline invocation**:

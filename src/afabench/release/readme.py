@@ -112,7 +112,15 @@ def _available_files(
 ) -> list[str]:
     paths = sorted(output_paths)
     evaluations = manifest.evaluations
-    lines = ["", "## Available files", ""]
+    lines = [
+        "",
+        "## Available files",
+        "",
+        "- "
+        + _link("Runnable benchmark config", "benchmark.yaml")
+        + "; downloads set its output root to the destination. Run it with "
+        + "`workflow/run.py --configfile <download-root>/benchmark.yaml`.",
+    ]
     for label, field in [
         ("Raw evaluation tables", "raw_path"),
         ("Plotting-ready evaluation tables", "transformed_path"),

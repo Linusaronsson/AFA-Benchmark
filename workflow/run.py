@@ -4,7 +4,7 @@ Pipeline launcher: run the pipeline from its profiles and overrides.
 
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
-    workflow/run.py [<pipeline>] [--site <site>] [-n | -e] [--no-soft-budget]
+    workflow/run.py [<pipeline> | --configfile <path>] [--site <site>] [-n | -e] [--no-soft-budget]
         [--per-dataset-plots] [--wandb] [--wandb-group <name>]
         [--target <rule>] [--jobs <n>]
         [key=value ...] [-- <Snakemake arguments>]
@@ -80,7 +80,16 @@ def launcher_command(
     """Return the command the launcher runs for `arguments`."""
     options = _parse(arguments)
     if not options.estimate:
-        return snakemake_command(arguments, checkout)
+        command = snakemake_command(arguments, checkout)
+        if options.configfile is not None:
+            interpreter = (
+                [VENV_PYTHON]
+                if options.site is not None
+                and _site_venvs(checkout, options.site)
+                else ["uv", "run", "python"]
+            )
+            return [*interpreter, "workflow/run_from_config.py", *arguments]
+        return command
     if options.dry_run:
         message = (
             "-n and -e: an estimate runs no jobs either; give one of them"
@@ -132,6 +141,7 @@ def _invocation(
         raise LauncherError(message)
     options = _parse(arguments)
     pipeline, config = _pipeline_and_overrides(options.profile_and_overrides)
+    pipeline, profiles = _configuration_source(options, checkout, pipeline)
     config += _flag_overrides(options, config)
     if _override_is_true(config, "use_wandb") and not _overrides(
         config, "wandb_group"
@@ -141,7 +151,6 @@ def _invocation(
             f"wandb_group={new_wandb_group(pipeline, smoke_test=smoke_test)}"
         )
     interpreter = ["uv", "run", "snakemake"]
-    profiles = ["--profile", _profile(checkout, PIPELINE_PROFILES, pipeline)]
     if options.site is not None:
         if options.jobs is not None:
             message = f"--jobs {options.jobs}: a cluster run submits as many jobs as the site profile {options.site!r} sets"
@@ -153,7 +162,11 @@ def _invocation(
         config.append(f"execution_site_file={site}/site.yaml")
     # The target first: a multi-value option among the extra arguments
     # would take it as one of its values.
-    command = [*profiles, options.target]
+    command = (
+        [options.target, *profiles]
+        if options.configfile is not None
+        else [*profiles, options.target]
+    )
     if options.jobs is not None:
         command += ["--jobs", str(options.jobs)]
     if options.dry_run:
@@ -162,6 +175,32 @@ def _invocation(
     if config:
         command += ["--config", *config]
     return interpreter, command
+
+
+def _configuration_source(
+    options: argparse.Namespace, checkout: Path, pipeline: str
+) -> tuple[str, list[str]]:
+    if options.configfile is None:
+        return pipeline, [
+            "--profile",
+            _profile(checkout, PIPELINE_PROFILES, pipeline),
+        ]
+    if (
+        options.profile_and_overrides
+        and "=" not in options.profile_and_overrides[0]
+    ):
+        message = "Give a pipeline profile or --configfile, not both"
+        raise LauncherError(message)
+    path = Path(options.configfile)
+    if not (checkout / path).is_file():
+        message = f"No benchmark config file at {path}"
+        raise LauncherError(message)
+    return path.stem, [
+        "--snakefile",
+        "workflow/snakefiles/orchestration/pipeline.smk",
+        "--configfile",
+        str(path),
+    ]
 
 
 def _flag_overrides(
@@ -317,6 +356,11 @@ def _parser() -> argparse.ArgumentParser:
         metavar="[pipeline] [key=value ...]",
         help=f"A pipeline profile under {PIPELINE_PROFILES}/ (default: all), then pipeline profile overrides",
     )
+    parser.add_argument(
+        "--configfile",
+        metavar="PATH",
+        help="Run a benchmark YAML config instead of a named pipeline profile",
+    )
     for kind in CATALOGS:
         parser.add_argument(
             f"--list-{kind}",
@@ -446,8 +490,10 @@ def main(arguments: list[str]) -> int:
     environment = {**os.environ, "PWD": str(REPO_ROOT)}
     # Snakemake exposes its merged config and files, but not its profile.
     if not _parse(arguments).estimate:
-        profile_index = command.index("--profile") + 1
-        environment["AFABENCH_PIPELINE_PROFILE"] = command[profile_index]
+        environment.pop("AFABENCH_PIPELINE_PROFILE", None)
+        if "--profile" in command:
+            profile_index = command.index("--profile") + 1
+            environment["AFABENCH_PIPELINE_PROFILE"] = command[profile_index]
     return subprocess.run(
         command, cwd=REPO_ROOT, env=environment, check=False
     ).returncode

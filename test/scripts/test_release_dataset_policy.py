@@ -102,7 +102,7 @@ def manifest(
     return build_release_manifest(
         release_id="policy-test",
         workflow_config=WorkflowConfigRecord(
-            profile=None, configfiles=[], overrides={}, merged={}
+            profile=None, configfiles=[], overrides={}, merged={}, benchmark={}
         ),
         output_root=source,
         index=index,

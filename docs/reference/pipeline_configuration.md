@@ -187,8 +187,10 @@ Turns whole pipeline stages off. A stage that is off defines no rules, so the ru
 - **Type:** `bool`
 - **Default:** `false`
 - **Requires:** `<output_root>/release_manifest.json` and
-  `stages={dataset_generation: false}`. Generate missing datasets first with
-  the `all_generate_datasets` target and reuse disabled.
+  `stages={dataset_generation: false}` during execution. The launcher's
+  `--configfile` mode manages dataset preparation and these switches
+  automatically. For a named-profile run, generate missing datasets first
+  with the `all_generate_datasets` target and reuse disabled.
 - **Behavior:** Checks actual dataset bundle content hashes against existing
   released artifacts' recorded input hashes, for the selected datasets and
   realizations. A mismatch, unknown hash or missing required dataset fails
@@ -199,7 +201,11 @@ Turns whole pipeline stages off. A stage that is off defines no rules, so the ru
 - **Example:** `reuse_release=true "stages={dataset_generation: false}"`
 - **Scope:** Bundle contents, not external source files, code compatibility
   or changed hyperparameters. Ordinary runs with the default `false` retain
-  normal invalidation. See the [adopter workflow](../how-to/repository_adopter/compare_your_method_with_published_results.md).
+  normal invalidation. With `--configfile`, dry runs and estimates may preview
+  reuse of missing datasets, conditional on content validation after generation.
+  The internal `release_preview` switch is refused during execution. See the
+  [launcher](pipeline_launcher_command.md) and
+  [adopter workflow](../how-to/repository_adopter/compare_your_method_with_published_results.md).
 
 ### `per_dataset_plots`
 

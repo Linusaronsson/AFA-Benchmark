@@ -46,7 +46,7 @@ from afabench.evaluation.provenance import evaluation_table_provenance
 from afabench.evaluation.schemas import IDENTITY_DTYPES
 from afabench.release.workflow_config import WorkflowConfigRecord
 
-MANIFEST_VERSION = 6
+MANIFEST_VERSION = 7
 RELEASE_MANIFEST_FILENAME = "release_manifest.json"
 # Beside the release manifest, so the pipeline never rewrites it
 JOB_DURATION_TABLE_FILENAME = "release_job_duration_table.parquet"

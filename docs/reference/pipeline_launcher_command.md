@@ -1,16 +1,18 @@
 # `workflow/run.py` command
 
 The [pipeline launcher](../../CONTEXT.md) runs the pipeline from a pipeline
-profile, an optional site profile and pipeline profile overrides. Steps:
+profile or benchmark config file, an optional site profile and overrides. Steps:
 [run the pipeline](../how-to/maintainer/run_the_pipeline.md).
 
 ```shell
-workflow/run.py [<pipeline>] [--site <site>] [-n | -e [<estimate options>]]
+workflow/run.py [<pipeline> | --configfile <path>] [--site <site>] [-n | -e [<estimate options>]]
     [--no-soft-budget] [--per-dataset-plots] [--wandb] [--wandb-group <name>] [--target <rule>] [--jobs <n>] [key=value ...] [-- <Snakemake arguments>]
 ```
 
 It runs on the host's `python3` (3.9 or newer) with the standard library
-only, so it works on a login node before any environment is built. It runs
+only, so it works on a login node before any environment is built. Config-file
+execution delegates YAML loading and dataset preparation to the selected
+Python environment. It runs
 Snakemake from the checkout root, wherever it is started.
 
 ## Arguments
@@ -20,6 +22,7 @@ Snakemake from the checkout root, wherever it is started.
 | `-h`, `--help` | Show command-line help and exit. |
 | `--list-methods`, `--list-datasets`, `--list-unmaskers`, `--list-initializers` | List shipped names and exit without an environment or running jobs. Flags can be combined. These list all available names, not the selection of a pipeline profile or its overrides. |
 | `<pipeline>` | A pipeline profile under `workflow/profiles/pipeline/`, by name (`all`, `kdd26`). Default `all`. An argument containing `=` is never a pipeline profile. |
+| `--configfile <path>` | A runnable benchmark YAML config instead of a named pipeline profile. Overrides apply last. Downloads include `benchmark.yaml`, with its output root set to the download destination; copies retain that destination unless `output_root=` overrides it. |
 | `--site <site>` | A site profile under `workflow/profiles/site/`, by name (`arrhenius`, `examples/mixed-gres`). Without one, jobs run locally. |
 | `-n`, `--dry-run` | Plan the run and print its configuration, job counts and commands without running jobs. |
 | `-e`, `--estimate` | Print the [compute estimate](estimate_compute_command.md) of the run instead of running it; see [below](#the-compute-estimate). Not with `-n`. |
@@ -31,9 +34,29 @@ Snakemake from the checkout root, wherever it is started.
 | `--target <rule>` | The rule to run. Default `all`. |
 | `--jobs <n>` | How many jobs run at once locally. Refused with `--site`: the site profile sets it. |
 | `key=value` | A pipeline profile override, as Snakemake's `--config` takes it (`"methods=[gdfs,dime]"`, `"eval_hard_budgets={cube: [2, 4]}"`). Repeat for several. |
-| `-- <Snakemake arguments>` | Passed to Snakemake unchanged, such as `--rerun-incomplete` or `--set-resources`. Not `--config`: give overrides as `key=value` instead. |
+| `-- <Snakemake arguments>` | Passed to Snakemake unchanged, such as `--rerun-incomplete` or `--set-resources`. Not `--config` or `--configfile`: give overrides as `key=value` and the config file through the launcher instead. |
 
-A profile name that does not exist fails, listing the existing ones.
+A profile name that does not exist fails, listing the existing ones. A missing
+config file or combining `--configfile` with a named profile also fails.
+
+With `--configfile`, the launcher uses the pipeline Snakefile directly rather
+than loading a named profile. When the selected output root contains a release
+manifest, it first completes dataset generation, then validates dataset content
+and runs the requested target with checked release reuse. A failed preparation
+or validation stops the invocation. Disabling dataset generation skips preparation,
+not validation. Targeting `all_generate_datasets` only prepares datasets.
+
+A dry run or estimate generates nothing. It previews release reuse conditional
+on regenerated datasets passing validation during execution; existing datasets
+are still checked. The normal run performs those checks after preparation,
+before scheduling consumers. No user-supplied stage switches or reuse flags
+are needed. Named-profile runs retain their ordinary dependency behavior.
+
+A benchmark config preserves pipeline-level settings and defaults, not a
+self-contained checkout, environment, external data, or transitive Hydra
+configuration archive. The release's producer-specific site, execution,
+logging and stage switches are not replayed. Choose execution independently.
+The manifest remains the original release inventory, not the extended run's.
 
 The method and dataset listings read `workflow/conf/{methods,datasets}/all.yaml`.
 The Unmasker and Initializer listings read the config file names under

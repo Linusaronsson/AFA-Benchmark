@@ -121,6 +121,24 @@ def test_load_config_uses_pipeline_defaults() -> None:
     assert settings.output_root == "output/production"
 
 
+def test_realization_override_is_normalized_for_release_identity_checks() -> (
+    None
+):
+    override = parse_config(["dataset_realization_indices=[0,1,7]"])
+    settings = load_config(_config() | override)
+    assert settings.dataset_realization_indices == [0, 1, 7]
+
+
+@pytest.mark.parametrize("indices", [[True], [-1], [0.5], ["invalid"], "0,1"])
+def test_realizations_require_nonnegative_integer_indices(
+    indices: object,
+) -> None:
+    with pytest.raises(
+        (TypeError, ValueError), match="dataset_realization_indices"
+    ):
+        load_config(_config() | {"dataset_realization_indices": indices})
+
+
 def test_every_pipeline_stage_runs_by_default() -> None:
     stages = load_config(_config()).stages
 

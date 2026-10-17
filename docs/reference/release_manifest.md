@@ -10,7 +10,7 @@ own [provenance records](../adr/0002-provenance-recorded-in-artifacts.md),
 never from the workflow configuration: it is a cache of those records, and
 saving the same output tree again gives the same index
 ([ADR 0006](../adr/0006-release-manifest-indexes-artifact-provenance.md)).
-The schema is `afabench.release.manifest.ReleaseManifest`, version 6.
+The schema is `afabench.release.manifest.ReleaseManifest`, version 7.
 Readers reject other schema versions.
 
 `save --release-id` refuses an output tree holding any bundle, or any
@@ -31,7 +31,7 @@ which is as the producing job was given it. JSON object keys are strings.
 
 | Field | Meaning |
 | --- | --- |
-| `manifest_version` | Schema version, 6. Readers reject versions they do not know. |
+| `manifest_version` | Schema version, 7. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
 | `execution_mode` | `smoke` if any artifact's record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `publish` refuses `smoke`; such a manifest is only downloaded in tests, from a local host. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
@@ -51,18 +51,26 @@ executed jobs. `save` reads it automatically, rather than reconstructing
 it from the packaging checkout. Optional configuration arguments to `save`
 are checked against this record.
 
-It is never read to describe an artifact or applied by a
-[repository adopter's](../how-to/repository_adopter/compare_your_method_with_published_results.md)
-run, which uses their own pipeline profile. A release built across commits
-keeps the last executing invocation's configuration; each artifact's own
-provenance record describes how that artifact was produced.
+It is never read to describe an artifact. Its `benchmark` mapping supplies
+the runnable `benchmark.yaml` included with each release download. Adopters
+explicitly select that file with the launcher's `--configfile`, or choose their
+own pipeline profile. A release built across commits keeps the last executing
+invocation's configuration; each artifact's own provenance record describes
+how that artifact was produced.
 
 | Field | Meaning |
 | --- | --- |
-| `profile` | The pipeline profile directory recorded by `workflow/run.py`, or null when launched directly with Snakemake. |
+| `profile` | The pipeline profile directory recorded by `workflow/run.py`, or null when using `--configfile` or launching directly with Snakemake. |
 | `configfiles` | One `{path, sha256}` per config file, in merge order. |
 | `overrides` | The `--config` (or profile `config`) values. |
 | `merged` | The full config Snakemake sees after merging. |
+| `benchmark` | Pipeline settings with pipeline-level defaults materialized at execution time, excluding the producer's output root, site/device configuration, logging and reuse controls. All pipeline stages are enabled. Per-artifact provenance remains authoritative. |
+
+Release packages contain this mapping as `benchmark.yaml`, covered by the
+package's file inventory. Every download, including selective downloads,
+restores a runnable copy with `output_root` set to the absolute download
+destination. Config-file copies retain this value. Command-line overrides
+apply last. See the [launcher](pipeline_launcher_command.md).
 
 ### `code` of an entry
 

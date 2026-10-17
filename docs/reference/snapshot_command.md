@@ -31,6 +31,13 @@ configuration is never used to describe an artifact. An output root without
 a record is refused; execute pipeline jobs to record their configuration
 (a dry run or no-op invocation does not create the record).
 
+The record also freezes pipeline-level benchmark defaults. Release packages
+include this mapping as `benchmark.yaml`, without publisher output paths,
+execution/site settings or logging and reuse switches. Every release download
+or restore creates a runnable copy with `output_root` set to its absolute
+destination, including selective downloads. Use it with
+`workflow/run.py --configfile <root>/benchmark.yaml`; overrides apply last.
+
 These optional arguments assert a configuration against the recorded run.
 A mismatch in merged values, overrides, file paths or hashes, or an
 explicit profile mismatch, is refused before copying anything:
@@ -157,7 +164,10 @@ duration table, if any, into the destination root itself, as
 snapshot they sit beside `output/`; in a checkout they sit inside the
 root, so the smoke and production output roots each keep their own
 release's files. `save` leaves these three files out when it copies a
-source root, so a new release never carries a restored one's. A manifest whose
+source root, so a new release never carries a restored one's. A release save
+also replaces the downloaded `benchmark.yaml` with the recorded run's benchmark
+configuration. Verbatim snapshots retain that config file in their output tree.
+A manifest whose
 `manifest_version` this checkout does not read is refused before anything
 is restored.
 
@@ -317,6 +327,8 @@ nothing.
 ```text
 releases/<release_id>/
     release_manifest.json
+    benchmark.yaml          runnable benchmark settings
+    README.md               coverage and available files
     release_job_duration_table.parquet     if the release has job records
     output_mtimes.json      modification times of everything under output/
     output/                 the snapshot's output tree

@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from snakemake.cli import parse_config
 
+from afabench.core.workflow_settings import PIPELINE_DEFAULTS
 from afabench.release.workflow_config import (
     record_workflow_config,
     release_workflow_config,
@@ -57,6 +58,63 @@ def record_run(tmp_path: Path, *, methods: str = "alpha") -> Path:
         merged={"methods": [methods], "initializer": "warm"},
     )
     return root
+
+
+def test_record_freezes_benchmark_defaults_without_producer_execution(
+    tmp_path: Path,
+) -> None:
+    configfile = tmp_path / "run.yaml"
+    configfile.write_text("{}\n")
+    merged = {
+        "dataset_realization_indices": [2, 7],
+        "output_root": "/publisher/output",
+        "execution_file": "/publisher/gpus.yaml",
+        "execution_site": {"cpu": {"account": "publisher"}},
+        "use_wandb": True,
+        "wandb_group": "published",
+        "reuse_release": True,
+        "stages": {"dataset_generation": False},
+        "method_options": {"alpha": {"train_script_name": "alpha"}},
+    }
+    record_workflow_config(
+        tmp_path,
+        profile=None,
+        configfiles=[configfile],
+        overrides={},
+        merged=merged,
+    )
+    record = release_workflow_config(tmp_path)
+    assert record.merged == merged
+    assert record.benchmark["dataset_realization_indices"] == [2, 7]
+    assert record.benchmark["initializer"] == "cold"
+    assert record.benchmark["eval_dataset_split"] == "test"
+    assert record.benchmark["soft_budget_setting"] is True
+    assert record.benchmark["stages"]["dataset_generation"] is True
+    assert record.benchmark["method_options"]["alpha"]["eval_batch_size"] == 1
+    for key in (
+        "output_root",
+        "execution_file",
+        "execution_site",
+        "use_wandb",
+        "wandb_group",
+        "reuse_release",
+    ):
+        assert key not in record.benchmark
+
+
+def test_defaults_are_not_recomputed_in_the_packaging_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = record_run(tmp_path)
+    monkeypatch.setitem(
+        PIPELINE_DEFAULTS,
+        "eval_dataset_split",
+        "val",
+    )
+    assert (
+        release_workflow_config(root).benchmark["eval_dataset_split"] == "test"
+    )
 
 
 def test_save_time_config_changes_do_not_change_the_record(

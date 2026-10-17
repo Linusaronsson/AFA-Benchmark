@@ -50,6 +50,7 @@ from afabench.core.job_duration_table import (
     load_job_duration_table,
 )
 from afabench.core.output_layout import PRODUCTION_OUTPUT_ROOT
+from afabench.release.config_run import config_run_commands
 from afabench.release.manifest import (
     JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
@@ -135,6 +136,7 @@ def main(
             [*ctx.args, *ctx.meta.get(SNAKEMAKE_ARGUMENTS, [])],
             checkout=Path.cwd(),
         )
+        arguments = config_run_commands(arguments, preview=True)[0]
     except LauncherError as error:
         raise typer.BadParameter(str(error)) from None
     try:

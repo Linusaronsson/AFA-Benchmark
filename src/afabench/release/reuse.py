@@ -20,8 +20,9 @@ from afabench.release.manifest import read_release_manifest
 
 @final
 class ReleaseReuse:
-    def __init__(self, output_root: Path) -> None:
+    def __init__(self, output_root: Path, *, preview: bool = False) -> None:
         self.output_root = output_root
+        self.preview = preview
         self._dataset_hashes: dict[Path, str] = {}
         manifest = read_release_manifest(output_root / "release_manifest.json")
         self.bundles = {entry.path: entry for entry in manifest.bundles}
@@ -72,8 +73,10 @@ class ReleaseReuse:
                 )
                 self.compatible(consumer, dataset, item.role)
 
-    def _dataset_hash(self, dataset: Path) -> str:
+    def _dataset_hash(self, dataset: Path) -> str | None:
         if not (dataset / "manifest.json").is_file():
+            if self.preview:
+                return None
             message = (
                 f"Release reuse requires dataset bundle {dataset}; run "
                 "all_generate_datasets first without reuse_release."
@@ -111,7 +114,11 @@ class ReleaseReuse:
             item.content_hash for item in entry.inputs if item.role == role
         ]
         actual = self._dataset_hash(dataset)
-        if len(expected) != 1 or expected[0] is None or expected[0] != actual:
+        if (
+            len(expected) != 1
+            or expected[0] is None
+            or (actual is not None and expected[0] != actual)
+        ):
             message = (
                 f"Incompatible dataset {dataset} for released artifact "
                 f"{consumer} ({role}): expected {expected}, got {actual}. "
