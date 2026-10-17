@@ -211,12 +211,14 @@ class WorkflowHarness:
         self,
         *options: str,
         target: str = "all_eval_methods",
+        configuration_source: Sequence[str] = (PIPELINE_PROFILE,),
         timeout: int = 240,
     ) -> subprocess.CompletedProcess[str]:
         """
         Plan, as the interactive preview's child does, the graph of `run`.
 
         The plan, the jobs `run` would run and reuse, is at `plan_path`.
+        `configuration_source` is as for `plan`, with any overrides.
         """
         return subprocess.run(
             [
@@ -226,7 +228,11 @@ class WorkflowHarness:
                 "--output",
                 str(self.plan_path),
                 "--",
-                *self.invocation_arguments(*options, target=target),
+                *self.invocation_arguments(
+                    *options,
+                    target=target,
+                    configuration_source=configuration_source,
+                ),
             ],
             cwd=self.root,
             env=self.environment(),
@@ -237,10 +243,15 @@ class WorkflowHarness:
         )
 
     def planned_graph(
-        self, *options: str, target: str = "all_eval_methods"
+        self,
+        *options: str,
+        target: str = "all_eval_methods",
+        configuration_source: Sequence[str] = (PIPELINE_PROFILE,),
     ) -> PipelinePlan:
         """Return the plan of `run`; fail on an invocation Snakemake rejects."""
-        planned = self.plan_graph(*options, target=target)
+        planned = self.plan_graph(
+            *options, target=target, configuration_source=configuration_source
+        )
         assert planned.returncode == 0, planned.stdout + planned.stderr
         return load_plan(self.plan_path.read_text())
 
@@ -249,13 +260,16 @@ class WorkflowHarness:
         return self.root / "plan.json"
 
     def invocation_arguments(
-        self, *options: str, target: str = "all_eval_methods"
+        self,
+        *options: str,
+        target: str = "all_eval_methods",
+        configuration_source: Sequence[str] = (PIPELINE_PROFILE,),
     ) -> list[str]:
         """Return the Snakemake arguments the launcher resolves for a run."""
         self._write_pipeline_profile()
         return snakemake_arguments(
             [
-                PIPELINE_PROFILE,
+                *configuration_source,
                 "--target",
                 target,
                 "--",

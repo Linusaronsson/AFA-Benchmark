@@ -10,6 +10,8 @@ job record will say. A shared prerequisite's job record names a classifier
 or pretrained model, not a method, so those jobs are grouped as "Shared
 prerequisites"; a job without a job record, such as an aggregation or
 visualization job, is grouped as "Across methods" and "Across datasets".
+A release preview's conditionally reused jobs come with a warning that
+execution checks the regenerated datasets they wait for.
 """
 
 from collections import Counter, defaultdict
@@ -61,7 +63,19 @@ ACROSS_DATASETS = "Across datasets"
 NO_STAGE = "no stage"
 NOT_APPLICABLE = "not applicable"
 # The text badge of each status, beside its color
-STATUS_LABELS: dict[JobStatus, str] = {"run": "Run", "reuse": "Reuse"}
+STATUS_LABELS: dict[JobStatus, str] = {
+    "run": "Run",
+    "reuse": "Reuse",
+    "conditional_reuse": "Conditional reuse",
+}
+# Only a release preview reuses conditionally; other plans' summaries leave
+# the status out.
+RELEASE_STATUSES: frozenset[JobStatus] = frozenset({"conditional_reuse"})
+RELEASE_WARNING = (
+    "Conditional reuse: regenerated datasets must match the release's "
+    "recorded content before released outputs are reused during execution. "
+    "Those datasets do not exist yet, so the preview has not checked them."
+)
 REASON_TEXTS: dict[ReasonKind, str] = {
     "missing_output": "Missing outputs",
     "incomplete_output": "Incomplete outputs",
@@ -76,6 +90,13 @@ REASON_TEXTS: dict[ReasonKind, str] = {
     "outputs_up_to_date": (
         "The outputs it is needed for exist and are up to date, and nothing "
         "it needs is rerun"
+    ),
+    "pending_dataset_check": (
+        "Released outputs, reused during execution only if these regenerated "
+        "dataset bundles match the release's recorded content"
+    ),
+    "conditional_input": (
+        "Reads outputs that are themselves conditionally reused"
     ),
 }
 # A job's identity fields beyond its group's dimensions, with the short
@@ -160,7 +181,7 @@ def counts_text(counts: dict[JobStatus, int], *, with_zero: bool) -> str:
     return ", ".join(
         f"{count} {STATUS_LABELS[status]}"
         for status, count in counts.items()
-        if count or with_zero
+        if count or (with_zero and status not in RELEASE_STATUSES)
     )
 
 
@@ -170,6 +191,13 @@ def plan_summary(plan: PipelinePlan) -> str:
     return f"{count} job{'' if count == 1 else 's'}: " + counts_text(
         status_counts(plan.jobs), with_zero=True
     )
+
+
+def release_warning(plan: PipelinePlan) -> str | None:
+    """Warn of the dataset checks a conditional reuse waits for, if any."""
+    if any(job.status in RELEASE_STATUSES for job in plan.jobs):
+        return RELEASE_WARNING
+    return None
 
 
 def preview_tree(plan: PipelinePlan) -> tuple[GroupNode, ...]:

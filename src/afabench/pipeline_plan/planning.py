@@ -24,11 +24,22 @@ file existence itself. A file an input needs that no rule of the
 invocation produces, such as the output of a stage that is off, is read
 as it is and is no job of the plan.
 
+One decision is the release's, not Snakemake's. A release preview plans
+dataset generation and the jobs reading its datasets in one graph, so
+Snakemake reruns every released job whose dataset bundles are omitted and
+must be regenerated. Execution generates them first and reuses those jobs
+if their content matches the release's record. A job the preview runs only
+for such datasets, directly or through other such jobs, is planned as
+conditionally reused; the release (`afabench.release.reuse`) names the
+datasets whose check it left to execution.
+
 Needs Snakemake, a development dependency that `uv sync` installs.
 """
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from graphlib import TopologicalSorter
+from pathlib import Path
 from typing import Literal
 from unittest import mock
 
@@ -48,19 +59,24 @@ from afabench.core.job_record import (
     job_identity,
 )
 from afabench.release.config_run import config_run_commands
+from afabench.release.reuse import ReleaseReuse
 
 # What the invocation does with a job: run it, including to replace its
-# existing but stale outputs, or reuse its existing outputs without
-# running it. Independent of whether its output files happen to exist.
-type JobStatus = Literal["run", "reuse"]
-JOB_STATUSES: tuple[JobStatus, ...] = ("run", "reuse")
+# existing but stale outputs, reuse its existing outputs without running
+# it, or reuse its released outputs once the datasets it reads are
+# regenerated and pass the release's content checks. Independent of
+# whether its output files happen to exist.
+type JobStatus = Literal["run", "reuse", "conditional_reuse"]
+JOB_STATUSES: tuple[JobStatus, ...] = ("run", "reuse", "conditional_reuse")
 
-# Why a job has its status, as Snakemake decided it. "outputs_up_to_date"
-# is the one reason to reuse: the outputs its consumers need exist and are
-# up to date, so an output nothing needs may still be missing. The others
-# are reasons to run. The files a reason names are the job's missing
-# outputs, its inputs newer than its outputs, or its inputs another job of
-# the plan rewrites.
+# Why a job has its status. "outputs_up_to_date" is Snakemake's one reason
+# to reuse: the outputs its consumers need exist and are up to date, so an
+# output nothing needs may still be missing. "pending_dataset_check" and
+# "conditional_input" are the reasons to reuse conditionally: the
+# regenerated datasets whose check the reuse waits for, and the outputs of
+# conditionally reused jobs it reads. The others are Snakemake's reasons to
+# run. The files a reason names are the job's missing outputs, its inputs
+# newer than its outputs, or its inputs another job of the plan rewrites.
 type ReasonKind = Literal[
     "missing_output",
     "incomplete_output",
@@ -73,6 +89,8 @@ type ReasonKind = Literal[
     "forced",
     "no_output",
     "outputs_up_to_date",
+    "pending_dataset_check",
+    "conditional_input",
 ]
 
 
@@ -126,8 +144,13 @@ class PipelinePlan:
 
     @property
     def scheduled_jobs(self) -> list[PlannedJob]:
-        """The jobs it would run, depending on scheduled jobs only."""
-        scheduled = {job.jobid for job in self.jobs if job.status == "run"}
+        """
+        The jobs it would run, depending on scheduled jobs only.
+
+        Conditionally reused jobs count among them, as Snakemake schedules
+        them in a release preview.
+        """
+        scheduled = {job.jobid for job in self.jobs if job.status != "reuse"}
         return [
             replace(job, dependencies=job.dependencies & scheduled)
             for job in self.jobs
@@ -148,6 +171,7 @@ def plan_invocation(snakemake_arguments: Sequence[str]) -> PipelinePlan:
 def _graph_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
     """Return the jobs of the graph `snakemake <arguments>` would run from."""
     planned: list[PlannedJob] = []
+    pending_dataset_checks: dict[str, set[str]] = {}
 
     def plan(workflow: Workflow, executor_plugin: Plugin, **_: object) -> None:
         # The first steps of Workflow.execute, which has no public way to
@@ -189,6 +213,15 @@ def _graph_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
             )
             for job in jobs
         )
+        # The workflow's checked release reuse (workflow/snakefiles/settings.smk)
+        release_reuse = workflow.globals.get("RELEASE_REUSE")
+        if isinstance(release_reuse, ReleaseReuse):
+            pending_dataset_checks.update(
+                (str(consumer), {str(dataset) for dataset in datasets})
+                for consumer, datasets in (
+                    release_reuse.pending_dataset_checks.items()
+                )
+            )
 
     try:
         parser, args = parse_args(list(arguments))
@@ -198,9 +231,78 @@ def _graph_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
     with mock.patch.object(Workflow, "execute", plan):
         if not args_to_api(args, parser):
             raise InvocationError
-    return sorted(
-        planned, key=lambda job: (job.rule, sorted(job.wildcards.items()))
+    return _with_conditional_reuse(
+        sorted(
+            planned, key=lambda job: (job.rule, sorted(job.wildcards.items()))
+        ),
+        pending_dataset_checks,
     )
+
+
+def _with_conditional_reuse(
+    jobs: list[PlannedJob], pending_dataset_checks: Mapping[str, set[str]]
+) -> list[PlannedJob]:
+    """
+    Plan as conditionally reused the jobs run only for regenerated datasets.
+
+    `pending_dataset_checks` names, per released output, the datasets whose
+    content check the release left to execution. A job is conditionally
+    reused when Snakemake runs it only because jobs of the plan rewrite its
+    inputs, and each of those inputs is such a dataset of its outputs or an
+    output of a conditionally reused job.
+    """
+    if not pending_dataset_checks:
+        return jobs
+    by_id = {job.jobid: job for job in jobs}
+    conditional_outputs: set[str] = set()
+    graph = {job.jobid: job.dependencies for job in jobs}
+    for jobid in TopologicalSorter(graph).static_order():
+        job = by_id[jobid]
+        reasons = _conditional_reasons(
+            job, pending_dataset_checks, conditional_outputs
+        )
+        if reasons:
+            by_id[jobid] = replace(
+                job, status="conditional_reuse", reasons=reasons
+            )
+            conditional_outputs.update(map(_normalized, job.outputs))
+    return [by_id[job.jobid] for job in jobs]
+
+
+def _conditional_reasons(
+    job: PlannedJob,
+    pending_dataset_checks: Mapping[str, set[str]],
+    conditional_outputs: set[str],
+) -> tuple[StatusReason, ...]:
+    """Return why the job is conditionally reused; none if it is not."""
+    if job.status != "run" or any(
+        reason.kind != "input_from_rerun" for reason in job.reasons
+    ):
+        return ()
+    pending = {
+        dataset
+        for output in job.outputs
+        for dataset in pending_dataset_checks.get(_normalized(output), ())
+    }
+    rewritten = [file for reason in job.reasons for file in reason.files]
+    datasets = tuple(f for f in rewritten if _normalized(f) in pending)
+    inputs = tuple(
+        f for f in rewritten if _normalized(f) in conditional_outputs
+    )
+    if not rewritten or len(datasets) + len(inputs) != len(rewritten):
+        return ()
+    named: list[tuple[ReasonKind, tuple[str, ...]]] = [
+        ("pending_dataset_check", datasets),
+        ("conditional_input", inputs),
+    ]
+    return tuple(
+        StatusReason(kind=kind, files=files) for kind, files in named if files
+    )
+
+
+def _normalized(path: str) -> str:
+    """Spell a path as the release names it."""
+    return str(Path(path))
 
 
 def _planned_job(
