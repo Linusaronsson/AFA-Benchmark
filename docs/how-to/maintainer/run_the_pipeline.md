@@ -212,19 +212,15 @@ using alternative budget files.
 ## Inspect planned work
 
 - Pass `-n list_jobs=true` to inspect job commands, `device=` arguments and allocations.
-- Replace `-n` with `--interactive-preview` to browse the jobs by stage,
-  method and dataset in the terminal, each marked `Run` or `Reuse` with
-  Snakemake's reason ([statuses, keys and
-  panes](../../reference/interactive_preview.md)). Press `q` to quit;
-  nothing runs.
+- Replace `-n` with `--interactive-preview` to browse the jobs in the
+  terminal with their [job status](../../../CONTEXT.md) and its reasons
+  ([interactive preview](../../reference/interactive_preview.md)).
 - Add `--group-by dataset,method` to the preview to compare methods on each
-  dataset. In the preview, press `g` to regroup, `f` to filter by stage,
-  method, dataset or status and `/` to search
+  dataset. Regroup, filter and search in the preview
   ([controls](../../reference/interactive_preview.md#grouping-filters-and-search)).
-- To find what makes a job run, select it, press `Tab` twice to its
-  relations and `Enter` on a `Needs` job marked `Run`; `Backspace` returns
+- To find what makes a job run, follow its `Needs` relations to a `Run` job
+  with a reason of its own
   ([following relations](../../reference/interactive_preview.md#following-relations)).
-  Press `s` for the selected job's shell command.
 - Use `--target all_train_classifiers`, `all_pretrain_models`,
   `all_train_methods` or `all_eval_methods` to narrow the target.
 - Read detailed logs under `.snakemake/log/` when troubleshooting.

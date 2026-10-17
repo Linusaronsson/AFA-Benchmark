@@ -404,6 +404,37 @@ def test_job_details_explain_a_reuse_and_its_consuming_methods() -> None:
     assert details["Consuming methods"] == "alpha, beta"
 
 
+def test_a_per_method_classifier_belongs_to_its_method() -> None:
+    alphas_classifier = job(
+        "train_classifier_for_method",
+        21,
+        JobIdentity(
+            stage="classifier_training",
+            name="masked_mlp_classifier",
+            dataset_key="cube",
+            dataset_realization_index=0,
+        ),
+        wildcards={
+            "method": "alpha",
+            "dataset": "cube",
+            "dataset_realization_index": "0",
+        },
+    )
+    plan = PipelinePlan(jobs=[*PLAN.jobs, alphas_classifier])
+
+    assert leaves(preview_tree(plan, PlanView(grouping=("method",))))[:2] == [
+        ("alpha", "eval_method"),
+        ("alpha", "train_classifier_for_method"),
+    ]
+    details = dict(job_details(alphas_classifier, plan))
+    assert details["Method"] == "alpha"
+    # The job record's name stays the classifier's.
+    assert details["Classifier"] == "masked_mlp_classifier"
+    assert "Consuming methods" not in details
+    assert alphas_classifier in shown_jobs(plan, PlanView(method="alpha"))
+    assert alphas_classifier not in shown_jobs(plan, PlanView(method="beta"))
+
+
 def test_job_details_show_inputs_no_job_of_the_plan_makes() -> None:
     plan = PipelinePlan(jobs=[job for job in PLAN.jobs if job is not DATASET])
 
@@ -453,7 +484,7 @@ def test_job_details_show_the_allocation_a_job_requests() -> None:
 
 def test_job_details_show_where_a_job_requests_to_be_placed() -> None:
     placed = job(
-        "train_method",
+        "plot_time",
         5,
         None,
         placement={"slurm_partition": "gpu-queue", "gres": "gpu:T4:1"},
@@ -787,3 +818,95 @@ def test_conditional_reuse_can_be_filtered_like_any_status() -> None:
     assert sorted(
         job.jobid for job in shown_jobs(RELEASE_PLAN, PlanView(method="alpha"))
     ) == [50, 51, 52]
+
+
+# A reused training whose identity, allocation and shell command could not
+# be evaluated
+UNAVAILABLE = replace(
+    job(
+        "train_method",
+        60,
+        None,
+        status="reuse",
+        reasons=(StatusReason(kind="outputs_up_to_date"),),
+        wildcards={"method": "gamma"},
+        inputs=("datasets/cube/0/train.bundle",),
+        outputs=("gamma/0.bundle",),
+        cpus=None,
+    ),
+    device=None,
+    gpus=None,
+    time_limit_minutes=None,
+    unavailable="ValueError: Cannot size the inputs of gamma",
+)
+UNAVAILABLE_PLAN = PipelinePlan(jobs=[*PLAN.jobs, UNAVAILABLE])
+
+
+def test_a_job_with_an_unavailable_identity_is_grouped_apart() -> None:
+    tree = preview_tree(UNAVAILABLE_PLAN)
+
+    assert outline(tree[-1:]) == [
+        (
+            "Identity unavailable",
+            "1 Reuse",
+            [
+                (
+                    "Identity unavailable",
+                    "1 Reuse",
+                    [
+                        (
+                            "Identity unavailable",
+                            "1 Reuse",
+                            [("reuse", "train_method: method=gamma")],
+                        )
+                    ],
+                )
+            ],
+        )
+    ]
+    assert plan_summary(UNAVAILABLE_PLAN) == "8 jobs: 4 Run, 4 Reuse"
+    assert leaves(
+        preview_tree(UNAVAILABLE_PLAN, PlanView(grouping=("method",)))
+    )[-2:] == [
+        ("Across methods", "plot_eval_perf"),
+        ("Identity unavailable", "train_method"),
+    ]
+
+
+def test_job_details_say_why_a_jobs_identity_and_allocation_are_unavailable() -> (
+    None
+):
+    details = dict(job_details(UNAVAILABLE, UNAVAILABLE_PLAN))
+
+    assert details["Status"] == "Reuse"
+    assert details["Rule"] == "train_method"
+    assert details["Wildcards"] == "method=gamma"
+    assert details["Unavailable"] == (
+        "Evaluating its params or resources failed, so its identity, "
+        "allocation and shell command are unknown:\n"
+        "ValueError: Cannot size the inputs of gamma"
+    )
+    for label in [
+        "Stage",
+        "Method",
+        "Dataset",
+        "Device",
+        "CPUs",
+        "GPUs",
+        "Time limit",
+        "Placement",
+    ]:
+        assert details[label] == "unavailable"
+    assert "Job record" not in details
+    assert details["Inputs"] == "datasets/cube/0/train.bundle"
+    assert details["Outputs"] == "gamma/0.bundle"
+    assert shell_command_text(UNAVAILABLE) == (
+        "Shell command unavailable: ValueError: Cannot size the inputs of gamma"
+    )
+
+
+def test_a_rule_without_job_records_and_a_stage_is_refused() -> None:
+    plan = PipelinePlan(jobs=[*PLAN.jobs, job("plot_novelty", 70, None)])
+
+    with pytest.raises(ValueError, match="'plot_novelty'"):
+        preview_tree(plan)

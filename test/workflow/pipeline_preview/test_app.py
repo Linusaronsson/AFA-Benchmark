@@ -3,7 +3,8 @@ The preview browses the plan headless: panes, keys, layouts, failure (#158).
 
 Driven through Textual's pilot over stand-in planning children, so no
 Snakemake runs; `test/workflow/test_interactive_preview.py` browses a
-real workflow's plan.
+real workflow's plan. In the workflow tier, as each test drives the app for
+seconds, which the fast tier's budget cannot afford.
 """
 
 import asyncio

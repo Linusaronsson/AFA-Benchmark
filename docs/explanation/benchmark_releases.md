@@ -43,6 +43,19 @@ so a release says which code produced each of its artifacts.
   manifest instead
   ([job duration table](../reference/release_manifest.md#job-duration-table)).
 
+## Previewing a run over a release
+
+A dry run, compute estimate or interactive preview of a config invocation
+over a downloaded release plans dataset generation and the jobs reading its
+datasets in one graph. Snakemake therefore reruns every released job whose
+dataset bundles the release omits, since they must be regenerated. A real
+run generates those datasets first and reuses the released jobs only if the
+regenerated content matches the release's record. The datasets do not
+exist while planning, so the plan cannot make that check: a job the
+preview runs only for such datasets, directly or through other such jobs,
+has the job status Conditional reuse instead of Run. Any other reason to
+run, such as a missing released output, keeps it Run.
+
 ## Only the release command talks to the host
 
 Training, evaluation and plotting read and write local files and know

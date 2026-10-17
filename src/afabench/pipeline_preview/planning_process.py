@@ -46,7 +46,8 @@ class PlanningProcess:
         cwd: Path | None = None,
         env: Mapping[str, str] | None = None,
     ) -> None:
-        self._snakemake_arguments: list[str] = list(snakemake_arguments)
+        # The arguments it plans `snakemake` with
+        self.snakemake_arguments: list[str] = list(snakemake_arguments)
         self._interpreter: list[str] = list(interpreter)
         self._cwd: Path | None = cwd
         self._env: dict[str, str] | None = None if env is None else dict(env)
@@ -70,7 +71,7 @@ class PlanningProcess:
                 "--output",
                 str(self.plan_path),
                 "--",
-                *self._snakemake_arguments,
+                *self.snakemake_arguments,
             ],
             cwd=self._cwd,
             env=self._env,

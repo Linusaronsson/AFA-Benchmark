@@ -79,6 +79,13 @@ type PreviewNode = GroupNode | JobNode
 NARROW_WIDTH = 80
 # The view's fields the filter controls set, in the controls' order
 FILTERS = (*DIMENSIONS, "status")
+# What each filter control shows when it filters nothing
+FILTER_PROMPTS = {
+    "stage": "All stages",
+    "method": "All methods",
+    "dataset": "All datasets",
+    "status": "All statuses",
+}
 NO_MATCH = "No job matches the filters and search"
 NO_RELATIONS = "Needs no job of this plan, and no job of it needs this one"
 DIRECTION_LABELS = {"needs": "Needs", "needed_by": "Needed by"}
@@ -244,7 +251,7 @@ class PipelinePreviewApp(App[None]):
             for name in FILTERS:
                 yield Select[str](
                     [],
-                    prompt=f"All {name}{'es' if name == 'status' else 's'}",
+                    prompt=FILTER_PROMPTS[name],
                     compact=True,
                     id=f"filter-{name}",
                 )

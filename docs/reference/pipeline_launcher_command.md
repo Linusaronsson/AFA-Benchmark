@@ -115,7 +115,7 @@ resolved for the run, so swapping `-n` for `--interactive-preview` browses the
 same run:
 
 ```shell
-<interpreter> -m afabench.pipeline_preview [--group-by <dimensions>] <Snakemake arguments>
+<interpreter> -m afabench.pipeline_preview [--group-by <dimensions>] -- <Snakemake arguments>
 ```
 
 The interpreter is `workflow/venvs/bin/python` when the site's `site.yaml`

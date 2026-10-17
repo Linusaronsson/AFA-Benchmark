@@ -9,7 +9,9 @@ from pathlib import Path
 
 import pytest
 
+from afabench.pipeline_preview.model import DIMENSIONS
 from workflow.run import (
+    GROUPING_DIMENSIONS,
     LauncherError,
     available_names,
     check_site_venvs,
@@ -630,6 +632,7 @@ def test_interactive_preview_browses_the_runs_snakemake_arguments() -> None:
         "python",
         "-m",
         "afabench.pipeline_preview",
+        "--",
         *snakemake_arguments(
             ["methods=[dime]", "--target", "all_train_methods"]
         ),
@@ -654,6 +657,7 @@ def test_interactive_preview_of_a_config_file_plans_instead_of_running_it(
         "python",
         "-m",
         "afabench.pipeline_preview",
+        "--",
         *snakemake_arguments(["--configfile", str(config)]),
     ]
     assert not any("release_preview" in argument for argument in command)
@@ -666,10 +670,11 @@ def test_interactive_preview_on_a_site_naming_venvs_runs_in_the_nodes_venv() -> 
         ["--site", "arrhenius", "--interactive-preview", "datasets=[cube]"]
     )
 
-    assert command[:4] == [
+    assert command[:5] == [
         "workflow/venvs/bin/python",
         "-m",
         "afabench.pipeline_preview",
+        "--",
         "--profile",
     ]
     assert (
@@ -728,13 +733,14 @@ def test_group_by_sets_the_interactive_previews_initial_grouping() -> None:
         ["--interactive-preview", "--group-by", "dataset,method", "kdd26"]
     )
 
-    assert command[3:7] == [
+    assert command[3:8] == [
         "-m",
         "afabench.pipeline_preview",
         "--group-by",
         "dataset,method",
+        "--",
     ]
-    assert command[7:] == snakemake_arguments(["kdd26"])
+    assert command[8:] == snakemake_arguments(["kdd26"])
 
 
 @pytest.mark.parametrize(
@@ -771,3 +777,8 @@ def test_group_by_needs_interactive_preview() -> None:
         launcher_command(["--group-by", "method"])
     with pytest.raises(LauncherError, match="--interactive-preview"):
         launcher_command(["-n", "--group-by", "method"])
+
+
+def test_group_by_takes_the_interactive_previews_dimensions() -> None:
+    # The launcher cannot import the preview, so it names them again.
+    assert GROUPING_DIMENSIONS == DIMENSIONS

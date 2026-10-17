@@ -600,10 +600,12 @@ from whether output files happen to exist: a missing output nothing needs
 leaves a job reused. **Conditional reuse**: in the plan of a config
 invocation of a downloaded release, the job's released outputs are reused
 only if the dataset bundles it reads, which must be regenerated first,
-match the release's recorded content; Snakemake alone would run it. A
-compute estimate counts conditionally reused jobs among the scheduled ones.
+match the release's recorded content; Snakemake alone would run it.
+**Scheduled jobs**: the jobs of a pipeline plan whose status is Run or
+Conditional reuse, which Snakemake schedules for the invocation; a compute
+estimate estimates them.
 _Avoid_: Cached, skipped, up to date (a reused job's description, not its
-status), scheduled (the dry run's term for Run), verified reuse (Reuse)
+status), scheduled for one job's status (Run), verified reuse (Reuse)
 
 **Interactive preview**:
 The terminal browser of a pipeline plan that the pipeline launcher opens

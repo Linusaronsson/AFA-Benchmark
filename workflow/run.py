@@ -28,7 +28,7 @@ With -e it runs the compute estimate of that invocation instead
 arguments and, with -e only, the estimate's options, with the same
 interpreter. With --interactive-preview it opens the interactive preview
 of that invocation instead (python -m afabench.pipeline_preview, with the
-resolved Snakemake arguments), with the same interpreter; the preview
+resolved Snakemake arguments after --), with the same interpreter; the preview
 needs a terminal and runs no job, so -n changes nothing and -e, --wandb
 and --wandb-group are refused. --group-by, with --interactive-preview
 only, passes the preview its initial grouping: stage, method and dataset,
@@ -103,6 +103,7 @@ def launcher_command(
                 if options.group_by is None
                 else ["--group-by", options.group_by]
             ),
+            "--",
             *snakemake_arguments(arguments, checkout),
         ]
     if not options.estimate:
@@ -450,7 +451,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--interactive-preview",
         action="store_true",
-        help="Browse the jobs the run would schedule in the terminal without running them (implies -n)",
+        help="Browse the run's pipeline plan in the terminal: the jobs it would run and the jobs it would reuse, each with its job status, running none (-n changes nothing)",
     )
     parser.add_argument(
         "--group-by",

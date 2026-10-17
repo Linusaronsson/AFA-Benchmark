@@ -12,11 +12,18 @@ invocations.
 import os
 import shutil
 import time
+from contextlib import chdir
 from pathlib import Path
+from unittest import mock
+
+from snakemake.cli import args_to_api, parse_args
+from snakemake.rules import Rule
+from snakemake.workflow import Workflow
 
 from afabench.pipeline_plan.planning import PipelinePlan, PlannedJob
 from afabench.pipeline_preview.model import (
     SHARED_PREREQUISITES,
+    STAGE_OF_RULE,
     consuming_methods,
     existing_inputs,
     group_of,
@@ -346,3 +353,34 @@ def test_a_pretrained_model_is_a_shared_prerequisite_not_a_method(
     assert details["Pretrained model"] == "shared"
     assert pretraining.jobid in jobs[("train_method", "alpha")].dependencies
     assert pretraining.jobid not in jobs[("train_method", "beta")].dependencies
+
+
+def workflow_rules(workflow: WorkflowHarness) -> list[Rule]:
+    """Return the rules Snakemake loads for the harness's invocation."""
+    rules: list[Rule] = []
+
+    def loaded(snakemake_workflow: Workflow, **_: object) -> None:
+        rules.extend(snakemake_workflow.rules)
+
+    arguments = workflow.invocation_arguments(target="all")
+    with chdir(workflow.root), mock.patch.object(Workflow, "execute", loaded):
+        parser, args = parse_args(arguments)
+        assert args_to_api(args, parser)
+    return rules
+
+
+def test_every_rule_without_job_records_has_a_stage(tmp_path: Path) -> None:
+    workflow = WorkflowHarness(tmp_path)
+    # Defines the per-dataset plotting rule
+    workflow.config["per_dataset_plots"] = True
+
+    rules = workflow_rules(workflow)
+
+    # Rules without an action, such as target rules, are no jobs. Params
+    # are a list of their values, so their names are its keys.
+    recordless = {
+        rule.name
+        for rule in rules
+        if not rule.norun and "job_record" not in rule.params.keys()  # noqa: SIM118
+    }
+    assert recordless == set(STAGE_OF_RULE)
