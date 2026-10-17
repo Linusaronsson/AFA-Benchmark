@@ -160,7 +160,7 @@ class WorkflowHarness:
                 *snakemake_arguments(arguments, checkout=self.root),
             ],
             cwd=self.root,
-            env=self._environment(),
+            env=self.environment(),
             text=True,
             capture_output=True,
             timeout=timeout,
@@ -196,11 +196,28 @@ class WorkflowHarness:
                 *options,
             ],
             cwd=self.root,
-            env=self._environment(),
+            env=self.environment(),
             text=True,
             capture_output=True,
             timeout=timeout,
             check=False,
+        )
+
+    def invocation_arguments(
+        self, *options: str, target: str = "all_eval_methods"
+    ) -> list[str]:
+        """Return the Snakemake arguments the launcher resolves for a run."""
+        self._write_pipeline_profile()
+        return snakemake_arguments(
+            [
+                PIPELINE_PROFILE,
+                "--target",
+                target,
+                "--",
+                *self._snakemake_options(),
+                *options,
+            ],
+            checkout=self.root,
         )
 
     @property
@@ -227,7 +244,7 @@ class WorkflowHarness:
         process = subprocess.Popen(
             self._command(self._pipeline_invocation(), target, options),
             cwd=self.root,
-            env=self._environment(),
+            env=self.environment(),
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -273,7 +290,7 @@ class WorkflowHarness:
         return subprocess.run(
             self._command(invocation, target, options),
             cwd=self.root,
-            env=self._environment(),
+            env=self.environment(),
             text=True,
             capture_output=True,
             timeout=timeout,
@@ -299,7 +316,7 @@ class WorkflowHarness:
     def _snakemake_options(self) -> list[str]:
         return ["--cores", "2", "--jobs", "4", "--printshellcmds"]
 
-    def _environment(self) -> dict[str, str]:
+    def environment(self) -> dict[str, str]:
         env = {
             **os.environ,
             # As a shell started in the root sets it; profiles may expand it.

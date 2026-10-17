@@ -99,6 +99,7 @@ No how-to guide yet. See the
 - [`snapshot.py` command](reference/snapshot_command.md)
 - [`workflow/run.py` command](reference/pipeline_launcher_command.md)
 - [`estimate-compute` command](reference/estimate_compute_command.md)
+- [Interactive preview](reference/interactive_preview.md)
 - [Terminology: patch-based unmasking example](reference/terminology.md)
 
 ### Explanation
