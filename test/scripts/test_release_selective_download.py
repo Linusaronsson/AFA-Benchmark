@@ -112,12 +112,14 @@ def publish(
     omit: Iterable[str] = (),
     backdate: bool = False,
     job_records: bool = False,
+    local_only: bool = False,
 ) -> Path:
     """
     Save and publish a release whose manifest has `created_at`.
 
-    `backdate` gives every saved output a distinct old mtime first. A smoke
-    package, which `publish` refuses, is laid out on the host directly.
+    `backdate` gives every saved output a distinct old mtime first. Smoke
+    and `local_only` packages, which publication refuses, are laid out on
+    the local host directly to exercise permissive download reporting.
     """
     source_root = tmp_path / f"{release_id}-source"
     write_release_outputs(
@@ -173,7 +175,7 @@ def publish(
         for offset, path in enumerate(paths):
             mtime = 1_700_000_000 + offset
             os.utime(path, (mtime, mtime))
-    if smoke_test:
+    if smoke_test or local_only:
         transport.host_locally(package_dir)
         return package_dir
     published = invoke(transport, "publish", str(package_dir))
@@ -553,6 +555,7 @@ def test_missing_coverage_is_reported_and_not_taken_from_another_release(
         "2026-11-partial",
         created_at="2026-11-01T00:00:00+00:00",
         omit=[missing_table],
+        local_only=True,
     )
     destination_root = tmp_path / "fork/output"
 
@@ -774,6 +777,7 @@ def test_inputs_the_release_lacks_are_reported_for_their_category(
         transport,
         "2026-11-partial",
         omit=[EXTERNAL_CLASSIFIER],
+        local_only=True,
     )
     selection = ["--method", "alpha", "--dataset", "cube"]
     selection += ["--dataset-realization", "1"]

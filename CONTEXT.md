@@ -352,8 +352,8 @@ _Avoid_: Clean variant, deterministic variant
 
 **Benchmark release**:
 A versioned collection of benchmark results and reusable outputs, produced
-with an identified code revision and pipeline configuration and published
-by a maintainer under a release id. It is published from one release
+with identified producing code revisions and pipeline configuration and
+published by a maintainer under a release id. It is published from one release
 package. Users choose it by its release id; it never holds smoke-test
 outputs.
 _Avoid_: Smoke release, latest results, pipeline run (a run need not be published)
@@ -386,7 +386,8 @@ and the workflow configuration
 that lays out the release, and indexes the package's included artifacts and dataset bundles excluded by
 policy, with their exclusion reasons. The index is generated from the artifacts' provenance records,
 never from the workflow configuration, so it is a cache of those records
-rather than a second source of truth (see
+rather than a second source of truth. It also records save-time package file
+hashes for validation before publication (see
 `docs/reference/release_manifest.md`).
 _Avoid_: Metadata, release info, provenance record (that is per artifact)
 

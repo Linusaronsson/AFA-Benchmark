@@ -40,15 +40,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from afabench.release.integrity import package_file_inventory
 from afabench.release.manifest import (
     DATASET_REDISTRIBUTION_FILE,
     JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
     PayloadCategory,
     ReleaseManifest,
+    Stage,
+    artifact_coverage,
     code_by_stage,
+    dangling_inputs,
     dataset_bundle_permitted,
+    execution_mode,
     index_artifacts,
+    job_duration_table_entry,
     read_release_manifest,
 )
 from afabench.release.selection import SelectedPayloads
@@ -59,8 +65,8 @@ OUTPUT_MTIMES_FILENAME = "output_mtimes.json"
 # One path segment without glob characters, so a release cannot address
 # another release's files or match more than its own folder on download.
 RELEASE_ID_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*")
-# How many smoke-test artifacts a refused package names
-SMOKE_ARTIFACTS_SHOWN = 5
+# Bound validation reports even for production-size packages.
+VALIDATION_DETAILS_SHOWN = 5
 
 
 class ReleaseTransport(Protocol):
@@ -102,8 +108,35 @@ def publish_release(
     """
     manifest = read_release_manifest(package_dir / RELEASE_MANIFEST_FILENAME)
     folder = release_folder(manifest.release_id)
+    _check_file_inventory(package_dir, manifest)
+    _check_artifact_index(package_dir, manifest)
     _check_smoke(manifest)
-    _check_redistribution(package_dir, manifest)
+    incomplete = [
+        entry.path
+        for entry in manifest.evaluations
+        if entry.raw_path is None or entry.transformed_path is None
+    ]
+    if incomplete:
+        msg = (
+            "Publication requires both raw and transformed tables for every "
+            "evaluation; regenerate the missing tables and save again:\n  "
+            + _validation_details(incomplete)
+        )
+        raise ValueError(msg)
+    dangling = dangling_inputs(manifest)
+    if dangling:
+        msg = (
+            "Release has dangling inputs with no matching bundle or proven "
+            "dataset-policy exclusion; regenerate or restore inputs and save "
+            "again:\n  "
+            + _validation_details(
+                [
+                    f"{entry.role} {entry.path} of {entry.artifact_path}"
+                    for entry in dangling
+                ]
+            )
+        )
+        raise ValueError(msg)
     _check_code(manifest, allow_dirty_code=allow_dirty_code)
     message = f"Publish benchmark release {manifest.release_id}"
     # The host's history records what the maintainer allowed through.
@@ -313,27 +346,36 @@ def _check_smoke(manifest: ReleaseManifest) -> None:
     smoke = manifest.smoke_artifacts
     if not smoke:
         return
-    shown = SMOKE_ARTIFACTS_SHOWN
     msg = (
         f"Release {manifest.release_id!r} holds {len(smoke)} smoke-test "
         f"artifact{'' if len(smoke) == 1 else 's'}, likely from a smoke test "
         "run into its output root, and smoke-test artifacts are never "
         "published. Remove them and save the snapshot again:\n  "
-        + "\n  ".join(smoke[:shown])
-        + (
-            f"\n  ... and {len(smoke) - shown} more"
-            if len(smoke) > shown
-            else ""
-        )
+        + _validation_details(smoke)
     )
     raise ValueError(msg)
 
 
-def _check_redistribution(
+def _check_artifact_index(
     package_dir: Path, manifest: ReleaseManifest
 ) -> None:
-    # Inspect the package, not just the saved index: a bundle added after
-    # save must not silently bypass the redistribution gate.
+    for omitted in manifest.omitted_dataset_bundles:
+        bundle = omitted.bundle
+        review = manifest.dataset_redistribution.get(bundle.dataset_key or "")
+        if (
+            bundle.category is not PayloadCategory.DATASET_BUNDLE
+            or bundle.stage is not Stage.DATASET_GENERATION
+            or review is None
+            or review.exclusion_reason is None
+            or review.exclusion_reason != omitted.reason
+        ):
+            msg = (
+                "Manifest omitted_dataset_bundles disagrees with dataset "
+                f"release policy: {bundle.path}; save the package again."
+            )
+            raise ValueError(msg)
+    # Rebuild from actual records, so a stale or edited manifest cannot
+    # hide artifacts from the policy, smoke or code gates.
     output_root = package_dir / SNAPSHOT_OUTPUT_SUBDIR
     misplaced = [
         path.relative_to(package_dir).as_posix()
@@ -374,12 +416,69 @@ def _check_redistribution(
             "excluded dataset bundles cannot be published."
         )
         raise ValueError(msg)
-    if index.bundles != manifest.bundles:
+    derived = {
+        "bundles": index.bundles,
+        "evaluations": index.evaluations,
+        "execution_mode": execution_mode(index),
+        "coverage": artifact_coverage(index, output_root),
+        "job_duration_table": job_duration_table_entry(index),
+    }
+    mismatched = [
+        name
+        for name, value in derived.items()
+        if value != getattr(manifest, name)
+    ]
+    if mismatched:
         msg = (
-            f"Release {manifest.release_id!r} bundle contents do not match "
-            "its manifest; save the package again."
+            f"Release {manifest.release_id!r} contents do not match its "
+            f"manifest fields: {', '.join(mismatched)}; save the package again."
         )
         raise ValueError(msg)
+    table_path = package_dir / JOB_DURATION_TABLE_FILENAME
+    saved_table = table_path.read_bytes() if table_path.is_file() else None
+    if saved_table != index.job_duration_table:
+        msg = (
+            "Release job_duration_table does not match its output job records; "
+            "save the package again."
+        )
+        raise ValueError(msg)
+
+
+def _check_file_inventory(
+    package_dir: Path, manifest: ReleaseManifest
+) -> None:
+    if (package_dir / OUTPUT_MTIMES_FILENAME).exists():
+        msg = (
+            f"{OUTPUT_MTIMES_FILENAME} is generated during publication and "
+            "must not be in the saved package; use a fresh package directory."
+        )
+        raise ValueError(msg)
+    actual = package_file_inventory(package_dir)
+    saved = manifest.file_inventory
+    failures = [
+        *(f"added: {path}" for path in sorted(actual.keys() - saved.keys())),
+        *(f"missing: {path}" for path in sorted(saved.keys() - actual.keys())),
+        *(
+            f"changed: {path}"
+            for path in sorted(actual.keys() & saved.keys())
+            if actual[path] != saved[path]
+        ),
+    ]
+    if failures:
+        msg = (
+            "Package file inventory differs from save; save the package again:\n  "
+            + _validation_details(failures)
+        )
+        raise ValueError(msg)
+
+
+def _validation_details(details: Sequence[str]) -> str:
+    shown = VALIDATION_DETAILS_SHOWN
+    return "\n  ".join(details[:shown]) + (
+        f"\n  ... and {len(details) - shown} more"
+        if len(details) > shown
+        else ""
+    )
 
 
 def _check_code(manifest: ReleaseManifest, *, allow_dirty_code: bool) -> None:

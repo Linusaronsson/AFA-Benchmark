@@ -75,7 +75,9 @@ Saving can take substantial time on a large output root or shared
 filesystem. Release indexing reads provenance records and evaluation table
 columns, and scans bundle files for sizes before any copying starts. The
 copy itself reads and writes every included file and preserves timestamps;
-it is not an incremental transfer.
+it is not an incremental transfer. With `--release-id`, save then streams
+every saved package file again to record its SHA-256 hash. The copying count may
+finish before hashing and writing the final manifest finish.
 
 With `--release-id`, also writes `SNAPSHOT_DIR/release_manifest.json`
 ([release manifest](release_manifest.md)), indexing the source root's
@@ -102,14 +104,21 @@ Models and evaluation results remain included regardless of dataset status.
 A release with no artifacts left after omission is refused. Plain snapshots
 without `--release-id` remain verbatim copies.
 
+The manifest records a [file inventory](release_manifest.md#package-validation)
+of the copied package, excluding itself. Overwriting refreshes that inventory;
+it does not identify destination-only files as stale. Prefer a fresh release
+destination.
+
 A smoke test's outputs are saved with execution mode `smoke`, which
-`publish` refuses.
+`publish` refuses. Local saving also permits incomplete evaluation pairs and
+dangling inputs; publication refuses them.
 
 `--checkout` names the git checkout whose redistribution reviews are read.
 The command prints the recorded configuration, the release identity, every
 dataset whose redistribution is `unreviewed` or `restricted`, the
-producing code per pipeline stage, and the
-[dangling inputs](release_manifest.md#inputs), separately from proven
+compact coverage (datasets, realizations, methods, splits, budget settings,
+classifier variants and output categories), producing code per pipeline
+stage, and the [dangling inputs](release_manifest.md#inputs), separately from proven
 references to policy-excluded dataset bundles:
 
 ```text
@@ -179,16 +188,26 @@ Refuses:
 - any dataset bundle without an explicit `permitted` review in the saved
   manifest, with no override. Models and results from restricted or
   unreviewed datasets are allowed;
-- bundles added, removed or changed since saving the manifest, bundles
-  outside `output/`, or artifacts without provenance records. The package
-  is inspected before any upload;
+- any package file added, missing or changed since save, symlinks, or a saved
+  `output_mtimes.json` (generated only for upload);
+- bundle or evaluation indexes differing from actual artifacts, or derived
+  execution mode, coverage or job duration table inconsistent with them;
+- bundles outside `output/`, or artifacts without provenance records;
+- any evaluation missing its raw or transformed table;
+- genuine dangling inputs: neither an included bundle hash nor an exact,
+  non-null hash of a dataset bundle excluded by the saved policy. Expected
+  policy exclusions do not fail validation;
 - a release holding an artifact produced from a dirty tree or
   outside a git work tree (unknown code), unless `--allow-dirty-code` is
   given. Giving it for a release without one is an error. Its use is
   named in the host's commit message.
 
-On success, `publish` prints the
-producing code per pipeline stage as `save` does.
+All validation runs before upload. Failures are printed with a nonzero exit
+status, up to five file/input/pair details and a remaining count. On success,
+`publish` prints validation success, coverage, dataset exclusions and producing
+code per pipeline stage as `save` does. Mixed known clean commits are allowed.
+The [validation scope](release_manifest.md#package-validation) does not include
+detecting stale files already present at save time.
 
 ## `download`
 

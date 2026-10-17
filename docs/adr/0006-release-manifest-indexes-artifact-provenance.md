@@ -84,8 +84,8 @@ identified by the producing commit.
   that still resolves after its bundle was regenerated would link to
   different code; the hash links to nothing. Such a **dangling input** is
   kept in the index, reported by `save`, and reported as missing by
-  selective download. It is not refused. Dataset inputs matching an exact
-  non-null hash in the excluded-bundle inventory are instead reported as
+  selective download. `save` permits it; `publish` refuses it. Dataset inputs
+  matching an exact non-null hash in the excluded-bundle inventory are instead reported as
   expected policy exclusions, never excused by path alone.
 - **Producing commits are reported per stage.** `save` and `publish` print,
   for dataset generation, classifier training, pretraining, training and
@@ -113,10 +113,16 @@ other unresolved inputs remain dangling. Local snapshots without a release
 id remain verbatim.
 
 Filtering at save time makes the package safe to inspect and share without
-raw dataset bundles that lack permission. Publication also inspects actual
-bundles and requires their index to match the manifest, rather than trusting
-that the package has not changed since save. There is no redistribution
-override: allowing one would defeat the guarantee. The trade-off is that a
+raw dataset bundles that lack permission. Publication also rebuilds the
+bundle and evaluation indexes, requires both tables of every evaluation and resolves all non-excluded inputs. It checks
+derived execution mode, coverage and job duration data against the actual
+contents. A save-time package file inventory uses streaming SHA-256 hashes
+to refuse added, missing or changed files before upload, including outputs
+without provenance. The manifest itself is excluded from its own hashes;
+index reconstruction checks its derived fields. This detects post-save
+changes, not stale files already present at save, and is not an authenticity
+signature. Mixed known clean producing commits remain allowed. There is no
+redistribution override: allowing one would defeat the guarantee. The trade-off is that a
 download may lack dataset inputs and need local dataset generation, while
 still reusing published models and results.
 

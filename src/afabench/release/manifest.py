@@ -46,7 +46,7 @@ from afabench.evaluation.provenance import evaluation_table_provenance
 from afabench.evaluation.schemas import IDENTITY_DTYPES
 from afabench.release.workflow_config import WorkflowConfigRecord
 
-MANIFEST_VERSION = 5
+MANIFEST_VERSION = 6
 RELEASE_MANIFEST_FILENAME = "release_manifest.json"
 # Beside the release manifest, so the pipeline never rewrites it
 JOB_DURATION_TABLE_FILENAME = "release_job_duration_table.parquet"
@@ -318,6 +318,7 @@ class ReleaseManifest:
     evaluations: list[EvaluationEntry]
     bundles: list[BundleEntry]
     omitted_dataset_bundles: list[OmittedDatasetBundle]
+    file_inventory: dict[str, str]
 
     def __post_init__(self) -> None:
         if not self.release_id:
@@ -442,11 +443,13 @@ def build_release_manifest(
         created_at=datetime.now(UTC).isoformat(),
         workflow_config=workflow_config,
         dataset_redistribution=reviews,
-        coverage=_coverage(index, output_root),
+        coverage=artifact_coverage(index, output_root),
         job_duration_table=job_duration_table_entry(index),
         evaluations=index.evaluations,
         bundles=index.bundles,
         omitted_dataset_bundles=omitted,
+        # The copied package, including its sidecar table, is hashed at save.
+        file_inventory={},
     )
 
 
@@ -587,23 +590,27 @@ def read_release_manifest(path: Path) -> ReleaseManifest:
             f"this checkout reads version {MANIFEST_VERSION}."
         )
         raise ValueError(msg)
-    return dacite.from_dict(
-        ReleaseManifest,
-        data,
-        config=dacite.Config(
-            cast=[
-                ExecutionMode,
-                BudgetSetting,
-                ClassifierVariant,
-                PayloadCategory,
-                Stage,
-                InputRole,
-                RedistributionStatus,
-                DatasetBundlePolicy,
-            ],
-            strict=True,
-        ),
-    )
+    try:
+        return dacite.from_dict(
+            ReleaseManifest,
+            data,
+            config=dacite.Config(
+                cast=[
+                    ExecutionMode,
+                    BudgetSetting,
+                    ClassifierVariant,
+                    PayloadCategory,
+                    Stage,
+                    InputRole,
+                    RedistributionStatus,
+                    DatasetBundlePolicy,
+                ],
+                strict=True,
+            ),
+        )
+    except dacite.DaciteError as error:
+        msg = f"Invalid release manifest in {path}: {error}"
+        raise ValueError(msg) from error
 
 
 def payload_coverage(index: ArtifactIndex) -> list[PayloadCoverage]:
@@ -865,7 +872,8 @@ def dataset_redistribution(
     return records
 
 
-def _coverage(index: ArtifactIndex, output_root: Path) -> Coverage:
+def artifact_coverage(index: ArtifactIndex, output_root: Path) -> Coverage:
+    """Describe indexed evaluations and included output categories."""
     evaluations = index.evaluations
     included = {bundle.path for bundle in index.bundles}
     omitted = [

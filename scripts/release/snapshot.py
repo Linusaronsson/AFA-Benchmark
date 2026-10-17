@@ -280,11 +280,15 @@ def publish(
     ] = False,
 ) -> None:
     transport = _transport(ctx, repo_id)
-    manifest = publish_release(
-        snapshot_dir,
-        transport,
-        allow_dirty_code=allow_dirty_code,
-    )
+    try:
+        manifest = publish_release(
+            snapshot_dir,
+            transport,
+            allow_dirty_code=allow_dirty_code,
+        )
+    except (ValueError, FileNotFoundError, FileExistsError) as error:
+        typer.echo(f"Validation failed: {error}", err=True)
+        raise typer.Exit(code=1) from error
     folder = release_folder(manifest.release_id)
     _echo_manifest(
         manifest,
@@ -292,6 +296,10 @@ def publish(
         job_duration_table=manifest.job_duration_table is not None,
     )
     _echo_code(manifest)
+    typer.echo(
+        "Validation passed: saved files, artifact indexes, evaluation pairs "
+        "and input links."
+    )
     typer.echo(f"Published to {transport.folder_url(folder)}")
 
 
@@ -460,6 +468,18 @@ def _echo_manifest(
         f"Workflow config files: {configfiles}\n"
         f"Workflow config overrides: {workflow_config.overrides}\n"
         f"Release manifest: {path}"
+    )
+    coverage = manifest.coverage
+    typer.echo(
+        f"Coverage: {len(manifest.evaluations)} evaluation(s), "
+        f"{len(manifest.bundles)} bundle(s)\n"
+        f"  datasets: {', '.join(coverage.datasets) or 'none'}; "
+        f"realizations: {', '.join(map(str, coverage.dataset_realization_indices)) or 'none'}; "
+        f"methods: {', '.join(coverage.methods) or 'none'}\n"
+        f"  splits: {', '.join(coverage.eval_splits) or 'none'}; "
+        f"budgets: {', '.join(coverage.budget_settings) or 'none'}; "
+        f"classifiers: {', '.join(coverage.classifier_variants) or 'none'}\n"
+        f"  output categories: {', '.join(coverage.output_categories) or 'none'}"
     )
     if job_duration_table:
         typer.echo(

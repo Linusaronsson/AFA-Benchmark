@@ -14,8 +14,10 @@ release gets its own manifest, never the one restored before.
 
 import shutil
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from pathlib import Path
 
+from afabench.release.integrity import package_file_inventory
 from afabench.release.manifest import (
     JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
@@ -74,12 +76,15 @@ def save_snapshot(
         on_copy_progress=on_copy_progress,
     )
     if manifest is not None:
-        write_release_manifest(manifest, manifest_path)
         if job_duration_table is None:
             # An overwritten release must not keep an earlier one's table.
             table_path.unlink(missing_ok=True)
         else:
             table_path.write_bytes(job_duration_table)
+        manifest = replace(
+            manifest, file_inventory=package_file_inventory(snapshot_dir)
+        )
+        write_release_manifest(manifest, manifest_path)
 
 
 def restore_snapshot(

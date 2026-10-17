@@ -1,5 +1,6 @@
 """Publish and download benchmark releases through a fake release host."""
 
+import json
 import os
 import shutil
 from collections.abc import Mapping, Sequence
@@ -32,6 +33,7 @@ from test.scripts.release_artifacts import (
     record_run_config,
     write_bundle,
     write_catalog,
+    write_job_record,
 )
 
 runner = CliRunner()
@@ -111,6 +113,7 @@ def prepare_package(
     datasets: Sequence[str] = ("cube",),
     checkout: Path | None = None,
     code: Mapping[Stage, CodeIdentity] | None = None,
+    omit: Sequence[str] = (),
 ) -> Path:
     """
     Save a snapshot with a release manifest, as a maintainer would.
@@ -125,6 +128,12 @@ def prepare_package(
         smoke_test=smoke_test,
         code=code,
     )
+    for relative in omit:
+        target = source_root / relative
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
     configfile = tmp_path / f"{release_id}.yaml"
     configfile.write_text(
         yaml.safe_dump(workflow_config(smoke_test=smoke_test))
@@ -152,6 +161,26 @@ def prepare_package(
     )
     assert result.exit_code == 0, result.output
     return package_dir
+
+
+def overwrite_package(
+    tmp_path: Path, package_dir: Path, release_id: str
+) -> None:
+    saved = runner.invoke(
+        app,
+        [
+            "save",
+            str(package_dir),
+            "--source-root",
+            str(tmp_path / f"{release_id}-source"),
+            "--release-id",
+            release_id,
+            "--checkout",
+            str(tmp_path / release_id / "checkout"),
+            "--overwrite",
+        ],
+    )
+    assert saved.exit_code == 0, saved.output
 
 
 def invoke(transport: FakeReleaseTransport, *args: str) -> Result:
@@ -214,7 +243,7 @@ def test_smoke_package_is_refused(tmp_path: Path) -> None:
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    assert "smoke-test artifacts are never published" in str(result.exception)
+    assert "smoke-test artifacts are never published" in result.output
     assert transport.files == {}
 
 
@@ -230,7 +259,7 @@ def test_a_refused_smoke_package_names_some_of_its_smoke_artifacts(
 
     result = invoke(transport, "publish", str(package_dir))
 
-    message = str(result.exception)
+    message = result.output
     assert f"{len(smoke)} smoke-test artifacts" in message
     assert sum(path in message for path in smoke) == 5
 
@@ -322,9 +351,8 @@ def test_added_unapproved_dataset_bundle_is_refused(
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    assert "dataset bundles" in str(
-        result.exception
-    ) or "outside output/" in str(result.exception)
+    assert "file inventory" in result.output
+    assert target.relative_to(package_dir).as_posix() in result.output
     assert transport.files == {}
 
 
@@ -399,7 +427,7 @@ def test_dataset_bundle_without_provenance_or_dataset_identity_is_refused(
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    assert "extra.bundle" in str(result.exception)
+    assert "extra.bundle" in result.output
     assert transport.files == {}
 
 
@@ -438,7 +466,12 @@ def test_overwriting_release_removes_newly_restricted_dataset_bundles(
     assert not list((package_dir / "output/datasets").rglob("*.bundle"))
     transport = FakeReleaseTransport()
     published = invoke(transport, "publish", str(package_dir))
-    assert published.exit_code == 0, published.output
+    if remove_source_bundle:
+        assert published.exit_code != 0
+        assert "dangling inputs" in published.output
+        assert transport.files == {}
+    else:
+        assert published.exit_code == 0, published.output
 
 
 def test_smoke_provenance_survives_a_round_trip_through_a_local_host(
@@ -545,7 +578,7 @@ def test_a_published_release_is_not_replaced_by_publishing_again(
     result = invoke(transport, "publish", str(second))
 
     assert result.exit_code != 0
-    assert "2026-10" in str(result.exception)
+    assert "2026-10" in result.output
     destination_root = tmp_path / "fork/output"
     download(transport, "2026-10", destination_root)
     assert (destination_root / PLOT).read_bytes() == b"first"
@@ -650,7 +683,7 @@ def test_snapshot_without_release_manifest_is_not_published(
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    assert "release_manifest.json" in str(result.exception)
+    assert "release_manifest.json" in result.output
     assert transport.files == {}
 
 
@@ -663,7 +696,7 @@ def test_release_id_that_is_not_a_single_path_segment_is_refused(
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    assert "nested/2026-10" in str(result.exception)
+    assert "nested/2026-10" in result.output
     assert transport.files == {}
 
 
@@ -703,7 +736,7 @@ def test_dirty_producing_code_is_refused(tmp_path: Path) -> None:
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    message = str(result.exception)
+    message = result.output
     assert f"1 training artifact(s) at {'d' * 40} (dirty)" in message
     assert "evaluation" not in message
     assert transport.files == {}
@@ -722,9 +755,7 @@ def test_unknown_producing_code_is_refused(
     result = invoke(transport, "publish", str(package_dir))
 
     assert result.exit_code != 0
-    assert "1 evaluation artifact(s) at unknown commit" in str(
-        result.exception
-    )
+    assert "1 evaluation artifact(s) at unknown commit" in result.output
     assert transport.files == {}
 
 
@@ -759,5 +790,319 @@ def test_allowing_dirty_code_in_a_clean_release_is_refused(
     )
 
     assert result.exit_code != 0
-    assert "no allowance is needed" in str(result.exception)
+    assert "no allowance is needed" in result.output
+    assert transport.files == {}
+
+
+def test_save_records_package_file_hashes_without_hashing_its_manifest(
+    tmp_path: Path,
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10", plot=b"abc")
+    manifest = read_release_manifest(package_dir / "release_manifest.json")
+
+    assert manifest.file_inventory[f"output/{PLOT}"] == (
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    )
+    assert set(manifest.file_inventory) == {
+        path.relative_to(package_dir).as_posix()
+        for path in package_dir.rglob("*")
+        if path.is_file() and path.name != "release_manifest.json"
+    }
+
+
+@pytest.mark.parametrize("change", ["added", "missing", "changed"])
+def test_publish_refuses_any_package_file_change_before_upload(
+    tmp_path: Path,
+    change: str,
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10")
+    relative = f"output/{PLOT}"
+    target = package_dir / relative
+    if change == "added":
+        relative = "unrelated.txt"
+        (package_dir / relative).write_text("not saved")
+    elif change == "missing":
+        target.unlink()
+    else:
+        target.write_bytes(b"modified plot")
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code != 0
+    assert change in result.output
+    assert relative in result.output
+    assert transport.files == {}
+
+
+@pytest.mark.parametrize("omitted", [RAW_TABLE, TRANSFORMED_TABLE])
+def test_publish_requires_both_tables_of_each_evaluation(
+    tmp_path: Path, omitted: str
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10", omit=[omitted])
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code != 0
+    assert "both raw and transformed" in result.output
+    assert transport.files == {}
+
+
+def test_publish_refuses_dangling_inputs_not_proven_policy_exclusions(
+    tmp_path: Path,
+) -> None:
+    checkout = reviewed_checkout(tmp_path, {"cube": "restricted"})
+    missing = dataset_bundle("cube", 0, "train")
+    package_dir = prepare_package(
+        tmp_path, "2026-10", checkout=checkout, omit=[missing]
+    )
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code != 0
+    assert "dangling inputs" in result.output
+    assert missing in result.output
+    assert dataset_bundle("cube", 0, "val") not in result.output
+    assert transport.files == {}
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["evaluations", "coverage", "execution_mode", "job_duration_table"],
+)
+def test_publish_rebuilds_indexes_instead_of_trusting_manifest_fields(
+    tmp_path: Path, field: str
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10")
+    path = package_dir / "release_manifest.json"
+    data = json.loads(path.read_text())
+    if field == "evaluations":
+        data[field] = []
+    elif field == "coverage":
+        data[field]["methods"] = ["invented_method"]
+    elif field == "execution_mode":
+        data[field] = "smoke"
+    else:
+        data[field] = {"job_records": 1, "size_bytes": 1, "smoke_test": False}
+    path.write_text(json.dumps(data))
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code != 0
+    assert field in result.output
+    assert "manifest" in result.output
+    assert transport.files == {}
+
+
+def test_publish_reports_validation_failure_in_cli_output(
+    tmp_path: Path,
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10", omit=[RAW_TABLE])
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code == 1
+    assert "Validation failed:" in result.output
+    assert "both raw and transformed" in result.output
+    assert "Traceback" not in result.output
+    assert transport.files == {}
+
+
+def test_publish_summarizes_coverage_exclusions_and_mixed_clean_commits(
+    tmp_path: Path,
+) -> None:
+    checkout = reviewed_checkout(tmp_path, {"cube": "restricted"})
+    package_dir = prepare_package(
+        tmp_path,
+        "2026-10",
+        checkout=checkout,
+        code={"training": CodeIdentity(commit="b" * 40, dirty=False)},
+    )
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code == 0, result.output
+    assert "Coverage: 1 evaluation(s), 2 bundle(s)" in result.output
+    assert "datasets: cube; realizations: 0; methods: alpha" in result.output
+    assert (
+        "splits: test; budgets: hard_budget; classifiers: external"
+        in result.output
+    )
+    assert "output categories:" in result.output
+    assert "Omitted dataset bundles: 3 excluded by policy" in result.output
+    assert "The release mixes 2 producing commits" in result.output
+    assert "Validation passed:" in result.output
+    assert transport.files
+
+
+def test_publish_refuses_saved_upload_only_mtime_metadata(
+    tmp_path: Path,
+) -> None:
+    stale = tmp_path / "2026-10-package/output_mtimes.json"
+    stale.parent.mkdir()
+    stale.write_text("stale transport metadata")
+    package_dir = prepare_package(tmp_path, "2026-10")
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code != 0
+    assert "output_mtimes.json" in result.output
+    assert "generated during publication" in result.output
+    assert transport.files == {}
+
+
+def test_publish_limits_validation_failure_details(
+    tmp_path: Path,
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10")
+    for index in range(8):
+        (package_dir / f"extra-{index}.txt").write_text("not saved")
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code == 1
+    assert result.output.count("added:") == 5
+    assert "and 3 more" in result.output
+    assert transport.files == {}
+
+
+def test_publish_requires_omission_inventory_to_agree_with_dataset_policy(
+    tmp_path: Path,
+) -> None:
+    checkout = reviewed_checkout(tmp_path, {"cube": "restricted"})
+    package_dir = prepare_package(tmp_path, "2026-10", checkout=checkout)
+    path = package_dir / "release_manifest.json"
+    data = json.loads(path.read_text())
+    data["dataset_redistribution"]["cube"]["status"] = "permitted"
+    path.write_text(json.dumps(data))
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code != 0
+    assert "omitted_dataset_bundles" in result.output
+    assert "policy" in result.output
+    assert transport.files == {}
+
+
+def test_overwrite_refreshes_inventory_without_hashing_previous_manifest(
+    tmp_path: Path,
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10", plot=b"old")
+    (tmp_path / "2026-10-source" / PLOT).write_bytes(b"abc")
+    (package_dir / "retained.txt").write_text("destination-only file")
+
+    overwrite_package(tmp_path, package_dir, "2026-10")
+    manifest = read_release_manifest(package_dir / "release_manifest.json")
+    assert "release_manifest.json" not in manifest.file_inventory
+    assert manifest.file_inventory[f"output/{PLOT}"] == (
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    )
+    assert "retained.txt" in manifest.file_inventory
+    transport = FakeReleaseTransport()
+    published = invoke(transport, "publish", str(package_dir))
+    assert published.exit_code == 0, published.output
+    assert transport.files["releases/2026-10/retained.txt"] == (
+        b"destination-only file"
+    )
+
+
+@pytest.mark.parametrize(
+    ("code", "smoke_test"),
+    [
+        (DIRTY, False),
+        (CodeIdentity(commit="e" * 40, dirty=False), False),
+        (CodeIdentity(commit="e" * 40, dirty=False), True),
+    ],
+)
+def test_overwrite_cannot_hide_destination_only_evaluations(
+    tmp_path: Path, code: CodeIdentity, smoke_test: bool
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10")
+    extra = tmp_path / "extra"
+    build_output_tree(extra, code={"evaluation": code}, smoke_test=smoke_test)
+    for folder in ["eval_results", "eval_results_transformed"]:
+        table = extra / folder / TABLE
+        target = package_dir / "output" / folder / "extra.parquet"
+        shutil.copy2(table, target)
+    overwrite_package(tmp_path, package_dir, "2026-10")
+    transport = FakeReleaseTransport()
+
+    published = invoke(transport, "publish", str(package_dir))
+
+    assert published.exit_code != 0
+    assert "evaluations" in published.output
+    assert transport.files == {}
+
+
+@pytest.mark.parametrize("directory", [False, True])
+def test_publish_refuses_symlinks_in_package(
+    tmp_path: Path, directory: bool
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10")
+    target = tmp_path / "outside"
+    if directory:
+        target.mkdir()
+        (target / "private.txt").write_text("not saved")
+    else:
+        target.write_text("not saved")
+    (package_dir / "link").symlink_to(target, target_is_directory=directory)
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code != 0
+    assert "symlinks" in result.output
+    assert transport.files == {}
+
+
+def test_publish_validates_release_job_table_without_refusing_failed_smoke_jobs(
+    tmp_path: Path,
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10")
+    write_job_record(
+        tmp_path / "2026-10-source",
+        "failed_job_records/attempt.job_record.json",
+        exit_status="failed",
+        smoke_test=True,
+    )
+    overwrite_package(tmp_path, package_dir, "2026-10")
+    manifest = read_release_manifest(package_dir / "release_manifest.json")
+    assert "release_job_duration_table.parquet" in manifest.file_inventory
+    transport = FakeReleaseTransport()
+    published = invoke(transport, "publish", str(package_dir))
+    assert published.exit_code == 0, published.output
+
+    (package_dir / "release_job_duration_table.parquet").write_bytes(
+        b"changed"
+    )
+    another_host = FakeReleaseTransport()
+    refused = invoke(another_host, "publish", str(package_dir))
+    assert refused.exit_code == 1
+    assert "changed: release_job_duration_table.parquet" in refused.output
+    assert another_host.files == {}
+
+
+def test_publish_reports_missing_manifest_inventory_as_validation_failure(
+    tmp_path: Path,
+) -> None:
+    package_dir = prepare_package(tmp_path, "2026-10")
+    path = package_dir / "release_manifest.json"
+    data = json.loads(path.read_text())
+    del data["file_inventory"]
+    path.write_text(json.dumps(data))
+    transport = FakeReleaseTransport()
+
+    result = invoke(transport, "publish", str(package_dir))
+
+    assert result.exit_code == 1
+    assert "Validation failed:" in result.output
+    assert "file_inventory" in result.output
     assert transport.files == {}

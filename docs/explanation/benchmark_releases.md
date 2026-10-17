@@ -99,8 +99,12 @@ reasons so expected exclusions do not look like broken input references.
   evaluation's record, and merged tables and plots have none, so the
   commits of transformation, aggregation and visualization are not
   known. Merged tables and plots are published but not indexed.
-- Bundle content hashes are recorded and link inputs, but neither
-  `publish` nor `download` verifies them against the bundles' files.
+- Bundle content hashes are recorded and link inputs. Publication checks
+  save-time package file hashes and rebuilds artifact indexes; it does not
+  recompute the bundles' own content hashes or identify stale or unrelated
+  files already present at save. Download does not verify the file hashes.
+  These checks do not certify scientific comparability or authenticate
+  the package against deliberate rewriting of both manifest and payload.
 - Output categories other than payload categories, such as `plots`
   and `merged_results`, are downloaded whole, not by dataset or method.
 - Redistribution status applies to dataset bundles only; it is not a legal

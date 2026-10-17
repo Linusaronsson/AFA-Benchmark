@@ -315,7 +315,7 @@ def test_publication_refuses_permitted_but_policy_excluded_bundles(
     bundle_path = dataset_bundle("cube", 0, "train")
     shutil.copytree(source / bundle_path, package / "output" / bundle_path)
     transport = FakeReleaseTransport()
-    with pytest.raises(ValueError, match="excluded by release policy"):
+    with pytest.raises(ValueError, match="added: output/datasets/cube"):
         publish_release(package, transport)
     assert transport.files == {}
 

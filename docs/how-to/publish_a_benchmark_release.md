@@ -60,7 +60,9 @@ Then run the following command to copy the existing outputs from
 `output/production` into an [output snapshot](create_output_snapshots.md)
 at `~/data/afabench-releases/example/` and create its release manifest.
 Save this package outside the repository. Replace the example path with
-the destination folder you want to use, and choose a release id.
+a **fresh** destination folder you want to use, and choose a release id.
+Overwriting an existing package retains unrelated destination files; use a
+fresh destination to avoid carrying them forward.
 The pipeline records its configuration automatically when it executes jobs;
 `save` uses that record, so you do not need to repeat or manually verify
 profiles, config files or overrides. For outputs built across several
@@ -74,7 +76,9 @@ uv run python scripts/release/snapshot.py save ~/data/afabench-releases/example 
 The snapshot's outputs are saved under `~/data/afabench-releases/example/output/`.
 The command also writes `~/data/afabench-releases/example/release_manifest.json`, indexing
 every bundle and evaluation table by its provenance record, and prints what
-it recorded. Configuration is read from `output/production/workflow_config.json`,
+it recorded, including compact coverage and expected dataset exclusions.
+It also records file hashes for validation before publication. Configuration
+is read from `output/production/workflow_config.json`,
 not from the current checkout's configuration files. If you supply optional
 configuration arguments, `save` refuses any mismatch with the recorded run
 before copying anything. Nothing is uploaded until step 5.
@@ -96,25 +100,24 @@ download it. Smoke-test outputs are never published.
 
 ## 3. Review the package
 
-Read `~/data/afabench-releases/example/release_manifest.json`
-([fields](../reference/release_manifest.md#fields)) and check each item:
+Use the printed coverage summary to confirm that the saved datasets,
+dataset realizations, methods, splits, budget settings, classifier variants
+and output categories are the ones you intend to publish. Check the printed
+dataset exclusions against the benchmark's
+[dataset release policy](../reference/release_manifest.md#dataset-redistribution).
 
-- [ ] `execution_mode` is `production`; `publish` refuses smoke-test
-      artifacts.
-- [ ] The printed producing code has no dirty or unknown commit, so each
-      artifact's commit is the code that produced it. If the release mixes
-      commits, the release notes say which stage each commit produced.
-- [ ] No input was reported as matching no bundle. Expected dataset
-      exclusions are summarized separately by reason.
-- [ ] `coverage` lists the datasets, dataset realizations, methods,
-      evaluation splits, budget settings, classifier variants and output
-      categories you mean to publish.
-- [ ] Every entry of `evaluations` has a `raw_path` and a
-      `transformed_path`.
-- [ ] `output/` holds no stale or unrelated files; release creation omitted
-      unapproved dataset bundles but copied the other outputs as they were.
-- [ ] The printed dataset exclusions match the benchmark's
-      [dataset release policy](../reference/release_manifest.md#dataset-redistribution).
+Publication automatically validates file hashes and indexes, complete
+raw/transformed evaluation pairs, input links, smoke status, dataset policy
+and producing-code cleanliness before uploading anything. Policy-excluded
+dataset inputs are expected; genuinely dangling inputs are errors. Mixed
+known clean producing commits are allowed; describe their significance in
+the release notes.
+
+These checks cannot detect stale or unrelated files that were already in the
+output root or destination when saved, or decide whether results from
+different commits are scientifically comparable. Keep the output root scoped
+to the intended run and save to a fresh destination. Do not edit the package
+or modify it while publication is running.
 
 ## 4. Write the release notes entry
 
@@ -138,12 +141,14 @@ uv run python scripts/release/snapshot.py publish ~/data/afabench-releases/examp
 ```
 
 The release is uploaded in one commit, and the command prints its
-provenance and web address.
+validation success, coverage, exclusions, producing commits and web address.
 
-If `publish` finds dataset bundles excluded by policy or without explicit
-redistribution permission, it refuses the whole package before uploading
-anything. Save the package again (step 2); do not add bundles after saving it.
-There is no redistribution override.
+If validation fails, the command exits with a concise failure report and
+uploads nothing. Restore missing inputs or regenerate incomplete evaluations
+in the output root, then save to a fresh package (step 2). If files changed
+after saving, save again rather than editing the manifest. Dataset bundles
+excluded by policy or lacking explicit redistribution permission cannot be
+published; there is no redistribution override.
 
 If `publish` refuses artifacts produced from dirty or unknown code,
 regenerate them from a clean commit and save the package again. To publish

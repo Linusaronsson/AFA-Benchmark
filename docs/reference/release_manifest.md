@@ -10,7 +10,7 @@ own [provenance records](../adr/0002-provenance-recorded-in-artifacts.md),
 never from the workflow configuration: it is a cache of those records, and
 saving the same output tree again gives the same index
 ([ADR 0006](../adr/0006-release-manifest-indexes-artifact-provenance.md)).
-The schema is `afabench.release.manifest.ReleaseManifest`, version 5.
+The schema is `afabench.release.manifest.ReleaseManifest`, version 6.
 Readers reject other schema versions.
 
 `save --release-id` refuses an output tree holding any bundle, or any
@@ -22,7 +22,8 @@ snapshot all the same.
 ## Fields
 
 All paths inside the manifest are POSIX paths relative to the output root,
-except config file paths, which are as given, and the `path` of an input,
+except `file_inventory` keys (relative to the package directory), config file
+paths (as given), and the `path` of an input,
 which is as the producing job was given it. JSON object keys are strings.
 `null` means unknown or not applicable, never a default.
 
@@ -30,10 +31,11 @@ which is as the producing job was given it. JSON object keys are strings.
 
 | Field | Meaning |
 | --- | --- |
-| `manifest_version` | Schema version, 5. Readers reject versions they do not know. |
+| `manifest_version` | Schema version, 6. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
 | `execution_mode` | `smoke` if any artifact's record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `publish` refuses `smoke`; such a manifest is only downloaded in tests, from a local host. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
+| `file_inventory` | Every saved package file except this manifest, as `{package_relative_path: sha256}`. Hashes are streamed from the copied bytes, including the release job duration table when present. See [Package validation](#package-validation). |
 | `dataset_redistribution` | Per dataset key any record names, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `bundle_policy`, `omission_reason`, `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
 | `job_duration_table` | The release's [job duration table](#job-duration-table): `size_bytes`, `job_records` (its rows) and `smoke_test` (whether any row is of a smoke test); null when the output tree holds no job record. |
 
@@ -77,7 +79,9 @@ other artifact unless the maintainer allows dirty code.
 
 One entry per evaluation in the output tree: its raw table, its
 plotting-ready table, or both, paired because the transform copies the raw
-table's record. Identity is read from the tables' identity columns
+table's record. Local indexing and saving permit either table alone;
+publication requires both for every evaluation. Identity is read from the
+tables' identity columns
 ([raw versus plotting-ready tables](#raw-versus-plotting-ready-tables)).
 
 | Field | Meaning |
@@ -133,7 +137,8 @@ summarized by dataset and reason, not listed once per consumer as missing.
 Unknown hashes, different hashes at the same path, and inputs of other
 roles are not excused by the omission inventory: they remain **dangling
 inputs**. `save` lists them, and selective download reports those of the
-categories it fetches as missing. Download summaries include only the
+categories it fetches as missing. `publish` refuses genuine dangling inputs,
+not proven dataset-policy exclusions. Download summaries include only the
 excluded dependencies reached by the requested selection; `--all` summarizes
 all excluded bundles.
 
@@ -152,6 +157,35 @@ the order of that table: `category`, `count`, `size_bytes` and
 `class_names` (the bundle classes present; empty for tables). The
 `job_duration_table` entry has `count` 1 when the release has the table, 0
 otherwise.
+
+## Package validation
+
+Before uploading, `publish` compares all package file paths and SHA-256
+hashes with `file_inventory`, rejecting added, missing or changed files.
+It rebuilds the bundle and evaluation indexes from the actual artifacts,
+checks their equality with the manifest, and checks derived execution mode,
+coverage and the release job duration table against the output job records.
+Omitted dataset entries must agree with the saved dataset policies. Every
+evaluation needs both raw and transformed tables, paired by equal provenance
+records, and every input needs an included bundle hash or an exact,
+non-null dataset-policy exclusion hash. Smoke and dataset policy gates have
+no override; dirty or unknown code retains `--allow-dirty-code`. Mixed known
+clean producing commits are allowed and summarized per stage.
+
+The manifest is not hashed by its own inventory. Rebuilding indexes catches
+inconsistent index edits; the inventory is not a signature or protection
+against someone deliberately rewriting both the manifest and the package.
+Symlinks in the package are refused. `output_mtimes.json` is generated only
+during publication and must not already exist in the saved package; it is
+not part of the saved file inventory. Empty directories and mtimes are not
+hashed, so changing only mtimes does not fail byte validation.
+
+The inventory records the bytes present **at save time**. It cannot identify
+stale or unrelated files already present then, including files retained in
+an overwritten destination, or certify the scientific comparability of
+results. Use a fresh release destination and an output root containing only
+the intended run. Do not modify a package while publishing it. Download does
+not verify the saved file hashes.
 
 ## Payload categories
 
@@ -251,8 +285,9 @@ in `omitted_dataset_bundles`. Models and evaluation results remain included
 regardless. `save`, `restore`, `publish` and `download` summarize expected
 exclusions separately from unresolved input references, and print unreviewed
 and restricted keys. `publish` inspects actual package bundles and refuses
-excluded bundles, with no override. It also refuses bundles differing from
-the manifest or lacking provenance (see [`publish`](snapshot_command.md#publish)).
+excluded bundles, with no override. It also refuses any saved file differing
+from the inventory, indexes differing from the actual artifacts, or artifacts
+lacking provenance (see [`publish`](snapshot_command.md#publish)).
 
 What a dataset bundle holds decides what the review covers:
 
