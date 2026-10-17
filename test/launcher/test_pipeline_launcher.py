@@ -612,3 +612,89 @@ def test_estimate_passes_per_dataset_plots_on() -> None:
     assert launcher_command(["-e", "--per-dataset-plots"])[-1] == (
         "--per-dataset-plots"
     )
+
+
+def test_interactive_preview_browses_the_runs_snakemake_arguments() -> None:
+    command = launcher_command(
+        [
+            "--interactive-preview",
+            "methods=[dime]",
+            "--target",
+            "all_train_methods",
+        ]
+    )
+
+    assert command == [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "afabench.pipeline_preview",
+        *snakemake_arguments(
+            ["methods=[dime]", "--target", "all_train_methods"]
+        ),
+    ]
+
+
+def test_interactive_preview_on_a_site_naming_venvs_runs_in_the_nodes_venv() -> (
+    None
+):
+    command = launcher_command(
+        ["--site", "arrhenius", "--interactive-preview", "datasets=[cube]"]
+    )
+
+    assert command[:4] == [
+        "workflow/venvs/bin/python",
+        "-m",
+        "afabench.pipeline_preview",
+        "--profile",
+    ]
+    assert (
+        "execution_site_file=workflow/profiles/site/arrhenius/site.yaml"
+        in (command)
+    )
+
+
+def test_interactive_preview_implies_a_dry_run_so_dash_n_changes_nothing() -> (
+    None
+):
+    assert launcher_command(["--interactive-preview", "-n", "kdd26"]) == (
+        launcher_command(["--interactive-preview", "kdd26"])
+    )
+
+
+@pytest.mark.parametrize(
+    ("option", "named"),
+    [
+        (["-e"], "-e"),
+        (["--estimate"], "-e"),
+        (["--wandb"], "--wandb"),
+        (["--wandb-group", "earlier-run"], "--wandb-group"),
+    ],
+)
+def test_interactive_preview_rejects_estimate_and_wandb_logging(
+    option: list[str], named: str
+) -> None:
+    with pytest.raises(LauncherError, match=re.escape(named)):
+        launcher_command(["--interactive-preview", *option])
+
+
+def test_interactive_preview_needs_a_terminal(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    launched: list[list[str]] = []
+
+    def launch(
+        command: list[str], **_: object
+    ) -> subprocess.CompletedProcess[str]:
+        launched.append(command)
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr("workflow.run.subprocess.run", launch)
+    # The test runner's streams are not a terminal.
+    assert main(["--interactive-preview"]) == 2
+    assert launched == []
+    error = capsys.readouterr().err
+    assert "terminal" in error
+    assert "-n" in error

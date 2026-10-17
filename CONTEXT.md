@@ -589,6 +589,13 @@ and the allocation each would request. A compute estimate estimates the
 scheduled jobs of a pipeline plan.
 _Avoid_: Dry run (Snakemake's printed listing of an invocation), job list
 
+**Interactive preview**:
+The terminal browser of a pipeline plan that the pipeline launcher opens
+with `--interactive-preview`: the scheduled jobs grouped by pipeline stage,
+method and dataset, with each job's identity and allocation. It runs and
+submits nothing and changes no invocation.
+_Avoid_: TUI, job browser, dry-run viewer
+
 **Pipeline profile override**:
 A value given for one run that replaces a pipeline profile's value for the
 same key, or merges into it key by key for a mapping.

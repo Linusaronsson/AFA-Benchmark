@@ -4,7 +4,8 @@ Pipeline launcher: run the pipeline from its profiles and overrides.
 
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
-    workflow/run.py [<pipeline> | --configfile <path>] [--site <site>] [-n | -e] [--no-soft-budget]
+    workflow/run.py [<pipeline> | --configfile <path>] [--site <site>]
+        [-n | -e | --interactive-preview] [--no-soft-budget]
         [--per-dataset-plots] [--wandb] [--wandb-group <name>]
         [--target <rule>] [--jobs <n>]
         [key=value ...] [-- <Snakemake arguments>]
@@ -24,7 +25,11 @@ the pipeline profile, the UTC time and random characters.
 With -e it runs the compute estimate of that invocation instead
 (scripts/compute_estimate/estimate_compute.py), which takes the same
 arguments and, with -e only, the estimate's options, with the same
-interpreter.
+interpreter. With --interactive-preview it opens the interactive preview
+of that invocation instead (python -m afabench.pipeline_preview, with the
+resolved Snakemake arguments), with the same interpreter; the preview
+needs a terminal and runs no job, so -n changes nothing and -e, --wandb
+and --wandb-group are refused.
 
 It runs on a login node before any venv exists, like
 workflow/venvs/submit_builds.py, so on the host's python3 (3.9 on Arrhenius)
@@ -56,6 +61,8 @@ from workflow.venvs.submit_builds import (  # noqa: E402
 PIPELINE_PROFILES = "workflow/profiles/pipeline"
 SITE_PROFILES = "workflow/profiles/site"
 ESTIMATE_SCRIPT = "scripts/compute_estimate/estimate_compute.py"
+# The interactive preview, run as a module in the selected environment
+INTERACTIVE_PREVIEW_MODULE = "afabench.pipeline_preview"
 # The Python of the node's venv, on a site whose allocations name venvs
 VENV_PYTHON = "workflow/venvs/bin/python"
 ESTIMATE_FLAGS = ("-e", "--estimate")
@@ -79,16 +86,22 @@ def launcher_command(
 ) -> list[str]:
     """Return the command the launcher runs for `arguments`."""
     options = _parse(arguments)
+    if options.interactive_preview:
+        _check_interactive_preview(options)
+        return [
+            *_environment_interpreter(options, checkout),
+            "-m",
+            INTERACTIVE_PREVIEW_MODULE,
+            *snakemake_arguments(arguments, checkout),
+        ]
     if not options.estimate:
         command = snakemake_command(arguments, checkout)
         if options.configfile is not None:
-            interpreter = (
-                [VENV_PYTHON]
-                if options.site is not None
-                and _site_venvs(checkout, options.site)
-                else ["uv", "run", "python"]
-            )
-            return [*interpreter, "workflow/run_from_config.py", *arguments]
+            return [
+                *_environment_interpreter(options, checkout),
+                "workflow/run_from_config.py",
+                *arguments,
+            ]
         return command
     if options.dry_run:
         message = (
@@ -97,10 +110,31 @@ def launcher_command(
         raise LauncherError(message)
     # Check the run's arguments, as the estimate will.
     snakemake_arguments(arguments, checkout)
-    interpreter = ["uv", "run", "python"]
+    return [
+        *_environment_interpreter(options, checkout),
+        ESTIMATE_SCRIPT,
+        *_without_estimate_flag(arguments),
+    ]
+
+
+def _check_interactive_preview(options: argparse.Namespace) -> None:
+    """Refuse the modes that mean something only when jobs run."""
+    if options.estimate:
+        message = "-e and --interactive-preview: give one of them"
+        raise LauncherError(message)
+    if options.wandb or options.wandb_group is not None:
+        flag = "--wandb" if options.wandb else "--wandb-group"
+        message = f"{flag} logs the jobs a run executes, and --interactive-preview executes none: give one of them"
+        raise LauncherError(message)
+
+
+def _environment_interpreter(
+    options: argparse.Namespace, checkout: Path
+) -> list[str]:
+    """Return the Python of the environment the launcher selects."""
     if options.site is not None and _site_venvs(checkout, options.site):
-        interpreter = [VENV_PYTHON]
-    return [*interpreter, ESTIMATE_SCRIPT, *_without_estimate_flag(arguments)]
+        return [VENV_PYTHON]
+    return ["uv", "run", "python"]
 
 
 def _without_estimate_flag(arguments: list[str]) -> list[str]:
@@ -169,7 +203,8 @@ def _invocation(
     )
     if options.jobs is not None:
         command += ["--jobs", str(options.jobs)]
-    if options.dry_run:
+    # The interactive preview runs nothing either, so -n adds nothing to it.
+    if options.dry_run and not options.interactive_preview:
         command += ["--dry-run", "--printshellcmds"]
     command += extra
     if config:
@@ -384,6 +419,11 @@ def _parser() -> argparse.ArgumentParser:
         help="Print the compute estimate of the run without running jobs",
     )
     parser.add_argument(
+        "--interactive-preview",
+        action="store_true",
+        help="Browse the jobs the run would schedule in the terminal without running them (implies -n)",
+    )
+    parser.add_argument(
         "--no-soft-budget",
         action="store_true",
         help="Run only the hard-budget setting (soft_budget_setting=false)",
@@ -462,6 +502,13 @@ def _site_venvs(checkout: Path, site: str) -> dict[str, str]:
         raise LauncherError(str(error)) from error
 
 
+def _check_terminal() -> None:
+    """Fail unless the launcher reads from and writes to a terminal."""
+    if not (sys.stdin.isatty() and sys.stdout.isatty()):
+        message = "--interactive-preview needs an interactive terminal on stdin and stdout; for a preview in plain text, give -n instead"
+        raise LauncherError(message)
+
+
 def check_site_venvs(arguments: list[str], checkout: Path = REPO_ROOT) -> None:
     """Fail unless every venv the run's site names is built from uv.lock."""
     site = _parse(arguments).site
@@ -481,6 +528,8 @@ def main(arguments: list[str]) -> int:
     try:
         command = launcher_command(arguments)
         check_site_venvs(arguments)
+        if _parse(arguments).interactive_preview:
+            _check_terminal()
     except LauncherError as error:
         print(f"workflow/run.py: error: {error}", file=sys.stderr)
         return 2
@@ -489,7 +538,8 @@ def main(arguments: list[str]) -> int:
     # root, which a changed working directory alone does not set.
     environment = {**os.environ, "PWD": str(REPO_ROOT)}
     # Snakemake exposes its merged config and files, but not its profile.
-    if not _parse(arguments).estimate:
+    options = _parse(arguments)
+    if not (options.estimate or options.interactive_preview):
         environment.pop("AFABENCH_PIPELINE_PROFILE", None)
         if "--profile" in command:
             profile_index = command.index("--profile") + 1

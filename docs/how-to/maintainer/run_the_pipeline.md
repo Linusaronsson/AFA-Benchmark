@@ -212,6 +212,10 @@ using alternative budget files.
 ## Inspect planned work
 
 - Pass `-n list_jobs=true` to inspect job commands, `device=` arguments and allocations.
+- Replace `-n` with `--interactive-preview` to browse the scheduled jobs by
+  stage, method and dataset in the terminal
+  ([keys and panes](../../reference/interactive_preview.md)). Press `q` to
+  quit; nothing runs.
 - Use `--target all_train_classifiers`, `all_pretrain_models`,
   `all_train_methods` or `all_eval_methods` to narrow the target.
 - Read detailed logs under `.snakemake/log/` when troubleshooting.
