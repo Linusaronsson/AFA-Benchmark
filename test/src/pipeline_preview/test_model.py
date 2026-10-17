@@ -1,5 +1,9 @@
 """The preview's presentation of a pipeline plan, apart from its widgets (#158)."""
 
+from dataclasses import replace
+
+import pytest
+
 from afabench.core.job_record import JobIdentity
 from afabench.pipeline_plan.planning import (
     JobStatus,
@@ -8,12 +12,20 @@ from afabench.pipeline_plan.planning import (
     StatusReason,
 )
 from afabench.pipeline_preview.model import (
+    GROUPINGS,
+    Dimension,
     GroupNode,
     JobNode,
+    PlanView,
+    filter_values,
     group_summary,
     job_details,
+    parse_grouping,
+    plan_statuses,
     plan_summary,
     preview_tree,
+    shown_jobs,
+    view_summary,
 )
 
 
@@ -367,3 +379,183 @@ def test_job_details_show_the_allocation_a_job_requests() -> None:
     assert details["CPUs"] == "cluster default"
     assert details["GPUs"] == "0"
     assert details["Time limit"] == "30 minutes"
+
+
+def leaves(nodes: tuple[GroupNode | JobNode, ...]) -> list[tuple[str, ...]]:
+    """Return each job's group labels, top down, then its rule."""
+    return [
+        path
+        for node in nodes
+        for path in (
+            [(node.label, *below) for below in leaves(node.children)]
+            if isinstance(node, GroupNode)
+            else [(node.job.rule,)]
+        )
+    ]
+
+
+def test_jobs_can_be_grouped_by_any_ordered_subset_of_the_dimensions() -> None:
+    by_dataset_then_method = preview_tree(
+        PLAN, PlanView(grouping=("dataset", "method"))
+    )
+
+    assert leaves(by_dataset_then_method) == [
+        ("cube", "alpha", "eval_method"),
+        ("cube", "alpha", "train_method"),
+        ("cube", "alpha", "train_method"),
+        ("cube", "beta", "train_method"),
+        ("cube", "Shared prerequisites", "dataset_generation"),
+        ("cube", "Shared prerequisites", "train_classifier"),
+        ("Across datasets", "Across methods", "plot_eval_perf"),
+    ]
+    assert leaves(preview_tree(PLAN, PlanView(grouping=("method",)))) == [
+        ("alpha", "eval_method"),
+        ("alpha", "train_method"),
+        ("alpha", "train_method"),
+        ("beta", "train_method"),
+        ("Shared prerequisites", "dataset_generation"),
+        ("Shared prerequisites", "train_classifier"),
+        ("Across methods", "plot_eval_perf"),
+    ]
+
+
+def test_the_groupings_are_every_ordered_subset_default_first() -> None:
+    assert len(GROUPINGS) == 15
+    assert len(set(GROUPINGS)) == 15
+    assert GROUPINGS[0] == ("stage", "method", "dataset")
+    assert ("stage", "dataset", "method") in GROUPINGS
+    assert ("dataset", "method") in GROUPINGS
+    assert ("method",) in GROUPINGS
+
+
+@pytest.mark.parametrize("grouping", GROUPINGS)
+def test_every_grouping_shows_each_job_once(
+    grouping: tuple[Dimension, ...],
+) -> None:
+    tree = preview_tree(PLAN, PlanView(grouping=grouping))
+
+    assert sum(group.job_count for group in tree) == len(PLAN.jobs)
+    assert len(leaves(tree)) == len(PLAN.jobs)
+    assert all(len(path) == len(grouping) + 1 for path in leaves(tree))
+
+
+def test_a_grouping_is_read_from_comma_separated_dimensions() -> None:
+    assert parse_grouping("dataset,method") == ("dataset", "method")
+    assert parse_grouping("stage") == ("stage",)
+
+
+@pytest.mark.parametrize(
+    ("text", "named"),
+    [
+        ("", "''"),
+        ("stage,budget", "'budget'"),
+        ("method,stage,method", "'method'"),
+        ("stage,", "''"),
+    ],
+)
+def test_a_grouping_names_known_dimensions_once(text: str, named: str) -> None:
+    with pytest.raises(ValueError, match=named):
+        parse_grouping(text)
+
+
+# A pretrained model only alpha's third training needs: a shared
+# prerequisite unrelated to beta.
+PRETRAINING = job(
+    "pretrain_model",
+    50,
+    JobIdentity(
+        stage="pretraining",
+        name="shared_encoder",
+        dataset_key="cube",
+        dataset_realization_index=2,
+    ),
+    status="reuse",
+)
+FILTERED_PLAN = PipelinePlan(
+    jobs=[
+        *PLAN.jobs,
+        PRETRAINING,
+        replace(training(5, "alpha", 2), dependencies=frozenset({50})),
+    ]
+)
+
+
+def shown(view: PlanView) -> list[int]:
+    return sorted(job.jobid for job in shown_jobs(FILTERED_PLAN, view))
+
+
+def test_without_filters_or_search_every_job_is_shown() -> None:
+    assert shown(PlanView()) == [1, 2, 3, 5, 10, 20, 30, 40, 50]
+
+
+def test_stage_dataset_and_status_filters_are_strict() -> None:
+    assert shown(PlanView(stage="training")) == [1, 2, 3, 5]
+    assert shown(PlanView(dataset="cube")) == [1, 2, 3, 5, 10, 20, 40, 50]
+    assert shown(PlanView(status="reuse")) == [2, 20, 40, 50]
+    assert shown(PlanView(stage="training", status="reuse")) == [2]
+
+
+def test_a_method_filter_keeps_the_methods_prerequisites_only() -> None:
+    # Beta's training needs the classifier and the dataset, not alpha's
+    # pretrained model; the plot needs beta's outputs but is no prerequisite.
+    assert shown(PlanView(method="beta")) == [3, 20, 40]
+    assert shown(PlanView(method="alpha")) == [1, 2, 5, 10, 20, 40, 50]
+
+
+def test_other_filters_stay_strict_on_a_methods_prerequisites() -> None:
+    assert shown(PlanView(method="alpha", stage="classifier training")) == [20]
+    assert shown(PlanView(method="alpha", status="run")) == [1, 5, 10]
+    assert shown(PlanView(method="beta", dataset="cube", status="reuse")) == [
+        20,
+        40,
+    ]
+
+
+def test_search_narrows_by_every_term_regardless_of_case() -> None:
+    assert shown(PlanView(search="beta")) == [3]
+    assert shown(PlanView(search="ALPHA eval")) == [10]
+    assert shown(PlanView(search="classifier")) == [20]
+    assert shown(PlanView(search="metric=accuracy")) == [30]
+    assert shown(PlanView(search="pretrain", method="alpha")) == [50]
+    assert shown(PlanView(search="pretrain", method="beta")) == []
+    assert shown(PlanView(search="nothing like it")) == []
+
+
+def test_the_tree_groups_the_shown_jobs_and_counts_them() -> None:
+    tree = preview_tree(FILTERED_PLAN, PlanView(method="beta"))
+
+    assert [(group.label, group.counts_label) for group in tree] == [
+        ("dataset generation", "1 Reuse"),
+        ("classifier training", "1 Reuse"),
+        ("training", "1 Run"),
+    ]
+
+
+def test_the_summary_tells_the_shown_jobs_from_the_whole_plan() -> None:
+    assert view_summary(FILTERED_PLAN, PlanView(grouping=("method",))) == (
+        "9 jobs: 5 Run, 4 Reuse"
+    )
+    assert view_summary(FILTERED_PLAN, PlanView(method="beta")) == (
+        "Shown: 3 of 9 jobs: 1 Run, 2 Reuse | Whole plan: 9 jobs: 5 Run, 4 Reuse"
+    )
+    assert view_summary(FILTERED_PLAN, PlanView(search="nothing")) == (
+        "Shown: no job matches the filters and search | Whole plan: 9 jobs: "
+        "5 Run, 4 Reuse"
+    )
+
+
+def test_the_filters_offer_the_values_and_statuses_of_the_plan() -> None:
+    assert filter_values(FILTERED_PLAN, "stage") == [
+        "dataset generation",
+        "classifier training",
+        "pretraining",
+        "training",
+        "evaluation",
+        "visualization",
+    ]
+    assert filter_values(FILTERED_PLAN, "method") == ["alpha", "beta"]
+    assert filter_values(FILTERED_PLAN, "dataset") == ["cube"]
+    assert plan_statuses(FILTERED_PLAN) == ["run", "reuse"]
+    assert plan_statuses(PipelinePlan(jobs=[training(1, "alpha", 0)])) == [
+        "run"
+    ]

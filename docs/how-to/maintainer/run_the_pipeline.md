@@ -217,6 +217,10 @@ using alternative budget files.
   Snakemake's reason ([statuses, keys and
   panes](../../reference/interactive_preview.md)). Press `q` to quit;
   nothing runs.
+- Add `--group-by dataset,method` to the preview to compare methods on each
+  dataset. In the preview, press `g` to regroup, `f` to filter by stage,
+  method, dataset or status and `/` to search
+  ([controls](../../reference/interactive_preview.md#grouping-filters-and-search)).
 - Use `--target all_train_classifiers`, `all_pretrain_models`,
   `all_train_methods` or `all_eval_methods` to narrow the target.
 - Read detailed logs under `.snakemake/log/` when troubleshooting.

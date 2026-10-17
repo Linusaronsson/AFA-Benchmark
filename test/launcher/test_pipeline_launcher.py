@@ -698,3 +698,53 @@ def test_interactive_preview_needs_a_terminal(
     error = capsys.readouterr().err
     assert "terminal" in error
     assert "-n" in error
+
+
+def test_group_by_sets_the_interactive_previews_initial_grouping() -> None:
+    command = launcher_command(
+        ["--interactive-preview", "--group-by", "dataset,method", "kdd26"]
+    )
+
+    assert command[3:7] == [
+        "-m",
+        "afabench.pipeline_preview",
+        "--group-by",
+        "dataset,method",
+    ]
+    assert command[7:] == snakemake_arguments(["kdd26"])
+
+
+@pytest.mark.parametrize(
+    "grouping", ["stage", "method,dataset", "dataset,stage,method"]
+)
+def test_group_by_takes_any_ordered_subset_of_the_dimensions(
+    grouping: str,
+) -> None:
+    command = launcher_command(
+        ["--interactive-preview", "--group-by", grouping]
+    )
+
+    assert command[command.index("--group-by") + 1] == grouping
+
+
+@pytest.mark.parametrize(
+    ("grouping", "named"),
+    [
+        ("", "''"),
+        ("stage,budget", "'budget'"),
+        ("method,stage,method", "'method'"),
+        ("stage,,method", "''"),
+    ],
+)
+def test_group_by_names_known_dimensions_once(
+    grouping: str, named: str
+) -> None:
+    with pytest.raises(LauncherError, match=re.escape(named)):
+        launcher_command(["--interactive-preview", "--group-by", grouping])
+
+
+def test_group_by_needs_interactive_preview() -> None:
+    with pytest.raises(LauncherError, match="--interactive-preview"):
+        launcher_command(["--group-by", "method"])
+    with pytest.raises(LauncherError, match="--interactive-preview"):
+        launcher_command(["-n", "--group-by", "method"])

@@ -606,7 +606,8 @@ The terminal browser of a pipeline plan that the pipeline launcher opens
 with `--interactive-preview`: the jobs grouped by pipeline stage, method
 and dataset, each with its job status, Snakemake's reasons for it, its
 identity, paths and allocation, and each group counting its jobs by
-status. It runs and submits nothing and changes no invocation.
+status. Its grouping, filters and search reshape the loaded pipeline plan
+only: it runs and submits nothing and changes no invocation.
 _Avoid_: TUI, job browser, dry-run viewer
 
 **Pipeline profile override**:

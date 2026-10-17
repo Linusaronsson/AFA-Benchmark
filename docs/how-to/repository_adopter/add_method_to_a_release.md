@@ -50,7 +50,9 @@ unexpected training or evaluation of published methods before proceeding;
 check for missing downloads or changed settings. To tell the jobs that run
 from the published outputs that are reused, and read the reason for each,
 replace `-n` with `--interactive-preview`
-([interactive preview](../../reference/interactive_preview.md)).
+([interactive preview](../../reference/interactive_preview.md)). In the
+preview, press `f`, `→` and `Enter`, and choose your method to list its
+jobs with the prerequisites they need.
 
 Run the same configuration without `-n`:
 
