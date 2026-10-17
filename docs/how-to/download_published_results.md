@@ -6,11 +6,11 @@ AFABench. Public releases need no Hugging Face account.
 
 ## 1. Choose a release
 
-Releases are folders under `releases/` of the AFABench Hugging Face dataset
-repository:
+Releases are folders under `releases/` of the `afabench/results` Hugging Face
+dataset repository:
 
 ```text
-https://huggingface.co/datasets/<repo_id>/tree/main/releases
+https://huggingface.co/datasets/afabench/results/tree/main/releases
 ```
 
 Choose a release id explicitly, using its manifest's coverage to check
@@ -32,7 +32,7 @@ evaluation split, budgets and seeds.
 Every file of a release is downloadable at
 
 ```text
-https://huggingface.co/datasets/<repo_id>/resolve/main/releases/<release_id>/output/<path>
+https://huggingface.co/datasets/afabench/results/resolve/main/releases/<release_id>/output/<path>
 ```
 
 with a browser, `curl`, or a Parquet reader that accepts URLs:
@@ -41,7 +41,7 @@ with a browser, `curl`, or a Parquet reader that accepts URLs:
 import pandas as pd
 
 df = pd.read_parquet(
-    "https://huggingface.co/datasets/<repo_id>/resolve/main/releases/"
+    "https://huggingface.co/datasets/afabench/results/resolve/main/releases/"
     "<release_id>/output/eval_results_transformed/<table path>/eval_data.parquet"
 )
 ```

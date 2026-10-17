@@ -33,7 +33,7 @@ GPUs your site profile will request.
 
   ```shell
   uv run python scripts/release/snapshot.py download <release_id> \
-      --repo-id <repo_id> --payload-category job_duration_table
+      --repo-id afabench/results --payload-category job_duration_table
   ```
 
   It lands at `output/production/release_job_duration_table.parquet`,

@@ -82,7 +82,7 @@ Choose a release id from the [published releases](download_published_results.md#
 then download into the fork's `output/production`:
 
 ```shell
-uv run python scripts/release/snapshot.py download <release_id> --repo-id <repo_id> \
+uv run python scripts/release/snapshot.py download <release_id> --repo-id afabench/results \
     --method random_dummy --method gdfs
 ```
 
@@ -214,7 +214,7 @@ profile on that root:
 
 ```shell
 uv run python scripts/release/snapshot.py download <release_id> \
-    --repo-id <repo_id> --destination-root output/<name> \
+    --repo-id afabench/results --destination-root output/<name> \
     --method random_dummy --method gdfs
 workflow/run.py my_comparison output_root=output/<name> -n
 ```
