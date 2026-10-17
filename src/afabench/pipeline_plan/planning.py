@@ -15,7 +15,10 @@ real run, and an invalid invocation fails with the same error. Only the
 scheduling step is replaced: the DAG is built and every job's resources
 and params are evaluated, and its shell command formatted from them as a
 dry run prints it, but nothing is submitted or run, and the workflow's
-onstart hook, which records the workflow config, never runs.
+onstart hook, which records the workflow config, never runs. A job to run
+whose evaluation fails fails planning, as its submission would fail the
+run; a reused job, which a run never submits, is planned with its
+identity, allocation and shell command unavailable instead.
 
 The plan holds every job of the requested targets' dependency graph that
 has an action, with the status Snakemake decided for it: a job it would
@@ -47,7 +50,11 @@ from unittest import mock
 
 from snakemake.cli import args_to_api, parse_args
 from snakemake.common import async_run
-from snakemake.exceptions import RuleException, print_exception
+from snakemake.exceptions import (
+    RuleException,
+    WorkflowError,
+    print_exception,
+)
 from snakemake.jobs import Job, Reason
 from snakemake.workflow import Workflow
 from snakemake_interface_executor_plugins.registry import Plugin
@@ -130,10 +137,12 @@ class PlannedJob:
     # What the job's record will say it computed; None for rules that
     # write no job record (aggregation and visualization).
     identity: JobIdentity | None
-    device: Device
-    # None when the cluster's default applies.
+    # None when unavailable.
+    device: Device | None
+    # None when the cluster's default applies, or unavailable.
     cpus: int | None
-    gpus: int
+    # None when unavailable.
+    gpus: int | None
     # The placement resources it requests (PLACEMENT_RESOURCES), by name
     placement: dict[str, str] = field(default_factory=dict)
     # Snakemake's id of the job in this plan
@@ -149,6 +158,10 @@ class PlannedJob:
     # The shell command it would run, without its indentation; None when
     # the rule has none or it cannot be formatted without running the job.
     shell_command: str | None = None
+    # Why its identity, allocation and shell command are unavailable:
+    # evaluating its params or resources as for submission failed. Only for
+    # a reused job, which a run never submits; None otherwise.
+    unavailable: str | None = None
 
     @property
     def job_type(self) -> JobType | None:
@@ -222,7 +235,7 @@ def _graph_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
         ]
         jobids = {job: job.jobid for job in jobs}
         planned.extend(
-            _planned_job(
+            _evaluated_job(
                 job,
                 jobid=jobids[job],
                 status="run" if dag.needrun(job) else "reuse",
@@ -327,6 +340,50 @@ def _normalized(path: str) -> str:
     return str(Path(path))
 
 
+def _evaluated_job(
+    job: Job,
+    *,
+    jobid: int,
+    status: JobStatus,
+    reasons: tuple[StatusReason, ...],
+    dependencies: frozenset[int],
+) -> PlannedJob:
+    """
+    Plan the job with its evaluated params and resources.
+
+    A job to run fails planning when they fail, as its submission would
+    fail the run. A run never submits a reused job, so one whose evaluation
+    fails is planned with its identity, allocation and shell command
+    unavailable.
+    """
+    try:
+        return _planned_job(
+            job,
+            jobid=jobid,
+            status=status,
+            reasons=reasons,
+            dependencies=dependencies,
+        )
+    except WorkflowError as error:
+        if status == "run":
+            raise
+        return PlannedJob(
+            rule=job.rule.name,
+            wildcards=_wildcards(job),
+            identity=None,
+            device=None,
+            cpus=None,
+            gpus=None,
+            jobid=jobid,
+            status=status,
+            reasons=reasons,
+            inputs=_paths(job.input),
+            outputs=_paths(job.output),
+            dependencies=dependencies,
+            unavailable=str(error),
+        )
+
+
 def _planned_job(
     job: Job,
     *,
@@ -348,10 +405,7 @@ def _planned_job(
     runtime = resources.get("runtime")
     return PlannedJob(
         rule=job.rule.name,
-        wildcards={
-            name: str(value)
-            for name, value in (job.wildcards_dict or {}).items()
-        },
+        wildcards=_wildcards(job),
         identity=None
         if job_record_command is None
         else job_identity(job_record_command),
@@ -381,6 +435,12 @@ def _shell_command(job: Job) -> str | None:
     except RuleException:
         return None
     return None if command is None else textwrap.dedent(command).strip()
+
+
+def _wildcards(job: Job) -> dict[str, str]:
+    return {
+        name: str(value) for name, value in (job.wildcards_dict or {}).items()
+    }
 
 
 def _paths(files: Iterable[object]) -> tuple[str, ...]:

@@ -18,6 +18,15 @@ from afabench.pipeline_plan.planning import (
 )
 
 SNAKEFILE = """
+def sized(rule):
+    def size(wildcards, input):
+        # A resource sized from the job's inputs, which Snakemake evaluates
+        # only for a job it runs, once they exist.
+        if config.get("unsized") == rule:
+            raise ValueError(f"Cannot size the inputs of {wildcards.method}")
+        return 1
+    return size
+
 rule all:
     input: "alpha.txt", "beta.txt"
 
@@ -33,10 +42,13 @@ rule train_method:
     resources:
         slurm_partition="cpu-queue",
         mem_mb=2000,
+        sized=sized("train_method"),
     shell: "touch {output}"
 
 rule prepare:
     output: "{method}.data"
+    resources:
+        sized=sized("prepare"),
     shell: "touch {output}"
 """
 
@@ -148,3 +160,50 @@ def test_the_plan_holds_each_jobs_shell_command_and_placement() -> None:
 def test_an_invocation_snakemake_rejects_fails_planning() -> None:
     with pytest.raises(InvocationError):
         plan_invocation(["--snakefile", "Snakefile", "--set-resources", "x"])
+
+
+@pytest.mark.usefixtures("workflow")
+def test_a_reused_job_that_cannot_be_evaluated_is_planned_unavailable() -> (
+    None
+):
+    Path("alpha.data").write_text("prepared")
+
+    # A run would not fail: it evaluates no reused job's sized resource.
+    plan = plan_invocation(
+        [
+            "--snakefile",
+            "Snakefile",
+            "--cores",
+            "1",
+            "--config",
+            "unsized=prepare",
+        ]
+    )
+
+    jobs = {(job.rule, job.wildcards["method"]): job for job in plan.jobs}
+    prepared = jobs[("prepare", "alpha")]
+    assert prepared.status == "reuse"
+    assert prepared.unavailable is not None
+    assert "Cannot size the inputs of alpha" in prepared.unavailable
+    assert prepared.identity is None
+    assert prepared.device is None
+    assert prepared.shell_command is None
+    assert prepared.outputs == ("alpha.data",)
+    # It still links the jobs needing it.
+    assert jobs[("train_method", "alpha")].dependencies == {prepared.jobid}
+    assert jobs[("train_method", "alpha")].unavailable is None
+
+
+@pytest.mark.usefixtures("workflow")
+def test_a_scheduled_job_that_cannot_be_evaluated_fails_planning() -> None:
+    with pytest.raises(InvocationError):
+        plan_invocation(
+            [
+                "--snakefile",
+                "Snakefile",
+                "--cores",
+                "1",
+                "--config",
+                "unsized=train_method",
+            ]
+        )

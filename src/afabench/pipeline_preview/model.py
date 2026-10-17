@@ -12,14 +12,17 @@ the jobs needing it, whether the view shows them or not, and its shell
 command is apart. The dimensions come from each job's identity, what its
 job record will say. A shared prerequisite's job record names a classifier
 or pretrained model, not a method, so those jobs are grouped as "Shared
-prerequisites"; a job without a job record, such as an aggregation or
-visualization job, is grouped as "Across methods" and "Across datasets".
+prerequisites"; a classifier trained for one method is grouped under that
+method, from its method wildcard. A job without a job record, such as an
+aggregation or visualization job, is grouped as "Across methods" and
+"Across datasets", in the stage its rule has (STAGE_OF_RULE). A reused job
+whose identity is unavailable is grouped as "Identity unavailable".
 A release preview's conditionally reused jobs come with a warning that
 execution checks the regenerated datasets they wait for.
 """
 
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from itertools import permutations
 from typing import Literal
@@ -36,8 +39,7 @@ from afabench.pipeline_plan.planning import (
 
 type Dimension = Literal["stage", "method", "dataset"]
 DIMENSIONS: tuple[Dimension, ...] = ("stage", "method", "dataset")
-# The default grouping
-GROUPING: tuple[Dimension, ...] = DIMENSIONS
+DEFAULT_GROUPING: tuple[Dimension, ...] = DIMENSIONS
 # Every grouping: each ordered subset of the dimensions, the default first
 GROUPINGS: tuple[tuple[Dimension, ...], ...] = tuple(
     grouping
@@ -55,7 +57,8 @@ STAGES = (
     "aggregation",
     "visualization",
 )
-# The stage of each rule that writes no job record.
+# The stage of each rule that writes no job record; every such rule of the
+# workflow needs one (test/workflow/test_pipeline_plan.py).
 STAGE_OF_RULE = {
     "merge_eval_perf": "aggregation",
     "split_by_classifier_type": "aggregation",
@@ -74,14 +77,27 @@ METHOD_STAGES = {"training", "evaluation", "transformation"}
 SHARED_PREREQUISITES = "Shared prerequisites"
 ACROSS_METHODS = "Across methods"
 ACROSS_DATASETS = "Across datasets"
-EXPLICIT_GROUPS = (SHARED_PREREQUISITES, ACROSS_METHODS, ACROSS_DATASETS)
-NO_STAGE = "no stage"
+# The group of every dimension for a job whose identity is unavailable
+IDENTITY_UNAVAILABLE = "Identity unavailable"
+EXPLICIT_GROUPS = (
+    SHARED_PREREQUISITES,
+    ACROSS_METHODS,
+    ACROSS_DATASETS,
+    IDENTITY_UNAVAILABLE,
+)
 NOT_APPLICABLE = "not applicable"
+UNAVAILABLE = "unavailable"
+UNAVAILABLE_BECAUSE = (
+    "Evaluating its params or resources failed, so its identity, "
+    "allocation and shell command are unknown:\n"
+)
 # What a shared prerequisite's job record names, by stage: not a method
 NAME_LABELS = {
     "classifier_training": "Classifier",
     "pretraining": "Pretrained model",
 }
+# A job's allocation details, in their order
+ALLOCATION_LABELS = ("Device", "CPUs", "GPUs", "Time limit", "Placement")
 OUTSIDE_FILTERED_TREE = (
     "Outside the filtered tree: the filters or search hide this job. They, "
     "the tree and its counts are unchanged."
@@ -228,6 +244,10 @@ def release_warning(plan: PipelinePlan) -> str | None:
     return None
 
 
+class UnknownRuleError(ValueError):
+    """A rule that writes no job record and has no stage of its own."""
+
+
 class GroupingError(ValueError):
     """A grouping that names no dimension, an unknown one or one twice."""
 
@@ -256,7 +276,7 @@ class PlanView:
     method's jobs need, directly or not, as far as the other filters do.
     """
 
-    grouping: tuple[Dimension, ...] = GROUPING
+    grouping: tuple[Dimension, ...] = DEFAULT_GROUPING
     stage: str | None = None
     method: str | None = None
     dataset: str | None = None
@@ -301,16 +321,29 @@ def shown_jobs(plan: PipelinePlan, view: PlanView) -> list[PlannedJob]:
 def _with_prerequisites(plan: PipelinePlan, method: str) -> list[PlannedJob]:
     """Return the method's jobs and the jobs they need, directly or not."""
     by_id = {job.jobid: job for job in plan.jobs}
-    pending = [
-        job.jobid for job in plan.jobs if dimension_of(job, "method") == method
-    ]
-    kept: set[int] = set()
+    kept = _reached(
+        (
+            job.jobid
+            for job in plan.jobs
+            if dimension_of(job, "method") == method
+        ),
+        lambda jobid: by_id[jobid].dependencies,
+    )
+    return [job for job in plan.jobs if job.jobid in kept]
+
+
+def _reached(
+    jobids: Iterable[int], following: Callable[[int], Iterable[int]]
+) -> set[int]:
+    """Return the jobs and the jobs `following` leads to from them, repeatedly."""
+    pending = list(jobids)
+    reached: set[int] = set()
     while pending:
         jobid = pending.pop()
-        if jobid not in kept:
-            kept.add(jobid)
-            pending.extend(by_id[jobid].dependencies)
-    return [job for job in plan.jobs if job.jobid in kept]
+        if jobid not in reached:
+            reached.add(jobid)
+            pending.extend(following(jobid))
+    return reached
 
 
 def _searched_text(job: PlannedJob) -> str:
@@ -387,25 +420,39 @@ def _group_order(dimension: Dimension, label: str) -> tuple[int, str]:
 
 def dimension_of(job: PlannedJob, dimension: Dimension) -> str | None:
     """Return the job's value of the dimension, None when it has none."""
-    identity = job.identity
+    if job.unavailable is not None:
+        return None
     if dimension == "stage":
-        if identity is not None:
-            return identity.stage.replace("_", " ")
-        return STAGE_OF_RULE.get(job.rule)
+        return _stage_of(job)
+    identity = job.identity
     if identity is None:
         return None
-    if dimension == "method":
-        return identity.name if identity.stage in METHOD_STAGES else None
-    return identity.dataset_key
+    if dimension == "dataset":
+        return identity.dataset_key
+    if identity.stage in METHOD_STAGES:
+        return identity.name
+    # A per-method classifier's record names its classifier; its method is
+    # the method wildcard.
+    return job.wildcards.get("method")
+
+
+def _stage_of(job: PlannedJob) -> str:
+    if job.identity is not None:
+        return job.identity.stage.replace("_", " ")
+    if job.rule not in STAGE_OF_RULE:
+        message = f"Rule {job.rule!r} writes no job record and has no stage in STAGE_OF_RULE; add it there"
+        raise UnknownRuleError(message)
+    return STAGE_OF_RULE[job.rule]
 
 
 def group_of(job: PlannedJob, dimension: Dimension) -> str:
     """Return the job's group of the dimension: its value or an explicit group."""
+    if job.unavailable is not None:
+        return IDENTITY_UNAVAILABLE
     value = dimension_of(job, dimension)
+    # Every job has a stage, so only a method or dataset can be missing.
     if value is not None:
         return value
-    if dimension == "stage":
-        return NO_STAGE
     if dimension == "dataset":
         return ACROSS_DATASETS
     return ACROSS_METHODS if job.identity is None else SHARED_PREREQUISITES
@@ -452,8 +499,20 @@ def job_details(job: PlannedJob, plan: PipelinePlan) -> list[tuple[str, str]]:
         ("Status", STATUS_LABELS[job.status]),
         ("Reason", "\n".join(map(reason_text, job.reasons)) or "none given"),
         ("Rule", job.rule),
-        ("Stage", _shown(dimension_of(job, "stage"))),
     ]
+    if job.unavailable is not None:
+        return [
+            *details,
+            ("Unavailable", UNAVAILABLE_BECAUSE + job.unavailable),
+            *[
+                (label, UNAVAILABLE)
+                for label in ("Stage", "Method", "Dataset")
+            ],
+            ("Wildcards", _wildcards(job)),
+            *[(label, UNAVAILABLE) for label in ALLOCATION_LABELS],
+            *_path_details(job, plan),
+        ]
+    details.append(("Stage", _shown(dimension_of(job, "stage"))))
     identity = job.identity
     if identity is None:
         details.append(("Job record", "none: the rule writes no job record"))
@@ -469,7 +528,7 @@ def job_details(job: PlannedJob, plan: PipelinePlan) -> list[tuple[str, str]]:
         details += _identity_details(identity)
     details += [
         ("Wildcards", _wildcards(job)),
-        ("Device", job.device),
+        ("Device", _shown(job.device)),
         ("CPUs", "cluster default" if job.cpus is None else str(job.cpus)),
         ("GPUs", str(job.gpus)),
         (
@@ -485,15 +544,23 @@ def job_details(job: PlannedJob, plan: PipelinePlan) -> list[tuple[str, str]]:
             )
             or "none requested",
         ),
-        ("Inputs", _lines(job.inputs)),
-        ("Outputs", _lines(job.outputs)),
-        ("Existing inputs", _lines(existing_inputs(job, plan))),
+        *_path_details(job, plan),
     ]
     if group_of(job, "method") == SHARED_PREREQUISITES:
         details.append(
             ("Consuming methods", _lines(consuming_methods(job, plan), ", "))
         )
     return details
+
+
+def _path_details(
+    job: PlannedJob, plan: PipelinePlan
+) -> list[tuple[str, str]]:
+    return [
+        ("Inputs", _lines(job.inputs)),
+        ("Outputs", _lines(job.outputs)),
+        ("Existing inputs", _lines(existing_inputs(job, plan))),
+    ]
 
 
 def reason_text(reason: StatusReason) -> str:
@@ -524,19 +591,19 @@ def consumers(job: PlannedJob, plan: PipelinePlan) -> list[PlannedJob]:
 
 def consuming_methods(job: PlannedJob, plan: PipelinePlan) -> list[str]:
     """Return the methods whose jobs need the job's outputs, directly or not."""
-    methods: set[str] = set()
-    pending = consumers(job, plan)
-    seen: set[int] = set()
-    while pending:
-        consumer = pending.pop()
-        if consumer.jobid in seen:
-            continue
-        seen.add(consumer.jobid)
-        method = dimension_of(consumer, "method")
-        if method is not None:
-            methods.add(method)
-        pending.extend(consumers(consumer, plan))
-    return sorted(methods)
+    consumers_of: defaultdict[int, list[int]] = defaultdict(list)
+    for other in plan.jobs:
+        for dependency in other.dependencies:
+            consumers_of[dependency].append(other.jobid)
+    reached = _reached(consumers_of[job.jobid], consumers_of.__getitem__)
+    return sorted(
+        {
+            method
+            for other in plan.jobs
+            if other.jobid in reached
+            and (method := dimension_of(other, "method")) is not None
+        }
+    )
 
 
 type Direction = Literal["needs", "needed_by"]
@@ -591,6 +658,8 @@ def job_title(job: PlannedJob) -> str:
 
 def shell_command_text(job: PlannedJob) -> str:
     """Return the job's shell command, or why there is none."""
+    if job.unavailable is not None:
+        return f"Shell command unavailable: {job.unavailable}"
     return job.shell_command or NO_SHELL_COMMAND
 
 

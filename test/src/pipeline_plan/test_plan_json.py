@@ -61,6 +61,18 @@ def test_a_plan_is_read_back_unchanged_from_its_json() -> None:
                 time_limit_minutes=90,
                 shell_command="python scripts/train_method/alpha.py seed=1",
             ),
+            PlannedJob(
+                rule="train_method",
+                wildcards={"method": "beta"},
+                identity=None,
+                device=None,
+                cpus=None,
+                gpus=None,
+                jobid=8,
+                status="reuse",
+                reasons=(StatusReason(kind="outputs_up_to_date"),),
+                unavailable="Cannot size the inputs of beta",
+            ),
         ]
     )
 
