@@ -8,7 +8,8 @@ arguments. It plans the jobs that invocation would run, matches each to job
 durations and prints the compute estimate: job-hours, core-hours and
 GPU-hours, mean and p90, per pipeline stage and device. It warns about
 planned job types that failed or timed out before. See
-`afabench.compute_estimate` and `docs/how-to/maintainer/estimate_compute.md`.
+`afabench.pipeline_plan`, `afabench.compute_estimate` and
+`docs/how-to/maintainer/estimate_compute.md`.
 
 Options, before or among the launcher's arguments:
     --job-durations PATH  A job duration table, or an output root of job
@@ -37,7 +38,6 @@ import typer
 from typer.core import TyperCommand
 
 from afabench.compute_estimate.estimate import estimate_compute
-from afabench.compute_estimate.planning import InvocationError, plan_jobs
 from afabench.compute_estimate.report import (
     DEFAULT_GROUPING,
     UnknownGroupingColumnError,
@@ -50,7 +50,7 @@ from afabench.core.job_duration_table import (
     load_job_duration_table,
 )
 from afabench.core.output_layout import PRODUCTION_OUTPUT_ROOT
-from afabench.release.config_run import config_run_commands
+from afabench.pipeline_plan.planning import InvocationError, plan_invocation
 from afabench.release.manifest import (
     JOB_DURATION_TABLE_FILENAME,
     RELEASE_MANIFEST_FILENAME,
@@ -136,14 +136,13 @@ def main(
             [*ctx.args, *ctx.meta.get(SNAKEMAKE_ARGUMENTS, [])],
             checkout=Path.cwd(),
         )
-        arguments = config_run_commands(arguments, preview=True)[0]
     except LauncherError as error:
         raise typer.BadParameter(str(error)) from None
     try:
-        jobs = plan_jobs(arguments)
+        plan = plan_invocation(arguments)
     except InvocationError:
         raise typer.Exit(1) from None
-    estimate = estimate_compute(jobs, table)
+    estimate = estimate_compute(plan.scheduled_jobs, table)
     if output is not None:
         per_job_table(estimate).to_csv(output, index=False)
     typer.echo(

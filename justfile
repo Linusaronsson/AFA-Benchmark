@@ -43,7 +43,7 @@ build-venvs *args:
     python3 workflow/venvs/submit_builds.py "$@"
 
 # Paths the workflow tier depends on
-workflow_paths := "workflow/ conf/ test/workflow/ src/afabench/release/ src/afabench/fit/contract src/afabench/core/bundle_system/ src/afabench/core/output_layout src/afabench/core/workflow_settings src/afabench/compute_estimate/ scripts/compute_estimate/ src/afabench/core/job_record.py src/afabench/core/code_identity.py src/afabench/core/job_duration_table.py scripts/misc/collect_job_records.py scripts/plotting/plot_total_time.py scripts/plotting/plot_eval_perf.py src/afabench/plotting/eval_perf.py src/afabench/plotting/config.py src/afabench/plotting/total_time.py"
+workflow_paths := "workflow/ conf/ test/workflow/ src/afabench/release/ src/afabench/fit/contract src/afabench/core/bundle_system/ src/afabench/core/output_layout src/afabench/core/workflow_settings src/afabench/compute_estimate/ src/afabench/pipeline_plan/ scripts/compute_estimate/ src/afabench/core/job_record.py src/afabench/core/code_identity.py src/afabench/core/job_duration_table.py scripts/misc/collect_job_records.py scripts/plotting/plot_total_time.py scripts/plotting/plot_eval_perf.py src/afabench/plotting/eval_perf.py src/afabench/plotting/config.py src/afabench/plotting/total_time.py"
 
 # Type check and tests run concurrently after the file-rewriting steps
 _qa tier: fix

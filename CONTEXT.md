@@ -582,6 +582,13 @@ pipeline run may take several invocations when reruns complete what an
 earlier one left unfinished.
 _Avoid_: Launch, session
 
+**Pipeline plan**:
+What a pipeline invocation would do, read from its Snakemake job graph
+without running anything: the jobs it schedules, which of them each needs
+and the allocation each would request. A compute estimate estimates the
+scheduled jobs of a pipeline plan.
+_Avoid_: Dry run (Snakemake's printed listing of an invocation), job list
+
 **Pipeline profile override**:
 A value given for one run that replaces a pipeline profile's value for the
 same key, or merges into it key by key for a mapping.
