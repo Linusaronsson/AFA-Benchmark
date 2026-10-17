@@ -4,6 +4,8 @@ Content-checked dataset edges for explicitly reused release artifacts.
 Only existing artifacts still identified by the restored release are eligible.
 Missing artifacts retain ordinary dependencies. Dataset generation must finish
 in a separate invocation, so the checked bytes cannot be replaced mid-plan.
+A preview accepts a released artifact before its dataset bundles exist and
+records the checks it leaves to execution (`pending_dataset_checks`).
 """
 
 from pathlib import Path
@@ -24,6 +26,9 @@ class ReleaseReuse:
         self.output_root = output_root
         self.preview = preview
         self._dataset_hashes: dict[Path, str] = {}
+        # Per released artifact a preview accepted, the dataset bundles it
+        # read that do not exist yet: execution checks their content.
+        self.pending_dataset_checks: dict[Path, set[Path]] = {}
         manifest = read_release_manifest(output_root / "release_manifest.json")
         self.bundles = {entry.path: entry for entry in manifest.bundles}
         self.evaluations = {
@@ -125,4 +130,8 @@ class ReleaseReuse:
                 "Use a separate output root to train on changed data."
             )
             raise ValueError(message)
+        if actual is None:
+            self.pending_dataset_checks.setdefault(consumer, set()).add(
+                dataset
+            )
         return True

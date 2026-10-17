@@ -5,7 +5,9 @@ It opens at once with a planning indicator while a child process plans the
 invocation (`planning_process`), then shows the plan's jobs, run and
 reused, as a tree, stage → method → dataset → job, beside the selected
 group's summary or job's details (`model`). Each job wears its status as a
-colored text badge, and each group its counts by status. A narrow terminal
+colored text badge, and each group its counts by status. A release
+preview with conditionally reused jobs keeps a warning that execution
+checks the regenerated datasets they wait for. A narrow terminal
 shows one pane at a time. When planning fails, the child's diagnostics
 replace the panes and quitting exits with 1. Browsing changes nothing: the
 app runs no job and writes no file.
@@ -31,6 +33,7 @@ from afabench.pipeline_preview.model import (
     job_details,
     plan_summary,
     preview_tree,
+    release_warning,
 )
 from afabench.pipeline_preview.planning_process import (
     PlanningProcess,
@@ -48,6 +51,7 @@ NARROW_WIDTH = 80
 STATUS_STYLES: dict[JobStatus, str] = {
     "run": "bold white on dark_green",
     "reuse": "bold white on dark_blue",
+    "conditional_reuse": "bold black on dark_orange",
 }
 
 
@@ -83,6 +87,7 @@ class PipelinePreviewApp(App[None]):
     SUB_TITLE = "jobs run and reused"
     CSS = """
     #status { padding: 0 1; height: 1; }
+    #release-warning { padding: 0 1; height: auto; background: $warning; color: $text; text-style: bold; }
     #panes { height: 1fr; }
     #tree { width: 1fr; border: round $primary; }
     #details { width: 1fr; border: round $secondary; padding: 0 1; }
@@ -110,6 +115,9 @@ class PipelinePreviewApp(App[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         yield Static("Planning the invocation…", id="status")
+        warning = Static("", id="release-warning")
+        warning.display = False
+        yield warning
         with Horizontal(id="panes"):
             tree = PlanTree("Jobs", id="tree")
             tree.show_root = False
@@ -153,6 +161,11 @@ class PipelinePreviewApp(App[None]):
         self.planning_state = "planned"
         self.plan = result.plan
         self.query_one("#status", Static).update(plan_summary(result.plan))
+        warning = release_warning(result.plan)
+        if warning is not None:
+            banner = self.query_one("#release-warning", Static)
+            banner.update(warning)
+            banner.display = True
         tree = self.query_one(PlanTree)
         for group in preview_tree(result.plan):
             self._add_group(tree.root, group)

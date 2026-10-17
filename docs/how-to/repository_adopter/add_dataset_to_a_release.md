@@ -50,7 +50,15 @@ workflow/run.py --configfile output/new_dataset/benchmark.yaml \
 
 Check that every intended release method evaluates your dataset at the chosen
 budgets and realizations. Investigate missing evaluations or unexpected
-training or evaluation on existing datasets before proceeding.
+training or evaluation on existing datasets before proceeding. To tell the
+jobs that run from the published outputs that are reused, replace `-n` with
+`--interactive-preview`
+([interactive preview](../../reference/interactive_preview.md)).
+
+Expect `Conditional reuse` for published outputs on datasets the release
+omits. If the run stops because a regenerated dataset differs from the
+release, fix the data or recompute in a separate output root; do not bypass
+the check.
 
 Run the same configuration without `-n`:
 
