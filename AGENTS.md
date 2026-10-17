@@ -56,8 +56,9 @@ markers `optional`, `pipeline` and `workflow` are deselected by default
 - **Snakemake**: when editing `workflow/snakefiles/orchestration/`,
   update the docstring at the top of the file (config arguments, required
   files, usage examples).
-- **Docs**: before writing, splitting or moving a page in `docs/`, read
-  `docs/README.md`: pages follow Diátaxis, one folder per type.
+- **Docs**: before creating, editing, splitting or moving a page in `docs/`,
+  read `docs/README.md`. For how-to changes, also follow
+  `docs/how-to/AGENTS.md`, including its procedure-only review before declaring done.
 - **Adding a method or dataset**: `docs/how-to/`.
 
 ## Agent skills

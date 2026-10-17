@@ -25,6 +25,9 @@ that page rather than describing the reader itself. Store each guide under
 and link to them from the other audiences' indexes rather than duplicating
 pages.
 
+When creating or editing a how-to, follow the
+[procedure-only writing and review rules](how-to/AGENTS.md).
+
 Name a how-to guide after the task, with a verb (`create_output_snapshots.md`)
 and its section headings after steps the reader performs. Name a
 reference or explanation page after the thing it describes.
