@@ -15,8 +15,8 @@ https://huggingface.co/datasets/<repo_id>/tree/main/releases
 
 Choose a release id explicitly, using its manifest's coverage to check
 that it includes the datasets, methods and settings you need. Each
-release's entry in the [release notes](../reference/release_notes.md) says
-what changed since the previous one.
+release's entry in the [release notes](../reference/release_notes.md) gives
+a short description and any known caveats.
 
 ## 2. Read the release manifest
 

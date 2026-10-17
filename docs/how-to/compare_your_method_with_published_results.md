@@ -108,9 +108,10 @@ jq -r '[.evaluations[], .bundles[]] | .[].code.commit' \
     output/production/release_manifest.json | sort -u
 ```
 
-Compare those commits with your fork's history, and read the [release notes](../reference/release_notes.md) for
-changes since that commit. If a change affects results (data, splits,
-preprocessing, classifiers, acquisition semantics or metrics), your
+Compare those commits with your fork's history to identify result-affecting
+changes (data, splits, preprocessing, classifiers, acquisition semantics or
+metrics). Check the [release notes](../reference/release_notes.md) for known
+caveats, not a complete change history. If a change affects results, your
 results are not comparable with the published ones, even though every
 file still loads ([why](../explanation/benchmark_releases.md#compatibility-and-comparability)).
 A restored output is not run again when your fork changes its rule's code

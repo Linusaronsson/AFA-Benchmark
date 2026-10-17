@@ -1,21 +1,19 @@
 # Release notes
 
-One entry per benchmark release, newest first. Each entry has:
+One entry per benchmark release, newest first. Each entry contains the
+release id as a heading and a one-sentence description of its purpose or
+notable change. For example:
 
-- the release id, coverage and producing commits;
-- the previous release it is compared with, if any;
-- **compatibility changes** since that release: changes to formats,
-  schemas, output paths or APIs, and what an older checkout or release
-  needs to work with them;
-- **result-affecting changes** since that release: every change to data,
-  splits, preprocessing, feature costs, acquisition semantics, classifiers,
-  method configuration or metrics, naming the commits and the affected
-  datasets, methods and settings, and whether results of the previous
-  release remain comparable with this one. If there are none, the entry
-  says "None".
+```markdown
+## example-release
 
-A release that corrects another says what it corrects.
-[How to write an entry](../how-to/publish_a_benchmark_release.md#5-write-the-release-notes-entry);
-[the two kinds of change](../explanation/benchmark_releases.md#compatibility-and-comparability).
+Initial benchmark results for the tabular datasets.
+```
+
+Mention corrections or known caveats when relevant. A release that corrects
+another names that release and says what it corrects. Coverage and producing
+commits are recorded automatically in the
+[release manifest](release_manifest.md); they do not need to be repeated or
+analysed here.
 
 No benchmark release has been published yet.
