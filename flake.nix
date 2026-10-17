@@ -17,6 +17,8 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
+              # direnv otherwise exposes stdenv's Bash without Readline or completion.
+              bashInteractive
               git
               just
               uv
