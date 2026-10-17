@@ -1,8 +1,8 @@
 """
 Save and restore the pipeline's output root.
 
-Local snapshots are verbatim; release packages omit dataset bundles without
-explicit redistribution permission, matching their filtered manifest.
+Local snapshots are verbatim; release packages omit dataset bundles excluded
+by inclusion policy or redistribution permission, matching their manifest.
 
 A snapshot may carry a release manifest beside its `output/` tree
 (`afabench.release.manifest`), and the release's job duration table beside
@@ -125,7 +125,7 @@ def _remove_omitted(
     overwrite: bool,
 ) -> None:
     # Overwriting a release must not retain a dataset bundle from an
-    # earlier save whose redistribution review has since changed.
+    # earlier save whose dataset release policy has since changed.
     for omitted in skip:
         if omitted.suffix != ".bundle":
             continue

@@ -119,8 +119,9 @@ or parameters
 
 ## 4. Regenerate omitted dataset bundles when needed
 
-If the release omitted dataset bundles for redistribution reasons, prepare
-any required local sources following the [dataset guide](../reference/datasets/README.md),
+If the release omitted dataset bundles for local regeneration or
+redistribution reasons, prepare any required local sources following the
+[dataset guide](../reference/datasets/README.md),
 then generate the dataset realizations selected by your profile:
 
 ```shell

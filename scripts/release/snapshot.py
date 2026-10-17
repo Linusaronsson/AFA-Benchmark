@@ -18,6 +18,7 @@ and `docs/reference/snapshot_command.md`). Nothing else here touches the
 host.
 """
 
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
 from typing import Annotated, Final
@@ -45,6 +46,7 @@ from afabench.release.manifest import (
     BudgetSetting,
     ClassifierVariant,
     ExecutionMode,
+    OmittedDatasetBundle,
     PayloadCategory,
     RedistributionStatus,
     ReleaseManifest,
@@ -137,7 +139,6 @@ def save(
 ) -> None:
     console = Console(stderr=True)
     manifest = None
-    omitted: list[str] = []
     job_duration_table = None
     if release_id is None:
         given = [
@@ -171,12 +172,6 @@ def save(
                 index=index,
                 checkout=checkout,
             )
-        included = {bundle.path for bundle in manifest.bundles}
-        omitted = [
-            bundle.path
-            for bundle in index.bundles
-            if bundle.path not in included
-        ]
     typer.echo(f"Scanning snapshot files in {source_root}...", err=True)
     with Progress(
         SpinnerColumn(),
@@ -216,11 +211,6 @@ def save(
         )
     typer.echo(f"Saved snapshot to {snapshot_dir}", err=True)
     if manifest is not None:
-        if omitted:
-            typer.echo(
-                "Omitted dataset bundles without redistribution permission:\n  "
-                + "\n  ".join(omitted)
-            )
         _echo_manifest(
             manifest,
             snapshot_dir / RELEASE_MANIFEST_FILENAME,
@@ -397,6 +387,7 @@ def download(
     manifest = resolved.manifest
     if destination_root is None:
         destination_root = _default_destination_root(manifest)
+    omitted = manifest.omitted_dataset_bundles
     if everything:
         download_release(
             resolved, transport, destination_root, overwrite=overwrite
@@ -412,6 +403,7 @@ def download(
             overwrite=overwrite,
         )
         job_duration_table = payloads.job_duration_table
+        omitted = payloads.omitted_dataset_bundles
         typer.echo(
             f"Downloaded {len(payloads.files)} file(s) and "
             f"{len(payloads.folders)} folder(s)."
@@ -425,6 +417,7 @@ def download(
         manifest,
         restored_manifest_location(destination_root),
         job_duration_table=job_duration_table,
+        omitted_dataset_bundles=omitted,
     )
 
 
@@ -444,7 +437,11 @@ def _transport(ctx: typer.Context, repo_id: str) -> ReleaseTransport:
 
 
 def _echo_manifest(
-    manifest: ReleaseManifest, path: Path, *, job_duration_table: bool
+    manifest: ReleaseManifest,
+    path: Path,
+    *,
+    job_duration_table: bool,
+    omitted_dataset_bundles: list[OmittedDatasetBundle] | None = None,
 ) -> None:
     """
     Print the release's identity and where its manifest is.
@@ -482,6 +479,25 @@ def _echo_manifest(
                 f"{status.capitalize()} dataset redistribution: "
                 f"{', '.join(datasets)}"
             )
+    _echo_omissions(
+        manifest.omitted_dataset_bundles
+        if omitted_dataset_bundles is None
+        else omitted_dataset_bundles
+    )
+
+
+def _echo_omissions(omitted: list[OmittedDatasetBundle]) -> None:
+    if not omitted:
+        return
+    typer.echo(
+        f"Omitted dataset bundles: {len(omitted)} excluded by policy; "
+        "regenerate locally when needed."
+    )
+    counts = Counter(
+        (entry.reason, entry.bundle.dataset_key) for entry in omitted
+    )
+    for (reason, dataset), count in sorted(counts.items()):
+        typer.echo(f"  {dataset}: {count} bundle(s) — {reason}")
 
 
 def _echo_code(manifest: ReleaseManifest) -> None:

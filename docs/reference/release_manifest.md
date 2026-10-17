@@ -10,7 +10,7 @@ own [provenance records](../adr/0002-provenance-recorded-in-artifacts.md),
 never from the workflow configuration: it is a cache of those records, and
 saving the same output tree again gives the same index
 ([ADR 0006](../adr/0006-release-manifest-indexes-artifact-provenance.md)).
-The schema is `afabench.release.manifest.ReleaseManifest`, version 4.
+The schema is `afabench.release.manifest.ReleaseManifest`, version 5.
 Readers reject other schema versions.
 
 `save --release-id` refuses an output tree holding any bundle, or any
@@ -30,11 +30,11 @@ which is as the producing job was given it. JSON object keys are strings.
 
 | Field | Meaning |
 | --- | --- |
-| `manifest_version` | Schema version, 4. Readers reject versions they do not know. |
+| `manifest_version` | Schema version, 5. Readers reject versions they do not know. |
 | `release_id` | The identity given with `--release-id`. |
 | `execution_mode` | `smoke` if any artifact's record has `smoke_test`, `production` otherwise. Dataset generation has no smoke mode, so dataset bundles always record production. `publish` refuses `smoke`; such a manifest is only downloaded in tests, from a local host. |
 | `created_at` | UTC ISO-8601 time the manifest was built. |
-| `dataset_redistribution` | Per dataset key any record names, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
+| `dataset_redistribution` | Per dataset key any record names, the maintainers' review from the checkout: `status` (`unreviewed`, `permitted` or `restricted`), `bundle_policy`, `omission_reason`, `license`, `source`, `reviewed_by`, `notes`. See [Dataset redistribution](#dataset-redistribution). |
 | `job_duration_table` | The release's [job duration table](#job-duration-table): `size_bytes`, `job_records` (its rows) and `smoke_test` (whether any row is of a smoke test); null when the output tree holds no job record. |
 
 There is no release-wide commit: each index entry has the `code` that
@@ -94,7 +94,7 @@ table's record. Identity is read from the tables' identity columns
 
 ### `bundles`
 
-One entry per bundle in the output tree, whatever its folder.
+One entry per included bundle in the output tree, whatever its folder.
 
 | Field | Meaning |
 | --- | --- |
@@ -113,14 +113,29 @@ The full record (resolved configuration, environment, compute, input class
 names) stays in the artifact: the bundle's `manifest.json`, or the Arrow
 schema metadata of a table.
 
+### `omitted_dataset_bundles`
+
+One `{bundle, reason}` per source dataset bundle excluded from the package by
+release policy or redistribution permission, including bundles no consumer
+references. `bundle` has the same fields as a `bundles` entry: its identity,
+original path and exact content hash remain available, but its bytes are
+not shipped and do not count toward payload coverage. `reason` records the
+policy's omission reason or the unreviewed/restricted permission status.
+
 ### Inputs
 
 An input is the bundle in the release with its `content_hash`, not the
 bundle at its `path`: a bundle regenerated after the artifact was produced
 still has the path, but not the hash. An input no bundle of the release
-matches is a **dangling input**. `save` lists them, and a selective download
-reports those of the categories it fetches as missing. A release may
-leave bundles out on purpose.
+matches is unresolved unless it is a dataset input whose non-null hash
+matches an `omitted_dataset_bundles` entry. Those expected exclusions are
+summarized by dataset and reason, not listed once per consumer as missing.
+Unknown hashes, different hashes at the same path, and inputs of other
+roles are not excused by the omission inventory: they remain **dangling
+inputs**. `save` lists them, and selective download reports those of the
+categories it fetches as missing. Download summaries include only the
+excluded dependencies reached by the requested selection; `--all` summarizes
+all excluded bundles.
 
 ### `coverage`
 
@@ -218,18 +233,26 @@ other folder. Its records are already rows of the job duration table, whose
 Being able to generate a dataset bundle grants no right to publish it. Each
 dataset key any record names is recorded in `dataset_redistribution` from the
 maintainers' reviews in `conf/release/dataset_redistribution.yaml` of
-the checkout. That file ships empty, so every dataset is `unreviewed`, and
-`save`, `restore`, `publish` and `download` print the unreviewed and
-restricted keys. Only a `permitted` dataset's bundles may be published.
-`save --release-id` omits unreviewed and restricted dataset bundles from
-both the package and its bundle index and payload coverage. Models and
-evaluation results remain included regardless of their dataset's status;
-the dataset's review remains visible in the manifest. Inputs referring to
-omitted bundles remain as dangling inputs, so download reports them missing.
-`publish` inspects the package's actual bundles and refuses any dataset
-bundle without explicit permission, with no override. It also refuses
-bundles that differ from the manifest or have no provenance record (see
-[`publish`](snapshot_command.md#publish)).
+the checkout. Every pipeline dataset must have an explicit entry, maintained
+when the dataset is added, not at each release. Tests check pipeline dataset
+coverage; release creation fails before copying if any encountered dataset
+key has no entry. An explicit `unreviewed` entry records unresolved permission.
+
+Redistribution permission and release inclusion are separate decisions.
+Only `status: permitted` plus `bundle_policy: include` allows dataset
+bundles into a package. `bundle_policy: omit` excludes even a permitted
+dataset and requires an `omission_reason`; CUBE and the other configured
+synthetic datasets are omitted for local regeneration, not for licensing
+restrictions. Unreviewed and restricted bundles are also excluded.
+
+`save --release-id` removes excluded bundles from the package, its included
+bundle index and payload coverage, preserving their identities and reasons
+in `omitted_dataset_bundles`. Models and evaluation results remain included
+regardless. `save`, `restore`, `publish` and `download` summarize expected
+exclusions separately from unresolved input references, and print unreviewed
+and restricted keys. `publish` inspects actual package bundles and refuses
+excluded bundles, with no override. It also refuses bundles differing from
+the manifest or lacking provenance (see [`publish`](snapshot_command.md#publish)).
 
 What a dataset bundle holds decides what the review covers:
 
@@ -244,7 +267,9 @@ What a dataset bundle holds decides what the review covers:
 
 A review entry records:
 
-- `status`: `permitted` or `restricted`.
+- `status`: `permitted`, `restricted`, or `unreviewed`.
+- `bundle_policy`: `include` or `omit`; inclusion still needs permission.
+- `omission_reason`: a non-empty explanation for `omit`, otherwise null.
 - `license`: the licence or terms the review relied on.
 - `source`: where the data comes from, so users can obtain it themselves.
 - `reviewed_by`: who reviewed it, and when.

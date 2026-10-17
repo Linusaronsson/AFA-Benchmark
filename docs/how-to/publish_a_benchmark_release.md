@@ -51,19 +51,7 @@ The uv hardlink warning is unrelated to Hugging Face authentication.
 Instead of `--repo-id <repo_id>` below, the repository can be in
 `AFABENCH_RELEASE_REPO`.
 
-## 2. Review dataset redistribution
-
-Only dataset bundles explicitly approved for public redistribution can
-be in a release. Models trained on restricted or unreviewed datasets and
-evaluation results remain eligible. For each dataset whose bundles you
-want to include, read its source's licence or terms and record the review in
-`conf/release/dataset_redistribution.yaml` (format in the file's
-header; [what a review covers](../reference/release_manifest.md#dataset-redistribution)).
-A dataset without an entry is `unreviewed`. Release creation automatically
-omits `unreviewed` and `restricted` dataset bundles, while retaining models
-and results. Plain local snapshots without a release id still copy everything.
-
-## 3. Save the release package
+## 2. Save the release package
 
 First, [run the benchmark pipeline](run_the_pipeline.md) and wait for it
 to finish. The command below does **not** run the benchmark.
@@ -89,7 +77,7 @@ every bundle and evaluation table by its provenance record, and prints what
 it recorded. Configuration is read from `output/production/workflow_config.json`,
 not from the current checkout's configuration files. If you supply optional
 configuration arguments, `save` refuses any mismatch with the recorded run
-before copying anything. Nothing is uploaded until step 6.
+before copying anything. Nothing is uploaded until step 5.
 
 `save` refuses an output root without a recorded workflow configuration;
 execute pipeline jobs to create it (a dry run or an invocation with nothing
@@ -106,7 +94,7 @@ A release can cover any selection of datasets, methods and settings;
 its manifest records what is included. Users must name its release id to
 download it. Smoke-test outputs are never published.
 
-## 4. Review the package
+## 3. Review the package
 
 Read `~/data/afabench-releases/example/release_manifest.json`
 ([fields](../reference/release_manifest.md#fields)) and check each item:
@@ -116,8 +104,8 @@ Read `~/data/afabench-releases/example/release_manifest.json`
 - [ ] The printed producing code has no dirty or unknown commit, so each
       artifact's commit is the code that produced it. If the release mixes
       commits, the release notes say which stage each commit produced.
-- [ ] No input was reported as matching no bundle, unless you left that
-      bundle out on purpose.
+- [ ] No input was reported as matching no bundle. Expected dataset
+      exclusions are summarized separately by reason.
 - [ ] `coverage` lists the datasets, dataset realizations, methods,
       evaluation splits, budget settings, classifier variants and output
       categories you mean to publish.
@@ -125,11 +113,10 @@ Read `~/data/afabench-releases/example/release_manifest.json`
       `transformed_path`.
 - [ ] `output/` holds no stale or unrelated files; release creation omitted
       unapproved dataset bundles but copied the other outputs as they were.
-- [ ] The printed omitted dataset bundles are those you intended to leave
-      out. Only dataset bundles with a `permitted` review are included;
-      models and results may name restricted or unreviewed datasets.
+- [ ] The printed dataset exclusions match the benchmark's
+      [dataset release policy](../reference/release_manifest.md#dataset-redistribution).
 
-## 5. Write the release notes entry
+## 4. Write the release notes entry
 
 Add an entry for the release at the top of
 [`reference/release_notes.md`](../reference/release_notes.md), in the
@@ -143,7 +130,7 @@ format given there. To find the changes since the previous release:
 3. Sort each change into a compatibility change or a result-affecting
    change ([the difference](../explanation/benchmark_releases.md#compatibility-and-comparability)).
 
-## 6. Publish
+## 5. Publish
 
 ```shell
 uv run python scripts/release/snapshot.py publish ~/data/afabench-releases/example \
@@ -153,11 +140,10 @@ uv run python scripts/release/snapshot.py publish ~/data/afabench-releases/examp
 The release is uploaded in one commit, and the command prints its
 provenance and web address.
 
-If `publish` finds a dataset bundle without explicit permission, it refuses
-the whole package before uploading anything. Finish its review (step 2) and
-save the package again (step 3); release creation omits any dataset bundles
-still restricted or unreviewed. There is no redistribution override.
-Do not add bundles to the package after saving it.
+If `publish` finds dataset bundles excluded by policy or without explicit
+redistribution permission, it refuses the whole package before uploading
+anything. Save the package again (step 2); do not add bundles after saving it.
+There is no redistribution override.
 
 If `publish` refuses artifacts produced from dirty or unknown code,
 regenerate them from a clean commit and save the package again. To publish

@@ -21,8 +21,8 @@ A package holding any smoke-test artifact is never published
 (`docs/adr/0012-a-downloaded-release-is-a-cache.md`); the test suite checks
 the round trip by laying a smoke package out on a local host with
 `release_files`. A release is refused while any dataset in its manifest's
-`dataset_redistribution` is not `permitted` and its dataset bundles are
-present. There is no redistribution override. Models and results remain
+`dataset_redistribution` excludes its bundles by policy or permission and
+those bundles are present. There is no redistribution override. Models and results remain
 eligible regardless of their dataset's status. It is also refused while
 any of its artifacts was produced from a
 dirty tree or unknown code, unless the maintainer allows dirty code
@@ -96,8 +96,8 @@ def publish_release(
     """
     Upload the snapshot in `package_dir` as its manifest's release.
 
-    Dataset bundles require explicit redistribution permission, with no
-    override. `allow_dirty_code` publishes artifacts produced from a
+    Dataset bundles require both inclusion policy and explicit redistribution
+    permission, with no override. `allow_dirty_code` publishes artifacts produced from a
     dirty tree or unknown code anyway.
     """
     manifest = read_release_manifest(package_dir / RELEASE_MANIFEST_FILENAME)
@@ -368,10 +368,10 @@ def _check_redistribution(
             for bundle in refused
         )
         msg = (
-            f"Release {manifest.release_id!r} holds dataset bundles without "
-            f"permitted redistribution: {described}. Review them in "
-            f"{DATASET_REDISTRIBUTION_FILE} and save the package again; "
-            "unreviewed and restricted dataset bundles cannot be published."
+            f"Release {manifest.release_id!r} holds dataset bundles excluded "
+            f"by release policy or redistribution permission: {described}. "
+            f"See {DATASET_REDISTRIBUTION_FILE} and save the package again; "
+            "excluded dataset bundles cannot be published."
         )
         raise ValueError(msg)
     if index.bundles != manifest.bundles:

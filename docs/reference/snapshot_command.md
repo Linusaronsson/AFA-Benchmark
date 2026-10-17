@@ -91,9 +91,13 @@ is copied:
   listed;
 - a source root without any artifact.
 
-Dataset bundles are included only when their dataset key has an explicit
-`permitted` review. Other dataset bundles are omitted from the output tree,
-the manifest's bundle index and payload coverage, and their paths are printed.
+Every encountered dataset key must have an entry in
+`conf/release/dataset_redistribution.yaml`; a missing entry is an error.
+Dataset bundles are included only with `status: permitted` and
+`bundle_policy: include`. Other dataset bundles are omitted from the output
+tree, the manifest's included bundle index and payload coverage. Their
+identities, hashes and reasons are recorded in `omitted_dataset_bundles`,
+and exclusions are summarized by dataset and reason, not per consumer.
 Models and evaluation results remain included regardless of dataset status.
 A release with no artifacts left after omission is refused. Plain snapshots
 without `--release-id` remain verbatim copies.
@@ -105,7 +109,8 @@ A smoke test's outputs are saved with execution mode `smoke`, which
 The command prints the recorded configuration, the release identity, every
 dataset whose redistribution is `unreviewed` or `restricted`, the
 producing code per pipeline stage, and the
-[dangling inputs](release_manifest.md#inputs):
+[dangling inputs](release_manifest.md#inputs), separately from proven
+references to policy-excluded dataset bundles:
 
 ```text
 Producing code per pipeline stage:

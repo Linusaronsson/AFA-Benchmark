@@ -84,8 +84,9 @@ identified by the producing commit.
   that still resolves after its bundle was regenerated would link to
   different code; the hash links to nothing. Such a **dangling input** is
   kept in the index, reported by `save`, and reported as missing by
-  selective download. It is not refused, since a maintainer may leave
-  bundles out of a release on purpose.
+  selective download. It is not refused. Dataset inputs matching an exact
+  non-null hash in the excluded-bundle inventory are instead reported as
+  expected policy exclusions, never excused by path alone.
 - **Producing commits are reported per stage.** `save` and `publish` print,
   for dataset generation, classifier training, pretraining, training and
   evaluation, each producing commit with its artifact count, and flag dirty
@@ -100,12 +101,16 @@ identified by the producing commit.
 
 ## Dataset bundle redistribution
 
-Release packages omit dataset bundles unless explicitly permitted by the
-maintainers' redistribution review. Their models and evaluation results
-remain included. The manifest indexes only included bundles, retaining
-reviews for every dataset the source artifacts name and inputs pointing to
-omitted bundles as dangling inputs. Local snapshots without a release id
-remain verbatim.
+Release packages require both explicit redistribution permission and an
+inclusion policy allowing each dataset bundle. Every pipeline dataset has
+an entry maintained at dataset onboarding; missing entries are errors,
+while unresolved permission is explicitly unreviewed. Synthetic datasets
+may be omitted for regeneration independently of permission. Models and
+evaluation results remain included. The manifest indexes included bundles
+and separately retains excluded dataset bundles with identities, hashes
+and reasons. Exact dataset-input hash matches are expected exclusions;
+other unresolved inputs remain dangling. Local snapshots without a release
+id remain verbatim.
 
 Filtering at save time makes the package safe to inspect and share without
 raw dataset bundles that lack permission. Publication also inspects actual

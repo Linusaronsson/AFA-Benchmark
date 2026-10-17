@@ -20,6 +20,8 @@ of producing them again (`docs/adr/0012-a-downloaded-release-is-a-cache.md`).
 
 Requested coverage the release does not have, and inputs no bundle of the
 release matches, are reported in `missing`, never filled from elsewhere.
+Proven dataset-policy exclusions are instead deduplicated in
+`omitted_dataset_bundles`.
 """
 
 from collections.abc import Callable, Sequence
@@ -33,8 +35,10 @@ from afabench.release.manifest import (
     ClassifierVariant,
     EvaluationEntry,
     IndexedInput,
+    OmittedDatasetBundle,
     PayloadCategory,
     ReleaseManifest,
+    omitted_dataset_input,
 )
 
 CHAIN_CATEGORIES = [
@@ -82,6 +86,7 @@ class SelectedPayloads:
     folders: list[str]
     job_duration_table: bool
     missing: list[str]
+    omitted_dataset_bundles: list[OmittedDatasetBundle]
 
 
 type TableValues = Callable[[EvaluationEntry], Sequence[object]]
@@ -152,12 +157,10 @@ def select_payloads(
         for bundle in bundles
         if bundle.category in categories
     )
-    missing.extend(
-        f"{INPUT_CATEGORIES[bundle_input.role]} {bundle_input.path}, "
-        f"{bundle_input.role} input of {artifact_path}: not in the release"
-        for artifact_path, bundle_input in dangling
-        if INPUT_CATEGORIES[bundle_input.role] in categories
+    omitted, unresolved = _dependency_diagnostics(
+        manifest, dangling, categories
     )
+    missing.extend(unresolved)
     for output_category in dict.fromkeys(selection.output_categories):
         if output_category in manifest.coverage.output_categories:
             folders.append(output_category)
@@ -176,7 +179,31 @@ def select_payloads(
         folders=list(dict.fromkeys(folders)),
         job_duration_table=job_duration_table,
         missing=missing,
+        omitted_dataset_bundles=omitted,
     )
+
+
+def _dependency_diagnostics(
+    manifest: ReleaseManifest,
+    dangling: list[tuple[str, IndexedInput]],
+    categories: set[PayloadCategory],
+) -> tuple[list[OmittedDatasetBundle], list[str]]:
+    omitted: list[OmittedDatasetBundle] = []
+    missing: list[str] = []
+    for artifact_path, bundle_input in dangling:
+        if INPUT_CATEGORIES[bundle_input.role] not in categories:
+            continue
+        exclusion = omitted_dataset_input(manifest, bundle_input)
+        if exclusion is not None:
+            if exclusion not in omitted:
+                omitted.append(exclusion)
+        else:
+            missing.append(
+                f"{INPUT_CATEGORIES[bundle_input.role]} {bundle_input.path}, "
+                f"{bundle_input.role} input of {artifact_path}: "
+                "not in the release"
+            )
+    return omitted, missing
 
 
 def _job_folder(bundle: BundleEntry) -> str:

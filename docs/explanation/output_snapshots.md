@@ -16,8 +16,9 @@ output category; selection happens when downloading a published release
 and evaluation tables carry their own provenance records.
 
 Saving with a release id instead prepares a release package: it omits
-dataset bundles without explicit redistribution permission and indexes only
-the included artifacts in a release manifest. Models and results remain
+dataset bundles excluded by dataset policy or lacking explicit redistribution
+permission. Its manifest indexes included artifacts and records the excluded
+dataset bundles' identities and reasons separately. Models and results remain
 included even when their dataset bundles are omitted. This keeps local
 snapshots suitable for complete restoration without publishing datasets
 that have not been approved for redistribution.

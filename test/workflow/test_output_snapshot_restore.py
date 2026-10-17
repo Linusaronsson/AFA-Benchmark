@@ -201,6 +201,7 @@ def test_smoke_snapshot_round_trips_its_smoke_manifest(
                 "datasets": {
                     "cube": {
                         "status": "permitted",
+                        "bundle_policy": "include",
                         "license": "MIT",
                         "source": "generated",
                         "reviewed_by": "test maintainer",

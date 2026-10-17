@@ -181,7 +181,27 @@ backbone, longer training), add a dataset override in
 `conf/scripts/<stage>/<method>/dataset_override/my_dataset.yaml`; `imagenette`'s
 files show the image case.
 
-### 5. Add a readable name
+### 5. Record the dataset release policy
+
+Add an entry for the dataset key in
+`conf/release/dataset_redistribution.yaml`, including variants with their
+own keys. Every pipeline dataset must have an entry: tests check coverage,
+and release creation refuses encountered datasets without one. Maintain
+this when adding the dataset or changing its terms, not for every release.
+
+Record redistribution `status` as `permitted`, `restricted`, or explicitly
+`unreviewed`, with the source, licence or terms, reviewer and relevant notes.
+Do not infer permission from being able to generate a bundle.
+
+Choose `bundle_policy` independently: `include` makes bundles eligible only
+with a `permitted` review; `omit` always excludes them and requires an
+`omission_reason`. For a synthetic dataset that users should regenerate,
+use `omit` with a reason such as `synthetic dataset; regenerate locally`.
+Copy an appropriate existing entry; never label a synthetic exclusion as a
+redistribution restriction.
+[Policy fields and what a review covers](../reference/release_manifest.md#dataset-redistribution).
+
+### 6. Add a readable name
 
 (Optional but recommended) Add a display name to `dataset_name_mapping` in `conf/scripts/plotting/common/default.yaml`:
 
@@ -191,7 +211,7 @@ dataset_name_mapping:
   my_dataset: My Dataset Display Name
 ```
 
-### 6. Add to dataset sets
+### 7. Add to dataset sets
 
 (Optional) Add your dataset to one or more *dataset sets* in `dataset_sets` in `workflow/conf/dataset_sets/<variant>.yaml`. Dataset sets group datasets for organized plotting: each set with evaluation results gets its own `dataset_set-<name>/` plot folder.
 
@@ -205,7 +225,7 @@ dataset_sets:
 Your dataset is plotted without this step: the `all` dataset set, which
 holds every dataset of the run, always exists and cannot be configured.
 
-### 7. Document the dataset
+### 8. Document the dataset
 
 Write its page in `docs/reference/datasets/`, following the template in
 [`docs/reference/datasets/README.md`](../reference/datasets/README.md), and

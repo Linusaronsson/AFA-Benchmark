@@ -373,17 +373,18 @@ it. It holds every file, with no selection.
 _Avoid_: Backup, archive, export, release package
 
 **Release package**:
-The outputs prepared for publication as a benchmark release, omitting dataset
-bundles without explicit redistribution permission while retaining models
-and results. Unlike a local output snapshot, it need not contain every dataset
-bundle of the benchmark run.
+The outputs prepared for publication as a benchmark release, retaining models
+and results while excluding dataset bundles according to each dataset's release
+policy and redistribution permission. Unlike a local output snapshot, it need
+not contain every dataset bundle of the benchmark run.
 _Avoid_: Backup, verbatim snapshot
 
 **Release manifest**:
 The JSON file beside a release package's output tree that identifies its
 benchmark release, records the maintainers' dataset redistribution review
 and the workflow configuration
-that lays out the release, and indexes the package's included artifacts. The index is generated from the artifacts' provenance records,
+that lays out the release, and indexes the package's included artifacts and dataset bundles excluded by
+policy, with their exclusion reasons. The index is generated from the artifacts' provenance records,
 never from the workflow configuration, so it is a cache of those records
 rather than a second source of truth (see
 `docs/reference/release_manifest.md`).

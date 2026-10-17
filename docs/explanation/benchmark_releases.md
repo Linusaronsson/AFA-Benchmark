@@ -83,12 +83,15 @@ user decides.
 
 Being able to generate a dataset bundle grants no right to publish it:
 most tabular and image datasets come from third parties under their own
-terms. So every dataset starts as `unreviewed`. Release creation omits
-unreviewed and restricted dataset bundles, but keeps models trained on
-those datasets and evaluation results. Publication independently checks the
-package and refuses any dataset bundle without explicit permission; there
-is no override. Reviews remain visible in the manifest even when only
-models or results for a dataset are included.
+terms. Each dataset therefore needs an explicit release-policy entry when
+it is added to the pipeline; unresolved permission is recorded as
+`unreviewed`, not inferred from a missing entry. Release creation excludes
+unreviewed and restricted dataset bundles, but keeps their models and
+results. Inclusion policy is independent: synthetic datasets can be
+excluded for local regeneration even when redistribution is permitted.
+Publication checks both permission and policy against the actual package,
+with no override. The manifest retains excluded bundle identities and
+reasons so expected exclusions do not look like broken input references.
 
 ## Limits
 

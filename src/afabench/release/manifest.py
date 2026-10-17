@@ -46,12 +46,12 @@ from afabench.evaluation.provenance import evaluation_table_provenance
 from afabench.evaluation.schemas import IDENTITY_DTYPES
 from afabench.release.workflow_config import WorkflowConfigRecord
 
-MANIFEST_VERSION = 4
+MANIFEST_VERSION = 5
 RELEASE_MANIFEST_FILENAME = "release_manifest.json"
 # Beside the release manifest, so the pipeline never rewrites it
 JOB_DURATION_TABLE_FILENAME = "release_job_duration_table.parquet"
-# Maintainers' redistribution reviews, relative to the checkout. A dataset
-# key it does not list is unreviewed.
+# Dataset onboarding policy, relative to the checkout. Every pipeline dataset
+# must have an explicit entry.
 DATASET_REDISTRIBUTION_FILE = Path("conf/release/dataset_redistribution.yaml")
 
 
@@ -76,6 +76,11 @@ class RedistributionStatus(StrEnum):
     UNREVIEWED = "unreviewed"
     PERMITTED = "permitted"
     RESTRICTED = "restricted"
+
+
+class DatasetBundlePolicy(StrEnum):
+    INCLUDE = "include"
+    OMIT = "omit"
 
 
 class PayloadCategory(StrEnum):
@@ -149,22 +154,32 @@ class CodeIdentity:
 
 @dataclass(frozen=True, kw_only=True)
 class DatasetRedistribution:
-    """A maintainer's review of whether a dataset's bundles may be public."""
+    """A dataset's redistribution review and independent inclusion policy."""
 
     status: RedistributionStatus
+    bundle_policy: DatasetBundlePolicy
     license: str | None
     source: str | None
     reviewed_by: str | None
     notes: str | None
+    omission_reason: str | None = None
 
+    def __post_init__(self) -> None:
+        if self.bundle_policy is DatasetBundlePolicy.OMIT:
+            if not self.omission_reason or not self.omission_reason.strip():
+                msg = "Dataset bundle_policy 'omit' requires omission_reason."
+                raise ValueError(msg)
+        elif self.omission_reason is not None:
+            msg = "Dataset omission_reason requires bundle_policy 'omit'."
+            raise ValueError(msg)
 
-UNREVIEWED_REDISTRIBUTION = DatasetRedistribution(
-    status=RedistributionStatus.UNREVIEWED,
-    license=None,
-    source=None,
-    reviewed_by=None,
-    notes=None,
-)
+    @property
+    def exclusion_reason(self) -> str | None:
+        if self.bundle_policy is DatasetBundlePolicy.OMIT:
+            return self.omission_reason
+        if self.status is not RedistributionStatus.PERMITTED:
+            return f"{self.status} redistribution permission"
+        return None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -199,6 +214,14 @@ class BundleEntry:
     dataset_realization_index: int | None
     split: str | None
     inputs: list[IndexedInput]
+
+
+@dataclass(frozen=True, kw_only=True)
+class OmittedDatasetBundle:
+    """A source bundle excluded by dataset policy, not a release payload."""
+
+    bundle: BundleEntry
+    reason: str
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -294,6 +317,7 @@ class ReleaseManifest:
     job_duration_table: JobDurationTableEntry | None
     evaluations: list[EvaluationEntry]
     bundles: list[BundleEntry]
+    omitted_dataset_bundles: list[OmittedDatasetBundle]
 
     def __post_init__(self) -> None:
         if not self.release_id:
@@ -329,7 +353,7 @@ class ArtifactIndex:
 
 @dataclass(frozen=True, kw_only=True)
 class DanglingInput:
-    """An input whose bundle, by content hash, is not in the release."""
+    """An input whose hash matches neither payload nor proven exclusion."""
 
     artifact_path: str
     role: InputRole
@@ -364,7 +388,8 @@ def build_release_manifest(
     maintainer's declaration of the configuration whose targets lay out the
     release; it is recorded, never read. `checkout` supplies the
     maintainers' dataset redistribution review. Dataset bundles without
-    explicit permission are omitted from the index; models and evaluations
+    explicit permission or selected for omission are excluded from payloads;
+    their entries and reasons are retained separately. Models and evaluations
     remain. The release copy must omit those same bundles.
     """
     if index.unrecorded:
@@ -384,7 +409,17 @@ def build_release_manifest(
             if entry.dataset_key is not None
         }
     )
-    reviews = _dataset_redistribution(checkout, datasets)
+    reviews = dataset_redistribution(checkout, datasets)
+    omitted: list[OmittedDatasetBundle] = []
+    for bundle in index.bundles:
+        if bundle.category is not PayloadCategory.DATASET_BUNDLE:
+            continue
+        if bundle.dataset_key is None:
+            msg = f"Dataset bundle {bundle.path!r} has no dataset key."
+            raise ValueError(msg)
+        reason = reviews[bundle.dataset_key].exclusion_reason
+        if reason is not None:
+            omitted.append(OmittedDatasetBundle(bundle=bundle, reason=reason))
     index = replace(
         index,
         bundles=[
@@ -397,7 +432,7 @@ def build_release_manifest(
     if not index.evaluations and not index.bundles:
         msg = (
             f"Release {release_id!r} has no publishable artifact after "
-            "omitting unreviewed or restricted dataset bundles."
+            "omitting dataset bundles under the release policy."
         )
         raise ValueError(msg)
     return ReleaseManifest(
@@ -411,15 +446,16 @@ def build_release_manifest(
         job_duration_table=job_duration_table_entry(index),
         evaluations=index.evaluations,
         bundles=index.bundles,
+        omitted_dataset_bundles=omitted,
     )
 
 
 def dataset_bundle_permitted(
     bundle: BundleEntry, reviews: dict[str, DatasetRedistribution]
 ) -> bool:
-    """Only an explicit permission for the bundle's dataset allows it."""
-    review = reviews.get(bundle.dataset_key or "", UNREVIEWED_REDISTRIBUTION)
-    return review.status is RedistributionStatus.PERMITTED
+    """Both redistribution permission and inclusion policy must allow it."""
+    review = reviews.get(bundle.dataset_key or "")
+    return review is not None and review.exclusion_reason is None
 
 
 def index_artifacts(output_root: Path) -> ArtifactIndex:
@@ -477,8 +513,27 @@ def job_duration_table_entry(
     )
 
 
+def omitted_dataset_input(
+    manifest: ReleaseManifest, entry: IndexedInput
+) -> OmittedDatasetBundle | None:
+    """Recognize only dataset inputs with a known, exactly excluded hash."""
+    if (
+        INPUT_CATEGORIES[entry.role] is not PayloadCategory.DATASET_BUNDLE
+        or entry.content_hash is None
+    ):
+        return None
+    return next(
+        (
+            omitted
+            for omitted in manifest.omitted_dataset_bundles
+            if omitted.bundle.content_hash == entry.content_hash
+        ),
+        None,
+    )
+
+
 def dangling_inputs(manifest: ReleaseManifest) -> list[DanglingInput]:
-    """Return the inputs no bundle of the release matches by hash."""
+    """Return unresolved inputs, excluding proven dataset-policy omissions."""
     hashes = {bundle.content_hash for bundle in manifest.bundles}
     artifacts: list[tuple[str, list[IndexedInput]]] = [
         (bundle.path, bundle.inputs) for bundle in manifest.bundles
@@ -491,7 +546,8 @@ def dangling_inputs(manifest: ReleaseManifest) -> list[DanglingInput]:
         DanglingInput(artifact_path=path, role=entry.role, path=entry.path)
         for path, inputs in artifacts
         for entry in inputs
-        if entry.content_hash is None or entry.content_hash not in hashes
+        if (entry.content_hash is None or entry.content_hash not in hashes)
+        and omitted_dataset_input(manifest, entry) is None
     ]
 
 
@@ -543,6 +599,7 @@ def read_release_manifest(path: Path) -> ReleaseManifest:
                 Stage,
                 InputRole,
                 RedistributionStatus,
+                DatasetBundlePolicy,
             ],
             strict=True,
         ),
@@ -781,29 +838,29 @@ def _inputs(record: ProvenanceRecord) -> list[IndexedInput]:
     ]
 
 
-def _dataset_redistribution(
+def dataset_redistribution(
     checkout: Path, datasets: list[str]
 ) -> dict[str, DatasetRedistribution]:
+    """Read explicit policies, refusing missing entries even for results only."""
     path = checkout / DATASET_REDISTRIBUTION_FILE
     content = yaml.safe_load(path.read_text()) if path.is_file() else None
     reviews: dict[str, Any] = (content or {}).get("datasets") or {}
+    missing = sorted(set(datasets) - reviews.keys())
+    if missing:
+        msg = (
+            f"Missing dataset release policy in {path}: {', '.join(missing)}. "
+            "Add an entry when adding each dataset to the pipeline."
+        )
+        raise ValueError(msg)
     records: dict[str, DatasetRedistribution] = {}
     for dataset in datasets:
-        if dataset not in reviews:
-            records[dataset] = UNREVIEWED_REDISTRIBUTION
-            continue
         review = dacite.from_dict(
             DatasetRedistribution,
             reviews[dataset],
-            config=dacite.Config(cast=[RedistributionStatus], strict=True),
+            config=dacite.Config(
+                cast=[RedistributionStatus, DatasetBundlePolicy], strict=True
+            ),
         )
-        if review.status is RedistributionStatus.UNREVIEWED:
-            msg = (
-                f"{path} lists dataset {dataset!r} as {review.status}; "
-                "a review is permitted or restricted, an unreviewed "
-                "dataset is left out."
-            )
-            raise ValueError(msg)
         records[dataset] = review
     return records
 
