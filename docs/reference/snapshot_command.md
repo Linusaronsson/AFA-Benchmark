@@ -196,6 +196,13 @@ Uploads the snapshot as the release its manifest names, in one commit, to
 Needs a Hugging Face token with write access (`uv run hf auth login` or
 `HF_TOKEN`); the repository must exist.
 
+If the upload receives a read timeout, `publish` checks every uploaded file's
+size and content hash against one fixed remote revision. Matching contents
+count as success even when the commit response was lost. Missing or different
+files, or an unavailable verification request, leave the timeout as an error;
+the command does not automatically retry the commit. Verification reads local
+files again but does not download remote payloads.
+
 Refuses:
 
 - a snapshot without a release manifest, or with a `manifest_version` this
