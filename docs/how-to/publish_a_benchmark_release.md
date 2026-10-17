@@ -51,10 +51,10 @@ Do not repeat the pipeline's configuration arguments; `save` reads the
 recorded run configuration. Nothing is uploaded yet. See the
 [`save` reference](../reference/snapshot_command.md#save) for other options.
 
-Add the release id and a one-sentence description at the top of
+Optionally add the release id and a one-sentence description at the top of
 [release notes](../reference/release_notes.md), for example:
-“Initial benchmark results for the tabular datasets.” Mention corrections
-or known caveats when relevant; no commit-by-commit analysis is required.
+“Initial benchmark results for the tabular datasets.” No description or
+release-notes entry is required to publish.
 
 Leave the saved package unchanged, including while publishing.
 
@@ -75,5 +75,5 @@ bypass a failure. For dirty or unknown producing code, regenerate from a
 clean commit, or explicitly pass `--allow-dirty-code` if intentional. See
 [publication checks and overrides](../reference/snapshot_command.md#publish).
 
-To correct an already published release, use a new release id and state what
-it corrects in its release notes.
+To correct an already published release, use a new release id. You can note
+what it corrects in the optional release notes.
