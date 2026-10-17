@@ -4,14 +4,23 @@
 The planner takes the same Snakemake arguments as a real run. These tests
 compare the jobs of its per-job CSV with what the same arguments make
 Snakemake submit to the fake `sbatch`, or with how a real invocation fails.
+A downloaded release's config invocation is planned as its preview (#157).
 """
 
 import json
 import re
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
+from afabench.release.manifest import (
+    RELEASE_MANIFEST_FILENAME,
+    read_release_manifest,
+    write_release_manifest,
+)
+from afabench.release.workflow_config import WORKFLOW_CONFIG_FILENAME
+from test.scripts.test_release_publishing import prepare_package
 from test.workflow.submission_harness import WorkflowHarness
 
 type Job = tuple[str, tuple[str, ...], str, int, int]
@@ -178,3 +187,38 @@ def test_invalid_invocation_fails_the_same_way_as_a_real_one(
     assert diagnostic in plan.stdout + plan.stderr
     assert not workflow.planned_jobs_path.exists()
     assert workflow.submissions() == []
+
+
+def test_a_downloaded_release_is_planned_as_its_preview(
+    tmp_path: Path,
+) -> None:
+    workflow = WorkflowHarness(tmp_path / "checkout")
+    package = prepare_package(tmp_path, "planned-preview")
+    manifest = read_release_manifest(package / RELEASE_MANIFEST_FILENAME)
+    write_release_manifest(
+        replace(
+            manifest, bundles=[], evaluations=[], omitted_dataset_bundles=[]
+        ),
+        workflow.output / RELEASE_MANIFEST_FILENAME,
+    )
+
+    plan = workflow.plan(
+        "--executor",
+        "local",
+        configuration_source=["--configfile", "config.yaml"],
+    )
+
+    assert plan.returncode == 0, plan.stdout + plan.stderr
+    assert "Release reuse preview" in plan.stdout + plan.stderr
+    assert sorted(
+        (job["rule"], wildcards(job)["method"])
+        for job in workflow.planned_jobs()
+    ) == [
+        ("eval_method", "alpha"),
+        ("eval_method", "beta"),
+        ("train_method", "alpha"),
+        ("train_method", "beta"),
+    ]
+    # Planning neither runs a job nor records the workflow config.
+    assert not workflow.arguments.exists()
+    assert not (workflow.output / WORKFLOW_CONFIG_FILENAME).exists()

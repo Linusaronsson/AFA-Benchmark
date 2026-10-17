@@ -1,1 +1,1 @@
-"""Compute estimates: plan an invocation's jobs, then estimate them."""
+"""Compute estimates: estimate the jobs a pipeline plan schedules."""

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 import yaml
@@ -170,9 +171,15 @@ class WorkflowHarness:
         self,
         *options: str,
         target: str = "all_eval_methods",
+        configuration_source: Sequence[str] = (PIPELINE_PROFILE,),
         timeout: int = 240,
     ) -> subprocess.CompletedProcess[str]:
-        """Plan, with `estimate-compute`, the jobs `run` would submit."""
+        """
+        Plan, with `estimate-compute`, the jobs `run` would submit.
+
+        `configuration_source` is the pipeline profile, or `--configfile`
+        and the config the pipeline profile names (`config.yaml`).
+        """
         self._write_pipeline_profile()
         return subprocess.run(
             [
@@ -181,7 +188,7 @@ class WorkflowHarness:
                 "--output",
                 str(self.planned_jobs_path),
                 # The launcher's arguments for the same Snakemake arguments
-                PIPELINE_PROFILE,
+                *configuration_source,
                 "--target",
                 target,
                 "--",

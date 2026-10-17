@@ -18,7 +18,6 @@ from afabench.compute_estimate.estimate import (
     estimate_compute,
     minimal_wall_time,
 )
-from afabench.compute_estimate.planning import PlannedJob
 from afabench.compute_estimate.report import (
     UnknownGroupingColumnError,
     format_report,
@@ -27,6 +26,7 @@ from afabench.compute_estimate.report import (
 )
 from afabench.core.job_duration_table import load_job_duration_table
 from afabench.core.job_record import ExitStatus, JobIdentity, JobType
+from afabench.pipeline_plan.planning import PlannedJob
 from test.job_record_examples import job_record, write_job_record
 
 ALPHA_TRAINING = JobIdentity(

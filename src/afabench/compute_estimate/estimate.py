@@ -29,8 +29,8 @@ from typing import Literal
 
 import pandas as pd
 
-from afabench.compute_estimate.planning import PlannedJob
 from afabench.core.job_record import JobIdentity, JobType
+from afabench.pipeline_plan.planning import PlannedJob
 
 # no_job_record: the job's rule writes no job record, so no job duration
 # can match it; aggregation and visualization jobs are not computational.

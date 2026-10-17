@@ -1,13 +1,20 @@
 """
-Plan the jobs a Snakemake invocation would run, with their allocations.
+Plan a pipeline invocation: the jobs its Snakemake graph schedules.
 
-The plan is the first half of a compute estimate
-(`docs/adr/0007-job-records-beside-artifacts.md`). It comes from
-Snakemake's own command-line handling, so profiles, workflow profiles,
-`--config` and `--set-resources` resolve exactly as in a real run, and an
-invalid invocation fails with the same error. Only the scheduling step is
-replaced: the DAG is built and every job's resources and params are
-evaluated, but nothing is submitted or run.
+A pipeline plan is plain data, free of Snakemake's objects: the first half
+of a compute estimate (`docs/adr/0007-job-records-beside-artifacts.md`),
+and what any other inspection of an invocation reads. Callers resolve the
+pipeline launcher's arguments with `workflow.run.snakemake_arguments`. A
+config invocation of a downloaded release is planned as its preview
+(`afabench.release.config_run`): released outputs are reused on the
+condition that regenerated datasets pass the release's content checks.
+
+The plan comes from Snakemake's own command-line handling, so profiles,
+workflow profiles, `--config` and `--set-resources` resolve exactly as in a
+real run, and an invalid invocation fails with the same error. Only the
+scheduling step is replaced: the DAG is built and every scheduled job's
+resources and params are evaluated, but nothing is submitted or run, and
+the workflow's onstart hook, which records the workflow config, never runs.
 
 Needs Snakemake, a development dependency that `uv sync` installs.
 """
@@ -31,6 +38,7 @@ from afabench.core.job_record import (
     allocated_gpus,
     job_identity,
 )
+from afabench.release.config_run import config_run_commands
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -48,8 +56,8 @@ class PlannedJob:
     gpus: int
     # Snakemake's id of the job in this plan
     jobid: int
-    # The planned jobs whose outputs it needs; jobs whose outputs exist are
-    # not planned.
+    # The scheduled jobs whose outputs it needs; jobs whose outputs exist
+    # are not scheduled.
     dependencies: frozenset[int] = frozenset()
     # Requested walltime, not the measured duration used for the estimate.
     time_limit_minutes: int | None = None
@@ -59,18 +67,33 @@ class PlannedJob:
         return None if self.identity is None else self.identity.job_type
 
 
+@dataclass(frozen=True, kw_only=True)
+class PipelinePlan:
+    """What a pipeline invocation would do, without Snakemake's objects."""
+
+    # The jobs it would run, sorted by rule and wildcards. Rules without an
+    # action, such as target rules, never run and are not among them.
+    scheduled_jobs: list[PlannedJob]
+
+
 class InvocationError(Exception):
     """Snakemake rejected the invocation; it printed the reason."""
 
 
-def plan_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
+def plan_invocation(snakemake_arguments: Sequence[str]) -> PipelinePlan:
+    """Plan `snakemake <snakemake_arguments>` as the launcher would run it."""
+    arguments = config_run_commands(snakemake_arguments, preview=True)[0]
+    return PipelinePlan(scheduled_jobs=_scheduled_jobs(arguments))
+
+
+def _scheduled_jobs(arguments: Sequence[str]) -> list[PlannedJob]:
     """Return the jobs `snakemake <arguments>` would run."""
     planned: list[PlannedJob] = []
 
     def plan(workflow: Workflow, executor_plugin: Plugin, **_: object) -> None:
         # The first steps of Workflow.execute, which has no public way to
         # stop before scheduling. Without taking the lock, so a running
-        # invocation of the same workflow can be estimated.
+        # invocation of the same workflow can be planned.
         workflow._executor_plugin = executor_plugin  # noqa: SLF001
         assert workflow.dag_settings is not None
         assert workflow.execution_settings is not None
