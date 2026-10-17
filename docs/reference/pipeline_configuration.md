@@ -205,7 +205,7 @@ Turns whole pipeline stages off. A stage that is off defines no rules, so the ru
   reuse of missing datasets, conditional on content validation after generation.
   The internal `release_preview` switch is refused during execution. See the
   [launcher](pipeline_launcher_command.md) and
-  [adopter workflow](../how-to/repository_adopter/compare_your_method_with_published_results.md).
+  [adopter workflow](../how-to/repository_adopter/add_method_to_a_release.md).
 
 ### `per_dataset_plots`
 

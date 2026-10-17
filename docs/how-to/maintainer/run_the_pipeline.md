@@ -74,7 +74,7 @@ workflow/run.py ... "methods=[gdfs,dime]"
 
 Ensure each method has `method_options` and `soft_budget_params` entries in
 the profile. To reuse published comparisons, follow
-[compare your method with published results](../repository_adopter/compare_your_method_with_published_results.md).
+[add a method to a release](../repository_adopter/add_method_to_a_release.md).
 
 ## Run a subset of datasets
 

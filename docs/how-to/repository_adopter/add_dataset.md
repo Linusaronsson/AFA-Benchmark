@@ -162,4 +162,4 @@ just qa
 ```
 
 To evaluate release methods on it, continue with
-[evaluate a release's methods on a new dataset](evaluate_release_methods_on_a_new_dataset.md).
+[add a dataset to a release](add_dataset_to_a_release.md).

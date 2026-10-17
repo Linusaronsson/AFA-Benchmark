@@ -200,7 +200,7 @@ Usage:
         workflow/run.py <pipeline> --jobs 8 --target all_generate_datasets
         workflow/run.py <pipeline> --jobs 8 reuse_release=true \
             "stages={dataset_generation: false}" -n
-    See docs/how-to/repository_adopter/compare_your_method_with_published_results.md.
+    See docs/how-to/repository_adopter/add_method_to_a_release.md.
     Evaluate trained methods already under the output root, without
     generating datasets or training:
         workflow/run.py <pipeline> --site <site> -n \

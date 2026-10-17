@@ -123,7 +123,7 @@ The full index is [`docs/README.md`](docs/README.md). To get started:
   - [Pipeline configuration](docs/reference/pipeline_configuration.md)
   - [Add a dataset](docs/how-to/repository_adopter/add_dataset.md)
   - [Add a method](docs/how-to/repository_adopter/add_method.md)
-  - [Compare your method with published results](docs/how-to/repository_adopter/compare_your_method_with_published_results.md)
+  - [Add a method to a release](docs/how-to/repository_adopter/add_method_to_a_release.md)
   - [Download published results](docs/how-to/results_only_user/download_published_results.md)
 
 ## Development

@@ -57,8 +57,8 @@ guides appear under each audience they serve, linking to one canonical page.
 
 - [Add a dataset](how-to/repository_adopter/add_dataset.md)
 - [Add a method](how-to/repository_adopter/add_method.md)
-- [Compare your method with published results](how-to/repository_adopter/compare_your_method_with_published_results.md)
-- [Evaluate a release's methods on a new dataset](how-to/repository_adopter/evaluate_release_methods_on_a_new_dataset.md)
+- [Add a method to a release](how-to/repository_adopter/add_method_to_a_release.md)
+- [Add a dataset to a release](how-to/repository_adopter/add_dataset_to_a_release.md)
 - [Add more seeds to a release's datasets and methods](how-to/repository_adopter/add_seeds_to_a_release.md)
 - [Add hard budgets or soft-budget parameters to a release](how-to/repository_adopter/add_budget_settings_to_a_release.md)
 - [Estimate the compute of a run](how-to/maintainer/estimate_compute.md)
