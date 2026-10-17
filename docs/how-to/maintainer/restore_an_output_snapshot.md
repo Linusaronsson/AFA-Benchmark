@@ -1,8 +1,7 @@
 # Restore an output snapshot
 
-For a [maintainer](../../explanation/user_types.md#maintainer): put a saved
-[output snapshot](../../explanation/output_snapshots.md) back under
-`output/production`, where Snakemake reuses it instead of producing it again.
+For a [maintainer](../../explanation/user_types.md#maintainer):
+restore saved pipeline outputs.
 
 ## 1. Restore the snapshot
 
@@ -10,30 +9,22 @@ For a [maintainer](../../explanation/user_types.md#maintainer): put a saved
 uv run python scripts/release/snapshot.py restore /path/to/snapshot-dir
 ```
 
-The outputs are copied back to `output/production`, or to
-`output/smoke` if the snapshot's release manifest has execution mode
-`smoke`.
-The release manifest, if the snapshot has one, goes inside that root, to
-`release_manifest.json`. If any of these
-files already exists, nothing is copied and the conflicts are listed; add
-`--overwrite` to replace them.
+Check outputs in `output/production/`, or `output/smoke/` for a smoke snapshot.
+To use another root, pass `--destination-root <root>`. Use `--overwrite`
+only after reviewing the listed conflicts.
 
-## 2. Check that the restore worked
+## 2. Check the restored run
 
-Dry-run the pipeline profile the snapshot's outputs were produced with,
-here `kdd26`:
+Dry-run the profile used to produce the snapshot; here, `kdd26`:
 
 ```shell
 workflow/run.py kdd26 -n
 ```
 
-If it reports nothing to do, the restore is complete. If it schedules
-jobs, an output is missing or older than one of its inputs: the restore
-was incomplete, or an input changed after the snapshot was taken.
+Pass `output_root=<root>` if you restored elsewhere. Investigate scheduled
+jobs for missing outputs or changed inputs. If code or parameters changed
+since the snapshot, explicitly regenerate affected outputs; do not rely on
+the dry run to detect those changes.
 
-The dry run does not notice a change in a rule's code or parameters since
-the snapshot was taken. If you changed one, delete or regenerate the
-outputs of that rule yourself
-([why](../../explanation/output_snapshots.md#why-a-snapshot-omits-snakemake-metadata)).
-
-All options: [`snapshot.py` reference](../../reference/snapshot_command.md#restore).
+[Restore options](../../reference/snapshot_command.md#restore) ·
+[Reuse limits](../../explanation/output_snapshots.md#why-a-snapshot-omits-snakemake-metadata).

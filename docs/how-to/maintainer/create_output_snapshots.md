@@ -1,30 +1,27 @@
 # Create output snapshots
 
-For a [maintainer](../../explanation/user_types.md#maintainer): copy
-everything the pipeline wrote under `output/production` to a folder outside the
-repository. [What a snapshot holds and why](../../explanation/output_snapshots.md).
-To put it back, see [restore an output snapshot](restore_an_output_snapshot.md).
+For a [maintainer](../../explanation/user_types.md#maintainer):
+save pipeline outputs outside the repository.
 
-## 1. Preview the snapshot (optional)
-
-To see what the snapshot will hold without copying anything, run
-`inventory`:
+## 1. Preview the outputs
 
 ```shell
 uv run python scripts/release/snapshot.py inventory
 ```
 
-It prints each payload category's number of artifacts and size, and lists
-the artifacts without a provenance record, which a release cannot hold.
+Check sizes and any missing provenance before saving.
 
 ## 2. Save the snapshot
+
+Choose a fresh destination:
 
 ```shell
 uv run python scripts/release/snapshot.py save /path/to/snapshot-dir
 ```
 
-The outputs are copied to `/path/to/snapshot-dir/output`, with their
-modification times. If any file there already exists, nothing is copied
-and the conflicts are listed; add `--overwrite` to replace them.
+Find the saved outputs under `/path/to/snapshot-dir/output/`. To save smoke
+outputs, add `--source-root output/smoke`. Use `--overwrite` only after
+checking any listed conflicts.
 
-All options: [`snapshot.py` reference](../../reference/snapshot_command.md#save).
+[Save options](../../reference/snapshot_command.md#save) ·
+[Restore a snapshot](restore_an_output_snapshot.md).

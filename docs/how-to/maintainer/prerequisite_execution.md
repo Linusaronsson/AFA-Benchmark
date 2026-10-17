@@ -1,10 +1,11 @@
-# Independent classifier and pretrained-model execution
+# Choose classifier and pretrained-model execution
 
-Classifier training and named pretrained models now use the same execution/site
-mapping as [method training and evaluation](mixed_execution.md). This extends the
-method-routing slice described there; CPU-only processing is a separate slice.
-Use the ordinary `pipeline.smk` invocation, not separate hardware-specific runs.
-Keep existing scientific configuration files and add an execution YAML file:
+For a [maintainer](../../explanation/user_types.md#maintainer):
+choose CPU or GPU for classifier training and pretraining.
+
+## 1. Set the execution file
+
+Copy `workflow/profiles/execution/default.yaml` to your own file and edit:
 
 ```yaml
 execution:
@@ -22,76 +23,28 @@ execution:
     pvae: cuda
 ```
 
-- External classifiers shared across methods use `defaults.classifier_training`, never a
-  downstream method's training/evaluation choice. They retain one native bundle
-  per dataset realization and initializer, trained on that realization with
-  its index as seed
-  ([ADR 0005](../../adr/0005-classifiers-trained-per-dataset-realization.md)).
-- Method-specific classifiers use `methods.<method name>.classifier_training`,
-  then `defaults.classifier_training`. The existing `method_options.<name>.classifier` script
-  selection and parameters still decide which variant is trained, not hardware.
-  A `classifier_training` override for a selected method without a method-specific
-  classifier is rejected.
-  A CPU policy does not imply that its classifier should run on CPU.
-- Pretraining uses `pretrained_models.<named model>`, then `defaults.pretraining`.
-  The key is the name in `pretrain_mapping`, not the script name or requesting
-  method; a name missing from `pretrain_mapping` is rejected. A method-level
-  `pretraining` override is rejected. Two methods sharing
-  one pretrained model still depend on the same bundle, regardless of method
-  order. The classifier input remains the external classifier, even if a
-  downstream method uses a method-specific classifier.
-- Each unspecified pipeline stage defaults to `cpu`. Without `execution`, the deprecated
-  global `device` still applies with a warning; it cannot coexist with
-  `execution`.
-  Values are exactly `cpu` and `cuda`, with no hardware inference or fallback.
+- Set `defaults.classifier_training` for shared external classifiers.
+- Set `methods.<name>.classifier_training` only for a method with a
+  method-specific classifier.
+- Set `pretrained_models.<name>` using the name in `pretrain_mapping`, not
+  the script or requesting method. Do not set method-level `pretraining`.
+- Use `cpu` or `cuda`; remove `device` from classifier `script_params`,
+  `pretrain_params` and invocation-wide overrides.
 
-The same resolved choice supplies the existing script's `device` argument and
-allocation intent. The site profile's `site.yaml` maps CPU/GPU to
-partitions, accounts and GPU request syntax. CPU prerequisites explicitly clear
-GPU resources, including inherited profile defaults. CPU count, memory and
-runtime remain the profile's ordinary sizing settings: configure `train_classifier`,
-`train_classifier_for_method`, and `pretrain_model` under `set-resources` as needed.
-Existing Vera/Alvis sizing and scientific hyperparameters are not rewritten.
+[Execution keys](../../reference/pipeline_configuration.md#execution).
 
-Selected invalid choices, incompatible site mappings and final allocation-resource
-conflicts fail during DAG planning, before any submission. Classifier
-`script_params` and model `pretrain_params` may not set `device` (including Hydra
-`+device` forms); use the execution mapping instead. Unselected model choices
-are not resolved. Validation does not prove cluster availability or script support
-for a chosen device.
+## 2. Configure resources and inspect the plan
 
-## Invoke and inspect
+[Configure your site](slurm_integration.md) with the needed allocations.
+Set CPU and memory requests for `train_classifier`,
+`train_classifier_for_method` and `pretrain_model`; set
+[walltime](../../reference/requested_walltime.md) in `site.yaml`.
 
-With a pipeline profile, here `kdd26`, and your execution file
-`execution.yaml`:
-
-```sh
-workflow/run.py kdd26 --site examples/mixed-gres -n \
-  --target all_eval_methods execution_file=execution.yaml
+```shell
+workflow/run.py kdd26 --site <your_site> -n list_jobs=true \
+    --target all_eval_methods execution_file=execution.yaml
 ```
 
-Remove `-n` to submit from one authorized environment with shared filesystem and
-access to both allocation types. The same graph schedules prerequisites according
-to their dependencies. Dataset realizations, seeds, Initializers, Unmaskers, budget
-settings, method-owned scripts, plain pretraining/training contract and native
-bundle directories are unchanged. Classifier
-scripts retain their existing Hydra arguments. For the single full-benchmark
-command, see [Run the pipeline](run_the_pipeline.md).
-
-## Boundary verification
-
-```sh
-uv run pytest test/workflow/test_prerequisite_execution.py
-uv run pytest test/workflow/test_prerequisite_execution.py -m pipeline
-```
-
-The fast fixtures invoke real orchestration to check independent devices,
-order-independent shared pretraining, preserved contract arguments and invalid
-selected prerequisites before any submissions. The pipeline fixtures reuse the
-shared fake SLURM harness and capture actual executor submissions for both
-illustrative profiles (Snakemake 9.12.0 / SLURM plugin 1.8.0). One graph includes
-external and method-specific classifiers, two methods sharing one named model,
-another named model, method training and evaluation, with differing prerequisite
-allocations despite CPU downstream choices and inherited GPU defaults. Fixtures
-use temporary bundles and cheap script-boundary stubs, not real training or SLURM.
-`just qa` remains mandatory in addition to these explicit submission checks.
+Verify classifier and pretraining devices, allocations and script arguments.
+Remove `-n` to submit from an authorized host with shared storage.
+[Run the pipeline](run_the_pipeline.md).

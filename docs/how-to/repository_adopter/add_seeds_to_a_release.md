@@ -1,24 +1,16 @@
 # Add more seeds to a release's datasets and methods
 
 For a [repository adopter](../../explanation/user_types.md#repository-adopter):
-keep a benchmark release's datasets and methods, compute additional seeded
-repetitions, and plot the published and new results together.
-
-The pipeline controls repetitions through
-[`dataset_realization_indices`](../../reference/pipeline_configuration.md#dataset_realization_indices).
-Each index seeds dataset generation and splitting, classifier training,
-pretraining, method training and evaluation. Adding indices therefore adds
-[dataset realizations](../../../CONTEXT.md#datasets), not just training seeds
-on an unchanged split. This guide does not vary training or evaluation seeds
-independently on a fixed realization.
+add [dataset realizations](../../reference/pipeline_configuration.md#dataset_realization_indices)
+to a release's comparison. To vary seeds on a fixed split instead, do not use
+this procedure.
 
 Run commands from your fork's repository root, after `uv sync`.
 
-## 1. Download the chosen release into its own output root
+## 1. Download the release
 
-Choose an explicit release id from the
-[published releases](../results_only_user/download_published_results.md#1-choose-a-release), and
-read its README for coverage, exclusions and caveats. Download its full cache:
+Choose a [release id](../results_only_user/download_published_results.md#1-choose-a-release),
+read its README, and download into a fresh output root. Use one release per root.
 
 ```shell
 uv run python scripts/release/snapshot.py download <release_id> \
@@ -26,14 +18,9 @@ uv run python scripts/release/snapshot.py download <release_id> \
     --destination-root output/more_seeds
 ```
 
-Use a fresh root and one release per root. Downloading only evaluation tables
-is not enough: reusing published evaluations in a pipeline run needs their
-AFA-method bundles and shared prerequisites too. `--all` obtains everything
-the release includes; it cannot restore omitted dataset bundles.
+## 2. Match its configuration and code
 
-## 2. Match the release's configuration and producing code
-
-Inspect its manifest:
+Inspect the configuration and producing commits:
 
 ```shell
 jq '{coverage, workflow_config}' output/more_seeds/release_manifest.json
@@ -41,45 +28,31 @@ jq -r '[.evaluations[], .bundles[]] | .[].code.commit' \
     output/more_seeds/release_manifest.json | sort -u
 ```
 
-Copy the pipeline profile printed by `download` as `Workflow profile`; this
-example assumes `kdd26`:
+Copy the profile printed as `Workflow profile`; here, `kdd26`:
 
 ```shell
-cp -r workflow/profiles/pipeline/kdd26 \
-    workflow/profiles/pipeline/more_seeds
+cp -r workflow/profiles/pipeline/kdd26 workflow/profiles/pipeline/more_seeds
 ```
 
-Compare its configuration files with `workflow_config.merged` and
-`workflow_config.overrides`. Copy any files you need to edit to
-`workflow/conf/<group>/more_seeds.yaml`, and update their configfile paths in
-`workflow/profiles/pipeline/more_seeds/config.yaml`.
+Match its config files to `workflow_config.merged` and `overrides`. Keep all
+settings except the realization list unchanged. Copy any files you edit to
+`workflow/conf/<group>/more_seeds.yaml` and repoint the profile's configfile paths.
+Check `evaluations` for combinations missing from the release.
 
-Keep the release's datasets, methods, method options, budgets, soft-budget
-parameters, Unmaskers, classifiers, pretrained-model mappings, initializer
-and evaluation split. Use `coverage.datasets` and `coverage.methods` to check
-which datasets and methods actually have released evaluations. Coverage is
-not a Cartesian-product guarantee: use `evaluations` to check individual
-combinations. A profile asking for combinations the release lacks will
-compute those too.
+Use code and an environment matching the released results. Check
+[result-affecting differences](../../explanation/benchmark_releases.md#compatibility-and-comparability)
+before combining old and new results.
 
-Check result-affecting differences between the producing commits and your
-fork, including generation, preprocessing, splits, method implementations,
-classifiers and metrics. Use the corresponding code and environment for the
-new repetitions. A restored output is not invalidated by changes to rule
-code or parameters, so a successful dry run does not prove comparability.
-See [compatibility and comparability](../../explanation/benchmark_releases.md#compatibility-and-comparability).
+## 3. Extend the realization list
 
-## 3. Extend the realization list without dropping existing indices
-
-Find the released indices:
+Read the existing indices:
 
 ```shell
-jq '.coverage.dataset_realization_indices' \
-    output/more_seeds/release_manifest.json
+jq '.coverage.dataset_realization_indices' output/more_seeds/release_manifest.json
 ```
 
-Choose unused non-negative indices and use the union of old and new indices.
-For a release covering `[0,1,2,3,4]`, adding five repetitions gives:
+Keep them and append unused non-negative indices. For a release with
+`[0,1,2,3,4]`, add five realizations with:
 
 ```shell
 workflow/run.py more_seeds --site <your_site> \
@@ -87,19 +60,17 @@ workflow/run.py more_seeds --site <your_site> \
     "dataset_realization_indices=[0,1,2,3,4,5,6,7,8,9]" -n
 ```
 
-Use the actual release indices, not this example blindly. Keeping the old
-indices ensures the merged tables and plots include the published results;
-selecting only `[5,6,7,8,9]` would plot only the new repetitions.
+Use your release's actual indices. Keep the complete list on every command
+below to include both old and new results.
 
-On a workstation without GPUs, replace `--site <your_site>` with
-`--jobs 8 execution_file=workflow/profiles/execution/cpu.yaml`. Keep the same
-profile, root, realization list and execution options in subsequent commands.
+Without GPUs, replace `--site <your_site>` with
+`--jobs 8 execution_file=workflow/profiles/execution/cpu.yaml` throughout.
 
-## 4. Generate missing dataset bundles before checked reuse
+## 4. Generate omitted dataset bundles, if needed
 
-If the release omitted dataset bundles, first prepare any required local
-sources according to the [dataset reference](../../reference/datasets/README.md).
-Then generate the selected realizations in a separate invocation:
+Skip this step if all required released dataset bundles were downloaded.
+Otherwise, prepare the [local sources](../../reference/datasets/README.md)
+and generate the selected realizations using the release's settings and environment:
 
 ```shell
 workflow/run.py more_seeds --site <your_site> \
@@ -108,59 +79,35 @@ workflow/run.py more_seeds --site <your_site> \
     --target all_generate_datasets
 ```
 
-This also generates the new realizations. Reproduce the release's generation
-settings and environment for existing indices. For datasets backed by
-external files, ensure those sources match too.
-
-After generation succeeds, use checked reuse and disable dataset generation
-on **both** the dry run and real run:
+After generation succeeds, add these overrides to every subsequent dry run
+and real run:
 
 ```shell
-workflow/run.py more_seeds --site <your_site> \
-    output_root=output/more_seeds \
-    "dataset_realization_indices=[0,1,2,3,4,5,6,7,8,9]" \
-    reuse_release=true "stages={dataset_generation: false}" -n
+reuse_release=true "stages={dataset_generation: false}"
 ```
 
-Checked reuse compares existing dataset bundles with released consumers'
-recorded input hashes, so identical regenerated bundles do not retrigger
-published training and evaluation merely because they are newer. A mismatch
-or unknown hash stops planning: reproduce the released data, or use a
-separate root to recompute on changed data. Do not bypass the check to mix
-incompatible results. Hashes cover saved bundle data, not external image
-pixels, code or hyperparameters.
+If the [reuse check](../../reference/pipeline_configuration.md#reuse_release)
+fails, reproduce the released data or recompute in a separate root. Do not
+bypass the check. Verify external source files match the release too.
 
-If every needed released dataset bundle was downloaded, this extra step is
-unnecessary: use the command from step 3, which generates only missing
-realizations under normal dependency tracking.
+## 5. Check the plan and run
 
-## 5. Check the plan and compute the additional repetitions
+Repeat step 3's dry run with step 4's overrides when applicable. Check that:
 
-Expect generation (unless completed in step 4), classifier training,
-required pretraining, method training, evaluation and transformation for the
-new indices. Existing released evaluations should be reused. Aggregation,
-visualization and job-record collection run to include the new results.
+- New indices have generation, training and evaluation jobs as needed.
+- Existing released evaluations are reused. Investigate old-index jobs for
+  missing downloads, configuration differences or incomplete release coverage.
+- The selected indices include both old and new realizations.
 
-If old indices have training or evaluation jobs, check for missing downloads
-or configuration mismatches. A partial release can require extra jobs for
-old indices too. A genuinely missing classifier must be trained and may
-invalidate evaluations that depend on it; regenerated omitted datasets need
-step 4's checked reuse instead.
+Leave training and evaluation enabled. Remove `-n` to run, retaining every
+override. Repeat the same command to resume.
 
-Do not disable `training` or `evaluation`: the new repetitions require them.
-Remove `-n` from the appropriate command to run; retain all overrides,
-including checked reuse when used. Repeat that command to resume.
+## 6. Check the combined results
 
-## 6. Inspect the combined results
+Open `output/more_seeds/merged_results/` and `output/more_seeds/plots/`.
+Check `dataset_realization_index`, `train_seed` and `eval_seed` in
+`output/more_seeds/eval_results_transformed/` for both old and new repetitions.
+[Table columns](../../reference/evaluation_dataframes.md).
 
-The pipeline rebuilds merged tables and plots from every selected index.
-Find them under `output/more_seeds/merged_results/` and
-`output/more_seeds/plots/`; per-evaluation tables under
-`eval_results_transformed/` retain `dataset_realization_index`, `train_seed`
-and `eval_seed`. Check those columns to confirm both old and new repetitions
-are present. See [evaluation dataframes](../../reference/evaluation_dataframes.md)
-and [plot layout](../../reference/evaluation_plots.md#output-layout).
-
-The downloaded `release_manifest.json` still describes the original release,
-not the additional local outputs. Keep your profile and full invocation with
-the new results so the extended comparison can be reproduced.
+Save the profile and invocation with your results. Do not treat the downloaded
+`release_manifest.json` as an inventory of the extended run.

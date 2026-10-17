@@ -1,78 +1,40 @@
-# CPU-only dataset and result processing
+# Configure CPU-only dataset and result processing
 
-Dataset generation, evaluation-data transformation, aggregation (including
-classifier-type splitting and timing-data combination), and all visualization
-rules always resolve to CPU execution. They share the execution-policy/site
-allocation mechanism with computational jobs, but their pipeline stages
-`dataset_generation`, `transformation`, `aggregation`, and `visualization` are
-fixed: they cannot be configured in execution defaults or identity overrides.
-Even a deprecated global `device=cuda` cannot change them. Their existing
-CPU-native scripts do not receive an invented `device` argument.
+For a [maintainer](../../explanation/user_types.md#maintainer):
+allocate CPUs and memory for dataset generation, transformation, aggregation
+and visualization. Do not add execution-device overrides for these CPU-only stages.
 
-## Cluster allocation and sizing
+## 1. Configure a CPU allocation
 
-For mixed-device SLURM runs, configure the profile-owned `execution_site.cpu`
-partition/account to an authorized CPU allocation, as illustrated by
-`workflow/profiles/site/examples/mixed-gres/site.yaml` and `mixed-gpus/site.yaml`.
-Processing rules explicitly clear `gpu`, `gpu_model` and `gres`, including GPU
-requests inherited from the profile's default resources, and take `slurm_extra`
-from the CPU allocation. A CPU site mapping that requests GPUs, also through its
-`slurm_extra`, is invalid, and so is any `slurm_extra` in default resources.
-Rule/profile `set-resources` overrides that conflict with the resolved
-allocation are rejected during planning, before any submission; configure
-allocation through the site map instead. These stages are CPU-only, not
-automatically local rules or login-node work.
+In your [site profile](slurm_integration.md), set `execution_site.cpu` to an
+authorized partition and account. Do not request GPUs there, including via
+`slurm_extra`, or put `slurm_extra` in `default-resources`.
 
-Threads, `cpus_per_task`, memory and runtime remain independent resource-sizing
-settings. Existing profile values and rule-specific sizing are preserved. For
-example, the Vera profile's ten CPUs for classifier-type splitting and plots
-remain valid; copying those sizing entries into an adapted mixed profile is
-appropriate. CPU intent alone does not determine suitable memory or CPU count
-for a large dataframe. Every SLURM submission needs a site map with a CPU
-allocation, since every graph contains these jobs, even when only GPU methods
-are selected; a missing site map or CPU allocation fails before submission.
+Set CPU counts and memory with the profile's ordinary resource settings.
+Set [walltime](../../reference/requested_walltime.md) in `site.yaml`.
+Do not override partition, account or GPU resources per rule.
 
-## One graph and native paths
+## 2. Inspect the plan and run
 
-Run a pipeline profile with your computational execution choices as usual.
-Processing needs no extra portable hardware configuration:
-
-```sh
-workflow/run.py kdd26 --site examples/mixed-gres -n execution_file=execution.yaml
+```shell
+workflow/run.py kdd26 --site <your_site> -n list_jobs=true \
+    execution_file=execution.yaml
 ```
 
-Inspect the plan, then remove `-n` to submit from an authorized controller with
-CPU/GPU allocation access and shared input, output and software filesystems.
-CPU processing and GPU method jobs belong to the same invocation and retain
-all dependencies, native bundle/parquet/plot locations, dataset realization indices,
-seeds and plotting formats. No scientific settings are changed. The example
-profiles are illustrative, not verified allocations on a live cluster.
+Check that processing jobs request the CPU allocation, no GPUs, and suitable
+CPU counts and memory. Remove `-n` to submit. Use an authorized submit host
+with shared inputs, outputs and software; do not run processing on a login
+node outside site policy.
 
-Turning pipeline stages off with the `stages` override keeps the same
-processing rules for existing upstream outputs:
-`"stages={dataset_generation: false, training: false}"` evaluates existing
-trained methods, and adding `evaluation: false` processes existing evaluation
-tables only. Local CPU smoke-test use remains possible by
-omitting `--site` and using `--jobs` with `smoke_test=True`.
+## 3. Process existing evaluations only
 
-## Observable verification
+To transform, aggregate and plot existing tables without upstream jobs:
 
-```sh
-uv run pytest test/workflow/test_cpu_processing_execution.py
-uv run pytest test/workflow/test_cpu_processing_execution.py -m pipeline
+```shell
+workflow/run.py kdd26 --site <your_site> \
+    "stages={dataset_generation: false, training: false, evaluation: false}"
 ```
 
-Fast checks inspect the real final-target plan and reject conflicting GPU
-resource overrides for every processing rule, and `slurm_extra` in default
-resources, before submission. Pipeline checks
-invoke that same graph with tiny script-boundary fixtures and the shared fake
-SLURM boundary, capture actual executor submissions under both GPU request
-conventions, and verify every processing rule has CPU partition/account, no GPU
-flags, and retained CPU/memory/runtime sizing despite adversarial GPU defaults.
-They check script arguments and representative native fixture output paths,
-not scientific correctness of stubbed computation. Both pretrained and
-non-pretrained timing paths and evaluation-performance/action/timing plots are
-included. No live cluster or production computation is used. The pinned plugin
-waits between dependency waves; these full-graph tests have an explicit
-600-second per-invocation timeout and are excluded from fast QA. `just qa` is
-still mandatory.
+For a local run, omit `--site` and pass
+`--jobs 8 execution_file=workflow/profiles/execution/cpu.yaml`.
+[Stage controls](../../reference/pipeline_configuration.md#stages).

@@ -1,17 +1,12 @@
-# Per-method training and evaluation execution
+# Choose per-method training and evaluation execution
 
-The ordinary `pipeline.smk` invocation can train and evaluate different methods
-on CPU and GPU together, without changing scientific configuration, method-owned
-scripts, dependencies, or native output paths. This page covers method training
-and evaluation; see [classifiers and pretrained models](prerequisite_execution.md),
-[CPU-only processing](cpu_processing_execution.md), and the single full-benchmark
-command in [Run the pipeline](run_the_pipeline.md).
+For a [maintainer](../../explanation/user_types.md#maintainer):
+choose CPU or GPU separately for each method's training and evaluation.
 
-## Portable execution configuration
+## 1. Set execution choices
 
-Put execution choices in a YAML file, separate from method options. The
-shipped one is `workflow/profiles/execution/default.yaml`; edit it or point
-`execution_file` at your own:
+Copy `workflow/profiles/execution/default.yaml` to your own execution file,
+then edit its defaults and per-method overrides. For example:
 
 ```yaml
 execution:
@@ -22,114 +17,38 @@ execution:
     jafa:
       training: cuda
       evaluation: cpu
-    eddi:
-      evaluation: cuda
 ```
 
-Precedence, independently for each selected method and stage:
+Use only `cpu` or `cuda`. Choose an evaluation device that supports both the
+policy and classifier. Do not put `device` in `method_specific_params` or
+combine a global `device` override with `execution`.
+[Execution keys and precedence](../../reference/pipeline_configuration.md#execution).
 
-1. `execution.methods.<method name>.<stage>`
-2. `execution.defaults.<stage>`
-3. `cpu` (or the deprecated global `device` in invocations without `execution`)
+## 2. Configure the computing site
 
-Values are exactly `cpu` and `cuda`. No hardware is inferred from method
-implementation, taxonomy, method-selection profile, or GPU availability.
-`cuda` declares GPU execution intent and passes `device=cuda` to the existing
-script; `cpu` passes `device=cpu`. Evaluation includes the classifier, so declare
-its end-to-end execution needs, not only those of the policy. Training and
-evaluation need not agree. There is no automatic CPU fallback.
+For SLURM, [configure a site profile](slurm_integration.md) with the CPU and
+GPU allocations you need. Keep partitions, accounts and GPU requests out of
+the execution file and per-rule `set-resources`.
 
-## Site allocation is separate
+Set CPU counts and memory in the site profile; set
+[walltime](../../reference/requested_walltime.md) in `site.yaml`.
+Verify account access and device support yourself.
 
-Adapt `workflow/profiles/site/examples/mixed-gres/` or `mixed-gpus/`. Both are illustrative,
-not verified allocations on any real cluster. The profile's `site.yaml` owns
-partitions, accounts and GPU request syntax; the pipeline launcher passes it
-with `--site`.
+## 3. Check the plan and run
 
-```yaml
-# site.yaml, beside the site profile's config.yaml
-execution_site:
-  cpu:
-    slurm_partition: cpu-queue
-    slurm_account: cpu-account
-  gpu:
-    slurm_partition: gpu-queue
-    slurm_account: gpu-account
-    gres: gpu:T4:1
+```shell
+workflow/run.py kdd26 --site <your_site> -n list_jobs=true \
+    execution_file=execution.yaml --target all_eval_methods
 ```
 
-Alternatively, GPU allocation can specify `gpu: 1` and optionally
-`gpu_model: a100`, producing `--gpus=a100:1` instead of `--gres=gpu:T4:1`.
-Use exactly one positive GPU request convention. CPU allocation may not request
-GPUs. Either allocation may add other scheduler flags with `slurm_extra`, but no
-GPU requests; `slurm_extra` in `default-resources` is rejected. The portable
-execution file must not contain partitions or accounts.
+Inspect each job's allocation and `device=` argument. Remove `-n` to submit.
+Run from an authorized submit host with shared repository, environment,
+inputs and output storage.
 
-`execution_site` can also be supplied directly in a **config file**, but not
-alongside `execution_site_file`. Do not put nested mappings in a profile's
-`config` CLI options: Snakemake 9.12.0 / SLURM executor 1.8.0 fail to preserve
-those mappings in the remote shell wrapper. The scalar file reference avoids
-that boundary issue without changing engine or plugin versions.
+To evaluate already-trained bundles, also pass
+`"stages={dataset_generation: false, training: false}"`.
+For a local CPU run, omit `--site` and use
+`--jobs 8 execution_file=workflow/profiles/execution/cpu.yaml` instead.
 
-Per-job resources distinguish methods within the same `train_method` and
-`eval_method` rules. CPU jobs explicitly clear `gpu`, `gpu_model` and `gres`,
-even if a profile supplies GPU defaults, and the site map routes partition,
-account and `slurm_extra` too. SLURM submission without a site map, or with a
-site map lacking the allocation a job resolves to, fails before any job is
-submitted; local runs need no site map. CPU count, memory and runtime remain independent profile resource settings.
-The examples retain 4000 MB, 8 CPUs and 600 minutes for method jobs; adapt sizing
-as needed, rather than changing scientific settings. Existing Vera/Alvis sizing
-is unchanged.
-
-Invalid selected-method choices, incompatible site allocations, duplicate device
-arguments in `method_specific_params`, and conflicting final rule allocation
-resources fail during planning, before **any** job submission. Rule/profile
-`set-resources` may still set CPU counts, memory and runtime; do not override the
-allocation resources there. Configuration validation cannot prove live cluster
-availability or a script's support for a chosen device.
-
-## Invocation and migration
-
-Run a pipeline profile; the execution mapping comes from
-`workflow/profiles/execution/default.yaml` (select another file with the
-override `execution_file=<path>`). For example, with the pipeline profile
-`kdd26`:
-
-```sh
-workflow/run.py kdd26 --site examples/mixed-gres -n --target all_eval_methods
-```
-
-Remove `-n` to execute/submit. Use an authorized submit environment with access
-to both CPU and GPU allocations and a shared filesystem for inputs, repository,
-software environment and outputs. This is one dependency graph, not cross-cluster
-dispatch. The override
-`"stages={dataset_generation: false, training: false}"` uses the same
-evaluation routing for existing trained bundles, without generating datasets
-or training. Local CPU use needs no site profile: omit `--site`, and pass
-`--jobs` and the overrides
-`execution_file=workflow/profiles/execution/cpu.yaml` and `smoke_test=True`.
-
-An explicit global `device` remains supported with a visible deprecation
-message in invocations without `execution`. **Any** combination of global
-`device` and `execution` is rejected, even if values happen to agree. Remove
-`device` from your commands and config files.
-
-## Boundary verification
-
-```sh
-uv run pytest test/workflow/test_method_execution.py
-uv run pytest test/workflow/test_method_execution.py -m pipeline
-```
-
-The fast tests inspect the real orchestration's planned commands and diagnostics,
-including downstream allocation conflicts before submission, and capture the
-real executor's first CPU and GPU submissions for both illustrative profiles,
-stopping Snakemake before the plugin's first status check. The pipeline-marked
-tests run that same orchestration using tiny pre-existing dataset/classifier
-fixtures, script-boundary stubs, and fake `sbatch`/`srun`/`sacct` commands. They
-capture actual executor submissions for both illustrative profiles, execute real
-Snakemake job wrappers, and check script arguments and outputs. No cluster,
-training, public network or unrelated toy graph is involved. The pinned plugin
-has a fixed 40-second initial status wait despite its similarly named option;
-these two fixtures take about four minutes together. `just qa` remains the
-mandatory quality gate; run the submission tests explicitly as well.
+For other stages, see [classifier and pretrained-model execution](prerequisite_execution.md)
+and [CPU-only processing](cpu_processing_execution.md).
