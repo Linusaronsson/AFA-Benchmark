@@ -112,6 +112,14 @@ def save(
         str | None,
         typer.Option(help="Write a release manifest with this identity."),
     ] = None,
+    release_notes: Annotated[
+        Path | None,
+        typer.Option(
+            exists=True,
+            dir_okay=False,
+            help="Markdown description and caveats for the release README.",
+        ),
+    ] = None,
     profile: Annotated[
         Path | None,
         typer.Option(
@@ -144,6 +152,7 @@ def save(
         given = [
             name
             for name, value in [
+                ("--release-notes", release_notes),
                 ("--profile", profile),
                 ("--configfile", configfile),
                 ("--config", config),
@@ -172,6 +181,11 @@ def save(
                 index=index,
                 checkout=checkout,
             )
+    notes = (
+        release_notes.read_text(encoding="utf-8")
+        if release_notes is not None
+        else None
+    )
     typer.echo(f"Scanning snapshot files in {source_root}...", err=True)
     with Progress(
         SpinnerColumn(),
@@ -207,6 +221,7 @@ def save(
             overwrite=overwrite,
             manifest=manifest,
             job_duration_table=job_duration_table,
+            release_notes=notes,
             on_copy_progress=on_copy_progress,
         )
     typer.echo(f"Saved snapshot to {snapshot_dir}", err=True)

@@ -110,7 +110,7 @@ jq -r '[.evaluations[], .bundles[]] | .[].code.commit' \
 
 Compare those commits with your fork's history to identify result-affecting
 changes (data, splits, preprocessing, classifiers, acquisition semantics or
-metrics). Check the [release notes](../reference/release_notes.md) for known
+metrics). Check the release's `README.md` on Hugging Face for known
 caveats, not a complete change history. If a change affects results, your
 results are not comparable with the published ones, even though every
 file still loads ([why](../explanation/benchmark_releases.md#compatibility-and-comparability)).

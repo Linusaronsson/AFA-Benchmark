@@ -24,9 +24,17 @@ from afabench.release.manifest import (
     ReleaseManifest,
     write_release_manifest,
 )
+from afabench.release.readme import (
+    RELEASE_README_FILENAME,
+    render_release_readme,
+)
 
 SNAPSHOT_OUTPUT_SUBDIR = "output"
-RELEASE_FILENAMES = (RELEASE_MANIFEST_FILENAME, JOB_DURATION_TABLE_FILENAME)
+RELEASE_FILENAMES = (
+    RELEASE_MANIFEST_FILENAME,
+    JOB_DURATION_TABLE_FILENAME,
+    RELEASE_README_FILENAME,
+)
 
 
 def save_snapshot(
@@ -36,6 +44,7 @@ def save_snapshot(
     overwrite: bool = False,
     manifest: ReleaseManifest | None = None,
     job_duration_table: bytes | None = None,
+    release_notes: str | None = None,
     on_copy_progress: Callable[[int, int], None] | None = None,
 ) -> None:
     """
@@ -47,11 +56,14 @@ def save_snapshot(
     starts and after each successful file copy. Completion does not include
     directory timestamp preservation or writing the release files.
     """
+    if release_notes is not None and manifest is None:
+        msg = "Release notes require a release manifest."
+        raise ValueError(msg)
     manifest_path = snapshot_dir / RELEASE_MANIFEST_FILENAME
     table_path = snapshot_dir / JOB_DURATION_TABLE_FILENAME
     if manifest is not None:
-        _refuse_existing(manifest_path, overwrite=overwrite)
-        _refuse_existing(table_path, overwrite=overwrite)
+        for name in RELEASE_FILENAMES:
+            _refuse_existing(snapshot_dir / name, overwrite=overwrite)
     skip = [source_root / name for name in RELEASE_FILENAMES]
     if manifest is not None:
         included = {bundle.path for bundle in manifest.bundles}
@@ -81,6 +93,19 @@ def save_snapshot(
             table_path.unlink(missing_ok=True)
         else:
             table_path.write_bytes(job_duration_table)
+        output = snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR
+        (snapshot_dir / RELEASE_README_FILENAME).write_text(
+            render_release_readme(
+                manifest,
+                output_paths=(
+                    path.relative_to(output).as_posix()
+                    for path in output.rglob("*")
+                    if path.is_file()
+                ),
+                release_notes=release_notes,
+            ),
+            encoding="utf-8",
+        )
         manifest = replace(
             manifest, file_inventory=package_file_inventory(snapshot_dir)
         )

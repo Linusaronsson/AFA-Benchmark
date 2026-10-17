@@ -51,10 +51,12 @@ Do not repeat the pipeline's configuration arguments; `save` reads the
 recorded run configuration. Nothing is uploaded yet. See the
 [`save` reference](../reference/snapshot_command.md#save) for other options.
 
-Optionally add the release id and a one-sentence description at the top of
-[release notes](../reference/release_notes.md), for example:
-“Initial benchmark results for the tabular datasets.” No description or
-release-notes entry is required to publish.
+Inspect the generated `README.md` in the package directory to check its
+coverage summary and output links. To include a description and caveats,
+write a Markdown file and pass `--release-notes /path/to/notes.md` when saving.
+For example: “Initial benchmark results for the tabular datasets.”
+The description is optional and appears in the release's README on Hugging
+Face, not on a separate page in this repository.
 
 Leave the saved package unchanged, including while publishing.
 
@@ -76,4 +78,5 @@ clean commit, or explicitly pass `--allow-dirty-code` if intentional. See
 [publication checks and overrides](../reference/snapshot_command.md#publish).
 
 To correct an already published release, use a new release id. You can note
-what it corrects in the optional release notes.
+what it corrects in the new release's README by supplying `--release-notes`
+when saving.

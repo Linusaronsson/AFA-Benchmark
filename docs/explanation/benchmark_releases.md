@@ -75,9 +75,10 @@ AFABench checks neither for a checkout, and does not require users to run
 the producing commits (#36). Instead, a release makes its provenance
 visible (each artifact's commit and dirty flag, its resolved configuration
 in the artifact's record, the workflow configuration), so users can assess
-comparability. Optional [release notes](../reference/release_notes.md) provide
-a short description and any known caveats, not an exhaustive change analysis
-or a guarantee of compatibility or comparability.
+comparability. Each release's `README.md` on Hugging Face summarizes its
+coverage and can include a maintainer description and known caveats. These
+notes are not an exhaustive change analysis or a guarantee of compatibility
+or comparability.
 
 ## Dataset redistribution
 

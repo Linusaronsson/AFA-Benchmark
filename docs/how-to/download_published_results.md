@@ -13,14 +13,18 @@ dataset repository:
 https://huggingface.co/datasets/afabench/results/tree/main/releases
 ```
 
-Choose a release id explicitly, using its manifest's coverage to check
-that it includes the datasets, methods and settings you need. If present,
-the release's optional [release notes](../reference/release_notes.md) give
-a short description and any known caveats.
+Open a release folder and read its `README.md`. The generated summary lists
+included datasets, methods, evaluation counts, splits, budgets and seeds,
+with links to available tables and plots. It also includes any maintainer
+release notes and dataset bundle exclusions. Choose a release id explicitly
+whose coverage fits your needs; the summary lists do not imply that every
+combination is present.
 
-## 2. Read the release manifest
+## 2. Find the tables you need
 
-Open `releases/<release_id>/release_manifest.json`. It records the
+Follow the README's example-table links or output-folder links to browse
+files. For exact evaluation identities and paths, open
+`releases/<release_id>/release_manifest.json`. It records the
 workflow configuration, the `coverage` of the release, and one
 `evaluations` entry per evaluation with the path of its tables, the commit
 that produced it, and its identity: method, dataset, dataset realization,

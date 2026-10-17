@@ -68,7 +68,6 @@ instead of defining a term on a page.
 - [`snapshot.py` command](reference/snapshot_command.md)
 - [`workflow/run.py` command](reference/pipeline_launcher_command.md)
 - [`estimate-compute` command](reference/estimate_compute_command.md)
-- [Release notes](reference/release_notes.md)
 - [Terminology: patch-based unmasking example](reference/terminology.md)
 
 ### Explanation

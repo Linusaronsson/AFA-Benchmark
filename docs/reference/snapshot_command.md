@@ -50,7 +50,7 @@ example, `false` stays a string, and `[1, 2]` becomes a list of strings.
 
 ```shell
 snapshot.py save SNAPSHOT_DIR [--source-root output/production] [--overwrite]
-    [--release-id ID [CONFIGURATION OPTIONS]]
+    [--release-id ID [--release-notes PATH] [CONFIGURATION OPTIONS]]
     [--checkout .]
 ```
 
@@ -59,7 +59,7 @@ A smoke test's outputs are under `output/smoke`: pass
 
 Copies every file and directory under the source root to
 `SNAPSHOT_DIR/output`, keeping file and directory modification times,
-except a restored release's `release_manifest.json` and
+except a restored release's `release_manifest.json`, `README.md` and
 `release_job_duration_table.parquet` at the top of the source root. A
 missing or empty source root is an error.
 
@@ -82,7 +82,15 @@ finish before hashing and writing the final manifest finish.
 With `--release-id`, also writes `SNAPSHOT_DIR/release_manifest.json`
 ([release manifest](release_manifest.md)), indexing the source root's
 artifacts by their provenance records. A recorded workflow configuration
-is required; configuration options are optional assertions. If the source root holds any job
+is required; configuration options are optional assertions. It also generates
+`SNAPSHOT_DIR/README.md` with human-readable coverage and links to the outputs.
+Use `--release-notes PATH` to embed an optional UTF-8 Markdown description
+and caveats under **Release notes** in the README; this option requires
+`--release-id`. The notes are embedded, not uploaded as a separate file.
+Overwriting regenerates the README; pass `--release-notes` again to retain
+notes. The README is included in the package file inventory and published
+alongside the results on Hugging Face.
+If the source root holds any job
 record, it also writes the release's
 [job duration table](release_manifest.md#job-duration-table) to
 `SNAPSHOT_DIR/release_job_duration_table.parquet`. Refused before anything
@@ -143,12 +151,12 @@ The destination root defaults to `output/production`, or
 `smoke`, so smoke outputs never satisfy a production run.
 
 Copies `SNAPSHOT_DIR/output` into the destination root, keeping
-modification times, and the snapshot's release manifest and job duration
-table, if any, into the destination root itself, as
-`release_manifest.json` and `release_job_duration_table.parquet`. In a
+modification times, and the snapshot's release manifest, README and job
+duration table, if any, into the destination root itself, as
+`release_manifest.json`, `README.md` and `release_job_duration_table.parquet`. In a
 snapshot they sit beside `output/`; in a checkout they sit inside the
 root, so the smoke and production output roots each keep their own
-release's files. `save` leaves these two files out when it copies a
+release's files. `save` leaves these three files out when it copies a
 source root, so a new release never carries a restored one's. A manifest whose
 `manifest_version` this checkout does not read is refused before anything
 is restored.
