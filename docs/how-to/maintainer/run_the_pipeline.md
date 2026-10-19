@@ -1,7 +1,8 @@
 # Run the pipeline
 
 For a [maintainer](../../explanation/user_types.md#maintainer).
-Run commands from the repository root, after `uv sync`.
+Meet the [prerequisites](../../../README.md#prerequisites), then run commands
+from the repository root, after `uv sync`.
 [Launcher options](../../reference/pipeline_launcher_command.md).
 
 ## 1. Choose the configuration

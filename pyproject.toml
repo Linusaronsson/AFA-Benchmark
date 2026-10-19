@@ -83,6 +83,8 @@ follow_untyped_imports = true
 # not depend on the node type, and let the triton source apply although triton
 # is only a transitive dependency.
 [tool.uv]
+# Keep in sync with the README's prerequisites.
+required-version = ">=0.10.2"
 constraint-dependencies = [
   "torch==2.7.0; sys_platform == 'linux' and platform_machine == 'aarch64'",
   "torchvision==0.22.0; sys_platform == 'linux' and platform_machine == 'aarch64'",

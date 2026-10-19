@@ -9,9 +9,30 @@ Compare state-of-the-art algorithms for sequential feature selection in
 scenarios where acquiring features is costly. Includes implementations of
 multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 
-## Installation
+## Prerequisites
 
-[uv](https://docs.astral.sh/uv/getting-started/installation/) is the only external dependency.
+Required:
+
+- **OS**: Linux (x86_64 or aarch64). macOS is untested. Native Windows is
+  not supported; WSL2 is untested.
+- **bash** on `PATH`. Pipeline jobs run their commands with it.
+- **git**, to clone the repository.
+- **[uv](https://docs.astral.sh/uv/getting-started/installation/) 0.10.2 or
+  newer.** uv installs the exact Python version (3.12.10) and the locked
+  dependencies, so you don't need to install Python yourself.
+
+Only for some setups:
+
+- **GPU execution**: an NVIDIA GPU and its host drivers.
+- **Cluster execution**: the site's SLURM. See
+  [Run on SLURM](docs/how-to/maintainer/slurm_integration.md).
+- **NixOS**: enter `nix develop` before running `uv sync`. The flake provides
+  Git, development tools, a launcher Python and runtime libraries for native
+  Python wheels on x86_64 and aarch64 Linux. With direnv installed, run
+  `direnv allow` to activate the flake automatically. Other hosts do not need
+  the flake.
+
+## Installation
 
 ```bash
 # Clone repository
@@ -21,14 +42,6 @@ cd AFABench
 # Install dependencies with uv
 uv sync
 ```
-
-On NixOS, enter `nix develop` before running `uv sync`. The flake provides
-Git, development tools, a launcher Python and runtime libraries for native
-Python wheels on x86_64 and aarch64 Linux. `uv` installs the exact project
-Python version and locked Python dependencies. With direnv installed, run
-`direnv allow` to activate the flake automatically on NixOS; other hosts do
-not activate it. GPU execution still requires host NVIDIA drivers, and
-cluster execution requires the site's SLURM.
 
 ## Quickstart
 
