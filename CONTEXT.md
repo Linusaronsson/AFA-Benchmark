@@ -341,6 +341,19 @@ A synthetic dataset generated with zero noise, so perfect accuracy is
 attainable and the optimal policy is known.
 _Avoid_: Clean variant, deterministic variant
 
+### Software usage
+
+**AFABench library**:
+The reusable Python components for active feature acquisition that users
+import into their own code, independently of the benchmark pipeline.
+_Avoid_: Core framework, Python framework
+
+**Benchmark pipeline**:
+The configured orchestration of AFABench's pipeline stages to produce
+benchmark outputs. It uses the AFABench library but is not required for
+library use.
+_Avoid_: Framework (when distinguishing it from the library)
+
 ### Pipeline
 
 **Benchmark release**:

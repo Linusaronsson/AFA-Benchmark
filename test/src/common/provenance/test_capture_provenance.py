@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -89,6 +90,10 @@ def test_record_survives_a_json_round_trip() -> None:
     assert record.environment.python_version.startswith("3.12")
     assert record.compute.device == "cpu"
     assert record.compute.accelerator_name is None
+
+
+def test_capture_records_the_installed_afabench_version() -> None:
+    assert _capture().environment.afabench_version == version("afabench")
 
 
 def test_reader_rejects_an_unknown_provenance_version() -> None:

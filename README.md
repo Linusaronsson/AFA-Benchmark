@@ -9,7 +9,30 @@ Compare state-of-the-art algorithms for sequential feature selection in
 scenarios where acquiring features is costly. Includes implementations of
 multiple AFA methods, standardized datasets, and automated evaluation pipelines.
 
-## Prerequisites
+## Choose how to use AFABench
+
+AFABench is one project with two usage modes:
+
+| Your goal | Use | Start here |
+| --- | --- | --- |
+| Reuse components in your own Python code | **AFABench library**: `import afabench`; no benchmark pipeline invocation needed | [Install and use the library](docs/how-to/library_user/use_the_library.md) |
+| Run or extend configured benchmark experiments | **Benchmark pipeline**: `uv run workflow/run.py` from a repository checkout | [Pipeline setup](#benchmark-pipeline-setup) below |
+
+The Python distribution and import namespace are both `afabench`. The wheel
+contains the library, not the repository's launcher, workflows, scripts or
+configs; installing it does not provide a standalone benchmark command.
+Install from the repository using the library guide; AFABench is not
+published on PyPI. Library installation currently also installs pipeline
+dependencies; separating them is tracked in
+[#163](https://github.com/MachineLearning-DecisionMaking/AFABench/issues/163).
+
+For tables and plots without installing AFABench, see
+[Download published results](docs/how-to/results_only_user/download_published_results.md).
+For the audience distinctions, see [User types](docs/explanation/user_types.md).
+
+## Benchmark pipeline setup
+
+### Check prerequisites
 
 Required:
 
@@ -32,7 +55,7 @@ Only for some setups:
   `direnv allow` to activate the flake automatically. Other hosts do not need
   the flake.
 
-## Installation
+### Install the checkout
 
 ```bash
 # Clone repository
@@ -43,7 +66,7 @@ cd AFABench
 uv sync
 ```
 
-## Quickstart
+### Run the benchmark pipeline
 
 Local execution is not recommended for reproducing the full benchmark because
 the pipeline generates a large number of jobs. If you still want to run it
@@ -116,12 +139,12 @@ page in [`docs/reference/datasets/`](docs/reference/datasets/README.md).
 | [Imagenette](docs/reference/datasets/imagenette.md) | Real World | Image | 5,681 | 3,788 | 3,925 | 150,528 | 196 | 10 |
 
 ## Project structure
-- `afabench`: Main package.
+- `src/afabench/`: Importable AFABench library, included in the Python wheel.
 - `docs`: Documentation.
 - `conf`: All the **script** configuration files. Each configuration file
   corresponds to a class in `config_classes.py`.
 - `data`: One folder per dataset key, with its committed source and license (ADR 0014).
-- `workflow`: Snakemake workflows for running the full pipeline.
+- `workflow/`: Repository-only benchmark pipeline and its launcher, `workflow/run.py`.
 - `output`: Outputs from the Snakemake pipeline (gitignored).
 - `logs`: W&B, Lightning and Hydra logs (gitignored).
 - `scripts/`: Folder of scripts, many of which are called from the snakemake pipeline.
@@ -132,6 +155,7 @@ page in [`docs/reference/datasets/`](docs/reference/datasets/README.md).
 ## Documentation
 
 The full index is [`docs/README.md`](docs/README.md). To get started:
+  - [Install and use the library](docs/how-to/library_user/use_the_library.md)
   - [Run the pipeline](docs/how-to/maintainer/run_the_pipeline.md)
   - [Pipeline configuration](docs/reference/pipeline_configuration.md)
   - [Add a dataset](docs/how-to/repository_adopter/add_dataset.md)

@@ -69,8 +69,7 @@ guides appear under each audience they serve, linking to one canonical page.
 
 #### Library user
 
-No how-to guide yet. See the
-[library-user folder](how-to/library_user/README.md) for the available reference.
+- [Install and use the library](how-to/library_user/use_the_library.md)
 
 #### Maintainer
 

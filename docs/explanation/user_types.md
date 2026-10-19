@@ -4,6 +4,29 @@ AFABench serves four kinds of user. They need different parts of the
 repository and different parts of a benchmark release, so each how-to
 guide is written for one of them.
 
+## Library and benchmark pipeline
+
+AFABench is one project. Its **library** provides reusable Python components;
+its **benchmark pipeline** orchestrates configured experiments using those
+components. Here, these are usage modes, not separate products. “Framework”
+can describe the project overall, but does not distinguish one mode from
+the other.
+
+The distribution is named `afabench`, matching `import afabench`. Its wheel
+contains the Python library under `src/afabench/`, not the repository-root
+`workflow/`, `scripts/`, `conf/` or `data/` trees. Running the benchmark
+pipeline needs a repository checkout and the pipeline launcher,
+`workflow/run.py`; a library user calls Python interfaces from their own
+code without invoking that launcher. Pipeline-related modules in the
+library are not standalone replacements for the checkout.
+
+Library installation currently includes pipeline dependencies such as
+Snakemake; it is not yet a lightweight dependency subset. Separating those
+dependencies is tracked in
+[#163](https://github.com/MachineLearning-DecisionMaking/AFABench/issues/163).
+A Python distribution is distinct from a
+[release package](../../CONTEXT.md#pipeline) of benchmark outputs.
+
 ## Results-only user
 
 Wants the published numbers or plots, for example to cite them or to
@@ -35,11 +58,11 @@ it lacks, such as a dataset the release does not cover
 
 Wants AFABench's library code, such as its evaluation functions or models,
 without adopting its pipeline, for example to evaluate a method inside
-their own code base. AFABench is not
-published as a package, so this user installs it from the repository. No
-guide covers this yet; the evaluation code is in `src/afabench/evaluation/`,
-and plotting-ready evaluation tables load and plot through the interfaces in
-[Evaluation dataframes](../reference/evaluation_dataframes.md#loading-and-plotting).
+their own code base. AFABench is not published on PyPI, so this user
+installs the Python distribution from the repository.
+
+- [Install and use the library](../how-to/library_user/use_the_library.md)
+- [Evaluation dataframes](../reference/evaluation_dataframes.md#loading-and-plotting)
 
 ## Maintainer
 

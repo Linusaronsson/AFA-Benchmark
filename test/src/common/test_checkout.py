@@ -25,7 +25,7 @@ def test_this_checkout_is_found() -> None:
 
 
 def test_a_checkout_is_found_from_its_package(tmp_path: Path) -> None:
-    package = _package(tmp_path, "afa-benchmark")
+    package = _package(tmp_path, "afabench")
 
     assert find_checkout(package) == tmp_path
 

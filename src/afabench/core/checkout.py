@@ -8,7 +8,7 @@ directories above it may be another project's repository.
 import tomllib
 from pathlib import Path
 
-PROJECT_NAME = "afa-benchmark"
+PROJECT_NAME = "afabench"
 
 
 def find_checkout(package: Path) -> Path | None:

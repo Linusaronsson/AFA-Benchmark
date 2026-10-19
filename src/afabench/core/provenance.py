@@ -28,7 +28,7 @@ from afabench.core.checkout import AFABENCH_CHECKOUT
 from afabench.core.code_identity import code_identity
 
 PROVENANCE_VERSION = 1
-AFABENCH_DISTRIBUTION = "afa-benchmark"
+AFABENCH_DISTRIBUTION = "afabench"
 
 type Stage = Literal[
     "dataset_generation",

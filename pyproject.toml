@@ -1,5 +1,5 @@
 [project]
-name = "afa-benchmark"
+name = "afabench"
 version = "1.0.0"
 description = "A benchmark of active feature acquisition (AFA) methods."
 readme = "README.md"
