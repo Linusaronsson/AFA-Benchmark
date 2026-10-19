@@ -264,6 +264,10 @@ def test_every_download_includes_frozen_config_rebased_to_destination(
         *selection,
     )
     assert result.exit_code == 0, result.output
+    assert (
+        f"Runnable config: {destination / 'benchmark.yaml'}" in result.output
+    )
+    assert "Workflow config files:" not in result.output
     config = yaml.safe_load((destination / "benchmark.yaml").read_text())
     assert config == {**packaged, "output_root": str(destination.resolve())}
     copied = tmp_path / "edited.yaml"

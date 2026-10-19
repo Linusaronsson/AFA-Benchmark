@@ -1,63 +1,34 @@
 # Add hard budgets or soft-budget parameters to a release
 
 For a [repository adopter](../../explanation/user_types.md#repository-adopter):
-evaluate additional budgets with a release's datasets, methods and realizations.
+evaluate additional budgets with a release's datasets, methods and realizations
+while reusing its existing outputs.
 
-Run commands from your fork's repository root, after `uv sync`.
+## 1. Download the release and its config
 
-## 1. Download the release and match its settings
-
-Choose a [release id](../results_only_user/download_published_results.md#1-choose-a-release),
-read its README, and download into a fresh root. Use one release per root.
+[Choose a release](https://huggingface.co/datasets/afabench/results/tree/main/releases)
+and download it into a fresh output root. Use one release per root.
 
 ```shell
 uv run python scripts/release/snapshot.py download <release_id> \
     --repo-id afabench/results --all \
     --destination-root output/more_budgets
-uv run python - <<'PY'
-import json
-from pathlib import Path
-
-manifest = json.loads(Path("output/more_budgets/release_manifest.json").read_text())
-print(json.dumps({key: manifest[key] for key in ("coverage", "workflow_config")}, indent=2))
-commits = {entry["code"]["commit"] for entry in manifest["evaluations"] + manifest["bundles"]}
-for commit in sorted(commits, key=lambda value: value or ""):
-    print("null" if commit is None else commit)
-PY
 ```
 
-Copy the profile printed as `Workflow profile`; here, `kdd26`:
+Check the release README for required
+[local dataset sources](../../reference/datasets/README.md) and
+[code compatibility](../../explanation/benchmark_releases.md#compatibility-and-comparability)
+before reusing its outputs.
 
-```shell
-cp -r workflow/profiles/pipeline/kdd26 workflow/profiles/pipeline/more_budgets
-```
+Edit the budgets in `output/more_budgets/benchmark.yaml` in step 2, step 3,
+or both. Leave the datasets, methods, realization indices and other settings
+unchanged. Retain existing list entries to include published settings in the
+plots, and edit explicit dataset entries, not just `default`.
 
-Match the config files to `workflow_config.merged` and `overrides`. Keep
-non-budget settings unchanged and check `evaluations` for missing combinations.
-Use corresponding code and environments; check
-[comparability](../../explanation/benchmark_releases.md#compatibility-and-comparability)
-before combining results.
+## 2. Append hard budgets
 
-## 2. Copy the budget files you will edit
-
-For hard budgets, soft-budget parameters, or both, copy the corresponding
-files and repoint their configfile paths in `more_budgets/config.yaml`:
-
-```shell
-cp workflow/conf/eval_hard_budgets/kdd26.yaml \
-    workflow/conf/eval_hard_budgets/more_budgets.yaml
-cp workflow/conf/soft_budget_params/kdd26.yaml \
-    workflow/conf/soft_budget_params/more_budgets.yaml
-```
-
-Copy and repoint `method_options` too if changing budget mappings or opt-ins.
-Retain existing list entries to include published settings in the plots.
-Edit explicit dataset entries, not just `default`. Complete step 3, step 4,
-or both.
-
-## 3. Append hard budgets
-
-Extend the dataset's list. For example, add 4 and 7 to CUBE's `[3, 5, 10]`:
+Extend the dataset's list under `eval_hard_budgets`. For example, add 4 and 7
+to CUBE's `[3, 5, 10]`:
 
 ```yaml
 eval_hard_budgets:
@@ -66,7 +37,7 @@ eval_hard_budgets:
 ```
 
 Choose budgets in selection cost, accounting for the Unmasker and feature costs.
-Check each method's `method_options`:
+Check each method's entry under `method_options`:
 
 - With no training-budget mapping, allow new training for each new budget.
 - With `train_hard_budget`, retain the released training budget to reuse its bundle.
@@ -77,14 +48,16 @@ Check each method's `method_options`:
 Do not change training budgets solely to avoid training.
 If `use_max_hard_budget_when_training_soft_budget` is enabled, check whether
 raising the largest mapped training budget also requires new soft-budget
-training. To run only hard-budget results, pass `--no-soft-budget`.
+training. To run only hard-budget results, add `--no-soft-budget` to both
+commands in step 4.
 [Budget options](../../reference/pipeline_configuration.md#method-option-keys-and-validation).
 
-## 4. Append soft-budget parameter pairs
+## 3. Append soft-budget parameter pairs
 
-Keep the method's released convention: `[value, null]` for training-time
-parameters, or `[null, value]` for supported evaluation-time parameters.
-Allow new training for new training-time values. Set at most one value per pair.
+Keep the method's released convention under `soft_budget_params`:
+`[value, null]` for training-time parameters, or `[null, value]` for
+supported evaluation-time parameters. Allow new training for new training-time
+values. Set at most one value per pair.
 
 For example, append `0.02` to these released lists:
 
@@ -98,53 +71,47 @@ soft_budget_params:
 ```
 
 Use your release's actual lists. Ensure the dataset is in each method's
-`soft_budget_datasets` and `soft_budget_setting` is enabled. Retain the
+`soft_budget_datasets` and set `soft_budget_setting: true`. Retain the
 hard-budget list needed by methods using
 `use_max_hard_budget_when_training_soft_budget`.
 
-## 5. Generate omitted dataset bundles, if needed
+## 4. Preview and run
 
-Skip this step if all needed dataset bundles were downloaded. Otherwise,
-prepare the [local sources](../../reference/datasets/README.md) and generate
-using the release's settings and environment:
+Preview the work ([interactive preview](../../reference/interactive_preview.md)):
 
 ```shell
-workflow/run.py more_budgets --site <your_site> \
-    output_root=output/more_budgets --target all_generate_datasets
+workflow/run.py --configfile output/more_budgets/benchmark.yaml \
+    --site <your_site> -i
 ```
 
-After generation succeeds, add
-`reuse_release=true "stages={dataset_generation: false}"` to all subsequent
-commands. If the [reuse check](../../reference/pipeline_configuration.md#reuse_release)
-fails, fix the data or recompute in a separate root; do not bypass it.
-Verify external source files match too.
+Without GPUs, replace `--site <your_site>` with
+`--jobs 8 execution_file=workflow/profiles/execution/cpu.yaml` in both
+commands.
 
-## 6. Check the plan and run
-
-```shell
-workflow/run.py more_budgets --site <your_site> \
-    output_root=output/more_budgets -i
-```
-
-Retain step 5's overrides when applicable. Without GPUs, replace
-`--site <your_site>` with
-`--jobs 8 execution_file=workflow/profiles/execution/cpu.yaml` throughout.
-
-In the [interactive preview](../../reference/interactive_preview.md), check
-for `Run` jobs for the new evaluations and any required training. Investigate
-unexpected `Run` jobs of old budgets for missing downloads, changed mappings
-or incomplete release coverage, as in [Add a method to a
+Expect `Run` jobs for the new evaluations and any required training, and
+`Reuse` for published outputs. Investigate unexpected `Run` jobs of old
+budgets for missing downloads, changed mappings or incomplete release
+coverage, as in [Add a method to a
 release](add_method_to_a_release.md#4-investigate-unexpected-retraining).
-Keep training enabled unless every required trained bundle exists.
 
-Remove `-i` to run, retaining all options. Repeat the command to resume.
+Expect `Conditional reuse` for published outputs on datasets the release
+omits. If the run stops because a regenerated dataset differs from the
+release, fix the data or recompute in a separate output root; do not bypass
+the check.
 
-## 7. Check the results
+Run the same configuration without `-i`; repeat the command to resume:
+
+```shell
+workflow/run.py --configfile output/more_budgets/benchmark.yaml \
+    --site <your_site>
+```
+
+## 5. Check the results
 
 Open `output/more_budgets/merged_results/` and `output/more_budgets/plots/`.
 Verify training and evaluation budget columns in
 `output/more_budgets/eval_results_transformed/`.
 [Table columns](../../reference/evaluation_dataframes.md).
 
-Save the modified profile and invocation. Do not treat the downloaded manifest
-as an inventory of your local extension.
+Save your edited `benchmark.yaml` and invocation. Do not treat the downloaded
+manifest as an inventory of your local extension.

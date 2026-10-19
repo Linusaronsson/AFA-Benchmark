@@ -249,8 +249,8 @@ a second release into another root, with `--destination-root
 output/<name>`, and run the pipeline on it with `output_root=output/<name>`.
 
 Downloads one release and restores it as `restore` does, then prints its
-identity, execution mode and workflow configuration. A public
-repository needs no token.
+identity, execution mode, the path of the runnable `benchmark.yaml`, the
+manifest path and the release's coverage. A public repository needs no token.
 
 After resolving the manifest, it lists the selected files on the host and
 prints their total size and file count before fetching the payloads. The

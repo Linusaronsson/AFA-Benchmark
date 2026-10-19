@@ -78,7 +78,10 @@ from afabench.release.snapshot import (
     restored_manifest_location,
     save_snapshot,
 )
-from afabench.release.workflow_config import release_workflow_config
+from afabench.release.workflow_config import (
+    BENCHMARK_CONFIG_FILENAME,
+    release_workflow_config,
+)
 
 app = typer.Typer()
 DEFAULT_OUTPUT_ROOT: Final[Path] = Path(PRODUCTION_OUTPUT_ROOT)
@@ -446,6 +449,7 @@ def download(
         restored_manifest_location(destination_root),
         job_duration_table=job_duration_table,
         omitted_dataset_bundles=omitted,
+        runnable_config=destination_root / BENCHMARK_CONFIG_FILENAME,
     )
 
 
@@ -504,25 +508,32 @@ def _echo_manifest(
     *,
     job_duration_table: bool,
     omitted_dataset_bundles: list[OmittedDatasetBundle] | None = None,
+    runnable_config: Path | None = None,
 ) -> None:
     """
     Print the release's identity and where its manifest is.
 
     `job_duration_table` is whether the release's job duration table was
-    written beside the manifest, which also prints its path.
+    written beside the manifest, which also prints its path. With
+    `runnable_config`, its path replaces the publisher's workflow
+    configuration, whose paths only exist on the publisher's machine.
     """
-    workflow_config = manifest.workflow_config
-    configfiles = ", ".join(
-        record.path for record in workflow_config.configfiles
-    )
     typer.echo(
-        f"Release {manifest.release_id}: "
-        f"execution {manifest.execution_mode}\n"
-        f"Workflow profile: {workflow_config.profile}\n"
-        f"Workflow config files: {configfiles}\n"
-        f"Workflow config overrides: {workflow_config.overrides}\n"
-        f"Release manifest: {path}"
+        f"Release {manifest.release_id}: execution {manifest.execution_mode}"
     )
+    if runnable_config is None:
+        workflow_config = manifest.workflow_config
+        configfiles = ", ".join(
+            record.path for record in workflow_config.configfiles
+        )
+        typer.echo(
+            f"Workflow profile: {workflow_config.profile}\n"
+            f"Workflow config files: {configfiles}\n"
+            f"Workflow config overrides: {workflow_config.overrides}"
+        )
+    else:
+        typer.echo(f"Runnable config: {runnable_config}")
+    typer.echo(f"Release manifest: {path}")
     coverage = manifest.coverage
     typer.echo(
         f"Coverage: {len(manifest.evaluations)} evaluation(s), "
