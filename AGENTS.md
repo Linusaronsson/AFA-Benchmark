@@ -39,6 +39,13 @@ Environment: Python 3.12.10 exactly, managed by uv (`uv sync`). Pytest
 markers `optional`, `pipeline` and `workflow` are deselected by default
 (`pytest.ini`); select them with `-m`.
 
+## Git history
+
+Keep history linear: `dev` and every integration branch contain only
+fast-forwards. Bring a branch up to date by rebasing it onto its target,
+then land it with `git merge --ff-only`; this includes parallel ticket
+branches merged into an integration branch.
+
 ## Where to look
 
 - **Domain vocabulary**: `CONTEXT.md` is the glossary and the naming source
