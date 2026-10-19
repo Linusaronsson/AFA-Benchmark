@@ -12,10 +12,11 @@ A pipeline profile, an optional site profile and pipeline profile overrides:
 
 It builds the one Snakemake command for them, adding what follows from the
 site profile: its site file, which Snakemake would otherwise drop from the
-site profile whenever overrides are passed, and the interpreter of a site
-whose allocations name venvs: workflow/venvs/bin/python, the venv of the
-login node's architecture, which it refuses to run while any of the site's
-venvs is missing or built from another uv.lock. See docs/adr/0009 and
+site profile whenever overrides are passed, and, for execution on a site
+whose allocations name venvs, workflow/venvs/bin/python, the venv of the
+login node's architecture. Execution is refused while any site venv is
+missing or built from another uv.lock. Planning uses the checkout environment
+and only warns about site venv readiness. See docs/adr/0009 and
 docs/adr/0015. --[no-]soft-budget, --[no-]per-dataset-plots and
 --[no-]wandb stand for the overrides soft_budget_setting, per_dataset_plots
 and use_wandb, true or false; without them the pipeline profile decides.
@@ -25,10 +26,10 @@ invocation, from the pipeline profile, the UTC time and random characters.
 
 With -e it runs the compute estimate of that invocation instead
 (scripts/compute_estimate/estimate_compute.py), which takes the same
-arguments and, with -e only, the estimate's options, with the same
-interpreter. With -i (--interactive-preview) it opens the interactive preview
+arguments and, with -e only, the estimate's options, in the checkout
+environment. With -i (--interactive-preview) it opens the interactive preview
 of that invocation instead (python -m afabench.pipeline_preview, with the
-resolved Snakemake arguments after --), with the same interpreter; the preview
+resolved Snakemake arguments after --), in the checkout environment; the preview
 needs a terminal and runs no job, so -n changes nothing and -e, --wandb
 and --wandb-group are refused. --group-by, with --interactive-preview
 only, passes the preview its initial grouping: stage, method and dataset,
@@ -124,7 +125,7 @@ def launcher_command(
     if options.interactive_preview:
         _check_interactive_preview(options)
         return [
-            *_environment_interpreter(options, checkout),
+            *_environment_interpreter(arguments, checkout),
             "-m",
             INTERACTIVE_PREVIEW_MODULE,
             *(
@@ -139,7 +140,7 @@ def launcher_command(
         command = snakemake_command(arguments, checkout)
         if options.configfile is not None:
             return [
-                *_environment_interpreter(options, checkout),
+                *_environment_interpreter(arguments, checkout),
                 "workflow/run_from_config.py",
                 *arguments,
             ]
@@ -152,7 +153,7 @@ def launcher_command(
     # Check the run's arguments, as the estimate will.
     snakemake_arguments(arguments, checkout)
     return [
-        *_environment_interpreter(options, checkout),
+        *_environment_interpreter(arguments, checkout),
         ESTIMATE_SCRIPT,
         *_without_estimate_flag(arguments),
     ]
@@ -169,11 +170,28 @@ def _check_interactive_preview(options: LauncherOptions) -> None:
         raise LauncherError(message)
 
 
+def _planning_only(arguments: list[str]) -> bool:
+    """Planning does not require runnable compute-node environments."""
+    options = _parse(arguments)
+    extra = arguments[arguments.index("--") + 1 :] if "--" in arguments else []
+    return (
+        options.interactive_preview
+        or options.estimate
+        or options.dry_run
+        or any(argument in {"-n", "--dry-run"} for argument in extra)
+    )
+
+
 def _environment_interpreter(
-    options: LauncherOptions, checkout: Path
+    arguments: list[str], checkout: Path
 ) -> list[str]:
     """Return the Python of the environment the launcher selects."""
-    if options.site is not None and _site_venvs(checkout, options.site):
+    options = _parse(arguments)
+    if (
+        not _planning_only(arguments)
+        and options.site is not None
+        and _site_venvs(checkout, options.site)
+    ):
         return [VENV_PYTHON]
     return ["uv", "run", "python"]
 
@@ -206,6 +224,7 @@ def _invocation(
     arguments: list[str], checkout: Path
 ) -> tuple[list[str], list[str]]:
     """Return the interpreter running Snakemake, and Snakemake's arguments."""
+    planning_only = _planning_only(arguments)
     extra: list[str] = []
     if "--" in arguments:
         split = arguments.index("--")
@@ -231,7 +250,7 @@ def _invocation(
             message = f"--jobs {options.jobs}: a cluster run submits as many jobs as the site profile {options.site!r} sets"
             raise LauncherError(message)
         site = _profile(checkout, SITE_PROFILES, options.site)
-        if _site_venvs(checkout, options.site):
+        if _site_venvs(checkout, options.site) and not planning_only:
             interpreter = [VENV_PYTHON, "-m", "snakemake"]
         profiles += ["--workflow-profile", site]
         config.append(f"execution_site_file={site}/site.yaml")
@@ -488,7 +507,7 @@ def _check_terminal() -> None:
 
 
 def check_site_venvs(arguments: list[str], checkout: Path = REPO_ROOT) -> None:
-    """Fail unless every venv the run's site names is built from uv.lock."""
+    """Check site build readiness; warn for planning, refuse execution."""
     site = _parse(arguments).site
     if site is None:
         return
@@ -498,8 +517,14 @@ def check_site_venvs(arguments: list[str], checkout: Path = REPO_ROOT) -> None:
         if (problem := venv_problem(checkout, venv)) is not None
     ]
     if problems:
-        message = f"{'; '.join(problems)}. Build the site's venvs with `uv run just build-venvs {site}` (docs/how-to/maintainer/slurm_integration.md), and run this again once those jobs finished"
-        raise LauncherError(message)
+        message = f"{'; '.join(problems)}. Build the site's venvs with `uv run just build-venvs {site}` (docs/how-to/maintainer/slurm_integration.md) before executing jobs"
+        if _planning_only(arguments):
+            typer.echo(
+                f"Warning: {message}. Continuing planning in the checkout environment; this does not certify execution readiness.",
+                err=True,
+            )
+        else:
+            raise LauncherError(message)
 
 
 class _LauncherCommand(TyperCommand):

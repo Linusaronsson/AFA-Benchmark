@@ -109,6 +109,29 @@ def test_dry_run_and_estimate_only_preview_and_never_prepare(
     assert "reuse_release=true" in commands[0]
 
 
+@pytest.mark.parametrize("flag", ["-n", "--dry-run"])
+def test_forwarded_dry_run_previews_release_reuse_in_one_phase(
+    benchmark: Path, monkeypatch: pytest.MonkeyPatch, flag: str
+) -> None:
+    cache(benchmark)
+    launched: list[list[str]] = []
+
+    def launch(
+        command: list[str], *, check: bool
+    ) -> subprocess.CompletedProcess[str]:
+        assert not check
+        launched.append(command)
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr("afabench.release.config_run.subprocess.run", launch)
+    command = snakemake_arguments(["--configfile", str(benchmark), "--", flag])
+    assert run_config(command) == 0
+    assert len(launched) == 1
+    assert "release_preview=true" in launched[0]
+    assert "reuse_release=true" in launched[0]
+    assert "all_generate_datasets" in launched[0]
+
+
 def test_output_override_selects_its_own_cache(
     benchmark: Path, tmp_path: Path
 ) -> None:

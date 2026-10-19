@@ -57,7 +57,7 @@ def config_run_commands(
     if preview:
         if settings.stages.dataset_generation:
             command.insert(1, "all_generate_datasets")
-        if "--dry-run" not in command:
+        if not any(flag in command for flag in ("-n", "--dry-run")):
             index = (
                 command.index("--config")
                 if "--config" in command
@@ -85,7 +85,7 @@ def config_run_commands(
 
 def run_config(command: list[str]) -> int:
     """Execute the phases with the interpreter selected by the host launcher."""
-    preview = "--dry-run" in command
+    preview = any(flag in command for flag in ("-n", "--dry-run"))
     for phase in config_run_commands(command, preview=preview):
         invocation = [sys.executable, "-m", "snakemake", *phase]
         print(shlex.join(invocation), file=sys.stderr, flush=True)

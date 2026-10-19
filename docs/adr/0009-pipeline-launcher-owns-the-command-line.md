@@ -21,14 +21,16 @@ Two things follow from the site profile:
   repeated `execution_site_file=` on the command line. Every documented
   cluster command carried that line.
 - **Its interpreter.** On a site whose allocations name venvs, one per
-  node architecture, Snakemake runs from the venv of the login node's
-  architecture, not uv's
+  node architecture, Snakemake executing jobs runs from the venv of the login
+  node's architecture, not uv's
   ([ADR 0015](0015-one-venv-per-architecture.md)), and users would have to
   remember to start `workflow/venvs/bin/python -m snakemake` instead.
 
 The launcher adds `execution_site_file` to the one `--config` it builds
 from the overrides, and chooses the interpreter from whether the site file
-names venvs.
+names venvs and whether the invocation executes jobs. Non-executing modes
+use the checkout environment, retaining the site configuration without
+requiring site venv builds.
 
 ## Considered options
 

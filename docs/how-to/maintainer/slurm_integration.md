@@ -76,14 +76,24 @@ execution_site:
     venv: .venv-aarch64
 ```
 
-From the checkout, submit the builds; replace `arrhenius` with your site
-name:
+To inspect the plan before building site venvs, run this from the synced
+checkout; replace `arrhenius` with your site name:
 
 ```shell
-uv run workflow/venvs/submit_builds.py arrhenius
+uv run workflow/run.py kdd26 --site arrhenius -i
 ```
 
-Use `--dry-run` to inspect build submissions first. Check
+Treat missing or stale site venv warnings as prerequisites for execution,
+not blockers for previewing. Use `-n` for a plain-text dry run or `-e` for
+an estimate instead.
+
+Before executing jobs, submit the builds from the checkout:
+
+```shell
+uv run just build-venvs arrhenius
+```
+
+Append `--dry-run` to inspect build submissions first. Check
 `workflow/venvs/build-<job id>.log` and wait for every build to finish.
 Rebuild after `uv.lock` changes, with no pipeline jobs running. Allow roughly
 85,000 files per venv when checking filesystem quotas, counting the checkout's

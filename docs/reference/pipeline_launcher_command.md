@@ -82,13 +82,16 @@ The launcher prints the command it runs, then runs it:
     [--config <key=value ...> [execution_site_file=workflow/profiles/site/<site>/site.yaml]]
 ```
 
-- **Interpreter.** `workflow/venvs/bin/python -m snakemake`, the venv of the
-  host's architecture built by `workflow/venvs/build.sbatch`, when the
-  site's `site.yaml` names a `venv` in either allocation; otherwise
-  `uv run snakemake`.
-- **Venv check.** When the site's `site.yaml` names venvs, the launcher
-  fails before running anything while one of them is missing or was built
-  from another `uv.lock`.
+- **Interpreter.** For execution, `workflow/venvs/bin/python -m snakemake`,
+  the venv of the host's architecture built by `workflow/venvs/build.sbatch`,
+  when the site's `site.yaml` names a `venv` in either allocation; otherwise
+  `uv run snakemake`. Dry runs always use `uv run snakemake` in the checkout
+  environment, including `-n` or `--dry-run` forwarded after `--`.
+- **Venv check.** Execution fails before running anything while a site venv
+  is missing or was built from another `uv.lock`. Dry runs, estimates and
+  interactive previews only warn and continue in the checkout environment.
+  They retain site configuration and allocation validation, but do not
+  certify execution readiness or require site venv builds.
 - **Site file.** With `--site`, `execution_site_file` is added to the
   overrides, so the site's allocations apply whatever overrides are given.
 
@@ -102,10 +105,9 @@ arguments unchanged, so swapping `-n` for `-e` estimates the same run:
 <interpreter> scripts/compute_estimate/estimate_compute.py <arguments without -e>
 ```
 
-The interpreter is `workflow/venvs/bin/python`, the venv of the host's
-architecture, when the site's `site.yaml` names a `venv`; otherwise
-`uv run python`. `uv run just estimate-compute` is the same as `-e` with
-`uv run python`.
+The interpreter is always `uv run python` in the checkout environment,
+including with `--site`. `uv run just estimate-compute` uses the same
+interpreter.
 
 ## The interactive preview
 
@@ -118,7 +120,7 @@ same run:
 <interpreter> -m afabench.pipeline_preview [--group-by <dimensions>] -- <Snakemake arguments>
 ```
 
-The interpreter is `workflow/venvs/bin/python` when the site's `site.yaml`
-names a `venv`, as for the compute estimate; otherwise `uv run python`. The
-launcher refuses to run it without a terminal on stdin and stdout, and exits
-with its exit status: 1 after a planning failure, else 0.
+The interpreter is always `uv run python` in the checkout environment,
+including with `--site`. The launcher refuses to run it without a terminal
+on stdin and stdout, and exits with its exit status: 1 after a planning
+failure, else 0.

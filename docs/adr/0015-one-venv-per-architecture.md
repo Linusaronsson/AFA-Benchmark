@@ -28,7 +28,11 @@ comes from `PATH`.
 So the Arrhenius site profile drops `software-deployment`, and its
 `--precommand` puts `workflow/venvs/bin` first on `PATH`. Its `python` runs
 `.venv-$(uname -m)/bin/python`, deciding on the node. The pipeline launcher
-starts the submitting Snakemake through it too.
+starts the submitting Snakemake through it too. Non-executing modes (dry
+runs, compute estimates and interactive previews) instead use the checkout
+environment. Planning retains the site's allocations but does not certify
+execution readiness; requiring compute-node builds would prevent inspecting
+a plan before those builds finish.
 
 ## Considered options
 
@@ -47,11 +51,12 @@ starts the submitting Snakemake through it too.
 
 ## Consequences
 
-- The launcher refuses to run while a venv the site names is missing or was
-  built from another `uv.lock`. `build.sbatch` records the lock it synced
+- The launcher refuses execution while a venv the site names is missing or
+  was built from another `uv.lock`; non-executing modes only warn.
+  `build.sbatch` records the lock it synced
   from as `<venv>/afabench.uv.lock`, only once the sync succeeded, because
   the login node cannot run an aarch64 venv to ask it. Any `uv.lock` change,
-  dev tools included, needs a rebuild.
+  dev tools included, needs a rebuild before execution.
 - A venv is synced in place, so it is rebuilt while no job of the pipeline
   runs.
 - The venvs hold the project without the dev group. Snakemake is a main

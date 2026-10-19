@@ -272,11 +272,80 @@ def test_a_stale_or_missing_venv_is_refused_before_launching(
     shutil.rmtree(checkout / ".venv-aarch64")
 
     with pytest.raises(LauncherError) as error:
-        check_site_venvs(["--site", "arrhenius", "-n"], checkout)
+        check_site_venvs(["--site", "arrhenius"], checkout)
 
     assert "No venv built at" in str(error.value)
     assert ".venv-x86_64 was built from another uv.lock" in str(error.value)
     assert "uv run just build-venvs arrhenius" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [["-i"], ["-n"], ["-e"], ["--", "-n"], ["--", "--dry-run"]],
+)
+def test_planning_warns_about_missing_and_stale_site_venvs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], mode: list[str]
+) -> None:
+    checkout = checkout_with_venvs(tmp_path, lock="# an older lock\n")
+    shutil.rmtree(checkout / ".venv-aarch64")
+    arguments = ["--site", "arrhenius", *mode]
+
+    check_site_venvs(arguments, checkout)
+
+    warning = capsys.readouterr().err
+    assert "Warning:" in warning
+    assert "No venv built at" in warning
+    assert ".venv-x86_64 was built from another uv.lock" in warning
+    assert "uv run just build-venvs arrhenius" in warning
+    assert "does not certify execution readiness" in warning
+    command = launcher_command(arguments, checkout)
+    assert command[:2] == ["uv", "run"]
+    assert "workflow/venvs/bin/python" not in command
+    assert (
+        "execution_site_file=workflow/profiles/site/arrhenius/site.yaml"
+        in snakemake_arguments(arguments, checkout)
+    )
+
+
+@pytest.mark.parametrize("extra", [[], ["--", "--keep-going"]])
+def test_execution_with_unready_site_venvs_never_launches(
+    monkeypatch: pytest.MonkeyPatch, extra: list[str]
+) -> None:
+    def problem(_checkout: Path, venv: str) -> str:
+        return f"No venv built at {venv}"
+
+    def launch(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("Execution must not launch with unready site venvs")
+
+    monkeypatch.setattr("workflow.run.venv_problem", problem)
+    monkeypatch.setattr("workflow.run.subprocess.run", launch)
+    result = CliRunner().invoke(app, ["--site", "arrhenius", *extra])
+    assert result.exit_code == 2
+    assert "No venv built at" in result.output
+
+
+@pytest.mark.parametrize(
+    "mode", [["-i"], ["-n"], ["-e"], ["--", "-n"], ["--", "--dry-run"]]
+)
+def test_cli_planning_launches_despite_unready_site_venvs(
+    monkeypatch: pytest.MonkeyPatch, mode: list[str]
+) -> None:
+    def problem(_checkout: Path, venv: str) -> str:
+        return f"No venv built at {venv}"
+
+    def launch(
+        command: list[str], **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        assert command[:2] == ["uv", "run"]
+        assert "workflow/venvs/bin/python" not in command
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr("workflow.run.venv_problem", problem)
+    monkeypatch.setattr("workflow.run.subprocess.run", launch)
+    monkeypatch.setattr("workflow.run._check_terminal", lambda: None)
+    result = CliRunner().invoke(app, ["--site", "arrhenius", *mode])
+    assert result.exit_code == 0, result.output
+    assert "Warning:" in result.stderr
 
 
 def test_sites_without_venvs_and_local_runs_need_no_check(
@@ -523,13 +592,15 @@ def test_estimate_takes_the_arguments_of_the_run() -> None:
     ]
 
 
-def test_estimate_on_a_site_naming_venvs_runs_in_the_nodes_venv() -> None:
+def test_estimate_on_a_site_uses_the_checkout_environment() -> None:
     command = launcher_command(
         ["--site", "arrhenius", "-e", "datasets=[cube]"]
     )
 
     assert command == [
-        "workflow/venvs/bin/python",
+        "uv",
+        "run",
+        "python",
         ESTIMATE_SCRIPT,
         "--site",
         "arrhenius",
@@ -668,15 +739,15 @@ def test_interactive_preview_of_a_config_file_plans_instead_of_running_it(
     assert not any("release_preview" in argument for argument in command)
 
 
-def test_interactive_preview_on_a_site_naming_venvs_runs_in_the_nodes_venv() -> (
-    None
-):
+def test_interactive_preview_on_a_site_uses_the_checkout_environment() -> None:
     command = launcher_command(
         ["--site", "arrhenius", "--interactive-preview", "datasets=[cube]"]
     )
 
-    assert command[:5] == [
-        "workflow/venvs/bin/python",
+    assert command[:7] == [
+        "uv",
+        "run",
+        "python",
         "-m",
         "afabench.pipeline_preview",
         "--",
