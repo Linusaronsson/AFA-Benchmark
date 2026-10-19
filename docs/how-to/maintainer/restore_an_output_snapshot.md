@@ -19,7 +19,7 @@ Preview the profile used to produce the snapshot; here, `kdd26`
 ([interactive preview](../../reference/interactive_preview.md)):
 
 ```shell
-workflow/run.py kdd26 -i
+uv run workflow/run.py kdd26 -i
 ```
 
 Pass `output_root=<root>` if you restored elsewhere. Investigate `Run` jobs

@@ -179,7 +179,7 @@ uv run pytest test/workflow/test_pipeline_script_configs_complete.py \
 Run a CPU smoke test, adding your profile name if it is not `all`:
 
 ```shell
-workflow/run.py --jobs 8 \
+uv run workflow/run.py --jobs 8 \
     "methods=[example_method]" "datasets=[cube]" \
     "dataset_realization_indices=[0]" smoke_test=true \
     execution_file=workflow/profiles/execution/cpu.yaml

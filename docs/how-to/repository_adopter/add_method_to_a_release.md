@@ -42,7 +42,7 @@ Open the [interactive preview](../../reference/interactive_preview.md) of
 the run:
 
 ```shell
-workflow/run.py --configfile output/new_method/benchmark.yaml \
+uv run workflow/run.py --configfile output/new_method/benchmark.yaml \
     --site <your_site> -i
 ```
 
@@ -88,7 +88,7 @@ check.
 Run the same configuration without `-i`:
 
 ```shell
-workflow/run.py --configfile output/new_method/benchmark.yaml \
+uv run workflow/run.py --configfile output/new_method/benchmark.yaml \
     --site <your_site>
 ```
 

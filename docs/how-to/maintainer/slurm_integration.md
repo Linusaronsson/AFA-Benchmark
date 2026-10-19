@@ -50,7 +50,7 @@ Remove profile `set-resources.*.runtime` values that would shadow that table.
 ## 3. Check requested walltime before submission
 
 ```shell
-workflow/run.py kdd26 --site my_site -i
+uv run workflow/run.py kdd26 --site my_site -i
 ```
 
 Check each job's Device, CPUs, GPUs, Placement and Time limit in minutes
@@ -76,17 +76,18 @@ execution_site:
     venv: .venv-aarch64
 ```
 
-With `python3` and `uv` available, submit the builds; replace `arrhenius`
-with your site name:
+From the checkout, submit the builds; replace `arrhenius` with your site
+name:
 
 ```shell
-python3 workflow/venvs/submit_builds.py arrhenius
+uv run workflow/venvs/submit_builds.py arrhenius
 ```
 
 Use `--dry-run` to inspect build submissions first. Check
 `workflow/venvs/build-<job id>.log` and wait for every build to finish.
 Rebuild after `uv.lock` changes, with no pipeline jobs running. Allow roughly
-85,000 files per venv when checking filesystem quotas.
+85,000 files per venv when checking filesystem quotas, counting the checkout's
+`.venv` that `uv run` syncs on the login node.
 
 Set these fields in the site profile's `config.yaml`:
 
@@ -98,7 +99,7 @@ precommand: export PATH=$PWD/workflow/venvs/bin:$PATH
 Check and submit:
 
 ```shell
-workflow/run.py kdd26 --site arrhenius -i
+uv run workflow/run.py kdd26 --site arrhenius -i
 ```
 
 Remove `-i` to run. For individual commands on a node, use

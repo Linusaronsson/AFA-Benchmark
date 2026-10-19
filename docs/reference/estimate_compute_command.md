@@ -1,12 +1,12 @@
 # `estimate-compute` command
 
-`workflow/run.py -e` or `uv run just estimate-compute`
+`uv run workflow/run.py -e` or `uv run just estimate-compute`
 (`scripts/compute_estimate/estimate_compute.py`) prints the [compute estimate](../../CONTEXT.md) of a pipeline invocation
 ([ADR 0007](../adr/0007-job-records-beside-artifacts.md)). Steps:
 [estimate the compute of a run](../how-to/maintainer/estimate_compute.md).
 
 ```shell
-workflow/run.py -e [--job-durations PATH] [--by COLUMN ...]
+uv run workflow/run.py -e [--job-durations PATH] [--by COLUMN ...]
     [--output CSV] [--strict] <launcher arguments>
 uv run just estimate-compute [--job-durations PATH] [--by COLUMN ...]
     [--output CSV] [--strict] <launcher arguments>
@@ -17,7 +17,7 @@ uv run just estimate-compute [--job-durations PATH] [--by COLUMN ...]
 Every argument other than these four is an argument of the
 [pipeline launcher](pipeline_launcher_command.md), so the planned jobs, and
 the CPUs and GPUs each would request, are those of
-`workflow/run.py <launcher arguments>`. Nothing is submitted or run.
+`uv run workflow/run.py <launcher arguments>`. Nothing is submitted or run.
 Profiles are looked up in the working directory.
 
 | Option | Meaning |

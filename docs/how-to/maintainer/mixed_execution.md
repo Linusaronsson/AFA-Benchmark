@@ -37,7 +37,7 @@ Verify account access and device support yourself.
 ## 3. Check the plan and run
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -i \
+uv run workflow/run.py kdd26 --site <your_site> -i \
     execution_file=execution.yaml --target all_eval_methods
 ```
 

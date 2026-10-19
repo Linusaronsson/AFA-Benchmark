@@ -31,7 +31,7 @@ over the config.
 Preview the work ([interactive preview](../../reference/interactive_preview.md)):
 
 ```shell
-workflow/run.py --configfile output/more_seeds/benchmark.yaml \
+uv run workflow/run.py --configfile output/more_seeds/benchmark.yaml \
     --site <your_site> -i
 ```
 
@@ -48,6 +48,6 @@ the check.
 Run the same configuration without `-i`:
 
 ```shell
-workflow/run.py --configfile output/more_seeds/benchmark.yaml \
+uv run workflow/run.py --configfile output/more_seeds/benchmark.yaml \
     --site <your_site>
 ```

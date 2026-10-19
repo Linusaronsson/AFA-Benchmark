@@ -37,7 +37,7 @@ the pipeline generates a large number of jobs. If you still want to run it
 locally with 8 CPU cores, execute this command from the repo root:
 
 ```shell
-workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
+uv run workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 The CPU execution file runs every job on CPU. To reproduce the full

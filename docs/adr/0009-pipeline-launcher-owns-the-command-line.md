@@ -62,8 +62,11 @@ whatever else Snakemake needs is the launcher's concern.
 - Plain `snakemake` still works, and still drops the site's allocations
   with `--config`; the documentation teaches only the launcher, and the
   error on cluster submission without allocations points to it.
-- The launcher runs on the host's `python3` with the standard library only
-  (3.9 on Arrhenius), since it runs before any environment exists; it uses
-  argparse, not typer.
+- The launcher runs in the project environment (`uv run workflow/run.py`),
+  so it can share code with the pipeline, such as the site file reader. On a
+  cluster that means a synced `.venv` on the login node besides the venvs
+  of [ADR 0015](0015-one-venv-per-architecture.md), about 85,000 more
+  files. A script with inline dependencies (`uv run --script`) would avoid
+  that environment, but could not import the project.
 - `uv run just estimate-compute` takes the launcher's arguments, so a run is
   estimated with the same arguments it is run with.

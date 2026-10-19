@@ -24,7 +24,7 @@ The Hydra defaults in `conf/scripts/plotting/common/default.yaml` are
 pipeline profile override:
 
 ```shell
-workflow/run.py -n "plotting={dataset_metrics: {cube: auroc}, default_metric: accuracy}"
+uv run workflow/run.py -n "plotting={dataset_metrics: {cube: auroc}, default_metric: accuracy}"
 ```
 
 Quote the entire override so spaces and braces reach Snakemake intact.

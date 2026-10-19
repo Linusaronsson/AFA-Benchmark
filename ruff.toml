@@ -6,11 +6,6 @@ exclude = [
   "src/afabench/components/methods/discriminative/l2m_official/upstream",
 ]
 
-[per-file-target-version]
-# These run before a venv exists, on Arrhenius's login node.
-"workflow/run.py" = "py39"
-"workflow/venvs/submit_builds.py" = "py39"
-
 [lint]
 select = ["ALL"]
 ignore = [

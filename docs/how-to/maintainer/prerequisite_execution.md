@@ -41,7 +41,7 @@ Set CPU and memory requests for `train_classifier`,
 [walltime](../../reference/requested_walltime.md) in `site.yaml`.
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -i \
+uv run workflow/run.py kdd26 --site <your_site> -i \
     --target all_eval_methods execution_file=execution.yaml
 ```
 

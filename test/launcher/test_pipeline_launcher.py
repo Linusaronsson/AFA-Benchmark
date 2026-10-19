@@ -1,22 +1,19 @@
 """The command the pipeline launcher (`workflow/run.py`) runs."""
 
-import datetime
 import re
-import runpy
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
-from afabench.pipeline_preview.model import DIMENSIONS
 from workflow.run import (
-    GROUPING_DIMENSIONS,
     LauncherError,
+    app,
     available_names,
     check_site_venvs,
     launcher_command,
-    main,
     snakemake_arguments,
     snakemake_command,
 )
@@ -35,22 +32,21 @@ REPO_ROOT = Path(__file__).parents[2]
     ],
 )
 def test_lists_shipped_names_without_launching(
-    kind: str, expected: str, capsys: pytest.CaptureFixture[str]
+    kind: str, expected: str
 ) -> None:
-    with pytest.raises(SystemExit) as exit_info:
-        launcher_command([f"--list-{kind}"])
-    assert exit_info.value.code == 0
-    assert expected in capsys.readouterr().out.splitlines()
+    result = CliRunner().invoke(app, [f"--list-{kind}"])
+
+    assert result.exit_code == 0, result.output
+    assert expected in result.stdout.splitlines()
 
 
-def test_can_list_multiple_catalogs(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    with pytest.raises(SystemExit):
-        launcher_command(["--list-datasets", "--list-initializers"])
-    output = capsys.readouterr().out
-    assert "Available datasets" in output
-    assert "Available initializers" in output
+def test_can_list_multiple_catalogs() -> None:
+    result = CliRunner().invoke(
+        app, ["--list-datasets", "--list-initializers"]
+    )
+
+    assert "Available datasets" in result.stdout
+    assert "Available initializers" in result.stdout
 
 
 def test_catalog_reads_another_checkout(tmp_path: Path) -> None:
@@ -65,40 +61,24 @@ def test_catalog_reads_another_checkout(tmp_path: Path) -> None:
 def test_catalog_rejects_unsupported_yaml(tmp_path: Path) -> None:
     catalog = tmp_path / "workflow/conf/datasets/all.yaml"
     catalog.parent.mkdir(parents=True)
-    catalog.write_text("datasets: [miniboone]\n")
-    with pytest.raises(LauncherError, match="flat list"):
+    catalog.write_text("datasets: miniboone\n")
+    with pytest.raises(LauncherError, match="list of names"):
         available_names("datasets", tmp_path)
 
 
-def test_help_advertises_all_catalogs(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    with pytest.raises(SystemExit):
-        launcher_command(["--help"])
-    output = capsys.readouterr().out
+@pytest.mark.parametrize("flag", ["-h", "--help"])
+def test_help_advertises_all_catalogs(flag: str) -> None:
+    # Wide enough that no option name is cut off
+    result = CliRunner().invoke(app, [flag], env={"COLUMNS": "200"})
+
+    assert result.exit_code == 0
     for kind in ("methods", "datasets", "unmaskers", "initializers"):
-        assert f"--list-{kind}" in output
+        assert f"--list-{kind}" in result.stdout
 
 
-def test_launcher_without_datetime_utc(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    # Python 3.9 on the login node has timezone.utc, but not datetime.UTC.
-    monkeypatch.delattr(datetime, "UTC")
-    launcher = runpy.run_path(
-        str(Path(__file__).parents[2] / "workflow/run.py")
-    )["launcher_command"]
-
-    with pytest.raises(SystemExit) as exit_info:
-        launcher(["--help"])
-    assert exit_info.value.code == 0
-    assert "Run the pipeline." in capsys.readouterr().out
-
-    command = launcher(["--wandb", "--site", "arrhenius"])
-    assert command[:3] == ["workflow/venvs/bin/python", "-m", "snakemake"]
-    group = next(word for word in command if word.startswith("wandb_group="))
-    assert re.fullmatch(r"wandb_group=all-\d{8}T\d{6}Z-[a-z0-9]{4}", group)
+def test_an_unknown_option_is_refused() -> None:
+    with pytest.raises(LauncherError, match="--frobnicate"):
+        snakemake_command(["--frobnicate"])
 
 
 @pytest.mark.parametrize("estimate", [False, True])
@@ -123,7 +103,10 @@ def test_launcher_passes_profile_identity_to_the_executing_workflow(
 
     monkeypatch.setattr("workflow.run.subprocess.run", launch)
 
-    assert main(["kdd26", "-e"] if estimate else ["kdd26"]) == 17
+    result = CliRunner().invoke(
+        app, ["kdd26", "-e"] if estimate else ["kdd26"]
+    )
+    assert result.exit_code == 17, result.output
     if estimate:
         assert "AFABENCH_PIPELINE_PROFILE" not in environments[0]
     else:
@@ -190,7 +173,8 @@ def test_configfile_main_clears_inherited_profile(
         return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setattr("workflow.run.subprocess.run", launch)
-    assert main(["--configfile", str(config)]) == 0
+    result = CliRunner().invoke(app, ["--configfile", str(config)])
+    assert result.exit_code == 0, result.output
 
 
 def test_configfile_refuses_named_profile_or_missing_file(
@@ -353,6 +337,26 @@ def test_no_soft_budget_and_its_override_exclude_each_other() -> None:
         snakemake_command(["--no-soft-budget", "soft_budget_setting=true"])
 
 
+@pytest.mark.parametrize(
+    ("flag", "override"),
+    [
+        ("--soft-budget", "soft_budget_setting=true"),
+        ("--no-per-dataset-plots", "per_dataset_plots=false"),
+        ("--no-wandb", "use_wandb=false"),
+    ],
+)
+def test_each_flag_pair_sets_its_override_either_way(
+    flag: str, override: str
+) -> None:
+    command = snakemake_command([flag])
+
+    assert command[command.index("--config") :] == ["--config", override]
+
+
+def test_without_flags_the_pipeline_profile_decides() -> None:
+    assert "--config" not in snakemake_command([])
+
+
 def test_wandb_turns_wandb_logging_on_in_a_new_wandb_group() -> None:
     command = snakemake_command(["--wandb", "methods=[dime]"])
 
@@ -410,6 +414,7 @@ def test_a_wandb_group_override_is_kept() -> None:
         (["--wandb-group", "all-x", "wandb_group=all-y"], "--wandb-group"),
         (["--wandb-group", "all-x", "use_wandb=false"], "--wandb-group"),
         (["--wandb-group", ""], "name"),
+        (["--no-wandb", "--wandb-group", "all-x"], "--no-wandb"),
     ],
 )
 def test_wandb_group_rejects_contradictions(
@@ -716,7 +721,6 @@ def test_interactive_preview_rejects_estimate_and_wandb_logging(
 
 
 def test_interactive_preview_needs_a_terminal(
-    capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     launched: list[list[str]] = []
@@ -729,11 +733,11 @@ def test_interactive_preview_needs_a_terminal(
 
     monkeypatch.setattr("workflow.run.subprocess.run", launch)
     # The test runner's streams are not a terminal.
-    assert main(["--interactive-preview"]) == 2
+    result = CliRunner().invoke(app, ["--interactive-preview"])
+    assert result.exit_code == 2
     assert launched == []
-    error = capsys.readouterr().err
-    assert "terminal" in error
-    assert "-n" in error
+    assert "terminal" in result.stderr
+    assert "-n" in result.stderr
 
 
 def test_group_by_sets_the_interactive_previews_initial_grouping() -> None:
@@ -785,8 +789,3 @@ def test_group_by_needs_interactive_preview() -> None:
         launcher_command(["--group-by", "method"])
     with pytest.raises(LauncherError, match="--interactive-preview"):
         launcher_command(["-n", "--group-by", "method"])
-
-
-def test_group_by_takes_the_interactive_previews_dimensions() -> None:
-    # The launcher cannot import the preview, so it names them again.
-    assert GROUPING_DIMENSIONS == DIMENSIONS

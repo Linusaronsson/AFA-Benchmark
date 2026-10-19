@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 import yaml
+from site_file import read_site_file
 from walltime import WalltimePolicy
 
 from afabench.core.job_record import Device
@@ -146,11 +147,8 @@ class ExecutionPolicy:
                     "Use only one of execution_site_file and execution_site"
                 )
                 raise ValueError(message)
-            site_config = _mapping(
-                yaml.safe_load(
-                    Path(str(config["execution_site_file"])).read_text()
-                ),
-                "execution_site_file",
+            site_config = read_site_file(
+                Path(str(config["execution_site_file"]))
             )
         self.walltime = WalltimePolicy(
             site_config.get("walltime", {}),
@@ -280,7 +278,7 @@ class ExecutionPolicy:
         if self.site:
             self._validate_allocation(hardware, stage, identity)
         elif self.submits_to_cluster():
-            message = f"Cluster submission of {stage}/{identity} needs an execution_site allocation map; run the pipeline with workflow/run.py --site <site>, which sets the site profile's execution_site_file"
+            message = f"Cluster submission of {stage}/{identity} needs an execution_site allocation map; run the pipeline with uv run workflow/run.py --site <site>, which sets the site profile's execution_site_file"
             raise ValueError(message)
         site = _mapping(self.site.get(hardware, {}), "execution_site")
         default = ALLOCATION_RESOURCES[name]

@@ -38,21 +38,21 @@ Runtime filters (--config, select subsets to run):
         hard-budget setting, as if no method listed any dataset in
         soft_budget_datasets. The launcher's --no-soft-budget sets
         it:
-            workflow/run.py --no-soft-budget "datasets=[cube]" -n
+            uv run workflow/run.py --no-soft-budget "datasets=[cube]" -n
     per_dataset_plots (bool, default=False): Request additional per-dataset
         Accuracy, Macro F1 and AUROC figures, with external and built-in
         classifier rows. The external usual plot job owns a separately
         tracked sibling directory once per method set, using the unsplit
         merged table; built-in usual plots remain separate. The launcher
         sets it with --per-dataset-plots:
-            workflow/run.py --per-dataset-plots "datasets=[cube]" -n
+            uv run workflow/run.py --per-dataset-plots "datasets=[cube]" -n
         No optional targets are requested with the default false.
     plotting (mapping, default={}): Headline metric overrides, restricted
         to dataset_metrics (dataset key -> accuracy, f1 or auroc) and
         default_metric (accuracy, f1 or auroc). Omitted choices retain the
         Hydra plotting defaults. The mapping is forwarded to both usual
         classifier jobs, not used to replace the optional three metrics:
-            workflow/run.py "plotting={dataset_metrics: {cube: auroc}}" -n
+            uv run workflow/run.py "plotting={dataset_metrics: {cube: auroc}}" -n
         Invalid keys, types and metric identifiers fail load_config.
         See docs/reference/evaluation_plots.md for output paths and config.
     device (str, default='cpu'): Deprecated invocation-wide device for
@@ -94,7 +94,7 @@ Runtime filters (--config, select subsets to run):
         run of this invocation joins, linked in the resolved
         configuration. The launcher's --wandb names a new one per
         invocation; --wandb-group <name> sets it, to continue a group:
-            workflow/run.py --wandb-group all-20261012T121005Z-k3f9
+            uv run workflow/run.py --wandb-group all-20261012T121005Z-k3f9
     list_jobs (bool, default=False): Print every job's messages (its rule
         block, shell command, submission and completion) in the terminal,
         not only the resolved configuration, job counts, progress, each
@@ -170,19 +170,19 @@ Execution configuration and required files:
     execution YAML, site.yaml, migration and captured-submission tests.
 
 Usage:
-    Run it with the pipeline launcher, workflow/run.py (workflow/run.py -h).
+    Run it with the pipeline launcher, workflow/run.py (uv run workflow/run.py -h).
     Full benchmark, one invocation from an authorized SLURM submit host of a
     single cluster, with the repository, environment and outputs on a shared
     filesystem (execution/default.yaml places the GPU jobs):
-        workflow/run.py kdd26 --site <site> -n
+        uv run workflow/run.py kdd26 --site <site> -n
     It prints the resolved configuration and the job counts; pass
     list_jobs=true to also list every job with its resources and device
     arguments. Then remove -n.
-    Full method set: workflow/run.py --site <site> (pipeline profile all).
+    Full method set: uv run workflow/run.py --site <site> (pipeline profile all).
     Extend a downloaded benchmark without reconstructing a profile:
-        workflow/run.py --configfile output/more_seeds/benchmark.yaml --site <site> -n
+        uv run workflow/run.py --configfile output/more_seeds/benchmark.yaml --site <site> -n
     Local CPU smoke test without SLURM or GPUs:
-        workflow/run.py --jobs 8 "datasets=[cube]" \
+        uv run workflow/run.py --jobs 8 "datasets=[cube]" \
             "dataset_realization_indices=[0]" smoke_test=true \
             execution_file=workflow/profiles/execution/cpu.yaml
     It writes under output/smoke, so a later real run still runs every
@@ -195,15 +195,15 @@ Usage:
     outputs are those the profile gives without it (ADR 0012):
         uv run python scripts/release/snapshot.py download <release_id> \
             --repo-id <repo_id> --method random_dummy --method gdfs
-        workflow/run.py <pipeline> --jobs 8 -n
+        uv run workflow/run.py <pipeline> --jobs 8 -n
     For datasets whose bundles were omitted from the release:
-        workflow/run.py <pipeline> --jobs 8 --target all_generate_datasets
-        workflow/run.py <pipeline> --jobs 8 reuse_release=true \
+        uv run workflow/run.py <pipeline> --jobs 8 --target all_generate_datasets
+        uv run workflow/run.py <pipeline> --jobs 8 reuse_release=true \
             "stages={dataset_generation: false}" -n
     See docs/how-to/repository_adopter/add_method_to_a_release.md.
     Evaluate trained methods already under the output root, without
     generating datasets or training:
-        workflow/run.py <pipeline> --site <site> -n \
+        uv run workflow/run.py <pipeline> --site <site> -n \
             --target all_eval_methods \
             "stages={dataset_generation: false, training: false}"
 

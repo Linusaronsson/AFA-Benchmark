@@ -7,11 +7,9 @@ import sys
 from pathlib import Path
 
 import pytest
-import yaml
 
 REPO_ROOT = Path(__file__).parents[2]
 SCRIPT = REPO_ROOT / "workflow" / "venvs" / "submit_builds.py"
-SITE_FILES = sorted((REPO_ROOT / "workflow/profiles/site").rglob("site.yaml"))
 
 
 def submit(
@@ -143,7 +141,7 @@ def test_one_venv_named_by_both_allocations_is_built_once(
             "execution_site:\n  cpu:\n    venv: venvs/mine\n",
             "not named .venv-<arch>",
         ),
-        ("execution_site:\n  cpu:\n    - venv\n", "unsupported YAML"),
+        ("execution_site:\n  cpu:\n    - venv\n", "no mapping"),
     ],
 )
 def test_unbuildable_site_fails_without_submitting(
@@ -154,16 +152,3 @@ def test_unbuildable_site_fails_without_submitting(
     assert completed.returncode != 0
     assert error in completed.stderr
     assert calls == []
-
-
-@pytest.mark.parametrize("site", SITE_FILES, ids=lambda path: path.parent.name)
-def test_shipped_site_files_read_as_yaml_does(site: Path) -> None:
-    sys.path.insert(0, str(SCRIPT.parent))
-    try:
-        from submit_builds import read_site_yaml  # noqa: PLC0415
-    finally:
-        sys.path.remove(str(SCRIPT.parent))
-
-    assert read_site_yaml(site.read_text(), str(site)) == yaml.safe_load(
-        site.read_text()
-    )

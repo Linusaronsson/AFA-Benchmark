@@ -903,7 +903,7 @@ def _wandb_group(value: object, *, use_wandb: bool) -> str | None:
     if use_wandb and not value:
         message = (
             "use_wandb=true needs wandb_group, the W&B group every W&B run "
-            "of this invocation joins; workflow/run.py --wandb names a new "
+            "of this invocation joins; uv run workflow/run.py --wandb names a new "
             "one, and --wandb-group <name> continues an existing one."
         )
         raise ValueError(message)

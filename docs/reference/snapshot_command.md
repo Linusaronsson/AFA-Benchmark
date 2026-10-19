@@ -36,7 +36,7 @@ include this mapping as `benchmark.yaml`, without publisher output paths,
 execution/site settings or logging and reuse switches. Every release download
 or restore creates a runnable copy with `output_root` set to its absolute
 destination, including selective downloads. Use it with
-`workflow/run.py --configfile <root>/benchmark.yaml`; overrides apply last.
+`uv run workflow/run.py --configfile <root>/benchmark.yaml`; overrides apply last.
 
 These optional arguments assert a configuration against the recorded run.
 A mismatch in merged values, overrides, file paths or hashes, or an

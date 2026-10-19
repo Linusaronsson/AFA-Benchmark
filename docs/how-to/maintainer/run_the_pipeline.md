@@ -17,7 +17,7 @@ results. To customize a profile, [copy it](#make-a-change-durable).
 Without GPUs, pass the CPU execution file:
 
 ```shell
-workflow/run.py ... execution_file=workflow/profiles/execution/cpu.yaml
+uv run workflow/run.py ... execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 Otherwise, check the CPU/GPU choices in
@@ -36,7 +36,7 @@ On a cluster, preview from an [authorized submit host](#where-to-run-it)
 ([interactive preview](../../reference/interactive_preview.md)):
 
 ```shell
-workflow/run.py --site <your_site> -i
+uv run workflow/run.py --site <your_site> -i
 ```
 
 Check the `Run` counts of each stage, method and dataset. Remove `-i`
@@ -45,7 +45,7 @@ to submit. Repeat the command to resume interrupted work.
 On a CPU workstation:
 
 ```shell
-workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml -i
+uv run workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml -i
 ```
 
 Adjust `--jobs` to available CPUs and memory, then remove `-i` to run.
@@ -60,7 +60,7 @@ Log in and set the entity and project before adding `--wandb`:
 uv run wandb login
 export WANDB_ENTITY=<entity>
 export WANDB_PROJECT=afabench
-workflow/run.py ... --wandb
+uv run workflow/run.py ... --wandb
 ```
 
 With direnv, put the entity in gitignored `.envrc.local` instead; `.envrc`
@@ -70,7 +70,7 @@ already sets the project. To join an existing group, replace `--wandb` with
 ## Run a subset of methods
 
 ```shell
-workflow/run.py ... "methods=[gdfs,dime]"
+uv run workflow/run.py ... "methods=[gdfs,dime]"
 ```
 
 Ensure each method has `method_options` and `soft_budget_params` entries in
@@ -80,7 +80,7 @@ the profile. To reuse published comparisons, follow
 ## Run a subset of datasets
 
 ```shell
-workflow/run.py ... "datasets=[cube,mnist]"
+uv run workflow/run.py ... "datasets=[cube,mnist]"
 ```
 
 Ensure each key has `conf/components/dataset_key/<key>.yaml`.
@@ -91,7 +91,7 @@ Specify the complete list of indices, retaining existing indices to include
 their results. For two realizations:
 
 ```shell
-workflow/run.py ... "dataset_realization_indices=[0,1]"
+uv run workflow/run.py ... "dataset_realization_indices=[0,1]"
 ```
 
 To extend published results, follow
@@ -100,7 +100,7 @@ To extend published results, follow
 ## Run a smoke test
 
 ```shell
-workflow/run.py --jobs 8 \
+uv run workflow/run.py --jobs 8 \
     "datasets=[cube]" "dataset_realization_indices=[0]" \
     "methods=[random_dummy,gdfs]" smoke_test=true \
     execution_file=workflow/profiles/execution/cpu.yaml
@@ -114,14 +114,14 @@ results. To test SLURM submissions, use your site and execution file instead.
 To evaluate trained bundles without generating datasets or training:
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -i --target all_eval_methods \
+uv run workflow/run.py kdd26 --site <your_site> -i --target all_eval_methods \
     "stages={dataset_generation: false, training: false}"
 ```
 
 To process existing evaluation tables only:
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -i \
+uv run workflow/run.py kdd26 --site <your_site> -i \
     "stages={dataset_generation: false, training: false, evaluation: false}"
 ```
 
@@ -133,13 +133,13 @@ the plan. [Stage controls](../../reference/pipeline_configuration.md#stages).
 Set a headline metric with:
 
 ```shell
-workflow/run.py ... -i "plotting={dataset_metrics: {cube: auroc}}"
+uv run workflow/run.py ... -i "plotting={dataset_metrics: {cube: auroc}}"
 ```
 
 Add `--per-dataset-plots` for additional Accuracy, Macro F1 and AUROC figures:
 
 ```shell
-workflow/run.py ... --per-dataset-plots -i
+uv run workflow/run.py ... --per-dataset-plots -i
 ```
 
 Remove `-i` to run. Read figures under `eval_perf/` and, with the flag,
@@ -148,7 +148,7 @@ Remove `-i` to run. Read figures under `eval_perf/` and, with the flag,
 ### Rerun visualization with different metrics
 
 ```shell
-workflow/run.py ... --per-dataset-plots \
+uv run workflow/run.py ... --per-dataset-plots \
     "stages={dataset_generation: false, training: false, evaluation: false}" \
     "plotting={dataset_metrics: {cube: auroc}}"
 ```
@@ -162,7 +162,7 @@ Without `--per-dataset-plots`, force only `plot_eval_perf`.
 Override each dataset explicitly, in selection-cost units:
 
 ```shell
-workflow/run.py ... "eval_hard_budgets={cube: [2, 4], mnist: [10]}"
+uv run workflow/run.py ... "eval_hard_budgets={cube: [2, 4], mnist: [10]}"
 ```
 
 Retain old entries if you want them in the comparison. Do not change only
@@ -173,7 +173,7 @@ Check training-budget mappings in `method_options` before running.
 For soft-budget-only evaluation, empty the hard-budget lists:
 
 ```shell
-workflow/run.py ... "eval_hard_budgets={cube: [], mnist: []}"
+uv run workflow/run.py ... "eval_hard_budgets={cube: [], mnist: []}"
 ```
 
 ## Change the soft-budget parameters
@@ -182,13 +182,13 @@ Ensure the dataset is in the method's `soft_budget_datasets`, then supply
 its complete list of `[train, eval]` pairs:
 
 ```shell
-workflow/run.py ... "soft_budget_params={jafa: {cube: [[0.001, null], [0.02, null]]}}"
+uv run workflow/run.py ... "soft_budget_params={jafa: {cube: [[0.001, null], [0.02, null]]}}"
 ```
 
 For hard-budget-only evaluation:
 
 ```shell
-workflow/run.py ... --no-soft-budget
+uv run workflow/run.py ... --no-soft-budget
 ```
 
 To extend a release with either setting, follow
@@ -204,7 +204,7 @@ cp -r workflow/profiles/pipeline/all workflow/profiles/pipeline/my_run
 cp workflow/conf/soft_budget_params/all.yaml workflow/conf/soft_budget_params/my_run.yaml
 # Repoint soft_budget_params/all.yaml to my_run.yaml in my_run/config.yaml.
 # Edit workflow/conf/soft_budget_params/my_run.yaml.
-workflow/run.py my_run --site <your_site> -i
+uv run workflow/run.py my_run --site <your_site> -i
 ```
 
 Check that every selected method has the required parameter entries before

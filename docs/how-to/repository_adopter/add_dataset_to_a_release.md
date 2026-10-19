@@ -44,7 +44,7 @@ requires an explicit override.
 Preview the work ([interactive preview](../../reference/interactive_preview.md)):
 
 ```shell
-workflow/run.py --configfile output/new_dataset/benchmark.yaml \
+uv run workflow/run.py --configfile output/new_dataset/benchmark.yaml \
     --site <your_site> -i
 ```
 
@@ -63,7 +63,7 @@ the check.
 Run the same configuration without `-i`:
 
 ```shell
-workflow/run.py --configfile output/new_dataset/benchmark.yaml \
+uv run workflow/run.py --configfile output/new_dataset/benchmark.yaml \
     --site <your_site>
 ```
 

@@ -66,7 +66,7 @@ class WandbProject:
             name for name in WANDB_VARIABLES if not environment.get(name)
         ]
         if missing:
-            message = f"use_wandb=true (workflow/run.py --wandb) needs {' and '.join(WANDB_VARIABLES)} set, so that each job's W&B run has a link; set {', '.join(missing)}"
+            message = f"use_wandb=true (uv run workflow/run.py --wandb) needs {' and '.join(WANDB_VARIABLES)} set, so that each job's W&B run has a link; set {', '.join(missing)}"
             raise WandbSettingsError(message)
         return cls(
             entity=environment["WANDB_ENTITY"],

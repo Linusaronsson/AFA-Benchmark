@@ -116,7 +116,7 @@ def main(
         typer.Option(help="Exit with 1 when a planned job is unestimated."),
     ] = False,
 ) -> None:
-    """Estimate `workflow/run.py <arguments>`; other options go to it."""
+    """Estimate `uv run workflow/run.py <arguments>`; other options go to it."""
     grouping = by or DEFAULT_GROUPING
     try:
         check_grouping(grouping)

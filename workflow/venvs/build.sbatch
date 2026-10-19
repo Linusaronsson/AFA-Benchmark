@@ -10,7 +10,7 @@
 # workflow/venvs/submit_builds.py submits it with those of each allocation of
 # a site profile that names a venv:
 #
-#   python3 workflow/venvs/submit_builds.py arrhenius
+#   uv run workflow/venvs/submit_builds.py arrhenius
 #
 # which, for Arrhenius, submits from the checkout root:
 #
@@ -33,7 +33,7 @@ if [[ $# -ne 1 ]]; then
 Usage: submit with sbatch from the checkout root, once per node architecture,
 with the accounts and partitions of a site profile:
 
-  python3 workflow/venvs/submit_builds.py <site>      (or: uv run just build-venvs <site>)
+  uv run workflow/venvs/submit_builds.py <site>      (or: uv run just build-venvs <site>)
 
 or by hand:
 

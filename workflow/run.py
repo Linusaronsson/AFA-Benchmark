@@ -1,13 +1,12 @@
-#!/usr/bin/env python3
 """
 Pipeline launcher: run the pipeline from its profiles and overrides.
 
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
-    workflow/run.py [<pipeline> | --configfile <path>] [--site <site>]
+    uv run workflow/run.py [<pipeline> | --configfile <path>] [--site <site>]
         [-n | -e | -i [--group-by <dimensions>]]
-        [--no-soft-budget]
-        [--per-dataset-plots] [--wandb] [--wandb-group <name>]
+        [--[no-]soft-budget] [--[no-]per-dataset-plots]
+        [--[no-]wandb] [--wandb-group <name>]
         [--target <rule>] [--jobs <n>]
         [key=value ...] [-- <Snakemake arguments>]
 
@@ -16,12 +15,13 @@ site profile: its site file, which Snakemake would otherwise drop from the
 site profile whenever overrides are passed, and the interpreter of a site
 whose allocations name venvs: workflow/venvs/bin/python, the venv of the
 login node's architecture, which it refuses to run while any of the site's
-venvs is missing or built from another uv.lock. See docs/adr/0009 and docs/adr/0015. --no-soft-budget and --wandb
-stand for the overrides soft_budget_setting=false and use_wandb=true,
---per-dataset-plots for per_dataset_plots=true, and
---wandb-group <name> for use_wandb=true wandb_group=<name>. With W&B logging
-and no group, the launcher names a new W&B group for the invocation, from
-the pipeline profile, the UTC time and random characters.
+venvs is missing or built from another uv.lock. See docs/adr/0009 and
+docs/adr/0015. --[no-]soft-budget, --[no-]per-dataset-plots and
+--[no-]wandb stand for the overrides soft_budget_setting, per_dataset_plots
+and use_wandb, true or false; without them the pipeline profile decides.
+--wandb-group <name> stands for use_wandb=true wandb_group=<name>. With
+W&B logging and no group, the launcher names a new W&B group for the
+invocation, from the pipeline profile, the UTC time and random characters.
 
 With -e it runs the compute estimate of that invocation instead
 (scripts/compute_estimate/estimate_compute.py), which takes the same
@@ -34,41 +34,40 @@ and --wandb-group are refused. --group-by, with --interactive-preview
 only, passes the preview its initial grouping: stage, method and dataset,
 or some of them, comma-separated in order.
 
-It runs on a login node before any venv exists, like
-workflow/venvs/submit_builds.py, so on the host's python3 (3.9 on Arrhenius)
-with the standard library only: argparse instead of typer.
+It runs in the project's environment (uv run), started from the checkout.
 """
 
-from __future__ import annotations
-
-import argparse
 import os
 import random
-import re
 import shlex
 import string
 import subprocess
 import sys
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Annotated, override
+
+import click
+import typer
+import yaml
+from typer.core import TyperCommand
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 # Run as a script, this directory is on sys.path, not the checkout root.
 sys.path.insert(0, str(REPO_ROOT))
+from workflow.src.site_file import read_site_file  # noqa: E402
 from workflow.venvs.submit_builds import (  # noqa: E402
-    read_site_yaml,
     site_venvs,
     venv_problem,
 )
 
+PROG = "uv run workflow/run.py"
 PIPELINE_PROFILES = "workflow/profiles/pipeline"
 SITE_PROFILES = "workflow/profiles/site"
 ESTIMATE_SCRIPT = "scripts/compute_estimate/estimate_compute.py"
 # The interactive preview, run as a module in the selected environment
 INTERACTIVE_PREVIEW_MODULE = "afabench.pipeline_preview"
-# The dimensions the interactive preview groups jobs by
-# (afabench.pipeline_preview.model, which the launcher cannot import)
-GROUPING_DIMENSIONS = ("stage", "method", "dataset")
 # The Python of the node's venv, on a site whose allocations name venvs
 VENV_PYTHON = "workflow/venvs/bin/python"
 ESTIMATE_FLAGS = ("-e", "--estimate")
@@ -80,11 +79,41 @@ CATALOGS = {
 }
 # The estimate's own options, taken with -e only.
 ESTIMATE_OPTIONS = ("job_durations", "by", "output", "strict")
+ESTIMATE_PANEL = "Compute estimate options, with -e (docs/reference/estimate_compute_command.md)"
 WANDB_GROUP_SUFFIX_LENGTH = 4
+# Where the launcher command keeps its arguments, -- and after included
+ARGUMENTS = "arguments"
 
 
-class LauncherError(ValueError):
+class LauncherError(click.UsageError):
     """Launcher arguments that name no profile or contradict each other."""
+
+
+@dataclass(frozen=True, kw_only=True)
+class LauncherOptions:
+    """The launcher's parsed arguments, before any --."""
+
+    profile_and_overrides: list[str]
+    configfile: str | None
+    list_methods: bool
+    list_datasets: bool
+    list_unmaskers: bool
+    list_initializers: bool
+    site: str | None
+    dry_run: bool
+    estimate: bool
+    interactive_preview: bool
+    group_by: str | None
+    soft_budget: bool | None
+    per_dataset_plots: bool | None
+    wandb: bool | None
+    wandb_group: str | None
+    target: str
+    jobs: int | None
+    job_durations: str | None
+    by: list[str] | None
+    output: str | None
+    strict: bool | None
 
 
 def launcher_command(
@@ -129,7 +158,7 @@ def launcher_command(
     ]
 
 
-def _check_interactive_preview(options: argparse.Namespace) -> None:
+def _check_interactive_preview(options: LauncherOptions) -> None:
     """Refuse the modes that mean something only when jobs run."""
     if options.estimate:
         message = "-e and --interactive-preview: give one of them"
@@ -141,7 +170,7 @@ def _check_interactive_preview(options: argparse.Namespace) -> None:
 
 
 def _environment_interpreter(
-    options: argparse.Namespace, checkout: Path
+    options: LauncherOptions, checkout: Path
 ) -> list[str]:
     """Return the Python of the environment the launcher selects."""
     if options.site is not None and _site_venvs(checkout, options.site):
@@ -225,7 +254,7 @@ def _invocation(
 
 
 def _configuration_source(
-    options: argparse.Namespace, checkout: Path, pipeline: str
+    options: LauncherOptions, checkout: Path, pipeline: str
 ) -> tuple[str, list[str]]:
     if options.configfile is None:
         return pipeline, [
@@ -251,56 +280,69 @@ def _configuration_source(
 
 
 def _flag_overrides(
-    options: argparse.Namespace, overrides: list[str]
+    options: LauncherOptions, overrides: list[str]
 ) -> list[str]:
     """Return the overrides the launcher's flags stand for."""
     added = []
-    if options.no_soft_budget:
-        added.append(_soft_budget_setting_off(overrides))
-    if options.per_dataset_plots:
-        if _overrides(overrides, "per_dataset_plots"):
-            message = (
-                "--per-dataset-plots and per_dataset_plots=: give one of them"
+    if options.soft_budget is not None:
+        added.append(
+            _flag_override(
+                "soft-budget",
+                "soft_budget_setting",
+                overrides,
+                on=options.soft_budget,
             )
-            raise LauncherError(message)
-        added.append("per_dataset_plots=true")
-    if options.wandb or options.wandb_group is not None:
-        added.append(_wandb_logging_on(overrides))
+        )
+    if options.per_dataset_plots is not None:
+        added.append(
+            _flag_override(
+                "per-dataset-plots",
+                "per_dataset_plots",
+                overrides,
+                on=options.per_dataset_plots,
+            )
+        )
     if options.wandb_group is not None:
-        added.append(_named_wandb_group(options.wandb_group, overrides))
+        added += _named_wandb_group(options, overrides)
+    elif options.wandb is not None:
+        added.append(
+            _flag_override("wandb", "use_wandb", overrides, on=options.wandb)
+        )
     return added
 
 
-def _soft_budget_setting_off(overrides: list[str]) -> str:
-    """Return the override --no-soft-budget stands for."""
-    if any(word.startswith("soft_budget_setting=") for word in overrides):
-        message = "--no-soft-budget and soft_budget_setting=: give one of them"
+def _flag_override(
+    flag: str, key: str, overrides: list[str], *, on: bool
+) -> str:
+    """Return the override --<flag> or --no-<flag> stands for."""
+    if _overrides(overrides, key):
+        message = f"--{'' if on else 'no-'}{flag} and {key}=: give one of them"
         raise LauncherError(message)
-    return "soft_budget_setting=false"
+    return f"{key}={'true' if on else 'false'}"
 
 
-def _wandb_logging_on(overrides: list[str]) -> str:
-    """Return the override --wandb stands for."""
-    if _overrides(overrides, "use_wandb"):
-        message = "--wandb or --wandb-group, and use_wandb=: give one of them"
+def _named_wandb_group(
+    options: LauncherOptions, overrides: list[str]
+) -> list[str]:
+    """Return the overrides --wandb-group stands for."""
+    if options.wandb is False:
+        message = "--no-wandb and --wandb-group: give one of them"
         raise LauncherError(message)
-    return "use_wandb=true"
-
-
-def _named_wandb_group(name: str, overrides: list[str]) -> str:
-    """Return the override --wandb-group stands for."""
-    if not name:
+    if not options.wandb_group:
         message = "--wandb-group: give the W&B group a name"
+        raise LauncherError(message)
+    if _overrides(overrides, "use_wandb"):
+        message = "--wandb-group and use_wandb=: give one of them"
         raise LauncherError(message)
     if _overrides(overrides, "wandb_group"):
         message = "--wandb-group and wandb_group=: give one of them"
         raise LauncherError(message)
-    return f"wandb_group={name}"
+    return ["use_wandb=true", f"wandb_group={options.wandb_group}"]
 
 
 def new_wandb_group(pipeline: str, *, smoke_test: bool) -> str:
     """Name a new W&B group for an invocation of `pipeline`."""
-    time = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    time = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     suffix = "".join(
         random.choices(
             string.ascii_lowercase + string.digits,
@@ -335,21 +377,32 @@ def _pipeline_and_overrides(words: list[str]) -> tuple[str, list[str]]:
     return pipeline, list(words)
 
 
-def _parse(arguments: list[str]) -> argparse.Namespace:
+def _parse(arguments: list[str]) -> LauncherOptions:
     """Parse the launcher's arguments, before any --."""
     if "--" in arguments:
         arguments = arguments[: arguments.index("--")]
-    parser = _parser()
-    options = parser.parse_intermixed_args(arguments)
-    requested = [name for name in CATALOGS if getattr(options, "list_" + name)]
-    if requested:
-        for name in requested:
-            print(f"Available {name} ({CATALOGS[name]}):")
-            print("\n".join(available_names(name)))
-        parser.exit()
+    command = typer.main.get_command(app)
+    try:
+        with command.make_context(PROG, list(arguments)) as context:
+            parameters = dict(context.params)
+    except click.UsageError as error:
+        if isinstance(error, LauncherError):
+            raise
+        raise LauncherError(error.format_message()) from error
+    parameters["profile_and_overrides"] = list(
+        parameters["profile_and_overrides"] or []
+    )
+    parameters["by"] = None if not parameters["by"] else list(parameters["by"])
+    options = LauncherOptions(**parameters)
+    _check_options(options)
+    return options
+
+
+def _check_options(options: LauncherOptions) -> None:
+    """Refuse options that belong to a mode not selected."""
     if not options.estimate:
         for name in ESTIMATE_OPTIONS:
-            if getattr(options, name) not in (None, False):
+            if getattr(options, name) is not None:
                 flag = "--" + name.replace("_", "-")
                 message = (
                     f"{flag} is an option of the compute estimate: add -e"
@@ -360,24 +413,25 @@ def _parse(arguments: list[str]) -> argparse.Namespace:
             message = "--group-by groups the jobs of the interactive preview: add --interactive-preview"
             raise LauncherError(message)
         _check_grouping(options.group_by)
-    return options
 
 
 def _check_grouping(grouping: str) -> None:
-    """Refuse a grouping naming an unknown dimension or one twice."""
-    names = grouping.split(",")
-    choices = f"give {', '.join(GROUPING_DIMENSIONS)} or some of them, each once, comma-separated in order"
-    for name in names:
-        if name not in GROUPING_DIMENSIONS:
-            message = f"--group-by {grouping!r}: unknown dimension {name!r}; {choices}"
-            raise LauncherError(message)
-        if names.count(name) > 1:
-            message = f"--group-by {grouping!r}: {name!r} repeats; {choices}"
-            raise LauncherError(message)
+    """Refuse a grouping the interactive preview would refuse."""
+    # Imported here: planning takes seconds to import, needed by -i only.
+    from afabench.pipeline_preview.model import (  # noqa: PLC0415
+        GroupingError,
+        parse_grouping,
+    )
+
+    try:
+        parse_grouping(grouping)
+    except GroupingError as error:
+        message = f"--group-by: {error}"
+        raise LauncherError(message) from error
 
 
 def available_names(kind: str, checkout: Path = REPO_ROOT) -> list[str]:
-    """List shipped names using only the login node's standard library."""
+    """List the shipped names of the catalog `kind`."""
     if kind not in CATALOGS:
         msg = f"Unknown catalog {kind!r}; choose from {', '.join(CATALOGS)}"
         raise LauncherError(msg)
@@ -388,126 +442,17 @@ def available_names(kind: str, checkout: Path = REPO_ROOT) -> list[str]:
             msg = f"{path}: no {kind} configs"
             raise LauncherError(msg)
         return names
-    # These two catalogs use a flat list of unquoted names, not general YAML.
-    names: list[str] = []
-    header_seen = False
-    for number, raw in enumerate(path.read_text().splitlines(), start=1):
-        line = raw.split("#", 1)[0].rstrip()
-        if not line.strip():
-            continue
-        if not header_seen and line == f"{kind}:":
-            header_seen = True
-            continue
-        entry = re.fullmatch(r" +\- ([a-z][a-z0-9_]*)", line)
-        if not header_seen or entry is None:
-            message = f"{path}:{number}: expected {kind}: followed by a flat list of names, got {raw!r}"
-            raise LauncherError(message)
-        names.append(entry.group(1))
+    catalog = yaml.safe_load(path.read_text())
+    names = catalog.get(kind) if isinstance(catalog, dict) else None
+    if not isinstance(names, list) or not all(
+        isinstance(name, str) for name in names
+    ):
+        message = f"{path}: expected {kind}: followed by a list of names"
+        raise LauncherError(message)
     if not names:
         msg = f"{path}: no {kind} names"
         raise LauncherError(msg)
     return sorted(set(names))
-
-
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        prog="workflow/run.py",
-        description="Run the pipeline.",
-        epilog="Arguments after -- go to Snakemake unchanged.",
-    )
-    parser.add_argument(
-        "profile_and_overrides",
-        nargs="*",
-        metavar="[pipeline] [key=value ...]",
-        help=f"A pipeline profile under {PIPELINE_PROFILES}/ (default: all), then pipeline profile overrides",
-    )
-    parser.add_argument(
-        "--configfile",
-        metavar="PATH",
-        help="Run a benchmark YAML config instead of a named pipeline profile",
-    )
-    for kind in CATALOGS:
-        parser.add_argument(
-            f"--list-{kind}",
-            action="store_true",
-            help=f"List all shipped {kind} and exit, without running jobs",
-        )
-    parser.add_argument(
-        "--site",
-        help=f"A site profile under {SITE_PROFILES}/; without one, jobs run locally",
-    )
-    parser.add_argument(
-        "-n",
-        "--dry-run",
-        action="store_true",
-        help="Plan the run and print its commands without running jobs",
-    )
-    parser.add_argument(
-        "-e",
-        "--estimate",
-        action="store_true",
-        help="Print the compute estimate of the run without running jobs",
-    )
-    parser.add_argument(
-        "-i",
-        "--interactive-preview",
-        action="store_true",
-        help="Browse the run's pipeline plan in the terminal: the jobs it would run and the jobs it would reuse, each with its job status, running none (-n changes nothing)",
-    )
-    parser.add_argument(
-        "--group-by",
-        metavar="DIMENSIONS",
-        help="With --interactive-preview, group the jobs first by these comma-separated dimensions in order: stage, method and dataset, or some of them (default: stage,method,dataset)",
-    )
-    parser.add_argument(
-        "--no-soft-budget",
-        action="store_true",
-        help="Run only the hard-budget setting (soft_budget_setting=false)",
-    )
-    parser.add_argument(
-        "--per-dataset-plots",
-        action="store_true",
-        help="Add per-dataset Accuracy, Macro F1 and AUROC figures for both classifiers (per_dataset_plots=true)",
-    )
-    parser.add_argument(
-        "--wandb",
-        action="store_true",
-        help="Log to W&B and link each job's W&B run in the terminal (use_wandb=true), every run in a new W&B group; needs WANDB_ENTITY and WANDB_PROJECT",
-    )
-    parser.add_argument(
-        "--wandb-group",
-        metavar="NAME",
-        help="Log to W&B as --wandb does, every run in the W&B group NAME, such as an earlier invocation's to continue it (use_wandb=true wandb_group=NAME)",
-    )
-    parser.add_argument(
-        "--target", default="all", help="The rule to run (default: all)"
-    )
-    parser.add_argument(
-        "--jobs",
-        type=int,
-        help="How many jobs run at once locally; a site profile sets it for its cluster",
-    )
-    estimate = parser.add_argument_group(
-        "compute estimate options, with -e (docs/reference/estimate_compute_command.md)"
-    )
-    estimate.add_argument(
-        "--job-durations",
-        help="A job duration table, or an output root of job records (default: output/production)",
-    )
-    estimate.add_argument(
-        "--by",
-        action="append",
-        help="Group the totals by this job column; repeat for several",
-    )
-    estimate.add_argument(
-        "--output", help="Also write each planned job's estimate here as CSV"
-    )
-    estimate.add_argument(
-        "--strict",
-        action="store_true",
-        help="Exit with 1 when a planned job is unestimated",
-    )
-    return parser
 
 
 def _profile(checkout: Path, profiles: str, name: str) -> str:
@@ -530,10 +475,7 @@ def _site_venvs(checkout: Path, site: str) -> dict[str, str]:
         message = f"The site profile has no site file {site_file}"
         raise LauncherError(message)
     try:
-        return site_venvs(
-            read_site_yaml((checkout / site_file).read_text(), site_file),
-            site_file,
-        )
+        return site_venvs(read_site_file(checkout / site_file), site_file)
     except TypeError as error:
         raise LauncherError(str(error)) from error
 
@@ -560,30 +502,230 @@ def check_site_venvs(arguments: list[str], checkout: Path = REPO_ROOT) -> None:
         raise LauncherError(message)
 
 
-def main(arguments: list[str]) -> int:
+class _LauncherCommand(TyperCommand):
+    """Keeps every argument, and the Snakemake arguments after -- unparsed."""
+
+    @override
+    def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
+        ctx.meta[ARGUMENTS] = list(args)
+        if "--" in args:
+            args = args[: args.index("--")]
+        return super().parse_args(ctx, args)
+
+
+app = typer.Typer(
+    add_completion=False,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+
+
+@app.command(
+    cls=_LauncherCommand,
+    epilog="Arguments after -- go to Snakemake unchanged.",
+)
+def main(
+    ctx: typer.Context,
+    *,
+    profile_and_overrides: Annotated[
+        list[str] | None,
+        typer.Argument(
+            metavar="[PIPELINE] [KEY=VALUE]...",
+            help=f"A pipeline profile under {PIPELINE_PROFILES}/ (default: all), then pipeline profile overrides",
+            show_default=False,
+        ),
+    ] = None,
+    configfile: Annotated[
+        str | None,
+        typer.Option(
+            metavar="PATH",
+            help="Run a benchmark YAML config instead of a named pipeline profile",
+        ),
+    ] = None,
+    list_methods: Annotated[
+        bool,
+        typer.Option(
+            "--list-methods", help="List all shipped methods and exit"
+        ),
+    ] = False,
+    list_datasets: Annotated[
+        bool,
+        typer.Option(
+            "--list-datasets", help="List all shipped datasets and exit"
+        ),
+    ] = False,
+    list_unmaskers: Annotated[
+        bool,
+        typer.Option(
+            "--list-unmaskers", help="List all shipped unmaskers and exit"
+        ),
+    ] = False,
+    list_initializers: Annotated[
+        bool,
+        typer.Option(
+            "--list-initializers",
+            help="List all shipped initializers and exit",
+        ),
+    ] = False,
+    site: Annotated[
+        str | None,
+        typer.Option(
+            help=f"A site profile under {SITE_PROFILES}/; without one, jobs run locally"
+        ),
+    ] = None,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "-n",
+            "--dry-run",
+            help="Plan the run and print its commands without running jobs",
+        ),
+    ] = False,
+    estimate: Annotated[
+        bool,
+        typer.Option(
+            "-e",
+            "--estimate",
+            help="Print the compute estimate of the run without running jobs",
+        ),
+    ] = False,
+    interactive_preview: Annotated[
+        bool,
+        typer.Option(
+            "-i",
+            "--interactive-preview",
+            help="Browse the run's pipeline plan in the terminal: the jobs it would run and the jobs it would reuse, each with its job status, running none (-n changes nothing)",
+        ),
+    ] = False,
+    group_by: Annotated[
+        str | None,
+        typer.Option(
+            metavar="DIMENSIONS",
+            help="With --interactive-preview, group the jobs first by these comma-separated dimensions in order: stage, method and dataset, or some of them (default: stage,method,dataset)",
+        ),
+    ] = None,
+    soft_budget: Annotated[
+        bool | None,
+        typer.Option(
+            help="Run the soft-budget setting too, or only the hard-budget one (soft_budget_setting=true or false; default: the pipeline profile's)",
+            show_default=False,
+        ),
+    ] = None,
+    per_dataset_plots: Annotated[
+        bool | None,
+        typer.Option(
+            help="Add per-dataset Accuracy, Macro F1 and AUROC figures for both classifiers, or not (per_dataset_plots=true or false; default: the pipeline profile's)",
+            show_default=False,
+        ),
+    ] = None,
+    wandb: Annotated[
+        bool | None,
+        typer.Option(
+            help="Log to W&B and link each job's W&B run in the terminal, every run in a new W&B group, or not (use_wandb=true or false; default: the pipeline profile's); needs WANDB_ENTITY and WANDB_PROJECT",
+            show_default=False,
+        ),
+    ] = None,
+    wandb_group: Annotated[
+        str | None,
+        typer.Option(
+            metavar="NAME",
+            help="Log to W&B as --wandb does, every run in the W&B group NAME, such as an earlier invocation's to continue it (use_wandb=true wandb_group=NAME)",
+        ),
+    ] = None,
+    target: Annotated[str, typer.Option(help="The rule to run")] = "all",
+    jobs: Annotated[
+        int | None,
+        typer.Option(
+            help="How many jobs run at once locally; a site profile sets it for its cluster"
+        ),
+    ] = None,
+    job_durations: Annotated[
+        str | None,
+        typer.Option(
+            metavar="PATH",
+            help="A job duration table, or an output root of job records (default: output/production)",
+            rich_help_panel=ESTIMATE_PANEL,
+        ),
+    ] = None,
+    by: Annotated[
+        list[str] | None,
+        typer.Option(
+            metavar="COLUMN",
+            help="Group the totals by this job column; repeat for several",
+            rich_help_panel=ESTIMATE_PANEL,
+        ),
+    ] = None,
+    output: Annotated[
+        str | None,
+        typer.Option(
+            metavar="CSV",
+            help="Also write each planned job's estimate here as CSV",
+            rich_help_panel=ESTIMATE_PANEL,
+        ),
+    ] = None,
+    strict: Annotated[
+        bool | None,
+        typer.Option(
+            help="Exit with 1 when a planned job is unestimated",
+            rich_help_panel=ESTIMATE_PANEL,
+            show_default=False,
+        ),
+    ] = None,
+) -> None:
+    """Run the pipeline."""
+    options = LauncherOptions(
+        profile_and_overrides=profile_and_overrides or [],
+        configfile=configfile,
+        list_methods=list_methods,
+        list_datasets=list_datasets,
+        list_unmaskers=list_unmaskers,
+        list_initializers=list_initializers,
+        site=site,
+        dry_run=dry_run,
+        estimate=estimate,
+        interactive_preview=interactive_preview,
+        group_by=group_by,
+        soft_budget=soft_budget,
+        per_dataset_plots=per_dataset_plots,
+        wandb=wandb,
+        wandb_group=wandb_group,
+        target=target,
+        jobs=jobs,
+        job_durations=job_durations,
+        by=by,
+        output=output,
+        strict=strict,
+    )
+    requested = [name for name in CATALOGS if getattr(options, "list_" + name)]
+    if requested:
+        for name in requested:
+            typer.echo(f"Available {name} ({CATALOGS[name]}):")
+            typer.echo("\n".join(available_names(name)))
+        raise typer.Exit
+    arguments: list[str] = ctx.meta[ARGUMENTS]
     try:
         command = launcher_command(arguments)
         check_site_venvs(arguments)
-        if _parse(arguments).interactive_preview:
+        if options.interactive_preview:
             _check_terminal()
     except LauncherError as error:
-        print(f"workflow/run.py: error: {error}", file=sys.stderr)
-        return 2
-    print(shlex.join(command), file=sys.stderr, flush=True)
+        error.ctx = ctx
+        raise
+    typer.echo(shlex.join(command), err=True)
     # Site profiles expand $PWD when Snakemake reads them, as the checkout
     # root, which a changed working directory alone does not set.
     environment = {**os.environ, "PWD": str(REPO_ROOT)}
     # Snakemake exposes its merged config and files, but not its profile.
-    options = _parse(arguments)
     if not (options.estimate or options.interactive_preview):
         environment.pop("AFABENCH_PIPELINE_PROFILE", None)
         if "--profile" in command:
             profile_index = command.index("--profile") + 1
             environment["AFABENCH_PIPELINE_PROFILE"] = command[profile_index]
-    return subprocess.run(
-        command, cwd=REPO_ROOT, env=environment, check=False
-    ).returncode
+    raise typer.Exit(
+        subprocess.run(
+            command, cwd=REPO_ROOT, env=environment, check=False
+        ).returncode
+    )
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    app(prog_name=PROG)

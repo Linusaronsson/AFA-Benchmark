@@ -17,7 +17,7 @@ Do not override partition, account or GPU resources per rule.
 ## 2. Inspect the plan and run
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -i \
+uv run workflow/run.py kdd26 --site <your_site> -i \
     execution_file=execution.yaml
 ```
 
@@ -32,7 +32,7 @@ node outside site policy.
 To transform, aggregate and plot existing tables without upstream jobs:
 
 ```shell
-workflow/run.py kdd26 --site <your_site> \
+uv run workflow/run.py kdd26 --site <your_site> \
     "stages={dataset_generation: false, training: false, evaluation: false}"
 ```
 

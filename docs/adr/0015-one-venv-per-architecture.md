@@ -59,3 +59,7 @@ starts the submitting Snakemake through it too.
 - Sites whose nodes share one architecture name no venv, and run as before:
   the launcher starts `uv run snakemake` and jobs start the login node's
   interpreter.
+- The launcher itself and `workflow/venvs/submit_builds.py` run in the
+  checkout's `.venv` through `uv run`, not in these venvs: the builds are
+  submitted before any of them exists, and syncing the dev group into one
+  would change it under running jobs.

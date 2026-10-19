@@ -28,13 +28,13 @@ before downloading into an occupied root.
 For local job records:
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -e
+uv run workflow/run.py kdd26 --site <your_site> -e
 ```
 
 For released durations:
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -e \
+uv run workflow/run.py kdd26 --site <your_site> -e \
     --job-durations output/production/release_job_duration_table.parquet
 ```
 

@@ -4,7 +4,7 @@ The pipeline uses [Snakemake](https://snakemake.readthedocs.io/) for workflow or
 
 The whole pipeline is executable with the following command:
 ```shell
-workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
+uv run workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
 This will attempt to run 8 jobs in parallel locally on your computer, in order to produce everything that the `all` [rule](https://snakemake.readthedocs.io/en/stable/snakefiles/rules.html) requires. The `all` rule is the final target that orchestrates the entire pipeline: it generates datasets, trains classifiers, pretrains models, trains methods, evaluates them, and produces final plots. We also support [SLURM integration](../how-to/maintainer/slurm_integration.md). The command is the [pipeline launcher](pipeline_launcher_command.md); the configuration keys below are its `key=value` overrides.
@@ -404,7 +404,7 @@ The currently available `all_X` rules are:
 To use one of these rules, pass it with `--target`. For example, to only generate datasets and train classifiers without training methods, use:
 
 ```shell
-workflow/run.py --target all_train_classifiers ...
+uv run workflow/run.py --target all_train_classifiers ...
 ```
 
 A target only narrows what Snakemake builds; it still regenerates any missing or outdated upstream output. To use upstream outputs as they are instead, turn their stages off with [`stages`](#stages).
