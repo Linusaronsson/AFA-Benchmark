@@ -5,7 +5,7 @@ Pipeline launcher: run the pipeline from its profiles and overrides.
 A pipeline profile, an optional site profile and pipeline profile overrides:
 
     workflow/run.py [<pipeline> | --configfile <path>] [--site <site>]
-        [-n | -e | --interactive-preview [--group-by <dimensions>]]
+        [-n | -e | -i [--group-by <dimensions>]]
         [--no-soft-budget]
         [--per-dataset-plots] [--wandb] [--wandb-group <name>]
         [--target <rule>] [--jobs <n>]
@@ -26,7 +26,7 @@ the pipeline profile, the UTC time and random characters.
 With -e it runs the compute estimate of that invocation instead
 (scripts/compute_estimate/estimate_compute.py), which takes the same
 arguments and, with -e only, the estimate's options, with the same
-interpreter. With --interactive-preview it opens the interactive preview
+interpreter. With -i (--interactive-preview) it opens the interactive preview
 of that invocation instead (python -m afabench.pipeline_preview, with the
 resolved Snakemake arguments after --), with the same interpreter; the preview
 needs a terminal and runs no job, so -n changes nothing and -e, --wandb
@@ -449,6 +449,7 @@ def _parser() -> argparse.ArgumentParser:
         help="Print the compute estimate of the run without running jobs",
     )
     parser.add_argument(
+        "-i",
         "--interactive-preview",
         action="store_true",
         help="Browse the run's pipeline plan in the terminal: the jobs it would run and the jobs it would reuse, each with its job status, running none (-n changes nothing)",

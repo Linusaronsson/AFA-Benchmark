@@ -123,23 +123,21 @@ Verify external source files match too.
 
 ```shell
 workflow/run.py more_budgets --site <your_site> \
-    output_root=output/more_budgets -n
+    output_root=output/more_budgets -i
 ```
 
 Retain step 5's overrides when applicable. Without GPUs, replace
 `--site <your_site>` with
 `--jobs 8 execution_file=workflow/profiles/execution/cpu.yaml` throughout.
 
-Check for new evaluations and any required training. Investigate unexpected
-old jobs for missing downloads, changed mappings or incomplete release coverage.
-To tell the jobs that run from the published outputs that are reused,
-replace `-n` with `--interactive-preview`
-([interactive preview](../../reference/interactive_preview.md)).
-Investigate unexpected `Run` jobs as in [Add a method to a
+In the [interactive preview](../../reference/interactive_preview.md), check
+for `Run` jobs for the new evaluations and any required training. Investigate
+unexpected `Run` jobs of old budgets for missing downloads, changed mappings
+or incomplete release coverage, as in [Add a method to a
 release](add_method_to_a_release.md#4-investigate-unexpected-retraining).
 Keep training enabled unless every required trained bundle exists.
 
-Remove `-n` to run, retaining all options. Repeat the command to resume.
+Remove `-i` to run, retaining all options. Repeat the command to resume.
 
 ## 7. Check the results
 

@@ -691,6 +691,14 @@ def test_interactive_preview_implies_a_dry_run_so_dash_n_changes_nothing() -> (
     )
 
 
+def test_dash_i_opens_the_interactive_preview() -> None:
+    assert launcher_command(["-i", "--group-by", "method", "kdd26"]) == (
+        launcher_command(
+            ["--interactive-preview", "--group-by", "method", "kdd26"]
+        )
+    )
+
+
 @pytest.mark.parametrize(
     ("option", "named"),
     [

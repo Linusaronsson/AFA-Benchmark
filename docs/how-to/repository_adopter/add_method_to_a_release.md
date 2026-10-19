@@ -43,10 +43,8 @@ the run:
 
 ```shell
 workflow/run.py --configfile output/new_method/benchmark.yaml \
-    --site <your_site> --interactive-preview
+    --site <your_site> -i
 ```
-
-Without an interactive terminal, replace `--interactive-preview` with `-n`.
 
 Expect `Run` jobs for your method and missing release coverage, and `Reuse`
 for published outputs. Expect `Conditional reuse` for published outputs on
@@ -87,7 +85,7 @@ check.
 
 ## 5. Run the extended comparison
 
-Run the same configuration without `--interactive-preview`:
+Run the same configuration without `-i`:
 
 ```shell
 workflow/run.py --configfile output/new_method/benchmark.yaml \

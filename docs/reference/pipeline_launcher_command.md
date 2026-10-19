@@ -5,7 +5,7 @@ profile or benchmark config file, an optional site profile and overrides. Steps:
 [run the pipeline](../how-to/maintainer/run_the_pipeline.md).
 
 ```shell
-workflow/run.py [<pipeline> | --configfile <path>] [--site <site>] [-n | -e [<estimate options>] | --interactive-preview [--group-by <dimensions>]]
+workflow/run.py [<pipeline> | --configfile <path>] [--site <site>] [-n | -e [<estimate options>] | -i [--group-by <dimensions>]]
     [--no-soft-budget] [--per-dataset-plots] [--wandb] [--wandb-group <name>] [--target <rule>] [--jobs <n>] [key=value ...] [-- <Snakemake arguments>]
 ```
 
@@ -25,14 +25,14 @@ Snakemake from the checkout root, wherever it is started.
 | `--configfile <path>` | A runnable benchmark YAML config instead of a named pipeline profile. Overrides apply last. Downloads include `benchmark.yaml`, with its output root set to the download destination; copies retain that destination unless `output_root=` overrides it. |
 | `--site <site>` | A site profile under `workflow/profiles/site/`, by name (`arrhenius`, `examples/mixed-gres`). Without one, jobs run locally. |
 | `-n`, `--dry-run` | Plan the run and print its configuration, job counts and commands without running jobs. |
-| `-e`, `--estimate` | Print the [compute estimate](estimate_compute_command.md) of the run instead of running it; see [below](#the-compute-estimate). Not with `-n` or `--interactive-preview`. |
+| `-e`, `--estimate` | Print the [compute estimate](estimate_compute_command.md) of the run instead of running it; see [below](#the-compute-estimate). Not with `-n` or `-i`. |
 | `--job-durations`, `--by`, `--output`, `--strict` | The [compute estimate's options](estimate_compute_command.md#options), with `-e` only. |
-| `--interactive-preview` | Browse the jobs the run would run and the jobs whose existing outputs it would reuse in the terminal, the [interactive preview](interactive_preview.md), instead of running it; see [below](#the-interactive-preview). Runs no job, so `-n` changes nothing. Not with `-e`, `--wandb` or `--wandb-group`. Needs a terminal on stdin and stdout; without one it fails and points to `-n`. |
-| `--group-by <dimensions>` | The interactive preview's initial [grouping](interactive_preview.md#grouping-filters-and-search): `stage`, `method` and `dataset`, or some of them, each once, comma-separated in order, such as `dataset,method`. Default `stage,method,dataset`. With `--interactive-preview` only. |
+| `-i`, `--interactive-preview` | Browse the jobs the run would run and the jobs whose existing outputs it would reuse in the terminal, the [interactive preview](interactive_preview.md), instead of running it; see [below](#the-interactive-preview). Runs no job, so `-n` changes nothing. Not with `-e`, `--wandb` or `--wandb-group`. Needs a terminal on stdin and stdout; without one it fails and points to `-n`. |
+| `--group-by <dimensions>` | The interactive preview's initial [grouping](interactive_preview.md#grouping-filters-and-search): `stage`, `method` and `dataset`, or some of them, each once, comma-separated in order, such as `dataset,method`. Default `stage,method,dataset`. With `-i` only. |
 | `--no-soft-budget` | Run only the hard-budget setting: adds the override [`soft_budget_setting=false`](pipeline_configuration.md#soft_budget_setting). Not with a `soft_budget_setting=` override. |
 | `--per-dataset-plots` | Add per-dataset Accuracy, Macro F1 and AUROC figures with both classifier rows, alongside usual plots: adds [`per_dataset_plots=true`](evaluation_plots.md). Default off. Not with a `per_dataset_plots=` override. |
-| `--wandb` | Log to Weights & Biases: adds the override [`use_wandb=true`](pipeline_configuration.md#use_wandb), and the terminal links each job's W&B run. Needs `WANDB_ENTITY` and `WANDB_PROJECT` set. Not with a `use_wandb=` override or `--interactive-preview`. Without `--wandb-group` or a `wandb_group=` override, it also adds [`wandb_group=`](pipeline_configuration.md#wandb_group) a new W&B group, such as `all-20261012T121005Z-k3f9`; so does a `use_wandb=true` override. |
-| `--wandb-group <name>` | Log to Weights & Biases as `--wandb` does, every W&B run in the W&B group `<name>`, such as an earlier invocation's to continue it: adds `use_wandb=true wandb_group=<name>`. Not with a `use_wandb=` or `wandb_group=` override, or `--interactive-preview`. |
+| `--wandb` | Log to Weights & Biases: adds the override [`use_wandb=true`](pipeline_configuration.md#use_wandb), and the terminal links each job's W&B run. Needs `WANDB_ENTITY` and `WANDB_PROJECT` set. Not with a `use_wandb=` override or `-i`. Without `--wandb-group` or a `wandb_group=` override, it also adds [`wandb_group=`](pipeline_configuration.md#wandb_group) a new W&B group, such as `all-20261012T121005Z-k3f9`; so does a `use_wandb=true` override. |
+| `--wandb-group <name>` | Log to Weights & Biases as `--wandb` does, every W&B run in the W&B group `<name>`, such as an earlier invocation's to continue it: adds `use_wandb=true wandb_group=<name>`. Not with a `use_wandb=` or `wandb_group=` override, or `-i`. |
 | `--target <rule>` | The rule to run. Default `all`. |
 | `--jobs <n>` | How many jobs run at once locally. Refused with `--site`: the site profile sets it. |
 | `key=value` | A pipeline profile override, as Snakemake's `--config` takes it (`"methods=[gdfs,dime]"`, `"eval_hard_budgets={cube: [2, 4]}"`). Repeat for several. |
@@ -109,9 +109,9 @@ architecture, when the site's `site.yaml` names a `venv`; otherwise
 
 ## The interactive preview
 
-With `--interactive-preview`, the launcher prints and runs the
+With `-i`, the launcher prints and runs the
 [interactive preview](interactive_preview.md) with the Snakemake arguments it
-resolved for the run, so swapping `-n` for `--interactive-preview` browses the
+resolved for the run, so swapping `-n` for `-i` browses the
 same run:
 
 ```shell

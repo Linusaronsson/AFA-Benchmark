@@ -32,23 +32,24 @@ On SLURM, select `--site <your_site>` after
 
 ## 2. Run the base command
 
-On a cluster, dry-run from an [authorized submit host](#where-to-run-it):
+On a cluster, preview from an [authorized submit host](#where-to-run-it)
+([interactive preview](../../reference/interactive_preview.md)):
 
 ```shell
-workflow/run.py --site <your_site> -n
+workflow/run.py --site <your_site> -i
 ```
 
-Check the resolved datasets, methods, budgets and job counts. Remove `-n`
+Check the `Run` counts of each stage, method and dataset. Remove `-i`
 to submit. Repeat the command to resume interrupted work.
 
 On a CPU workstation:
 
 ```shell
-workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml -n
+workflow/run.py --jobs 8 execution_file=workflow/profiles/execution/cpu.yaml -i
 ```
 
-Adjust `--jobs` to available CPUs and memory, then remove `-n` to run.
-For a compute estimate, use `-e` instead of `-n`;
+Adjust `--jobs` to available CPUs and memory, then remove `-i` to run.
+For a compute estimate, use `-e` instead of `-i`;
 [estimate compute](estimate_compute.md).
 
 ## Log to Weights & Biases
@@ -113,18 +114,18 @@ results. To test SLURM submissions, use your site and execution file instead.
 To evaluate trained bundles without generating datasets or training:
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -n --target all_eval_methods \
+workflow/run.py kdd26 --site <your_site> -i --target all_eval_methods \
     "stages={dataset_generation: false, training: false}"
 ```
 
 To process existing evaluation tables only:
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -n \
+workflow/run.py kdd26 --site <your_site> -i \
     "stages={dataset_generation: false, training: false, evaluation: false}"
 ```
 
-Supply all outputs required from disabled stages. Remove `-n` after checking
+Supply all outputs required from disabled stages. Remove `-i` after checking
 the plan. [Stage controls](../../reference/pipeline_configuration.md#stages).
 
 ## Select metrics and add per-dataset figures
@@ -132,16 +133,16 @@ the plan. [Stage controls](../../reference/pipeline_configuration.md#stages).
 Set a headline metric with:
 
 ```shell
-workflow/run.py ... -n "plotting={dataset_metrics: {cube: auroc}}"
+workflow/run.py ... -i "plotting={dataset_metrics: {cube: auroc}}"
 ```
 
 Add `--per-dataset-plots` for additional Accuracy, Macro F1 and AUROC figures:
 
 ```shell
-workflow/run.py ... --per-dataset-plots -n
+workflow/run.py ... --per-dataset-plots -i
 ```
 
-Remove `-n` to run. Read figures under `eval_perf/` and, with the flag,
+Remove `-i` to run. Read figures under `eval_perf/` and, with the flag,
 `eval_perf_per_dataset/`. [Plot options and layout](../../reference/evaluation_plots.md).
 
 ### Rerun visualization with different metrics
@@ -203,7 +204,7 @@ cp -r workflow/profiles/pipeline/all workflow/profiles/pipeline/my_run
 cp workflow/conf/soft_budget_params/all.yaml workflow/conf/soft_budget_params/my_run.yaml
 # Repoint soft_budget_params/all.yaml to my_run.yaml in my_run/config.yaml.
 # Edit workflow/conf/soft_budget_params/my_run.yaml.
-workflow/run.py my_run --site <your_site> -n
+workflow/run.py my_run --site <your_site> -i
 ```
 
 Check that every selected method has the required parameter entries before
@@ -211,10 +212,11 @@ using alternative budget files.
 
 ## Inspect planned work
 
-- Pass `-n list_jobs=true` to inspect job commands, `device=` arguments and allocations.
-- Replace `-n` with `--interactive-preview` to browse the jobs in the
-  terminal with their [job status](../../../CONTEXT.md) and its reasons
+- Pass `-i` to browse the jobs in the terminal with their
+  [job status](../../../CONTEXT.md) and its reasons
   ([interactive preview](../../reference/interactive_preview.md)).
+- Without an interactive terminal, pass `-n` instead; add `list_jobs=true` to
+  print job commands, `device=` arguments and allocations.
 - Add `--group-by dataset,method` to the preview to compare methods on each
   dataset. Regroup, filter and search in the preview
   ([controls](../../reference/interactive_preview.md#grouping-filters-and-search)).

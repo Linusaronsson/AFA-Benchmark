@@ -37,12 +37,13 @@ Verify account access and device support yourself.
 ## 3. Check the plan and run
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -n list_jobs=true \
+workflow/run.py kdd26 --site <your_site> -i \
     execution_file=execution.yaml --target all_eval_methods
 ```
 
-Inspect each job's allocation and `device=` argument. Remove `-n` to submit.
-Run from an authorized submit host with shared repository, environment,
+Check each job's Device, CPUs, GPUs and Placement
+([job details](../../reference/interactive_preview.md#panes)).
+Remove `-i` to submit. Run from an authorized submit host with shared repository, environment,
 inputs and output storage.
 
 To evaluate already-trained bundles, also pass

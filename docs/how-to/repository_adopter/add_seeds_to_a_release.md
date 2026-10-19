@@ -28,18 +28,16 @@ over the config.
 
 ## 3. Preview and run the extended comparison
 
-Preview the work:
+Preview the work ([interactive preview](../../reference/interactive_preview.md)):
 
 ```shell
 workflow/run.py --configfile output/more_seeds/benchmark.yaml \
-    --site <your_site> -n
+    --site <your_site> -i
 ```
 
-Expect jobs for the new realizations and missing release coverage. To tell
-the jobs that run from the published outputs that are reused, replace `-n`
-with `--interactive-preview`
-([interactive preview](../../reference/interactive_preview.md)).
-Investigate unexpected `Run` jobs as in [Add a method to a
+Expect `Run` jobs for the new realizations and missing release coverage, and
+`Reuse` for published outputs. Investigate unexpected `Run` jobs as in
+[Add a method to a
 release](add_method_to_a_release.md#4-investigate-unexpected-retraining).
 
 Expect `Conditional reuse` for published outputs on datasets the release
@@ -47,7 +45,7 @@ omits. If the run stops because a regenerated dataset differs from the
 release, fix the data or recompute in a separate output root; do not bypass
 the check.
 
-Run the same configuration without `-n`:
+Run the same configuration without `-i`:
 
 ```shell
 workflow/run.py --configfile output/more_seeds/benchmark.yaml \

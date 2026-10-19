@@ -17,13 +17,14 @@ Do not override partition, account or GPU resources per rule.
 ## 2. Inspect the plan and run
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -n list_jobs=true \
+workflow/run.py kdd26 --site <your_site> -i \
     execution_file=execution.yaml
 ```
 
-Check that processing jobs request the CPU allocation, no GPUs, and suitable
-CPU counts and memory. Remove `-n` to submit. Use an authorized submit host
-with shared inputs, outputs and software; do not run processing on a login
+Check that the processing jobs' details show the CPU allocation's Placement,
+no GPUs, and suitable CPUs and `mem_mb`
+([job details](../../reference/interactive_preview.md#panes)). Remove `-i` to submit.
+Use an authorized submit host with shared inputs, outputs and software; do not run processing on a login
 node outside site policy.
 
 ## 3. Process existing evaluations only

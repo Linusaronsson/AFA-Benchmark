@@ -50,14 +50,15 @@ Remove profile `set-resources.*.runtime` values that would shadow that table.
 ## 3. Check requested walltime before submission
 
 ```shell
-workflow/run.py kdd26 --site my_site -n list_jobs=true
+workflow/run.py kdd26 --site my_site -i
 ```
 
-Inspect each job's allocation, device and `resources: runtime=...` in minutes.
+Check each job's Device, CPUs, GPUs, Placement and Time limit in minutes
+([job details](../../reference/interactive_preview.md#panes)).
 Use measured durations with a safety margin. For a one-run override, append
 `-- --set-resources pretrain_model:runtime=240`.
 
-Remove `-n` to submit. Keep the controller alive using the site's approved
+Remove `-i` to submit. Keep the controller alive using the site's approved
 mechanism. [Pipeline commands](run_the_pipeline.md).
 
 ## Run on a cluster of mixed architectures
@@ -97,8 +98,8 @@ precommand: export PATH=$PWD/workflow/venvs/bin:$PATH
 Check and submit:
 
 ```shell
-workflow/run.py kdd26 --site arrhenius -n
+workflow/run.py kdd26 --site arrhenius -i
 ```
 
-Remove `-n` to run. For individual commands on a node, use
+Remove `-i` to run. For individual commands on a node, use
 `workflow/venvs/bin/python`.

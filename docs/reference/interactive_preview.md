@@ -3,7 +3,7 @@
 The [interactive preview](../../CONTEXT.md) browses the
 [pipeline plan](../../CONTEXT.md) of one pipeline invocation in the terminal.
 The [pipeline launcher](pipeline_launcher_command.md#the-interactive-preview)
-opens it with `--interactive-preview`; steps:
+opens it with `-i` (`--interactive-preview`); steps:
 [run the pipeline](../how-to/maintainer/run_the_pipeline.md#inspect-planned-work).
 
 ## Statuses

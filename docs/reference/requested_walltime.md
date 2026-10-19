@@ -117,7 +117,9 @@ execution_site:
 
 ## Observation and lifecycle
 
-Dry runs with `list_jobs=true` show resolved `runtime` values in minutes.
+The [interactive preview](interactive_preview.md#panes) shows each job's
+resolved `runtime` as its Time limit, and dry runs with `list_jobs=true`
+show it, both in minutes.
 A sparse table falling back to an input-dependent default expression may
 show `<TBD>` until inputs are available. The compute planner resolves the
 same resources and reports `time_limit_minutes` in its

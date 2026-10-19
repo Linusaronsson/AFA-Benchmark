@@ -41,20 +41,18 @@ requires an explicit override.
 
 ## 3. Preview and run the extended comparison
 
-Preview the work:
+Preview the work ([interactive preview](../../reference/interactive_preview.md)):
 
 ```shell
 workflow/run.py --configfile output/new_dataset/benchmark.yaml \
-    --site <your_site> -n
+    --site <your_site> -i
 ```
 
-Check that every intended release method evaluates your dataset at the chosen
-budgets and realizations. Investigate missing evaluations or unexpected
-training or evaluation on existing datasets before proceeding. To tell the
-jobs that run from the published outputs that are reused, replace `-n` with
-`--interactive-preview`
-([interactive preview](../../reference/interactive_preview.md)).
-Investigate unexpected `Run` jobs as in [Add a method to a
+Filter by your dataset and check that every intended release method has
+`Run` evaluation jobs at the chosen budgets and realizations
+([filters](../../reference/interactive_preview.md#grouping-filters-and-search)).
+Before proceeding, investigate missing evaluations, and `Run` training or
+evaluation jobs on existing datasets, as in [Add a method to a
 release](add_method_to_a_release.md#4-investigate-unexpected-retraining).
 
 Expect `Conditional reuse` for published outputs on datasets the release
@@ -62,7 +60,7 @@ omits. If the run stops because a regenerated dataset differs from the
 release, fix the data or recompute in a separate output root; do not bypass
 the check.
 
-Run the same configuration without `-n`:
+Run the same configuration without `-i`:
 
 ```shell
 workflow/run.py --configfile output/new_dataset/benchmark.yaml \

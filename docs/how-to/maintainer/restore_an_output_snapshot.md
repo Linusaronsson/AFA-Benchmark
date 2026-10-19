@@ -15,16 +15,17 @@ only after reviewing the listed conflicts.
 
 ## 2. Check the restored run
 
-Dry-run the profile used to produce the snapshot; here, `kdd26`:
+Preview the profile used to produce the snapshot; here, `kdd26`
+([interactive preview](../../reference/interactive_preview.md)):
 
 ```shell
-workflow/run.py kdd26 -n
+workflow/run.py kdd26 -i
 ```
 
-Pass `output_root=<root>` if you restored elsewhere. Investigate scheduled
-jobs for missing outputs or changed inputs. If code or parameters changed
-since the snapshot, explicitly regenerate affected outputs; do not rely on
-the dry run to detect those changes.
+Pass `output_root=<root>` if you restored elsewhere. Investigate `Run` jobs
+whose [reasons](../../reference/interactive_preview.md#reasons) name
+missing outputs or changed inputs. If code or parameters changed since the
+snapshot, explicitly regenerate affected outputs; do not rely on the preview to detect those changes.
 
 [Restore options](../../reference/snapshot_command.md#restore) ·
 [Reuse limits](../../explanation/output_snapshots.md#why-a-snapshot-omits-snakemake-metadata).

@@ -7,7 +7,7 @@ estimate CPU core-hours and GPU-hours before submitting.
 ## 1. Prepare the invocation
 
 Take the intended `workflow/run.py` command, including every override,
-`--target` and argument after `--`. Replace `-n`, if present, with `-e`.
+`--target` and argument after `--`. Replace `-i` or `-n`, if present, with `-e`.
 
 ## 2. Choose job durations
 

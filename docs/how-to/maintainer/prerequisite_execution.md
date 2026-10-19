@@ -41,10 +41,12 @@ Set CPU and memory requests for `train_classifier`,
 [walltime](../../reference/requested_walltime.md) in `site.yaml`.
 
 ```shell
-workflow/run.py kdd26 --site <your_site> -n list_jobs=true \
+workflow/run.py kdd26 --site <your_site> -i \
     --target all_eval_methods execution_file=execution.yaml
 ```
 
-Verify classifier and pretraining devices, allocations and script arguments.
-Remove `-n` to submit from an authorized host with shared storage.
+Verify the classifier and pretraining jobs' Device, CPUs, GPUs and Placement
+([job details](../../reference/interactive_preview.md#panes)) and the script
+arguments in their [shell commands](../../reference/interactive_preview.md#shell-commands).
+Remove `-i` to submit from an authorized host with shared storage.
 [Run the pipeline](run_the_pipeline.md).
