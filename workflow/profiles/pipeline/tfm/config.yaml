@@ -1,9 +1,10 @@
 snakefile: workflow/snakefiles/orchestration/pipeline.smk
 
 configfile:
-  # Only train on a subset of datasets, methods
+  # Only train on a subset of datasets, methods and dataset realizations
   - workflow/conf/datasets/tfm.yaml
   - workflow/conf/methods/tfm.yaml
+  - workflow/conf/dataset_realization_indices/tfm.yaml
   - workflow/conf/eval_hard_budgets/all.yaml
   - workflow/conf/method_sets/all.yaml
   - workflow/conf/dataset_sets/all.yaml
