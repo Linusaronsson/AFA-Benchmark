@@ -21,6 +21,7 @@ from afabench.release.manifest import (
     read_release_manifest,
 )
 from afabench.release.publishing import publish_release
+from afabench.release.readme import render_release_readme
 from afabench.release.selection import (
     CHAIN_CATEGORIES,
     ReleaseSelection,
@@ -341,3 +342,12 @@ def test_explicit_omission_requires_a_reason(
     )
     with pytest.raises(ValueError, match="requires omission_reason"):
         dataset_redistribution(tmp_path, ["cube"])
+
+
+def test_readme_lists_each_omitted_dataset_once_with_its_reason(
+    manifest: ReleaseManifest,
+) -> None:
+    text = render_release_readme(manifest)
+    section = text.split("## Omitted dataset bundles", 1)[1]
+    assert section.count("- cube: synthetic dataset; regenerate locally") == 1
+    assert "- None" not in section

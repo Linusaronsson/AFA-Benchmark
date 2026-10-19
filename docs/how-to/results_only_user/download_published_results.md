@@ -6,13 +6,13 @@ download tables and plots without installing AFABench or creating an account.
 ## 1. Choose a release
 
 Open the [published releases](https://huggingface.co/datasets/afabench/results/tree/main/releases)
-and read a release's README. Check coverage, caveats and exclusions before
-choosing its release id.
+and read a release's README. Check its coverage and omitted dataset bundles
+before choosing its release id.
 
 ## 2. Find the files
 
-Follow the README's table and folder links. For exact evaluation combinations,
-open `releases/<release_id>/release_manifest.json` and inspect `evaluations`:
+Open `releases/<release_id>/release_manifest.json` and inspect `evaluations`
+for exact evaluation combinations and table paths:
 
 - Use `transformed_path` for plotting-ready prediction and cost tables.
 - Use `raw_path` for acquisition histories.

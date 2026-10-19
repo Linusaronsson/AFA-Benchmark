@@ -13,14 +13,11 @@ from test.scripts.release_artifacts import ALPHA, Catalog, write_catalog
 from test.scripts.test_release_manifest import runner, save, save_catalog
 
 
-def test_release_readme_describes_tables_and_is_inventoried(
+def test_release_readme_summarizes_coverage_and_is_inventoried(
     tmp_path: Path,
 ) -> None:
     source = tmp_path / "source"
     write_catalog(source, Catalog(methods=[ALPHA]))
-    plots = source / "plots"
-    plots.mkdir()
-    (plots / "accuracy.svg").write_text("<svg/>")
     notes = tmp_path / "notes.md"
     notes.write_text("Initial results.\n\n**Caveat:** limited coverage.")
 
@@ -36,18 +33,18 @@ def test_release_readme_describes_tables_and_is_inventoried(
     assert "- Datasets: cube" in text
     assert "- Methods: alpha" in text
     assert f"- Evaluations: {len(manifest.evaluations)}" in text
-    assert f"| cube | alpha | {len(manifest.evaluations)} |" in text
     assert "- Evaluation splits: test" in text
-    assert "- Training seeds: 0" in text
-    assert "- Evaluation hard budgets: 3.0" in text
-    assert "- Plot files: 1" in text
-    assert "[plots](./output/plots/)" in text
-    assert "[full release manifest](./release_manifest.json)" in text
     assert "not every combination" in text
-    for entry in manifest.evaluations:
-        assert entry.raw_path is not None
-    assert "[example table](./output/eval_results/" in text
-    assert "[example table](./output/eval_results_transformed/" in text
+    assert "## Omitted dataset bundles\n" in text
+    assert "- None" in text
+    assert "[full release manifest](./release_manifest.json)" in text
+    for removed in [
+        "| cube | alpha",
+        "Training seeds",
+        "Plot files",
+        "## Caveats",
+    ]:
+        assert removed not in text
     assert (
         manifest.file_inventory["README.md"]
         == hashlib.sha256(readme.read_bytes()).hexdigest()

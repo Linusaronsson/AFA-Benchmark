@@ -90,7 +90,8 @@ With `--release-id`, also writes `SNAPSHOT_DIR/release_manifest.json`
 ([release manifest](release_manifest.md)), indexing the source root's
 artifacts by their provenance records. A recorded workflow configuration
 is required; configuration options are optional assertions. It also generates
-`SNAPSHOT_DIR/README.md` with human-readable coverage and links to the outputs.
+`SNAPSHOT_DIR/README.md` with human-readable coverage and the omitted dataset
+bundles.
 Use `--release-notes PATH` to embed an optional UTF-8 Markdown description
 and caveats under **Release notes** in the README; this option requires
 `--release-id`. The notes are embedded, not uploaded as a separate file.
@@ -335,7 +336,7 @@ nothing.
 releases/<release_id>/
     release_manifest.json
     benchmark.yaml          runnable benchmark settings
-    README.md               coverage and available files
+    README.md               coverage and omitted dataset bundles
     release_job_duration_table.parquet     if the release has job records
     output_mtimes.json      modification times of everything under output/
     output/                 the snapshot's output tree

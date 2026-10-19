@@ -105,17 +105,8 @@ def save_snapshot(
         (snapshot_dir / BENCHMARK_CONFIG_FILENAME).write_text(
             yaml.safe_dump(manifest.workflow_config.benchmark, sort_keys=False)
         )
-        output = snapshot_dir / SNAPSHOT_OUTPUT_SUBDIR
         (snapshot_dir / RELEASE_README_FILENAME).write_text(
-            render_release_readme(
-                manifest,
-                output_paths=(
-                    path.relative_to(output).as_posix()
-                    for path in output.rglob("*")
-                    if path.is_file()
-                ),
-                release_notes=release_notes,
-            ),
+            render_release_readme(manifest, release_notes=release_notes),
             encoding="utf-8",
         )
         manifest = replace(
