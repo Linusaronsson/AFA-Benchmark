@@ -65,5 +65,5 @@ whatever else Snakemake needs is the launcher's concern.
 - The launcher runs on the host's `python3` with the standard library only
   (3.9 on Arrhenius), since it runs before any environment exists; it uses
   argparse, not typer.
-- `just estimate-compute` takes the launcher's arguments, so a run is
+- `uv run just estimate-compute` takes the launcher's arguments, so a run is
   estimated with the same arguments it is run with.

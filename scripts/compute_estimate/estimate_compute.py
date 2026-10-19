@@ -1,5 +1,5 @@
 """
-Estimate the compute of a pipeline invocation (`just estimate-compute`).
+Estimate the compute of a pipeline invocation (`uv run just estimate-compute`).
 
 Takes, besides its own options, the same arguments as the pipeline launcher
 (`workflow/run.py`) gets for the real run: pipeline profile, `--site`,
@@ -22,8 +22,8 @@ Options, before or among the launcher's arguments:
     --strict              Exit with 1 when a planned job is unestimated.
 
 Usage:
-    just estimate-compute kdd26 --site <site>
-    just estimate-compute \
+    uv run just estimate-compute kdd26 --site <site>
+    uv run just estimate-compute \
         --job-durations \
             output/production/release_job_duration_table.parquet \
         --by name --output estimate.csv <launcher arguments>

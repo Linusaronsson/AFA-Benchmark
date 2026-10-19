@@ -1,6 +1,6 @@
 # `estimate-compute` command
 
-`workflow/run.py -e` or `just estimate-compute`
+`workflow/run.py -e` or `uv run just estimate-compute`
 (`scripts/compute_estimate/estimate_compute.py`) prints the [compute estimate](../../CONTEXT.md) of a pipeline invocation
 ([ADR 0007](../adr/0007-job-records-beside-artifacts.md)). Steps:
 [estimate the compute of a run](../how-to/maintainer/estimate_compute.md).
@@ -8,7 +8,7 @@
 ```shell
 workflow/run.py -e [--job-durations PATH] [--by COLUMN ...]
     [--output CSV] [--strict] <launcher arguments>
-just estimate-compute [--job-durations PATH] [--by COLUMN ...]
+uv run just estimate-compute [--job-durations PATH] [--by COLUMN ...]
     [--output CSV] [--strict] <launcher arguments>
 ```
 

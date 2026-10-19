@@ -104,7 +104,7 @@ arguments unchanged, so swapping `-n` for `-e` estimates the same run:
 
 The interpreter is `workflow/venvs/bin/python`, the venv of the host's
 architecture, when the site's `site.yaml` names a `venv`; otherwise
-`uv run python`. `just estimate-compute` is the same as `-e` with
+`uv run python`. `uv run just estimate-compute` is the same as `-e` with
 `uv run python`.
 
 ## The interactive preview

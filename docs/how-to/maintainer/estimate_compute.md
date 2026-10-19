@@ -40,7 +40,7 @@ workflow/run.py kdd26 --site <your_site> -e \
 
 For sites with architecture-specific venvs,
 [build them first](slurm_integration.md#run-on-a-cluster-of-mixed-architectures).
-Alternatively, run `just estimate-compute` with the invocation's arguments
+Alternatively, run `uv run just estimate-compute` with the invocation's arguments
 without `-e` from the uv environment.
 
 ## 4. Review totals and warnings

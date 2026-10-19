@@ -292,7 +292,7 @@ def test_a_stale_or_missing_venv_is_refused_before_launching(
 
     assert "No venv built at" in str(error.value)
     assert ".venv-x86_64 was built from another uv.lock" in str(error.value)
-    assert "just build-venvs arrhenius" in str(error.value)
+    assert "uv run just build-venvs arrhenius" in str(error.value)
 
 
 def test_sites_without_venvs_and_local_runs_need_no_check(

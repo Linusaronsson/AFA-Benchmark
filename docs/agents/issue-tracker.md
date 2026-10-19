@@ -22,7 +22,7 @@ Issues and specs for this repo live as GitHub issues on
   (arXiv:2508.14734). The `kdd26` config variants under
   `workflow/conf/` reproduce the paper; an issue that changes paper
   results should say so explicitly.
-- **Quality gate.** Every implementation ticket is done only when `just qa`
+- **Quality gate.** Every implementation ticket is done only when `uv run just qa`
   passes; say so in acceptance criteria rather than listing individual lint
   or test commands.
 

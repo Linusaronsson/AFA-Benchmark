@@ -556,7 +556,7 @@ def check_site_venvs(arguments: list[str], checkout: Path = REPO_ROOT) -> None:
         if (problem := venv_problem(checkout, venv)) is not None
     ]
     if problems:
-        message = f"{'; '.join(problems)}. Build the site's venvs with `just build-venvs {site}` (docs/how-to/maintainer/slurm_integration.md), and run this again once those jobs finished"
+        message = f"{'; '.join(problems)}. Build the site's venvs with `uv run just build-venvs {site}` (docs/how-to/maintainer/slurm_integration.md), and run this again once those jobs finished"
         raise LauncherError(message)
 
 

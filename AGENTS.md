@@ -18,18 +18,18 @@ trade-offs, not routine development history.
 ## Quality gate
 
 For documentation-only changes, review the diff and run `git diff --check`;
-skip `just qa` and `just qa-full`.
+skip `uv run just qa` and `uv run just qa-full`.
 
-`just qa` (format, lint, type check, fast tests; see `justfile`) must pass
+`uv run just qa` (format, lint, type check, fast tests; see `justfile`) must pass
 before any code change is reported complete or committed. Focused commands
 are for iterating only. If it fails, fix it or report the failure verbatim.
 
-`just qa` adds the Snakemake `workflow` test tier (`test/workflow/`) only when
+`uv run just qa` adds the Snakemake `workflow` test tier (`test/workflow/`) only when
 uncommitted changes touch the paths in the `justfile`'s `workflow_paths`;
 when a workflow test starts depending on another path, add it there.
-`just qa-full` always runs that tier and must pass before opening a PR.
+`uv run just qa-full` always runs that tier and must pass before opening a PR.
 
-Budget: `just qa` without the workflow tier finishes within 1 minute. When adding tests, check
+Budget: `uv run just qa` without the workflow tier finishes within 1 minute. When adding tests, check
 `uv run pytest --durations=20` and keep the gate inside the budget; tests
 that spawn processes (Snakemake, scripts, DataLoader workers) or train
 models are usually the slow ones. If the gate exceeds the budget, say so

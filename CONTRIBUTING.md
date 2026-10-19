@@ -15,11 +15,11 @@ uv sync
 Run the full quality gate and make sure it passes:
 
 ```bash
-just qa-full
+uv run just qa-full
 ```
 
 This runs formatting, linting, type checking, and tests together, including
-the Snakemake workflow tests. Before each commit, `just qa` is enough: it runs
+the Snakemake workflow tests. Before each commit, `uv run just qa` is enough: it runs
 the workflow tests only when your changes touch the workflow. See
 `AGENTS.md` for the individual commands (`ruff format`, `ruff check`,
 `basedpyright`, `pytest`) if you need to debug a specific failure.
@@ -36,5 +36,5 @@ If you don't have them installed yet, install them from
 <https://github.com/mattpocock/skills> following that repo's instructions.
 
 AI agents working in this repo should also read `AGENTS.md`, which covers
-project conventions, the required `just qa` quality gate, and pointers to the
+project conventions, the required `uv run just qa` quality gate, and pointers to the
 issue tracker, triage labels, and domain docs under `docs/agents/`.

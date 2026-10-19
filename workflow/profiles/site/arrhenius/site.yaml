@@ -20,7 +20,7 @@ walltime:
             metabric: 8
 
 # CPU nodes are x86_64 and GPU nodes aarch64 (GH200), so each allocation
-# names the venv of its nodes' architecture, which just build-venvs builds and
+# names the venv of its nodes' architecture, which `uv run just build-venvs` builds and
 # workflow/venvs/bin/python runs on those nodes.
 execution_site:
   cpu:

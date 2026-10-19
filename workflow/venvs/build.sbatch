@@ -33,7 +33,7 @@ if [[ $# -ne 1 ]]; then
 Usage: submit with sbatch from the checkout root, once per node architecture,
 with the accounts and partitions of a site profile:
 
-  python3 workflow/venvs/submit_builds.py <site>      (or: just build-venvs <site>)
+  python3 workflow/venvs/submit_builds.py <site>      (or: uv run just build-venvs <site>)
 
 or by hand:
 

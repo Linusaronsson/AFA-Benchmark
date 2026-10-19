@@ -185,6 +185,6 @@ workflow/run.py --jobs 8 \
     execution_file=workflow/profiles/execution/cpu.yaml
 ```
 
-Run `just qa` before committing. For a production run, remove `smoke_test=true`
+Run `uv run just qa` before committing. For a production run, remove `smoke_test=true`
 and select the intended datasets, realizations and
 [execution settings](../maintainer/mixed_execution.md).

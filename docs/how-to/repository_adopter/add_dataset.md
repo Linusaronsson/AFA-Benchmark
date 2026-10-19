@@ -158,7 +158,7 @@ Run the dataset tests and quality gate:
 uv run pytest test/src/common/datasets/test_generation_indices.py \
     test/src/common/datasets/test_feature_costs.py \
     test/src/common/datasets/test_in_memory_dataset.py
-just qa
+uv run just qa
 ```
 
 To evaluate release methods on it, continue with

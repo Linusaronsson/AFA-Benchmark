@@ -1,7 +1,7 @@
 # Coding standards
 
 Read during review. Formatting, import order, line length (79) and the
-allowed lint relaxations are enforced by `just qa` (`ruff.toml`,
+allowed lint relaxations are enforced by `uv run just qa` (`ruff.toml`,
 `pyrightconfig.json`); this file covers only what no check can.
 
 ## Code
@@ -29,7 +29,7 @@ allowed lint relaxations are enforced by `just qa` (`ruff.toml`,
 - Test behaviour through public interfaces; a test should survive an
   internal refactor.
 - Mark slow tests `optional` and end-to-end pipeline tests `pipeline`, so the
-  default suite stays fast: `just qa` has a 1-minute budget (`AGENTS.md`).
+  default suite stays fast: `uv run just qa` has a 1-minute budget (`AGENTS.md`).
   Tests under `test/workflow/` are marked `workflow` automatically.
 - Tests use `tmp_path` and generated data, never `data/`, `outputs/`,
   `plots/` or `output/`.
