@@ -1,5 +1,5 @@
 # PATCH(afabench): import path of the vendored copy.
-from afabench.components.methods.discriminative.l2m_official.upstream.ltm import LTM
+from afabench.components.methods.discriminative.l2m.upstream.ltm import LTM
 
 def get_model(config):
     model = LTM(

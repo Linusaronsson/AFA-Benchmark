@@ -1,1 +1,1 @@
-"""Learning-to-Measure, an in-context discriminative AFA method."""
+"""Learning-to-Measure with the authors' code, vendored in `upstream/`."""

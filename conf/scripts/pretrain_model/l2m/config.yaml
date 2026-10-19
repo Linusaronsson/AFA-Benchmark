@@ -16,22 +16,24 @@ defaults:
   - override hydra/hydra_logging: colorlog
   - override hydra/launcher: custom_slurm
 
-# Paper hyperparameters for MiniBooNE (arXiv:2510.12624, Tables 2 and 3,
-# Appendix A.5.6), the family default for every dataset.
+# The authors' MiniBooNE config (configs/miniboone.yaml in
+# reAIM-Lab/Learning-To-Measure at the vendored commit), the family default.
+# dataset_override/<dataset_key>.yaml applies the authors' dataset config.
 
-# Set per pretrained model name in the pretrain mapping: real or synthetic.
-feature_source: ???
 architecture:
-  model_dim: 256
-  embedding_depth: 4
-  n_layers: 6
-  n_heads: 4
-  feedforward_dim: 512
+  model_dim: 256 # d_model
+  embedding_depth: 4 # emb_depth
+  prediction_depth: 1 # pred_depth
+  n_layers: 6 # num_layers
+  n_heads: 4 # nhead
+  feedforward_dim: 512 # dim_feedforward
+  dropout: 0.0
 batch_size: 8 # tasks per step
-sequence_length: 1000
-n_steps: 100000
+sequence_length: 1000 # num_points
+n_steps: 50000 # num_steps
 lr: 1e-4
-warmup_steps: 500
+warmup_steps: 500 # num_warmup_steps
 checkpoint_interval: 500
-n_validation_tasks: 64 # not stated by the paper
-missingness_cap: 0.5
+n_validation_tasks: 200 # eval_batch_size
+pretraining_pool_size: 5000 # pool_size; capped at the train split size
+mixed_precision: true

@@ -1,7 +1,9 @@
 """
-L2M in-context acquisition, independently ported from arXiv:2510.12624.
+L2M in-context acquisition with the authors' code (arXiv:2510.12624).
 
-The departures from the paper are listed on `L2MAFAMethod`.
+Acting and predicting follow upstream's evaluation (`test_afa` in
+`src/utils/eval_utils.py` at the vendored commit), apart from the benchmark's
+context set; see `L2MAFAMethod`.
 """
 
 from dataclasses import asdict
@@ -10,11 +12,13 @@ from typing import Self, override
 
 import torch
 
-from afabench.components.methods.common import AFAMethodBase
+from afabench.components.methods.common.afa_method_base import (
+    AFAMethodBase,
+    on_method_device,
+)
 from afabench.components.methods.discriminative.l2m.models import (
-    ClassifierLogits,
     L2MModel,
-    PolicyLogits,
+    UpstreamBatch,
 )
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.types import (
@@ -34,26 +38,21 @@ def require_direct_unmasker(unmasker: UnmaskerConfig) -> None:
         raise ValueError(msg)
 
 
+# Upstream's `RealDataSampler._normalize` guard against a zero deviation.
+_STD_EPSILON = 1e-8
+
+
 class L2MAFAMethod(AFAMethodBase):
     """
-    Fixed context set and a direct-selection policy with no stop action.
+    Fixed context set and the authors' policy with no stop action.
 
-    An in-context method after Kobayashi et al., "Learning-To-Measure:
-    In-Context Active Feature Acquisition", arXiv:2510.12624, ported
-    independently of the authors' code. Departures from the paper:
-
-    - A context instance is never a query instance, because the context set
-      comes from the validation split and query instances from the test
-      split.
-    - The pretraining pool is the whole train split rather than 5000
-      instances.
-    - Features are not normalized within each task; the paper normalizes
-      each feature with its mean and variance within the task sequence.
-    - Both fit stages give each query instance one random feature mask
-      rather than visiting every mask size (`task_batches`).
-    - There are no target points: both fit stages use the attention layout
-      of evaluation, where query instances read only the context set
-      (`L2MModel`).
+    As upstream's evaluation, the query instances' features are normalized
+    with the context set's feature means and deviations, query instances
+    read only the context set and themselves, and the policy takes the
+    argmax over features not yet selected. Unlike upstream, whose context
+    set is a random draw from its test pool with simulated missingness, the
+    context set is the benchmark's: a fixed draw from the validation split,
+    fully observed.
 
     Evaluation must use a hard budget below the number of selections.
     Exhausted selections raise rather than invent a stop or repeat action.
@@ -70,12 +69,13 @@ class L2MAFAMethod(AFAMethodBase):
         require_direct_unmasker(unmasker)
         if (
             context_features.ndim != 2
-            or context_features.shape[0] == 0
+            or context_features.shape[0] < 2
             or context_features.shape[1] != model.n_features
         ):
             msg = (
                 f"context_features shape {context_features.shape} must be "
-                f"a nonempty matrix with {model.n_features} features"
+                f"a matrix of at least two instances with "
+                f"{model.n_features} features"
             )
             raise ValueError(msg)
         expected_labels = (context_features.shape[0], model.n_classes)
@@ -86,7 +86,7 @@ class L2MAFAMethod(AFAMethodBase):
             )
             raise ValueError(msg)
         super().__init__(model.device)
-        self.model: L2MModel = model
+        self.model: L2MModel = model.eval()
         self.context_features: Features = (
             context_features.detach().clone().to(model.device)
         )
@@ -94,7 +94,6 @@ class L2MAFAMethod(AFAMethodBase):
             context_labels.detach().clone().to(model.device)
         )
         self.unmasker: UnmaskerConfig = unmasker
-        self.model.eval()
 
     @override
     def save(self, path: Path) -> None:
@@ -122,16 +121,15 @@ class L2MAFAMethod(AFAMethodBase):
             unmasker=UnmaskerConfig(**checkpoint["unmasker"]),
         )
 
-    def _query_logits(
+    def _batch(
         self, masked_features: MaskedFeatures, feature_mask: FeatureMask
-    ) -> tuple[ClassifierLogits, PolicyLogits]:
-        if (
-            masked_features.ndim != 2
-            or masked_features.shape[1] != self.model.n_features
-        ):
+    ) -> UpstreamBatch:
+        """One task in upstream's layout: the context set, then the queries."""
+        n_features = self.model.n_features
+        if masked_features.ndim != 2 or masked_features.shape[1] != n_features:
             msg = (
                 f"masked_features shape {masked_features.shape} must be "
-                f"a matrix with {self.model.n_features} features"
+                f"a matrix with {n_features} features"
             )
             raise ValueError(msg)
         if feature_mask.shape != masked_features.shape:
@@ -140,24 +138,23 @@ class L2MAFAMethod(AFAMethodBase):
                 f"masked_features shape {masked_features.shape}"
             )
             raise ValueError(msg)
-        features = torch.cat((self.context_features, masked_features))
-        mask = torch.cat(
-            (
-                torch.ones_like(self.context_features, dtype=torch.bool),
-                feature_mask,
-            )
-        )
-        labels = torch.cat(
-            (
-                self.context_labels,
-                masked_features.new_zeros(
-                    (masked_features.shape[0], self.model.n_classes)
-                ),
-            )
-        )
-        return self.model(
-            features, mask, labels, context_set_size=len(self.context_features)
-        )
+        mean = self.context_features.mean(dim=0)
+        std = self.context_features.std(dim=0) + _STD_EPSILON
+        query_mask = feature_mask.to(masked_features.dtype)
+        context_labels = self.model.upstream_labels(self.context_labels)
+        return {
+            "xc": ((self.context_features - mean) / std).unsqueeze(0),
+            "yc": context_labels.unsqueeze(0),
+            "rc": torch.ones_like(self.context_features).unsqueeze(0),
+            "xt": ((masked_features - mean) / std).unsqueeze(0),
+            "yt": context_labels.new_zeros(
+                (1, len(masked_features), context_labels.shape[-1])
+            ),
+            # Every query feature can be acquired; the mask is what has
+            # been.
+            "rt": torch.ones_like(query_mask).unsqueeze(0),
+            "maskt": query_mask.unsqueeze(0),
+        }
 
     @property
     @override
@@ -170,6 +167,7 @@ class L2MAFAMethod(AFAMethodBase):
         return "logits"
 
     @override
+    @on_method_device
     def predict(
         self,
         masked_features: MaskedFeatures,
@@ -178,10 +176,10 @@ class L2MAFAMethod(AFAMethodBase):
         feature_shape: torch.Size | None = None,
     ) -> torch.Tensor:
         with torch.no_grad():
-            logits, _ = self._query_logits(masked_features, feature_mask)
-        return logits
+            return self.model(self._batch(masked_features, feature_mask))[0]
 
     @override
+    @on_method_device
     def act(
         self,
         masked_features: MaskedFeatures,
@@ -191,28 +189,27 @@ class L2MAFAMethod(AFAMethodBase):
         feature_shape: torch.Size | None = None,
     ) -> AFAAction:
         with torch.no_grad():
-            _, logits = self._query_logits(masked_features, feature_mask)
-            performed = (
-                feature_mask if selection_mask is None else selection_mask
+            logits = self.model.ltm.select_action(
+                self._batch(masked_features, feature_mask)
+            )[0]
+        performed = feature_mask if selection_mask is None else selection_mask
+        if performed.shape != logits.shape:
+            msg = (
+                f"selection_mask shape {performed.shape} does not "
+                f"match policy logits shape {logits.shape}"
             )
-            if performed.shape != logits.shape:
-                msg = (
-                    f"selection_mask shape {performed.shape} does not "
-                    f"match policy logits shape {logits.shape}"
-                )
-                raise ValueError(msg)
-            # Evaluation removes stopped instances, not exhausted ones. Require
-            # a sub-full hard budget instead of repeating a selection.
-            if performed.all(dim=-1).any():
-                msg = (
-                    "L2M selections are exhausted for at least one query "
-                    "instance; use a hard budget below the number of "
-                    "selections"
-                )
-                raise ValueError(msg)
-            return (
-                logits.masked_fill(performed, -torch.inf).argmax(
-                    dim=-1, keepdim=True
-                )
-                + 1
+            raise ValueError(msg)
+        # Evaluation removes stopped instances, not exhausted ones. Require a
+        # sub-full hard budget instead of repeating a selection.
+        if performed.bool().all(dim=-1).any():
+            msg = (
+                "L2M selections are exhausted for at least one query "
+                "instance; use a hard budget below the number of selections"
             )
+            raise ValueError(msg)
+        return (
+            logits.masked_fill(performed.bool(), -torch.inf).argmax(
+                dim=-1, keepdim=True
+            )
+            + 1
+        )

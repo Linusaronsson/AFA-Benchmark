@@ -95,13 +95,8 @@ def test_l2m_trains_one_policy_for_every_metabric_hard_budget(
             _shipped_all_profile("all", eval_hard_budget_profile)
         )
 
-    for method in [
-        "l2m_real_feature_prior",
-        "l2m_synthetic_feature_prior",
-        "l2m_official",
-    ]:
-        combinations = settings.budget_params[method]["metabric"]
-        assert {train for train, _, _, _ in combinations} == {7}, method
+    combinations = settings.budget_params["l2m"]["metabric"]
+    assert {train for train, _, _, _ in combinations} == {7}
 
 
 def test_load_config_uses_pipeline_defaults() -> None:

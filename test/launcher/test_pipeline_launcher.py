@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).parents[2]
 @pytest.mark.parametrize(
     ("kind", "expected"),
     [
-        ("methods", "l2m_synthetic_feature_prior"),
+        ("methods", "l2m"),
         ("datasets", "miniboone"),
         ("unmaskers", "28x28_to_4x4"),
         ("initializers", "warm"),

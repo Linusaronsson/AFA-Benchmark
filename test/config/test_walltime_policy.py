@@ -11,7 +11,7 @@ from workflow.src.walltime import WalltimePolicy
 def policy(config: object) -> WalltimePolicy:
     return WalltimePolicy(
         config,
-        methods={"dime", "l2m_real_feature_prior"},
+        methods={"dime", "l2m"},
         pretrained_models={"dime", "shared"},
         datasets={"miniboone", "cube"},
     )
@@ -25,25 +25,17 @@ def test_arrhenius_l2m_training_limit_is_dataset_specific() -> None:
     site = yaml.safe_load(site_path.read_text())
     walltime = WalltimePolicy(
         site["walltime"],
-        methods={"l2m_official", "dime"},
-        pretrained_models={"l2m_official"},
+        methods={"l2m", "dime"},
+        pretrained_models={"l2m"},
         datasets={"miniboone_subset", "metabric", "cube"},
     )
 
-    assert (
-        walltime.minutes("train_method", "l2m_official", "miniboone_subset")
-        == 480
-    )
-    assert walltime.minutes("train_method", "l2m_official", "metabric") == 480
-    assert walltime.minutes("train_method", "l2m_official", "cube") == 240
+    assert walltime.minutes("train_method", "l2m", "miniboone_subset") == 480
+    assert walltime.minutes("train_method", "l2m", "metabric") == 480
+    assert walltime.minutes("train_method", "l2m", "cube") == 240
     assert walltime.minutes("train_method", "dime", "miniboone_subset") == 240
-    assert (
-        walltime.minutes("pretrain_model", "l2m_official", "miniboone_subset")
-        == 240
-    )
-    assert (
-        walltime.minutes("pretrain_model", "l2m_official", "metabric") == 480
-    )
+    assert walltime.minutes("pretrain_model", "l2m", "miniboone_subset") == 240
+    assert walltime.minutes("pretrain_model", "l2m", "metabric") == 480
 
 
 def test_walltime_uses_the_most_specific_available_limit() -> None:
@@ -69,10 +61,7 @@ def test_walltime_uses_the_most_specific_available_limit() -> None:
 
     assert walltime.minutes("train_method", "dime", "miniboone") == 61
     assert walltime.minutes("train_method", "dime", "cube") == 240
-    assert (
-        walltime.minutes("train_method", "l2m_real_feature_prior", "cube")
-        == 480
-    )
+    assert walltime.minutes("train_method", "l2m", "cube") == 480
     assert walltime.minutes("pretrain_model", "shared", "cube") == 180
     assert walltime.minutes("pretrain_model", "dime", "cube") == 120
     assert walltime.minutes("train_classifier", None, "miniboone") == 120
@@ -191,8 +180,5 @@ def test_sparse_table_leaves_unmatched_rules_to_snakemake() -> None:
         }
     )
     assert walltime.minutes("train_method", "dime", "cube") == 240
-    assert (
-        walltime.minutes("train_method", "l2m_real_feature_prior", "cube")
-        is None
-    )
+    assert walltime.minutes("train_method", "l2m", "cube") is None
     assert walltime.resources("train_classifier") == {}

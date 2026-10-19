@@ -36,16 +36,8 @@ pretrain_mapping:
     pretrain_script_name: "dime"
     pretrain_params: []
 
-  l2m_real_feature_prior:
+  l2m:
     pretrain_script_name: "l2m"
-    pretrain_params: ["feature_source=real"]
-
-  l2m_synthetic_feature_prior:
-    pretrain_script_name: "l2m"
-    pretrain_params: ["feature_source=synthetic"]
-
-  l2m_official:
-    pretrain_script_name: "l2m_official"
     pretrain_params: []
 
   # Example: If you need a variant with specific parameters

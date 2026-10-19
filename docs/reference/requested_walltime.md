@@ -81,33 +81,21 @@ walltime:
         dime:
           default_hours: 8
           datasets: {miniboone: 4}
-        l2m_real_feature_prior:
-          datasets: {miniboone_subset: 6}
-        l2m_synthetic_feature_prior:
-          datasets: {miniboone_subset: 6}
-        l2m_official:
+        l2m:
           datasets: {miniboone_subset: 6}
     train_method:
       default_hours: 72
       methods:
         dime:
           datasets: {miniboone: 2}
-        l2m_real_feature_prior:
-          datasets: {miniboone_subset: 1}
-        l2m_synthetic_feature_prior:
-          datasets: {miniboone_subset: 1}
-        l2m_official:
+        l2m:
           datasets: {miniboone_subset: 1}
     eval_method:
       default_hours: 72
       methods:
         dime:
           datasets: {miniboone: 0.5}
-        l2m_real_feature_prior:
-          datasets: {miniboone_subset: 2}
-        l2m_synthetic_feature_prior:
-          datasets: {miniboone_subset: 2}
-        l2m_official:
+        l2m:
           datasets: {miniboone_subset: 2}
 
 execution_site:

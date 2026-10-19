@@ -1,44 +1,20 @@
 """
-L2M training stage: paper Algorithm 2 (arXiv:2510.12624), then the context set.
+L2M training stage: upstream's `real_train_afa` on the fit contract.
 
-The pretrained `L2MModel` from `pretrain_l2m` is loaded and its policy head
-trained with straight-through Gumbel-softmax at a fixed temperature, while
-the backbone and the built-in classifier are fine-tuned at a lower learning
-rate (paper Appendix A.5.6). Tasks come from the task prior through
-`sample_task`; of the train split only the features are used, as the
-pretraining pool of the real feature source. Afterwards the context set is
-drawn from the validation split with the contract seed and packaged with
-the model as an `L2MAFAMethod`.
-
-Reading of Algorithm 2, where the paper is ambiguous:
-
-- The state advances by a random available feature (line 9), not by the
-  policy's action: each query instance gets one random feature mask over
-  its retrospectively available features, leaving at least one unacquired,
-  as `pretrain_l2m` does for Algorithm 1. The straight-through action only
-  builds the one-step loss (line 8): the feature mask plus the one-hot
-  action is the input of a second forward pass, whose classifier
-  cross-entropy on the query instance's label is the loss. Gradients reach
-  the policy through the relaxed action in the mask.
-- The policy is blocked on retrospectively missing features (paper
-  Definition 4.1) and, the safe choice the paper leaves unstated, on
-  features already acquired.
-- The one-step loss is the only loss; the classifier's loss on the current
-  state is not added.
-- Query instances whose available features are all acquired have no
-  transition and are left out of the loss.
-- The paper states no checkpoint rule for the policy. The checkpoint is
-  chosen every `checkpoint_interval` steps on a fixed set of held-out tasks
-  from the task prior, by the one-step loss of the argmax action.
-- Learning rates are constant, as the paper states for this stage.
+The pretrained `L2MModel` is loaded and trained with the vendored
+`afa_training_step` (upstream's `sequential` strategy): every step rolls out
+a trajectory of random acquisitions, and at each state the policy's
+straight-through Gumbel-softmax action is scored by the classifier's loss
+after acquiring it. Every parameter is trained, the policy head at
+`policy_lr` and the rest at `backbone_lr`, both constant, at a fixed
+temperature. Afterwards the context set is drawn from the validation split
+with the contract seed and packaged with the model as an
+`L2MAFAMethod`.
 """
 
 from collections.abc import Callable
-from functools import partial
 
 import torch
-from jaxtyping import Float
-from torch.nn import functional as F
 
 from afabench.components.methods.discriminative.l2m.afa_methods import (
     L2MAFAMethod,
@@ -47,20 +23,28 @@ from afabench.components.methods.discriminative.l2m.afa_methods import (
 from afabench.components.methods.discriminative.l2m.config import (
     L2MTrainingConfig,
 )
-from afabench.components.methods.discriminative.l2m.fit_loop import (
-    fit_on_task_prior,
-)
 from afabench.components.methods.discriminative.l2m.models import (
     L2MModel,
-    PolicyLogits,
 )
-from afabench.components.methods.discriminative.l2m.task_batches import (
-    TaskBatch,
+from afabench.components.methods.discriminative.l2m.upstream.experiment_utils import (
+    eval_afa,
+)
+from afabench.components.methods.discriminative.l2m.upstream.train_utils import (
+    afa_training_step,
+)
+from afabench.components.methods.discriminative.l2m.upstream.utils import (
+    ConcreteSelector,
+)
+from afabench.components.methods.discriminative.l2m.upstream_fit import (
+    UpstreamAccelerator,
+    draw_pretraining_pool,
+    fit_upstream,
+    generate_validation_tasks,
+    make_sampler,
+    upstream_config,
 )
 from afabench.core.types import Features, Label
 from afabench.fit.inputs import FitInputs
-
-type QueryActions = Float[torch.Tensor, "tasks query_instances n_features"]
 
 
 def train_l2m(
@@ -71,46 +55,101 @@ def train_l2m(
 ) -> L2MAFAMethod:
     _check_config(cfg, inputs)
     device = torch.device(cfg.device)
+    torch.manual_seed(cfg.seed)
     train_dataset = inputs.train_dataset()
-    val_dataset = inputs.val_dataset()
-    n_features = train_dataset.feature_shape.numel()
-
     model = inputs.pretrained_model(L2MModel).to(device)
-    if (model.n_features, model.n_classes) != (
-        n_features,
+    shapes = (
+        train_dataset.feature_shape.numel(),
         train_dataset.label_shape.numel(),
-    ):
+    )
+    if (model.n_features, model.n_classes) != shapes:
         msg = (
             f"The pretrained model has {model.n_features} features and "
-            f"{model.n_classes} classes; the train split has {n_features} "
-            f"and {train_dataset.label_shape.numel()}"
+            f"{model.n_classes} classes; the train split has {shapes[0]} "
+            f"and {shapes[1]}"
         )
         raise ValueError(msg)
-    # The Gumbel noise is drawn from the generator of the tasks.
-    generator = torch.Generator().manual_seed(cfg.seed)
-    fit_on_task_prior(
+    sampler = make_sampler(
+        draw_pretraining_pool(
+            train_dataset,
+            size=cfg.pretraining_pool_size,
+            sequence_length=cfg.sequence_length,
+            seed=cfg.seed,
+        ),
+        label_dim=model.label_dim,
+    )
+    config = upstream_config(
         model,
-        _two_rate_optimizer(
-            model, policy_lr=cfg.policy_lr, backbone_lr=cfg.backbone_lr
-        ),
-        cfg,
+        dataset_key=cfg.dataset_key,
+        sequence_length=cfg.sequence_length,
+        n_validation_tasks=cfg.n_validation_tasks,
+        seed=cfg.seed,
+        device=device,
+    )
+    generate_validation_tasks(config, sampler, task="afa")
+    accelerator = UpstreamAccelerator(
+        device, mixed_precision=cfg.mixed_precision
+    )
+    for parameter in model.parameters():
+        parameter.requires_grad = True
+    policy_parameters = list(model.ltm.selector.parameters())
+    policy_parameter_ids = {id(parameter) for parameter in policy_parameters}
+    optimizer = torch.optim.Adam(
+        [
+            {"params": policy_parameters, "lr": cfg.policy_lr},
+            {
+                "params": [
+                    parameter
+                    for parameter in model.parameters()
+                    if id(parameter) not in policy_parameter_ids
+                ],
+                "lr": cfg.backbone_lr,
+            },
+        ]
+    )
+    selector_fn = ConcreteSelector()
+
+    def training_step() -> float:
+        batch = sampler.sample(
+            batch_size=cfg.batch_size,
+            max_num_points=cfg.sequence_length,
+            # Upstream annotates the device as a string.
+            device=str(device),
+            num_observed=model.n_features,
+        )
+        return float(
+            afa_training_step(
+                config,
+                model.ltm,
+                sampler,
+                batch,
+                optimizer,
+                None,
+                accelerator,
+                selector_fn,
+                cfg.temperature,
+            )
+        )
+
+    def validation_loss() -> float:
+        loss, _ = eval_afa(
+            config, sampler, model.ltm, accelerator, cfg.temperature
+        )
+        return float(loss)
+
+    fit_upstream(
+        model,
+        accelerator,
         stage="train",
-        train_dataset=train_dataset,
-        generator=generator,
-        training_loss=partial(
-            _one_step_loss,
-            model,
-            temperature=cfg.temperature,
-            generator=generator,
-        ),
-        validation_loss=partial(_one_step_loss, model, temperature=None),
-        keep_one_unacquired=True,
-        scheduler=None,
+        n_steps=cfg.n_steps,
+        checkpoint_interval=cfg.checkpoint_interval,
+        training_step=training_step,
+        validation_loss=validation_loss,
         metric_logger=metric_logger,
     )
     context_features, context_labels = _draw_context_set(
-        val_dataset.get_all_data(),
-        n_features=n_features,
+        inputs.val_dataset().get_all_data(),
+        n_features=model.n_features,
         context_set_size=cfg.context_set_size,
         seed=cfg.seed,
     )
@@ -124,9 +163,6 @@ def train_l2m(
 
 def _check_config(cfg: L2MTrainingConfig, inputs: FitInputs) -> None:
     require_direct_unmasker(cfg.unmasker)
-    if cfg.context_set_size < 1:
-        msg = f"context_set_size={cfg.context_set_size} must be at least 1"
-        raise ValueError(msg)
     n_validation = len(inputs.val_dataset())
     if n_validation < 1:
         msg = f"The validation split has {n_validation} instances; need at least 1"
@@ -142,105 +178,6 @@ def _check_config(cfg: L2MTrainingConfig, inputs: FitInputs) -> None:
             f"the number of selections minus one ({n_selections - 1})"
         )
         raise ValueError(msg)
-
-
-def _two_rate_optimizer(
-    model: L2MModel, *, policy_lr: float, backbone_lr: float
-) -> torch.optim.Optimizer:
-    """Adam: the policy head at `policy_lr`, the rest at `backbone_lr`."""
-    policy_parameters = list(model.policy_head.parameters())
-    policy_parameter_ids = {id(parameter) for parameter in policy_parameters}
-    return torch.optim.Adam(
-        [
-            {"params": policy_parameters, "lr": policy_lr},
-            {
-                "params": [
-                    parameter
-                    for parameter in model.parameters()
-                    if id(parameter) not in policy_parameter_ids
-                ],
-                "lr": backbone_lr,
-            },
-        ]
-    )
-
-
-def _one_step_loss(
-    model: L2MModel,
-    batch: TaskBatch,
-    *,
-    temperature: float | None,
-    generator: torch.Generator | None = None,
-) -> torch.Tensor:
-    """
-    Classifier cross-entropy after acquiring the policy's action.
-
-    With a temperature the action is a straight-through Gumbel-softmax
-    sample; without one it is the argmax, for validation.
-    """
-    batch = batch.to(model.device)
-    features, mask, labels = batch.features, batch.mask, batch.labels
-    context_set_size = batch.context_set_size
-    _, policy_logits = model(
-        features, mask, labels, context_set_size=context_set_size
-    )
-    selectable = (
-        batch.available[:, context_set_size:] & ~mask[:, context_set_size:]
-    )
-    has_selection = selectable.any(dim=-1)
-    # Query instances without a selection get a harmless uniform policy and
-    # are weighted out of the loss below.
-    blocked_logits = policy_logits.masked_fill(
-        ~(selectable | ~has_selection.unsqueeze(-1)), -torch.inf
-    )
-    if temperature is None:
-        action = F.one_hot(blocked_logits.argmax(dim=-1), model.n_features).to(
-            features.dtype
-        )
-    else:
-        action = _straight_through_gumbel_softmax(
-            blocked_logits, temperature=temperature, generator=generator
-        )
-    acquired_mask = torch.cat(
-        (
-            mask[:, :context_set_size].to(features.dtype),
-            mask[:, context_set_size:].to(features.dtype) + action,
-        ),
-        dim=1,
-    )
-    classifier_logits, _ = model(
-        features, acquired_mask, labels, context_set_size=context_set_size
-    )
-    query_losses = F.cross_entropy(
-        classifier_logits.flatten(0, 1),
-        labels[:, context_set_size:].argmax(dim=-1).flatten(),
-        reduction="none",
-    )
-    weights = has_selection.flatten().to(query_losses.dtype)
-    return (query_losses * weights).sum() / weights.sum().clamp(min=1.0)
-
-
-def _straight_through_gumbel_softmax(
-    logits: PolicyLogits,
-    *,
-    temperature: float,
-    generator: torch.Generator | None,
-) -> QueryActions:
-    """One-hot in the forward pass, relaxed softmax in the backward pass."""
-    gumbel_noise = (
-        -torch.empty(logits.shape, dtype=logits.dtype)
-        .exponential_(generator=generator)
-        .log()
-    )
-    relaxed = F.softmax(
-        (F.log_softmax(logits, dim=-1) + gumbel_noise.to(logits.device))
-        / temperature,
-        dim=-1,
-    )
-    hard = F.one_hot(relaxed.argmax(dim=-1), logits.shape[-1]).to(
-        relaxed.dtype
-    )
-    return hard - relaxed.detach() + relaxed
 
 
 def _draw_context_set(

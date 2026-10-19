@@ -1,31 +1,12 @@
 """
-L2M pretraining stage: paper Algorithm 1 (arXiv:2510.12624).
+L2M pretraining stage: upstream's `real_train` on the fit contract.
 
-The built-in classifier of `L2MModel` learns to predict the labels of
-query instances from a context set, on tasks drawn from the task prior with
-`sample_task`. Of the train split only the features are used, as the
-pretraining pool of the real feature source; its labels are discarded.
-
-Choices where the paper is ambiguous, or where this port departs from it:
-
-- Algorithm 1 visits every feature mask size of every query instance.
-  Each query instance here gets one random feature mask instead, so a task
-  costs one forward pass rather than one per mask size: a size drawn
-  uniformly from none to all of the query instance's retrospectively
-  available features, then a uniformly random subset of that size.
-- The paper sums the loss over context set sizes using training-only target
-  points. Here each step draws one context set size, uniform on 1 to
-  `sequence_length - 1` and shared by the step's tasks, and the remaining
-  instances are query instances. The loss is the cross-entropy averaged
-  over the step's query instances.
-- The checkpoint is chosen on a fixed set of held-out tasks from the same
-  task prior, as in the paper, which does not state how many.
-- Features are not normalized within each task, unlike the paper. The
-  paper does not say which statistics normalize the context set and
-  query instances at evaluation, where query instances are only partly
-  observed, and the MiniBooNE loader already z-normalizes every feature
-  over the dataset.
-- The learning rate warms up linearly, then decays linearly towards zero.
+The classifier learns to predict query instances' labels from a context set
+on tasks from upstream's task prior, with the vendored
+`predictor_training_step`: every step acquires random features one at a
+time, from none to all, and sums the classifier loss over the trajectory.
+The learning rate warms up linearly and decays linearly to zero, as
+`transformers.get_linear_schedule_with_warmup`.
 """
 
 from collections.abc import Callable
@@ -33,17 +14,29 @@ from dataclasses import asdict
 from functools import partial
 
 import torch
-from torch.nn import functional as F
 
 from afabench.components.methods.discriminative.l2m.config import (
     L2MPretrainingConfig,
 )
-from afabench.components.methods.discriminative.l2m.fit_loop import (
-    fit_on_task_prior,
+from afabench.components.methods.discriminative.l2m.models import (
+    L2MModel,
 )
-from afabench.components.methods.discriminative.l2m.models import L2MModel
-from afabench.components.methods.discriminative.l2m.task_batches import (
-    TaskBatch,
+from afabench.components.methods.discriminative.l2m.upstream.experiment_utils import (
+    eval as upstream_eval,
+)
+from afabench.components.methods.discriminative.l2m.upstream.train_utils import (
+    predictor_training_step,
+)
+from afabench.components.methods.discriminative.l2m.upstream.utils import (
+    ConcreteSelector,
+)
+from afabench.components.methods.discriminative.l2m.upstream_fit import (
+    UpstreamAccelerator,
+    draw_pretraining_pool,
+    fit_upstream,
+    generate_validation_tasks,
+    make_sampler,
+    upstream_config,
 )
 from afabench.fit.inputs import FitInputs
 
@@ -55,51 +48,87 @@ def pretrain_l2m(
     inputs: FitInputs,
 ) -> L2MModel:
     device = torch.device(cfg.device)
+    torch.manual_seed(cfg.seed)
     train_dataset = inputs.train_dataset()
-    model = L2MModel(
+    model = L2MModel.build(
         train_dataset.feature_shape.numel(),
         train_dataset.label_shape.numel(),
         **asdict(cfg.architecture),
     ).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
-    fit_on_task_prior(
-        model,
-        optimizer,
-        cfg,
-        stage="pretrain",
-        train_dataset=train_dataset,
-        generator=torch.Generator().manual_seed(cfg.seed),
-        training_loss=partial(_query_loss, model),
-        validation_loss=partial(_query_loss, model),
-        keep_one_unacquired=False,
-        scheduler=torch.optim.lr_scheduler.LambdaLR(
-            optimizer,
-            partial(
-                _learning_rate_factor,
-                warmup_steps=cfg.warmup_steps,
-                n_steps=cfg.n_steps,
-            ),
+    sampler = make_sampler(
+        draw_pretraining_pool(
+            train_dataset,
+            size=cfg.pretraining_pool_size,
+            sequence_length=cfg.sequence_length,
+            seed=cfg.seed,
         ),
+        label_dim=model.label_dim,
+    )
+    config = upstream_config(
+        model,
+        dataset_key=cfg.dataset_key,
+        sequence_length=cfg.sequence_length,
+        n_validation_tasks=cfg.n_validation_tasks,
+        seed=cfg.seed,
+        device=device,
+    )
+    generate_validation_tasks(config, sampler, task="predictor")
+    accelerator = UpstreamAccelerator(
+        device, mixed_precision=cfg.mixed_precision
+    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer,
+        partial(
+            linear_schedule_with_warmup,
+            warmup_steps=cfg.warmup_steps,
+            n_steps=cfg.n_steps,
+        ),
+    )
+    selector_fn = ConcreteSelector()
+
+    def training_step() -> float:
+        batch = sampler.sample(
+            batch_size=cfg.batch_size,
+            max_num_points=cfg.sequence_length,
+            num_observed=model.n_features,
+            # Upstream annotates the device as a string.
+            device=str(device),
+        )
+        return float(
+            predictor_training_step(
+                config,
+                model.ltm,
+                sampler,
+                batch,
+                optimizer,
+                scheduler,
+                accelerator,
+                selector_fn,
+            )
+        )
+
+    def validation_loss() -> float:
+        loss, _ = upstream_eval(config, sampler, model.ltm, accelerator)
+        return float(loss)
+
+    fit_upstream(
+        model,
+        accelerator,
+        stage="pretrain",
+        n_steps=cfg.n_steps,
+        checkpoint_interval=cfg.checkpoint_interval,
+        training_step=training_step,
+        validation_loss=validation_loss,
         metric_logger=metric_logger,
     )
     return model.cpu().eval()
 
 
-def _query_loss(model: L2MModel, batch: TaskBatch) -> torch.Tensor:
-    batch = batch.to(model.device)
-    logits, _ = model(
-        batch.features,
-        batch.mask,
-        batch.labels,
-        context_set_size=batch.context_set_size,
-    )
-    targets = batch.labels[:, batch.context_set_size :].argmax(dim=-1)
-    return F.cross_entropy(logits.flatten(0, 1), targets.flatten())
-
-
-def _learning_rate_factor(
+def linear_schedule_with_warmup(
     step: int, *, warmup_steps: int, n_steps: int
 ) -> float:
+    """Scale the learning rate as `transformers.get_linear_schedule_with_warmup`."""
     if step < warmup_steps:
-        return (step + 1) / warmup_steps
-    return (n_steps - step) / max(1, n_steps - warmup_steps)
+        return step / max(1, warmup_steps)
+    return max(0.0, (n_steps - step) / max(1, n_steps - warmup_steps))

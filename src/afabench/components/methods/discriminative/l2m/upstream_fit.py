@@ -1,5 +1,5 @@
 """
-What both L2M official fit stages share around the vendored code.
+What both L2M fit stages share around the vendored code.
 
 The stages follow upstream's `real_train` and `real_train_afa`
 (`src/experiments/real.py` at the vendored commit): every step draws a
@@ -23,14 +23,14 @@ from typing import Any
 
 import torch
 
-from afabench.components.methods.discriminative.l2m_official.models import (
-    L2MOfficialModel,
+from afabench.components.methods.discriminative.l2m.models import (
+    L2MModel,
 )
-from afabench.components.methods.discriminative.l2m_official.upstream.data_utils import (
+from afabench.components.methods.discriminative.l2m.upstream.data_utils import (
     RealDataSampler,
     TabularDataset,
 )
-from afabench.components.methods.discriminative.l2m_official.upstream.experiment_utils import (
+from afabench.components.methods.discriminative.l2m.upstream.experiment_utils import (
     gen_evalset,
 )
 from afabench.core.types import AFADataset, Features
@@ -69,7 +69,7 @@ class UpstreamAccelerator:
         loss.backward()
 
     @contextmanager
-    def prepared(self, model: L2MOfficialModel) -> Generator[None]:
+    def prepared(self, model: L2MModel) -> Generator[None]:
         """Wrap the forward pass of upstream's model as `prepare` does."""
         ltm = model.ltm
         forward = ltm.forward
@@ -145,7 +145,7 @@ def make_sampler(pool: Features, *, label_dim: int) -> RealDataSampler:
 
 
 def upstream_config(
-    model: L2MOfficialModel,
+    model: L2MModel,
     *,
     dataset_key: str,
     sequence_length: int,
@@ -179,7 +179,7 @@ def generate_validation_tasks(
 
 
 def fit_upstream(
-    model: L2MOfficialModel,
+    model: L2MModel,
     accelerator: UpstreamAccelerator,
     *,
     stage: str,
@@ -192,7 +192,7 @@ def fit_upstream(
     """
     Fit `model` in place with upstream's loop, then load its best state.
 
-    `stage` names the log lines and the `l2m_official_<stage>/` metrics.
+    `stage` names the log lines and the `l2m_<stage>/` metrics.
     """
     if n_steps < 1:
         msg = f"n_steps={n_steps} must be at least 1"
@@ -209,7 +209,7 @@ def fit_upstream(
             with torch.no_grad():
                 loss_on_validation = validation_loss()
             log.info(
-                "L2M official %s step %d: train loss %.4f, validation loss %.4f",
+                "L2M %s step %d: train loss %.4f, validation loss %.4f",
                 stage,
                 step,
                 loss,
@@ -218,9 +218,9 @@ def fit_upstream(
             if metric_logger is not None:
                 metric_logger(
                     {
-                        f"l2m_official_{stage}/step": float(step),
-                        f"l2m_official_{stage}/train_loss": loss,
-                        f"l2m_official_{stage}/val_loss": loss_on_validation,
+                        f"l2m_{stage}/step": float(step),
+                        f"l2m_{stage}/train_loss": loss,
+                        f"l2m_{stage}/val_loss": loss_on_validation,
                     }
                 )
             if loss_on_validation < best_loss:
@@ -232,6 +232,6 @@ def fit_upstream(
             model.train()
     # Step 0 always validates; a non-finite loss there keeps no state.
     if best_state is None:
-        msg = f"L2M official {stage} never reached a finite validation loss"
+        msg = f"L2M {stage} never reached a finite validation loss"
         raise RuntimeError(msg)
     model.load_state_dict(best_state)

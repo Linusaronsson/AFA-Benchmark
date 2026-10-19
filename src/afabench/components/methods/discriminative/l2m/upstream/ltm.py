@@ -5,7 +5,7 @@ from torch.distributions.normal import Normal
 from torch.distributions import Bernoulli, Categorical
 
 # PATCH(afabench): import path of the vendored copy.
-from afabench.components.methods.discriminative.l2m_official.upstream.utils import MLP
+from afabench.components.methods.discriminative.l2m.upstream.utils import MLP
 
 class ResidualMLP(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dim, num_layers):

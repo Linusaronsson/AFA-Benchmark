@@ -113,8 +113,8 @@ them (#151).
 - Splits are the pipeline's: 60% train, 20% validation, 20% test, for each
   dataset realization.
 - The hard budgets are 3, 5 and 7 (`all` profile). No method runs METABRIC in
-  the soft-budget setting; the L2M methods train one policy, at hard
-  budget 7, for every hard budget.
+  the soft-budget setting; L2M trains one policy, at hard budget 7,
+  for every hard budget.
 
 ## Differences from L2M v2
 

@@ -13,7 +13,7 @@ the authors added an MIT license, `l2m_official` could run their code
 itself.
 
 We decided to copy that code into
-`src/afabench/components/methods/discriminative/l2m_official/upstream/`
+`src/afabench/components/methods/discriminative/l2m/upstream/`
 with as few changes as possible, instead of porting it to the
 repository's style:
 

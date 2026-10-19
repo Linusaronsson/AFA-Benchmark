@@ -24,7 +24,9 @@ def main(cfg: L2MPretrainingConfig) -> None:
     # Model width is kept, so the smoke test runs the real architecture.
     cfg = limit(
         cfg,
-        sequence_length=16,
+        # Every task has 50 context instances, the sampler's own default.
+        sequence_length=64,
+        pretraining_pool_size=64,
         n_steps=2,
         checkpoint_interval=1,
         n_validation_tasks=2,

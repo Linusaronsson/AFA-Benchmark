@@ -3,7 +3,7 @@ line-length = 79
 # by scripts/dev/sync_excludes.py (runs as part of `uv run just check`)
 exclude = [
   # Vendored third-party code, kept close to verbatim (ADR 0012)
-  "src/afabench/components/methods/discriminative/l2m_official/upstream",
+  "src/afabench/components/methods/discriminative/l2m/upstream",
 ]
 
 [lint]

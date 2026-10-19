@@ -234,21 +234,14 @@ term)
 
 **Task prior**:
 The distribution that an in-context method's fit stages draw their
-training tasks from: a feature source together with a labelling function.
-The feature source may be real or synthetic; the labelling function is
-always synthetic.
+training tasks from: instances drawn from the pretraining pool, labelled
+by a synthetic labelling function.
 _Avoid_: Pretraining prior, synthetic prior (ambiguous about which half is
 synthetic), BNN prior (one choice of labelling function)
 
-**Feature source**:
-The feature distribution of a task prior: either **real**, instances drawn
-from the pretraining pool, or **synthetic**, uniform draws from a fixed
-box of feature values (the **uniform box**).
-_Avoid_: Feature prior (survives only in method names)
-
 **Pretraining pool**:
-The train-split instances that a real feature source draws its instances
-from. Only their features are used; their labels are discarded.
+The train-split instances that a task prior draws its instances from.
+Only their features are used; their labels are discarded.
 _Avoid_: Pretraining set, pretraining data
 
 **Context set**:

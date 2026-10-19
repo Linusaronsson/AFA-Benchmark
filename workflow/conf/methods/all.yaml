@@ -14,6 +14,4 @@ methods:
   - permutation
   - aaco
   - aaco_nn
-  - l2m_real_feature_prior
-  - l2m_synthetic_feature_prior
-  - l2m_official
+  - l2m

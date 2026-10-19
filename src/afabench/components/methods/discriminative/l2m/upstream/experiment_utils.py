@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 
 # PATCH(afabench): import path of the vendored copy.
-from afabench.components.methods.discriminative.l2m_official.upstream.utils import ConcreteSelector
+from afabench.components.methods.discriminative.l2m.upstream.utils import ConcreteSelector
 
 def get_eval_dir(config):
     return os.path.join(config['eval_data_dir'], f'{config["experiment"]}_{config["num_points"]}')

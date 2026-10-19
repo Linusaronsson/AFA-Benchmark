@@ -6,7 +6,7 @@
   "exclude": [
     "**/node_modules",
     "**/__pycache__",
-    "src/afabench/components/methods/discriminative/l2m_official/upstream"
+    "src/afabench/components/methods/discriminative/l2m/upstream"
   ],
   "strict": [],
   "ignore": [],

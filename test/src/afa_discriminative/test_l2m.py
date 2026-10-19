@@ -1,4 +1,4 @@
-"""The L2M official fit stages and method, around the vendored code."""
+"""The L2M fit stages and method, around the vendored code."""
 
 from collections.abc import Iterator
 from dataclasses import replace
@@ -8,23 +8,23 @@ import pytest
 import torch
 
 from afabench.components.initializers.config import InitializerConfig
-from afabench.components.methods.discriminative.l2m_official.afa_methods import (
-    L2MOfficialAFAMethod,
+from afabench.components.methods.discriminative.l2m.afa_methods import (
+    L2MAFAMethod,
 )
-from afabench.components.methods.discriminative.l2m_official.config import (
-    L2MOfficialArchitectureConfig,
-    L2MOfficialPretrainingConfig,
-    L2MOfficialTrainingConfig,
+from afabench.components.methods.discriminative.l2m.config import (
+    L2MArchitectureConfig,
+    L2MPretrainingConfig,
+    L2MTrainingConfig,
 )
-from afabench.components.methods.discriminative.l2m_official.models import (
-    L2MOfficialModel,
+from afabench.components.methods.discriminative.l2m.models import (
+    L2MModel,
 )
-from afabench.components.methods.discriminative.l2m_official.pretrain import (
+from afabench.components.methods.discriminative.l2m.pretrain import (
     linear_schedule_with_warmup,
-    pretrain_l2m_official,
+    pretrain_l2m,
 )
-from afabench.components.methods.discriminative.l2m_official.train import (
-    train_l2m_official,
+from afabench.components.methods.discriminative.l2m.train import (
+    train_l2m,
 )
 from afabench.components.unmaskers.config import UnmaskerConfig
 from afabench.core.bundle_system.bundle import load_bundle, save_bundle
@@ -82,10 +82,10 @@ def _pretraining_config(
     *,
     train_dataset: CubeDataset | None = None,
     mixed_precision: bool = False,
-) -> L2MOfficialPretrainingConfig:
-    return L2MOfficialPretrainingConfig(
+) -> L2MPretrainingConfig:
+    return L2MPretrainingConfig(
         **_contract_values(tmp_path, train_dataset),  # pyright: ignore[reportArgumentType]
-        architecture=L2MOfficialArchitectureConfig(
+        architecture=L2MArchitectureConfig(
             model_dim=8,
             embedding_depth=1,
             prediction_depth=1,
@@ -106,9 +106,9 @@ def _pretraining_config(
     )
 
 
-def _small_model(n_features: int, n_classes: int) -> L2MOfficialModel:
+def _small_model(n_features: int, n_classes: int) -> L2MModel:
     torch.manual_seed(3)
-    return L2MOfficialModel.build(
+    return L2MModel.build(
         n_features,
         n_classes,
         model_dim=8,
@@ -123,10 +123,10 @@ def _small_model(n_features: int, n_classes: int) -> L2MOfficialModel:
 
 def _training_config(
     tmp_path: Path, *, hard_budget: int | None = 3
-) -> L2MOfficialTrainingConfig:
-    return L2MOfficialTrainingConfig(
+) -> L2MTrainingConfig:
+    return L2MTrainingConfig(
         **_contract_values(tmp_path),  # pyright: ignore[reportArgumentType]
-        method_name="l2m_official",
+        method_name="l2m",
         pretrained_model_bundle_path=_save(
             _small_model(N_FEATURES, N_CLASSES), tmp_path / "pretrained.bundle"
         ),
@@ -146,9 +146,9 @@ def _training_config(
     )
 
 
-def _method(n_classes: int = 2) -> L2MOfficialAFAMethod:
+def _method(n_classes: int = 2) -> L2MAFAMethod:
     generator = torch.Generator().manual_seed(0)
-    return L2MOfficialAFAMethod(
+    return L2MAFAMethod(
         _small_model(3, n_classes),
         torch.randn(6, 3, generator=generator),
         torch.eye(n_classes)[torch.arange(6) % n_classes],
@@ -162,13 +162,13 @@ def test_pretraining_returns_a_model_that_survives_its_bundle(
 ) -> None:
     cfg = _pretraining_config(tmp_path, mixed_precision=mixed_precision)
 
-    model = pretrain_l2m_official(cfg, inputs=load_inputs(cfg))
+    model = pretrain_l2m(cfg, inputs=load_inputs(cfg))
 
     assert not Path(cfg.save_path).exists()
     restored = load_bundle(
         Path(_save(model, tmp_path / "caller.bundle")), device=CPU
     ).obj
-    assert isinstance(restored, L2MOfficialModel)
+    assert isinstance(restored, L2MModel)
     for original, loaded in zip(
         model.parameters(), restored.parameters(), strict=True
     ):
@@ -182,7 +182,7 @@ def test_pretraining_is_reproducible_from_its_seed(tmp_path: Path) -> None:
     for name in ("a", "b"):
         (tmp_path / name).mkdir()
         cfg = _pretraining_config(tmp_path / name)
-        models.append(pretrain_l2m_official(cfg, inputs=load_inputs(cfg)))
+        models.append(pretrain_l2m(cfg, inputs=load_inputs(cfg)))
 
     for first, second in zip(
         models[0].parameters(), models[1].parameters(), strict=True
@@ -197,7 +197,7 @@ def test_pretraining_never_reads_train_labels(tmp_path: Path) -> None:
     for name, train_dataset in [("a", None), ("b", relabelled)]:
         (tmp_path / name).mkdir()
         cfg = _pretraining_config(tmp_path / name, train_dataset=train_dataset)
-        models.append(pretrain_l2m_official(cfg, inputs=load_inputs(cfg)))
+        models.append(pretrain_l2m(cfg, inputs=load_inputs(cfg)))
 
     for first, second in zip(
         models[0].parameters(), models[1].parameters(), strict=True
@@ -208,9 +208,9 @@ def test_pretraining_never_reads_train_labels(tmp_path: Path) -> None:
 def test_pretraining_caps_pool_at_train_size(tmp_path: Path) -> None:
     cfg = replace(_pretraining_config(tmp_path), pretraining_pool_size=200)
 
-    model = pretrain_l2m_official(cfg, inputs=load_inputs(cfg))
+    model = pretrain_l2m(cfg, inputs=load_inputs(cfg))
 
-    assert isinstance(model, L2MOfficialModel)
+    assert isinstance(model, L2MModel)
 
 
 def test_pretraining_requires_a_train_split_that_fills_a_task(
@@ -221,7 +221,7 @@ def test_pretraining_requires_a_train_split_that_fills_a_task(
         train_dataset=CubeDataset(n_samples=SEQUENCE_LENGTH - 1, seed=0),
     )
     with pytest.raises(ValueError, match=f"sequence_length={SEQUENCE_LENGTH}"):
-        pretrain_l2m_official(cfg, inputs=load_inputs(cfg))
+        pretrain_l2m(cfg, inputs=load_inputs(cfg))
 
 
 def test_training_returns_a_method_that_survives_its_bundle(
@@ -229,14 +229,14 @@ def test_training_returns_a_method_that_survives_its_bundle(
 ) -> None:
     cfg = _training_config(tmp_path)
 
-    method = train_l2m_official(cfg, inputs=load_inputs(cfg))
+    method = train_l2m(cfg, inputs=load_inputs(cfg))
 
     assert method.context_features.shape == (8, N_FEATURES)
     assert method.context_labels.shape == (8, N_CLASSES)
     restored = load_bundle(
         Path(_save(method, tmp_path / "caller.bundle")), device=CPU
     ).obj
-    assert isinstance(restored, L2MOfficialAFAMethod)
+    assert isinstance(restored, L2MAFAMethod)
     features = torch.randn(5, N_FEATURES)
     mask = torch.rand(5, N_FEATURES) < 0.5
     assert torch.equal(
@@ -257,7 +257,7 @@ def test_training_caps_context_set_at_validation_size(
         _training_config(tmp_path), context_set_size=context_set_size
     )
 
-    method = train_l2m_official(cfg, inputs=load_inputs(cfg))
+    method = train_l2m(cfg, inputs=load_inputs(cfg))
 
     assert method.context_features.shape == (
         min(32, context_set_size),
@@ -275,13 +275,13 @@ def test_training_requires_a_hard_budget_below_the_selection_count(
 ) -> None:
     cfg = _training_config(tmp_path, hard_budget=hard_budget)
     with pytest.raises(ValueError, match=f"hard_budget={hard_budget}"):
-        train_l2m_official(cfg, inputs=load_inputs(cfg))
+        train_l2m(cfg, inputs=load_inputs(cfg))
 
 
 def test_config_rejects_tasks_without_query_instances(tmp_path: Path) -> None:
     cfg = _pretraining_config(tmp_path)
     with pytest.raises(ValueError, match="sequence_length=50"):
-        L2MOfficialPretrainingConfig(
+        L2MPretrainingConfig(
             **{**vars(cfg), "sequence_length": 50, "pretraining_pool_size": 50}
         )
 

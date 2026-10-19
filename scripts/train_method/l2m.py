@@ -6,7 +6,9 @@ from omegaconf import OmegaConf
 from afabench.components.methods.discriminative.l2m.config import (
     L2MTrainingConfig,
 )
-from afabench.components.methods.discriminative.l2m.train import train_l2m
+from afabench.components.methods.discriminative.l2m.train import (
+    train_l2m,
+)
 from afabench.fit.inputs import load_inputs
 from afabench.fit.run import fit_run, save_result
 from afabench.fit.smoke_test import limit
@@ -23,7 +25,9 @@ def main(cfg: L2MTrainingConfig) -> None:
     # the real heads on short sequences and a small context set.
     cfg = limit(
         cfg,
-        sequence_length=16,
+        # Every task has 50 context instances, the sampler's own default.
+        sequence_length=64,
+        pretraining_pool_size=64,
         n_steps=2,
         checkpoint_interval=1,
         n_validation_tasks=2,

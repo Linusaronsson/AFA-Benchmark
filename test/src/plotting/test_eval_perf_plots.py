@@ -11,7 +11,6 @@ from afabench.evaluation.tables import load_plotting_ready_table
 from afabench.plotting.config import PlotEvalPerfConfig, PlottingDisplayConfig
 from afabench.plotting.eval_perf import (
     EvaluationPlotter,
-    get_method_color_mapping,
     get_normal_hard_budget_plot,
     get_per_dataset_plot,
 )
@@ -348,27 +347,6 @@ def test_caption_labels_every_plot(
     # Matplotlib keeps each text of an SVG as a comment beside its glyphs.
     for plot in plots:
         assert f"<!-- {caption} -->" in plot.read_text(), plot.name
-
-
-def test_l2m_feature_priors_have_distinct_colors_in_every_scheme() -> None:
-    display = OmegaConf.to_object(
-        OmegaConf.merge(
-            OmegaConf.structured(PlottingDisplayConfig),
-            OmegaConf.load(
-                REPO_ROOT / "conf/scripts/plotting/common/default.yaml"
-            ),
-        )
-    )
-    assert isinstance(display, PlottingDisplayConfig)
-
-    for scheme in display.method_family_color_schemes:
-        colors = get_method_color_mapping(
-            replace(display, active_method_color_scheme=scheme)
-        )
-        assert (
-            colors["l2m_real_feature_prior"]
-            != colors["l2m_synthetic_feature_prior"]
-        ), scheme
 
 
 def test_dataset_metric_selection_supports_auroc_and_f1(

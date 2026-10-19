@@ -49,8 +49,8 @@ order. Neither the loader nor its config gives a rationale for the choice.
 
 As for MiniBooNE: every feature is z-normalized over the 129,592
 instances, all feature costs are 1, and splits are the pipeline's. The
-hard budgets are 1, 2, 3 and 4 (`all` profile); the L2M methods train one
-policy, at hard budget 7, for every hard budget.
+hard budgets are 1, 2, 3 and 4 (`all` profile); L2M trains one policy, at
+hard budget 7, for every hard budget.
 
 ## Differences from L2M
 
